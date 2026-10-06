@@ -136,6 +136,11 @@ object HuginLanguageServer:
     val launcher = LSPLauncher.createServerLauncher(server, in, out)
     server.connect(launcher.getRemoteProxy)
     val listening = launcher.startListening()
-    val closed = CompletableFuture.runAsync(() => scala.util.Try(listening.get()))
+    // wait for whichever comes first on a thread of our own: blocking inside the common fork-join pool can
+    // run the other wait on the waiting thread itself and never return
+    val closed = CompletableFuture[Unit]()
+    val watcher = Thread((() => { scala.util.Try(listening.get()); closed.complete(()); () }): Runnable, "hugin-lsp-input")
+    watcher.setDaemon(true)
+    watcher.start()
     CompletableFuture.anyOf(closed, server.exited).get()
     server.exitCode

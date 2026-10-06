@@ -195,7 +195,10 @@ class LanguageServerSuite extends munit.FunSuite:
     val serverIn = PipedInputStream(toServer)
     val toClient = PipedOutputStream()
     val clientIn = PipedInputStream(toClient)
-    val exit = CompletableFuture.supplyAsync(() => HuginLanguageServer.serve(serverIn, toClient))
+    val exit = CompletableFuture[Int]()
+    val serving = Thread((() => { exit.complete(HuginLanguageServer.serve(serverIn, toClient)); () }): Runnable, "test-lsp-server")
+    serving.setDaemon(true)
+    serving.start()
     val client = RecordingClient()
     val launcher = LSPLauncher.createClientLauncher(client, clientIn, toServer)
     launcher.startListening()
@@ -211,6 +214,8 @@ class LanguageServerSuite extends munit.FunSuite:
     remote.shutdown().get(10, TimeUnit.SECONDS)
     remote.exit()
     assertEquals(exit.get(10, TimeUnit.SECONDS), 0)
+    toServer.close()
+    toClient.close()
   }
 
   extension [A](xs: Iterable[A])
