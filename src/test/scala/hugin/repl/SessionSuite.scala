@@ -167,6 +167,64 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.execute("?- path c a.").output.last, "yes.")
   }
 
+  /** A directory with the given files (relative paths, created with their parents). */
+  private def tempDir(files: (String, String)*): Path =
+    val dir = Files.createTempDirectory("hugin-repl")
+    for (name, text) <- files do
+      Files.createDirectories(dir.resolve(name).getParent)
+      Files.writeString(dir.resolve(name), text)
+    dir
+
+  private val geo = "place : type. here : place. there : place.\n"
+
+  test("a loaded file keeps its path: its imports resolve relative to it, its diagnostics point into it") {
+    val dir = tempDir(
+      "lib/geo.hgn" -> geo,
+      "main.hgn" -> "g = %import \"lib/geo\".\nat : g.place -> rel.\nat g.here.\n",
+      "bad.hgn" -> "(* line 1 *)\nx = %import \"lib/nowhere\".\n"
+    )
+    val s = Session()
+    assertEquals(s.load(dir.resolve("main.hgn").toString).diagnostics, Nil)
+    assertEquals(s.execute("?- at X.").output, List("X = geo.here."))
+    assertEquals(s.imports, List(dir.resolve("lib/geo.hgn").toString))
+    // an input imports relative to the working directory
+    assertEquals(errors(s.execute("y = %import \"lib/geo\".")).flatMap(_.notes), List("resolved to `lib/geo.hgn`"))
+    val d = errors(s.load(dir.resolve("bad.hgn").toString)).head
+    assertEquals(d.code, Some("E0108"))
+    assertEquals(
+      (d.primarySpan.source.path, d.primarySpan.startLine, d.primarySpan.text),
+      (dir.resolve("bad.hgn").toString, 1, "\"lib/nowhere\"")
+    )
+    assertEquals(d.notes, List(s"resolved to `${dir.resolve("lib/nowhere.hgn")}`"))
+    assertEquals(s.execute(":list").output, List(s"(* loaded ${dir.resolve("main.hgn")} *)"))
+  }
+
+  test(":reload reads the files imported by loaded files again, transitively") {
+    val dir = tempDir(
+      "base.hgn" -> geo,
+      "lib.hgn" -> "b = %import \"base\".\nnear : b.place -> rel.\nnear b.here.\n",
+      "main.hgn" -> "l = %import \"lib\".\n"
+    )
+    val s = Session()
+    s.load(dir.resolve("main.hgn").toString)
+    assertEquals(s.execute("?- l.near X.").output, List("X = base.here."))
+    assertEquals(s.imports.map(Path.of(_).getFileName.toString), List("base.hgn", "lib.hgn"))
+    Files.writeString(dir.resolve("base.hgn"), geo + "elsewhere : place.\n")
+    Files.writeString(dir.resolve("lib.hgn"), "b = %import \"base\".\nnear : b.place -> rel.\nnear b.here. near b.elsewhere.\n")
+    assertEquals(s.execute(":reload").output, List("reloaded 3 file(s)"))
+    assertEquals(s.execute("?- l.near X.").output, List("X = base.elsewhere.", "X = base.here."))
+    // a reload with errors in an imported file is rejected: the session keeps the files as they were
+    Files.writeString(dir.resolve("base.hgn"), "place : typ.\n")
+    assertEquals(errors(s.execute(":reload")).flatMap(_.code).distinct, List("E0101"))
+    assertEquals(s.execute("?- l.near X.").output, List("X = base.elsewhere.", "X = base.here."))
+    // a file imported only by the reloaded text is read too
+    Files.writeString(dir.resolve("base.hgn"), geo + "elsewhere : place.\n")
+    Files.writeString(dir.resolve("extra.hgn"), "more : rel. more.\n")
+    Files.writeString(dir.resolve("main.hgn"), "l = %import \"lib\".\ne = %import \"extra\".\n")
+    assertEquals(s.execute(":reload").diagnostics.map(_.message), Nil)
+    assertEquals(s.execute("?- e.more.").output, List("yes."))
+  }
+
   test(":facts loads input facts; invalid facts are rejected") {
     val s = session("node : type. a : node. b : node.", "edge : node -> node -> rel. %input edge.")
     val good = tempFile("e.facts", "edge a b.")
@@ -195,6 +253,18 @@ class SessionSuite extends munit.FunSuite:
       List("path : node -> node -> rel.", "path X Y :- edge X Y.", "path X Z :- edge X Y, path Y Z.")
     )
     assert(s.execute(":print nophase").hasErrors)
+  }
+
+  test("aliases: :hover for :type, :print-after for :print; :imports") {
+    val s = session(graph*)
+    assertEquals(s.execute(":hover path").output, s.execute(":type path").output)
+    assertEquals(s.execute(":print-after records path").output, s.execute(":print records path").output)
+    assertEquals(s.execute(":hover").diagnostics.head.message, "usage: :hover <expr>")
+    assertEquals(s.complete(":ho", 3), List(":hover"))
+    assert(s.complete(":print-after ", 13).contains("lower"))
+    assert(s.execute(":help").output.exists(_.endsWith("(also :hover)")))
+    assertEquals(s.execute(":imports").output, List("(* the session imports no files *)"))
+    assertEquals(Session().execute(":hovr x").diagnostics.head.helps.head, "did you mean `:hover`?")
   }
 
   test(":budget, :stats, :explain, :help and :quit") {
@@ -229,30 +299,17 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.complete("?- g.", 5), List("path"))
     assertEquals(s.complete("?- g.pa", 7), List("path"))
     assertEquals(s.complete("%inp", 4), List("input"))
+    // the variables of the rule being typed, which does not compile yet
+    assertEquals(s.complete("p Xa :- edge Xa Yb, path Y", 26), List("Yb"))
+    assertEquals(s.complete("p Xa :- edge Xa Yb,\n  path (X", 29), List("Xa"))
+    // ... and not those of the previous item
+    assertEquals(s.complete("p Xa. q Yb :- edge Yb X", 23), Nil)
     // completion does not change the session
     assertEquals(s.complete("?- pat", 6), List("path"))
     assert(!s.text.contains("?-"))
   }
 
-  test("session text: chunks keep their offsets; spans map back to the chunk they lie in") {
-    val first = Chunk(SourceFile.virtual("<input 1>", "p : rel."), file = false)
-    val second = Chunk(SourceFile.virtual("<input 2>", "q : rel.\nq :- r."), file = false)
-    val text = SessionText(Vector(first, second))
-    assertEquals(text.text, "p : rel.\nq : rel.\nq :- r.")
-    assertEquals(text.offsets, Vector(0, 9))
-    val session = SourceFile.virtual(SessionText.path, text.text)
-    val r = text.text.indexOf("r.")
-    val mapped = text.toChunk(Span(session, r, r + 1))
-    assertEquals(mapped.source.path, "<input 2>")
-    assertEquals((mapped.startLine, mapped.startCol, mapped.text), (1, 5, "r"))
-    assertEquals(text.toChunk(Span(session, 2, 5)).source.path, "<input 1>")
-    // spans into other files are unchanged
-    val other = Span(SourceFile.virtual("f.facts", "x."), 0, 1)
-    assertEquals(text.toChunk(other), other)
-  }
-
   test("blanking keeps offsets and line breaks") {
-    val c = Chunk(SourceFile.virtual("<input 1>", "p.\n?- p.\nq."), file = false).blank(List((3, 8)))
+    val c = Chunk("<input 1>", "p.\n?- p.\nq.", file = false).blank(List((3, 8)))
     assertEquals(c.text, "p.\n     \nq.")
-    assertEquals(c.view.content, "p.\n?- p.\nq.")
   }

@@ -73,18 +73,24 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
 
   | command | |
   |---|---|
-  | `:load <file.hgn>`, `:reload` | add a program file to the session; read the loaded files again |
+  | `:load <file.hgn>`, `:reload` | add a program file to the session; read the loaded program and facts files, and every file they import (transitively), again |
   | `:facts <file>` | load ground facts for `%input` relations |
-  | `:type <expr>` | the type of a name or module path (`:type roads.path`, as hover shows it), of an object term (`:type cons 1 nil`) or of a meta expression (`:type tc { node = city, edge = road }`) |
+  | `:type <expr>` (`:hover`) | the type of a name or module path (`:type roads.path`, as hover shows it), of an object term (`:type cons 1 nil`) or of a meta expression (`:type tc { node = city, edge = road }`) |
   | `:kind <name>` | what a name denotes (object type, relation, constructor, meta definition, ...) |
   | `:list` | the accepted inputs, loaded files and facts files |
-  | `:print <phase> [<name>]` | the session after a phase (as `--print-after`), optionally only the items mentioning a name |
+  | `:imports` | the files the session imports (transitively), in dependency order |
+  | `:print <phase> [<name>]` (`:print-after`) | the session after a phase (as `--print-after`), optionally only the items mentioning a name |
   | `:explain <code>` | explain a diagnostic code |
   | `:budget <n>\|off`, `:stats on\|off` | round budget and evaluation statistics |
   | `:reset`, `:help`, `:quit` | start an empty session, list the commands, end the session |
 
+- **Loaded files** keep their identity: a file added with `:load` (or on the command line) is a part of
+  the session under its own path, so its `%import`s are resolved relative to it (as when it is compiled
+  on its own) and its diagnostics point into it. An input's `%import`s are resolved relative to the
+  working directory.
 - **Completion** (Tab) offers commands and their arguments, and otherwise asks the compiler
-  (`Ide.completions`) at the cursor: names in scope, members after `m.`, directives after `%`.
+  (`Ide.completions`) at the cursor: names in scope, members after `m.`, directives after `%`, and the
+  variables of the item being typed (also before it compiles).
 
 ```
 $ hugin repl examples/graphs.hgn
@@ -107,8 +113,10 @@ error[E0101]: unresolved name `goal`
 ```
 
 The session (`hugin.repl.Session`) is independent of the terminal (`hugin.repl.Repl`). It is a client
-of the query layer: the session text is one input of the query database, so compiling, `:type`
-(a probe item asked with `Ide.hover`) and evaluation reuse what did not change. When stdin is not a
+of the query layer: the session is a program made of several files (the `Composite` input of the query
+database: each input as a virtual file `<input N>`, each loaded file under its path), compiled as one
+module body whose items keep their files. Compiling, `:type` (a probe part asked with `Ide.hover`) and
+evaluation reuse what did not change. When stdin is not a
 terminal, or with `--batch`, inputs are read from stdin without prompts; `--echo` writes each input after
 its prompt, which is how the transcript tests run.
 
@@ -230,8 +238,11 @@ src/main/scala/hugin/
   its dependencies did not change. A recomputed result equal to the previous one does not invalidate
   its dependents (early cut-off). Cycles are reported with their path. There is no maintained JVM
   library for this; the engine is about 150 lines and covered by `DatabaseSuite`.
-- Compiler queries: `SourceText` (input, by path) → `Parse` → `Compile` → `Evaluate` (program and facts
-  files). The CLI is a client of the database. Editing a facts file re-evaluates without recompiling.
+- Compiler queries: `SourceText` (input, by path) → `Parse` → `ParseProgram` → `Compile` → `Evaluate`
+  (program and facts files). The CLI is a client of the database. Editing a facts file re-evaluates
+  without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
+  their items form one module body, and each item keeps its file for diagnostics and for resolving its
+  `%import`s.
 - `SemanticIndex`, filled by the typer and the object typer, records which symbol every name resolves
   to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
   `g.edge` to the field of the signature), a description of every symbol, and the inferred type of

@@ -89,15 +89,17 @@ final class ImportsPhase extends Phase:
           u.libraries(SourceLoader.PreludePath) = Library(SourceLoader.PreludePath, p, isPrelude = true)
         case None =>
           ctx.report(Diagnostic.error("E0108", "the prelude is missing from this installation", Span.NoSpan))
-    val self = Path.of(u.source.path).normalize.toString
-    visit(u.source.path, u.untpd.nn, List(self))
+    // a program made of several files (a REPL session) is being loaded as a whole: all its files
+    val files = u.source.path :: u.untpd.nn.items.map(_.span).filter(_.exists).map(_.source.path)
+    visit(u.source.path, u.untpd.nn, files.distinct.map(ImportsPhase.normalize))
 
   /** Loads the imports of `program` (in the file `from`); `stack` lists the files being loaded. Libraries
-   *  are added after their own imports, so `libraries` is in dependency order. */
+   *  are added after their own imports, so `libraries` is in dependency order. An import is resolved
+   *  relative to the file it is written in, which is `from` unless the program is made of several files. */
   private def visit(from: String, program: Program, stack: List[String])(using Context): Unit =
     val u = ctx.unit
     for imp <- ImportsPhase.importsIn(program) do
-      val path = SourceLoader.resolve(from, imp.path)
+      val path = SourceLoader.resolve(if imp.pathSpan.exists then imp.pathSpan.source.path else from, imp.path)
       u.imports.put(imp, path)
       if stack.contains(path) then
         val cycle = (path :: stack.takeWhile(_ != path).reverse) :+ path
@@ -120,6 +122,10 @@ final class ImportsPhase extends Phase:
             if !u.libraries.contains(path) then u.libraries(path) = Library(path, p, isPrelude = false)
 
 object ImportsPhase:
+  private def normalize(path: String): String =
+    try Path.of(path).normalize.toString
+    catch case _: InvalidPathException => path
+
   /** All `%import` expressions of a program, in source order. */
   def importsIn(program: Program): List[Trees.Import] =
     val out = mutable.ListBuffer.empty[Trees.Import]

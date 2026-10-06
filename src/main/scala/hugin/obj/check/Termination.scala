@@ -202,8 +202,37 @@ final class Termination(
       case _ => Iterator.empty
     (singles ++ pairs).find(m => check(m).isRight).map(m => rels.map(c => directive(c, m(c))))
 
-  /** Checks the component with the given measures; the explanation, or the first violation. */
+  /** Checks the component with the given measures; the explanation, or the first violation.
+   *
+   *  A moded component is checked per strongly connected component of its *demand* graph (an edge `c → e`
+   *  for every demand rule `e^d … :- c^d …`): demands only flow along that graph, so a call from one group
+   *  into another (`typed` calling `lookup`, which never calls back) needs no decrease; the pair (rank of
+   *  the group in the acyclic demand graph, measure) decreases lexicographically along every demand. The
+   *  dependency graph may still join such groups into one component through answers (`typed` reads
+   *  `lookup`, whose demands come from `typed`'s). Measures are compared, and need the same shape, only
+   *  within a group. */
   def check(measures: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
+    val groups =
+      if !measures.keys.exists(_.hasModes) then List(measures.keys.toList)
+      else
+        val measured = measures.keys.toList.sortBy(_.name)
+        def demandBase(x: RelSym) = x.kind match
+          case RelKind.Demand(of, _) if measures.contains(of) => Some(of)
+          case _ => None
+        val edges = allRules.flatMap { r =>
+          for
+            e <- headRel(r).flatMap(demandBase)
+            c <- r.body.collectFirst { case Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => x }.flatMap(demandBase)
+          yield c -> e
+        }
+        hugin.util.Graphs.components(measured, c => edges.collect { case (`c`, e) => e }.distinct)
+    groups.foldLeft[Either[TerminationFailure, List[String]]](Right(Nil)) { (acc, g) =>
+      acc.flatMap(lines => checkGroup(measures.filter((c, _) => g.contains(c)), measures).map(lines ++ _))
+    }
+
+  /** Checks one group of relations whose measures are compared with each other (see [[check]]); `all` are
+   *  the measures of the whole component. */
+  private def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
     val measured = measures.keys.toList.sortBy(_.name)
     def declared(c: RelSym) = c.terminates.map(_._2)
     val first = measured.head
@@ -234,7 +263,7 @@ final class Termination(
         )
     }
     val slots = (0 until n).toList.map(i => slotNumeric(first, measures(first)(i)))
-    val ctx = Ctx(measures, slots)
+    val ctx = Ctx(measures, slots, all)
     shapeError.toLeft(()).flatMap { _ =>
       if measured.exists(_.hasModes) then moded(ctx) else bottomUp(ctx)
     }.map { lines =>
@@ -244,9 +273,12 @@ final class Termination(
       ms ++ lines
     }
 
-  private final case class Ctx(measures: Map[RelSym, List[Int]], slots: List[Boolean]):
+  private final case class Ctx(measures: Map[RelSym, List[Int]], slots: List[Boolean], all: Map[RelSym, List[Int]]):
     def of(c: RelSym): List[Int] = measures(c)
     def has(c: RelSym): Boolean = measures.contains(c)
+
+    /** Measured in the component, possibly in another group (see [[Termination.check]]). */
+    def measuredAnywhere(c: RelSym): Boolean = all.contains(c)
     def directive(c: RelSym): Option[Span] = c.terminates.map(_._2)
 
   /** Rules of relations without a measure (other than demand relations of measured ones) must not be
@@ -335,6 +367,11 @@ final class Termination(
     def demandOf(x: RelSym): Option[RelSym] = x.kind match
       case RelKind.Demand(of, _) if ctx.has(of) => Some(of)
       case _ => None
+    // relations and demands of the other groups of the component (their own group checks them)
+    def otherGroup(x: RelSym): Boolean = !ctx.has(x) && ctx.measuredAnywhere(x) || (x.kind match
+      case RelKind.Demand(of, _) => !ctx.has(of) && ctx.measuredAnywhere(of)
+      case _ => false
+    )
     val measured = ctx.measures.keys.toList.sortBy(_.name)
     val unmoded = measured.find(!_.hasModes).map { c =>
       val other = measured.find(_.hasModes).get
@@ -360,67 +397,70 @@ final class Termination(
         notes = List("in a moded component the measure is checked on the demands, which consist of the input arguments")
       )
     }
-    unmoded.orElse(notInput).orElse(unmeasuredConstructive(ctx, h => ctx.has(h) || demandOf(h).isDefined)).toLeft(()).flatMap { _ =>
-      val lines = List.newBuilder[String]
-      lines += "  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below"
-      // Rules of measured relations may call unmeasured relations of the component only if those do not
-      // read answers of measured relations (except through demands): their facts are then determined by
-      // the demands. Otherwise answers could feed themselves without any demand (`d X Z :- c X Z`).
-      val calls = rules.iterator.filter(r => headRel(r).exists(ctx.has)).flatMap { r =>
-        r.body.collectFirst(Function.unlift {
-          case a @ Formula.Atom(RelRef.Sym(d), _, _) if inC(d) && !ctx.has(d) && demandOf(d).isEmpty =>
-            readsAnswers(d, ctx.has, demandOf(_).isDefined).map(m => unmeasuredCall(ctx, r, headRel(r).get, a, d, Some(m)))
-          case _ => None
-        })
-      }.nextOption()
-      // Demand rules guarded by a demand of a measured relation, wherever they are (the demands of a
-      // relation may form a component of their own, `log2^d H :- log2^d N, H = N / 2`), and the
-      // demand rules of this component that read it (whose guard must then be measured).
-      def guardOf(r: Rule) = r.body.collectFirst { case Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => x }
-      def isDemandRule(r: Rule) = headRel(r).exists(h => demandOf(h).isDefined)
-      val demandRules = (rules.filter(r =>
-        isDemandRule(r) && r.body.exists {
-          case Formula.Atom(RelRef.Sym(x), _, _) => inC(x)
-          case _ => false
-        }
-      ) ++ allRules.filter(r => isDemandRule(r) && guardOf(r).exists(g => demandOf(g).isDefined))).distinct
-      val demands = demandRules.iterator.flatMap { r =>
-        val Term.App(RelRef.Sym(dh), us) = r.heads.head: @unchecked
-        val e = demandOf(dh).get
-        val guard = r.body.collectFirst { case g @ Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => g }
-        guard match
-          case Some(g @ Formula.Atom(RelRef.Sym(dg), ws, _)) =>
-            demandOf(dg) match
-              case None =>
-                val gOf = dg.kind match
-                  case RelKind.Demand(of, _) => of
-                  case _ => dg
-                Some(unmeasuredCall(ctx, r, gOf, g, gOf))
-              case Some(c) =>
-                val arith = Arithmetic(r.body)
-                val outside = boundOutside(r.body)
-                val (ki, kg) = (inputPositions(dh, e, ctx.of(e)), inputPositions(dg, c, ctx.of(c)))
-                val small = ki.map(us)
-                val big = kg.map(ws)
-                compare(ctx.slots, big, small, arith, r.body) match
-                  case Left(f) =>
-                    Some(decreaseFailure(ctx, r, c, e, r.heads.head.span, big, small, f, "the call", "the caller"))
-                  case Right((i, why)) =>
-                    val u = small(i)
-                    val lower =
-                      if !ctx.slots(i) then Some("")
-                      else if Moding.vars(u).subsetOf(outside) then
-                        Some(s"; `${ObjPrinter.term(u)}` is bound by relations outside the component")
-                      else arith(u).lo.map(b => s"; `${ObjPrinter.term(u)}` >= $b")
-                    lower match
-                      case Some(l) =>
-                        lines += s"  ${where(r)}: demand for `${ObjPrinter.term(r.heads.head)}` from `${ObjPrinter.formula(g)}`: $why$l"
-                        None
-                      case None => Some(lowerBoundFailure(ctx, r, e, r.heads.head.span, i, u))
-          case _ =>
-            Some(TerminationFailure("a demand rule without guard", r.span, "", Some(r), None))
-      }.nextOption()
-      calls.orElse(demands).toLeft(lines.result())
+    unmoded.orElse(notInput).orElse(unmeasuredConstructive(ctx, h => ctx.has(h) || demandOf(h).isDefined || otherGroup(h))).toLeft(()).flatMap {
+      _ =>
+        val lines = List.newBuilder[String]
+        lines += "  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below"
+        // Rules of measured relations may call unmeasured relations of the component only if those do not
+        // read answers of measured relations (except through demands): their facts are then determined by
+        // the demands. Otherwise answers could feed themselves without any demand (`d X Z :- c X Z`).
+        val calls = rules.iterator.filter(r => headRel(r).exists(ctx.has)).flatMap { r =>
+          r.body.collectFirst(Function.unlift {
+            case a @ Formula.Atom(RelRef.Sym(d), _, _) if inC(d) && !ctx.has(d) && demandOf(d).isEmpty && !otherGroup(d) =>
+              readsAnswers(d, ctx.measuredAnywhere, x => demandOf(x).isDefined || otherGroup(x))
+                .map(m => unmeasuredCall(ctx, r, headRel(r).get, a, d, Some(m)))
+            case _ => None
+          })
+        }.nextOption()
+        // Demand rules guarded by a demand of a measured relation, wherever they are (the demands of a
+        // relation may form a component of their own, `log2^d H :- log2^d N, H = N / 2`), and the
+        // demand rules of this component that read it (whose guard must then be measured).
+        def guardOf(r: Rule) = r.body.collectFirst { case Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => x }
+        def isDemandRule(r: Rule) = headRel(r).exists(h => demandOf(h).isDefined)
+        val demandRules = (rules.filter(r =>
+          isDemandRule(r) && r.body.exists {
+            case Formula.Atom(RelRef.Sym(x), _, _) => inC(x)
+            case _ => false
+          }
+        ) ++ allRules.filter(r => isDemandRule(r) && guardOf(r).exists(g => demandOf(g).isDefined))).distinct
+        val demands = demandRules.iterator.flatMap { r =>
+          val Term.App(RelRef.Sym(dh), us) = r.heads.head: @unchecked
+          val e = demandOf(dh).get
+          val guard = r.body.collectFirst { case g @ Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => g }
+          guard match
+            case Some(g @ Formula.Atom(RelRef.Sym(dg), ws, _)) =>
+              demandOf(dg) match
+                case None if otherGroup(dg) => None // a call between groups: ordered by the demand graph
+                case None =>
+                  val gOf = dg.kind match
+                    case RelKind.Demand(of, _) => of
+                    case _ => dg
+                  Some(unmeasuredCall(ctx, r, gOf, g, gOf))
+                case Some(c) =>
+                  val arith = Arithmetic(r.body)
+                  val outside = boundOutside(r.body)
+                  val (ki, kg) = (inputPositions(dh, e, ctx.of(e)), inputPositions(dg, c, ctx.of(c)))
+                  val small = ki.map(us)
+                  val big = kg.map(ws)
+                  compare(ctx.slots, big, small, arith, r.body) match
+                    case Left(f) =>
+                      Some(decreaseFailure(ctx, r, c, e, r.heads.head.span, big, small, f, "the call", "the caller"))
+                    case Right((i, why)) =>
+                      val u = small(i)
+                      val lower =
+                        if !ctx.slots(i) then Some("")
+                        else if Moding.vars(u).subsetOf(outside) then
+                          Some(s"; `${ObjPrinter.term(u)}` is bound by relations outside the component")
+                        else arith(u).lo.map(b => s"; `${ObjPrinter.term(u)}` >= $b")
+                      lower match
+                        case Some(l) =>
+                          lines += s"  ${where(r)}: demand for `${ObjPrinter.term(r.heads.head)}` from `${ObjPrinter.formula(g)}`: $why$l"
+                          None
+                        case None => Some(lowerBoundFailure(ctx, r, e, r.heads.head.span, i, u))
+            case _ =>
+              Some(TerminationFailure("a demand rule without guard", r.span, "", Some(r), None))
+        }.nextOption()
+        calls.orElse(demands).toLeft(lines.result())
     }
 
   /** The positions of the measured arguments among the inputs of a demand relation. */

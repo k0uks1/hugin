@@ -1,0 +1,6 @@
+(* Loaded with `:load tests/repl/lib/trip.hgn`: its imports are resolved relative to this file. *)
+g = %import "geo".
+r = %import "routes".
+trip : g.place -> rel.
+trip Y :- r.legs.path g.here Y.
+?- trip Y.
