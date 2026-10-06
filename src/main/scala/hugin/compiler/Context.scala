@@ -10,6 +10,9 @@ final class Context(
     val reporter: Reporter,
     val loader: SourceLoader = SourceLoader.files
 ):
+  /** Wall-clock time per phase that ran, in nanoseconds, in phase order (for `--stats`). */
+  val timings: scala.collection.mutable.ListBuffer[(String, Long)] = scala.collection.mutable.ListBuffer.empty
+
   def report(d: Diagnostic): Unit =
     if d.severity != Severity.Warning || settings.warnings then reporter.report(d)
   def error(code: String, msg: String, span: Span, label: String = ""): Unit =

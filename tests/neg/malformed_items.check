@@ -1,0 +1,35 @@
+error[E0004]: malformed declaration head
+ --> tests/neg/malformed_items.hgn:2:1
+  |
+2 | (p) : rel.
+  | ^^^ expected a lowercase name
+  |
+  = note: declarations have the form `name param* : type.` and definitions `name param* = expr.`
+
+error[E0004]: malformed parameter
+ --> tests/neg/malformed_items.hgn:3:3
+  |
+3 | q (1) : int -> rel.
+  |   ^^^ expected `X` or `(name : type)`
+
+error[E0004]: `%complete` may only occur in a signature
+ --> tests/neg/malformed_items.hgn:4:1
+  |
+4 | %complete edge.
+  | ^^^^^^^^^ not allowed here
+  |
+  = help: write it inside a record type, e.g. `{ edge : node -> node -> rel, %complete edge }`
+
+error[E0003]: integer literal out of range
+ --> tests/neg/malformed_items.hgn:6:3
+  |
+6 | r 99999999999999999999.
+  |   ^^^^^^^^^^^^^^^^^^^^ does not fit into a 64-bit integer
+
+error[E0003]: invalid escape sequence
+ --> tests/neg/malformed_items.hgn:8:8
+  |
+8 | s "bad \q escape".
+  |        ^^ valid escapes are \" \\ \n \t \u{...}
+
+5 errors found

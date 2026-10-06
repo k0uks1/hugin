@@ -145,7 +145,7 @@ object CommandLine:
         .validate(p => phases(Seq(p)))
         .action((p, o) => o.copy(settings = o.settings.copy(stopAfter = Some(p)))),
       opt[Unit]("stats")
-        .text("print evaluation statistics")
+        .text("print compiler phase timings and evaluation statistics")
         .action((_, o) => o.copy(run = o.run.copy(stats = true))),
       opt[Unit]("all-relations")
         .text("print the facts of every relation (including constructors and demand relations)")

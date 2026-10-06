@@ -1,0 +1,9 @@
+error[E0107]: `limit` is not a module
+ --> tests/neg/not_a_module.hgn:3:5
+  |
+3 | x = limit.lo.
+  |     ^^^^^ has meta type `int`
+  |
+  = note: a path `m.x` requires `m` to be module-valued
+
+1 error found

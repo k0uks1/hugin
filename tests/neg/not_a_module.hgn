@@ -1,0 +1,4 @@
+(* E0107: a path `m.x` needs a module-valued `m` *)
+limit = 3.
+x = limit.lo.
+y = x.

@@ -45,7 +45,7 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --budget <n>            round budget for components with %partial relations (default: unbounded)
   --print-after <phase>,… print the program after these phases (`all` for every phase)
   --stop-after <phase>    stop compilation after this phase
-  --stats                 print evaluation statistics
+  --stats                 print compiler phase timings and evaluation statistics
   --all-relations         print the facts of every relation (including constructors and demand relations)
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
