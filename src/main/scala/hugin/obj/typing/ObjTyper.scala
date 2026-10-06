@@ -71,23 +71,22 @@ final class ObjTyperPhase extends Phase:
     for t <- p.types do
       t.kind match
         case TypeKind.Refinement(b) =>
-          if !ops.isBaseLike(b) && b != OType.Err then
+          // a cycle first: following it would not reach a base type
+          val seen = mutable.HashSet(t)
+          var cur = b
+          var cyc = false
+          while !cyc && (cur match { case OType.Con(s, _) => true; case _ => false }) do
+            val OType.Con(s, _) = cur: @unchecked
+            if !seen.add(s) then cyc = true
+            else
+              cur = s.kind match
+                case TypeKind.Refinement(x) => x
+                case _ => OType.Err
+          if cyc then
+            ctx.report(Diagnostic.error("E0404", s"cyclic refinement `${t.name}`", t.span).withOrigin(t.origin))
+          else if !ops.isBaseLike(b) && b != OType.Err then
             ctx.report(Diagnostic.error("E0404", s"`${t.name}` refines `${b.show}`, which is not a base type or refinement", t.span)
               .withOrigin(t.origin))
-          else
-            // cycle check
-            val seen = mutable.HashSet(t)
-            var cur = b
-            var cyc = false
-            while !cyc && (cur match { case OType.Con(s, _) => true; case _ => false }) do
-              val OType.Con(s, _) = cur: @unchecked
-              if !seen.add(s) then cyc = true
-              else
-                cur = s.kind match
-                  case TypeKind.Refinement(x) => x
-                  case _ => OType.Err
-            if cyc then
-              ctx.report(Diagnostic.error("E0404", s"cyclic refinement `${t.name}`", t.span).withOrigin(t.origin))
         case _ =>
     for e <- p.edges do
       e.sub match

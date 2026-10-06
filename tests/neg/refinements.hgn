@@ -1,0 +1,6 @@
+(* E0404: ill-formed refinements *)
+shape : type.
+circle : int -> shape.
+small : type <: circle.
+a : type <: b.
+b : type <: a.

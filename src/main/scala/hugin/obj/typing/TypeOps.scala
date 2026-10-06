@@ -72,14 +72,17 @@ final class TypeOps(p: ObjProgram):
     case OType.Union(ms) => ms.forall(isClosed)
     case _ => false
 
-  /** Base type underlying a base type or refinement. */
-  def baseOf(t: OType): Option[BaseType] = t match
-    case OType.Base(b) => Some(b)
-    case OType.Con(s, _) =>
-      s.kind match
-        case TypeKind.Refinement(b) => baseOf(b)
-        case _ => None
-    case _ => None
+  /** Base type underlying a base type or refinement; `None` for a cyclic refinement (E0404). */
+  def baseOf(t: OType): Option[BaseType] =
+    @annotation.tailrec
+    def go(t: OType, seen: Set[TypeSym]): Option[BaseType] = t match
+      case OType.Base(b) => Some(b)
+      case OType.Con(s, _) if !seen(s) =>
+        s.kind match
+          case TypeKind.Refinement(b) => go(b, seen + s)
+          case _ => None
+      case _ => None
+    go(t, Set.empty)
 
   def isBaseLike(t: OType): Boolean = baseOf(t).isDefined
 

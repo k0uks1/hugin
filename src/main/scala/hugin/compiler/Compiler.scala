@@ -48,7 +48,9 @@ object Compiler:
     var stop = false
     for p <- phases if !stop do
       if !ctx.reporter.hasErrors || p.runsAfterErrors then
+        val start = System.nanoTime()
         p.run
+        ctx.timings += p.phaseName -> (System.nanoTime() - start)
         val names = p match
           case m: MegaPhase => m.minis.map(_.phaseName)
           case other => List(other.phaseName)

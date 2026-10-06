@@ -93,6 +93,7 @@ object Main:
     val key = CompileKey(file, opts.settings)
     val compiled = db(Compile, key)
     compiled.printed.foreach(out)
+    if opts.run.stats then err(phaseTimings(compiled))
     if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
       render(compiled.diagnostics, opts.settings, err)
       return if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
@@ -109,6 +110,13 @@ object Main:
         res.output.foreach(out)
         if opts.run.stats then res.statistics.foreach(err)
         ExitCode.Ok
+
+  /** One line with the time each compiler phase took. */
+  private def phaseTimings(c: Compiled): String =
+    val ts = c.context.timings.toList
+    val total = ts.map(_._2).sum
+    def ms(ns: Long) = f"${ns / 1e6}%.1f"
+    s"(* compile ${ms(total)} ms: ${ts.map((p, ns) => s"$p ${ms(ns)}").mkString(", ")} *)"
 
   private def query(
       file: String,

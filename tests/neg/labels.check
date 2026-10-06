@@ -1,0 +1,36 @@
+error[E0307]: duplicate field `a` in signature
+ --> tests/neg/labels.hgn:2:25
+  |
+2 | sig : mod = { a : type, a : type }.
+  |                         ^
+
+error[E0307]: duplicate field `n`
+ --> tests/neg/labels.hgn:3:16
+  |
+3 | rec = { n = 1, n = 2 }.
+  |                ^
+
+error[E0304]: no common label `y`
+  --> tests/neg/labels.hgn:10:21
+   |
+10 | ys V :- both P, V = P.y.
+   |                     ^^^ not a column of `qt`
+   |
+   = note: `P` has type `pt | qt`; every member must have the label
+
+error[E0305]: undefined join for label `x`
+  --> tests/neg/labels.hgn:12:22
+   |
+12 | xs V :- mixed P, V = P.x.
+   |                      ^^^ `int` in `pt`, `string` in `st`
+   |
+   = note: the join of different base types is undefined
+
+error[E0307]: duplicate label `x`
+  --> tests/neg/labels.hgn:14:22
+   |
+14 | named :- pt { x = 1, x = 2, y = 3 }.
+   |               -      ^ duplicate
+   |               first used here
+
+5 errors found

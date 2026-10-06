@@ -1,0 +1,19 @@
+error[E0404]: `small` refines `circle`, which is not a base type or refinement
+ --> tests/neg/refinements.hgn:4:1
+  |
+4 | small : type <: circle.
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0404]: cyclic refinement `a`
+ --> tests/neg/refinements.hgn:5:1
+  |
+5 | a : type <: b.
+  | ^^^^^^^^^^^^^^
+
+error[E0404]: cyclic refinement `b`
+ --> tests/neg/refinements.hgn:6:1
+  |
+6 | b : type <: a.
+  | ^^^^^^^^^^^^^^
+
+3 errors found

@@ -1,0 +1,8 @@
+(* E0004: items that are not declarations, definitions, rules, queries or directives; E0003: literals *)
+(p) : rel.
+q (1) : int -> rel.
+%complete edge.
+r : int -> rel.
+r 99999999999999999999.
+s : string -> rel.
+s "bad \q escape".

@@ -82,7 +82,6 @@ object ErrorCodes:
     // object typing
     ("E0401", "no value can occur in all these positions", "The meet of the expected types of a variable is empty (Definition 6.1)."),
     ("E0402", "type mismatch", "A term does not have a subtype of the expected type."),
-    ("E0403", "cannot infer type", "A variable has neither an expected type nor a defining equation."),
     ("E0404", "ill-formed declaration", "Declarations must satisfy Section 5.4."),
     ("E0405", "invalid ascription", "An ascription (t : T) must select members of the type of t."),
     // moding
