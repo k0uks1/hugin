@@ -17,12 +17,17 @@ final class NaiveEvaluator(prog: CoreProgram):
   /** The facts of each relation, by tag. */
   val facts: Vector[mutable.LinkedHashSet[Vector[Any]]] = prog.rels.map(_ => mutable.LinkedHashSet.empty[Vector[Any]])
 
+  /** Values that are not facts (probes: inputs of moded calls), by tag. */
+  val probes: Vector[mutable.LinkedHashSet[Vector[Any]]] = prog.rels.map(_ => mutable.LinkedHashSet.empty[Vector[Any]])
+
+  private def exists(rel: Int, args: Vector[Any]) = facts(rel).contains(args) || probes(rel).contains(args)
+
   /** Seeds the relations with the facts already in an engine's store (the loaded input facts). */
   def load(engine: Engine): Unit =
     def word(w: Any): Any = w match
       case Id(rel, n) => Fact(rel, engine.store(rel).tuples(n).toVector.map(word))
       case other => other
-    for (r, tag) <- engine.store.zipWithIndex; t <- r.tuples do facts(tag) += t.toVector.map(word)
+    for (r, tag) <- engine.store.zipWithIndex; n <- r.facts do facts(tag) += r.tuples(n).toVector.map(word)
 
   // ------------------------------------------------------------------ words and expressions
 
@@ -37,26 +42,32 @@ final class NaiveEvaluator(prog: CoreProgram):
     case Literal.FloatL(v) => java.lang.Double.valueOf(v)
     case Literal.StrL(v) => v
 
-  /** Evaluates an expression. In a body, a constructed fact denotes an existing fact only (nested patterns
-   *  match existing facts); in a head (`created` given), new nested facts are recorded in `created`. */
-  private def eval(e: Expr, regs: Map[Int, Any], created: Option[mutable.ArrayBuffer[Fact]]): Option[Any] = e match
+  /** Evaluates an expression. In a body, a constructed term denotes an existing value only (a fact or a
+   *  probe); in a head (`created` given), the values it builds are recorded in `created`, with whether
+   *  they are asserted. */
+  private def eval(
+      e: Expr,
+      regs: Map[Int, Any],
+      created: Option[mutable.ArrayBuffer[(Fact, Boolean)]],
+      assert: Boolean = true
+  ): Option[Any] = e match
     case Expr.Reg(r) => regs.get(r)
     case Expr.Const(w) => Some(w)
     case Expr.Arith(op, l, r) =>
       for
-        a <- eval(l, regs, created).flatMap(lit)
-        b <- eval(r, regs, created).flatMap(lit)
+        a <- eval(l, regs, created, assert).flatMap(lit)
+        b <- eval(r, regs, created, assert).flatMap(lit)
         v <- Prims.arith(op, a, b)
       yield word(v)
-    case Expr.Neg(x) => eval(x, regs, created).flatMap(lit).flatMap(Prims.neg).map(word)
+    case Expr.Neg(x) => eval(x, regs, created, assert).flatMap(lit).flatMap(Prims.neg).map(word)
     case Expr.Make(rel, as) =>
-      val vs = as.toVector.map(eval(_, regs, created))
+      val vs = as.toVector.map(eval(_, regs, created, assert))
       if vs.exists(_.isEmpty) then None
       else
         val f = Fact(rel, vs.map(_.get))
         created match
-          case Some(buf) => buf += f; Some(f)
-          case None => Option.when(facts(rel).contains(f.args))(f)
+          case Some(buf) => buf += ((f, assert)); Some(f)
+          case None => Option.when(exists(rel, f.args))(f)
 
   private def compare(op: CmpOp, a: Any, b: Any): Boolean = op match
     case CmpOp.Eq => a == b
@@ -95,7 +106,7 @@ final class NaiveEvaluator(prog: CoreProgram):
             case _ => LazyList.empty
         case BodyOp.Lookup(dst, rel, as) =>
           val vs = as.toVector.map(eval(_, regs, None))
-          if vs.forall(_.isDefined) && facts(rel).contains(vs.map(_.get)) then LazyList(regs + (dst -> Fact(rel, vs.map(_.get))))
+          if vs.forall(_.isDefined) && exists(rel, vs.map(_.get)) then LazyList(regs + (dst -> Fact(rel, vs.map(_.get))))
           else LazyList.empty
         case BodyOp.NotIn(sub) => if solve(sub.toList, regs).isEmpty then LazyList(regs) else LazyList.empty
         case BodyOp.Agg(dst, kind, term, locals, sub) =>
@@ -130,13 +141,17 @@ final class NaiveEvaluator(prog: CoreProgram):
       val rules = prog.rules.filter(r => comp.contains(r.headRel))
       var changed = true
       while changed do
-        val derived = mutable.ArrayBuffer.empty[Fact]
+        val derived = mutable.ArrayBuffer.empty[(Fact, Boolean)]
         for r <- rules; regs <- solve(r.body.toList, Map.empty) do
-          val created = mutable.ArrayBuffer.empty[Fact]
-          val args = r.headArgs.toVector.map(eval(_, regs, Some(created)))
-          if args.forall(_.isDefined) then derived ++= created += Fact(r.headRel, args.map(_.get))
+          val created = mutable.ArrayBuffer.empty[(Fact, Boolean)]
+          val args = r.headArgs.indices.toVector.map(i => eval(r.headArgs(i), regs, Some(created), !r.probeCols(i)))
+          if args.forall(_.isDefined) then derived ++= created += ((Fact(r.headRel, args.map(_.get)), true))
         changed = false
-        for f <- derived do if facts(f.rel).add(f.args) then changed = true
+        for (f, asserted) <- derived do
+          if asserted then
+            if facts(f.rel).add(f.args) then changed = true
+            probes(f.rel) -= f.args
+          else if !facts(f.rel).contains(f.args) && probes(f.rel).add(f.args) then changed = true
 
   // ------------------------------------------------------------------ decoding
 
