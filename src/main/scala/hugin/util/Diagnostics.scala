@@ -41,6 +41,15 @@ final case class Diagnostic(
     suggestions: List[Suggestion] = Nil
 ):
   def primarySpan: Span = labels.find(_.primary).map(_.span).getOrElse(Span.NoSpan)
+
+  /** The diagnostic with every span replaced by `f` (labels, suggestions, the expansion chain). */
+  def mapSpans(f: Span => Span): Diagnostic =
+    def g(sp: Span) = if sp.exists then f(sp) else sp
+    copy(
+      labels = labels.map(l => l.copy(span = g(l.span))),
+      origin = Origin(origin.frames.map(fr => fr.copy(span = g(fr.span)))),
+      suggestions = suggestions.map(s => s.copy(span = g(s.span)))
+    )
   def withLabel(span: Span, msg: String = ""): Diagnostic = copy(labels = labels :+ Label(span, msg, primary = false))
   def withPrimary(span: Span, msg: String = ""): Diagnostic = copy(labels = Label(span, msg, primary = true) :: labels)
   def withNote(n: String): Diagnostic = copy(notes = notes :+ n)

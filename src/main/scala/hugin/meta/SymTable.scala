@@ -42,6 +42,8 @@ final class SymInfo:
   /** `%mode` declarations of a formula function (Section 4.8): input flags and the directive's span. */
   var fnModes: List[(List[Boolean], Span)] = Nil
 
+  def snapshot: SymSnapshot = SymSnapshot(state, mtype, static, sigValue, declInfo, typeDef, fnModes)
+
   /** A copy, for a table that changes the results of a symbol of one of its parents. */
   def copy(): SymInfo =
     val c = SymInfo()
@@ -90,7 +92,7 @@ object TypingResults:
  *  writes go to this table only (a symbol of a parent that is changed, such as a formula function of the
  *  prelude that gets a `%mode` declaration, is copied first), so a library's results are shared read-only
  *  by every compilation importing it. */
-final class SymTable(parents: List[SymTable] = Nil) extends TypingResults:
+final class SymTable(parents: List[SymTable] = Nil, view: SymTable.View = SymTable.View.All) extends TypingResults:
   private val infos = mutable.HashMap.empty[Sym, SymInfo]
   private val paramTrees = mutable.HashMap.empty[Sym, Tree]
   private var frozen = false
@@ -107,6 +109,8 @@ final class SymTable(parents: List[SymTable] = Nil) extends TypingResults:
     infos.get(s) match
       case some @ Some(_) => some
       case None =>
+        view.observe(s)
+        if view.hidden(s) then return None
         var i = 0
         var found: Option[SymInfo] = None
         while found.isEmpty && i < ancestors.length do
@@ -130,11 +134,30 @@ final class SymTable(parents: List[SymTable] = Nil) extends TypingResults:
 
   /** The declared type of a meta parameter as written, for suggested edits to signatures. */
   private[meta] def paramType(p: Sym): Option[Tree] =
-    paramTrees.get(p).orElse(ancestors.iterator.flatMap(_.paramTrees.get(p)).nextOption())
+    paramTrees.get(p).orElse {
+      view.observe(p)
+      ancestors.iterator.flatMap(_.paramTrees.get(p)).nextOption()
+    }
 
   private[meta] def setParamType(p: Sym, t: Tree): Unit =
     if frozen then throw IllegalStateException(s"parameter `$p` declared in a frozen table")
     paramTrees(p) = t
+
+  /** Whether this table (not a parent) has results for `s`. */
+  def hasLocal(s: Sym): Boolean = infos.contains(s)
+
+  /** The results computed in this table (not in its parents), as snapshots. */
+  def localResults: Iterator[(Sym, SymSnapshot)] = infos.iterator.map((s, i) => (s, i.snapshot))
+
+  /** The declared types of parameters recorded in this table (not in its parents). */
+  def localParamTypes: Iterator[(Sym, Tree)] = paramTrees.iterator
+
+  /** Adds the results computed in `other` (not those of its parents) to this table: the per-item tables
+   *  of a program are merged into the table of the whole program. */
+  def absorb(other: SymTable): Unit =
+    if frozen then throw IllegalStateException("results added to a frozen table")
+    infos ++= other.infos
+    paramTrees ++= other.paramTrees
 
   def mtype(s: Sym): Option[MType] = find(s).flatMap(_.mtype)
   def static(s: Sym): Option[MExpr] = find(s).flatMap(_.static)
@@ -142,3 +165,27 @@ final class SymTable(parents: List[SymTable] = Nil) extends TypingResults:
   def declInfo(s: Sym): Option[DeclInfo] = find(s).flatMap(_.declInfo)
   def typeDef(s: Sym): Option[TypeDefInfo] = find(s).flatMap(_.typeDef)
   def fnModes(s: Sym): List[(List[Boolean], Span)] = find(s).fold(Nil)(_.fnModes)
+
+object SymTable:
+  /** What a table shows of its parents: symbols the reader must not see yet (`hidden`, read as having no
+   *  results), and a hook told about every symbol whose results are read from a parent (`observe`). */
+  trait View:
+    def hidden(s: Sym): Boolean
+    def observe(s: Sym): Unit
+
+  object View:
+    /** Everything, unobserved. */
+    object All extends View:
+      def hidden(s: Sym): Boolean = false
+      def observe(s: Sym): Unit = ()
+
+/** The typing results of one symbol at one point, immutable (see [[SymInfo]]). */
+final case class SymSnapshot(
+    state: ElabState,
+    mtype: Option[MType],
+    static: Option[MExpr],
+    sigValue: Option[MType],
+    declInfo: Option[DeclInfo],
+    typeDef: Option[TypeDefInfo],
+    fnModes: List[(List[Boolean], Span)]
+)

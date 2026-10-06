@@ -135,7 +135,7 @@ object Namer:
 
 /** Phase: enter the prelude, the imported files and the program. The prelude's scope encloses the others,
  *  so its names are visible everywhere and can be shadowed; imported files see only the prelude. The
- *  libraries are named apart, once ([[NamedLibrary]]); only the program is entered here. */
+ *  libraries are named apart, once ([[NamedLibrary]]), and so is the program ([[NamedProgram]]). */
 final class NamerPhase extends Phase:
   def phaseName = "namer"
   def description = "enter declarations, classify items by stage, detect duplicates"
@@ -147,8 +147,10 @@ final class NamerPhase extends Phase:
       lib.named = n
       n.diagnostics.foreach(ctx.report)
       u.symKeys.inherit(n.keys)
-    val prelude = u.libraries.values.find(_.isPrelude).flatMap(l => Option(l.scope)).getOrElse(Library.emptyPrelude)
-    val root = Scope(Some(prelude), "program", ScopeKey.File(u.source.path))
-    u.rootScope = root
-    Namer.enter(u.untpd.nn.items, root)
+    // the program's top level is named apart (memoised by the query database, see `ProgramElab`)
+    val named = ctx.libraries.nameProgram(u.source.path, u.source, u.untpd.nn, ctx.settings.prelude)
+    named.diagnostics.foreach(ctx.report)
+    u.symKeys.inherit(named.keys)
+    u.named = named
+    u.rootScope = named.scope
   override def show(using Context): String = Namer.show(ctx.unit.rootScope.nn)

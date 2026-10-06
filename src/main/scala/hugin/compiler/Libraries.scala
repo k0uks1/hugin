@@ -175,6 +175,14 @@ trait Libraries:
   def named(key: NameKey): NamedLibrary
   def elaborated(key: LibraryKey): ElaboratedLibrary
 
+  /** Names the top level of the program `program` (the file `root`), see [[ProgramElab.name]]. */
+  def nameProgram(root: String, source: SourceFile, program: Program, prelude: Boolean): NamedProgram =
+    ProgramElab.name(root, source, program, prelude, this)
+
+  /** Elaborates the top level of a named program, see [[ProgramElab]]. */
+  def elabProgram(root: String, program: Program, prelude: Boolean, named: NamedProgram): ElaboratedProgram =
+    ProgramElab.direct(root, program, prelude, named, this)
+
 object Libraries:
   /** Computes everything from `loader`, each library once (per instance). */
   def direct(loader: SourceLoader): Libraries = new Libraries:
@@ -221,8 +229,11 @@ object Library:
   def importsOf(path: String, program: Program): List[(Trees.Import, String)] =
     ImportsPhase.importsIn(program).map(i => (i, ImportsPhase.resolve(i, path)))
 
-  /** An empty scope standing for a prelude that is not included. */
-  def emptyPrelude: Scope = Scope(None, "prelude", ScopeKey.File(SourceLoader.PreludePath))
+  /** An empty scope standing for a prelude that is not included (frozen, shared by all compilations). */
+  val emptyPrelude: Scope =
+    val sc = Scope(None, "prelude", ScopeKey.File(SourceLoader.PreludePath))
+    sc.freeze()
+    sc
 
   /** The scope enclosing the scopes of all files: the prelude's, if it is included and exists. */
   def preludeScope(prelude: Boolean, libs: Libraries): Scope =
