@@ -1,0 +1,14 @@
+error[E0604]: `c` calls `d`, which has no measure
+  --> tests/neg/t_termination_mutual_unmeasured.hgn:10:10
+   |
+ 7 | %terminates X (c X _).
+   | ---------------------- measure declared here
+...
+10 | c X Y :- d X Z, Y = Z + 1.
+   |          ^^^^^ `d` is in the same recursive component
+   |
+   = note: the component is {c, d}; a measure must decrease along every recursive call
+   = note: `d` depends on the answers of `c`: `d` -> `c`
+   = help: give `d` a `%terminates` measure with the same shape as `c`'s
+
+1 error found

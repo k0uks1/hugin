@@ -1,0 +1,8 @@
+(* issue #2: mutually recursive relations need measures of the same shape *)
+ev : int -> int -> rel.
+od : int -> int -> rel.
+%terminates (N, K) (ev N K).
+%terminates N (od N _).
+ev 0 0.
+od N K :- ev M K, M < 9, N = M + 1.
+ev N K :- od M K, M < 9, N = M + 1.

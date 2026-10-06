@@ -54,8 +54,20 @@ Two obvious repairs have costs that showed up in the conformance tests:
 
 The moded numeric case requires the body of a propagation rule to contain `u_k > b` or `u_k ≥ b`
 syntactically. With `fib N F :- N > 1, A = N - 1, fib A FA, ...` the bound is on `N`, not on the
-demanded `A`, so the natural formulation is rejected and one has to write `A >= 1` explicitly
-(`tests/run/f_fib_moded.hgn`). Deriving bounds through `A = N - 1` would be a small extension.
+demanded `A`, so the natural formulation is rejected. The implementation derives such bounds (see
+"Termination" below), and `tests/run/f_fib_moded.hgn` now uses the natural formulation.
+
+### Demand components and termination (Definition 10.3)
+
+Definition 10.3 checks the propagation rules `d(ū) :- d(w̄), …` *of the component of c*. The demand
+relation of `c` need not be in that component: `c X Y :- c X Z, Y = Z + 1` with `%mode c + -` gives the
+propagation rule `c^d X :- c^d X`, which forms a component of its own; that component has no constructive
+rule, and `c`'s component has no propagation rule, so both pass, although `?- c 1 Y` derives `c 1 0`,
+`c 1 1`, … forever (`tests/neg/t_termination_demand_loop.hgn`). Likewise a rule of `c` may call a relation
+`d` of the component without a measure that reads `c`'s answers (`c X Y :- d X Z, Y = Z + 1` with
+`d X Z :- dom X, c X Z`): no demand rule decreases, and the answers grow without new demands
+(`tests/neg/t_termination_mutual_unmeasured.hgn`). Both programs were accepted before issue #2; the
+check below closes both gaps.
 
 ### Ascriptions (Section 6.1)
 
@@ -123,8 +135,107 @@ elaboration, no variables local to negations or aggregates).
   occurs in a `Scan`. Bodies are executed by backtracking over the IR; aggregates collect one value per
   distinct binding of the aggregate's local variables (Definition 8.4).
 
+## Termination (issue #2)
+
+The termination check (`obj/check/Termination.scala`) generalises Definition 10.3. A recursive
+component (Section 6.4) needs a justification only if one of its rules is constructive (Definition 10.1);
+a component with a `%partial` relation is evaluated with the round budget and not checked. Otherwise every
+relation of the component, or the relation its demand relations belong to, may carry a measure
+`%terminates X (c … X …)`, `%terminates l c`, or lexicographically `%terminates (X, Y) (c … X … Y …)` /
+`%terminates (l, m) c`. `--explain-termination` prints, for every recursive component, which case
+applies and the justification of every recursive step.
+
+**Measures.** A measure is a tuple of argument positions; all measured relations of a component have
+tuples of the same length, and slot `i` is of the same kind for all of them: *integer* slots (`int` or a
+refinement of `int`) are ordered by `<`, *structural* slots (any other type) by the proper-subterm
+relation. Tuples are compared lexicographically; a step *decreases at slot i* if slots `< i` are equal
+and slot `i` decreases. Both orders are strict partial orders, so the lexicographic order is one too.
+
+**Arithmetic facts.** For a rule body, `Arithmetic` (`obj/check/Intervals.scala`) computes an interval for
+every integer term from the comparisons `l op r` (`op` in `= < ≤ > ≥`) by propagation to a bounded fixed
+point, through `+`, `-`, unary minus, multiplication by a literal and truncating division by a positive
+literal (both directions: `A = N - 1` with `N > 1` gives `A ≥ 1`, and `A ≥ 1` gives `N ≥ 2`). A
+difference `a - b` is bounded by rewriting the linear form of `a - b` with the linear equations of the
+body (adding multiples of `l - r = 0`) up to a small depth and intersecting the intervals of all forms.
+Every step preserves the invariant *if a valuation satisfies the body, every term's value lies in its
+interval and every form has the value of `a - b`*: comparisons hold by assumption, interval arithmetic
+over-approximates the operations (overflow and division by zero are undefined, so such a valuation does
+not satisfy the body), and the forms differ by multiples of zero. `IntervalsSuite` checks this invariant
+on random satisfied bodies. Equal: `a = b` syntactically, or `a - b ∈ [0, 0]`, or (structural) an
+equation `a = b` in the body. Integer decrease: `b - a ≥ 1`, or `a = x / l` with `l ≥ 2`, `x ≤ b` and
+`x ≥ 1` (`0 ≤ x / l < x` then). Structural decrease: `a` is a proper subterm of `b`, unfolding variables
+of `b` bound to patterns by `P as V`, `(c t̄ as V)` or `V = c t̄`. Only integer slots consult intervals;
+since comparisons and equations relate terms of one type, float and string comparisons never bound an
+integer term.
+
+**Bottom-up components** (no measured relation has modes). Conditions:
+
+1. Rules of unmeasured relations in the component are not constructive.
+2. In a rule with head `c h̄`, `c` measured, every body atom `d s̄` of the component is of a measured
+   relation, and the measure decreases from the call to the head: `μ_d(s̄)` is lexicographically below
+   `μ_c(h̄)`, decreasing at slot `i`.
+3. Anchor: for slot `i` the head's value lies below a bound (`h_i ≤ B`), and for every later slot `j > i`
+   it lies in a finite set (`L ≤ h_j ≤ B`). A slot is bounded if its variables are bound by positive
+   atoms of relations outside the component (a finite set: those relations are finite by induction over
+   the evaluation order), or by its interval, or by the call's slot (bounded likewise) plus a bounded
+   difference `h_j - s_j`. Structural slots must be bound by relations outside the component.
+
+*Soundness.* In semi-naive evaluation a fact that is new in round `r > 1` is derived by a rule with a
+premise of the component that is new in round `r - 1`; so a fact of round `r` ends a chain
+`m_1 < m_2 < … < m_r` (by condition 2, through measured relations only) that starts at a fact of a rule
+without premises of the component, of which there are finitely many. Along the chain slot 1 never
+decreases; it increases only at steps whose head value is `≤ B`, so all values of slot 1 lie between the
+minimum over the start facts and the maximum of `B` and the start facts. For slot `j > 1`, a segment of
+the chain in which slots `< j` are constant starts at a start fact or at a step decreasing at an earlier
+slot, whose slot `j` lies in a finite set by condition 3, and then increases only to values `≤ B`.
+Hence all measures on chains come from one finite set and chains are no longer than its size; the
+component reaches its fixed point after boundedly many rounds, each of which derives finitely many facts.
+Unmeasured relations (condition 1) only copy existing terms. The previous check (one slot, syntactic
+`s < b`, `w = u + l`, structural anchor on the head) is the special case with `n = 1`.
+
+**Demand-driven components** (a measured relation has modes; all measured relations must have modes,
+and every measured position is an input of every mode). Conditions:
+
+1. Rules whose head is neither measured nor a demand relation of a measured relation are not
+   constructive.
+2. A rule of a measured relation calls relations of the component only if they are measured, demand
+   relations, or unmeasured relations that do not depend on answers of measured relations other than
+   through demand relations (the type checker's `lookup` depends only on `bind` facts constructed by
+   demands).
+3. Every propagation rule `e^d(ū) :- g^d(w̄), …` whose guard is a demand of a measured relation `g` (in
+   any component — the demands of `log2` form their own component), and every propagation rule of the
+   component that reads the component, decreases the measure from guard to head: `μ_e(ū) < μ_g(w̄)`,
+   decreasing at slot `i`; if slot `i` is an integer, the body bounds `u_i` below (or binds it by relations
+   outside the component). Later slots are unconstrained (Ackermann: `ack (M - 1) R1 R` with `R1`
+   computed).
+
+*Soundness.* By condition 3 every chain of demand facts, each derived from the previous one as guard, is
+lexicographically decreasing, and the order is well founded on the values that occur: slot 1 never
+increases and decreases only to values above a fixed bound, so it decreases finitely often; then slot 2,
+and so on (structural slots decrease in the well-founded subterm order). Demands are seeded by finitely
+many facts (propagation rules without premises of the component and queries). By well-founded induction
+on the demand, the facts demanded under a demand `p` are finite: the answers of `p` are derived by rules
+guarded by `p` whose atoms of the component are measured (and guarded by demands that are children of
+`p`, finitely many by induction since they are derived from `p`, finitely many answers of earlier
+children and finite relations), demand relations, or relations that depend only on demands (condition 2);
+the terms they construct come from finitely many valuations. König's lemma (finitely many seeds, finite
+branching, no infinite chain) bounds the set of demands, and so the component. Unmeasured relations only
+copy existing terms (condition 1).
+
+**Diagnostics.** E0603 names the constructive rule, the cycle through the component, and a measure that
+would be accepted (single positions per relation, or a lexicographic pair for a single relation, found by
+running the check) or `%partial`. E0604 points at the call (or the demanded call) that fails, labels the
+head's or caller's measure, says which slot of the measure fails and whether the decrease or the anchor
+is missing, and suggests the missing comparison or `%partial`. Components with a cycle through negation
+are skipped (E0601 is reported).
+
+**Not covered.** Measures through non-linear arithmetic other than division by a literal, multiset or
+size-change termination with permuted arguments (Lee, Jones, Ben-Amram), declared measure functions,
+anchors through finite (non-recursive) types, and bottom-up structural recursion whose head is not
+matched against existing facts.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
-* Deriving numeric anchors through equations in the termination check.
+* Size-change termination (Lee, Jones, Ben-Amram) for argument permutations in the termination check.
 * A faster engine (columnar storage, join planning) behind the same core IR.

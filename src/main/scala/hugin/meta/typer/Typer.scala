@@ -70,10 +70,10 @@ final class Typer(c: Context)
             f.fnModes = f.fnModes :+ ((ms.map(_.input), d.span))
             None
           case _ => mk(DirKind.ModeD(ModeSpec(ms.map(m => (m.input, m.label.map(_.name), m.span)))), tgt)
-      case DirArgs.TerminatesVar(v, tgt, args) =>
+      case DirArgs.TerminatesVar(vs, tgt, args) =>
         val rc = RuleCtx(allowVars = true)
-        mk(DirKind.TerminatesVar(v.name, args.map(elabTerm(_, sc, rc))), tgt)
-      case DirArgs.TerminatesLabel(l, tgt) => mk(DirKind.TerminatesLabel(l.name), tgt)
+        mk(DirKind.TerminatesVar(vs.map(_.name), args.map(elabTerm(_, sc, rc))), tgt)
+      case DirArgs.TerminatesLabel(ls, tgt) => mk(DirKind.TerminatesLabel(ls.map(_.name)), tgt)
       case DirArgs.Target(RuleRef(rn)) =>
         Some(obj.Directive(DirKind.Derivations, None, Some(rn))(d.span, Origin.Source))
       case DirArgs.Target(tgt) =>

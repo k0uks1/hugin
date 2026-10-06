@@ -253,18 +253,27 @@ final class Parser(src: SourceFile, reporter: Reporter):
         val p = parsePath()
         DirArgs.Mode(p, parseModeItems())
       case "terminates" =>
-        if kind == Tok.Var then
-          val v = advance()
+        // a measure: one variable or label, or a parenthesised tuple of them (lexicographic)
+        val measure =
+          if kind == Tok.LParen && (peekTok(1).kind == Tok.Var || peekTok(1).kind == Tok.Name) then
+            advance()
+            val first = advance()
+            val b = mutable.ListBuffer(first)
+            while kind == Tok.Comma do
+              advance()
+              b += expect(first.kind, if first.kind == Tok.Var then "a variable" else "a label")
+            expect(Tok.RParen, "`)` after the measure")
+            b.toList
+          else if kind == Tok.Var || kind == Tok.Name then List(advance())
+          else fail(s"expected a variable, a label or a parenthesised measure after %terminates, found $found")
+        if measure.head.kind == Tok.Var then
           expect(Tok.LParen, "`(` followed by a call pattern")
           val p = parsePath()
           val args = mutable.ListBuffer.empty[Tree]
           while kind != Tok.RParen && kind != Tok.EOF && kind != Tok.Period do args += parsePostfix()
           expect(Tok.RParen)
-          DirArgs.TerminatesVar(VarRef(v.text)(v.span), p, args.toList)
-        else if kind == Tok.Name then
-          val l = advance()
-          DirArgs.TerminatesLabel(Ident(l.text)(l.span), parsePath())
-        else fail(s"expected a variable or label after %terminates, found $found")
+          DirArgs.TerminatesVar(measure.map(v => VarRef(v.text)(v.span)), p, args.toList)
+        else DirArgs.TerminatesLabel(measure.map(l => Ident(l.text)(l.span)), parsePath())
       case "partial" | "open" | "input" | "output" => DirArgs.Target(parsePath())
       case "derivations" =>
         if kind == Tok.RuleName then

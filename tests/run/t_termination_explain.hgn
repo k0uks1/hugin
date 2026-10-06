@@ -1,0 +1,24 @@
+(* `--explain-termination`: the measure and the justification of every recursive component *)
+fib : (n : int) -> (f : int) -> rel.
+%mode fib +n -f.
+%terminates n fib.
+fib 0 0.
+fib 1 1.
+fib N F :- N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
+
+words : list string -> rel.
+words (cons "a" (cons "b" nil)).
+
+edge : int -> int -> rel.
+edge 1 2. edge 2 3. edge 3 1.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
+
+nat : int -> rel.
+%partial nat.
+nat 0.
+nat M :- nat N, M = N + 1.
+
+?- fib 10 F.
+?- words L, len L N.

@@ -385,7 +385,7 @@ final class MetaEval(using Context):
               case other => other
             }
             val kind = d.kind match
-              case DirKind.TerminatesVar(v, args) => DirKind.TerminatesVar(v, args.map(reifyTerm(_, env, fr, identity)))
+              case DirKind.TerminatesVar(vs, args) => DirKind.TerminatesVar(vs, args.map(reifyTerm(_, env, fr, identity)))
               case k => k
             directives += Directive(kind, tgt, d.rule.map(qualify(prefix, _)))(d.span, fr.origin)
       catch case _: Abort => ()

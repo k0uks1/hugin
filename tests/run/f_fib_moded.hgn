@@ -1,9 +1,10 @@
-(* numeric demand-driven recursion: fib with a moded, numerically decreasing argument *)
+(* numeric demand-driven recursion: fib with a moded, numerically decreasing argument; the lower bounds
+   of the demanded `A` and `B` follow from `N > 1` (issue #2) *)
 fib : (n : int) -> (f : int) -> rel.
 %mode fib +n -f.
 %terminates n fib.
 fib 0 0.
 fib 1 1.
-fib N F :- N > 1, A = N - 1, A >= 1, B = N - 2, B >= 0, fib A FA, fib B FB, F = FA + FB.
+fib N F :- N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
 ?- fib 30 F.
 ?- fib 90 F.
