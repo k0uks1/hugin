@@ -48,10 +48,7 @@ private[meta] trait TyperBase:
   // ======================================================================= names
 
   private[meta] def editDistance(a: String, b: String): Int =
-    val d = Array.tabulate(a.length + 1, b.length + 1)((i, j) => if i == 0 then j else if j == 0 then i else 0)
-    for i <- 1 to a.length; j <- 1 to b.length do
-      d(i)(j) = (d(i - 1)(j) + 1).min(d(i)(j - 1) + 1).min(d(i - 1)(j - 1) + (if a(i - 1) == b(j - 1) then 0 else 1))
-    d(a.length)(b.length)
+    org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(a, b)
 
   private[meta] def suggestion(name: String, sc: Scope): Option[String] =
     val cands = sc.allNames.toList.distinct.filter(n => n != name && n.headOption.map(_.isUpper) == name.headOption.map(_.isUpper))

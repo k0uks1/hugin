@@ -18,35 +18,60 @@ result (lam "x" (base "int") (ref "x")) (arrow (base "int") (base "int")).
 
 ## Building and running
 
-Requirements: JDK 17+ and [sbt](https://www.scala-sbt.org/) 1.10. The implementation is written in Scala 3;
-the only library dependency is munit (tests).
+Requirements: JDK 17+ and [sbt](https://www.scala-sbt.org/) 1.10. The implementation is written in Scala 3.
 
 ```
 sbt compile                       # build
-sbt test                          # golden tests (tests/run, tests/neg, tests/pos)
-bin/hugin run examples/graphs.hgn # the launcher builds on first use (HUGIN_REBUILD=1 to rebuild)
+sbt test                          # unit suites and golden tests
+sbt stage                         # launcher script in target/universal/stage/bin/hugin (sbt-native-packager)
+bin/hugin run examples/graphs.hgn # wrapper that stages on first use (HUGIN_REBUILD=1 to re-stage)
 ```
 
-```
-usage: hugin <command> [options] <file.hgn>
+Commands come first, options after them (`hugin <command> [options] <args>`):
 
-commands:
-  run <file>          compile and evaluate; print output relations and query answers
-  check <file>        compile only and report diagnostics
-  phases              list the compiler phases
-  explain <code>      explain a diagnostic code (e.g. E0401)
-
-options:
-  --facts <file>      load ground facts for input relations (repeatable)
-  --budget <n>        round budget for components with %partial relations (default: unbounded)
-  --print-after <p>   print the program after phase p (comma-separated, repeatable; `all`)
-  --stop-after <p>    stop compilation after phase p
-  --stats             print evaluation statistics
-  --all-relations     print the facts of every relation (including constructors and demand relations)
-  --color / --no-color
-  --no-warnings       suppress warnings
-  --lint              enable advisory checks (W0004)
 ```
+hugin run <file.hgn>      compile and evaluate; print output relations and query answers
+hugin check <file.hgn>    compile only and report diagnostics
+hugin phases              list the compiler phases
+hugin explain <code>      explain a diagnostic code (e.g. E0401)
+
+  --facts <file>          load ground facts for input relations (repeatable)
+  --budget <n>            round budget for components with %partial relations (default: unbounded)
+  --print-after <phase>,… print the program after these phases (`all` for every phase)
+  --stop-after <phase>    stop compilation after this phase
+  --stats                 print evaluation statistics
+  --all-relations         print the facts of every relation (including constructors and demand relations)
+  --color / --no-color    colour diagnostics
+  --no-warnings           suppress warnings
+  --lint                  enable advisory checks (W0004)
+```
+
+## Dependencies
+
+Infrastructure comes from libraries; what remains hand-written is either the subject of the reference
+implementation or something no library does adequately:
+
+| concern | library |
+|---|---|
+| command-line parsing, usage text | [scopt](https://github.com/scopt/scopt) |
+| launcher scripts | [sbt-native-packager](https://github.com/sbt/sbt-native-packager) |
+| strongly connected components, topological order, shortest paths | [JGraphT](https://jgrapht.org/) (wrapped in `util/Graphs` for deterministic results) |
+| "did you mean" suggestions (edit distance) | [Apache Commons Text](https://commons.apache.org/proper/commons-text/) |
+| terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
+| tests, property-based tests | [munit](https://scalameta.org/munit/), [ScalaCheck](https://scalacheck.org/) via munit-scalacheck |
+| formatting | [scalafmt](https://scalameta.org/scalafmt/) |
+
+Kept hand-written, deliberately:
+
+- **Lexer and parser.** Error recovery (resynchronising at item boundaries, accepting an item with a
+  missing period, layout-aware hints) and rustc-quality messages are the main requirement; parser
+  combinator libraries (fastparse, cats-parse, parsley) give little control over recovery. Production
+  compilers such as rustc and dotty use hand-written parsers for the same reason.
+- **Snippet layout of diagnostics.** There is no maintained JVM counterpart of Rust's ariadne/miette;
+  the renderer is ~100 lines on top of fansi.
+- **Interning store and semi-naive engine.** They *are* Section 9 of the definition; the point of the
+  reference interpreter is to follow it closely. A real Datalog engine (e.g. Soufflé) could be targeted
+  by a separate backend from the core IR.
 
 Output follows Section 9.6: facts of output relations in input-fact syntax, sorted lexicographically,
 followed by the answers of each query. Without `%output` directives, only query answers are printed; a

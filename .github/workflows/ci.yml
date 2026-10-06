@@ -44,6 +44,8 @@ jobs:
         run: sbt -batch compile Test/compile
       - name: Golden tests (tests/run, tests/neg, tests/pos)
         run: sbt -batch test
+      - name: Stage the launcher (sbt-native-packager)
+        run: sbt -batch stage
       - name: Smoke test the CLI on the examples
         run: scripts/smoke.sh
       - name: Upload test reports

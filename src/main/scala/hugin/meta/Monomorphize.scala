@@ -47,7 +47,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       h match
         case Term.App(RelRef.Sym(hs), _) => edges.getOrElseUpdate(hs, mutable.Set.empty) ++= r.body.flatMap(relsIn)
         case _ =>
-    Tarjan.components(nodes, (n: RelSym) => edges.getOrElse(n, Nil).toList).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
+    Graphs.components(nodes, (n: RelSym) => edges.getOrElse(n, Nil).toList).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
 
   // ------------------------------------------------------------------ instances
 

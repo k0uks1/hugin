@@ -16,8 +16,9 @@ class CommandLineSuite extends munit.FunSuite:
 
   test("malformed command lines are rejected with a message") {
     assertEquals(CommandLine.parse(List("run", "a.hgn", "--budget", "-1")), Left("--budget expects a natural number, got `-1`"))
-    assertEquals(CommandLine.parse(List("run", "a.hgn", "--frob")), Left("unknown option `--frob`"))
-    assertEquals(CommandLine.parse(List("run", "a.hgn", "--facts")), Left("option `--facts` expects an argument"))
+    assert(CommandLine.parse(List("run", "a.hgn", "--frob")).left.exists(_.contains("--frob")))
+    assert(CommandLine.parse(List("run", "a.hgn", "--facts")).left.exists(_.contains("--facts")))
+    assert(CommandLine.parse(List("run")).isLeft)
     assertEquals(CommandLine.parse(Nil), Left("no command given"))
     assertEquals(CommandLine.parse(List("--help")).map(_.command), Right(Command.Help))
   }

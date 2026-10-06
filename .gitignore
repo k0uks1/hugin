@@ -6,4 +6,3 @@ project/project/
 .bloop/
 .idea/
 *.class
-target/hugin.classpath

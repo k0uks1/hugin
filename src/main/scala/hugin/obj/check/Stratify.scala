@@ -15,14 +15,14 @@ final class StratifyPhase extends Phase:
     if p == null then return
     val es = DepGraph.edges(p)
     val succ = es.groupBy(_.from).view.mapValues(_.map(_.to).distinct).toMap
-    val comps = Tarjan.components(p.rels.toList, (r: RelSym) => succ.getOrElse(r, Nil))
+    val comps = Graphs.components(p.rels.toList, (r: RelSym) => succ.getOrElse(r, Nil))
     ctx.unit.components = comps
     val compOf = comps.zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
     val reported = mutable.HashSet.empty[Int]
     for e <- es if e.negative && compOf(e.from) == compOf(e.to) && reported.add(compOf(e.from)) do
       // find a path back from `e.to` to `e.from` inside the component
       val inComp = es.filter(x => compOf(x.from) == compOf(e.from) && compOf(x.to) == compOf(e.from))
-      val path = shortestPath(e.to, e.from, inComp)
+      val path = Graphs.shortestPath(inComp, (x: DepEdge) => x.from, (x: DepEdge) => x.to, e.to, e.from)
       val cycle = (e :: path).map(x => (if x.negative then "not " else "") + x.to.name)
       var d =
         Diagnostic.error("E0601", "stratification cycle through negation", e.span, s"`${e.from.name}` depends negatively on `${e.to.name}`")
@@ -55,24 +55,6 @@ final class StratifyPhase extends Phase:
               .withLabel(rr.span, s"`$reader` reads `${c.name}`")
               .withNote("nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)")))
           }
-
-  private def shortestPath(from: RelSym, to: RelSym, es: List[DepEdge]): List[DepEdge] =
-    if from == to then return Nil
-    val prev = mutable.HashMap.empty[RelSym, DepEdge]
-    val q = mutable.Queue(from)
-    val seen = mutable.HashSet(from)
-    while q.nonEmpty && !prev.contains(to) do
-      val x = q.dequeue()
-      for e <- es if e.from == x && seen.add(e.to) do
-        prev(e.to) = e
-        q.enqueue(e.to)
-    var out = List.empty[DepEdge]
-    var cur = to
-    while prev.contains(cur) && cur != from do
-      val e = prev(cur)
-      out = e :: out
-      cur = e.from
-    out
 
   override def show(using Context): String =
     ctx.unit.components.zipWithIndex.map((c, i) => s"component $i: ${c.map(_.name).mkString(", ")}").mkString("\n")

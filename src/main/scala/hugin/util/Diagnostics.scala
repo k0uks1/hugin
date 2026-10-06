@@ -74,13 +74,13 @@ final class Reporter(val maxErrors: Int = 200):
 
 /** Renders diagnostics in a rustc-like layout. */
 final class DiagnosticRenderer(color: Boolean):
-  private def c(code: String, s: String): String = if color then s"\u001b[${code}m$s\u001b[0m" else s
-  private def bold(s: String) = c("1", s)
+  private def style(attrs: fansi.Attrs, s: String): String = if color then attrs(s).render else s
+  private def bold(s: String) = style(fansi.Bold.On, s)
   private def sevColor(sev: Severity, s: String) = sev match
-    case Severity.Error => c("1;31", s)
-    case Severity.Warning => c("1;33", s)
-    case Severity.Note => c("1;36", s)
-  private def blue(s: String) = c("1;34", s)
+    case Severity.Error => style(fansi.Color.Red ++ fansi.Bold.On, s)
+    case Severity.Warning => style(fansi.Color.Yellow ++ fansi.Bold.On, s)
+    case Severity.Note => style(fansi.Color.Cyan ++ fansi.Bold.On, s)
+  private def blue(s: String) = style(fansi.Color.Blue ++ fansi.Bold.On, s)
 
   def render(d: Diagnostic): String =
     val sb = new StringBuilder

@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Launcher for the Hugin reference implementation. Builds with sbt on first use
-# (set HUGIN_REBUILD=1 to rebuild after changing the sources).
+# Launcher for the Hugin reference implementation: runs the script staged by sbt-native-packager,
+# staging it first if needed (set HUGIN_REBUILD=1 to re-stage after changing the sources).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CP_FILE="$ROOT/target/hugin.classpath"
-if [[ ! -s "$CP_FILE" || "${HUGIN_REBUILD:-0}" == "1" ]]; then
-  mkdir -p "$ROOT/target"
-  (cd "$ROOT" && sbt -batch -Dsbt.supershell=false -Dsbt.color=false compile "export Runtime/fullClasspath") \
-    | grep -E '^[^[].*(\.jar|/classes)' | tail -n 1 > "$CP_FILE.tmp"
-  if [[ ! -s "$CP_FILE.tmp" ]]; then
-    echo "hugin: could not determine the classpath (did the build fail?)" >&2
-    exit 2
-  fi
-  mv "$CP_FILE.tmp" "$CP_FILE"
+STAGED="$ROOT/target/universal/stage/bin/hugin"
+if [[ ! -x "$STAGED" || "${HUGIN_REBUILD:-0}" == "1" ]]; then
+  (cd "$ROOT" && sbt -batch -error stage)
 fi
-exec java -Xss64m -cp "$(cat "$CP_FILE")" hugin.cli.Main "$@"
+exec "$STAGED" "$@"

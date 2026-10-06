@@ -32,7 +32,7 @@ class GoldenTests extends munit.FunSuite:
   private def runMain(args: List[String]): (Int, String, String) =
     val out = new StringBuilder
     val err = new StringBuilder
-    val code = Main.run("--no-color" :: args, s => out ++= s += '\n', s => err ++= s += '\n')
+    val code = Main.run(args :+ "--no-color", s => out ++= s += '\n', s => err ++= s += '\n')
     (code, out.toString, err.toString)
 
   private def compare(p: Path, actual: String): Unit =

@@ -1,10 +1,19 @@
 package hugin.runtime
 
 import hugin.TestSupport
-import scala.util.Random
+import org.scalacheck.{Gen, Prop}
 
 /** Differential tests of the semi-naive engine against reference computations in Scala. */
-class EngineSuite extends munit.FunSuite:
+class EngineSuite extends munit.ScalaCheckSuite:
+  override def scalaCheckTestParameters = super.scalaCheckTestParameters.withMinSuccessfulTests(30)
+
+  private val graphs: Gen[Set[(Int, Int)]] =
+    for
+      n <- Gen.choose(1, 12)
+      m <- Gen.choose(0, 3 * n)
+      edges <- Gen.listOfN(m, Gen.zip(Gen.choose(0, n - 1), Gen.choose(0, n - 1)))
+    yield edges.toSet
+
   private val tc = """
     edge : int -> int -> rel.
     %input edge.
@@ -23,14 +32,12 @@ class EngineSuite extends munit.FunSuite:
       closure = next
     closure
 
-  test("transitive closure (non-linear recursion) agrees with a naive fixpoint on random graphs") {
-    val rnd = Random(42)
-    for trial <- 1 to 15 do
-      val n = 2 + rnd.nextInt(12)
-      val edges = Set.fill(rnd.nextInt(3 * n))((rnd.nextInt(n), rnd.nextInt(n)))
+  property("transitive closure (non-linear recursion) agrees with a naive fixpoint") {
+    Prop.forAll(graphs) { edges =>
       val facts = edges.map((a, b) => s"edge $a $b.").mkString("\n")
       val expected = reference(edges).map((a, b) => s"path $a $b.").toList.sorted
-      assertEquals(TestSupport.run(tc, facts), Right(expected), s"trial $trial with edges $edges")
+      assertEquals(TestSupport.run(tc, facts), Right(expected))
+    }
   }
 
   test("interning: equal nested facts have one identity (A.2 (2))") {
