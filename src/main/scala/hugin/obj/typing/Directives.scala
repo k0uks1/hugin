@@ -4,7 +4,8 @@ package typing
 import hugin.util.*
 import hugin.compiler.*
 
-/** Phase: attach directives to relations (Figure 2, `dir`), and run deferred signature requirement checks. */
+/** Phase: attach directives to relations (Figure 2, `dir`), and check the signature requirements recorded by
+ *  the meta evaluator ([[RequirementCheck]]). */
 final class DirectivesPhase extends Phase:
   def phaseName = "directives"
   def description = "attach modes, termination, completeness and I/O directives to relations"
@@ -65,8 +66,45 @@ final class DirectivesPhase extends Phase:
                   ctx.report(Diagnostic.error("E0701", s"no rule named `@$rn`", d.span, "unknown rule").withOrigin(d.origin))
               }
             case _ =>
-    ctx.unit.deferred.foreach(_())
-    ctx.unit.deferred.clear()
+    ctx.unit.requirements.foreach(checkRequirement)
+
+  /** E0208: a relation passed to a functor does not satisfy a requirement of the parameter's signature. */
+  private def checkRequirement(c: RequirementCheck)(using Context): Unit =
+    val rel = c.rel
+    val failure = c.requirement match
+      case Requirement.Complete(label, _) =>
+        Option.when(rel.isOpen || rel.isPartial)(
+          Diagnostic.error(
+            "E0208",
+            s"relation `${rel.name}` does not satisfy `%complete $label`",
+            c.use,
+            s"`${rel.name}` is ${if rel.isOpen then "open" else "partial"}"
+          ).withNote("the functor negates or aggregates over this relation, which needs complete knowledge")
+        )
+      case Requirement.HasMode(label, mode, _) =>
+        Option.when(!rel.modes.exists(_._1 == mode)) {
+          val directive = s"%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}."
+          directiveBefore(
+            Diagnostic.error("E0208", s"relation `${rel.name}` does not have mode `${mode.show}`", c.use, s"required for field `$label`")
+              .withHelp(s"declare `$directive`"),
+            rel,
+            directive
+          )
+        }
+    failure.foreach(d => ctx.report(d.withLabel(c.requirement.span, "required here").withOrigin(c.origin)))
+
+  /** Suggests inserting a directive on its own line before the declaration of `rel`, if the declaration
+   *  names it as written (not a relation of a module body, whose name has a prefix). */
+  private def directiveBefore(d: Diagnostic, rel: RelSym, directive: String): Diagnostic =
+    val decl = rel.span
+    val text = decl.text
+    val namesIt =
+      text.startsWith(rel.name) && !text.drop(rel.name.length).headOption.exists(c => c.isLetterOrDigit || c == '_' || c == '\'')
+    if !decl.exists || !namesIt then d
+    else
+      val src = decl.source
+      val indent = src.content.substring(src.lineStart(decl.startLine), decl.start)
+      d.withSuggestion(s"declare `$directive`", Span(src, decl.start, decl.start), s"$directive\n${if indent.isBlank then indent else ""}")
   override def show(using Context): String =
     val p = ctx.unit.prog.nn
     p.rels.filter(r => r.modes.nonEmpty || r.terminates.isDefined || r.isOpen || r.isPartial || r.isInput || r.isOutput || r.derivations)
