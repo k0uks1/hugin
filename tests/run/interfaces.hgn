@@ -1,0 +1,17 @@
+(* An imported file ascribed with a signature (an interface): only the signature's fields are visible,
+   types stay transparent (`s.shape` is the file's `shape`), constructor fields build terms from object
+   variables, and a constant also serves as a value field. *)
+shapes_sig : mod = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
+s : shapes_sig = %import "lib/shapes".
+
+sizes : int -> rel.
+sizes 2. sizes 3. sizes 5.
+
+known : int -> int -> rel.
+known N A :- sizes N, s.area (s.square N) A.
+%output known.
+
+small : s.shape -> rel.
+small s.dot.
+small (s.square 2).
+?- small X, s.area X A.

@@ -100,8 +100,31 @@ and an edit to a library invalidates exactly the programs that import it. A `Sou
 set is read on first use (from the bundled standard library for `<stdlib>/` paths, otherwise from disk);
 an editor sets the text of open files explicitly.
 
+## Interfaces
+
+A file needs no interface: `geo = %import "lib/geo".` exposes everything the file exports. Optionally,
+an import is ascribed a signature, which is checked like any ascription of a module value:
+
+```
+shapes_sig : mod = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
+s : shapes_sig = %import "lib/shapes".
+```
+
+* **Hiding.** Only the signature's fields are visible through `s`; using another export is E0101.
+* **Transparent.** Ascription is coercive but not sealing: `s.shape` is the file's `shape`, so values flow
+  freely between `s` and any other import of the same file.
+* **Constructor fields.** A field `c : τ̄ -> a` whose domain and result are object types (Section 2.5)
+  denotes a constructor, not a meta function, so `s.square N` builds terms from object variables. A
+  constructor field is matched only by a constructor and a relation field only by a relation.
+* **Constants.** A nullary constructor `dot : shape.` of the file also matches a value field `dot : shape`.
+* Mismatches (missing field, wrong arity, relation versus constructor, wrong type) are E0204 with the
+  reason as a note.
+
 ## Not (yet) done
 
+* **Sealing.** An opt-in opaque ascription that makes the signature's types abstract. It needs
+  generative abstract types at evaluation (fresh object types standing for the hidden ones) and is left
+  for later; transparent ascription already covers hiding.
 * **Separate compilation.** Every compilation elaborates the prelude and the imported files from source.
   The interface of a compiled library would be its signature, its object declarations, and its families
   as generic templates (monomorphization must happen in the client so that family instances are shared,

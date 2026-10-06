@@ -56,7 +56,7 @@ final class Typer(c: Context)
   private[meta] def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
     classify(t, sc, null) match
       case Head.Obj(s) => Some(RelRef.Spliced(Ref(s)))
-      case Head.Meta(m, RelT(_)) => Some(RelRef.Spliced(m))
+      case Head.Meta(m, RelT(_, _)) => Some(RelRef.Spliced(m))
       case Head.Bad | Head.Meta(_, MType.Err) => None
       case _ =>
         err("E0701", s"$what expects a relation", t.span, "not a relation")
