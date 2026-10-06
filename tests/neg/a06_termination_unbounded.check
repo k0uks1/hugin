@@ -2,10 +2,15 @@ error[E0604]: invalid `%terminates` directive for `counter`
  --> tests/neg/a06_termination_unbounded.hgn:5:14
   |
 3 | %terminates N (counter N).
-  | -------------------------- directive declared here
+  | -------------------------- measure declared here
 ...
 5 | counter M :- counter N, M = N + 1.
-  |              ^^^^^^^^^ no anchor: the body does not bound `N` by a literal (e.g. `N < 100`)
+  |         -    ^^^^^^^^^ no anchor: the body bounds neither `M` nor `N` from above
+  |         the head has `M`
+  |
+  = note: bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop
+  = help: add an upper bound, e.g. `N < 100`
+  = help: if the recursion terminates for another reason, mark the relation `%partial counter.` to evaluate it with a round budget
 
 error[E0603]: growing component without a valid %terminates directive
  --> tests/neg/a06_termination_unbounded.hgn:9:17
@@ -14,6 +19,7 @@ error[E0603]: growing component without a valid %terminates directive
   |                 ^^^^^^^^^ head variable `M` is computed by `M = N + 1`
   |
   = note: the recursive component {nat} contains this constructive rule, so its fixed point may be infinite
-  = help: declare a structurally decreasing argument, e.g. `%terminates X (nat ...)`, or mark the relation `%partial nat.`
+  = note: recursion: `nat` -> `nat`
+  = help: declare a decreasing argument, e.g. `%terminates X (nat ...)`, or mark the relation `%partial nat.` to evaluate it with a round budget
 
 2 errors found

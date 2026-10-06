@@ -111,6 +111,79 @@ object Bounds:
       case _ => Interval.Top
     structural & env.getOrElse(t, Interval.Top)
 
+/** A linear integer expression `const + Σ coeff · atom`. Atoms are the maximal subterms that are not
+ *  sums, differences, negations or products with a literal: variables, divisions, and (harmlessly, since
+ *  they never meet integer atoms) terms of other types. */
+final case class Linear(const: BigInt, coeffs: Map[Term, BigInt]):
+  def +(o: Linear): Linear = Linear(const + o.const, Linear.merge(coeffs, o.coeffs))
+  def -(o: Linear): Linear = this + o.scale(-1)
+  def scale(k: BigInt): Linear = Linear(const * k, if k == 0 then Map.empty else coeffs.view.mapValues(_ * k).toMap)
+  def coeff(t: Term): BigInt = coeffs.getOrElse(t, BigInt(0))
+
+  /** The interval of the expression when every atom lies in its interval. */
+  def eval(b: Bounds): Interval = coeffs.foldLeft(Interval.point(const))((acc, tc) => acc + b(tc._1).times(tc._2))
+
+object Linear:
+  def constant(v: BigInt): Linear = Linear(v, Map.empty)
+  def atom(t: Term): Linear = Linear(0, Map(t -> BigInt(1)))
+  private def merge(a: Map[Term, BigInt], b: Map[Term, BigInt]): Map[Term, BigInt] =
+    b.foldLeft(a) { case (m, (t, c)) =>
+      val n = m.getOrElse(t, BigInt(0)) + c
+      if n == 0 then m - t else m.updated(t, n)
+    }
+
+  def of(t: Term): Linear = t match
+    case IntLit(v) => constant(v)
+    case Term.Arith(ArithOp.Add, x, y) => of(x) + of(y)
+    case Term.Arith(ArithOp.Sub, x, y) => of(x) - of(y)
+    case Term.Arith(ArithOp.Mul, x, IntLit(l)) => of(x).scale(l)
+    case Term.Arith(ArithOp.Mul, IntLit(l), x) => of(x).scale(l)
+    case Term.Neg(x) => of(x).scale(-1)
+    case Term.Ascr(x, _) => of(x)
+    case _ => atom(t)
+
+/** What the arithmetic of a rule body implies about integer terms: the intervals of [[Bounds]] and the
+ *  linear equations `l = r`. [[difference]] bounds `a - b` by rewriting it with the equations (each
+ *  rewrite adds a multiple of an equation, which is zero whenever the body holds) and evaluating every
+ *  rewritten form over the intervals; all forms denote the same value, so their intervals intersect. */
+final class Arithmetic(body: List[Formula]):
+  val bounds: Bounds = Bounds.of(body)
+  private val equations: List[Linear] = body.collect { case Formula.Cmp(CmpOp.Eq, l, r) => Linear.of(l) - Linear.of(r) }
+    .filter(_.coeffs.nonEmpty)
+
+  /** An interval containing `a - b` whenever the body holds. */
+  def difference(a: Term, b: Term): Interval =
+    val start = Linear.of(a) - Linear.of(b)
+    val seen = scala.collection.mutable.LinkedHashSet(start)
+    var frontier = List(start)
+    var depth = 0
+    while frontier.nonEmpty && depth < Arithmetic.Depth do
+      depth += 1
+      val next = scala.collection.mutable.ListBuffer.empty[Linear]
+      for
+        f <- frontier
+        e <- equations
+        t <- f.coeffs.keys
+        if e.coeff(t) != 0 && f.coeff(t) % e.coeff(t) == 0 && seen.size < Arithmetic.MaxForms
+      do
+        val g = f - e.scale(f.coeff(t) / e.coeff(t))
+        if seen.add(g) then next += g
+      frontier = next.toList
+    seen.foldLeft(Interval.Top)((iv, f) => iv & f.eval(bounds))
+
+  /** The interval of an integer term. */
+  def apply(t: Term): Interval = Linear.of(t).eval(bounds) & bounds(t)
+
+  /** The terms `t` is equated to by the body. */
+  def definitions(t: Term): List[Term] = body.collect {
+    case Formula.Cmp(CmpOp.Eq, l, r) if l == t => r
+    case Formula.Cmp(CmpOp.Eq, l, r) if r == t => l
+  }
+
+object Arithmetic:
+  private val Depth = 4
+  private val MaxForms = 256
+
 /** An integer literal. */
 object IntLit:
   def unapply(t: Term): Option[BigInt] = t match

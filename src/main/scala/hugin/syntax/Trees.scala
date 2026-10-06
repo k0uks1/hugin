@@ -120,6 +120,7 @@ object Trees:
 
   enum DirArgs:
     case Mode(target: Tree, modes: List[ModeItem])
+
     /** `%terminates X (c ...)` or, lexicographically, `%terminates (X, Y) (c ...)`. */
     case TerminatesVar(vs: List[VarRef], target: Tree, args: List[Tree])
 

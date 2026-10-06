@@ -1,0 +1,16 @@
+termination: {fib, fib^d[+-]}: terminates
+  measure of `fib`: argument 1 `n` (integer)
+  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
+  rule at tests/run/t_termination_explain.hgn:7:1: demand for `fib^d[+-] A` from `fib^d[+-] N`: `N - A` = 1; `A` >= 1
+  rule at tests/run/t_termination_explain.hgn:7:1: demand for `fib^d[+-] B` from `fib^d[+-] N`: `N - B` = 2; `B` >= 0
+termination: {path}: finite: recursive, but no rule is constructive (no new terms or numbers)
+termination: {nat}: not checked: `nat` is %partial (evaluated with the round budget)
+termination: {len[string]}: terminates
+  measure of `len[string]`: argument 1 (structural)
+  bottom-up: each recursive call is smaller than the head; the call's measure lies in a finite set
+  rule at <stdlib>/prelude.hgn:18:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
+(* truncated: the round budget was exhausted in {nat}; results are a subset *)
+?- fib 10 F.
+F = 55.
+?- words L, len L N.
+L = cons "a" (cons "b" nil), N = 2.

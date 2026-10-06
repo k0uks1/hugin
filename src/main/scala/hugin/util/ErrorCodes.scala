@@ -105,7 +105,11 @@ object ErrorCodes:
       "growing component without valid %terminates",
       "A recursive component with a constructive rule needs a valid %terminates directive or a %partial relation (Section 10)."
     ),
-    ("E0604", "invalid %terminates directive", "The directive does not satisfy Definition 10.3."),
+    (
+      "E0604",
+      "invalid %terminates directive",
+      "A recursive call does not decrease the measure, the measure is not bounded (an anchor is missing), or a measured relation calls a relation of its component without a measure (Definition 10.3 as generalised in docs/NOTES.md). `--explain-termination` shows the accepted justifications."
+    ),
     ("E0701", "invalid directive", "A directive refers to a relation of the wrong kind or arity."),
     ("E0801", "invalid input fact", "An input fact is not ground, not well-typed, or not for an input relation."),
     ("W0001", "undefined constant expression", "An object-level expression over literals is undefined, so the rule can never fire."),

@@ -1,0 +1,34 @@
+(* issue #2: decreases and anchors are derived by interval reasoning over the arithmetic of the body *)
+
+(* bottom-up: the call's argument is bounded through an equation (`M <= 10` gives `N <= 8`) *)
+steps : int -> rel.
+%terminates N (steps N).
+steps 0.
+steps M :- steps N, M = N + 2, M <= 10.
+
+(* bottom-up: the anchor is a relation outside the component *)
+small : int -> rel.
+small 0. small 1. small 2.
+chain : int -> int -> rel.
+%terminates N (chain N _).
+chain 0 0.
+chain M S :- chain N T, small N, M = N + 1, S = T + M.
+
+(* demand-driven: the decrease is a halving (`H = N / 2` with `N >= 1`), the bound comes from `N > 1` *)
+log2 : (n : int) -> (l : int) -> rel.
+%mode log2 +n -l.
+%terminates n log2.
+log2 1 0.
+log2 N L :- N > 1, H = N / 2, log2 H K, L = K + 1.
+
+(* demand-driven: the decrease goes through two equations *)
+down : (n : int) -> (k : int) -> rel.
+%mode down +n -k.
+%terminates n down.
+down 0 0.
+down N K :- N > 0, M = N - 3, P = M + 1, P >= 0, down P J, K = J + 1.
+
+?- steps N.
+?- chain N S.
+?- log2 1000 L.
+?- down 10 K.

@@ -1,0 +1,8 @@
+?- od N.
+N = 1.
+N = 3.
+N = 5.
+N = 7.
+N = 9.
+?- input T, size T N.
+T = node 1 (grove (node 2 leaf) (grove (node 3 (grove (node 4 leaf) leaf)) leaf)), N = 4.

@@ -1,0 +1,15 @@
+error[E0604]: invalid `%terminates` directive for `cell`
+ --> tests/neg/t_termination_lexicographic_unbounded.hgn:6:13
+  |
+3 | %terminates (I, J) (cell I J).
+  | ------------------------------ measure declared here
+...
+6 | cell I J :- cell H K, H < 2, I = H + 1, J = K - 5.
+  |        -    ^^^^^^^^ no anchor: component 2 of the measure: the body does not bound `J` from above and below
+  |        the head has `J`
+  |
+  = note: bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop
+  = help: add bounds, e.g. `K >= 0, K < 100`; a component after the increasing one can change arbitrarily
+  = help: if the recursion terminates for another reason, mark the relation `%partial cell.` to evaluate it with a round budget
+
+1 error found

@@ -1,0 +1,11 @@
+error[E0604]: measures of different lengths in the component {ev, od}
+ --> tests/neg/t_termination_mutual_shape.hgn:5:1
+  |
+4 | %terminates (N, K) (ev N K).
+  | ---------------------------- `ev` is measured by 2 arguments
+5 | %terminates N (od N _).
+  | ^^^^^^^^^^^^^^^^^^^^^^^ `od` is measured by 1 argument
+  |
+  = note: measures of mutually recursive relations are compared with each other, so they need the same shape
+
+1 error found

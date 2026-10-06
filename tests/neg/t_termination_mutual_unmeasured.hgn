@@ -1,0 +1,12 @@
+(* issue #2: a measured relation calls a relation of its component that has no measure and reads its
+   answers: `c 1 0, d 1 0, c 1 1, d 1 1, ...` grows without a new demand *)
+dom : int -> rel.
+dom 1.
+c : int -> int -> rel.
+%mode c + -.
+%terminates X (c X _).
+d : int -> int -> rel.
+c 1 0.
+c X Y :- d X Z, Y = Z + 1.
+d X Z :- dom X, c X Z.
+?- c 1 Y.

@@ -47,6 +47,7 @@ hugin query <file.hgn> <request> [<line>:<col>]
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
   --lint                  enable advisory checks (W0004)
+  --explain-termination   print the measure and justification of every recursive component
   --no-prelude            do not include the standard prelude
 ```
 
@@ -123,7 +124,7 @@ only on error-free programs.
 | `derivations` | 7.4 | derivation relations `@r` / `@r#i` |
 | `stratify` | 6.4 | dependency graph, Tarjan components, negative cycles (reported with the cycle) |
 | `completeness` | 6.5 | incompleteness propagation and Definition 6.6 (also for queries) |
-| `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3) |
+| `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3, generalised: interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
 | `lower` | 9.3 | compiles core rules to `Scan / Deref / Tag / Eval / Test / Lookup / NotIn / Agg` and `Make / Insert` over registers |
 
 The runtime (`hugin.runtime`) implements Section 9: words are literals or identities `(c, n)`; every

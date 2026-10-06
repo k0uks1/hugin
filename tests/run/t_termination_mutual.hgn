@@ -1,0 +1,32 @@
+(* issue #2: mutual recursion within a component, every relation decreasing the same measure *)
+
+(* bottom-up, numeric *)
+ev : int -> rel.
+od : int -> rel.
+%terminates N (ev N).
+%terminates N (od N).
+ev 0.
+od N :- ev M, M < 9, N = M + 1.
+ev N :- od M, M < 9, N = M + 1.
+
+(* demand-driven, structural: the size of a rose tree *)
+tree : type.
+forest : type.
+node : int -> forest -> tree.
+leaf : forest.
+grove : tree -> forest -> forest.
+size : (t : tree) -> (n : int) -> rel.
+fsize : (f : forest) -> (n : int) -> rel.
+%mode size +t -n.
+%mode fsize +f -n.
+%terminates t size.
+%terminates f fsize.
+size (node X F) N :- fsize F M, N = M + 1.
+fsize leaf 0.
+fsize (grove T F) N :- size T A, fsize F B, N = A + B.
+
+input : tree -> rel.
+input (node 1 (grove (node 2 leaf) (grove (node 3 (grove (node 4 leaf) leaf)) leaf))).
+
+?- od N.
+?- input T, size T N.

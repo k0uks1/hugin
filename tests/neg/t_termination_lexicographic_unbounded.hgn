@@ -1,0 +1,6 @@
+(* issue #2: bottom-up, later components of a lexicographic measure must be bounded on both sides *)
+cell : int -> int -> rel.
+%terminates (I, J) (cell I J).
+cell 0 0.
+cell I J :- cell I K, K < 3, J = K + 1.
+cell I J :- cell H K, H < 2, I = H + 1, J = K - 5.

@@ -2,9 +2,13 @@ error[E0604]: invalid `%terminates` directive for `len[int]`
  --> tests/neg/a06_termination_nondecreasing.hgn:8:31
   |
 6 | %terminates L (len L _).
-  | ------------------------ directive declared here
+  | ------------------------ measure declared here
 ...
 8 | len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1.
-  |                               ^^^^^^^^^^^^^^^^ no decrease: `cons[int] X L` is not smaller than `cons[int] X L`
+  |      --------                 ^^^^^^^^^^^^^^^^ no decrease: `cons[int] X L` is not smaller than `cons[int] X L`
+  |      the head has `cons[int] X L`
+  |
+  = note: the measure of `len[int]` is argument 1 (structural); for the call it must be smaller than for the head
+  = help: if the recursion terminates for another reason, mark the relation `%partial len[int].` to evaluate it with a round budget
 
 1 error found

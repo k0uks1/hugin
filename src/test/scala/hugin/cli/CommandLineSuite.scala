@@ -7,6 +7,8 @@ class CommandLineSuite extends munit.FunSuite:
     assertEquals(o.run.facts, List("x.facts", "y.facts"))
     assertEquals(o.run.budget, Some(3))
     assert(o.settings.lint)
+    assert(!o.settings.explainTermination)
+    assert(CommandLine.parse(List("check", "a.hgn", "--explain-termination")).toOption.get.settings.explainTermination)
   }
 
   test("phase names are validated") {
