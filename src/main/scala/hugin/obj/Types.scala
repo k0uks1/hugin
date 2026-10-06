@@ -18,15 +18,14 @@ object BaseType:
 
 /** Type parameter of a family (Section 4.6). */
 final class TParam(val name: String):
-  val id: Int = TParam.next()
   override def toString: String = name
-object TParam:
-  private var n = 0
-  private def next(): Int = { n += 1; n }
 
+/** Ids of object symbols: unique, and increasing in creation order (members of a closed type are ordered
+ *  by id). Compilations may run on several threads (the fuzz suites, a language server and a REPL in one
+ *  process), so the counter is atomic. */
 private object SymIds:
-  private var n = 0
-  def next(): Int = { n += 1; n }
+  private val n = java.util.concurrent.atomic.AtomicInteger()
+  def next(): Int = n.incrementAndGet()
 
 enum TypeKind:
   /** `a : type.` — open type of facts. */
