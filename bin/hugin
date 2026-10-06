@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Launcher for the Hugin reference implementation. Builds with sbt on first use.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CP_FILE="$ROOT/target/hugin.classpath"
+if [[ ! -f "$CP_FILE" || "${HUGIN_REBUILD:-0}" == "1" ]]; then
+  (cd "$ROOT" && sbt -batch -error compile "export Runtime/fullClasspath" | tail -n 1 > "$CP_FILE")
+fi
+exec java -Xss64m -cp "$(cat "$CP_FILE")" hugin.Main "$@"

@@ -18,7 +18,18 @@ object Compiler:
     List(hugin.meta.NamerPhase()),
     List(hugin.meta.TyperPhase()),
     List(hugin.meta.MetaEvalPhase()),
-    List(hugin.meta.MonomorphizePhase())
+    List(hugin.meta.MonomorphizePhase()),
+    List(hugin.obj.DirectivesPhase()),
+    List(hugin.obj.ConstFold()),
+    List(hugin.obj.ObjTyperPhase()),
+    List(hugin.obj.ModingPhase()),
+    List(hugin.obj.Records(), hugin.obj.Disjunctions()),
+    List(hugin.obj.DemandPhase()),
+    List(hugin.obj.DerivationsPhase()),
+    List(hugin.obj.StratifyPhase()),
+    List(hugin.obj.CompletenessPhase()),
+    List(hugin.obj.TerminationPhase()),
+    List(hugin.runtime.LowerPhase())
   )
 
   def phases: List[Phase] = phasePlan.map {

@@ -33,6 +33,9 @@ final class CompilationUnit(val source: SourceFile):
   val deferred: mutable.ListBuffer[() => Unit] = mutable.ListBuffer.empty
   var core: hugin.runtime.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
+  var incomplete: Set[RelSym] = Set.empty
+  /** Rules named by `%derivations @r`. */
+  val derivationRules: mutable.Set[String] = mutable.LinkedHashSet.empty
 
 final class Context(val unit: CompilationUnit, val settings: Settings, val reporter: Reporter):
   def report(d: Diagnostic): Unit =
