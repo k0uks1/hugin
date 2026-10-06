@@ -1,0 +1,12 @@
+(* Imported files are module values; an imported file sees the prelude (`tc`, `list`) but not the
+   importing program, and a file imported twice is the same module *)
+g = %import "lib/geo".
+r = %import "lib/routes".
+
+reachable : g.place -> rel.
+reachable Y :- g.near X, r.legs.path X Y.
+%output reachable.
+
+hops : list g.place -> rel.
+hops (cons g.here (cons g.there nil)).
+?- hops L, len L N.

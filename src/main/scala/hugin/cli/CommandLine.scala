@@ -61,7 +61,7 @@ object CommandLine:
         .action((_, o) => o.copy(command = Command.Explain("")))
         .children(arg[String]("<code>").action((c, o) => o.copy(command = Command.Explain(c)))),
       cmd("query")
-        .text("ask the compiler about a file: hover, definition, references (at <line>:<col>), symbols, diagnostics")
+        .text("ask the compiler about a file: hover, definition, references, completions (at <line>:<col>), symbols, diagnostics")
         .action((_, o) => o.copy(command = Command.Query("", "", None)))
         .children(
           arg[String]("<file.hgn>").action((f, o) =>
@@ -122,6 +122,9 @@ object CommandLine:
       opt[Unit]("no-warnings")
         .text("suppress warnings")
         .action((_, o) => o.copy(settings = o.settings.copy(warnings = false))),
+      opt[Unit]("no-prelude")
+        .text("do not include the standard prelude (base types must then be declared with %builtin)")
+        .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
       opt[Unit]("lint")
         .text("enable advisory checks (W0004)")
         .action((_, o) => o.copy(settings = o.settings.copy(lint = true))),
@@ -135,7 +138,7 @@ object CommandLine:
 
   val usage: String = OParser.usage(parser)
 
-  private def positional = Set("hover", "definition", "references")
+  private def positional = Set("hover", "definition", "references", "completions")
   private def requests = positional ++ Set("symbols", "diagnostics")
 
   private def position(s: String): Option[(Int, Int)] = s.split(":") match

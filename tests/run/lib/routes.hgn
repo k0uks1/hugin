@@ -1,0 +1,4 @@
+geo = %import "geo".
+leg : geo.place -> geo.place -> rel.
+leg geo.here geo.there.
+legs = tc { node = geo.place, edge = leg }.

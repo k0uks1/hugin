@@ -11,5 +11,7 @@ final case class Settings(
     /** Report warnings. */
     warnings: Boolean = true,
     /** Extra advisory checks (W0004). */
-    lint: Boolean = false
+    lint: Boolean = false,
+    /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
+    prelude: Boolean = true
 )

@@ -1,0 +1,15 @@
+(* disjunctions inside aggregates are lifted into auxiliary relations (issue #1, B4); inputs come from the demand transformation *)
+p : int -> rel. p 1. p 2. p 3.
+q : int -> int -> rel. q 1 10. q 5 50. q 5 51.
+lim : int -> rel. lim 2. lim 5.
+small : int -> prop.
+small X :- X < 2.
+small X :- X = 5.
+n : int -> rel.
+n C :- C = count { X | p X ; q X _ }.
+m : int -> int -> rel.
+m L C :- lim L, C = count { X | (p X, X < L) ; (q X Y, Y > L) }.
+s : int -> rel.
+s C :- C = count { X | p X, small X }.
+?- C = count { X | p X ; X = 7 }.
+%output n. %output m. %output s.

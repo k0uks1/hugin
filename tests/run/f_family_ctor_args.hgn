@@ -1,0 +1,18 @@
+(* A constructor fact that determines a family argument stands for the constructor's result type
+   (family arguments are invariant): `cons here nil` is a `seq place`, `some 3` fits `opt int` *)
+place : type. here : place. there : place.
+seq A : type.
+empty : seq A.
+push : A -> seq A -> seq A.
+route : seq place -> rel.
+route (push here (push there empty)).
+%output route.
+
+opt A : type.
+nothing : opt A.
+just : A -> opt A.
+tagged A B : type = { tag : A, value : B }.
+t : tagged string (opt int) -> rel.
+t (tagged "a" (just 3)).
+t (tagged "b" nothing).
+%output t.

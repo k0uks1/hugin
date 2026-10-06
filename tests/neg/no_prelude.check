@@ -1,0 +1,13 @@
+error[E0101]: unresolved name `list`
+ --> tests/neg/no_prelude.hgn:3:12
+  |
+3 | p : int -> list int -> rel.
+  |            ^^^^ not found in this scope
+
+error[E0101]: unresolved name `string`
+ --> tests/neg/no_prelude.hgn:4:5
+  |
+4 | q : string -> rel.
+  |     ^^^^^^ not found in this scope
+
+2 errors found
