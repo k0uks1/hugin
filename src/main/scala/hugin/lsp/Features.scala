@@ -1,0 +1,283 @@
+package hugin.lsp
+
+import hugin.meta.SymKind
+import hugin.query.{CompileKey, Compile, Database, Ide, Parse, SourceText}
+import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
+import org.eclipse.lsp4j.*
+import scala.collection.mutable
+import scala.jdk.CollectionConverters.*
+import scala.util.control.NonFatal
+
+/** The language features of the server, answered through the [[Ide]] API and the compiler queries, in
+ *  terms of the protocol: URIs, 0-based UTF-16 positions and lsp4j's data types.
+ *
+ *  Documents are keyed in the database by their path (see [[Uris]]); an open document's text is its
+ *  `SourceText` input, and files that are not open (imports) are read from disk by the compiler. Programs
+ *  (`.hgn`) get every feature, facts files (`.facts`) syntax diagnostics.
+ */
+final class Features(using db: Database):
+  /** The open documents: path to URI as the client spelled it. */
+  private val opened = mutable.LinkedHashMap.empty[String, String]
+
+  def isFacts(path: String): Boolean = path.endsWith(".facts")
+
+  /** The URI of a path: the client's own for an open document. */
+  def uriOf(path: String): Option[String] = opened.get(path).orElse(Uris.uri(path))
+
+  private def key(path: String) = CompileKey(path)
+  private def source(path: String): SourceFile = db(Parse, path).source
+  private def offset(path: String, pos: Position): Int = Positions.offset(source(path), pos)
+  private def inFile(span: Span, path: String) = span.exists && span.source.path == path
+  private def location(span: Span): Option[Location] =
+    Option.when(span.exists)(span).flatMap(sp => uriOf(sp.source.path).map(Location(_, Positions.range(sp))))
+
+  // ------------------------------------------------------------------------------------------ documents
+
+  /** Opens a document or replaces its text (full synchronisation). */
+  def update(uri: String, text: String): Unit =
+    val path = Uris.path(uri)
+    opened(path) = uri
+    db.set(SourceText, path, text)
+
+  /** Closes a document: from now on the file is read from disk again, like any import. */
+  def close(uri: String): Unit =
+    val path = Uris.path(uri)
+    opened.remove(path)
+    db.remove(SourceText, path)
+
+  /** Files changed on disk: those that are not open are read again on their next use. */
+  def changedOnDisk(uri: String): Unit =
+    val path = Uris.path(uri)
+    if !opened.contains(path) then db.remove(SourceText, path)
+
+  // ---------------------------------------------------------------------------------------- diagnostics
+
+  /** The compiler's diagnostics for a document, including those in the files it imports. */
+  def compilerDiagnostics(path: String): List[HDiagnostic] =
+    try if isFacts(path) then db(Parse, path).diagnostics else Ide.diagnostics(key(path))
+    catch
+      case NonFatal(e) =>
+        // a compiler crash must not take the other documents' diagnostics with it
+        List(HDiagnostic(Severity.Error, None, s"internal compiler error: $e", notes = List("please report this as a bug")))
+
+  /** The diagnostics to publish, by URI: every open document (possibly with none) and every imported file
+   *  with diagnostics. An open file is reported from its own compilation; a file that is not open, from the
+   *  compilations of the documents importing it. The bundled standard library has no URI and is skipped. */
+  def diagnostics: Map[String, List[Diagnostic]] =
+    val byFile = mutable.LinkedHashMap.empty[String, mutable.ListBuffer[HDiagnostic]]
+    for path <- opened.keys do byFile(path) = mutable.ListBuffer.empty
+    for path <- opened.keys; d <- compilerDiagnostics(path) do
+      val file = if d.primarySpan.exists then d.primarySpan.source.path else path
+      if file == path || !opened.contains(file) then byFile.getOrElseUpdate(file, mutable.ListBuffer.empty) += d
+    (for (file, ds) <- byFile; uri <- uriOf(file) yield uri -> ds.distinct.map(toLsp).toList).toMap
+
+  /** The diagnostics of one document. */
+  def diagnosticsOf(uri: String): List[Diagnostic] = diagnostics.getOrElse(uri, Nil)
+
+  /** The range is the primary label's; its message, the notes and the helps form the message; secondary
+   *  labels and the meta-level call chain become related information. */
+  def toLsp(d: HDiagnostic): Diagnostic =
+    val primary = d.labels.find(_.primary).filter(_.span.exists)
+    val text = (d.message :: primary.map(_.message).filter(_.nonEmpty).toList) ++
+      d.notes.map("note: " + _) ++ d.helps.map("help: " + _)
+    val range = primary.map(l => Positions.range(l.span)).getOrElse(Range(Position(0, 0), Position(0, 0)))
+    val out = Diagnostic(range, text.mkString("\n"), severity(d.severity), "hugin")
+    d.code.foreach(out.setCode)
+    if d.code.exists(unnecessary) then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
+    val secondary =
+      for
+        l <- d.labels if !l.primary
+        loc <- location(l.span)
+      yield DiagnosticRelatedInformation(loc, if l.message.nonEmpty then l.message else "related location")
+    val frames = d.origin.frames.flatMap(f => location(f.span).map(DiagnosticRelatedInformation(_, f.description)))
+    if secondary.nonEmpty || frames.nonEmpty then out.setRelatedInformation((secondary ++ frames).asJava)
+    out
+
+  private def severity(s: Severity) = s match
+    case Severity.Error => DiagnosticSeverity.Error
+    case Severity.Warning => DiagnosticSeverity.Warning
+    case Severity.Note => DiagnosticSeverity.Information
+
+  /** Singleton variables and unused definitions are shown faded. */
+  private val unnecessary = Set("W0002", "W0003")
+
+  // ----------------------------------------------------------------------------------- position queries
+
+  def hover(uri: String, pos: Position): Option[Hover] =
+    val path = Uris.path(uri)
+    if isFacts(path) then None
+    else Ide.hover(key(path), offset(path, pos)).map(text => Hover(MarkupContent(MarkupKind.MARKDOWN, s"```hugin\n$text\n```")))
+
+  /** The declaration of the name at a position; nothing for declarations of the bundled standard library. */
+  def definition(uri: String, pos: Position): List[Location] =
+    val path = Uris.path(uri)
+    if isFacts(path) then Nil else Ide.definition(key(path), offset(path, pos)).flatMap(location).toList
+
+  def references(uri: String, pos: Position, includeDeclaration: Boolean): List[Location] =
+    val path = Uris.path(uri)
+    if isFacts(path) then Nil
+    else
+      val off = offset(path, pos)
+      val decl = Ide.definition(key(path), off)
+      Ide.references(key(path), off).filter(sp => includeDeclaration || !decl.contains(sp)).flatMap(location)
+
+  /** Characters after which clients should ask for completions: module members, labels, directives. */
+  val completionTriggers: List[String] = List(".", "{", "%")
+
+  def completion(uri: String, pos: Position): List[CompletionItem] =
+    val path = Uris.path(uri)
+    if isFacts(path) then Nil
+    else
+      Ide.completions(key(path), offset(path, pos)).map { c =>
+        val item = CompletionItem(c.label)
+        item.setKind(completionKind(c.kind))
+        item.setDetail(c.detail)
+        item
+      }
+
+  private def completionKind(kind: String): CompletionItemKind = kind match
+    case "directive" => CompletionItemKind.Keyword
+    case "variable" | "meta parameter" => CompletionItemKind.Variable
+    case "label" => CompletionItemKind.Field
+    case "relation" => CompletionItemKind.Function
+    case "constructor" => CompletionItemKind.Constructor
+    case "struct" => CompletionItemKind.Struct
+    case "object type" | "base type" => CompletionItemKind.Class
+    case "type definition" => CompletionItemKind.TypeParameter
+    case "formula function" => CompletionItemKind.Method
+    case "meta definition" => CompletionItemKind.Module
+    case _ => CompletionItemKind.Text
+
+  // -------------------------------------------------------------------------------------------- outline
+
+  /** The outline, nested by enclosing definitions (module bodies). */
+  def documentSymbols(uri: String): List[DocumentSymbol] =
+    val path = Uris.path(uri)
+    if isFacts(path) then return Nil
+    final class Node(val sym: hugin.query.DocumentSymbol):
+      val children = mutable.ListBuffer.empty[Node]
+      def extent: Span = children.foldLeft(sym.extent)((sp, c) => sp.to(c.extent))
+      def toLsp: DocumentSymbol =
+        val out = DocumentSymbol(sym.name, symbolKind(sym.kind), Positions.range(extent), Positions.range(sym.span), sym.kind.describe)
+        out.setChildren(children.map(_.toLsp).asJava)
+        out
+    val roots = mutable.ListBuffer.empty[Node]
+    val all = mutable.ListBuffer.empty[Node]
+    for s <- Ide.symbols(key(path)) do
+      val node = Node(s)
+      val parent = s.container.flatMap { c =>
+        all
+          .filter(n =>
+            n.sym.name == c && n.sym.kind == SymKind.MetaDef && n.sym.extent.start <= s.span.start && s.span.end <= n.sym.extent.end
+          )
+          .minByOption(n => n.sym.extent.end - n.sym.extent.start)
+      }
+      parent.fold(roots)(_.children) += node
+      all += node
+    roots.map(_.toLsp).toList
+
+  private def symbolKind(k: SymKind): SymbolKind = k match
+    case SymKind.ObjType | SymKind.BaseType => SymbolKind.Class
+    case SymKind.Struct => SymbolKind.Struct
+    case SymKind.Rel => SymbolKind.Function
+    case SymKind.Ctor => SymbolKind.Constructor
+    case SymKind.TypeDef => SymbolKind.TypeParameter
+    case SymKind.FormulaFn => SymbolKind.Method
+    case SymKind.MetaDef => SymbolKind.Module
+    case SymKind.MetaParam => SymbolKind.Variable
+
+// ------------------------------------------------------------------------------------ semantic tokens
+
+  /** Token types of the semantic tokens legend; a token's type is its index. */
+  val tokenTypes: List[String] = List(
+    SemanticTokenTypes.Namespace, // meta definitions: modules, functors, signatures, constants
+    SemanticTokenTypes.Type, // object types, type definitions, base types
+    SemanticTokenTypes.Struct, // structs
+    SemanticTokenTypes.Function, // relations
+    SemanticTokenTypes.EnumMember, // constructors
+    SemanticTokenTypes.Macro, // formula functions (expanded hygienically)
+    SemanticTokenTypes.Parameter, // meta parameters
+    SemanticTokenTypes.Variable // object variables
+  )
+  val tokenModifiers: List[String] = List(SemanticTokenModifiers.Declaration)
+
+  private def tokenType(k: SymKind): Int = k match
+    case SymKind.MetaDef => 0
+    case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => 1
+    case SymKind.Struct => 2
+    case SymKind.Rel => 3
+    case SymKind.Ctor => 4
+    case SymKind.FormulaFn => 5
+    case SymKind.MetaParam => 6
+
+  /** Semantic tokens from the semantic index: declarations, resolved names and object variables, encoded
+   *  relative to the previous token as the protocol requires. */
+  def semanticTokens(uri: String): SemanticTokens =
+    val path = Uris.path(uri)
+    if isFacts(path) then return SemanticTokens(List.empty[Integer].asJava)
+    val index = db(Compile, key(path)).index
+    val decls = index.symbols.map(s => (s.span, s.name, tokenType(s.kind), 1))
+    val uses = index.references.map(r => (r.span, r.sym.name, tokenType(r.sym.kind), 0))
+    val vars = index.variables.map(v => (v.span, v.name, 7, 0))
+    val tokens = (decls ++ uses ++ vars)
+      .filter((sp, name, _, _) => inFile(sp, path) && sp.text == name)
+      .sortBy((sp, _, _, mods) => (sp.start, -mods))
+    val data = scala.collection.mutable.ArrayBuffer.empty[Integer]
+    var prevLine = 0
+    var prevChar = 0
+    var prevEnd = -1
+    for (sp, _, tpe, mods) <- tokens if sp.start >= prevEnd do
+      val pos = Positions.position(sp.source, sp.start)
+      val line = pos.getLine
+      val char = pos.getCharacter
+      data ++= List(line - prevLine, if line == prevLine then char - prevChar else char, sp.end - sp.start, tpe, mods).map(Int.box)
+      prevLine = line
+      prevChar = char
+      prevEnd = sp.end
+    SemanticTokens(data.asJava)
+
+  // --------------------------------------------------------------------------------------- code actions
+
+  /** Quick fixes for the diagnostics overlapping a range: `_` for singleton variables (W0002), and the
+   *  missing labels of a named pattern (E0301). */
+  def codeActions(uri: String, range: Range): List[CodeAction] =
+    val path = Uris.path(uri)
+    if isFacts(path) then return Nil
+    val src = source(path)
+    val (from, to) = (Positions.offset(src, range.getStart), Positions.offset(src, range.getEnd))
+    for
+      d <- compilerDiagnostics(path)
+      sp = d.primarySpan
+      if inFile(sp, path) && sp.start <= to && from <= sp.end
+      (title, edit, preferred) <- fixes(d, sp)
+    yield
+      val action = CodeAction(title)
+      action.setKind(CodeActionKind.QuickFix)
+      action.setDiagnostics(List(toLsp(d)).asJava)
+      action.setEdit(WorkspaceEdit(Map(uri -> List(edit).asJava).asJava))
+      action.setIsPreferred(preferred)
+      action
+
+  private def fixes(d: HDiagnostic, sp: Span): List[(String, TextEdit, Boolean)] =
+    def replace(text: String) = TextEdit(Positions.range(sp), text)
+    def insert(at: Int, text: String) = TextEdit(Range(Positions.position(sp.source, at), Positions.position(sp.source, at)), text)
+    d.code match
+      case Some("W0002") =>
+        val v = sp.text
+        List((s"Replace `$v` with `_`", replace("_"), true), (s"Rename `$v` to `_$v`", replace(s"_$v"), false))
+      case Some("E0301") =>
+        // the primary label lists the missing labels: missing `a`, `b`
+        val missing = "`([^`]+)`".r.findAllMatchIn(d.labels.find(_.primary).fold("")(_.message)).map(_.group(1)).toList
+        val text = sp.text
+        val (open, close) = (text.indexOf('{'), text.lastIndexOf('}'))
+        if missing.isEmpty || open < 0 || close < open then Nil
+        else
+          // insert after the last field, before the closing brace
+          val at = sp.start + text.lastIndexWhere(!_.isWhitespace, close - 1) + 1
+          val sep = if text.substring(open + 1, close).isBlank then "" else ", "
+          // in a body the missing columns are ignored (`_`); a head needs a value, here a variable named after the label
+          val inBody = d.helps.exists(_.contains("`..`"))
+          def value(l: String) = if inBody then "_" else l.capitalize
+          val add = ("Add the missing labels", insert(at, sep + missing.map(l => s"$l = ${value(l)}").mkString(", ")), true)
+          if inBody then List(add, ("Ignore the missing labels with `..`", insert(at, sep + ".."), false)) else List(add)
+      case _ => Nil

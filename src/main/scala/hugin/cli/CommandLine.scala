@@ -17,6 +17,9 @@ enum Command:
   /** An interactive session, starting with the given program files; `batch` reads it from stdin without
    *  prompts, `echo` writes each input line after its prompt (a transcript). */
   case Repl(files: List[String], batch: Boolean, echo: Boolean = false)
+
+  /** The language server, speaking LSP over stdin and stdout. */
+  case Lsp
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -116,6 +119,9 @@ object CommandLine:
                 case _ => o
             )
         ),
+      cmd("lsp")
+        .text("run the language server (LSP over stdin/stdout) for editors")
+        .action((_, o) => o.copy(command = Command.Lsp)),
       note(""),
       opt[String]("facts")
         .valueName("<file>")

@@ -39,6 +39,7 @@ hugin query <file.hgn> <request> [<line>:<col>]
                           (at a position), symbols, diagnostics
 hugin repl [<file.hgn> ...]
                           an interactive session, starting with these files (see below)
+hugin lsp                 run the language server (LSP over stdin/stdout) for editors
 
   --facts <file>          load ground facts for input relations (repeatable)
   --budget <n>            round budget for components with %partial relations (default: unbounded)
@@ -135,6 +136,7 @@ implementation or something no library does adequately:
 | launcher scripts | [sbt-native-packager](https://github.com/sbt/sbt-native-packager) |
 | strongly connected components, topological order, shortest paths | [JGraphT](https://jgrapht.org/) (wrapped in `util/Graphs` for deterministic results) |
 | "did you mean" suggestions (edit distance) | [Apache Commons Text](https://commons.apache.org/proper/commons-text/) |
+| language server protocol, JSON-RPC | [Eclipse LSP4J](https://github.com/eclipse-lsp4j/lsp4j) |
 | terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
 | line editing, history and completion in the REPL | [JLine 3](https://github.com/jline/jline3) |
 | tests, property-based tests | [munit](https://scalameta.org/munit/), [ScalaCheck](https://scalacheck.org/) via munit-scalacheck |
@@ -254,6 +256,39 @@ variable C : city
 Incrementality is per file for now: a change to a program recompiles that program. Finer granularity
 (per item) needs the typer to stop mutating shared symbol state; it is tracked in issue #4.
 
+## Editor support
+
+`hugin lsp` is a language server speaking the
+[Language Server Protocol](https://microsoft.github.io/language-server-protocol/) over stdin and stdout
+(`hugin.lsp`, built on [LSP4J](https://github.com/eclipse-lsp4j/lsp4j)). It is a client of the query
+database: an open document's text is its `SourceText` input, files that are not open (imports) are read
+from disk, and every request is answered by `Ide` on the memoised compilation. It provides
+
+- diagnostics for every open document and for the files it imports, with the code, the primary label as
+  the range, notes and helps in the message, and secondary labels and the meta-level expansion chain as
+  related information (singleton variables and unused definitions are shown faded);
+- hover, go to definition and find references (through module paths; declarations in the bundled
+  prelude have no location and are not returned), the document outline, completion (names in scope,
+  module members after `.`, labels in named patterns, directives after `%`), semantic tokens and quick
+  fixes (`_` for a singleton variable, the missing labels of a named pattern).
+
+Positions are converted between the protocol's 0-based lines and UTF-16 columns and the compiler's
+character offsets in `lsp/Positions`. Facts files (`.facts`) get syntax diagnostics only.
+
+[`editors/vscode`](editors/vscode) is a minimal VS Code extension: the language configuration
+(`(* *)` comments, brackets), a TextMate grammar
+([`hugin.tmLanguage.json`](editors/vscode/syntaxes/hugin.tmLanguage.json), also usable by other editors
+and GitHub Linguist) and a client that starts `hugin lsp`. To try it:
+
+```
+sbt stage                                    # or let bin/hugin stage on first use
+cd editors/vscode && npm install
+code --extensionDevelopmentPath=$PWD ../..   # or: npx vsce package --skip-license, then install the .vsix
+```
+
+and set `hugin.server.path` to `<checkout>/bin/hugin` unless `hugin` is on the `PATH`. Any other LSP
+client works the same way: run `hugin lsp` for files with the extensions `.hgn` and `.facts`.
+
 ## Diagnostics
 
 Diagnostics are collected, never thrown: the parser resynchronises at item boundaries, the typer
@@ -287,9 +322,10 @@ Two kinds of tests, both run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
   (precedence, braces, `%infix`, recovery), shared primitive semantics, type operations (subtyping,
-  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics, and
+  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics,
   differential tests of the engine (random graphs against a naive fixpoint, budget monotonicity,
-  interning, aggregates).
+  interning, aggregates), the query layer, and the language server (position conversion, the
+  request handlers on in-memory documents, and one session over piped streams).
 - **Golden tests** in `tests/`, in the style of dotty's test suite:
   - `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
     `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--budget 1`).
@@ -311,7 +347,8 @@ in the environment of the test JVM.
 - **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck` (configuration in `.scalafmt.conf`).
 - **Build and test** on JDK 17 and 21 — compilation with warnings as errors (`CI` set in the
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
-  `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher.
+  `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
+  `hugin lsp` answers `initialize`.
 
 Locally:
 

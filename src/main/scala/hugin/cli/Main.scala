@@ -4,6 +4,7 @@ import hugin.util.*
 import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
+import hugin.lsp.HuginLanguageServer
 import hugin.runtime.Evaluation
 import java.nio.file.{Files, Path}
 
@@ -62,6 +63,11 @@ object Main:
       val session = Session(opts.settings, opts.run.budget, opts.run.stats)
       val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.settings.color, in, out, err)
       if ok then ExitCode.Ok else ExitCode.Errors
+    case Command.Lsp =>
+      // the protocol owns stdout; anything else printed there would corrupt it
+      val protocol = java.io.FileOutputStream(java.io.FileDescriptor.out)
+      System.setOut(System.err)
+      HuginLanguageServer.serve(System.in, protocol)
 
   /** Loads a file into the database; false if it does not exist. */
   private def load(db: Database, file: String): Boolean =
@@ -128,6 +134,6 @@ object Main:
       case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
-        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
+        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
       case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
     ExitCode.Ok
