@@ -19,8 +19,9 @@ program under edits) is the safety net for all of them.
 * `CompilationUnit` maps keyed by tree identity (`imports`, `scopes`) and `deferred` closures that run
   in a later phase; since steps 4–6 imports are resolved at use, module-body scopes are keyed by
   `ScopeKey` and requirement checks are data.
-* Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
-  per compilation, so this does not touch shared library results).
+* Monomorphize mutated the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
+  per compilation, so this did not touch shared library results); it now copies the monomorphic
+  declarations, so the generic program stays as MetaEval produced it.
 * Libraries: since step 7 a library's `Scope`, `SymTable` and `SymKeys` are frozen once elaborated and
   read through the program's layered table; MetaEval still evaluates every library once per compilation
   (its object names depend on the program: the prelude's `prelude.n` when the program shadows `n`, the

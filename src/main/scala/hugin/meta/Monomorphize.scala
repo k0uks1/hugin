@@ -8,7 +8,11 @@ import scala.collection.mutable
 
 /** Family instantiation by worklist (Section 4.6). Type arguments of family uses are inferred by
  *  first-order matching against the expected object types; rule families are instantiated at every
- *  instance of their head relation. */
+ *  instance of their head relation.
+ *
+ *  The generic program is not changed: its monomorphic relations and types are copied (`monoRel`,
+ *  `monoTypeSym`), and the copies, the instances and the rewritten rules form the result, which the
+ *  object-level phases then transform in place. */
 final class Monomorphizer(p: ObjProgram)(using Context):
   private val MaxInstances = 10000
   private val relMemo = mutable.LinkedHashMap.empty[(RelSym, List[OType]), RelSym]
@@ -19,6 +23,19 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private val outQueries = mutable.ArrayBuffer.empty[Query]
   private val outTypes = mutable.ArrayBuffer.empty[TypeSym]
   private val outRels = mutable.ArrayBuffer.empty[RelSym]
+
+  // copies of the monomorphic declarations, made before any instance so that symbol ids keep their order
+  // (members of a closed type are ordered by id); their column and refinement types are filled in by `run`
+  private val typeCopies: Map[TypeSym, TypeSym] =
+    p.types.filter(_.tparams.isEmpty).map(t => t -> TypeSym(t.name, t.kind, t.span, t.origin)).toMap
+  private val relCopies: Map[RelSym, RelSym] =
+    p.rels.filter(_.tparams.isEmpty).map(r => r -> RelSym(r.name, r.kind, r.span, r.origin)).toMap
+
+  /** The program's symbol for a monomorphic relation of the generic program (other relations unchanged). */
+  def monoRel(r: RelSym): RelSym = relCopies.getOrElse(r, r)
+
+  /** The program's symbol for a monomorphic type of the generic program (other types unchanged). */
+  def monoTypeSym(t: TypeSym): TypeSym = typeCopies.getOrElse(t, t)
 
   private val ruleFamilies: Map[RelSym, Vector[Rule]] =
     p.rules.filter(r => headFamily(r).isDefined).groupBy(r => headFamily(r).get)
@@ -67,6 +84,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     case OType.Fact(r, args) if r.tparams.nonEmpty =>
       if args.length != r.tparams.length || !args.forall(OType.isGround) then OType.Err
       else OType.Fact(relInstance(r, args.map(monoType(_, span, origin)), span, origin), Nil)
+    case OType.Con(s, Nil) => OType.Con(monoTypeSym(s), Nil)
+    case OType.Fact(r, Nil) => OType.Fact(monoRel(r), Nil)
     case OType.Union(ms) => OType.union(ms.map(monoType(_, span, origin)))
     case OType.Param(_) | OType.Meta(_) => OType.Err
     case other => other
@@ -250,7 +269,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     var ok = true
     def inst(node: AnyRef, r0: RelSym): RelSym =
       val e = inf.occs.get(node)
-      if e == null then r0
+      if e == null then monoRel(r0)
       else
         val (rel, metas, span) = e
         val args = metas.map(inf.resolve)
@@ -365,13 +384,13 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   def run(): ObjProgram =
     // monomorphic declarations
     for t <- p.types if t.tparams.isEmpty do
+      val c = monoTypeSym(t)
       t.kind match
-        case TypeKind.Refinement(b) => t.kind = TypeKind.Refinement(monoType(b, t.span, t.origin))
+        case TypeKind.Refinement(b) => c.kind = TypeKind.Refinement(monoType(b, t.span, t.origin))
         case _ =>
-      outTypes += t
-    for r <- p.rels if r.tparams.isEmpty do
-      outRels += r
-    val monoRels = outRels.toList
+      outTypes += c
+    val monoRels = p.rels.filter(_.tparams.isEmpty)
+    outRels ++= monoRels.map(monoRel)
     // monomorphic rules and queries
     for r <- p.rules if headFamily(r).isEmpty do inferRule(r, None).foreach(outRules += _)
     for q <- p.queries do
@@ -380,9 +399,10 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       rewriteRule(Rule(None, Nil, q.body)(q.span, q.origin, q.expansions), inf, None).foreach(r => outQueries += q.withBody(r.body))
     // declared column types of monomorphic relations (after rules, so that instances are requested in source order)
     for r <- monoRels do
-      r.cols = r.cols.map(c => c.copy(tpe = monoType(c.tpe, r.span, r.origin)))
-      r.result = r.result.map(monoType(_, r.span, r.origin))
-    val edges = p.edges.map(e => Edge(monoType(e.sub, e.span, e.origin), e.sup)(e.span, e.origin))
+      val c = monoRel(r)
+      c.cols = r.cols.map(col => col.copy(tpe = monoType(col.tpe, r.span, r.origin)))
+      c.result = r.result.map(monoType(_, r.span, r.origin))
+    val edges = p.edges.map(e => Edge(monoType(e.sub, e.span, e.origin), monoTypeSym(e.sup))(e.span, e.origin))
     // worklist
     while worklist.nonEmpty do
       val (f, ts, origin) = worklist.dequeue()
@@ -395,6 +415,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       d.target match
         case Some(RelRef.Sym(r)) if r.tparams.nonEmpty =>
           instancesOf.getOrElse(r, Nil).toVector.map(i => Directive(d.kind, Some(RelRef.Sym(i)), d.rule)(d.span, d.origin))
+        case Some(RelRef.Sym(r)) => Vector(Directive(d.kind, Some(RelRef.Sym(monoRel(r))), d.rule)(d.span, d.origin))
         case _ => Vector(d)
     }
     ObjProgram(outTypes.toVector, outRels.toVector, edges, outRules.toVector, outQueries.toVector, dirs)
@@ -406,5 +427,7 @@ final class MonomorphizePhase extends Phase:
   def run(using Context): Unit =
     val u = ctx.unit
     if u.generic == null then return
-    u.prog = Monomorphizer(u.generic.nn).run()
+    val mono = Monomorphizer(u.generic.nn)
+    u.prog = mono.run()
+    u.requirements = u.requirements.map(c => c.copy(rel = mono.monoRel(c.rel)))
   override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)
