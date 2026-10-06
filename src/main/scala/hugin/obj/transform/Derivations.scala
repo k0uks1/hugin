@@ -25,7 +25,9 @@ final class DerivationsPhase extends ObjProgramPhase:
     }
     val groups = p.rules.filter(wanted).groupBy(_.name.get)
     if groups.isEmpty then return
-    val replaced = mutable.HashMap.empty[Rule, List[Rule]]
+    // by identity: two rules may be equal (spans are not part of a rule's equality) and still each get
+    // their own derivation relation
+    val replaced = java.util.IdentityHashMap[Rule, List[Rule]]()
     val newRels = mutable.ArrayBuffer.empty[RelSym]
     for (name, rs) <- groups.toList.sortBy(_._1); (r, i) <- rs.zipWithIndex do
       val rn = if rs.length == 1 then s"@$name" else s"@$name#${i + 1}"
@@ -48,6 +50,6 @@ final class DerivationsPhase extends ObjProgramPhase:
       val r1 = r.withParts(body = body)
       val dh = Term.App(RelRef.Sym(d), head :: atoms.toList.map((_, v) => Term.Var(v)(r.span)))(r.span)
       val r2 = Rule(Some(rn), List(dh), body)(r.span, r.origin, r.expansions)
-      replaced(r) = List(r1, r2)
-    p.rules = p.rules.flatMap(r => replaced.getOrElse(r, List(r)))
+      replaced.put(r, List(r1, r2))
+    p.rules = p.rules.flatMap(r => Option(replaced.get(r)).getOrElse(List(r)))
     p.rels = p.rels ++ newRels

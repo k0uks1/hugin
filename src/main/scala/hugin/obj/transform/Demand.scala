@@ -42,11 +42,11 @@ final class DemandPhase extends ObjProgramPhase:
         case _ => List(r)
     }
     // 2. propagation
-    val seen = mutable.HashSet.empty[String]
+    val seen = mutable.HashSet.empty[Rule] // structural: spans are not part of a rule's equality
     val propagation = mutable.ArrayBuffer.empty[Rule]
     def emit(head: Term, prefix: List[Formula], span: Span, origin: Origin, expansions: List[Expansion], name: Option[String]): Unit =
       val r = Rule(name.map(n => s"$n^d"), List(head), prefix)(span, origin, expansions)
-      if seen.add(ObjPrinter.rule(r)) then propagation += r
+      if seen.add(r) then propagation += r
     // Calls of auxiliary relations (disjunctions inside aggregates) are deferred: their demand is built
     // from the part of the prefix that does not depend on the calling rule's head (see `auxDemand`).
     final case class AuxCall(head: Term, binds: Set[String], prefix: List[Formula], caller: Option[RelSym], rule: Rule)
