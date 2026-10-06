@@ -11,9 +11,10 @@ import org.eclipse.lsp4j.services.*
 import scala.jdk.CollectionConverters.*
 
 /** The Hugin language server. It keeps one query [[hugin.query.Database]]; an opened or changed document (full
- *  synchronisation) sets its `SourceText`, and the diagnostics of every open document are published again,
- *  since an edit can affect the documents importing the edited one. Requests are answered by [[Features]]
- *  through the compiler queries, so unchanged documents are not recompiled.
+ *  synchronisation) sets its `SourceText`, and diagnostics are published per file: those of every open
+ *  document again (an edit can affect the documents importing the edited one), and those of the files they
+ *  import (from the queries of those files) when they changed, and cleared when they disappeared. Requests
+ *  are answered by [[Features]] through the compiler queries, so unchanged documents are not recompiled.
  *
  *  lsp4j delivers messages one at a time on its listener thread and every handler computes its answer
  *  before returning, so the database is only ever used by one thread.
@@ -26,8 +27,9 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   /** The features, for tests. */
   val features: Features = Features()
 
-  /** The URIs that currently have diagnostics on the client, to clear them when they disappear. */
-  private var published = Set.empty[String]
+  /** The diagnostics the client currently has, by URI (only non-empty lists): to clear them when they
+   *  disappear, and to publish those of a file that is not open only when they changed. */
+  private var published = Map.empty[String, List[Diagnostic]]
 
   /** Completed with the process exit code when the client sends `exit`. */
   val exited: CompletableFuture[Integer] = CompletableFuture()
@@ -64,13 +66,13 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   override def getTextDocumentService(): TextDocumentService = documents
   override def getWorkspaceService(): WorkspaceService = workspace
 
-  /** Publishes the diagnostics of all open documents and of the files they import, and clears those of
-   *  files that no longer have any. */
+  /** Publishes the diagnostics of all open documents and those of the files they import that changed, and
+   *  clears those of files that no longer have any. */
   private def publish(): Unit =
     val now = features.diagnostics
-    for uri <- published -- now.keySet do send(uri, Nil)
-    for (uri, diags) <- now do send(uri, diags)
-    published = now.filter(_._2.nonEmpty).keySet
+    for uri <- published.keySet -- now.keySet do send(uri, Nil)
+    for (uri, diags) <- now if features.isOpen(uri) || published.getOrElse(uri, Nil) != diags do send(uri, diags)
+    published = now.filter(_._2.nonEmpty)
 
   private def send(uri: String, diags: List[Diagnostic]): Unit =
     client.foreach(_.publishDiagnostics(PublishDiagnosticsParams(uri, diags.asJava)))

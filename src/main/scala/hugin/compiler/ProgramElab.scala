@@ -249,19 +249,39 @@ object ProgramElab:
     }.toMap
     ProgramSignatures(items.toMap, typer.syms, u.symKeys, u.index, u.scopes.toList, ctx.reporter.diagnostics, parts)
 
-  /** What an item reads of the declarations it is elaborated against: the meta definitions and formula
-   *  functions of later items are hidden, and every declaration whose results are read is recorded. */
-  private final class ItemView(root: Scope, sigs: SymTable, later: Set[ItemKey]) extends SymTable.View:
+  /** What an item reads of the top level it is elaborated against: the meta definitions and formula
+   *  functions of later items are hidden, and every declaration whose results are read, every name
+   *  looked up in the top-level scope (found or not) and every declaration whose order relative to the
+   *  item decided whether it is hidden are recorded. */
+  private final class ItemView(root: Scope, sigs: SymTable, later: Set[ItemKey]) extends SymTable.View with Scope.Observer:
     val observed: mutable.LinkedHashSet[SigOwner] = mutable.LinkedHashSet.empty
-    def hidden(s: Sym): Boolean = (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && s.item.exists(later)
+    val names: mutable.LinkedHashSet[String] = mutable.LinkedHashSet.empty
+    val ordered: mutable.LinkedHashSet[ItemKey] = mutable.LinkedHashSet.empty
+    var listedAll = false
+    def hidden(s: Sym): Boolean =
+      if s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn then
+        s.item match
+          case Some(k) =>
+            if k.scope == root.key then ordered += k
+            later(k)
+          case None => false
+      else false
     def observe(s: Sym): Unit =
       ownerOf(root, s.key) match
         case Some(k) => observed += SigOwner.Item(k)
         case None => if sigs.hasLocal(s) then observed += SigOwner.Library(s.key)
+    def looked(name: String): Unit = names += name
+    def found(s: Sym): Unit = observe(s)
+    def listed(): Unit = listedAll = true
+
+  /** What the elaboration of an item read of its program's top level (see [[ItemView]]): the
+   *  declarations whose results it read, the names it looked up in the top-level scope, whether it
+   *  listed all of them, and the declarations whose order relative to the item it asked about. */
+  final case class ItemReads(owners: Set[SigOwner], names: Set[String], listed: Boolean, ordered: Set[ItemKey])
 
   /** Elaborates one top-level item (not a declaration or definition) of a named program against its
    *  signatures; `later` are the keys of the declarations and definitions after it. Returns the item and
-   *  the declarations it read. */
+   *  what it read of the top level. */
   def item(
       named: NamedProgram,
       sigs: ProgramSignatures,
@@ -271,16 +291,17 @@ object ProgramElab:
       later: Set[ItemKey],
       prelude: Boolean,
       libs: Libraries
-  ): (ElaboratedItem, Set[SigOwner]) =
+  ): (ElaboratedItem, ItemReads) =
     val ctx = context(named.source, prelude, libs, plibs)
     val u = ctx.unit
     u.symKeys.inherit(sigs.keys)
     val view = ItemView(named.scope, sigs.table, later)
     val typer = hugin.meta.typer.Typer(ctx, List(sigs.table), view)
-    val out = named.scope.observing(view.observe)(typer.elabTopItem(item, key, named.scope))
+    val out = named.scope.observing(view)(typer.elabTopItem(item, key, named.scope))
     typer.syms.freeze()
     u.scopes.values.foreach(_.freeze())
-    (ElaboratedItem(key, out, typer.syms, u.symKeys, u.index, u.scopes.toList, ctx.reporter.diagnostics), view.observed.toSet)
+    val reads = ItemReads(view.observed.toSet, view.names.toSet, view.listedAll, view.ordered.toSet)
+    (ElaboratedItem(key, out, typer.syms, u.symKeys, u.index, u.scopes.toList, ctx.reporter.diagnostics), reads)
 
   /** The keys of the declarations and definitions after each item, by item. */
   def laterDeclarations(items: List[(ItemKey, Item)]): Map[ItemKey, List[ItemKey]] =

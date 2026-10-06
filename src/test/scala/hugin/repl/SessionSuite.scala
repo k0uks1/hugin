@@ -314,6 +314,31 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(c.text, "p.\n     \nq.")
   }
 
+  test("queries and probes are elaborated as extra items: the session's items are not elaborated again") {
+    val s = session(graph*)
+    val db = s.database
+    def elaborated = db.stats.computedBy("elabItem")
+    def signatures = db.stats.computedBy("signatures")
+    db.stats.reset()
+    assertEquals(s.execute("?- path a X.").output, List("X = b.", "X = c."))
+    assertEquals((elaborated, signatures), (1, 0)) // the query
+    db.stats.reset()
+    assertEquals(s.execute(":type path").output, List("relation path : node -> node -> rel"))
+    assertEquals(elaborated, 0) // the probe is a definition, elaborated with the declarations
+    db.stats.reset()
+    assertEquals(s.execute(":type cons a nil").output, List("cons a nil : cons[node]"))
+    assertEquals(elaborated, 1) // the object probe `?- It'repl = cons a nil.`
+    db.stats.reset()
+    assertEquals(s.complete("?- pat", 6), List("path"))
+    assertEquals(elaborated, 1)
+    // probes leave the session as it was: a new input elaborates its own items only
+    db.stats.reset()
+    assertEquals(s.execute("r : node -> rel. r X :- path a X."), Reply())
+    assertEquals(elaborated, 1)
+    assertEquals(s.execute("?- r X.").output, List("X = b.", "X = c."))
+    assertEquals(db.stats.computedBy("elabLibrary"), 0)
+  }
+
   test("the prelude and imported files are elaborated once for the whole session") {
     val lib = tempFile("geo.hgn", "place : type. here : place.\n")
     val s = Session()

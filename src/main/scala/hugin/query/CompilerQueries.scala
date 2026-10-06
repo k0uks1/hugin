@@ -131,6 +131,7 @@ object ProgramDiagnostics extends Accumulator[Diagnostic]("programDiagnostics")
 final class ProgramItems(val items: List[(hugin.meta.ItemKey, hugin.syntax.Trees.Item)]):
   val byKey: Map[hugin.meta.ItemKey, hugin.syntax.Trees.Item] = items.toMap
   lazy val later: Map[hugin.meta.ItemKey, List[hugin.meta.ItemKey]] = ProgramElab.laterDeclarations(items)
+  lazy val laterSet: Map[hugin.meta.ItemKey, Set[hugin.meta.ItemKey]] = later.view.mapValues(_.toSet).toMap
 
 object ProgramItemsOf extends Query[ProgramKey, ProgramItems]("programItems"):
   def compute(key: ProgramKey)(using db: Database): ProgramItems =
@@ -150,10 +151,15 @@ object ItemOf extends Query[ItemQueryKey, PositionedItem]("itemOf"):
     val item = db(ProgramItemsOf, key.program).byKey(key.item)
     PositionedItem(item, ItemFingerprint.of(item))
 
-/** The declarations and definitions after an item: their meta definitions are hidden from it (E0105). */
-object LaterDecls extends Query[ItemQueryKey, List[hugin.meta.ItemKey]]("laterDecls"):
-  def compute(key: ItemQueryKey)(using db: Database): List[hugin.meta.ItemKey] =
-    db(ProgramItemsOf, key.program).later.getOrElse(key.item, Nil)
+final case class OrderKey(item: ItemQueryKey, decl: hugin.meta.ItemKey)
+
+/** Whether a declaration or definition comes after an item: its meta definitions and formula functions
+ *  are hidden from the item (E0105). An item depends on this for the declarations it asked about, not on
+ *  all declarations after it, so adding a declaration (such as a new input of a REPL session) does not
+ *  elaborate the items before it again. */
+object DeclAfter extends Query[OrderKey, Boolean]("declAfter"):
+  def compute(key: OrderKey)(using db: Database): Boolean =
+    db(ProgramItemsOf, key.item.program).laterSet.getOrElse(key.item.item, Set.empty).contains(key.decl)
 
 /** Names the top level of a program ([[NamedProgram]]); cut off unless a declaration, a clause or a
  *  `%mode` of a formula function changed (with its position), or the prelude did. */
@@ -165,7 +171,7 @@ object ScopeOf extends Query[ProgramKey, NamedProgram]("scopeOf"):
     named
 
 /** The names declared at a program's top level with their kinds and keys, and the enclosing scope: what
- *  name resolution in an item depends on besides the declarations it finds. */
+ *  an item depends on when it lists all names (for the suggestion of a similar name). */
 final class ScopeNamesValue(val names: List[(String, hugin.meta.SymKind, hugin.meta.SymKey)], val parent: Option[hugin.meta.Scope]):
   override def equals(that: Any): Boolean = that match
     case n: ScopeNamesValue => names == n.names && parent.zip(n.parent).forall(_ eq _) && parent.isDefined == n.parent.isDefined
@@ -176,6 +182,22 @@ object ScopeNames extends Query[ProgramKey, ScopeNamesValue]("scopeNames"):
   def compute(key: ProgramKey)(using db: Database): ScopeNamesValue =
     val scope = db(ScopeOf, key).scope
     ScopeNamesValue(scope.decls.values.toList.map(s => (s.name, s.kind, s.key)), scope.parent)
+
+final case class ScopeNameKey(program: ProgramKey, name: String)
+
+/** What one name denotes at a program's top level (the kind and key of its symbol, or nothing, so that a
+ *  lookup falls through to the enclosing scope), and the enclosing scope: what name resolution in an
+ *  item depends on for each name it looks up, besides the declaration it finds ([[DeclSig]]). */
+final class ScopeNameValue(val sym: Option[(hugin.meta.SymKind, hugin.meta.SymKey)], val parent: Option[hugin.meta.Scope]):
+  override def equals(that: Any): Boolean = that match
+    case n: ScopeNameValue => sym == n.sym && parent.zip(n.parent).forall(_ eq _) && parent.isDefined == n.parent.isDefined
+    case _ => false
+  override def hashCode: Int = sym.hashCode
+
+object ScopeName extends Query[ScopeNameKey, ScopeNameValue]("scopeName"):
+  def compute(key: ScopeNameKey)(using db: Database): ScopeNameValue =
+    val scope = db(ScopeOf, key.program).scope
+    ScopeNameValue(scope.decls.get(key.name).map(s => (s.kind, s.key)), scope.parent)
 
 /** The libraries of a program, elaborated (cut off unless one of them changed). */
 object ProgramLibrariesOf extends Query[ProgramKey, ProgramLibraries]("programLibraries"):
@@ -201,21 +223,26 @@ object DeclSig extends Query[DeclSigKey, DeclSigValue]("declSig"):
     db(Signatures, key.program).parts.getOrElse(key.owner, DeclSigValue.empty)
 
 /** Elaborates one top-level item of a program that is not a declaration or definition (a rule, query,
- *  directive or subtyping edge). It depends on the item with its position, on the names of the top level,
- *  on the libraries, on the declarations after it, and on the parts of the signatures it read
- *  ([[DeclSig]]); the shared results it is elaborated against (the scope, the signatures) are read
- *  untracked, since those dependencies cover everything it uses of them. */
+ *  directive or subtyping edge). It depends on the item with its position, on the libraries, and on what
+ *  it read of the top level: each name it looked up ([[ScopeName]], or all names, [[ScopeNames]]), the
+ *  order of the declarations whose meta definitions it asked about ([[DeclAfter]]) and the parts of the
+ *  signatures it read ([[DeclSig]]). The shared results it is elaborated against (the scope, the
+ *  signatures, the items of the program) are read untracked, since those dependencies cover everything
+ *  it uses of them; so an edit elsewhere, also adding a declaration, does not elaborate it again unless it
+ *  changes a name the item uses. */
 object ElabItem extends Query[ItemQueryKey, ElaboratedItem]("elabItem"):
   def compute(key: ItemQueryKey)(using db: Database): ElaboratedItem =
     val item = db(ItemOf, key).item
-    db(ScopeNames, key.program)
     val plibs = db(ProgramLibrariesOf, key.program)
-    val later = db(LaterDecls, key).toSet
+    val later = db.untracked(ProgramItemsOf, key.program).laterSet.getOrElse(key.item, Set.empty)
     val named = db.untracked(ScopeOf, key.program)
     val sigs = db.untracked(Signatures, key.program)
-    val (elaborated, read) =
+    val (elaborated, reads) =
       ProgramElab.item(named, sigs, plibs, key.item, item, later, key.program.prelude, DatabaseLibraries())
-    read.foreach(o => db(DeclSig, DeclSigKey(key.program, o)))
+    if reads.listed then db(ScopeNames, key.program)
+    reads.names.foreach(n => db(ScopeName, ScopeNameKey(key.program, n)))
+    reads.ordered.foreach(d => db(DeclAfter, OrderKey(key, d)))
+    reads.owners.foreach(o => db(DeclSig, DeclSigKey(key.program, o)))
     elaborated.diagnostics.foreach(db.push(ProgramDiagnostics, _))
     elaborated
 
