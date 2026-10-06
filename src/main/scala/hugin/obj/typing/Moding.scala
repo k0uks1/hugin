@@ -35,13 +35,11 @@ object Moding:
     case Formula.Disj(alts) => alts.map(_.flatMap(formulaVars).toSet).reduceOption(_ intersect _).getOrElse(Set.empty)
     case _ => Set.empty
 
-  def modesOf(c: RelSym): List[Mode] = if c.modes.isEmpty then List(Mode.allOut(c.arity)) else c.modes.map(_._1)
-
   def applicable(m: Mode, args: List[Term], b: Set[String]): Boolean =
     m.inputs.zip(args).forall((in, a) => if in then vars(a).subsetOf(b) else needs(a).subsetOf(b))
 
-  def firstApplicable(c: RelSym, args: List[Term], b: Set[String]): Option[Mode] =
-    modesOf(c).find(applicable(_, args, b))
+  def firstApplicable(c: RelSym, args: List[Term], b: Set[String])(using facts: ProgramFacts): Option[Mode] =
+    facts.modesOf(c).find(applicable(_, args, b))
 
   /** Why a formula cannot take a binding step. */
   enum Stuck:
@@ -50,7 +48,7 @@ object Moding:
     case Inner(f: Formula, inner: Stuck)
 
   /** B ⊢ φ ⇒ B' (Definition 6.3). */
-  def step(f: Formula, b: Set[String]): Either[Stuck, Set[String]] = f match
+  def step(f: Formula, b: Set[String])(using facts: ProgramFacts): Either[Stuck, Set[String]] = f match
     case a @ Formula.Atom(RelRef.Sym(c), args, v) =>
       if firstApplicable(c, args, b).isDefined then Right(b ++ formulaVars(f))
       else Left(Stuck.NoMode(a, b))
@@ -68,7 +66,7 @@ object Moding:
     case Formula.Not(a @ Formula.Atom(RelRef.Sym(c), args, _)) =>
       val local = args.flatMap(vars).toSet -- b
       if !args.forall(x => needs(x).subsetOf(b)) then Left(Stuck.Unbound(f, args.flatMap(needs).toSet -- b))
-      else if c.hasModes && firstApplicable(c, args, b).isEmpty then Left(Stuck.NoMode(a, b))
+      else if facts.hasModes(c) && firstApplicable(c, args, b).isEmpty then Left(Stuck.NoMode(a, b))
       else Right(b)
     case Formula.Agg(res, _, t, body) =>
       canonical(body, b) match
@@ -84,7 +82,7 @@ object Moding:
     case _ => Right(b)
 
   /** Greedy canonical order (Lemma 6.4): repeatedly pick the leftmost formula that can step. */
-  def canonical(body: List[Formula], b0: Set[String]): Either[Stuck, (List[Formula], Set[String])] =
+  def canonical(body: List[Formula], b0: Set[String])(using ProgramFacts): Either[Stuck, (List[Formula], Set[String])] =
     var rest = body
     var b = b0
     val out = mutable.ListBuffer.empty[Formula]
@@ -102,10 +100,10 @@ object Moding:
     case Term.App(_, args) => args.zip(m.inputs).filter(_._2).flatMap((a, _) => vars(a)).toSet
     case _ => Set.empty
 
-  def describe(s: Stuck): Diagnostic = s match
+  def describe(s: Stuck)(using facts: ProgramFacts): Diagnostic = s match
     case Stuck.NoMode(a, b) =>
       val c = a.rel.sym
-      val modes = modesOf(c)
+      val modes = facts.modesOf(c)
       val unboundInputs = modes.map(m =>
         a.args.zip(m.inputs).zipWithIndex.collect {
           case ((t, true), i) if !vars(t).subsetOf(b) => (i, vars(t) -- b)
@@ -147,6 +145,7 @@ final class ModingPhase extends Phase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
+    val facts = ctx.unit.facts
     // input positions of the heads of moded relations must be patterns (Section 7.3)
     def isPattern(t: Term): Boolean = t match
       case Term.Var(_) | Term.Lit(_) => true
@@ -157,7 +156,7 @@ final class ModingPhase extends Phase:
       for h <- r.heads do
         h match
           case Term.App(RelRef.Sym(c), args) =>
-            for (m, _) <- c.modes; case ((a, true), i) <- args.zip(m.inputs).zipWithIndex if !isPattern(a) && ok do
+            for (m, _) <- facts.modes(c); case ((a, true), i) <- args.zip(m.inputs).zipWithIndex if !isPattern(a) && ok do
               ok = false
               ctx.report(Diag.rule(r)(Diagnostic.error(
                 "E0503",
@@ -167,13 +166,13 @@ final class ModingPhase extends Phase:
               )
                 .withNote(s"`${c.name}` has mode ${m.show}; its inputs must appear in the demand guard")))
             if ok then
-              for m <- Moding.modesOf(c) if ok do
+              for m <- facts.modesOf(c) if ok do
                 val b0 = Moding.headInputVars(h, m)
                 Moding.canonical(r.body, b0) match
                   case Left(stuck) =>
                     ok = false
                     var d = Moding.describe(stuck)
-                    if c.hasModes then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
+                    if facts.hasModes(c) then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
                     ctx.report(Diag.rule(r)(d))
                   case Right((_, b)) =>
                     val headVars = r.heads.flatMap(Moding.vars).toSet
@@ -189,7 +188,7 @@ final class ModingPhase extends Phase:
                       )
                       for s <- spans.drop(1) do d = d.withLabel(s, "")
                       d = d.withNote("every variable of the head must be bound by a positive atom or an equation in the body")
-                      if c.hasModes then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
+                      if facts.hasModes(c) then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
                       ctx.report(Diag.rule(r)(d))
           case _ => ok = false
       ok

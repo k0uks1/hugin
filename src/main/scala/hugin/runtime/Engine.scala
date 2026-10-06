@@ -230,7 +230,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for (comp, ci) <- prog.components.zipWithIndex do
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
-      val partial = comp.exists(t => prog.rels(t).isPartial)
+      val partial = comp.exists(t => prog.directives(t).partial)
       val limit = if partial then budget else None
       // Init: every rule once, all atoms read the full relations
       comp.foreach { t =>

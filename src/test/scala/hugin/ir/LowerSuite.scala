@@ -18,9 +18,9 @@ class LowerSuite extends munit.FunSuite:
       path X Y :- e X Y.
       path X Z :- e X Y, path Y Z.
     """)
-    p.rels.zipWithIndex.foreach((r, i) => assertEquals(r.tag, i))
-    val e = p.rels.find(_.name == "e").get.tag
-    val path = p.rels.find(_.name == "path").get.tag
+    p.rels.zipWithIndex.foreach((r, i) => assertEquals(p.tag(r), i))
+    val e = p.tag(p.rels.find(_.name == "e").get)
+    val path = p.tag(p.rels.find(_.name == "path").get)
     assert(p.components.indexWhere(_.contains(e)) < p.components.indexWhere(_.contains(path)), p.components)
   }
 
@@ -43,7 +43,7 @@ class LowerSuite extends munit.FunSuite:
       q : int -> rel.
       q Y :- a X, b X Y.
     """)
-    val b = p.rels.find(_.name == "b").get.tag
+    val b = p.tag(p.rels.find(_.name == "b").get)
     assertEquals(p.indexes.get(b), Some(Set(Vector(0))))
   }
 
@@ -56,4 +56,18 @@ class LowerSuite extends munit.FunSuite:
     """)
     val kinds = rule(p, "q").body.toList.map(_.getClass.getSimpleName)
     assert(kinds.contains("NotIn") && kinds.contains("Agg") && kinds.contains("Test"), kinds)
+  }
+
+  test("query variables are answered in the order they are first written, found structurally") {
+    val p = core("""
+      p : string -> int -> rel.
+      p "Y" 1.
+      q : int -> rel.
+      q 2.
+      ?- p "Y" X, q Y.
+      ?- q Z', q Z.
+      ?- N = count { A | q A }, q M.
+    """)
+    // a string literal or a primed variable does not count as an occurrence
+    assertEquals(p.queries.map(_.vars).toList, List(List("X", "Y"), List("Z'", "Z"), List("N", "M")))
   }

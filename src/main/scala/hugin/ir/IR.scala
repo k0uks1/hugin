@@ -1,6 +1,6 @@
 package hugin.ir
 
-import hugin.obj.{ArithOp, CmpOp, Rule, Query, RelSym}
+import hugin.obj.{ArithOp, CmpOp, Rule, Query, RelDirectives, RelSym}
 import hugin.syntax.AggKind
 
 /** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String) or identities. */
@@ -67,12 +67,19 @@ final class CompiledQuery(
     val regs: Array[Array[Int]]
 )
 
+/** A compiled program. Relations are referred to by tag: their index in `rels`. */
 final class CoreProgram(
     val rels: Vector[RelSym],
+    /** The directives of each relation, by tag. */
+    val directives: Vector[RelDirectives],
     /** Components in evaluation order, as relation tags. */
     val components: Vector[Vector[Int]],
     val rules: Vector[CompiledRule],
     val queries: Vector[CompiledQuery],
     /** Bound-column sets per relation that need an index. */
     val indexes: Map[Int, Set[Vector[Int]]]
-)
+):
+  private val tags: Map[RelSym, Int] = rels.zipWithIndex.toMap
+
+  /** The tag of a relation of the program. */
+  def tag(r: RelSym): Int = tags(r)

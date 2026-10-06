@@ -13,18 +13,21 @@ final class DerivationsPhase extends ObjProgramPhase:
     val p = ctx.unit.prog
     if p == null then return
     val names = ctx.unit.derivationRules
+    val facts = ctx.unit.facts
     def baseName(n: String): String = n.indexOf('[') match
       case -1 => n
       case i => n.substring(0, i)
     def wanted(r: Rule): Boolean = r.name.exists { n =>
       !n.endsWith("^d") && (names.contains(baseName(n)) || r.heads.exists {
-        case Term.App(RelRef.Sym(c), _) => c.derivations || c.instanceOf.exists(_._1.derivations)
+        case Term.App(RelRef.Sym(c), _) => facts(c).derivations
         case _ => false
       })
     }
     val groups = p.rules.filter(wanted).groupBy(_.name.get)
     if groups.isEmpty then return
-    val replaced = mutable.HashMap.empty[Rule, List[Rule]]
+    // by identity: two rules may be equal (spans are not part of a rule's equality) and still each get
+    // their own derivation relation
+    val replaced = java.util.IdentityHashMap[Rule, List[Rule]]()
     val newRels = mutable.ArrayBuffer.empty[RelSym]
     for (name, rs) <- groups.toList.sortBy(_._1); (r, i) <- rs.zipWithIndex do
       val rn = if rs.length == 1 then s"@$name" else s"@$name#${i + 1}"
@@ -42,11 +45,11 @@ final class DerivationsPhase extends ObjProgramPhase:
       }
       val d = RelSym(rn, RelKind.Derivation(name), r.span, r.origin)
       d.cols = (Column(None, OType.Fact(c, Nil)) :: atoms.toList.map((rel, _) => Column(None, OType.Fact(rel, Nil)))).toVector
-      d.isOutput = true
+      ctx.unit.facts = ctx.unit.facts.updated(d)(_.copy(output = true))
       newRels += d
       val r1 = r.withParts(body = body)
       val dh = Term.App(RelRef.Sym(d), head :: atoms.toList.map((_, v) => Term.Var(v)(r.span)))(r.span)
       val r2 = Rule(Some(rn), List(dh), body)(r.span, r.origin, r.expansions)
-      replaced(r) = List(r1, r2)
-    p.rules = p.rules.flatMap(r => replaced.getOrElse(r, List(r)))
+      replaced.put(r, List(r1, r2))
+    p.rules = p.rules.flatMap(r => Option(replaced.get(r)).getOrElse(List(r)))
     p.rels = p.rels ++ newRels

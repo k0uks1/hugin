@@ -40,8 +40,12 @@ final class ConstFold extends MiniPhase:
     case d @ Formula.Disj(alts) => Formula.Disj(alts.map(_.map(foldF(_, warn))))(d.span)
     case other => other
 
-  override def transformRule(r: Rule)(using Context): List[Rule] =
-    val warn = (d: Diagnostic) => ctx.report(Diag.rule(r)(d))
-    List(r.withParts(heads = r.heads.map(fold(_, warn)), body = r.body.map(foldF(_, warn))))
-  override def transformQuery(q: Query)(using Context): Query =
-    q.withBody(q.body.map(foldF(_, d => ctx.report(Diag.query(q)(d)))))
+  def start(using Context): MiniPhase.Transformer = Folder
+
+  /** Stateless: one transformer serves every traversal. */
+  private object Folder extends MiniPhase.Transformer:
+    override def transformRule(r: Rule)(using Context): List[Rule] =
+      val warn = (d: Diagnostic) => ctx.report(Diag.rule(r)(d))
+      List(r.withParts(heads = r.heads.map(fold(_, warn)), body = r.body.map(foldF(_, warn))))
+    override def transformQuery(q: Query)(using Context): Query =
+      q.withBody(q.body.map(foldF(_, d => ctx.report(Diag.query(q)(d)))))

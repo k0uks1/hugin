@@ -7,9 +7,6 @@ import scala.collection.mutable
 
 /** Phase: completeness discipline (Section 6.5). */
 final class CompletenessPhase extends Phase:
-  /** Relations that may be incomplete (for `--print-after completeness`). */
-  private var incomplete: Set[RelSym] = Set.empty
-
   def phaseName = "completeness"
   def description = "incomplete relations are never negated or aggregated over (Definition 6.6)"
 
@@ -19,16 +16,17 @@ final class CompletenessPhase extends Phase:
     val es = DepGraph.edges(p)
     // reason for incompleteness, propagated backwards along positive edges
     val why = mutable.LinkedHashMap.empty[RelSym, String]
+    val facts = ctx.unit.facts
     for r <- p.rels do
-      if r.isOpen then why(r) = s"`${r.name}` is declared %open"
-      else if r.isPartial then why(r) = s"`${r.name}` is declared %partial"
+      if facts(r).open then why(r) = s"`${r.name}` is declared %open"
+      else if facts(r).partial then why(r) = s"`${r.name}` is declared %partial"
     var changed = true
     while changed do
       changed = false
       for e <- es if !e.negative && why.contains(e.to) && !why.contains(e.from) do
         why(e.from) = s"`${e.from.name}` depends positively on `${e.to.name}`; ${why(e.to)}"
         changed = true
-    incomplete = why.keySet.toSet
+    ctx.unit.incomplete = why.keySet.toSet
     for e <- es if e.negative && why.contains(e.to) do
       ctx.report(Diag.rule(e.rule)(Diagnostic.error(
         "E0602",
@@ -49,4 +47,4 @@ final class CompletenessPhase extends Phase:
         .withNote("queries may mention incomplete relations only positively (Section 8.5)")))
 
   override def show(using Context): String =
-    s"incomplete: ${incomplete.map(_.name).toList.sorted.mkString(", ")}"
+    s"incomplete: ${ctx.unit.incomplete.map(_.name).toList.sorted.mkString(", ")}"

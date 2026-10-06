@@ -223,7 +223,8 @@ src/main/scala/hugin/
                      Declarations (object declarations, type definitions), TypeElaboration (object and
                      meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
                      application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
-  obj/             object-level AST: types and symbols, terms and formulas, primitives, probes, printer
+  obj/             object-level AST: types and symbols, directives of relations (ProgramFacts), terms and
+                   formulas, primitives, probes, printer
   obj/typing/      type operations, directives, constant folding, object typer, moding
   obj/transform/   records, disjunctions, demand transformation, derivations (Section 7)
   obj/check/       dependency graph, stratification, completeness, termination (with interval reasoning)

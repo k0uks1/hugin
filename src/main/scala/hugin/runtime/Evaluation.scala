@@ -42,12 +42,13 @@ object Evaluation:
     factFiles.foreach(loader.load)
     if reporter.hasErrors then return Outcome(None, reporter.sorted)
     engine.run()
-    val explicit = prog.rels.filter(_.isOutput)
+    def directives(r: hugin.obj.RelSym) = prog.directives(prog.tag(r))
+    val explicit = prog.rels.filter(directives(_).output)
     val shown =
       if allRelations then prog.rels
       else if explicit.nonEmpty then explicit
       else if prog.queries.nonEmpty then Vector.empty
-      else prog.rels.filter(r => r.kind == RelKind.Plain && !r.isInput)
+      else prog.rels.filter(r => r.kind == RelKind.Plain && !directives(r).input)
     val answers = prog.queries.toList.map { q =>
       val text = if q.source.span.exists then q.source.span.text.replaceAll("\\s+", " ") else hugin.obj.ObjPrinter.query(q.source)
       val as = engine.answers(q)
@@ -57,5 +58,5 @@ object Evaluation:
         else as.map(a => q.vars.zip(a).map((v, w) => s"$v = ${engine.show(w)}").mkString(", ") + ".").sorted.toList
       Answers(text, lines)
     }
-    val facts = shown.flatMap(r => engine.facts(r.tag)).sorted.toList
+    val facts = shown.flatMap(r => engine.facts(prog.tag(r))).sorted.toList
     Outcome(Some(Result(facts, answers, engine.truncated, engine.stats.toList)), reporter.sorted)

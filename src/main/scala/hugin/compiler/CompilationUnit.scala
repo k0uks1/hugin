@@ -37,11 +37,17 @@ final class CompilationUnit(val source: SourceFile):
   /** The object program, transformed in place by the object-level phases. */
   var prog: ObjProgram | Null = null
 
+  /** Directives of the relations of `prog` (from `directives` on; see [[ProgramFacts]]). */
+  var facts: ProgramFacts = ProgramFacts.empty
+
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
   /** Signature requirements (Section 4.4) recorded by `metaEval`, checked by `directives`. */
   var requirements: List[RequirementCheck] = Nil
+
+  /** Relations that may be incomplete (Section 6.5), computed by `completeness`. */
+  var incomplete: Set[RelSym] = Set.empty
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
 

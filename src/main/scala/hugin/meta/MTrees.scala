@@ -44,7 +44,7 @@ object MType:
     case Code(o) => s"⇑${OType.showArg(o)}"
     case TypeU => "type"
     case RelT(cols, res) =>
-      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ res.map(OType.showArg).getOrElse("rel")).mkString(" -> ")})"
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ res.map(OType.showArg(_)).getOrElse("rel")).mkString(" -> ")})"
     case PropT => "⇑prop"
     case Prim(b) => b.show
     case Pi(x, d, c, imp) =>

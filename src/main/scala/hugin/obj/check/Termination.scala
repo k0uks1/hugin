@@ -92,13 +92,13 @@ final class TerminationPhase extends Phase:
       if recursive && stratified then
         if constructiveRules.isEmpty then
           explain(s"termination: $names: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)")
-        else if comp.exists(_.isPartial) then
-          val partial = comp.filter(_.isPartial).map(r => s"`${r.name}`").mkString(", ")
+        else if comp.exists(ctx.unit.facts(_).partial) then
+          val partial = comp.filter(ctx.unit.facts(_).partial).map(r => s"`${r.name}`").mkString(", ")
           explain(s"termination: $names: not checked: $partial is %partial (evaluated with the round budget)")
         else
           // a component of demand relations only is measured by the relations they are demands of
-          val measures = comp.map(Termination.base).flatMap(c => c.terminates.map(t => c -> t._1)).toMap
-          val analysis = Termination(this, comp, rules, p.rules, es)
+          val measures = comp.map(Termination.base).flatMap(c => ctx.unit.facts(c).terminates.map(t => c -> t._1)).toMap
+          val analysis = Termination(this, ctx.unit.facts, comp, rules, p.rules, es)
           if measures.isEmpty then
             val (r, (why, sp)) = constructiveRules.head
             explain(s"termination: $names: rejected: no %terminates directive (E0603)")
@@ -149,6 +149,7 @@ final case class TerminationFailure(
 /** The termination analysis of one recursive component `comp` with rules `rules` (Section 10). */
 final class Termination(
     phase: TerminationPhase,
+    facts: ProgramFacts,
     val comp: List[RelSym],
     rules: Vector[Rule],
     allRules: Vector[Rule],
@@ -213,7 +214,7 @@ final class Termination(
    *  within a group. */
   def check(measures: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
     val groups =
-      if !measures.keys.exists(_.hasModes) then List(measures.keys.toList)
+      if !measures.keys.exists(facts.hasModes) then List(measures.keys.toList)
       else
         val measured = measures.keys.toList.sortBy(_.name)
         def demandBase(x: RelSym) = x.kind match
@@ -234,7 +235,7 @@ final class Termination(
    *  the measures of the whole component. */
   private def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
     val measured = measures.keys.toList.sortBy(_.name)
-    def declared(c: RelSym) = c.terminates.map(_._2)
+    def declared(c: RelSym) = facts(c).terminates.map(_._2)
     val first = measured.head
     val n = measures(first).length
     def slotNumeric(c: RelSym, k: Int) = c.cols.lift(k).exists(col => isInt(col.tpe))
@@ -265,7 +266,7 @@ final class Termination(
     val slots = (0 until n).toList.map(i => slotNumeric(first, measures(first)(i)))
     val ctx = Ctx(measures, slots, all)
     shapeError.toLeft(()).flatMap { _ =>
-      if measured.exists(_.hasModes) then moded(ctx) else bottomUp(ctx)
+      if measured.exists(facts.hasModes) then moded(ctx) else bottomUp(ctx)
     }.map { lines =>
       val ms = measured.map(c =>
         s"  measure of `${c.name}`: ${showPositions(c, measures(c))}${if n > 1 then " (lexicographic)" else ""}"
@@ -279,7 +280,7 @@ final class Termination(
 
     /** Measured in the component, possibly in another group (see [[Termination.check]]). */
     def measuredAnywhere(c: RelSym): Boolean = all.contains(c)
-    def directive(c: RelSym): Option[Span] = c.terminates.map(_._2)
+    def directive(c: RelSym): Option[Span] = facts(c).terminates.map(_._2)
 
   /** Rules of relations without a measure (other than demand relations of measured ones) must not be
    *  constructive: their facts consist of existing terms. */
@@ -373,8 +374,8 @@ final class Termination(
       case _ => false
     )
     val measured = ctx.measures.keys.toList.sortBy(_.name)
-    val unmoded = measured.find(!_.hasModes).map { c =>
-      val other = measured.find(_.hasModes).get
+    val unmoded = measured.find(!facts.hasModes(_)).map { c =>
+      val other = measured.find(facts.hasModes).get
       TerminationFailure(
         s"`${c.name}` has a measure but no `%mode`",
         ctx.directive(c).getOrElse(c.span),
@@ -386,7 +387,7 @@ final class Termination(
       )
     }
     val notInput = measured.iterator.flatMap(c =>
-      c.modes.iterator.flatMap((m, sp) => ctx.of(c).find(k => !m.inputs.lift(k).contains(true)).map(k => (c, m, sp, k)))
+      facts.modes(c).iterator.flatMap((m, sp) => ctx.of(c).find(k => !m.inputs.lift(k).contains(true)).map(k => (c, m, sp, k)))
     ).nextOption().map { (c, m, sp, k) =>
       TerminationFailure(
         s"invalid `%terminates` directive for `${c.name}`",

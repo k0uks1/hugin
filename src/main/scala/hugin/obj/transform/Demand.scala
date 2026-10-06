@@ -16,6 +16,7 @@ final class DemandPhase extends ObjProgramPhase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
+    val facts = ctx.unit.facts
     val demandRels = mutable.LinkedHashMap.empty[(RelSym, Mode), RelSym]
     def demand(c: RelSym, m: Mode): RelSym =
       demandRels.getOrElseUpdate(
@@ -30,8 +31,8 @@ final class DemandPhase extends ObjProgramPhase:
     // 1. guarding
     val guarded = p.rules.flatMap { r =>
       r.heads match
-        case List(h @ Term.App(RelRef.Sym(c), args)) if c.hasModes =>
-          c.modes.map { (m, _) =>
+        case List(h @ Term.App(RelRef.Sym(c), args)) if facts.hasModes(c) =>
+          facts.modes(c).map { (m, _) =>
             val g = Formula.Atom(RelRef.Sym(demand(c, m)), inputs(args, m), None)(h.span)
             val nr = r.withParts(body = g :: r.body)
             val gt = ctx.unit.varTypes.get(r)
@@ -41,11 +42,11 @@ final class DemandPhase extends ObjProgramPhase:
         case _ => List(r)
     }
     // 2. propagation
-    val seen = mutable.HashSet.empty[String]
+    val seen = mutable.HashSet.empty[Rule] // structural: spans are not part of a rule's equality
     val propagation = mutable.ArrayBuffer.empty[Rule]
     def emit(head: Term, prefix: List[Formula], span: Span, origin: Origin, expansions: List[Expansion], name: Option[String]): Unit =
       val r = Rule(name.map(n => s"$n^d"), List(head), prefix)(span, origin, expansions)
-      if seen.add(ObjPrinter.rule(r)) then propagation += r
+      if seen.add(r) then propagation += r
     // Calls of auxiliary relations (disjunctions inside aggregates) are deferred: their demand is built
     // from the part of the prefix that does not depend on the calling rule's head (see `auxDemand`).
     final case class AuxCall(head: Term, binds: Set[String], prefix: List[Formula], caller: Option[RelSym], rule: Rule)
@@ -67,7 +68,7 @@ final class DemandPhase extends ObjProgramPhase:
             case f :: rest =>
               def call(a: Formula.Atom): Unit =
                 val c = a.rel.sym
-                if c.hasModes then
+                if facts.hasModes(c) then
                   Moding.firstApplicable(c, a.args, b).foreach { m =>
                     val head = Term.App(RelRef.Sym(demand(c, m)), inputs(a.args, m))(a.span)
                     c.kind match
@@ -119,7 +120,7 @@ final class DemandPhase extends ObjProgramPhase:
    *  aggregate sees all answers for it); the auxiliary relation then depends only on relations evaluated
    *  before the caller, and the aggregate's negative edge cannot close a cycle (issue #1, F1).
    */
-  private def auxDemand(prefix: List[Formula], binds: Set[String], excluded: Set[RelSym]): List[Formula] =
+  private def auxDemand(prefix: List[Formula], binds: Set[String], excluded: Set[RelSym])(using ProgramFacts): List[Formula] =
     val (kept, bound) = prefix.foldLeft((Vector.empty[Formula], Set.empty[String])) { case ((ks, b), f) =>
       if DepGraph.occurrences(List(f)).exists(o => excluded(o._1)) then (ks, b)
       else

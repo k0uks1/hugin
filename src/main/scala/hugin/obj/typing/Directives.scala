@@ -13,6 +13,8 @@ final class DirectivesPhase extends Phase:
     val p = ctx.unit.prog
     if p == null then return
     val ruleNames = p.rules.flatMap(_.name).toSet
+    var facts = ProgramFacts.empty
+    def set(r: RelSym)(f: RelDirectives => RelDirectives): Unit = facts = facts.updated(r)(f)
     for d <- p.directives do
       def err(msg: String, label: String = "") =
         ctx.report(Diagnostic.error("E0701", msg, d.span, label).withOrigin(d.origin))
@@ -35,7 +37,7 @@ final class DirectivesPhase extends Phase:
                       .withOrigin(d.origin))
                 if ok then
                   val m = Mode(spec.inputs.map(_._1).toVector)
-                  if !r.modes.exists(_._1 == m) then r.modes = r.modes :+ (m, d.span)
+                  if !facts.modes(r).exists(_._1 == m) then set(r)(x => x.copy(modes = x.modes :+ (m, d.span)))
             case DirKind.TerminatesVar(vs, args) =>
               def pos(v: String) = args.zipWithIndex.collect { case (Term.Var(`v`), i) => i }
               if args.length != r.arity then
@@ -44,19 +46,19 @@ final class DirectivesPhase extends Phase:
                 (vs.diff(vs.distinct).headOption, vs.find(pos(_).length != 1)) match
                   case (Some(v), _) => err(s"variable `$v` occurs twice in the measure", "ambiguous position")
                   case (_, Some(v)) => err(s"variable `$v` must occur exactly once in the pattern", "ambiguous position")
-                  case _ => r.terminates = Some((vs.map(pos(_).head), d.span))
+                  case _ => set(r)(_.copy(terminates = Some((vs.map(pos(_).head), d.span))))
             case DirKind.TerminatesLabel(ls) =>
               ls.find(r.labelIndex(_).isEmpty) match
                 case Some(l) => err(s"`${r.name}` has no column labelled `$l`")
                 case None if ls.distinct.length != ls.length =>
                   err(s"label `${ls.diff(ls.distinct).head}` occurs twice in the measure", "ambiguous position")
-                case None => r.terminates = Some((ls.flatMap(r.labelIndex), d.span))
-            case DirKind.Partial => r.isPartial = true
-            case DirKind.Open => r.isOpen = true
-            case DirKind.Input => r.isInput = true
-            case DirKind.Output => r.isOutput = true
-            case DirKind.Derivations => r.derivations = true
-            case DirKind.NameHint(v) => r.nameHint = Some(v)
+                case None => set(r)(_.copy(terminates = Some((ls.flatMap(r.labelIndex), d.span))))
+            case DirKind.Partial => set(r)(_.copy(partial = true))
+            case DirKind.Open => set(r)(_.copy(open = true))
+            case DirKind.Input => set(r)(_.copy(input = true))
+            case DirKind.Output => set(r)(_.copy(output = true))
+            case DirKind.Derivations => set(r)(_.copy(derivations = true))
+            case DirKind.NameHint(v) => set(r)(_.copy(nameHint = Some(v)))
         case _ =>
           d.kind match
             case DirKind.Derivations =>
@@ -66,23 +68,25 @@ final class DirectivesPhase extends Phase:
                   ctx.report(Diagnostic.error("E0701", s"no rule named `@$rn`", d.span, "unknown rule").withOrigin(d.origin))
               }
             case _ =>
+    ctx.unit.facts = facts
     ctx.unit.requirements.foreach(checkRequirement)
 
   /** E0208: a relation passed to a functor does not satisfy a requirement of the parameter's signature. */
   private def checkRequirement(c: RequirementCheck)(using Context): Unit =
     val rel = c.rel
+    val dirs = ctx.unit.facts(rel)
     val failure = c.requirement match
       case Requirement.Complete(label, _) =>
-        Option.when(rel.isOpen || rel.isPartial)(
+        Option.when(dirs.open || dirs.partial)(
           Diagnostic.error(
             "E0208",
             s"relation `${rel.name}` does not satisfy `%complete $label`",
             c.use,
-            s"`${rel.name}` is ${if rel.isOpen then "open" else "partial"}"
+            s"`${rel.name}` is ${if dirs.open then "open" else "partial"}"
           ).withNote("the functor negates or aggregates over this relation, which needs complete knowledge")
         )
       case Requirement.HasMode(label, mode, _) =>
-        Option.when(!rel.modes.exists(_._1 == mode)) {
+        Option.when(!dirs.modes.exists(_._1 == mode)) {
           val directive = s"%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}."
           directiveBefore(
             Diagnostic.error("E0208", s"relation `${rel.name}` does not have mode `${mode.show}`", c.use, s"required for field `$label`")
@@ -107,12 +111,13 @@ final class DirectivesPhase extends Phase:
       d.withSuggestion(s"declare `$directive`", Span(src, decl.start, decl.start), s"$directive\n${if indent.isBlank then indent else ""}")
   override def show(using Context): String =
     val p = ctx.unit.prog.nn
-    p.rels.filter(r => r.modes.nonEmpty || r.terminates.isDefined || r.isOpen || r.isPartial || r.isInput || r.isOutput || r.derivations)
-      .map { r =>
-        val terminates = r.terminates.map(t => s"terminates ${hugin.syntax.Printer.measure(t._1.map(k => (k + 1).toString))}")
-        val parts = r.modes.map(m => s"mode ${m._1.show}") ++ terminates ++
-          (if r.isOpen then List("open") else Nil) ++ (if r.isPartial then List("partial") else Nil) ++
-          (if r.isInput then List("input") else Nil) ++ (if r.isOutput then List("output") else Nil) ++
-          (if r.derivations then List("derivations") else Nil)
+    val facts = ctx.unit.facts
+    p.rels.map(r => (r, facts(r))).filter((_, d) => d.copy(nameHint = None) != RelDirectives.none)
+      .map { (r, d) =>
+        val terminates = d.terminates.map(t => s"terminates ${hugin.syntax.Printer.measure(t._1.map(k => (k + 1).toString))}")
+        val parts = d.modes.map(m => s"mode ${m._1.show}") ++ terminates ++
+          (if d.open then List("open") else Nil) ++ (if d.partial then List("partial") else Nil) ++
+          (if d.input then List("input") else Nil) ++ (if d.output then List("output") else Nil) ++
+          (if d.derivations then List("derivations") else Nil)
         s"${r.name}: ${parts.mkString(", ")}"
       }.mkString("\n")
