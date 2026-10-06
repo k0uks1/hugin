@@ -1,0 +1,7 @@
+greet "hello, a".
+greet "hello, b".
+order "a" "b".
+scaled "a" 3.0.
+scaled "b" 4.5.
+unicode "tab\tand\nnewline".
+unicode "😀 smile".

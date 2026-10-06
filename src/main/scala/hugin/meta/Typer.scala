@@ -424,6 +424,16 @@ final class Typer(using Context):
       cod match
         case Keyword(Kw.Rel) =>
           RelT(doms.map((l, d) => Column(l.map(_.name), elabOType(d, sc, tv))))
+        case Keyword(Kw.Prop) if doms.forall((_, d) => isObjectTypeTree(d, sc)) =>
+          // a formula function type: ⇑A1 → ··· → ⇑An → ⇑prop (Section 4.8)
+          val psc = Scope(Some(sc), "formula function type")
+          doms.foldRight(PropT: MType) { case ((l, d), acc) =>
+            val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
+            val dt = Code(elabOType(d, sc, tv))
+            x.mtype = dt
+            x.state = Sym.State.Done
+            Pi(x, dt, acc, isImplicit = false)
+          }
         case _ =>
           val psc = Scope(Some(sc), "function type")
           val tv2 = tv match
@@ -440,6 +450,18 @@ final class Typer(using Context):
               Pi(x, dt, go(rest), isImplicit = false)
           go(doms)
     case _ => Code(elabOType(t, sc, tv))
+
+  /** Whether a type tree denotes an object type (rather than a meta type such as a signature or function type). */
+  private def isObjectTypeTree(t: Tree, sc: Scope): Boolean = t match
+    case Parens(i) => isObjectTypeTree(i, sc)
+    case _: Arrow | _: RecordType => false
+    case Keyword(k) => k == Kw.Rel
+    case Ident(n) =>
+      sc.lookup(n) match
+        case Some(s) if s.kind == SymKind.MetaDef && s.sigValue.isDefined => false
+        case Some(s) if s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam => s.mtype == TypeU || s.mtype.isInstanceOf[RelT]
+        case _ => true
+    case _ => true
 
   private def elabSig(rt: RecordType, sc: Scope, tv: TVars): MType =
     val ssc = Scope(Some(sc), "signature")

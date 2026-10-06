@@ -1,0 +1,25 @@
+(* refinements, open types with edges, tag tests by ascription, closed unions *)
+age : type <: int.
+adult : type <: age.
+person : type.
+student : (name : string) -> (years : age) -> person.
+teacher : (name : string) -> (subject : string) -> rel.
+staff : type.
+teacher <: staff.
+member : type = student | teacher.
+everyone : member -> rel.
+everyone (student "ann" 19).
+everyone (student "bo" 12).
+everyone (teacher "cy" "math").
+names : string -> rel.
+names N :- everyone M, N = M.name.
+people : person -> rel.
+people P :- everyone (P : student).          (* checked downcast to a member *)
+teachers : staff -> rel.
+teachers T :- everyone (T : teacher).
+old : string -> rel.
+old N :- everyone (student N A), A >= 18.
+%output names. %output people. %output teachers. %output old.
+bad_age : adult -> rel.
+bad_age 30.                       (* literals may be used at refinements of their base type *)
+%output bad_age.

@@ -1,0 +1,15 @@
+(* disjunction, multiple heads, formula functions with several clauses *)
+n : int -> rel.
+n 1. n 2. n 3. n 4. n 5. n 6.
+small_or_even : int -> rel.
+small_or_even X :- n X, (X < 2 ; X = 4 ; X = 6).
+even_odd : int -> prop.
+even_odd X :- X = 2.
+even_odd X :- X = 3.
+picked : int -> rel.
+picked X :- n X, even_odd X.
+a : int -> rel.
+b : int -> rel.
+a X, b X :- n X, X > 4.
+?- n X, (X = 1 ; X = 3).
+%output small_or_even. %output picked. %output a. %output b.

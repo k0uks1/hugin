@@ -1,0 +1,5 @@
+count_from 1 1.
+?- reach 1 T.
+T = 2.
+?- reach 10 T.
+T = 11.

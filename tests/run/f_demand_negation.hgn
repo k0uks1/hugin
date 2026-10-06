@@ -1,0 +1,14 @@
+(* demand-driven evaluation with negation of an earlier stratum and aggregates over demanded facts *)
+edge : int -> int -> rel.
+edge 1 2. edge 2 3. edge 3 4. edge 10 11.
+blocked : int -> rel.
+blocked 3.
+reach : (from : int) -> (to : int) -> rel.
+%mode reach +from -to.
+reach X Y :- edge X Y, not blocked Y.
+reach X Z :- edge X Y, not blocked Y, reach Y Z.
+count_from : int -> int -> rel.
+count_from S N :- S = 1, N = count { T | reach S T }.
+?- reach 1 T.
+?- reach 10 T.
+%output count_from.

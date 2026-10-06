@@ -1,0 +1,8 @@
+(* %derivations for a single named rule; the derivation relation is printed *)
+e : int -> int -> rel.
+e 1 2. e 2 3.
+reach : int -> int -> rel.
+@base reach X Y :- e X Y.
+@step reach X Z :- e X Y, reach Y Z.
+%derivations @step.
+%output reach.

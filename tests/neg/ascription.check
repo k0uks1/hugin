@@ -1,0 +1,17 @@
+error[E0405]: invalid ascription
+  --> tests/neg/ascription.hgn:10:17
+   |
+10 | p P :- everyone (P : person).
+   |                 ^^^^^^^^^^^^ `person` does not select members of `student | teacher`
+   |
+   = note: an ascription (t : T) is a checked downcast; T must be a subtype of the type of t
+
+error[E0402]: type mismatch
+  --> tests/neg/ascription.hgn:13:3
+   |
+13 | q X :- X = 3 + 4.
+   |   ^ expected `age`, found `int`
+   |
+   = note: in column 1 of `q`
+
+2 errors found

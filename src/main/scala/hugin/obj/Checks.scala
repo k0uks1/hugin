@@ -280,7 +280,7 @@ final class TerminationPhase extends Phase:
                         case Formula.Cmp(CmpOp.Gt | CmpOp.Ge, x, Term.Lit(_)) => x == u
                         case Formula.Cmp(CmpOp.Lt | CmpOp.Le, Term.Lit(_), x) => x == u
                         case _ => false
-                      } then Some((s"no anchor: demand `${ObjPrinter.term(u)}` is not bounded below", r.heads.head.span, Some(r)))
+                      } then Some((s"no anchor: the body does not bound the demanded `${ObjPrinter.term(u)}` below by a literal (e.g. `${ObjPrinter.term(u)} >= 0`)", r.heads.head.span, Some(r)))
                     else None
                   case _ => Some(("the terminating argument is not an input of the demand", r.span, Some(r)))
               case _ => Some(("a demand rule without guard", r.span, Some(r)))

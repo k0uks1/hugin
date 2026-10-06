@@ -1,0 +1,14 @@
+(* %infix operators (resolved into applications) and %abbrev type definitions *)
+%infix left 6 plus.
+%infix none 5 likes.
+%abbrev const A B : type = A.
+person : type. ann : person. bob : person.
+likes : person -> person -> rel.
+ann likes bob.
+bob likes bob.
+plus (a : int) (b : int) : int = a + b.
+three : const int string -> rel.
+three X :- X = 1 plus 2.
+mutual : person -> rel.
+mutual X :- X likes Y, Y likes X.
+%output mutual. %output three.

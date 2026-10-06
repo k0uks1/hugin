@@ -136,9 +136,9 @@ final class Parser(src: SourceFile, reporter: Reporter):
       case Tok.RuleName =>
         val rn = advance()
         val name = Ident(rn.text.drop(1))(rn.span)
-        parseRuleRest(Some(name), start, parseExpr(LvlAdd))
+        parseRuleRest(Some(name), start, parseExpr(LvlHead))
       case _ =>
-        val lhs = parseExpr(LvlAdd)
+        val lhs = parseExpr(LvlHead)
         kind match
           case Tok.Colon =>
             advance()
@@ -165,7 +165,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
     val heads = mutable.ListBuffer(first)
     while kind == Tok.Comma do
       advance()
-      heads += parseExpr(LvlAdd)
+      heads += parseExpr(LvlHead)
     val body =
       if kind == Tok.Turnstile then { advance(); Some(parseExpr(LvlSemi)) }
       else None
@@ -331,6 +331,9 @@ final class Parser(src: SourceFile, reporter: Reporter):
               lhs match
                 case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
                 case _ => Arrow(None, lhs, rhs)(sp)
+            case _ if opTok.kind == Tok.Name =>
+              // `%infix` operators are resolved into applications (Section 2.2)
+              Apply(Apply(Ident(op)(opTok.span), lhs)(lhs.span.to(opTok.span)), rhs)(sp)
             case _ => Infix(op, lhs, rhs)(sp, opTok.span)
           lastNonAssoc = if assoc == Assoc.NonAssoc then lvl else -1
         case _ => continue = false
@@ -549,6 +552,8 @@ object Parser:
   val LvlArrow = 30
   val LvlBar = 40
   val LvlCmp = 50
+  /** Items' heads: everything binding tighter than comparisons. */
+  val LvlHead = 51
   val LvlAdd = 60
   val LvlMul = 70
 

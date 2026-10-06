@@ -1,0 +1,10 @@
+cheapest "pen".
+first_item "ink".
+items "north" 2.
+items "south" 2.
+nothing 0.
+revenue "north" 10.
+revenue "south" 8.
+top 2.5.
+?- S = sum { R.price | sale { shop = "north", .. } , R = sale "north" "pen" 3 }.
+S = 6.

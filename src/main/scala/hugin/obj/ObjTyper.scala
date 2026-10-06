@@ -262,8 +262,10 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       checkArgs(c, args, inHead)
     case Term.As(x, _) => checkTerm(x, col, inHead, where)
     case Term.Ascr(x, tp) =>
-      val inner = synth(x).orElse(col).getOrElse(OType.Err)
-      if !(ops.isSub(tp, inner) && ops.members(tp).subsetOf(ops.members(inner))) && inner != OType.Err then
+      // τ is the type of the position (column) the ascribed term occupies, or its synthesized type
+      val inner = col.orElse(synth(x)).getOrElse(OType.Err)
+      if synth(x).contains(OType.Err) then () // already reported (no meet)
+      else if !(ops.isSub(tp, inner) && ops.members(tp).subsetOf(ops.members(inner))) && inner != OType.Err then
         report(Diagnostic.error("E0405", "invalid ascription", t.span, s"`${tp.show}` does not select members of `${inner.show}`")
           .withNote("an ascription (t : T) is a checked downcast; T must be a subtype of the type of t"))
       else if !ops.isRelLike(tp) && tp != inner then

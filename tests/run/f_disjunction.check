@@ -1,0 +1,12 @@
+a 5.
+a 6.
+b 5.
+b 6.
+picked 2.
+picked 3.
+small_or_even 1.
+small_or_even 4.
+small_or_even 6.
+?- n X, (X = 1 ; X = 3).
+X = 1.
+X = 3.

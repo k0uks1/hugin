@@ -1,0 +1,8 @@
+bad_age 30.
+names "ann".
+names "bo".
+names "cy".
+old "ann".
+people (student "ann" 19).
+people (student "bo" 12).
+teachers (teacher "cy" "math").

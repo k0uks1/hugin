@@ -1,0 +1,13 @@
+(* ascriptions are checked downcasts to subtypes (Section 6.1) *)
+person : type.
+student : string -> person.
+staff : type.
+teacher : string -> rel.
+teacher <: staff.
+member : type = student | teacher.
+everyone : member -> rel.
+p : person -> rel.
+p P :- everyone (P : person).
+age : type <: int.
+q : age -> rel.
+q X :- X = 3 + 4.

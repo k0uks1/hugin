@@ -1,0 +1,15 @@
+(* struct families, nested facts, string operations, floats *)
+pair A B : type = { fst : A, snd : B }.
+pts : pair string float -> rel.
+pts (pair "a" 1.5).
+pts (pair "b" 2.25).
+scaled : string -> float -> rel.
+scaled N V :- pts P, N = P.fst, V = P.snd * 2.0.
+greet : string -> rel.
+greet G :- pts (pair N _), G = "hello, " ^ N.
+order : string -> string -> rel.
+order A B :- pts (pair A _), pts (pair B _), A < B.
+unicode : string -> rel.
+unicode "\u{1F600} smile".
+unicode "tab\tand\nnewline".
+%output scaled. %output greet. %output order. %output unicode.

@@ -1,0 +1,25 @@
+(* aggregates over records, grouping by bound variables, min/max over strings and floats *)
+sale : (shop : string) -> (item : string) -> (price : int) -> rel.
+sale "north" "pen" 3.
+sale "north" "ink" 7.
+sale "south" "pen" 4.
+sale "south" "pad" 4.
+shop : string -> rel.
+shop S :- sale S _ _.
+revenue : string -> int -> rel.
+revenue S R :- shop S, R = sum { P | sale S _ P }.
+items : string -> int -> rel.
+items S N :- shop S, N = count { I | sale S I _ }.
+cheapest : string -> rel.
+cheapest I :- M = min { P | sale _ _ P }, sale _ I M.
+first_item : string -> rel.
+first_item I :- I = min { X | sale _ X _ }.
+avg : float -> rel.
+avg 2.5.
+avg 0.5.
+top : float -> rel.
+top M :- M = max { X | avg X }.
+nothing : int -> rel.
+nothing S :- S = sum { P | sale "east" _ P }.
+?- S = sum { R.price | sale { shop = "north", .. } , R = sale "north" "pen" 3 }.
+%output revenue. %output items. %output cheapest. %output first_item. %output top. %output nothing.
