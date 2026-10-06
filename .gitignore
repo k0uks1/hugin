@@ -7,3 +7,5 @@ project/project/
 .idea/
 *.class
 .claude/
+editors/vscode/node_modules/
+*.vsix

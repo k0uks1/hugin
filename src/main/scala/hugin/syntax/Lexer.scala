@@ -91,6 +91,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
   private val s = src.content
   private var pos = 0
   private val out = mutable.ArrayBuffer.empty[Token]
+  private var openComment = false
+
+  /** Whether the text ended inside a comment (after [[tokenize]]); the REPL then reads more lines. */
+  def unterminatedComment: Boolean = openComment
 
   private def span(a: Int, b: Int) = Span(src, a, b)
   private def err(code: String, msg: String, a: Int, b: Int, label: String = "") =
@@ -132,6 +136,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
     while !done do
       if pos >= s.length then
         err("E0002", "unterminated comment", start, start + 2, "comment starts here")
+        openComment = true
         done = true
       else if peek() == '(' && peek(1) == '*' then { depth += 1; pos += 2 }
       else if peek() == '*' && peek(1) == ')' then

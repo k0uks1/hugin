@@ -33,7 +33,7 @@ object IRPrinter:
     sb ++= "(* components in evaluation order *)\n"
     for (c, i) <- p.components.zipWithIndex do sb ++= s"(* $i: ${c.map(p.rels(_).name).mkString(", ")} *)\n"
     for r <- p.rules do
-      sb ++= s"rule ${r.source.name.map("@" + _).getOrElse("")} ${hugin.obj.ObjPrinter.rule(r.source)}\n"
+      sb ++= s"rule  ${hugin.obj.ObjPrinter.rule(r.source)}\n"
       r.body.foreach(o => sb ++= op(o, p, "  ") += '\n')
       sb ++= s"  Insert ${p.rels(r.headRel).name}(${r.headArgs.map(expr(_, p)).mkString(", ")})\n"
     for q <- p.queries; (alt, i) <- q.alternatives.zipWithIndex do

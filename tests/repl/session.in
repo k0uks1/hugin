@@ -1,0 +1,52 @@
+(* Declarations and rules are added one input at a time. *)
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+edge a b. edge b c.
+path : node -> node -> rel.
+path X Y :- edge X Y.
+(* An item continues until its period; periods in comments and strings do not count. *)
+path X Z :-
+  edge X Y, (* first a step. then the rest. *)
+  path Y Z.
+?- path a X.
+(* A rejected input leaves the session unchanged; diagnostics point into the input. *)
+reach : node -> rel.
+reach X :-
+  path a X,
+  goal X.
+reach X :- path a X.
+?- reach X.
+(* Several items, and queries, on one line. *)
+label : node -> string -> rel. label a "a. b." . ?- label N L.
+?- path c X. ?- path X c.
+(* A warning is reported once, for the input that has it; unused definitions are not reported. *)
+never : node -> prop.
+to : node -> rel. to Y :- edge _ Y.
+start : node = a.
+?- path start X.
+(* Comments may span lines;
+   the input continues until they are closed. *)
+(* An input that breaks earlier text is rejected too. *)
+p : rel. q : rel. p :- q.
+q :- not p.
+:type path
+:type a
+:type cons a nil
+:type 1 + 2
+:type cons nothing nil
+:type nothing
+:kind edge
+?- path X X.
+edge c a.
+?- path X X.
+:list
+:print records path
+:stats on
+?- path a c.
+:stats off
+:budget 1
+:budget off
+:explain W0005
+:lod x
+:reset
+?- path a X.

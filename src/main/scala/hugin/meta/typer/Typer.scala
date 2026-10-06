@@ -26,11 +26,27 @@ final class Typer(c: Context)
   // ======================================================================= items and bodies
 
   private[meta] def elabRule(r: Rule, sc: Scope): Option[obj.Rule] =
+    warnSingletons(r, sc)
     val rc = RuleCtx(allowVars = true)
     val heads = r.heads.flatMap(elabHead(_, sc, rc))
     val body = r.body.map(elabFormula(_, sc, rc)).getOrElse(Nil)
     if heads.length != r.heads.length || rc.failed then None
     else Some(obj.Rule(r.name.map(_.name), heads, body)(r.span, Origin.Source, rc.expansions.toList))
+
+  /** W0002: object variables that occur only once in a rule or clause. Names starting with `_` are exempt,
+   *  as are uppercase names that resolve to meta parameters. */
+  private def warnSingletons(r: Rule, sc: Scope): Unit =
+    def vars(x: Any): Iterator[VarRef] = x match
+      case v: VarRef => Iterator(v)
+      case p: Product => p.productIterator.flatMap(vars)
+      case _ => Iterator.empty
+    val occurrences = (r.heads ++ r.body).iterator.flatMap(vars).filterNot(_.name.startsWith("_")).toList
+    for
+      (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start)
+      if !sc.lookup(name).exists(s => s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef)
+    do
+      ctx.report(Diagnostic.warning("W0002", s"variable `$name` occurs only once in this rule", v.span, "singleton variable")
+        .withHelp(s"use `_` or `_$name` if this is intended"))
 
   private[meta] def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
     classify(t, sc, null) match
@@ -178,6 +194,7 @@ final class Typer(c: Context)
       params += p
       cur = substMT(c, Map(x -> Ref(p)))
     val alts = s.clauses.toList.flatMap { cl =>
+      warnSingletons(cl, sc)
       val rc = RuleCtx(allowVars = true)
       val (_, args) = flattenApp(cl.heads.head)
       if args.length != params.length then

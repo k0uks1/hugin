@@ -3,6 +3,8 @@ package hugin.cli
 import hugin.util.*
 import hugin.compiler.*
 import hugin.query.*
+import hugin.repl.{Repl, Session}
+import hugin.lsp.HuginLanguageServer
 import hugin.runtime.Evaluation
 import java.nio.file.{Files, Path}
 
@@ -23,17 +25,18 @@ object Main:
     val err = java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8")
     sys.exit(run(args.toList, s => out.println(s), s => err.println(s)))
 
-  /** Runs one command; returns the exit code. `out` receives results, `err` diagnostics. */
-  def run(args: List[String], out: String => Unit, err: String => Unit): Int =
+  /** Runs one command; returns the exit code. `out` receives results, `err` diagnostics; `in` is read by
+   *  `hugin repl` when it is not interactive. */
+  def run(args: List[String], out: String => Unit, err: String => Unit, in: java.io.InputStream = System.in): Int =
     val defaultColor = System.console() != null && System.getenv("NO_COLOR") == null
     CommandLine.parse(args, defaultColor) match
       case Left(msg) =>
         err(s"error: $msg")
         err(CommandLine.usage)
         ExitCode.Usage
-      case Right(opts) => dispatch(opts, out, err)
+      case Right(opts) => dispatch(opts, out, err, in)
 
-  private def dispatch(opts: Options, out: String => Unit, err: String => Unit): Int = opts.command match
+  private def dispatch(opts: Options, out: String => Unit, err: String => Unit, in: java.io.InputStream): Int = opts.command match
     case Command.Help =>
       out(CommandLine.usage)
       ExitCode.Ok
@@ -56,6 +59,15 @@ object Main:
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
+    case Command.Repl(files, batch, echo) =>
+      val session = Session(opts.settings, opts.run.budget, opts.run.stats)
+      val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.settings.color, in, out, err)
+      if ok then ExitCode.Ok else ExitCode.Errors
+    case Command.Lsp =>
+      // the protocol owns stdout; anything else printed there would corrupt it
+      val protocol = java.io.FileOutputStream(java.io.FileDescriptor.out)
+      System.setOut(System.err)
+      HuginLanguageServer.serve(System.in, protocol)
 
   /** Loads a file into the database; false if it does not exist. */
   private def load(db: Database, file: String): Boolean =
@@ -95,9 +107,7 @@ object Main:
       case None => ExitCode.Errors
       case Some(res) =>
         res.output.foreach(out)
-        if opts.run.stats then
-          for s <- res.stats if s.rounds > 0 || s.truncated do
-            err(s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)")
+        if opts.run.stats then res.statistics.foreach(err)
         ExitCode.Ok
 
   private def query(
@@ -124,6 +134,6 @@ object Main:
       case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
-        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
+        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
       case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
     ExitCode.Ok
