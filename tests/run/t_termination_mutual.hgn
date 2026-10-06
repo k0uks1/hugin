@@ -21,7 +21,7 @@ fsize : (f : forest) -> (n : int) -> rel.
 %mode fsize +f -n.
 %terminates t size.
 %terminates f fsize.
-size (node X F) N :- fsize F M, N = M + 1.
+size (node _ F) N :- fsize F M, N = M + 1.
 fsize leaf 0.
 fsize (grove T F) N :- size T A, fsize F B, N = A + B.
 
