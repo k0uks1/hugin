@@ -121,9 +121,31 @@ elaboration, no variables local to negations or aggregates).
   inputs `ī` are the disjunction's variables bound before it in canonical order; the outputs `ō` are the
   variables bound by *every* alternative. A variable bound by only some alternatives is existential
   within its alternative: Definition 8.4 would otherwise range over unconstrained valuations. If there
-  are inputs, `aux` is moded `+…+-…-`, so the demand transformation supplies exactly the input bindings
-  that arise at the call site. The aggregate then counts distinct bindings of its variables as usual.
+  are inputs, `aux` is moded `+…+-…-`, so the demand transformation supplies the input bindings that
+  arise at the call site. The aggregate then counts distinct bindings of its variables as usual.
   This is the semantics proposed for issue #1, item B4.
+
+  *Demand of `aux` (issue #1, F1).* The aggregate is a negative edge `h → aux` of the rule's head `h`.
+  Built from the whole prefix of the call (as Section 7.3 does for other calls), the demand rule
+  `aux^d(ī) :- prefix` reads the atoms before the aggregate, which in a recursive rule include `h`'s own
+  component: `s X :- p X _, s X, N = count { V | e V ; p X V }, N > 0` became the cycle
+  `s → not s^or1 → s^or1^d → s` (E0601) although the source program is stratified. The demand rule of
+  `aux` therefore keeps only the formulas of the prefix (in canonical order) that mention no relation
+  depending on `h` — in the dependency graph without these demand rules — and are well-moded without
+  the dropped ones, provided they still bind `ī`: `s^or1^d X :- p X _`.
+  - *Answers.* The kept formulas are a subset of the conjunction that holds at the call, so every input
+    binding that arises at the call is demanded, and `aux` is complete for it (Section 7.3, magic sets
+    with a weaker guard). Extra demanded bindings only compute extra facts of `aux`, which only this
+    aggregate reads, always with its own inputs bound, so the aggregate's value is unchanged.
+  - *Stratification.* The kept formulas do not depend on `h`, so `aux^d` (and with it `aux`) no longer
+    depends on `h`'s component through them: the negative edge `h → aux` leaves the component. The
+    kept demand rule reads a subset of the relations the full one reads, so the change only removes
+    edges: no cycle is introduced and no program accepted before is rejected.
+  - *Fallback.* If the outer variables are bound only through relations that depend on `h`
+    (`s Y :- s X, Y = X + 1, N = count { V | e V ; p Y V }`), the whole prefix is used and the cycle is
+    reported (E0601, with a note naming the disjunction; `tests/neg/f_aggregate_disjunction_cycle.hgn`).
+    Such a program is stratified in the source; accepting it would need disjunctions inside aggregates in
+    the core (the aggregate would range over the alternatives directly) instead of the lifting.
 * **Demand relations** are named `c^d[m]`, derivation relations `@r` or `@r#i`. Derivation relations
   are output relations; they cannot be referenced in atoms.
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings

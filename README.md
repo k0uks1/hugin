@@ -386,10 +386,10 @@ seed as inputs) and uploads `target/fuzz-failures` as an artifact when it fails.
 
 Known issues the fuzzers found, which the generator avoids until they are resolved:
 
-- A disjunction inside an aggregate with inputs becomes a moded auxiliary relation whose demand is
-  computed from the whole rule body before the aggregate. In a recursive rule that body contains the
-  recursive atom, so `s X :- p X _, s X, N = count { V | e V ; p X V }, N > 0.` is rejected with a
-  stratification cycle (E0601) through `s^or1^d[+-]`, although the program is stratified.
+- A disjunction inside an aggregate whose outer variables are bound only through the recursion
+  (`s Y :- s X, Y = X + 1, N = count { V | e V ; p Y V }, …`) is rejected with a stratification cycle
+  (E0601) through the demand of its auxiliary relation (see `docs/NOTES.md`, "Disjunction inside
+  aggregates"); the generator binds such variables with atoms of earlier relations.
 - A comparison with a constructor term that has no value — `X <> red` while no fact constructs `red` —
   fails. Demand facts construct their arguments, so after `%mode d +a` the query `?- d red.` makes `red`
   exist and the same comparison succeeds: the demand transformation can change answers.

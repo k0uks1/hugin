@@ -1,0 +1,8 @@
+(* issue #1, F1: the outer variable `Y` of a disjunction inside an aggregate is bound only through the
+   recursive atom `s X`, so the demand of its auxiliary relation reads `s` (a cycle through the aggregate) *)
+p : int -> int -> rel. p 1 2.
+e : int -> rel. e 5.
+s : int -> rel.
+s 1.
+s Y :- s X, Y = X + 1, Y < 5, N = count { V | e V ; p Y V }, N > 0.
+%output s.

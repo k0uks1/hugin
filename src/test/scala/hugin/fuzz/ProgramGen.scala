@@ -167,9 +167,14 @@ object ProgramGen:
         val old = boundOf(t)
         if old.nonEmpty && chance(0.5) then pick(old) else if chance(0.5) then "_" else pattern(t)
 
+      /** Variables that occur in positive atoms of `lower` relations (bound without the recursion). */
+      private val lowerVars = mutable.HashSet.empty[String]
+
       private def positive(): String =
         val r = if recursive && chance(0.5) then head else pick(lower)
-        atom(r, r.cols.map(arg))
+        val a = atom(r, r.cols.map(arg))
+        if r != head then lowerVars ++= raw"V\d+".r.findAllIn(a)
+        a
 
       private def comparison(): Option[String] =
         val ints = boundOf(IntT)
@@ -203,11 +208,12 @@ object ProgramGen:
         val vt = if numeric then IntT else pick(lower).cols.head
         val kind = if numeric then pick(Seq("count", "sum", "min", "max")) else if vt == StrT && chance(0.5) then "min" else "count"
         val v = newVar()
-        // A disjunction with inputs (outer variables) becomes a moded auxiliary relation whose demand
-        // depends on the whole rule body before the aggregate; in a recursive component that is a cycle
-        // through the aggregate (E0601) although the program is stratified (a known bug, see README)
+        // A disjunction with inputs (outer variables) becomes a moded auxiliary relation; its demand is
+        // built from the formulas that do not depend on the rule's head. In a recursive rule an outer
+        // variable bound only by the recursive atom would make the demand read the head: a cycle through
+        // the aggregate (E0601, `tests/neg/f_aggregate_disjunction_cycle.hgn`).
         val n = if chance(0.3) then 2 else 1
-        val outer = !(inRecursion && n > 1)
+        def outer(v: String) = !(recursive && n > 1) || lowerVars(v)
         def alternative(): String =
           val r = pick(lower.filter(_.cols.contains(vt)))
           val at = between(0, r.cols.length - 1)
@@ -217,8 +223,8 @@ object ProgramGen:
           val args = r.cols.zipWithIndex.map { (t, c) =>
             if c == col then v
             else
-              val old = boundOf(t)
-              if outer && old.nonEmpty && chance(0.3) then pick(old)
+              val old = boundOf(t).filter(outer)
+              if old.nonEmpty && chance(0.3) then pick(old)
               else if chance(0.4) then "_"
               else if chance(0.4) then pattern(t)
               else newVar() // local to the aggregate

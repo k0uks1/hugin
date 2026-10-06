@@ -1,0 +1,14 @@
+error[E0601]: stratification cycle through negation
+ --> tests/neg/f_aggregate_disjunction_cycle.hgn:7:47
+  |
+7 | s Y :- s X, Y = X + 1, Y < 5, N = count { V | e V ; p Y V }, N > 0.
+  |        ---                                    ^^^^^^^^^^^ `s` depends negatively on `s^or1`
+  |                                               `s^or1` depends on `s^or1^d[+-]`
+  |        `s^or1^d[+-]` depends on `s`
+  |
+  = note: cycle: s -> not s^or1 -> s^or1^d[+-] -> s
+  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+  = note: `s^or1` stands for a disjunction inside an aggregate; its demand needs the disjunction's outer variables, which are bound only by relations that depend on `s`
+  = help: bind the disjunction's outer variables with relations evaluated before `s`, or define the disjunction as a relation with one rule per alternative
+
+1 error found
