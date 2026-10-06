@@ -1,0 +1,13 @@
+(* Section 13.3: polymorphism *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+
+len : list A -> int -> rel.
+%terminates L (len L _).
+@l0 len nil 0.
+@l1 len (cons X L) M :- cons X L, len L N, M = N + 1.
+
+nums : list int -> rel.
+nums (cons 1 (cons 2 (cons 3 nil))).
+?- nums L, len L N.

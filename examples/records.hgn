@@ -1,0 +1,17 @@
+(* Section 13.5: records *)
+name : type = string.
+span : type = { file : string, line : int }.
+var  : (loc : span) -> (name : name) -> rel.
+abs  : (loc : span) -> (name : name) -> (body : term) -> rel.
+term : type = var | abs.
+
+unbound : term -> rel.
+report  : span -> rel.
+@r_rep    report (E.loc) :- unbound E.
+binder  : name -> rel.
+@r_bind   binder N :- abs { name = N, .. }.
+
+unbound (var (span "a.hgn" 3) "x").
+unbound (abs (span "a.hgn" 7) "y" (var (span "a.hgn" 8) "y")).
+%output report.
+%output binder.

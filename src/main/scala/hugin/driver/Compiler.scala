@@ -1,0 +1,46 @@
+package hugin.driver
+
+import hugin.util.*
+import hugin.core.*
+import hugin.syntax.*
+
+final class ParserPhase extends Phase:
+  def phaseName = "parser"
+  def description = "lex and parse into surface trees (Section 2)"
+  def run(using Context): Unit =
+    ctx.unit.untpd = Parser.parse(ctx.unit.source, ctx.reporter)
+  override def show(using Context): String = Printer.showProgram(ctx.unit.untpd.nn)
+
+/** The phase plan. Inner lists are fused into one traversal (dotty's MegaPhase). */
+object Compiler:
+  def phasePlan: List[List[Phase]] = List(
+    List(ParserPhase()),
+    List(hugin.meta.NamerPhase()),
+    List(hugin.meta.TyperPhase()),
+    List(hugin.meta.MetaEvalPhase()),
+    List(hugin.meta.MonomorphizePhase())
+  )
+
+  def phases: List[Phase] = phasePlan.map {
+    case List(p) => p
+    case ms => MegaPhase(ms.map(_.asInstanceOf[MiniPhase]))
+  }
+
+  def allPhaseNames: List[String] = phasePlan.flatten.map(_.phaseName)
+
+  /** Runs the pipeline; returns the context. Printing goes to `out`. */
+  def compile(source: SourceFile, settings: Settings, out: String => Unit): Context =
+    val ctx = Context(CompilationUnit(source), settings, Reporter())
+    given Context = ctx
+    var stop = false
+    for p <- phases if !stop do
+      if !ctx.reporter.hasErrors || p.runsAfterErrors then
+        p.run
+        val names = p match
+          case m: MegaPhase => m.minis.map(_.phaseName)
+          case other => List(other.phaseName)
+        if names.exists(settings.printAfter.contains) || settings.printAfter.contains("all") then
+          out(s"(* ---------------- after ${p.phaseName} ---------------- *)")
+          out(p.show)
+        if settings.stopAfter.exists(names.contains) then stop = true
+    ctx

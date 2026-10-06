@@ -1,0 +1,547 @@
+package hugin.syntax
+
+import hugin.util.*
+import scala.collection.mutable
+
+/** Recursive-descent / precedence-climbing parser for Figure 1.
+ *
+ *  Precedence levels (Section 2.2) are scaled by 10; an operator declared with `%infix assoc p name`
+ *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
+ */
+final class Parser(src: SourceFile, reporter: Reporter):
+  import Parser.*
+
+  private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
+  private var i = 0
+  private val infixOps = mutable.HashMap.empty[String, (Assoc, Int)]
+  /** True while parsing a type: comparison operators (in particular `=`) end the type. */
+  private var inType = false
+
+  private def parseType(minLevel: Int = LvlArrow): Tree =
+    val saved = inType
+    inType = true
+    try parseExpr(minLevel) finally inType = saved
+
+  private def parseNonType(minLevel: Int): Tree =
+    val saved = inType
+    inType = false
+    try parseExpr(minLevel) finally inType = saved
+
+  private def tok: Token = toks(i)
+  private def peekTok(k: Int): Token = toks((i + k).min(toks.length - 1))
+  private def kind: Tok = tok.kind
+  private def advance(): Token = { val t = tok; if i < toks.length - 1 then i += 1; t }
+  private def prevEnd: Int = if i == 0 then 0 else toks(i - 1).span.end
+  private def spanFrom(start: Int): Span = Span(src, start, prevEnd.max(start))
+
+  final class ParseError extends Exception(null, null, false, false)
+
+  private def fail(msg: String, label: String = "", help: Option[String] = None): Nothing =
+    var d = Diagnostic.error("E0001", msg, tok.span, label)
+    help.foreach(h => d = d.withHelp(h))
+    reporter.report(d)
+    throw new ParseError
+
+  private def found: String =
+    if kind == Tok.EOF then "end of file" else s"`${tok.text}`"
+
+  private def expect(k: Tok, what: String = ""): Token =
+    if kind == k then advance()
+    else
+      val w = if what.nonEmpty then what else Lexer.describe(k)
+      if k == Tok.Period && i > 0 && tok.span.startLine > toks(i - 1).span.startLine then
+        // the item probably ends on the previous line
+        val prev = toks(i - 1).span
+        reporter.report(
+          Diagnostic.error("E0001", s"expected $w, found $found", Span(src, prev.end, prev.end), "expected `.` here")
+            .withLabel(tok.span, "next item starts here")
+            .withHelp("every item ends with a period")
+        )
+        throw new ParseError
+      fail(s"expected $w, found $found", s"expected $w")
+
+  // ---------------------------------------------------------------- infix prescan
+
+  private def prescanInfix(): Unit =
+    var k = 0
+    while k + 4 < toks.length do
+      if toks(k).kind == Tok.Directive && toks(k).text == "%infix" &&
+        toks(k + 1).kind == Tok.Name && toks(k + 2).kind == Tok.IntLit && toks(k + 3).kind == Tok.Name then
+        val assoc = toks(k + 1).text match
+          case "left" => Some(Assoc.Left)
+          case "right" => Some(Assoc.Right)
+          case "none" => Some(Assoc.NonAssoc)
+          case _ => None
+        val p = toks(k + 2).value match
+          case l: Long => l.toInt
+          case _ => 0
+        assoc.foreach(a => infixOps(toks(k + 3).text) = (a, p * 10 + 5))
+      k += 1
+
+  // ---------------------------------------------------------------- program and items
+
+  def parseProgram(): Program =
+    prescanInfix()
+    val items = mutable.ListBuffer.empty[Item]
+    while kind != Tok.EOF do
+      if kind == Tok.RBrace then
+        reporter.report(Diagnostic.error("E0001", "unmatched `}`", tok.span, "no module body to close"))
+        advance()
+      else parseItemRecovering().foreach(items += _)
+    Program(items.toList, Span(src, 0, src.content.length))
+
+  private def parseItemRecovering(): Option[Item] =
+    val start = i
+    try Some(parseItem())
+    catch
+      case _: ParseError =>
+        sync(start)
+        None
+
+  /** Skip to the end of the current item: a period at nesting depth 0, or a `}` closing the enclosing body. */
+  private def sync(start: Int): Unit =
+    var depth = 0
+    // count nesting opened since the item start but before the error point
+    var k = start
+    while k < i do
+      toks(k).kind match
+        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1
+        case Tok.RBrace | Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0)
+        case _ =>
+      k += 1
+    var done = false
+    if i == start && kind != Tok.EOF then advance()
+    while !done && kind != Tok.EOF do
+      kind match
+        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
+        case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
+        case Tok.RBrace =>
+          if depth == 0 then done = true else { depth -= 1; advance() }
+        case Tok.Period if depth == 0 => advance(); done = true
+        case _ => advance()
+
+  private def parseItem(): Item =
+    val start = tok.span.start
+    kind match
+      case Tok.Directive => parseDirective()
+      case Tok.Query =>
+        advance()
+        val body = parseExpr(LvlSemi)
+        expect(Tok.Period)
+        Query(body)(spanFrom(start))
+      case Tok.RuleName =>
+        val rn = advance()
+        val name = Ident(rn.text.drop(1))(rn.span)
+        parseRuleRest(Some(name), start, parseExpr(LvlAdd))
+      case _ =>
+        val lhs = parseExpr(LvlAdd)
+        kind match
+          case Tok.Colon =>
+            advance()
+            val (name, params) = declHead(lhs)
+            val tpe = parseType()
+            val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) } else None
+            val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) } else None
+            expect(Tok.Period, "`.` after declaration")
+            Decl(name, params, tpe, sup, defn, abbrev = false)(spanFrom(start))
+          case Tok.Eq =>
+            advance()
+            val (name, params) = declHead(lhs)
+            val rhs = parseExpr(LvlSemi)
+            expect(Tok.Period, "`.` after definition")
+            Def(name, params, rhs)(spanFrom(start))
+          case Tok.SubT =>
+            advance()
+            val sup = parseExpr(LvlBar)
+            expect(Tok.Period, "`.` after subtyping edge")
+            SubEdge(lhs, sup)(spanFrom(start))
+          case _ => parseRuleRest(None, start, lhs)
+
+  private def parseRuleRest(name: Option[Ident], start: Int, first: Tree): Item =
+    val heads = mutable.ListBuffer(first)
+    while kind == Tok.Comma do
+      advance()
+      heads += parseExpr(LvlAdd)
+    val body =
+      if kind == Tok.Turnstile then { advance(); Some(parseExpr(LvlSemi)) }
+      else None
+    if kind != Tok.Period then
+      if kind == Tok.Colon && name.isDefined then
+        fail("a rule name cannot start a declaration", "unexpected `:`",
+          Some("rule names are written `@name head :- body.`; declarations have no `@`"))
+      expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
+    advance()
+    Rule(name, heads.toList, body)(spanFrom(start))
+
+  private def declHead(lhs: Tree): (Ident, List[Param]) =
+    def flatten(t: Tree, acc: List[Tree]): (Tree, List[Tree]) = t match
+      case Apply(f, a) => flatten(f, a :: acc)
+      case other => (other, acc)
+    val (hd, args) = flatten(lhs, Nil)
+    val name = hd match
+      case id: Ident => id
+      case other =>
+        reporter.report(
+          Diagnostic.error("E0004", "malformed declaration head", other.span, "expected a lowercase name")
+            .withNote("declarations have the form `name param* : type.` and definitions `name param* = expr.`")
+        )
+        throw new ParseError
+    val params = args.map {
+      case v: VarRef => Param.VarParam(v)
+      case a @ Ascribe(n @ (_: Ident | _: VarRef), t) => Param.Typed(n, t, a.span)
+      case other =>
+        reporter.report(
+          Diagnostic.error("E0004", "malformed parameter", other.span, "expected `X` or `(name : type)`")
+        )
+        throw new ParseError
+    }
+    (name, params)
+
+  // ---------------------------------------------------------------- directives
+
+  private def parsePath(): Tree =
+    val t = advance()
+    if t.kind != Tok.Name then
+      i -= 1
+      fail(s"expected a name, found $found", "expected a relation or path")
+    var p: Tree = Ident(t.text)(t.span)
+    while kind == Tok.Select do
+      advance()
+      val n = expect(Tok.Name)
+      p = Select(p, n.text)(p.span.to(n.span), n.span)
+    p
+
+  private def parseModeItems(): List[ModeItem] =
+    val b = mutable.ListBuffer.empty[ModeItem]
+    while kind == Tok.Plus || kind == Tok.Minus do
+      val t = advance()
+      val lbl = if kind == Tok.Name && !tok.spaceBefore then
+        val n = advance(); Some(Ident(n.text)(n.span))
+      else if kind == Tok.Name && peekTok(1).kind != Tok.Period && peekTok(1).kind != Tok.Comma && peekTok(1).kind != Tok.RBrace then
+        val n = advance(); Some(Ident(n.text)(n.span))
+      else if kind == Tok.Name then
+        val n = advance(); Some(Ident(n.text)(n.span))
+      else None
+      b += ModeItem(t.kind == Tok.Plus, lbl, t.span.to(lbl.map(_.span).getOrElse(t.span)))
+    b.toList
+
+  private def parseDirective(): Item =
+    val start = tok.span.start
+    val d = advance()
+    val kindName = d.text.drop(1)
+    val args: DirArgs = kindName match
+      case "abbrev" =>
+        val lhs = parseExpr(LvlAdd)
+        expect(Tok.Colon)
+        val (name, params) = declHead(lhs)
+        val tpe = parseType()
+        expect(Tok.Eq, "`=` (an %abbrev must have a definition)")
+        val defn = parseNonType(LvlSemi)
+        expect(Tok.Period)
+        return Decl(name, params, tpe, None, Some(defn), abbrev = true)(spanFrom(start))
+      case "mode" =>
+        val p = parsePath()
+        DirArgs.Mode(p, parseModeItems())
+      case "terminates" =>
+        if kind == Tok.Var then
+          val v = advance()
+          expect(Tok.LParen, "`(` followed by a call pattern")
+          val p = parsePath()
+          val args = mutable.ListBuffer.empty[Tree]
+          while kind != Tok.RParen && kind != Tok.EOF && kind != Tok.Period do args += parsePostfix()
+          expect(Tok.RParen)
+          DirArgs.TerminatesVar(VarRef(v.text)(v.span), p, args.toList)
+        else if kind == Tok.Name then
+          val l = advance()
+          DirArgs.TerminatesLabel(Ident(l.text)(l.span), parsePath())
+        else fail(s"expected a variable or label after %terminates, found $found")
+      case "partial" | "open" | "input" | "output" => DirArgs.Target(parsePath())
+      case "derivations" =>
+        if kind == Tok.RuleName then
+          val r = advance()
+          DirArgs.Target(RuleRef(r.text.drop(1))(r.span))
+        else DirArgs.Target(parsePath())
+      case "infix" =>
+        val a = expect(Tok.Name, "`left`, `right` or `none`")
+        if !Set("left", "right", "none")(a.text) then
+          reporter.report(Diagnostic.error("E0001", s"unknown associativity `${a.text}`", a.span, "expected `left`, `right` or `none`"))
+        val p = expect(Tok.IntLit, "a precedence")
+        val n = expect(Tok.Name, "an operator name")
+        DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span))
+      case "name" =>
+        val p = parsePath()
+        val v = expect(Tok.Var)
+        DirArgs.NameHint(p, VarRef(v.text)(v.span))
+      case "complete" =>
+        reporter.report(Diagnostic.error("E0004", "`%complete` may only occur in a signature", d.span, "not allowed here")
+          .withHelp("write it inside a record type, e.g. `{ edge : node -> node -> rel, %complete edge }`"))
+        throw new ParseError
+      case other =>
+        reporter.report(Diagnostic.error("E0001", s"unknown directive `%$other`", d.span, "unknown directive")
+          .withNote("directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev"))
+        throw new ParseError
+    expect(Tok.Period, "`.` after directive")
+    Directive(kindName, args)(spanFrom(start), d.span)
+
+  // ---------------------------------------------------------------- expressions
+
+  private def infixAt(t: Token): Option[(String, Int, Assoc)] = t.kind match
+    case Tok.Semi => Some((";", LvlSemi, Assoc.Left))
+    case Tok.Comma => Some((",", LvlComma, Assoc.Left))
+    case Tok.Arrow => Some(("->", LvlArrow, Assoc.Right))
+    case Tok.Bar => Some(("|", LvlBar, Assoc.Left))
+    case Tok.Eq => Some(("=", LvlCmp, Assoc.NonAssoc))
+    case Tok.Neq => Some(("<>", LvlCmp, Assoc.NonAssoc))
+    case Tok.Lt => Some(("<", LvlCmp, Assoc.NonAssoc))
+    case Tok.Le => Some(("<=", LvlCmp, Assoc.NonAssoc))
+    case Tok.Gt => Some((">", LvlCmp, Assoc.NonAssoc))
+    case Tok.Ge => Some((">=", LvlCmp, Assoc.NonAssoc))
+    case Tok.Plus => Some(("+", LvlAdd, Assoc.Left))
+    case Tok.Minus => Some(("-", LvlAdd, Assoc.Left))
+    case Tok.Caret => Some(("^", LvlAdd, Assoc.Left))
+    case Tok.Star => Some(("*", LvlMul, Assoc.Left))
+    case Tok.Slash => Some(("/", LvlMul, Assoc.Left))
+    case Tok.Name => infixOps.get(t.text).map((a, l) => (t.text, l, a))
+    case _ => None
+
+  def parseExpr(minLevel: Int): Tree =
+    var lhs = parsePrefix(minLevel)
+    var continue = true
+    var lastNonAssoc = -1
+    while continue do
+      infixAt(tok) match
+        case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) =>
+          if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
+            fail(s"operator `$op` is non-associative", "cannot chain this operator", Some("add parentheses"))
+          val opTok = advance()
+          val rhsMin = assoc match
+            case Assoc.Right => lvl
+            case _ => lvl + 1
+          val rhs = parseExpr(rhsMin)
+          val sp = lhs.span.to(rhs.span)
+          lhs = op match
+            case ";" => Disj(lhs, rhs)(sp)
+            case "," => Conj(lhs, rhs)(sp)
+            case "|" => Union(lhs, rhs)(sp)
+            case "->" =>
+              lhs match
+                case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
+                case _ => Arrow(None, lhs, rhs)(sp)
+            case _ => Infix(op, lhs, rhs)(sp, opTok.span)
+          lastNonAssoc = if assoc == Assoc.NonAssoc then lvl else -1
+        case _ => continue = false
+    lhs
+
+  private def parsePrefix(minLevel: Int): Tree =
+    val start = tok.span.start
+    kind match
+      case Tok.KwNot =>
+        advance()
+        val arg = parseApp()
+        Not(arg)(spanFrom(start))
+      case Tok.Minus =>
+        advance()
+        val arg = parseApp()
+        arg match
+          case l @ Lit(Literal.IntL(v)) => Lit(Literal.IntL(-v))(spanFrom(start))
+          case l @ Lit(Literal.FloatL(v)) => Lit(Literal.FloatL(-v))(spanFrom(start))
+          case other => Neg(other)(spanFrom(start))
+      case Tok.LBrack =>
+        advance()
+        val p = tok
+        val param: Tree = p.kind match
+          case Tok.Var => advance(); VarRef(p.text)(p.span)
+          case Tok.Name => advance(); Ident(p.text)(p.span)
+          case _ => fail(s"expected a lambda parameter, found $found", "expected a name or variable")
+        val tpe = if kind == Tok.Colon then { advance(); Some(parseType()) } else None
+        expect(Tok.RBrack)
+        val body = parseExpr(minLevel.max(LvlSemi))
+        Lambda(param, tpe, body)(spanFrom(start))
+      case _ => parseApp()
+
+  private def startsArg(t: Token): Boolean = t.kind match
+    case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
+    case Tok.Name => !infixOps.contains(t.text)
+    case _ => false
+
+  private def parseApp(): Tree =
+    var f = parsePostfix()
+    while startsArg(tok) do
+      val a = parsePostfix()
+      f = Apply(f, a)(f.span.to(a.span))
+    f
+
+  private def parsePostfix(): Tree =
+    var t = parsePrimary()
+    while kind == Tok.Select do
+      advance()
+      val n = expect(Tok.Name, "a label after `.`")
+      t = Select(t, n.text)(t.span.to(n.span), n.span)
+    t
+
+  private def parsePrimary(): Tree =
+    val t = tok
+    val start = t.span.start
+    t.kind match
+      case Tok.Var =>
+        advance()
+        if t.text == "_" then Wildcard()(t.span) else VarRef(t.text)(t.span)
+      case Tok.Name => advance(); Ident(t.text)(t.span)
+      case Tok.RuleName => advance(); RuleRef(t.text.drop(1))(t.span)
+      case Tok.IntLit =>
+        advance()
+        t.value match
+          case l: Long => Lit(Literal.IntL(l))(t.span)
+          case b: BigInt =>
+            // only reachable as the operand of unary minus for Long.MinValue
+            if b == BigInt(Long.MaxValue) + 1 && i >= 2 && toks(i - 2).kind == Tok.Minus then
+              Lit(Literal.IntL(Long.MinValue))(t.span) // negated again by unary minus: -MinValue == MinValue
+            else
+              reporter.report(Diagnostic.error("E0003", "integer literal out of range", t.span, "does not fit into a 64-bit integer"))
+              Lit(Literal.IntL(0))(t.span)
+          case _ => Lit(Literal.IntL(0))(t.span)
+      case Tok.FloatLit => advance(); Lit(Literal.FloatL(t.value.asInstanceOf[Double]))(t.span)
+      case Tok.StrLit => advance(); Lit(Literal.StrL(t.value.asInstanceOf[String]))(t.span)
+      case Tok.KwType => advance(); Keyword(Kw.Type)(t.span)
+      case Tok.KwMod => advance(); Keyword(Kw.Mod)(t.span)
+      case Tok.KwRel => advance(); Keyword(Kw.Rel)(t.span)
+      case Tok.KwProp => advance(); Keyword(Kw.Prop)(t.span)
+      case Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax =>
+        advance()
+        val k = t.kind match
+          case Tok.KwCount => AggKind.Count
+          case Tok.KwSum => AggKind.Sum
+          case Tok.KwMin => AggKind.Min
+          case _ => AggKind.Max
+        expect(Tok.LBrace, "`{` after aggregate")
+        val term = parseExpr(LvlCmp)
+        expect(Tok.Bar, "`|` separating the aggregated term from the body")
+        val body = parseExpr(LvlSemi)
+        expect(Tok.RBrace)
+        Agg(k, term, body)(spanFrom(start))
+      case Tok.LParen => parseParens()
+      case Tok.LBrace => parseBraces()
+      case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
+      case _ =>
+        fail(s"expected an expression, found $found", "expected an expression")
+
+  private def parseParens(): Tree =
+    val start = tok.span.start
+    advance()
+    if kind == Tok.Var && peekTok(1).kind == Tok.KwWith then
+      val v = advance()
+      advance()
+      if kind != Tok.LBrace then fail(s"expected `{` after `with`, found $found")
+      val fields = parseBraces() match
+        case RecordLit(fs, false) => fs
+        case RecordLit(fs, true) =>
+          reporter.report(Diagnostic.error("E0001", "`..` is not allowed in an update", tok.span))
+          fs
+        case ModuleBody(Nil) => Nil
+        case other =>
+          reporter.report(Diagnostic.error("E0001", "expected fields `{ l = t, ... }` after `with`", other.span))
+          Nil
+      expect(Tok.RParen)
+      return With(VarRef(v.text)(v.span), fields)(spanFrom(start))
+    val inner = parseNonType(LvlSemi)
+    kind match
+      case Tok.KwAs =>
+        advance()
+        val v = expect(Tok.Var, "a variable after `as`")
+        expect(Tok.RParen)
+        As(inner, VarRef(v.text)(v.span))(spanFrom(start))
+      case Tok.Colon =>
+        advance()
+        val t = parseType()
+        expect(Tok.RParen)
+        Ascribe(inner, t)(spanFrom(start))
+      case _ =>
+        expect(Tok.RParen, "`)`")
+        Parens(inner)(spanFrom(start))
+
+  private def parseBraces(): Tree =
+    val start = tok.span.start
+    advance()
+    val k0 = kind
+    val k1 = peekTok(1).kind
+    if k0 == Tok.DotDot then
+      advance(); expect(Tok.RBrace)
+      RecordLit(Nil, rest = true)(spanFrom(start))
+    else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
+      parseRecordType(start)
+    else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(start)
+    else
+      val items = mutable.ListBuffer.empty[Item]
+      while kind != Tok.RBrace && kind != Tok.EOF do
+        parseItemRecovering().foreach(items += _)
+      if kind == Tok.EOF then
+        reporter.report(Diagnostic.error("E0001", "unclosed module body", Span(src, start, start + 1), "this `{` is never closed"))
+        throw new ParseError
+      advance()
+      ModuleBody(items.toList)(spanFrom(start))
+
+  /** Brace disambiguation (refines Section 2.2): a module body is recognised by a period at depth 0
+   *  before the first `,` or the closing `}`; otherwise `l :` starts a record type and `l =` a record. */
+  private def periodFirst: Boolean =
+    var k = i
+    var depth = 0
+    while k < toks.length do
+      toks(k).kind match
+        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1
+        case Tok.RParen | Tok.RBrack => depth -= 1
+        case Tok.RBrace => if depth == 0 then return false else depth -= 1
+        case Tok.Comma if depth == 0 => return false
+        case Tok.Period if depth == 0 => return true
+        case Tok.EOF => return false
+        case _ =>
+      k += 1
+    false
+
+  private def parseRecordType(start: Int): Tree =
+    val entries = mutable.ListBuffer.empty[SigEntry]
+    var continue = true
+    while continue do
+      if kind == Tok.Directive && tok.text == "%complete" then
+        val d = advance()
+        val l = expect(Tok.Name, "a label")
+        entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
+      else if kind == Tok.Directive && tok.text == "%mode" then
+        val d = advance()
+        val l = expect(Tok.Name, "a label")
+        val ms = parseModeItems()
+        entries += SigEntry.ModeReq(Ident(l.text)(l.span), ms, d.span.to(ms.lastOption.map(_.span).getOrElse(l.span)))
+      else
+        val l = expect(Tok.Name, "a label")
+        expect(Tok.Colon, "`:` in record type")
+        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType())
+      if kind == Tok.Comma then advance() else continue = false
+    expect(Tok.RBrace, "`,` or `}`")
+    RecordType(entries.toList)(spanFrom(start))
+
+  private def parseRecordLit(start: Int): Tree =
+    val fields = mutable.ListBuffer.empty[Field]
+    var rest = false
+    var continue = true
+    while continue do
+      if kind == Tok.DotDot then
+        advance(); rest = true; continue = false
+      else
+        val l = expect(Tok.Name, "a label")
+        expect(Tok.Eq, "`=` in record")
+        fields += Field(Ident(l.text)(l.span), parseNonType(LvlArrow))
+        if kind == Tok.Comma then advance() else continue = false
+    expect(Tok.RBrace, if rest then "`}` after `..`" else "`,` or `}`")
+    RecordLit(fields.toList, rest)(spanFrom(start))
+
+object Parser:
+  enum Assoc:
+    case Left, Right, NonAssoc
+  val LvlSemi = 10
+  val LvlComma = 20
+  val LvlArrow = 30
+  val LvlBar = 40
+  val LvlCmp = 50
+  val LvlAdd = 60
+  val LvlMul = 70
+
+  def parse(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter).parseProgram()

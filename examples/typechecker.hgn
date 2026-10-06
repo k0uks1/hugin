@@ -1,0 +1,22 @@
+(* Section 13.4: a type checker with demand-driven evaluation *)
+name : type = string.
+expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.
+               app : expr -> expr -> expr.
+typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
+ctx  : type.   empty : ctx.   bind : ctx -> name -> typ -> ctx.
+
+lookup : ctx -> name -> typ -> rel.
+@l_here   lookup (bind G X T) X T :- bind G X T.
+@l_there  lookup (bind G Y U) X T :- bind G Y U, lookup G X T, X <> Y.
+
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%mode typed +e +g -t.
+%terminates e typed.
+@t_var  typed (ref X) G T :- lookup G X T.
+@t_lam  typed (lam X T1 B) G (arrow T1 T2) :- typed B (bind G X T1) T2.
+@t_app  typed (app F A) G T1 :- typed F G (arrow T0 T1), typed A G T0.
+
+program : expr -> rel.
+result  : (e : expr) -> (t : typ) -> rel.
+@r_root   result { e = E, t = T } :- program E, typed { e = E, g = empty, t = T }.
+%input program.   %output result.
