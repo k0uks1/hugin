@@ -3,7 +3,7 @@ package hugin.query
 import hugin.compiler.SemanticIndex
 import hugin.compiler.SemanticIndex.Stage
 import hugin.meta.{Scope, Sym, SymKind, TypingResults}
-import hugin.syntax.{Lexer, Tok}
+import hugin.syntax.{Lexer, Tok, Token}
 import hugin.util.*
 
 /** A declaration in a document outline: `span` is its name, `extent` the whole declaration, `container`
@@ -176,13 +176,10 @@ object Ide:
       val use = ix.references.filter(r => r.span.source.path == path && r.span.end == qualEnd).sortBy(r => size(r.span)).headOption
       matching(use.toList.flatMap(r => members(ix, db(Compile, key).symbols, r.sym)))
     else
-      enclosingNamedPattern(source, start).flatMap(rel => labels(ix, key, rel)) match
+      enclosingNamedPattern(source, start).flatMap(name => labels(ix, key, path, name, offset)) match
         case Some(ls) => matching(ls)
         case None =>
-          // outside every recorded extent (e.g. in a part of a program made of several files): the program's scope
-          val scopes = ix.scopes.filter((sp, _) => covers(sp, path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
-          val scope = scopes.headOption.orElse(Option(db(Compile, key).context.unit.rootScope))
-          val names = scope.toList.flatMap(inScope(ix, _))
+          val names = scopeAt(ix, key, path, offset).toList.flatMap(inScope(ix, _))
           val vars = ix.variables
             .filter(v => covers(v.item, path, offset))
             .map(v => CompletionItem(v.display, "variable", v.tpe))
@@ -194,6 +191,12 @@ object Ide:
     List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "import", "builtin")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
+
+  /** The innermost scope around an offset; outside every recorded extent (e.g. in a part of a program
+   *  made of several files), the program's scope. */
+  private def scopeAt(ix: SemanticIndex, key: CompileKey, path: String, offset: Int)(using db: Database): Option[Scope] =
+    val scopes = ix.scopes.filter((sp, _) => covers(sp, path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
+    scopes.headOption.orElse(Option(db(Compile, key).context.unit.rootScope))
 
   private def item(ix: SemanticIndex, s: Sym): CompletionItem =
     CompletionItem(s.name, s.kind.describe, ix.description(s).getOrElse(s.kind.describe))
@@ -226,32 +229,41 @@ object Ide:
       case t if t.kind == Tok.Var && !(t.span.start == start && t.span.end == offset) => t.text
     }
 
-  /** If the offset is inside the braces of `c { ... }`, the name of `c`. */
-  private def enclosingNamedPattern(source: SourceFile, offset: Int): Option[String] =
+  /** If the offset is inside the braces of `c { ... }`, the token `c`. */
+  private def enclosingNamedPattern(source: SourceFile, offset: Int): Option[Token] =
     val toks = Lexer(SourceFile.virtual(source.path, source.content.substring(0, offset)), Reporter()).tokenize()
     var depth = 0
     var i = toks.length - 1
-    while i >= 0 do
+    var found: Option[Option[Token]] = None
+    while i >= 0 && found.isEmpty do
       toks(i).kind match
         case Tok.RBrace => depth += 1
         case Tok.LBrace =>
-          if depth == 0 then
-            return if i > 0 && toks(i - 1).kind == Tok.Name then Some(toks(i - 1).text) else None
+          if depth == 0 then found = Some(Option.when(i > 0 && toks(i - 1).kind == Tok.Name)(toks(i - 1)))
           depth -= 1
-        case Tok.Period if depth == 0 => return None
+        case Tok.Period if depth == 0 => found = Some(None)
         case _ =>
       i -= 1
-    None
+    found.flatten
 
-  /** The labels of the relation or constructor called `name` in the file. */
-  private def labels(ix: SemanticIndex, key: CompileKey, name: String)(using db: Database): Option[List[CompletionItem]] =
-    ix.symbols
-      .find(s => s.name == name && (s.kind == SymKind.Rel || s.kind == SymKind.Ctor || s.kind == SymKind.Struct))
-      .map { s =>
-        db(Compile, key).symbols.mtype(s) match
-          case Some(hugin.meta.MType.RelT(cols, _)) =>
-            cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
-          case _ => Nil
-      }
+  private val relationKinds: Set[SymKind] = Set(SymKind.Rel, SymKind.Ctor, SymKind.Struct)
+
+  /** The labels of the relation or constructor named by the token `name` (at an offset in `path`): the
+   *  symbol the compiler resolved it to, or, in an item that does not compile, the one its name finds in
+   *  the scope around the offset. None if the name is not a relation. */
+  private def labels(ix: SemanticIndex, key: CompileKey, path: String, name: Token, offset: Int)(using
+      db: Database
+  ): Option[List[CompletionItem]] =
+    val resolved = ix.references
+      .filter(r => r.span.exists && r.span.source.path == path && r.span.start == name.span.start && r.sym.name == name.text)
+      .sortBy(r => size(r.span))
+      .headOption
+      .map(_.sym)
+    resolved.orElse(scopeAt(ix, key, path, offset).flatMap(_.lookup(name.text))).filter(s => relationKinds(s.kind)).map { s =>
+      db(Compile, key).symbols.mtype(s) match
+        case Some(hugin.meta.MType.RelT(cols, _)) =>
+          cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
+        case _ => Nil
+    }
 
   def diagnostics(key: CompileKey)(using db: Database): List[Diagnostic] = db(Compile, key).diagnostics

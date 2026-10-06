@@ -19,8 +19,9 @@ program under edits) is the safety net for all of them.
 * `CompilationUnit` maps keyed by tree identity (`imports`, `scopes`) and `deferred` closures that run
   in a later phase; since steps 4–6 imports are resolved at use, module-body scopes are keyed by
   `ScopeKey` and requirement checks are data.
-* Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
-  per compilation, so this does not touch shared library results).
+* Monomorphize mutated the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
+  per compilation, so this did not touch shared library results); it now copies the monomorphic
+  declarations, so the generic program stays as MetaEval produced it.
 * Libraries: since step 7 a library's `Scope`, `SymTable` and `SymKeys` are frozen once elaborated and
   read through the program's layered table; MetaEval still evaluates every library once per compilation
   (its object names depend on the program: the prelude's `prelude.n` when the program shadows `n`, the
@@ -45,8 +46,9 @@ program under edits) is the safety net for all of them.
 0. **Safety net** (this PR): `IncrementalSuite`, golden tests for every diagnostic code, a test that the
    `hugin explain` catalog equals the emitted codes, phase timings in `--stats`.
 1. **Dead state and settings split.** Delete `Sym.order`, `Scope.processed`; `Sym.kind`/`decl` immutable;
-   split `Settings` into semantic `CompileOptions` (prelude, lint) and rendering/reporting options
-   (colour, warnings, print-after, stop-after, explain-termination), so only the former key `Compile`.
+   split the options into what the compiler produces (`Settings`: prelude, lint, and print-after,
+   stop-after and explain-termination, whose output is part of a compilation) and how diagnostics are
+   shown (`Display`: colour, warnings), so only the former key `Compile`.
 2. **Database: accumulated diagnostics and cycle recovery.** Diagnostics as accumulated outputs of a
    query (replaced on recomputation even when the value cuts off); `Query.onCycle` fallbacks for object
    declarations and type definitions (E0104).

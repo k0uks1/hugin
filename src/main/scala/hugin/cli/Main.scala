@@ -77,6 +77,14 @@ object Main:
       true
     else false
 
+  /** Runs `body` on a new database holding the program `file`; a usage error if it does not exist. */
+  private def withProgram(file: String, err: String => Unit)(body: Database ?=> Int): Int =
+    given db: Database = Database()
+    if load(db, file) then body
+    else
+      err(s"error: no such file `$file`")
+      ExitCode.Usage
+
   private def render(all: List[Diagnostic], display: Display, err: String => Unit): Unit =
     val diags = display.shown(all)
     val renderer = DiagnosticRenderer(display.color)
@@ -87,17 +95,20 @@ object Main:
     if summary.nonEmpty then err(summary)
 
   private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
-    given db: Database = Database()
-    if !load(db, file) then
-      err(s"error: no such file `$file`")
-      return ExitCode.Usage
-    val key = CompileKey(file, opts.settings)
-    val compiled = db(Compile, key)
-    compiled.printed.foreach(out)
-    if opts.run.stats then err(phaseTimings(compiled))
-    if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
-      render(compiled.diagnostics, opts.display, err)
-      return if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
+    withProgram(file, err) {
+      val key = CompileKey(file, opts.settings)
+      val compiled = summon[Database](Compile, key)
+      compiled.printed.foreach(out)
+      if opts.run.stats then err(phaseTimings(compiled))
+      if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
+        render(compiled.diagnostics, opts.display, err)
+        if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
+      else evaluateProgram(key, compiled, opts, out, err)
+    }
+
+  private def evaluateProgram(key: CompileKey, compiled: Compiled, opts: Options, out: String => Unit, err: String => Unit)(using
+      db: Database
+  ): Int =
     val facts = opts.run.facts.filter { f =>
       val ok = load(db, f)
       if !ok then err(s"error: no such facts file `$f`")
@@ -126,16 +137,16 @@ object Main:
       opts: Options,
       out: String => Unit,
       err: String => Unit
-  ): Int =
-    given db: Database = Database()
-    if !load(db, file) then
-      err(s"error: no such file `$file`")
-      return ExitCode.Usage
+  ): Int = withProgram(file, err) {
     val key = CompileKey(file, opts.settings)
-    val offset = position.flatMap((l, c) => db(Parse, file).source.offset(l - 1, c - 1))
+    val offset = position.flatMap((l, c) => summon[Database](Parse, file).source.offset(l - 1, c - 1))
     if position.isDefined && offset.isEmpty then
       err(s"error: position ${position.get._1}:${position.get._2} is outside `$file`")
-      return ExitCode.Usage
+      ExitCode.Usage
+    else answer(key, request, offset, opts, out)
+  }
+
+  private def answer(key: CompileKey, request: String, offset: Option[Int], opts: Options, out: String => Unit)(using Database): Int =
     request match
       case "hover" => out(Ide.hover(key, offset.get).getOrElse("(no information)"))
       case "definition" => out(Ide.definition(key, offset.get).map(_.show).getOrElse("(no definition)"))

@@ -1,0 +1,61 @@
+package hugin.obj
+package check
+
+import hugin.TestSupport
+
+/** The completeness discipline (Section 6.5, Definition 6.6). */
+class CompletenessSuite extends munit.FunSuite:
+  private def errors(code: String) =
+    TestSupport.compile(code).reporter.diagnostics.filter(_.code.contains("E0602"))
+
+  test("negating a complete relation is accepted") {
+    assertEquals(
+      TestSupport.run("""
+        e : int -> rel.
+        e 1.
+        d : int -> rel.
+        d 1. d 2.
+        p : int -> rel.
+        p X :- d X, not e X.
+        %output p.
+      """),
+      Right(List("p 2."))
+    )
+  }
+
+  test("negating an open relation is an error that says why it is incomplete") {
+    val ds = errors("""
+      e : int -> rel.
+      %open e.
+      d : int -> rel.
+      p : int -> rel.
+      p X :- d X, not e X.
+    """)
+    assertEquals(ds.length, 1)
+    assert(ds.head.notes.contains("`e` is declared %open"), ds.head.notes)
+  }
+
+  test("incompleteness propagates along positive dependencies") {
+    val ds = errors("""
+      e : int -> rel.
+      %partial e.
+      f : int -> rel.
+      f X :- e X.
+      d : int -> rel.
+      p : int -> rel.
+      p N :- d N, N = count { X | f X }.
+    """)
+    assertEquals(ds.length, 1)
+    assert(ds.head.notes.contains("`f` depends positively on `e`; `e` is declared %partial"), ds.head.notes)
+  }
+
+  test("queries may mention incomplete relations only positively") {
+    val code = """
+      e : int -> rel.
+      %open e.
+      d : int -> rel.
+    """
+    assertEquals(errors(code + "?- e X.").length, 0)
+    val ds = errors(code + "?- d X, not e X.")
+    assertEquals(ds.map(_.message), List("query negates or aggregates over the incomplete relation `e`"))
+  }

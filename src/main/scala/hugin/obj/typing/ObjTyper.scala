@@ -278,101 +278,112 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       // `(nil : list int)` ascribes the constructor term with its declared result type (`Γ ⊢ t : τ` with
       // τ = T), which always holds; the term must still fit the position
       checkTerm(x, col, inHead, where)
-    case Term.Ascr(x, tp) =>
-      // τ is the type of the position (column) the ascribed term occupies, or its synthesized type
-      val inner = col.orElse(synth(x)).getOrElse(OType.Err)
-      if synth(x).contains(OType.Err) then () // already reported (no meet)
-      else if !(ops.isSub(tp, inner) && ops.members(tp).subsetOf(ops.members(inner))) && inner != OType.Err then
-        report(Diagnostic.error("E0405", "invalid ascription", t.span, s"`${tp.show}` does not select members of `${inner.show}`")
-          .withNote("an ascription (t : T) is a checked downcast; T must be a subtype of the type of t"))
-      else if !ops.isRelLike(tp) && tp != inner then
-        report(Diagnostic.error("E0405", "invalid ascription", t.span, "only types of facts can be tested at run time"))
-      checkTerm(x, None, inHead, where)
-    case Term.Arith(op, l, r) =>
-      checkTerm(l, None, inHead, where)
-      checkTerm(r, None, inHead, where)
-      val (tl, tr) = (synth(l), synth(r))
-      val bl = tl.flatMap(ops.baseOf)
-      val br = tr.flatMap(ops.baseOf)
-      (tl, tr) match
-        case (Some(a), Some(b)) =>
-          val ok = bl.isDefined && bl == br && (op match
-            case ArithOp.Concat => bl.contains(BaseType.StringT)
-            case _ => !bl.contains(BaseType.StringT)
-          )
-          if !ok && a != OType.Err && b != OType.Err then
-            report(Diagnostic.error("E0402", s"operator `${op.show}` cannot be applied to `${a.show}` and `${b.show}`", t.span)
-              .withNote("`+ - * /` apply to two ints or two floats, `^` to two strings; ints and floats are never converted"))
-          else
-            col.foreach(ct =>
-              bl.foreach(b => if !ops.isSub(OType.Base(b), ct) && !ops.baseOf(ct).contains(b) then mismatch(t, OType.Base(b), ct, where))
-            )
-        case _ =>
+    case Term.Ascr(x, tp) => checkAscription(t, x, tp, col, inHead, where)
+    case Term.Arith(op, l, r) => checkArith(t, op, l, r, col, inHead, where)
     case Term.Neg(x) =>
       checkTerm(x, None, inHead, where)
       synth(x).foreach(tx =>
         if !ops.baseOf(tx).exists(b => b != BaseType.StringT) && tx != OType.Err then
           report(Diagnostic.error("E0402", s"unary minus cannot be applied to `${tx.show}`", t.span))
       )
-    case Term.Proj(v @ Term.Var(x), l) =>
-      gamma.get(x) match
-        case None =>
-        case Some(OType.Err) =>
-        case Some(tx) =>
-          if !ops.isClosed(tx) then
-            report(Diagnostic.error(
-              "E0303",
-              s"projection on a type that is not closed",
-              t.span,
-              s"`${Var.display(x)}` has type `${tx.show}`"
-            )
-              .withNote("projection and update require a fact type or a union of fact types; open types may gain constructors"))
-          else
+    case Term.Proj(Term.Var(x), l) => checkProj(t, x, l, col, inHead, where)
+    case Term.Proj(other, _) =>
+      report(Diagnostic.error("E0303", "projection applies only to variables", other.span, "bind this term to a variable first"))
+    case Term.With(Term.Var(x), fields) => checkWith(t, x, fields, col, inHead, where)
+    case Term.With(other, _) =>
+      report(Diagnostic.error("E0303", "update applies only to variables", other.span))
+    case _ =>
+
+  /** An ascription `(x : tp)` whose term does not already have a subtype of `tp`: a checked downcast. */
+  private def checkAscription(t: Term, x: Term, tp: OType, col: Option[OType], inHead: Boolean, where: String): Unit =
+    // τ is the type of the position (column) the ascribed term occupies, or its synthesized type
+    val inner = col.orElse(synth(x)).getOrElse(OType.Err)
+    if synth(x).contains(OType.Err) then () // already reported (no meet)
+    else if !(ops.isSub(tp, inner) && ops.members(tp).subsetOf(ops.members(inner))) && inner != OType.Err then
+      report(Diagnostic.error("E0405", "invalid ascription", t.span, s"`${tp.show}` does not select members of `${inner.show}`")
+        .withNote("an ascription (t : T) is a checked downcast; T must be a subtype of the type of t"))
+    else if !ops.isRelLike(tp) && tp != inner then
+      report(Diagnostic.error("E0405", "invalid ascription", t.span, "only types of facts can be tested at run time"))
+    checkTerm(x, None, inHead, where)
+
+  private def checkArith(t: Term, op: ArithOp, l: Term, r: Term, col: Option[OType], inHead: Boolean, where: String): Unit =
+    checkTerm(l, None, inHead, where)
+    checkTerm(r, None, inHead, where)
+    val (tl, tr) = (synth(l), synth(r))
+    val bl = tl.flatMap(ops.baseOf)
+    val br = tr.flatMap(ops.baseOf)
+    (tl, tr) match
+      case (Some(a), Some(b)) =>
+        val ok = bl.isDefined && bl == br && (op match
+          case ArithOp.Concat => bl.contains(BaseType.StringT)
+          case _ => !bl.contains(BaseType.StringT)
+        )
+        if !ok && a != OType.Err && b != OType.Err then
+          report(Diagnostic.error("E0402", s"operator `${op.show}` cannot be applied to `${a.show}` and `${b.show}`", t.span)
+            .withNote("`+ - * /` apply to two ints or two floats, `^` to two strings; ints and floats are never converted"))
+        else
+          col.foreach(ct =>
+            bl.foreach(b => if !ops.isSub(OType.Base(b), ct) && !ops.baseOf(ct).contains(b) then mismatch(t, OType.Base(b), ct, where))
+          )
+      case _ =>
+
+  /** A projection `X.l` (Section 6.2): X has a closed type whose members all have the label `l`. */
+  private def checkProj(t: Term, x: String, l: String, col: Option[OType], inHead: Boolean, where: String): Unit =
+    gamma.get(x) match
+      case None =>
+      case Some(OType.Err) =>
+      case Some(tx) =>
+        if !ops.isClosed(tx) then
+          report(Diagnostic.error(
+            "E0303",
+            s"projection on a type that is not closed",
+            t.span,
+            s"`${Var.display(x)}` has type `${tx.show}`"
+          )
+            .withNote("projection and update require a fact type or a union of fact types; open types may gain constructors"))
+        else
+          ops.commonLabel(tx, l) match
+            case Left(missing) =>
+              report(Diagnostic.error(
+                "E0304",
+                s"no common label `$l`",
+                t.span,
+                s"not a column of ${missing.map(m => s"`${m.name}`").mkString(", ")}"
+              )
+                .withNote(s"`${Var.display(x)}` has type `${tx.show}`; every member must have the label"))
+            case Right(cs) =>
+              ops.join(cs.map(_._3)) match
+                case None =>
+                  report(Diagnostic.error(
+                    "E0305",
+                    s"undefined join for label `$l`",
+                    t.span,
+                    cs.map((c, _, ct) => s"`${ct.show}` in `${c.name}`").mkString(", ")
+                  )
+                    .withNote("the join of different base types is undefined"))
+                case Some(j) =>
+                  col.foreach(ct => if inHead && !ops.isSub(j, ct) then mismatch(t, j, ct, where))
+
+  /** An update `(X with { l = h, ... })` (Section 6.2). */
+  private def checkWith(t: Term, x: String, fields: List[(String, Term, Span)], col: Option[OType], inHead: Boolean, where: String): Unit =
+    gamma.get(x) match
+      case None | Some(OType.Err) =>
+      case Some(tx) =>
+        if !ops.isClosed(tx) then
+          report(Diagnostic.error("E0303", s"update on a type that is not closed", t.span, s"`${Var.display(x)}` has type `${tx.show}`"))
+        else
+          for (l, h, sp) <- fields do
             ops.commonLabel(tx, l) match
               case Left(missing) =>
                 report(Diagnostic.error(
                   "E0304",
                   s"no common label `$l`",
-                  t.span,
+                  sp,
                   s"not a column of ${missing.map(m => s"`${m.name}`").mkString(", ")}"
-                )
-                  .withNote(s"`${Var.display(x)}` has type `${tx.show}`; every member must have the label"))
+                ))
               case Right(cs) =>
-                ops.join(cs.map(_._3)) match
-                  case None =>
-                    report(Diagnostic.error(
-                      "E0305",
-                      s"undefined join for label `$l`",
-                      t.span,
-                      cs.map((c, _, ct) => s"`${ct.show}` in `${c.name}`").mkString(", ")
-                    )
-                      .withNote("the join of different base types is undefined"))
-                  case Some(j) =>
-                    col.foreach(ct => if inHead && !ops.isSub(j, ct) then mismatch(t, j, ct, where))
-    case Term.Proj(other, _) =>
-      report(Diagnostic.error("E0303", "projection applies only to variables", other.span, "bind this term to a variable first"))
-    case Term.With(v @ Term.Var(x), fields) =>
-      gamma.get(x) match
-        case None | Some(OType.Err) =>
-        case Some(tx) =>
-          if !ops.isClosed(tx) then
-            report(Diagnostic.error("E0303", s"update on a type that is not closed", t.span, s"`${Var.display(x)}` has type `${tx.show}`"))
-          else
-            for (l, h, sp) <- fields do
-              ops.commonLabel(tx, l) match
-                case Left(missing) =>
-                  report(Diagnostic.error(
-                    "E0304",
-                    s"no common label `$l`",
-                    sp,
-                    s"not a column of ${missing.map(m => s"`${m.name}`").mkString(", ")}"
-                  ))
-                case Right(cs) =>
-                  for (c, _, ct) <- cs do checkTerm(h, Some(ct), inHead = true, s"update of `$l` in `${c.name}`")
-          col.foreach(ct => if inHead && !ops.isSub(tx, ct) then mismatch(t, tx, ct, where))
-    case Term.With(other, _) =>
-      report(Diagnostic.error("E0303", "update applies only to variables", other.span))
-    case _ =>
+                for (c, _, ct) <- cs do checkTerm(h, Some(ct), inHead = true, s"update of `$l` in `${c.name}`")
+        col.foreach(ct => if inHead && !ops.isSub(tx, ct) then mismatch(t, tx, ct, where))
 
   private def checkFormula(f: Formula): Unit = f match
     case Formula.Atom(RelRef.Sym(c), args, _) => checkArgs(c, args, inHead = false)

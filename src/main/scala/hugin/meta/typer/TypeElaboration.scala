@@ -1,6 +1,7 @@
 package hugin.meta
 package typer
 
+import hugin.syntax.TreeOps.{flattenApp, flattenArrow}
 import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.Trees.*
@@ -260,7 +261,7 @@ private[meta] trait TypeElaboration extends TyperBase:
 
   def showO(t: OType): String = normO(t) match
     case OType.Splice(m) => showPath(m)
-    case other => OType.show(OType.mapDeep(other) { case OType.Splice(m) => OType.Splice(m) }).replace("~(", "(")
+    case other => other.show.replace("~(", "(")
   private[meta] def showPath(m: MExpr): String = m match
     case Ref(s) => s.name
     case Proj(x, l) => s"${showPath(x)}.$l"

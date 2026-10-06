@@ -2,6 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.*
+import hugin.syntax.TreeOps.{codomain, headName}
 import hugin.compiler.*
 import hugin.obj.BaseType
 import scala.collection.mutable
@@ -10,17 +11,6 @@ import scala.collection.mutable
  *  The top-level program is entered by the `namer` phase; nested bodies are entered on demand by the typer. */
 object Namer:
   private val builtins: Map[String, BaseType] = BaseType.values.map(b => b.show -> b).toMap
-
-  /** Final codomain of an arrow type, ignoring labels and parentheses. */
-  def codomain(t: Tree): Tree = t match
-    case Arrow(_, _, c) => codomain(c)
-    case Parens(i) => codomain(i)
-    case other => other
-
-  def arrowArity(t: Tree): Int = t match
-    case Arrow(_, _, c) => 1 + arrowArity(c)
-    case Parens(i) => arrowArity(i)
-    case _ => 0
 
   /** Enters the declarations of `items` into the (new, empty) `scope`. Declarations are collected first,
    *  then the clauses of formula functions; the symbols are created last, with all of the namer's output. */
@@ -42,56 +32,8 @@ object Namer:
 
     for (item, key) <- items.zip(ItemKey.assign(scope.key, items)) do
       item match
-        case d @ Decl(name, params, tpe, sup, defn, abbrev) =>
-          val kind: Option[SymKind] = tpe match
-            case Keyword(Kw.Type) =>
-              defn match
-                case None => Some(SymKind.ObjType)
-                case Some(Builtin(b)) =>
-                  if params.nonEmpty || sup.isDefined then
-                    ctx.error("E0103", "a base type has no parameters or supertype", d.span)
-                  if builtins.contains(b.name) then Some(SymKind.BaseType)
-                  else
-                    ctx.report(Diagnostic.error("E0103", s"unknown base type `${b.name}`", b.span, "not a builtin")
-                      .withNote(s"the builtin base types are ${builtins.keys.toList.sorted.mkString(", ")}"))
-                    None
-                case Some(_: RecordType) if !abbrev =>
-                  if sup.isDefined then
-                    ctx.error("E0103", "a struct declaration cannot have a supertype", sup.get.span)
-                  Some(SymKind.Struct)
-                case Some(_) =>
-                  if sup.isDefined then
-                    ctx.error(
-                      "E0103",
-                      "a type definition cannot have a supertype",
-                      sup.get.span,
-                      "remove this, or declare a refinement `a : type <: b.`"
-                    )
-                  Some(SymKind.TypeDef)
-            case Keyword(Kw.Mod) =>
-              if defn.isEmpty then
-                ctx.report(Diagnostic.error("E0103", s"signature `${name.name}` has no definition", d.span)
-                  .withHelp(s"write `${name.name} : mod = { ... }.`"))
-                None
-              else Some(SymKind.MetaDef)
-            case _ =>
-              codomain(tpe) match
-                case Keyword(Kw.Rel) =>
-                  if defn.isDefined then
-                    ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot be defined by `=`", defn.get.span, "not allowed")
-                      .withHelp("relations are defined by rules: `c X :- body.`"))
-                  Some(SymKind.Rel)
-                case Keyword(Kw.Prop) => Some(SymKind.FormulaFn)
-                case Keyword(Kw.Type) =>
-                  ctx.report(Diagnostic.error(
-                    "E0103",
-                    s"cannot classify the declaration of `${name.name}`",
-                    tpe.span,
-                    "a function returning `type`"
-                  ).withHelp("declare a family with type parameters instead: `f A : type.`"))
-                  None
-                case _ =>
-                  if defn.isDefined then Some(SymKind.MetaDef) else Some(SymKind.Ctor)
+        case d @ Decl(name, params, _, _, defn, abbrev) =>
+          val kind = classify(d)
           if abbrev && !kind.contains(SymKind.TypeDef) then
             ctx.error("E0103", "`%abbrev` only applies to type definitions", d.span)
           kind.foreach { kd =>
@@ -109,10 +51,6 @@ object Namer:
     for item <- items do
       item match
         case r @ Rule(_, heads, _) =>
-          def headName(t: Tree): Option[Ident] = t match
-            case id: Ident => Some(id)
-            case Apply(f, _) => headName(f)
-            case _ => None
           val fnHeads =
             heads.flatMap(h => headName(h).flatMap(n => entries.get(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
           if fnHeads.nonEmpty then
@@ -127,6 +65,59 @@ object Namer:
       if !scope.claim(name) then throw IllegalStateException(s"`$name` entered twice into ${scope.key}")
       val key = SymKey(scope.key, name)
       scope.enter(Sym(name, e.kind, e.name.span, scope, key, ctx.unit.symKeys, Some(e.key), Some(e.item), cls, e.abbrev, e.base))
+
+  /** The kind of symbol a declaration declares (Section 2.5), or none if it cannot be classified (reported). */
+  private def classify(d: Decl)(using Context): Option[SymKind] =
+    val Decl(name, params, tpe, sup, defn, abbrev) = d
+    tpe match
+      case Keyword(Kw.Type) =>
+        defn match
+          case None => Some(SymKind.ObjType)
+          case Some(Builtin(b)) =>
+            if params.nonEmpty || sup.isDefined then
+              ctx.error("E0103", "a base type has no parameters or supertype", d.span)
+            if builtins.contains(b.name) then Some(SymKind.BaseType)
+            else
+              ctx.report(Diagnostic.error("E0103", s"unknown base type `${b.name}`", b.span, "not a builtin")
+                .withNote(s"the builtin base types are ${builtins.keys.toList.sorted.mkString(", ")}"))
+              None
+          case Some(_: RecordType) if !abbrev =>
+            if sup.isDefined then
+              ctx.error("E0103", "a struct declaration cannot have a supertype", sup.get.span)
+            Some(SymKind.Struct)
+          case Some(_) =>
+            if sup.isDefined then
+              ctx.error(
+                "E0103",
+                "a type definition cannot have a supertype",
+                sup.get.span,
+                "remove this, or declare a refinement `a : type <: b.`"
+              )
+            Some(SymKind.TypeDef)
+      case Keyword(Kw.Mod) =>
+        if defn.isEmpty then
+          ctx.report(Diagnostic.error("E0103", s"signature `${name.name}` has no definition", d.span)
+            .withHelp(s"write `${name.name} : mod = { ... }.`"))
+          None
+        else Some(SymKind.MetaDef)
+      case _ =>
+        codomain(tpe) match
+          case Keyword(Kw.Rel) =>
+            if defn.isDefined then
+              ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot be defined by `=`", defn.get.span, "not allowed")
+                .withHelp("relations are defined by rules: `c X :- body.`"))
+            Some(SymKind.Rel)
+          case Keyword(Kw.Prop) => Some(SymKind.FormulaFn)
+          case Keyword(Kw.Type) =>
+            ctx.report(Diagnostic.error(
+              "E0103",
+              s"cannot classify the declaration of `${name.name}`",
+              tpe.span,
+              "a function returning `type`"
+            ).withHelp("declare a family with type parameters instead: `f A : type.`"))
+            None
+          case _ =>
+            if defn.isDefined then Some(SymKind.MetaDef) else Some(SymKind.Ctor)
 
   /** Textual symbol table (output of the `namer` phase). */
   def show(scope: Scope): String =

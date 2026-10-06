@@ -1,7 +1,7 @@
 package hugin.compiler
 
 import hugin.meta.*
-import hugin.syntax.{Program, Tree}
+import hugin.syntax.{Program, Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 import scala.collection.mutable
@@ -177,11 +177,7 @@ object ProgramElab:
   /** Whether a rule is (or is meant as) a clause of a formula function of `scope`: one of its heads applies
    *  a formula function declared there (the namer collects these, see [[Namer.enter]]). */
   private def namesFormulaFn(r: Rule, scope: Scope): Boolean =
-    def headName(t: Tree): Option[String] = t match
-      case Ident(n) => Some(n)
-      case Apply(f, _) => headName(f)
-      case _ => None
-    r.heads.exists(h => headName(h).flatMap(scope.lookupLocal).exists(_.kind == SymKind.FormulaFn))
+    r.heads.exists(h => TreeOps.headName(h).flatMap(n => scope.lookupLocal(n.name)).exists(_.kind == SymKind.FormulaFn))
 
   /** Names the top level of the program `program` (the file `root`). */
   def name(root: String, source: SourceFile, program: Program, prelude: Boolean, libs: Libraries): NamedProgram =

@@ -140,6 +140,33 @@ class CompilerQueriesSuite extends munit.FunSuite:
     assert(labels("reach X :- g").contains("g"))
   }
 
+  test("completions: the labels of a named pattern are those of the relation the name resolves to") {
+    given db: Database = Database()
+    val text =
+      """item : (name : string) -> rel.
+        |m = {
+        |  item : (cost : int) -> rel.
+        |  q : rel.
+        |  q :- item { cost = 1 }.
+        |}.
+        |p : rel.
+        |p :- item { name = "a" }.
+        |pair : (left : int) -> rel.
+        |s : rel.
+        |s :- pair { left = 1 }, item { na
+        |""".stripMargin
+    db.set(SourceText, "l.hgn", text)
+    val k = CompileKey("l.hgn")
+    def labels(needle: String) = Ide.completions(k, text.indexOf(needle) + needle.length).map(_.label)
+    // a module body's declaration shadows the program's
+    assertEquals(labels("{ c"), List("cost"))
+    assertEquals(labels("{ n"), List("name"))
+    // the program's declaration shadows the prelude's (`pair` is a struct with `fst` and `snd` there)
+    assertEquals(labels("pair { "), List("left"))
+    // in an item that does not compile yet, the name is looked up in the scope around it
+    assertEquals(labels("item { na"), List("name"))
+  }
+
   test("completions offer the variables of an item that does not compile yet") {
     given db: Database = Database()
     val text = "edge : int -> int -> rel.\nreach Start Goal :- edge Start Mid, edge Mid (G\n"

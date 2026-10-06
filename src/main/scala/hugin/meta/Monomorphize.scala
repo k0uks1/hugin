@@ -3,12 +3,17 @@ package hugin.meta
 import hugin.util.*
 import hugin.compiler.*
 import hugin.obj.*
+import hugin.obj.check.DepGraph
 import hugin.syntax.AggKind
 import scala.collection.mutable
 
 /** Family instantiation by worklist (Section 4.6). Type arguments of family uses are inferred by
  *  first-order matching against the expected object types; rule families are instantiated at every
- *  instance of their head relation. */
+ *  instance of their head relation.
+ *
+ *  The generic program is not changed: its monomorphic relations and types are copied (`monoRel`,
+ *  `monoTypeSym`), and the copies, the instances and the rewritten rules form the result, which the
+ *  object-level phases then transform in place. */
 final class Monomorphizer(p: ObjProgram)(using Context):
   private val MaxInstances = 10000
   private val relMemo = mutable.LinkedHashMap.empty[(RelSym, List[OType]), RelSym]
@@ -20,6 +25,19 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private val outTypes = mutable.ArrayBuffer.empty[TypeSym]
   private val outRels = mutable.ArrayBuffer.empty[RelSym]
 
+  // copies of the monomorphic declarations, made before any instance so that symbol ids keep their order
+  // (members of a closed type are ordered by id); their column and refinement types are filled in by `run`
+  private val typeCopies: Map[TypeSym, TypeSym] =
+    p.types.filter(_.tparams.isEmpty).map(t => t -> TypeSym(t.name, t.kind, t.span, t.origin)).toMap
+  private val relCopies: Map[RelSym, RelSym] =
+    p.rels.filter(_.tparams.isEmpty).map(r => r -> RelSym(r.name, r.kind, r.span, r.origin)).toMap
+
+  /** The program's symbol for a monomorphic relation of the generic program (other relations unchanged). */
+  def monoRel(r: RelSym): RelSym = relCopies.getOrElse(r, r)
+
+  /** The program's symbol for a monomorphic type of the generic program (other types unchanged). */
+  def monoTypeSym(t: TypeSym): TypeSym = typeCopies.getOrElse(t, t)
+
   private val ruleFamilies: Map[RelSym, Vector[Rule]] =
     p.rules.filter(r => headFamily(r).isDefined).groupBy(r => headFamily(r).get)
 
@@ -30,34 +48,16 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private val component: Map[RelSym, Int] =
     val nodes = p.rels.toList
     val edges = mutable.HashMap.empty[RelSym, mutable.Set[RelSym]]
-    def relsIn(f: Formula): List[RelSym] = f match
-      case Formula.Atom(r, args, _) => r.sym :: args.flatMap(relsInT)
-      case Formula.Not(a) => relsIn(a)
-      case Formula.Agg(_, _, t, b) => relsInT(t) ++ b.flatMap(relsIn)
-      case Formula.Disj(alts) => alts.flatten.flatMap(relsIn)
-      case Formula.Cmp(_, l, r) => relsInT(l) ++ relsInT(r)
-      case _ => Nil
-    def relsInT(t: Term): List[RelSym] = t match
-      case Term.App(r, as) => r.sym :: as.flatMap(relsInT)
-      case Term.As(x, _) => relsInT(x)
-      case Term.Ascr(x, _) => relsInT(x)
-      case Term.Arith(_, l, r) => relsInT(l) ++ relsInT(r)
-      case _ => Nil
     for r <- p.rules; h <- r.heads do
       h match
-        case Term.App(RelRef.Sym(hs), _) => edges.getOrElseUpdate(hs, mutable.Set.empty) ++= r.body.flatMap(relsIn)
+        case Term.App(RelRef.Sym(hs), _) => edges.getOrElseUpdate(hs, mutable.Set.empty) ++= r.body.flatMap(DepGraph.mentioned)
         case _ =>
     Graphs.components(nodes, (n: RelSym) => edges.getOrElse(n, Nil).toList).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
 
   // ------------------------------------------------------------------ instances
 
   private def instName(base: String, args: List[OType]): String =
-    s"$base[${args.map(showInst).mkString(", ")}]"
-
-  private def showInst(t: OType): String = t match
-    case OType.Con(s, Nil) => s.name
-    case OType.Fact(r, Nil) => r.name
-    case other => other.show
+    s"$base[${args.map(_.show).mkString(", ")}]"
 
   /** Converts a ground generic type into its monomorphic form (family applications become instances). */
   def monoType(t: OType, span: Span, origin: Origin): OType = t match
@@ -67,6 +67,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     case OType.Fact(r, args) if r.tparams.nonEmpty =>
       if args.length != r.tparams.length || !args.forall(OType.isGround) then OType.Err
       else OType.Fact(relInstance(r, args.map(monoType(_, span, origin)), span, origin), Nil)
+    case OType.Con(s, Nil) => OType.Con(monoTypeSym(s), Nil)
+    case OType.Fact(r, Nil) => OType.Fact(monoRel(r), Nil)
     case OType.Union(ms) => OType.union(ms.map(monoType(_, span, origin)))
     case OType.Param(_) | OType.Meta(_) => OType.Err
     case other => other
@@ -250,7 +252,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     var ok = true
     def inst(node: AnyRef, r0: RelSym): RelSym =
       val e = inf.occs.get(node)
-      if e == null then r0
+      if e == null then monoRel(r0)
       else
         val (rel, metas, span) = e
         val args = metas.map(inf.resolve)
@@ -341,7 +343,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       "E0205",
       "polymorphic recursion",
       span,
-      s"`${g.name}` used at [${us.map(showInst).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(showInst).mkString(", ")}]"
+      s"`${g.name}` used at [${us.map(_.show).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(_.show).mkString(", ")}]"
     )
       .withNote(
         "within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)"
@@ -365,13 +367,13 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   def run(): ObjProgram =
     // monomorphic declarations
     for t <- p.types if t.tparams.isEmpty do
+      val c = monoTypeSym(t)
       t.kind match
-        case TypeKind.Refinement(b) => t.kind = TypeKind.Refinement(monoType(b, t.span, t.origin))
+        case TypeKind.Refinement(b) => c.kind = TypeKind.Refinement(monoType(b, t.span, t.origin))
         case _ =>
-      outTypes += t
-    for r <- p.rels if r.tparams.isEmpty do
-      outRels += r
-    val monoRels = outRels.toList
+      outTypes += c
+    val monoRels = p.rels.filter(_.tparams.isEmpty)
+    outRels ++= monoRels.map(monoRel)
     // monomorphic rules and queries
     for r <- p.rules if headFamily(r).isEmpty do inferRule(r, None).foreach(outRules += _)
     for q <- p.queries do
@@ -380,21 +382,23 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       rewriteRule(Rule(None, Nil, q.body)(q.span, q.origin, q.expansions), inf, None).foreach(r => outQueries += q.withBody(r.body))
     // declared column types of monomorphic relations (after rules, so that instances are requested in source order)
     for r <- monoRels do
-      r.cols = r.cols.map(c => c.copy(tpe = monoType(c.tpe, r.span, r.origin)))
-      r.result = r.result.map(monoType(_, r.span, r.origin))
-    val edges = p.edges.map(e => Edge(monoType(e.sub, e.span, e.origin), e.sup)(e.span, e.origin))
+      val c = monoRel(r)
+      c.cols = r.cols.map(col => col.copy(tpe = monoType(col.tpe, r.span, r.origin)))
+      c.result = r.result.map(monoType(_, r.span, r.origin))
+    val edges = p.edges.map(e => Edge(monoType(e.sub, e.span, e.origin), monoTypeSym(e.sup))(e.span, e.origin))
     // worklist
     while worklist.nonEmpty do
       val (f, ts, origin) = worklist.dequeue()
       for rule <- ruleFamilies.getOrElse(f, Vector.empty) do
         inferRule(rule, Some((f, ts))).foreach { r =>
-          outRules += r.withParts(name = r.name.map(n => s"$n[${ts.map(showInst).mkString(", ")}]"))
+          outRules += r.withParts(name = r.name.map(n => s"$n[${ts.map(_.show).mkString(", ")}]"))
         }
     // directives on families apply to all instances
     val dirs = p.directives.flatMap { d =>
       d.target match
         case Some(RelRef.Sym(r)) if r.tparams.nonEmpty =>
           instancesOf.getOrElse(r, Nil).toVector.map(i => Directive(d.kind, Some(RelRef.Sym(i)), d.rule)(d.span, d.origin))
+        case Some(RelRef.Sym(r)) => Vector(Directive(d.kind, Some(RelRef.Sym(monoRel(r))), d.rule)(d.span, d.origin))
         case _ => Vector(d)
     }
     ObjProgram(outTypes.toVector, outRels.toVector, edges, outRules.toVector, outQueries.toVector, dirs)
@@ -406,5 +410,7 @@ final class MonomorphizePhase extends Phase:
   def run(using Context): Unit =
     val u = ctx.unit
     if u.generic == null then return
-    u.prog = Monomorphizer(u.generic.nn).run()
+    val mono = Monomorphizer(u.generic.nn)
+    u.prog = mono.run()
+    u.requirements = u.requirements.map(c => c.copy(rel = mono.monoRel(c.rel)))
   override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)
