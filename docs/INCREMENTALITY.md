@@ -3,7 +3,9 @@
 Today `Compile` runs the whole pipeline per file: every edit, also whitespace, recompiles the program;
 since step 7 the prelude and imported files are named and elaborated once per database revision and
 shared by all compilations, and since step 8 the items of the program are elaborated one by one, so an
-edit elaborates again only the items it affects (the object-level pipeline still runs per edit). This note records the plan for finer-grained queries. Each
+edit elaborates again only the items it affects (the object-level pipeline still runs per edit), and since
+step 9 the items are parsed from their own text slices, so an edit does not elaborate the items it only
+moves. This note records the plan for finer-grained queries. Each
 step is one PR that keeps all tests green; `IncrementalSuite` (incremental = from scratch on every golden
 program under edits) is the safety net for all of them.
 
@@ -24,8 +26,9 @@ program under edits) is the safety net for all of them.
   numbered prefixes `geo2`). A `%mode` written in a file for a prelude formula function is seen by that
   file only (copy-on-write); the prelude has no formula functions.
 * Equality: surface and object trees keep spans in a second parameter list (`==` ignores them), meta
-  trees do not; `SourceFile` compares by identity, so `Parse` never cuts off today. A per-item query
-  whose result ignores spans would keep stale positions after an edit before the item.
+  trees do not; `SourceFile` compares by identity, so `Parse` never cuts off. A per-item query whose
+  result ignores spans would keep stale positions after an edit before the item; since step 9 the spans
+  of a program's items are relative to their slice and resolve through its placement in the current text.
 * Fresh names (`_17`, module prefixes, hygiene) come from counters over the whole file; since step 6 the
   typer's counters (anonymous Π-parameter names, local scope keys) are per item, MetaEval's module
   prefixes and hygiene counters are still global (MetaEval stays whole-program).
@@ -100,8 +103,8 @@ program under edits) is the safety net for all of them.
 
    Editing a rule elaborates that rule again, and the items whose position changed; editing a declaration
    elaborates the items that use it; adding or removing a declaration (a change of the names) elaborates
-   every item (`ItemQueriesSuite`). Positions: until step 9 an item's results keep spans into the source
-   file it was parsed from, and they are reused only while the item's fingerprint (tree, offsets, first
+   every item (`ItemQueriesSuite`). Positions (as of step 8; step 9 makes them item-relative): an item's
+   results keep spans into the source file it was parsed from, and they are reused only while the item's fingerprint (tree, offsets, first
    line, text of its lines) is unchanged, so every reused span has the same offset, line, column and line
    text in the current file; diagnostics are moved to the current source file (`Context.sources`), and the
    semantic index compares symbols by key. The price is that an edit that changes the length or the lines
@@ -110,10 +113,42 @@ program under edits) is the safety net for all of them.
    one elaborates all of them again, though only the items using a changed one follow); a change of the
    names of the top level elaborates every item; `ElabFile`, the object pipeline and MetaEval run after
    every edit.
-9. **Item slices**: items parsed from their own text slices with item-relative spans, mapped to file
-   positions at the boundary (`ItemOffsets`, generalizing the REPL's former chunk mapping), so that
-   whitespace and comment edits cut off: the fingerprints of step 8 become item-relative, and an
-   edit no longer elaborates the items after it again.
+9. **Item slices** (done for the program's files; `syntax/Slices.scala`, `util/Source.scala`,
+   `query/CompilerQueries.scala`). Items are parsed from their own text with item-relative spans:
+   * `ItemSlices(file)` parses the file as a whole (`Parse`, as before): that parse decides where the
+     top-level items are, with all its error recovery (a nested module body `{ ... }` is part of its item,
+     an item missing its `.` ends where the parser recovered), and it reports the parse diagnostics, so
+     they are unchanged. Every item's text (from its first to its last character) is a *slice*.
+   * `ParseItem(slice)` parses one slice on its own, keyed by the file's path, the text, the file's
+     `%infix` operators (which the parser collects from the whole file) and the number of identical items
+     before it (a slice has one placement, so identical items are different slices). It reads nothing, so
+     identical text yields the very same tree after any edit elsewhere.
+   * The boundary (`ItemOffsets`): a slice is a `SourceFile` placed at an offset of its file
+     (`SourceFile.place`), and `ItemSlices` places the slices of the current text. A `Span` keeps its
+     origin (file or slice) and offsets in it (`from`, `until`); `source`, `start` and `end` resolve
+     through the placement to the current file. So every consumer (diagnostics and their rendering, the
+     semantic index and the IDE queries, `--print-after`, the REPL's blanking of answered queries, the
+     object phases) sees file positions without a mapping of its own, byte-identical to a parse of the
+     whole file; equality and hashing of spans use the origin and its offsets, so they are stable when a
+     slice moves. Instead of mapping every output at the boundary, positions are resolved lazily when read:
+     the placement is the only state that changes when an item moves, and it is set before any query of
+     the revision reads the items (they all depend on `ItemSlices` through `ParseProgram`).
+   * A slice is used only if it parses without diagnostics into one item that is *congruent* to the item
+     of the whole file: the same tree with the same positions once placed (`Slices.congruent`, which also
+     compares the spans trees keep beside their fields). Otherwise (parse errors in the item, or a context
+     dependence the slice parse does not see) the item of the whole file is used, with step 8's absolute
+     fingerprint. On the golden programs without parse errors every item is a slice (`ItemQueriesSuite`).
+   * Item fingerprints are item-relative (`ItemFingerprint`: the tree, the slice by identity and the
+     offsets in it), and `Positional.same` compares spans in slices by slice and offsets, so `ItemOf`,
+     `ScopeOf` and `DeclSig` cut off when an edit only moves items. The few places in elaboration that
+     made a span from a span's offsets keep the origin (`Span.startPoint`, `endPoint`).
+
+   Inserting blank lines or comments between items, or moving items to other lines and columns,
+   elaborates nothing; lengthening one rule elaborates that rule only (`ItemQueriesSuite`). Remaining:
+   libraries (the prelude, imported files) are still parsed and elaborated as whole files, with spans into
+   the file (an edit of a library elaborates it again anyway); slices are never evicted from the database
+   (step 10); a change of the `%infix` operators parses every item again; the whole file is still parsed
+   after every edit (cheap; it decides the item boundaries and reports parse errors).
 10. **Clients**: diagnostics per file from accumulators, the language server publishing per file, REPL
     probes as an extra item, eviction of unused memos.
 
