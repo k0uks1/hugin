@@ -3,6 +3,7 @@ package hugin.meta
 import hugin.util.*
 import hugin.compiler.*
 import hugin.obj.*
+import hugin.obj.check.DepGraph
 import hugin.syntax.AggKind
 import scala.collection.mutable
 
@@ -47,22 +48,9 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private val component: Map[RelSym, Int] =
     val nodes = p.rels.toList
     val edges = mutable.HashMap.empty[RelSym, mutable.Set[RelSym]]
-    def relsIn(f: Formula): List[RelSym] = f match
-      case Formula.Atom(r, args, _) => r.sym :: args.flatMap(relsInT)
-      case Formula.Not(a) => relsIn(a)
-      case Formula.Agg(_, _, t, b) => relsInT(t) ++ b.flatMap(relsIn)
-      case Formula.Disj(alts) => alts.flatten.flatMap(relsIn)
-      case Formula.Cmp(_, l, r) => relsInT(l) ++ relsInT(r)
-      case _ => Nil
-    def relsInT(t: Term): List[RelSym] = t match
-      case Term.App(r, as) => r.sym :: as.flatMap(relsInT)
-      case Term.As(x, _) => relsInT(x)
-      case Term.Ascr(x, _) => relsInT(x)
-      case Term.Arith(_, l, r) => relsInT(l) ++ relsInT(r)
-      case _ => Nil
     for r <- p.rules; h <- r.heads do
       h match
-        case Term.App(RelRef.Sym(hs), _) => edges.getOrElseUpdate(hs, mutable.Set.empty) ++= r.body.flatMap(relsIn)
+        case Term.App(RelRef.Sym(hs), _) => edges.getOrElseUpdate(hs, mutable.Set.empty) ++= r.body.flatMap(DepGraph.mentioned)
         case _ =>
     Graphs.components(nodes, (n: RelSym) => edges.getOrElse(n, Nil).toList).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
 

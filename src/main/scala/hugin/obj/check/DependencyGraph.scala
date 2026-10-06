@@ -16,6 +16,15 @@ object DepGraph:
     case Term.Neg(x) => relsIn(x)
     case _ => Nil
 
+  /** Every relation a formula mentions: its atoms and all constructor terms, also nested patterns. */
+  def mentioned(f: Formula): List[RelSym] = f match
+    case Formula.Atom(r, args, _) => r.sym :: args.flatMap(relsIn)
+    case Formula.Not(a) => mentioned(a)
+    case Formula.Agg(_, _, t, b) => relsIn(t) ++ b.flatMap(mentioned)
+    case Formula.Disj(alts) => alts.flatten.flatMap(mentioned)
+    case Formula.Cmp(_, l, r) => relsIn(l) ++ relsIn(r)
+    case _ => Nil
+
   /** (relation, negative?, span) for every relation whose facts a body reads: the relations of its atoms.
    *  Constructor patterns nested in atoms match values structurally and read no facts (see [[Probes]]);
    *  constructor terms compared with `=` or `<>` must exist as values, so they count. */
