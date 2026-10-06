@@ -116,8 +116,12 @@ final case class ModeSpec(inputs: List[(Boolean, Option[String], Span)])
 
 enum DirKind:
   case ModeD(spec: ModeSpec)
-  case TerminatesVar(v: String, args: List[Term])
-  case TerminatesLabel(label: String)
+
+  /** The measure variables (several for a lexicographic measure) and the call pattern. */
+  case TerminatesVar(vs: List[String], args: List[Term])
+
+  /** The measure labels (several for a lexicographic measure). */
+  case TerminatesLabel(labels: List[String])
   case Partial, Open, Input, Output
   case Derivations
   case NameHint(v: String)

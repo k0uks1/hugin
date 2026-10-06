@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGED="$ROOT/target/universal/stage/bin/hugin"
 if [[ ! -x "$STAGED" || "${HUGIN_REBUILD:-0}" == "1" ]]; then
-  (cd "$ROOT" && sbt -batch -error stage)
+  # on stderr: stdout may be a protocol channel (`hugin lsp`)
+  (cd "$ROOT" && sbt -batch -error stage) >&2
 fi
 exec "$STAGED" "$@"

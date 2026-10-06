@@ -1,0 +1,20 @@
+(* issue #2: lexicographic measures *)
+
+(* Ackermann's function: the first argument decreases, or it stays and the second decreases *)
+ack : (m : int) -> (n : int) -> (r : int) -> rel.
+%mode ack +m +n -r.
+%terminates (m, n) ack.
+ack 0 N R :- R = N + 1.
+ack M 0 R :- M > 0, ack (M - 1) 1 R.
+ack M N R :- M > 0, N > 0, ack M (N - 1) R1, ack (M - 1) R1 R.
+
+(* bottom-up: rows and columns of a grid; later components of the measure are bounded on both sides *)
+cell : int -> int -> rel.
+%terminates (I, J) (cell I J).
+cell 0 0.
+cell I J :- cell I K, K >= 0, K < 2, J = K + 1.
+cell I J :- cell H K, H < 2, K >= 0, K <= 2, I = H + 1, J = 0.
+
+?- ack 2 3 R.
+?- ack 3 3 R.
+?- cell 2 J.

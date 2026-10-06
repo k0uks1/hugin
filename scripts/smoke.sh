@@ -16,4 +16,13 @@ for f in "$ROOT"/examples/*.hgn; do
 done
 "$HUGIN" phases > /dev/null
 "$HUGIN" explain E0401 > /dev/null
+# the language server answers `initialize` and exits with 0 after `shutdown` and `exit`
+lsp() { printf 'Content-Length: %d\r\n\r\n%s' "${#1}" "$1"; }
+reply=$({ lsp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}'
+          lsp '{"jsonrpc":"2.0","id":2,"method":"shutdown"}'
+          lsp '{"jsonrpc":"2.0","method":"exit"}'; } | "$HUGIN" lsp)
+if [[ "$reply" != *'"hoverProvider":true'* ]]; then
+  echo "FAILED: hugin lsp did not answer initialize" >&2
+  status=1
+fi
 exit $status

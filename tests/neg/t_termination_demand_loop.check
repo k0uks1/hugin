@@ -1,0 +1,14 @@
+error[E0604]: invalid `%terminates` directive for `c`
+ --> tests/neg/t_termination_demand_loop.hgn:7:10
+  |
+5 | %terminates X (c X _).
+  | ---------------------- measure declared here
+...
+7 | c X Y :- c X Z, Y = Z + 1.
+  |   -      ^^^^^ no decrease: `X` is not smaller than `X`
+  |   the caller has `X`
+  |
+  = note: the measure of `c` is argument 1 (integer); for the call it must be smaller than for the caller
+  = help: if the recursion terminates for another reason, mark the relation `%partial c.` to evaluate it with a round budget
+
+1 error found

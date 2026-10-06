@@ -5,8 +5,9 @@ import hugin.meta.{Scope, Sym, SymKind}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 
-/** A declaration in a document outline. */
-final case class DocumentSymbol(name: String, kind: String, span: Span, container: Option[String])
+/** A declaration in a document outline: `span` is its name, `extent` the whole declaration, `container`
+ *  the name of the enclosing definition. */
+final case class DocumentSymbol(name: String, kind: SymKind, span: Span, extent: Span, container: Option[String])
 
 /** A completion candidate: the text to insert, what it is, and a description. */
 final case class CompletionItem(label: String, kind: String, detail: String)
@@ -76,7 +77,8 @@ object Ide:
   /** The declarations of a file, each with its enclosing definition (for nested module bodies). */
   def symbols(key: CompileKey)(using db: Database): List[DocumentSymbol] =
     val syms = index(key).symbols.filter(s => outlineKinds(s.kind) && s.span.exists && s.span.source.path == key.path)
-    val containers = syms.filter(s => s.kind == SymKind.MetaDef).flatMap(s => s.decl.map(d => (s, d.span)))
+    def extent(s: Sym) = s.decl.map(_.span).filter(_.exists).getOrElse(s.span)
+    val containers = syms.filter(s => s.kind == SymKind.MetaDef && s.decl.isDefined).map(s => (s, extent(s)))
     syms.toList
       .sortBy(_.span.start)
       .map { s =>
@@ -85,7 +87,7 @@ object Ide:
           .sortBy((_, sp) => size(sp))
           .headOption
           .map(_._1.name)
-        DocumentSymbol(s.name, s.kind.describe, s.span, enclosing)
+        DocumentSymbol(s.name, s.kind, s.span, extent(s), enclosing)
       }
 
   /** Completion candidates at an offset:

@@ -1,0 +1,70 @@
+{
+  "name": "hugin",
+  "displayName": "Hugin",
+  "description": "Syntax highlighting and language server support for Hugin, a two-level typed Datalog",
+  "version": "0.1.0",
+  "publisher": "hugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k0uks1/hugin"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "hugin",
+        "aliases": [
+          "Hugin",
+          "hugin"
+        ],
+        "extensions": [
+          ".hgn",
+          ".facts"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hugin",
+        "scopeName": "source.hugin",
+        "path": "./syntaxes/hugin.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Hugin",
+      "properties": {
+        "hugin.server.path": {
+          "type": "string",
+          "default": "hugin",
+          "description": "The `hugin` executable that runs the language server (`hugin lsp`): a command on the PATH or an absolute path, e.g. `<checkout>/bin/hugin`."
+        },
+        "hugin.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Hugin language server (in the output channel `Hugin`)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package --skip-license"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1"
+  }
+}

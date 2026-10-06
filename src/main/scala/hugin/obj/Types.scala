@@ -82,7 +82,9 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   var isPartial = false
   var isInput = false
   var isOutput = false
-  var terminates: Option[(Int, Span)] = None
+
+  /** `%terminates`: the measured argument positions (lexicographic if several) and the directive. */
+  var terminates: Option[(List[Int], Span)] = None
   var derivations = false
   var nameHint: Option[String] = None
 

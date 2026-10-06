@@ -62,30 +62,30 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
         out += BodyOp.Test(CmpOp.Eq, Expr.Reg(y), expr(other))
 
     /** Column constraints of an atom: bindings `k := r`, checks `k == e`, and nested patterns. Checks are
-     *  evaluated before the bindings of the same atom are made, so a column that refers to a variable
-     *  bound by an earlier column of the atom (`p X X`) is bound and matched afterwards, like a nested
-     *  pattern. */
+     *  evaluated before the bindings of the same atom, so a column that depends on a variable bound by an
+     *  earlier column of this atom (`p X X`, `p X (X + 1)`) is bound and then matched as a nested pattern. */
     def columns(args: List[Term]): (Array[(Int, Int)], Array[(Int, Expr)], List[(Term, Int)]) =
       val binds = mutable.ArrayBuffer.empty[(Int, Int)]
       val checks = mutable.ArrayBuffer.empty[(Int, Expr)]
       val nested = mutable.ListBuffer.empty[(Term, Int)]
-      val boundHere = mutable.HashSet.empty[String]
+      val local = mutable.Set.empty[String]
+      def dependsOnLocal(t: Term) = Moding.vars(t).exists(local)
       for (a, k) <- args.zipWithIndex do
         a match
-          case t if Moding.vars(t).exists(boundHere) =>
+          case Term.Var(n) if local(n) =>
             val r = fresh()
             binds += ((k, r))
-            nested += ((t, r))
+            nested += ((a, r))
           case Term.Var(n) =>
             regOf.get(n) match
               case Some(r) => checks += ((k, Expr.Reg(r)))
               case None =>
                 val r = fresh()
                 regOf(n) = r
-                boundHere += n
+                local += n
                 binds += ((k, r))
           case Term.Lit(l) => checks += ((k, Expr.Const(lit(l))))
-          case _: Term.Arith | _: Term.Neg => checks += ((k, expr(a)))
+          case _: Term.Arith | _: Term.Neg if !dependsOnLocal(a) => checks += ((k, expr(a)))
           case other =>
             // nested patterns, `as` and ascriptions: bind the column, then match against it
             val r = fresh()

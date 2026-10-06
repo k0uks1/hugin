@@ -41,5 +41,8 @@ final class CompilationUnit(val source: SourceFile):
   val index: SemanticIndex = SemanticIndex()
   var incomplete: Set[RelSym] = Set.empty
 
+  /** Reports requested by settings (`--explain-termination`), printed with the compiler's output. */
+  val explanations: mutable.ListBuffer[String] = mutable.ListBuffer.empty
+
   /** Rules named by `%derivations @r`. */
   val derivationRules: mutable.Set[String] = mutable.LinkedHashSet.empty

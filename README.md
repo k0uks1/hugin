@@ -37,6 +37,9 @@ hugin explain <code>      explain a diagnostic code (e.g. E0401)
 hugin query <file.hgn> <request> [<line>:<col>]
                           ask the compiler: hover, definition, references, completions
                           (at a position), symbols, diagnostics
+hugin repl [<file.hgn> ...]
+                          an interactive session, starting with these files (see below)
+hugin lsp                 run the language server (LSP over stdin/stdout) for editors
 
   --facts <file>          load ground facts for input relations (repeatable)
   --budget <n>            round budget for components with %partial relations (default: unbounded)
@@ -47,8 +50,67 @@ hugin query <file.hgn> <request> [<line>:<col>]
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
   --lint                  enable advisory checks (W0004)
+  --explain-termination   print the measure and justification of every recursive component
   --no-prelude            do not include the standard prelude
 ```
+
+## The REPL
+
+`hugin repl [file.hgn ...] [--facts f]` starts an interactive session. Line editing, history (kept in
+`~/.hugin_history`) and completion come from [JLine 3](https://github.com/jline/jline3).
+
+- **Input.** Declarations, definitions, rules and directives extend the session; `?- query.` is answered
+  at once against the session and the loaded facts. An item continues over several lines (with a `...`
+  prompt) until its terminating period; periods in comments, strings and selections (`roads.path`) and
+  inside brackets do not count. Several items may share a line.
+- **Errors do not lose state.** An input is accepted or rejected as a whole: if the session with the
+  input has errors (also errors the input causes in earlier text, such as a cycle through negation), the
+  session stays as it was. Diagnostics are rendered as in batch mode, with lines and columns relative to
+  the input as typed (`<input 7>:2:3`) or to the loaded file. A warning is reported once, for the input
+  that introduced it; W0003 (unused definition) is not reported, as later inputs are expected to use
+  definitions.
+- **Commands.**
+
+  | command | |
+  |---|---|
+  | `:load <file.hgn>`, `:reload` | add a program file to the session; read the loaded files again |
+  | `:facts <file>` | load ground facts for `%input` relations |
+  | `:type <expr>` | the type of a name or module path (`:type roads.path`, as hover shows it), of an object term (`:type cons 1 nil`) or of a meta expression (`:type tc { node = city, edge = road }`) |
+  | `:kind <name>` | what a name denotes (object type, relation, constructor, meta definition, ...) |
+  | `:list` | the accepted inputs, loaded files and facts files |
+  | `:print <phase> [<name>]` | the session after a phase (as `--print-after`), optionally only the items mentioning a name |
+  | `:explain <code>` | explain a diagnostic code |
+  | `:budget <n>\|off`, `:stats on\|off` | round budget and evaluation statistics |
+  | `:reset`, `:help`, `:quit` | start an empty session, list the commands, end the session |
+
+- **Completion** (Tab) offers commands and their arguments, and otherwise asks the compiler
+  (`Ide.completions`) at the cursor: names in scope, members after `m.`, directives after `%`.
+
+```
+$ hugin repl examples/graphs.hgn
+loaded examples/graphs.hgn
+hugin> ?- from_berlin C.
+C = berlin.
+C = paris.
+C = rome.
+hugin> :type roads.path
+relation roads.path : city -> city -> rel
+hugin> near : city -> rel.
+hugin> near C :-
+  ...    road berlin C,
+  ...    goal C.
+error[E0101]: unresolved name `goal`
+ --> <input 3>:3:3
+  |
+3 |   goal C.
+  |   ^^^^ not found in this scope
+```
+
+The session (`hugin.repl.Session`) is independent of the terminal (`hugin.repl.Repl`). It is a client
+of the query layer: the session text is one input of the query database, so compiling, `:type`
+(a probe item asked with `Ide.hover`) and evaluation reuse what did not change. When stdin is not a
+terminal, or with `--batch`, inputs are read from stdin without prompts; `--echo` writes each input after
+its prompt, which is how the transcript tests run.
 
 ## Libraries and the prelude
 
@@ -75,7 +137,9 @@ implementation or something no library does adequately:
 | launcher scripts | [sbt-native-packager](https://github.com/sbt/sbt-native-packager) |
 | strongly connected components, topological order, shortest paths | [JGraphT](https://jgrapht.org/) (wrapped in `util/Graphs` for deterministic results) |
 | "did you mean" suggestions (edit distance) | [Apache Commons Text](https://commons.apache.org/proper/commons-text/) |
+| language server protocol, JSON-RPC | [Eclipse LSP4J](https://github.com/eclipse-lsp4j/lsp4j) |
 | terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
+| line editing, history and completion in the REPL | [JLine 3](https://github.com/jline/jline3) |
 | tests, property-based tests | [munit](https://scalameta.org/munit/), [ScalaCheck](https://scalacheck.org/) via munit-scalacheck |
 | formatting | [scalafmt](https://scalameta.org/scalafmt/) |
 
@@ -123,7 +187,7 @@ only on error-free programs.
 | `derivations` | 7.4 | derivation relations `@r` / `@r#i` |
 | `stratify` | 6.4 | dependency graph, Tarjan components, negative cycles (reported with the cycle) |
 | `completeness` | 6.5 | incompleteness propagation and Definition 6.6 (also for queries) |
-| `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3) |
+| `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3, generalised: interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
 | `lower` | 9.3 | compiles core rules to `Scan / Deref / Tag / Eval / Test / Lookup / NotIn / Agg` and `Make / Insert` over registers |
 
 The runtime (`hugin.runtime`) implements Section 9: words are literals or identities `(c, n)`; every
@@ -193,6 +257,39 @@ variable C : city
 Incrementality is per file for now: a change to a program recompiles that program. Finer granularity
 (per item) needs the typer to stop mutating shared symbol state; it is tracked in issue #4.
 
+## Editor support
+
+`hugin lsp` is a language server speaking the
+[Language Server Protocol](https://microsoft.github.io/language-server-protocol/) over stdin and stdout
+(`hugin.lsp`, built on [LSP4J](https://github.com/eclipse-lsp4j/lsp4j)). It is a client of the query
+database: an open document's text is its `SourceText` input, files that are not open (imports) are read
+from disk, and every request is answered by `Ide` on the memoised compilation. It provides
+
+- diagnostics for every open document and for the files it imports, with the code, the primary label as
+  the range, notes and helps in the message, and secondary labels and the meta-level expansion chain as
+  related information (singleton variables and unused definitions are shown faded);
+- hover, go to definition and find references (through module paths; declarations in the bundled
+  prelude have no location and are not returned), the document outline, completion (names in scope,
+  module members after `.`, labels in named patterns, directives after `%`), semantic tokens and quick
+  fixes (`_` for a singleton variable, the missing labels of a named pattern).
+
+Positions are converted between the protocol's 0-based lines and UTF-16 columns and the compiler's
+character offsets in `lsp/Positions`. Facts files (`.facts`) get syntax diagnostics only.
+
+[`editors/vscode`](editors/vscode) is a minimal VS Code extension: the language configuration
+(`(* *)` comments, brackets), a TextMate grammar
+([`hugin.tmLanguage.json`](editors/vscode/syntaxes/hugin.tmLanguage.json), also usable by other editors
+and GitHub Linguist) and a client that starts `hugin lsp`. To try it:
+
+```
+sbt stage                                    # or let bin/hugin stage on first use
+cd editors/vscode && npm install
+code --extensionDevelopmentPath=$PWD ../..   # or: npx vsce package --skip-license, then install the .vsix
+```
+
+and set `hugin.server.path` to `<checkout>/bin/hugin` unless `hugin` is on the `PATH`. Any other LSP
+client works the same way: run `hugin lsp` for files with the extensions `.hgn` and `.facts`.
+
 ## Diagnostics
 
 Diagnostics are collected, never thrown: the parser resynchronises at item boundaries, the typer
@@ -226,15 +323,18 @@ Three kinds of tests, all run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
   (precedence, braces, `%infix`, recovery), shared primitive semantics, type operations (subtyping,
-  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics, and
+  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics,
   differential tests of the engine (random graphs against a naive fixpoint, budget monotonicity,
-  interning, aggregates).
+  interning, aggregates), the query layer, and the language server (position conversion, the
+  request handlers on in-memory documents, and one session over piped streams).
 - **Golden tests** in `tests/`, in the style of dotty's test suite:
   - `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
     `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--budget 1`).
   - `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
     failure may come from loading the input).
   - `tests/pos/X.hgn` — must compile without errors.
+  - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
+    their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.
 - **Fuzz suites** (`src/test/scala/hugin/fuzz`), a short deterministic run; see below.
 
 The conformance suite of Appendix A.2 is `tests/run/a01..a12` and `tests/neg/a05..a11`; the examples of
@@ -305,7 +405,8 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
 - **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck` (configuration in `.scalafmt.conf`).
 - **Build and test** on JDK 17 and 21 — compilation with warnings as errors (`CI` set in the
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
-  `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher.
+  `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
+  `hugin lsp` answers `initialize`.
 
 `.github/workflows/fuzz.yml` runs the long fuzz run nightly (see "Fuzz testing").
 
