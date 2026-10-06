@@ -126,23 +126,27 @@ object OType:
       case List(t) => t
       case many => Union(many)
 
-  def show(t: OType): String = t match
+  /** The splice of a meta expression as the meta printer shows it. */
+  def showSplice(m: MExpr): String = s"~(${MExpr.show(m)})"
+
+  /** `splice` shows the splices of meta expressions (before meta evaluation). */
+  def show(t: OType, splice: MExpr => String = showSplice): String = t match
     case Base(b) => b.show
     case Con(s, Nil) => s.name
-    case Con(s, as) => (s.name :: as.map(showArg)).mkString(" ")
+    case Con(s, as) => (s.name :: as.map(showArg(_, splice))).mkString(" ")
     case Fact(r, Nil) => r.name
-    case Fact(r, as) => (r.name :: as.map(showArg)).mkString(" ")
+    case Fact(r, as) => (r.name :: as.map(showArg(_, splice))).mkString(" ")
     case RelTop => "rel"
-    case Union(ms) => ms.map(show).mkString(" | ")
+    case Union(ms) => ms.map(show(_, splice)).mkString(" | ")
     case Param(p) => p.name
     case Meta(id) => s"?$id"
-    case Splice(m) => s"~(${MExpr.show(m)})"
+    case Splice(m) => splice(m)
     case Err => "<error>"
 
   /** As an argument of a type application: compound types in parentheses. */
-  def showArg(t: OType): String = t match
-    case Con(_, _ :: _) | Fact(_, _ :: _) | Union(_) => s"(${show(t)})"
-    case _ => show(t)
+  def showArg(t: OType, splice: MExpr => String = showSplice): String = t match
+    case Con(_, _ :: _) | Fact(_, _ :: _) | Union(_) => s"(${show(t, splice)})"
+    case _ => show(t, splice)
 
   def subst(t: OType, m: Map[TParam, OType]): OType = if m.isEmpty then t
   else

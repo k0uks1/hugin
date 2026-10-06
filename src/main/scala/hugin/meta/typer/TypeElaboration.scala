@@ -259,9 +259,10 @@ private[meta] trait TypeElaboration extends TyperBase:
       }.collectFirst { case Some(r) => r }
     case _ => Some(s"expected `${showMT(b)}`, found `${showMT(a)}`")
 
+  /** An object type in a diagnostic: a splice of a path as the path (`g.node`), nested in parentheses. */
   def showO(t: OType): String = normO(t) match
     case OType.Splice(m) => showPath(m)
-    case other => other.show.replace("~(", "(")
+    case other => OType.show(other, m => s"(${showPath(m)})")
   private[meta] def showPath(m: MExpr): String = m match
     case Ref(s) => s.name
     case Proj(x, l) => s"${showPath(x)}.$l"
