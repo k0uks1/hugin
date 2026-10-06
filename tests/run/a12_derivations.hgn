@@ -1,0 +1,8 @@
+(* A.2 (12): the number of derivation facts equals the number of distinct rule instances *)
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+edge a b. edge b c. edge a c.
+path : node -> node -> rel.
+@p1 path X Y :- edge X Y.
+@p2 path X Z :- edge X Y, path Y Z.
+%derivations path.

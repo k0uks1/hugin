@@ -1,0 +1,11 @@
+(* Stage errors: runtime values used at compile time, non-formulas, `not` on formula functions. *)
+item : (name : string) -> (price : int) -> rel.
+cheap : item -> prop = [I] I.price < 10.
+scale : int -> int = [x : int] x * 2.
+listed : item -> rel.
+bad : int -> rel.
+bad P :- listed I, P = scale I.price.
+neg : item -> rel.
+neg I :- listed I, not cheap I.
+weird : item -> rel.
+weird I :- listed I, item.

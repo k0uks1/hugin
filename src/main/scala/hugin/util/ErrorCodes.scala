@@ -53,7 +53,8 @@ object ErrorCodes:
     ("E0801", "invalid input fact", "An input fact is not ground, not well-typed, or not for an input relation."),
     ("W0001", "undefined constant expression", "An object-level expression over literals is undefined, so the rule can never fire."),
     ("W0002", "singleton variable", "A variable occurs only once in a rule; use `_` if this is intended."),
-    ("W0003", "unused meta definition", "A meta definition is never used.")
+    ("W0003", "unused meta definition", "A meta definition is never used."),
+    ("W0004", "nested facts of an earlier component", "A rule constructs nested facts of a relation that is evaluated earlier; readers evaluated in between may miss them.")
   )
 
   def lookup(code: String): Option[(String, String, String)] = all.find(_._1 == code)

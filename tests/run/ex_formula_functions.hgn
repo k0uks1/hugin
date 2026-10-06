@@ -1,0 +1,18 @@
+(* Section 13.2: formula functions *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+
+cheap : item -> prop = [I] I.price < 10.
+
+select (p : A -> prop) (r : A -> rel) = {
+  sel : A -> rel.
+  @s sel X :- r X, p X.
+}.
+
+bargains = select cheap listed.
+
+listed (item "pen" 2).
+listed (item "lamp" 25).
+listed (item "mug" 8).
+%output bargains.sel.

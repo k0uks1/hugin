@@ -13,7 +13,9 @@ final case class Settings(
     budget: Option[Int] = None,
     facts: List[String] = Nil,
     warnings: Boolean = true,
-    explainCodes: Boolean = false
+    explainCodes: Boolean = false,
+    /** Extra advisory checks (W0004). */
+    lint: Boolean = false
 )
 
 /** Everything the compiler knows about one source program; each phase fills in its part. */

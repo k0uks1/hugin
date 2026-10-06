@@ -22,17 +22,22 @@ object Main:
       |  --print-after <p>   print the program after phase p (comma-separated, repeatable; `all`)
       |  --stop-after <p>    stop compilation after phase p
       |  --stats             print evaluation statistics
+      |  --all-relations     print the facts of every relation (including constructors and demand relations)
       |  --color / --no-color
       |  --no-warnings       suppress warnings
+      |  --lint              enable advisory checks (W0004)
       |""".stripMargin
 
   def main(args: Array[String]): Unit =
-    sys.exit(run(args.toList, s => println(s), s => System.err.println(s)))
+    val out = java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8")
+    val err = java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8")
+    sys.exit(run(args.toList, s => out.println(s), s => err.println(s)))
 
   /** Entry point usable from tests; returns the exit code. */
   def run(args: List[String], out: String => Unit, err: String => Unit): Int =
     var settings = Settings(color = System.console() != null && System.getenv("NO_COLOR") == null)
     var stats = false
+    var allRelations = false
     var positional = List.empty[String]
     var rest = args
     var bad = false
@@ -47,8 +52,10 @@ object Main:
         case "--print-after" :: p :: tl => settings = settings.copy(printAfter = settings.printAfter ++ p.split(",").map(_.trim)); rest = tl
         case "--stop-after" :: p :: tl => settings = settings.copy(stopAfter = Some(p)); rest = tl
         case "--stats" :: tl => stats = true; rest = tl
+        case "--all-relations" :: tl => allRelations = true; rest = tl
         case "--color" :: tl => settings = settings.copy(color = true); rest = tl
         case "--no-color" :: tl => settings = settings.copy(color = false); rest = tl
+        case "--lint" :: tl => settings = settings.copy(lint = true); rest = tl
         case "--no-warnings" :: tl => settings = settings.copy(warnings = false); rest = tl
         case ("-h" | "--help") :: tl => out(usage); return 0
         case opt :: tl if opt.startsWith("--") => err(s"error: unknown option `$opt`"); bad = true; rest = tl
@@ -89,7 +96,7 @@ object Main:
           if Files.exists(p) then Some(SourceFile.fromPath(p))
           else { err(s"error: no such facts file `$f`"); None }
         }
-        Runner.run(c, facts, settings.budget) match
+        Runner.run(c, facts, settings.budget, allRelations) match
           case None => flush(); 1
           case Some(res) =>
             flush()

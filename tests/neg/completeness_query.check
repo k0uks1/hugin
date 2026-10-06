@@ -1,0 +1,10 @@
+error[E0602]: query negates or aggregates over the incomplete relation `n`
+ --> tests/neg/completeness_query.hgn:7:20
+  |
+7 | ?- C = count { X | n X }.
+  |                    ^^^ used negatively
+  |
+  = note: `n` is declared %partial
+  = note: queries may mention incomplete relations only positively (Section 8.5)
+
+1 error found

@@ -1,0 +1,34 @@
+error[E0210]: the functor negates the relation parameter `x.edge` without requiring `%complete edge`
+ --> tests/neg/negation_parameter.hgn:5:29
+  |
+3 | sinks (x : g) = {
+  |        - parameter `x` declared here
+...
+5 |   sink N :- x.edge _ N, not x.edge N _.
+  |                             ^^^^^^^^^^ `x.edge` may be bound to an incomplete relation
+  |
+  = help: add `%complete edge` to the signature of `x`
+
+error[E0210]: the functor aggregates over the relation parameter `x.edge` without requiring `%complete edge`
+ --> tests/neg/negation_parameter.hgn:7:45
+  |
+3 | sinks (x : g) = {
+  |        - parameter `x` declared here
+...
+7 |   outdeg N D :- x.edge N _, D = count { M | x.edge N M }.
+  |                                             ^^^^^^^^^^ `x.edge` may be bound to an incomplete relation
+  |
+  = help: add `%complete edge` to the signature of `x`
+
+error[E0210]: the function negates the relation parameter `s`
+  --> tests/neg/negation_parameter.hgn:11:22
+   |
+ 9 | without (r : A -> rel) (s : A -> rel) = {
+   |                         - parameter `s` declared here
+...
+11 |   diff X :- r X, not s X.
+   |                      ^^^ `s` may be bound to an incomplete relation
+   |
+   = help: pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`
+
+3 errors found

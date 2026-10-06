@@ -1,0 +1,12 @@
+error[E0601]: stratification cycle through negation
+ --> tests/neg/a05_negation_cycle.hgn:6:16
+  |
+6 | p X :- base X, not q X.
+  |                ^^^^^^^ `p` depends negatively on `q`
+7 | q X :- base X, not p X.
+  |                ------- `q` depends on `p`
+  |
+  = note: cycle: p -> not q -> not p
+  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+
+1 error found

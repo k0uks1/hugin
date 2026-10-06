@@ -1,0 +1,18 @@
+from_berlin berlin.
+from_berlin paris.
+from_berlin rome.
+short.hop berlin berlin 3.
+short.hop berlin paris 1.
+short.hop berlin paris 4.
+short.hop berlin rome 2.
+short.hop berlin rome 5.
+short.hop paris berlin 2.
+short.hop paris berlin 5.
+short.hop paris paris 3.
+short.hop paris rome 1.
+short.hop paris rome 4.
+short.hop rome berlin 1.
+short.hop rome berlin 4.
+short.hop rome paris 2.
+short.hop rome paris 5.
+short.hop rome rome 3.

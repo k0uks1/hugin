@@ -10,6 +10,7 @@ import scala.collection.mutable
  *  first-order matching against the expected object types; rule families are instantiated at every
  *  instance of their head relation. */
 final class Monomorphizer(p: ObjProgram)(using Context):
+  private val MaxInstances = 10000
   private val relMemo = mutable.LinkedHashMap.empty[(RelSym, List[OType]), RelSym]
   private val typeMemo = mutable.LinkedHashMap.empty[(TypeSym, List[OType]), TypeSym]
   val instancesOf: mutable.HashMap[RelSym, mutable.ListBuffer[RelSym]] = mutable.HashMap.empty
@@ -233,21 +234,31 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         val (rel, metas, span) = e
         val args = metas.map(inf.resolve)
         if !args.forall(OType.isGround) then
+          val first = ok
           ok = false
           val missing = rel.tparams.zip(args).filterNot((_, a) => OType.isGround(a)).map(_._1.name)
-          inf.report(Diagnostic.error("E0206", s"cannot infer type argument${if missing.length > 1 then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`", span,
+          if first then inf.report(Diagnostic.error("E0206", s"cannot infer type argument${if missing.length > 1 then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`", span,
             "type not determined")
             .withHelp(s"add a type ascription, e.g. `(${rel.name} ... : T)`"))
           rel
         else
           val margs = args.map(monoType(_, span, r.origin))
           // polymorphic recursion (Definition 4.2)
-          family.foreach { (f, ts) =>
+          val recursive = family.exists { (f, ts) =>
             if component.get(rel) == component.get(f) && margs != ts then
               ok = false
               polyRec(rel, f, margs, ts, span, r.origin)
+              true
+            else false
           }
-          relInstance(rel, margs, span, r.origin)
+          if recursive then rel
+          else if relMemo.size > MaxInstances then
+            if ok then
+              inf.report(Diagnostic.error("E0205", s"too many family instances (more than $MaxInstances)", span,
+                s"while instantiating `${rel.name}`").withNote("family instantiation does not terminate"))
+            ok = false
+            rel
+          else relInstance(rel, margs, span, r.origin)
     def t(x: Term): Term = x match
       case a @ Term.App(RelRef.Sym(s), args) => Term.App(RelRef.Sym(inst(a, s)), args.map(t))(a.span)
       case a @ Term.As(y, v) => Term.As(t(y), v)(a.span)

@@ -1,0 +1,36 @@
+error[E0301]: missing label in named pattern for `item`
+ --> tests/neg/a09_records_errors.hgn:7:19
+  |
+7 | missing N :- item { name = N }.
+  |                   ^^^^^^^^^^^^ missing `price`
+  |
+  = help: add the missing labels, or end the pattern with `..` to ignore them
+
+error[E0302]: `..` is not allowed in a rule head
+ --> tests/neg/a09_records_errors.hgn:9:6
+  |
+9 | item { name = "a", .. } :- inhead.
+  |      ^^^^^^^^^^^^^^^^^^ rest pattern in head
+  |
+  = note: the omitted columns of a derived fact would be unknown
+
+error[E0306]: `item` has no column labelled `title`
+  --> tests/neg/a09_records_errors.hgn:11:21
+   |
+ 3 | item : (name : string) -> (price : int) -> rel.
+   | ---- declared here
+...
+11 | unknown N :- item { title = N, .. }.
+   |                     ^^^^^ unknown label
+   |
+   = note: labels of `item`: name, price
+
+error[E0303]: projection on a type that is not closed
+  --> tests/neg/a09_records_errors.hgn:14:32
+   |
+14 | open_proj R :- anyshape S, R = S.r.
+   |                                ^^^ `S` has type `shape`
+   |
+   = note: projection and update require a fact type or a union of fact types; open types may gain constructors
+
+4 errors found

@@ -1,0 +1,16 @@
+(* Meta typing: signature mismatch, wrong arguments, stage errors. *)
+graph : mod = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+}.
+city : type.
+road : city -> city -> rel.
+weight : city -> city -> int -> rel.
+bad1 = tc { node = city }.
+bad2 = tc { node = city, edge = weight }.
+bad3 = tc { node = city, edge = road } 5.
+bad4 = tc 5.
+n : int = 3.
+q : city -> rel.
+q X :- road X Y, n Y.

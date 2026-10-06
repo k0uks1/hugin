@@ -1,0 +1,42 @@
+error[E0204]: signature mismatch: missing field `edge`
+  --> tests/neg/meta_types.hgn:10:11
+   |
+10 | bad1 = tc { node = city }.
+   |           ^^^^^^^^^^^^^^^ field `edge` is required
+   |
+   = note: expected signature `{ node : type, edge : ⇑(node -> node -> rel) }`
+
+error[E0203]: meta type mismatch
+  --> tests/neg/meta_types.hgn:11:33
+   |
+11 | bad2 = tc { node = city, edge = weight }.
+   |                                 ^^^^^^ expected `⇑(city -> city -> rel)`
+   |
+   = note: found `⇑(city -> city -> int -> rel)`
+   = note: relation with 3 columns where 2 are expected
+
+error[E0207]: too many arguments for `tc`
+  --> tests/neg/meta_types.hgn:12:40
+   |
+12 | bad3 = tc { node = city, edge = road } 5.
+   |                                        ^ unexpected argument
+   |
+   = note: `tc` has meta type `(g : { node : type, edge : ⇑(node -> node -> rel) }) -> { path : ⇑(g.node -> g.node -> rel) }`
+
+error[E0204]: signature mismatch
+  --> tests/neg/meta_types.hgn:13:11
+   |
+13 | bad4 = tc 5.
+   |           ^ expected `{ node : type, edge : ⇑(node -> node -> rel) }`
+   |
+   = note: found `int`
+
+error[E0202]: expected a formula
+  --> tests/neg/meta_types.hgn:16:18
+   |
+16 | q X :- road X Y, n Y.
+   |                  ^ this has meta type `int`
+   |
+   = note: a formula is a relation atom, a comparison, an aggregate or a formula function use
+
+5 errors found

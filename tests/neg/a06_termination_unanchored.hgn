@@ -1,0 +1,8 @@
+(* A.2 (6): structural decrease without an anchor: the caller's argument comes from nowhere *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+grow : list int -> rel.
+%terminates L (grow L).
+grow nil.
+grow (cons 1 L) :- grow L.

@@ -1,0 +1,11 @@
+(* A.2 (11): a constant expression computed at both levels gives the same result *)
+k : int = 6 * 7.
+meta : int -> rel.
+meta X :- X = k.
+object : int -> rel.
+object X :- X = 6 * 7.
+equal : rel.
+equal :- meta X, object X.
+overflow : int -> rel.
+overflow X :- X = 9223372036854775807 + 1.   (* undefined: the rule never fires *)
+%output equal. %output overflow.

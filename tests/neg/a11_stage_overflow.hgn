@@ -1,0 +1,5 @@
+(* A.2 (11): the same overflow at the meta level is a compile-time error *)
+big : int = 9223372036854775807.
+next : int = big + 1.
+r : int -> rel.
+r X :- X = big * 2.

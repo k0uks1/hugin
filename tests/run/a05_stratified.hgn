@@ -1,0 +1,19 @@
+(* A.2 (5): stratified negation and aggregation *)
+person : type.
+alice : person. bob : person. carol : person. dave : person.
+parent : person -> person -> rel.
+parent alice bob. parent alice carol. parent bob dave.
+known : person -> rel.
+known alice. known bob. known carol. known dave.
+ancestor : person -> person -> rel.
+ancestor X Y :- parent X Y.
+ancestor X Z :- parent X Y, ancestor Y Z.
+childless : person -> rel.
+childless X :- known X, not parent X _.
+descendants : person -> int -> rel.
+descendants X N :- known X, N = count { Y | ancestor X Y }.
+total : int -> rel.
+total S :- S = sum { N | descendants _ N }.
+fewest : int -> rel.
+fewest M :- M = min { N | descendants _ N }.
+%output childless. %output descendants. %output total. %output fewest.

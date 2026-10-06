@@ -1,0 +1,20 @@
+(* A.2 (6): the termination check accepts `len` (structural recursion) and a bounded integer counter *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+len : list A -> int -> rel.
+%terminates L (len L _).
+@l0 len nil 0.
+@l1 len (cons X L) M :- cons X L, len L N, M = N + 1.
+
+counter : int -> rel.
+%terminates N (counter N).
+counter 0.
+counter M :- counter N, N < 5, M = N + 1.
+
+words : list string -> rel.
+words (cons "a" (cons "b" nil)).
+?- words L, len L N.
+?- len (cons "b" nil) N.            (* the inner list exists as a subfact of the outer one *)
+?- len (cons "c" nil) N.            (* body patterns match existing facts only: no answer *)
+?- counter N.

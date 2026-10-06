@@ -1,0 +1,20 @@
+(* Object typing: no meet, subsumption failures, comparisons, aggregates, ascriptions. *)
+city : type.   berlin : city.
+person : type. alice : person.
+lives : person -> city -> rel.
+age : person -> int -> rel.
+name : person -> string -> rel.
+both : rel.
+both :- lives X _, lives _ X.
+older : person -> rel.
+older P :- age P A, name P N, A < N.
+plus : person -> rel.
+plus P :- age P A, name P N, M = A + N, M > 0.
+city_age : city -> rel.
+city_age C :- age C _.
+total : float -> rel.
+total S :- S = sum { A | age _ A }.
+wrong : city -> rel.
+wrong P :- age P _.
+asc : person -> rel.
+asc P :- lives (P : city) _.

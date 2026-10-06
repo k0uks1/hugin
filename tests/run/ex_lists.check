@@ -1,0 +1,2 @@
+?- nums L, len L N.
+L = cons 1 (cons 2 (cons 3 nil)), N = 3.

@@ -1,0 +1,7 @@
+(* Queries may mention incomplete relations only positively; partial relations are incomplete. *)
+n : int -> rel.
+%partial n.
+n 0.
+n M :- n N, M = N + 1.
+?- n 3.
+?- C = count { X | n X }.

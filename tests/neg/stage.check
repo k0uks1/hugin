@@ -1,0 +1,26 @@
+error[E0201]: runtime value used at compile time
+ --> tests/neg/stage.hgn:7:30
+  |
+7 | bad P :- listed I, P = scale I.price.
+  |                              ^ object variable `I`
+  |
+  = note: this argument of `scale` has meta type `int` and must be known at compile time
+
+error[E0202]: `not` applies only to relation atoms
+ --> tests/neg/stage.hgn:9:24
+  |
+9 | neg I :- listed I, not cheap I.
+  |                        ^^^^^^^ this is a formula function use
+  |
+  = note: formula functions may expand to arbitrary formulas; declare a relation for the negated condition
+
+error[E0207]: `item` expects 2 arguments, found 0
+  --> tests/neg/stage.hgn:11:22
+   |
+ 2 | item : (name : string) -> (price : int) -> rel.
+   | ---- declared here
+...
+11 | weird I :- listed I, item.
+   |                      ^^^^ 0 arguments given
+
+3 errors found

@@ -1,0 +1,2 @@
+result (lam "f" (arrow (base "int") (base "bool")) (lam "x" (base "int") (app (ref "f") (ref "x")))) (arrow (arrow (base "int") (base "bool")) (arrow (base "int") (base "bool"))).
+result (lam "x" (base "int") (ref "x")) (arrow (base "int") (base "int")).

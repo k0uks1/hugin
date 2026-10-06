@@ -1,0 +1,10 @@
+error[E0604]: invalid `%terminates` directive for `len[int]`
+ --> tests/neg/a06_termination_nondecreasing.hgn:8:31
+  |
+6 | %terminates L (len L _).
+  | ------------------------ directive declared here
+...
+8 | len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1.
+  |                               ^^^^^^^^^^^^^^^^ no decrease: `cons[int] X L` is not smaller than `cons[int] X L`
+
+1 error found

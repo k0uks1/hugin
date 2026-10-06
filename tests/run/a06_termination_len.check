@@ -1,0 +1,13 @@
+?- words L, len L N.
+L = cons "a" (cons "b" nil), N = 2.
+?- len (cons "b" nil) N.
+N = 1.
+?- len (cons "c" nil) N.
+no.
+?- counter N.
+N = 0.
+N = 1.
+N = 2.
+N = 3.
+N = 4.
+N = 5.

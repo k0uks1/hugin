@@ -1,0 +1,9 @@
+(* A.2 (6): an integer counter without a bound is rejected *)
+counter : int -> rel.
+%terminates N (counter N).
+counter 0.
+counter M :- counter N, M = N + 1.
+
+nat : int -> rel.
+nat 0.
+nat M :- nat N, M = N + 1.

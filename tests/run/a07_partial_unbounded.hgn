@@ -1,0 +1,6 @@
+(* A.2 (7): with budget ∞ a terminating %partial component runs to completion *)
+step : int -> rel.
+%partial step.
+step 0.
+step M :- step N, N < 6, M = N + 1.
+%output step.

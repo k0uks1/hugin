@@ -1,0 +1,10 @@
+(* Several syntax errors: the parser recovers at the next period and reports all of them. *)
+edge : int -> int -> rel
+path : int -> int -> rel.
+path X Y :- edge X Y,.
+path X Z :- edge X Y, path Y Z.
+bad "unterminated.
+ok : int -> rel.
+ok 1 2 3 + .
+%frobnicate ok.
+(* this comment is never closed

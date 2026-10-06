@@ -14,6 +14,10 @@ final case class DeclInfo(cols: List[Column], result: Option[OType], typeKind: O
 /** Per-rule state while elaborating object code. */
 final class RuleCtx(val allowVars: Boolean):
   val expansions: mutable.ListBuffer[Expansion] = mutable.ListBuffer.empty
+  /** Set when a structural error was reported; the item is then dropped to avoid cascading errors. */
+  var failed = false
+  /** Nesting depth of aggregate bodies (negative context). */
+  var aggDepth = 0
   private var wild = 0
   def freshWild(): String = { wild += 1; s"${obj.Var.WildPrefix}$wild" }
 
@@ -218,7 +222,7 @@ final class Typer(using Context):
         if !isOpenType(res) && res != OType.Err then
           val what = normO(res) match
             case OType.Base(b) => s"the base type `${b.show}`"
-            case _ => s"`${res.show}`, which is not an open type"
+            case _ => s"`${showO(res)}`, which is not an open type"
           ctx.report(
             Diagnostic.error("E0103", s"cannot classify the declaration of `${s.name}`", cod.span, s"result is $what")
               .withNote("a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
@@ -494,7 +498,7 @@ final class Typer(using Context):
           case None => Some(s"missing field `${g.name}`")
           case Some((_, ft)) => subsumes(substMT(ft, s1), substMT(gt, s2)).map(r => s"field `${g.name}`: $r")
       }.collectFirst { case Some(r) => r }
-    case _ => Some(s"expected `${b.show}`, found `${a.show}`")
+    case _ => Some(s"expected `${showMT(b)}`, found `${showMT(a)}`")
 
   def showO(t: OType): String = normO(t) match
     case OType.Splice(m) => showPath(m)
@@ -516,9 +520,10 @@ final class Typer(using Context):
     case other => other.show
 
   private def mismatch(expected: MType, found: MType, span: Span, reason: String): Unit =
-    ctx.report(Diagnostic.error("E0203", "meta type mismatch", span, s"expected `${showMT(expected)}`")
+    var d = Diagnostic.error("E0203", "meta type mismatch", span, s"expected `${showMT(expected)}`")
       .withNote(s"found `${showMT(found)}`")
-      .withNote(reason))
+    if !reason.startsWith("expected") then d = d.withNote(reason)
+    ctx.report(d)
 
   // ======================================================================= meta expressions
 
@@ -530,7 +535,12 @@ final class Typer(using Context):
     case ObjVar(name: String)
     case Bad
 
-  private def classify(t: Tree, sc: Scope, rc: RuleCtx | Null): Head = t match
+  private def classify(t: Tree, sc: Scope, rc: RuleCtx | Null): Head =
+    val h = classify0(t, sc, rc)
+    if h == Head.Bad && rc != null then rc.failed = true
+    h
+
+  private def classify0(t: Tree, sc: Scope, rc: RuleCtx | Null): Head = t match
     case Parens(i) => classify(i, sc, rc)
     case Ident(n) =>
       lookup(n, t.span, sc) match
@@ -715,6 +725,12 @@ final class Typer(using Context):
                   am0
             else domS match
               case Code(_) if rc != null => quoteArg(a, sc, rc)
+              case _ if rc != null && objectVar(a, sc).isDefined =>
+                val v = objectVar(a, sc).get
+                ctx.report(Diagnostic.error("E0201", "runtime value used at compile time", v.span, s"object variable `${v.name}`")
+                  .withNote(s"this argument of `${Printer.show(headTree)}` has meta type `${showMT(domS)}` and must be known at compile time"))
+                rc.failed = true
+                MExpr.Err
               case _ => checkM(a, domS, sc, rc)
           spine += Right(am)
           cur = substMT(cod, Map(x -> am))
@@ -734,6 +750,16 @@ final class Typer(using Context):
       case (acc, Right(a)) => App(acc, a, span)
     }
     (result, substMT(cur, sol))
+
+  /** The first object variable (an uppercase name that is not a captured meta variable) in a tree. */
+  private def objectVar(t: Tree, sc: Scope): Option[VarRef] = t match
+    case v @ VarRef(n) => if sc.lookup(n).exists(s => s.mtype != null && capturesVar(s)) then None else Some(v)
+    case Apply(f, a) => objectVar(f, sc).orElse(objectVar(a, sc))
+    case Select(q, _) => objectVar(q, sc)
+    case Infix(_, l, r) => objectVar(l, sc).orElse(objectVar(r, sc))
+    case Parens(i) => objectVar(i, sc)
+    case Trees.Neg(x) => objectVar(x, sc)
+    case _ => None
 
   private def isMetaCode(t: Tree, sc: Scope): Boolean = t match
     case VarRef(n) => sc.lookup(n).exists(s => s.mtype match { case Code(_) => true; case _ => false })
@@ -834,8 +860,10 @@ final class Typer(using Context):
       val (m, mt) = inferM(t, sc)
       subsumes(mt, expected).foreach { r =>
         if expected.isInstanceOf[Sig] || mt.isInstanceOf[Sig] then
-          ctx.report(Diagnostic.error("E0204", "signature mismatch", t.span, s"expected `${showMT(expected)}`")
-            .withNote(s"found `${showMT(mt)}`").withNote(r))
+          var d = Diagnostic.error("E0204", "signature mismatch", t.span, s"expected `${showMT(expected)}`")
+            .withNote(s"found `${showMT(mt)}`")
+          if !r.startsWith("expected") then d = d.withNote(r)
+          ctx.report(d)
         else mismatch(expected, mt, t.span, r)
       }
       m
@@ -968,11 +996,13 @@ final class Typer(using Context):
     args match
       case List(rl @ RecordLit(fields, rest)) if !(cols.length == 1 && cols.head.label.isEmpty) =>
         if rest && isHead then
+          rc.failed = true
           ctx.report(Diagnostic.error("E0302", "`..` is not allowed in a rule head", rl.span, "rest pattern in head")
             .withNote("the omitted columns of a derived fact would be unknown"))
         checkLabelsDistinct(fields.map(_.label))
         val byLabel = fields.map(f => f.label.name -> f).toMap
         for f <- fields if !cols.exists(_.label.contains(f.label.name)) do
+          rc.failed = true
           var d = Diagnostic.error("E0306", s"`$rel` has no column labelled `${f.label.name}`", f.label.span, "unknown label")
           val labels = cols.flatMap(_.label)
           if labels.isEmpty then d = d.withNote(s"the columns of `$rel` are not labelled")
@@ -981,10 +1011,12 @@ final class Typer(using Context):
           ctx.report(d)
         val missing = cols.flatMap(_.label).filterNot(byLabel.contains)
         if missing.nonEmpty && !rest && cols.forall(_.label.isDefined) then
+          rc.failed = true
           ctx.report(Diagnostic.error("E0301", s"missing label${if missing.length > 1 then "s" else ""} in named pattern for `$rel`", rl.span,
             s"missing ${missing.map(l => s"`$l`").mkString(", ")}")
             .withHelp(if isHead then s"add ${missing.map(l => s"`$l = ...`").mkString(", ")}" else "add the missing labels, or end the pattern with `..` to ignore them"))
         if cols.exists(_.label.isEmpty) then
+          rc.failed = true
           err("E0306", s"`$rel` does not label all of its columns, so it cannot be used with a named pattern", rl.span)
         cols.map { c =>
           c.label.flatMap(byLabel.get) match
@@ -993,6 +1025,7 @@ final class Typer(using Context):
         }
       case _ =>
         if args.length != cols.length then
+          rc.failed = true
           var d = Diagnostic.error("E0207", s"`$rel` expects ${cols.length} argument${if cols.length == 1 then "" else "s"}, found ${args.length}", span,
             s"${args.length} argument${if args.length == 1 then "" else "s"} given")
           if declSpan.exists then d = d.withLabel(declSpan, "declared here")
@@ -1010,7 +1043,9 @@ final class Typer(using Context):
       List(obj.Formula.Disj(alts(t).map(elabFormula(_, sc, rc)))(t.span))
     case Trees.Not(x) =>
       elabFormula(x, sc, rc) match
-        case List(a: obj.Formula.Atom) => List(obj.Formula.Not(a)(t.span))
+        case List(a: obj.Formula.Atom) =>
+          checkCompleteParam(a.rel, a.span, "negates")
+          List(obj.Formula.Not(a)(t.span))
         case List(_: obj.Formula.Splice) =>
           ctx.report(Diagnostic.error("E0202", "`not` applies only to relation atoms", x.span, "this is a formula function use")
             .withNote("formula functions may expand to arbitrary formulas; declare a relation for the negated condition"))
@@ -1021,7 +1056,10 @@ final class Typer(using Context):
           Nil
     case Infix("=", VarRef(v), agg @ Agg(kind, term, body)) =>
       val res = VarRef(v)(t.span)
-      List(obj.Formula.Agg(v, kind, elabTerm(term, sc, rc), elabFormula(body, sc, rc))(t.span))
+      rc.aggDepth += 1
+      val b = try elabFormula(body, sc, rc) finally rc.aggDepth -= 1
+      for case a: obj.Formula.Atom <- b do checkCompleteParam(a.rel, a.span, "aggregates over")
+      List(obj.Formula.Agg(v, kind, elabTerm(term, sc, rc), b)(t.span))
     case Infix(op, l, r) if CmpOp.fromString(op).isDefined =>
       if r.isInstanceOf[Agg] || l.isInstanceOf[Agg] then
         err("E0202", "an aggregate must be bound to a variable, `X = count { ... }`", t.span)
@@ -1077,6 +1115,24 @@ final class Typer(using Context):
       err("E0202", "expected a formula", other.span, "not a formula")
       Nil
 
+  /** A functor that negates or aggregates over a relation parameter must require %complete (Section 11). */
+  private def checkCompleteParam(r: RelRef, span: Span, what: String): Unit = r match
+    case RelRef.Spliced(Proj(Ref(p), l)) if p.kind == SymKind.MetaParam =>
+      p.mtype match
+        case Sig(_, reqs) if !reqs.exists { case Req.Complete(`l`, _) => true; case _ => false } =>
+          ctx.report(Diagnostic.error("E0210", s"the functor $what the relation parameter `${p.name}.$l` without requiring `%complete $l`", span,
+            s"`${p.name}.$l` may be bound to an incomplete relation")
+            .withLabel(p.span, s"parameter `${p.name}` declared here")
+            .withHelp(s"add `%complete $l` to the signature of `${p.name}`"))
+        case _ =>
+    case RelRef.Spliced(Ref(p)) if p.kind == SymKind.MetaParam =>
+      // a relation parameter `(r : A -> rel)` cannot carry requirements
+      ctx.report(Diagnostic.error("E0210", s"the function $what the relation parameter `${p.name}`", span,
+        s"`${p.name}` may be bound to an incomplete relation")
+        .withLabel(p.span, s"parameter `${p.name}` declared here")
+        .withHelp("pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`"))
+    case _ =>
+
   def elabHead(t: Tree, sc: Scope, rc: RuleCtx): Option[obj.Term] =
     val (head, args) = flattenApp(t)
     classify(head, sc, rc) match
@@ -1100,7 +1156,7 @@ final class Typer(using Context):
     val rc = RuleCtx(allowVars = true)
     val heads = r.heads.flatMap(elabHead(_, sc, rc))
     val body = r.body.map(elabFormula(_, sc, rc)).getOrElse(Nil)
-    if heads.length != r.heads.length then None
+    if heads.length != r.heads.length || rc.failed then None
     else Some(obj.Rule(r.name.map(_.name), heads, body)(r.span, Origin.Source, rc.expansions.toList))
 
   private def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
@@ -1303,7 +1359,7 @@ final class Typer(using Context):
         case q: Query =>
           val rc = RuleCtx(allowVars = true)
           val body = elabFormula(q.body, sc, rc)
-          out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
+          if !rc.failed then out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
         case d: Directive => elabDirective(d, sc).foreach(x => out += EItem.DirectiveItem(x))
         case _: ErrorItem =>
     // exports

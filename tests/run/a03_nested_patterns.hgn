@@ -1,0 +1,14 @@
+(* A.2 (3): nested patterns match existing facts only *)
+wrap : type.
+w : int -> wrap.
+holds : wrap -> rel.
+holds (w 1).
+yes1 : rel.
+yes1 :- holds (w 1).
+no2 : rel.
+no2 :- holds (w 2).          (* w 2 was never derived: the pattern fails *)
+no3 : rel.
+no3 :- X = w 3, holds X.      (* the value of `w 3` is an existing fact; there is none *)
+inner : int -> rel.
+inner N :- holds (w N).
+%output yes1. %output no2. %output no3. %output inner.

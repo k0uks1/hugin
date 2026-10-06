@@ -1,0 +1,14 @@
+(* Polymorphic recursion is rejected (Definition 4.2); type arguments must be inferable. *)
+box A : type.
+put : A -> box A.
+nest : A -> rel.
+nest X :- start X.
+nest X :- nest (put X).
+start : int -> rel.
+start 1.
+?- nest 1.
+list A : type.
+nil : list A.
+size : list A -> rel.
+size nil.
+?- size nil.

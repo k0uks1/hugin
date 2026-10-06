@@ -9,7 +9,7 @@ import hugin.obj.{TypeOps, RelKind}
 object Runner:
   final case class Result(output: List[String], truncated: Boolean, stats: List[ComponentStats])
 
-  def run(c: Context, factFiles: List[SourceFile], budget: Option[Int]): Option[Result] =
+  def run(c: Context, factFiles: List[SourceFile], budget: Option[Int], allRelations: Boolean = false): Option[Result] =
     val core = c.unit.core
     if core == null then return None
     val prog = core.nn
@@ -24,7 +24,8 @@ object Runner:
       out += s"(* truncated: the round budget was exhausted in $cut; results are a subset *)"
     val explicit = prog.rels.filter(_.isOutput)
     val shown =
-      if explicit.nonEmpty then explicit
+      if allRelations then prog.rels
+      else if explicit.nonEmpty then explicit
       else if prog.queries.nonEmpty then Vector.empty
       else prog.rels.filter(r => r.kind == RelKind.Plain && !r.isInput)
     out ++= shown.flatMap(r => engine.facts(r.tag)).sorted

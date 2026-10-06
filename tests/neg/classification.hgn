@@ -1,0 +1,6 @@
+(* Items that cannot be classified by stage (Section 2.5). *)
+limit : int.
+colour : type <: string.
+red : colour.
+f : int -> type.
+r : int -> rel = 5.

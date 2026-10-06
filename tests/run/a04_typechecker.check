@@ -1,0 +1,29 @@
+app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z")).
+app (lam "x" (base "int") (ref "x")) (ref "y").
+arrow (base "int") (base "int").
+base "int".
+bind empty "x" (base "int").
+bind empty "z" (base "int").
+empty.
+lam "x" (base "int") (ref "x").
+lam "z" (base "int") (ref "z").
+lookup (bind empty "x" (base "int")) "x" (base "int").
+lookup (bind empty "z" (base "int")) "z" (base "int").
+program (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))).
+program (app (lam "x" (base "int") (ref "x")) (ref "y")).
+program (lam "x" (base "int") (ref "x")).
+ref "x".
+ref "y".
+ref "z".
+result (lam "x" (base "int") (ref "x")) (arrow (base "int") (base "int")).
+typed (lam "x" (base "int") (ref "x")) empty (arrow (base "int") (base "int")).
+typed (lam "z" (base "int") (ref "z")) empty (arrow (base "int") (base "int")).
+typed (ref "x") (bind empty "x" (base "int")) (base "int").
+typed (ref "z") (bind empty "z" (base "int")) (base "int").
+typed^d[++-] (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))) empty.
+typed^d[++-] (app (lam "x" (base "int") (ref "x")) (ref "y")) empty.
+typed^d[++-] (lam "x" (base "int") (ref "x")) empty.
+typed^d[++-] (lam "z" (base "int") (ref "z")) empty.
+typed^d[++-] (ref "x") (bind empty "x" (base "int")).
+typed^d[++-] (ref "y") empty.
+typed^d[++-] (ref "z") (bind empty "z" (base "int")).

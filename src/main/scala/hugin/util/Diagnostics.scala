@@ -119,19 +119,35 @@ final class DiagnosticRenderer(color: Boolean):
       val text = src.lineText(line).replace("\t", " ")
       val num = (line + 1).toString
       sb ++= blue(" " * (pad.length - num.length) + num + " |") ++= s" $text\n"
-      // one underline row per label, rightmost first so messages do not collide
-      for l <- ls.sortBy(-_.span.startCol) do
+      // one marker row for all labels of this line; the rightmost label's message goes inline,
+      // the others' messages on the rows below
+      val lineEnd = src.lineStart(line) + src.lineText(line).length
+      val marks = ls.map { l =>
         val startCol = l.span.startCol
-        val endOff = l.span.end.min(src.lineStart(line) + src.lineText(line).length)
-        val endCol = if l.span.endLineDiffers then text.length else src.columnOf(endOff)
-        val width = (endCol - startCol).max(1)
-        val mark = if l.primary then "^" else "-"
-        val u = " " * startCol + (mark * width)
-        val msg = if l.message.nonEmpty then " " + l.message else ""
-        val styled =
-          if l.primary then sevColor(sev, u + msg)
-          else blue(u + msg)
-        sb ++= s"$pad ${blue("|")} $styled\n"
+        val endCol = if l.span.endLineDiffers then text.length else src.columnOf(l.span.end.min(lineEnd))
+        (l, startCol, (endCol - startCol).max(1))
+      }.sortBy(_._2)
+      val width = marks.map((_, c, w) => c + w).max
+      val row = Array.fill(width)(' ')
+      val prim = Array.fill(width)(false)
+      // secondary first, so primary markers win where they overlap
+      for (l, c, w) <- marks.sortBy(_._1.primary); k <- c until c + w do
+        row(k) = if l.primary then '^' else '-'
+        prim(k) = l.primary
+      val styledRow = new StringBuilder
+      var k = 0
+      while k < width do
+        var j = k
+        while j < width && prim(j) == prim(k) && (row(j) == ' ') == (row(k) == ' ') do j += 1
+        val seg = new String(row, k, j - k)
+        styledRow ++= (if row(k) == ' ' then seg else if prim(k) then sevColor(sev, seg) else blue(seg))
+        k = j
+      val (lastL, _, _) = marks.maxBy((_, c, w) => (c + w, c))
+      def styledMsg(l: Label, m: String) = if l.primary then sevColor(sev, m) else blue(m)
+      val inline = if lastL.message.nonEmpty then " " + styledMsg(lastL, lastL.message) else ""
+      sb ++= s"$pad ${blue("|")} ${styledRow.toString.replaceAll("\\s+$", "")}$inline\n"
+      for (l, c, _) <- marks.reverse if (l ne lastL) && l.message.nonEmpty do
+        sb ++= s"$pad ${blue("|")} ${" " * c}${styledMsg(l, l.message)}\n"
     for l <- other do
       sb ++= s"$pad${blue("::>")} ${l.span.show}${if l.message.nonEmpty then ": " + l.message else ""}\n"
 

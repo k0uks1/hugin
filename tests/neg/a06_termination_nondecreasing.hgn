@@ -1,0 +1,11 @@
+(* A.2 (6): a non-decreasing variant of `len` is rejected *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+len : list A -> int -> rel.
+%terminates L (len L _).
+len nil 0.
+len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1.
+nums : list int -> rel.
+nums (cons 1 nil).
+?- nums L, len L N.

@@ -1,0 +1,43 @@
+error[E0001]: expected `.` after declaration, found `path`
+ --> tests/neg/syntax_recovery.hgn:2:25
+  |
+2 | edge : int -> int -> rel
+  |                         ^ expected `.` here
+3 | path : int -> int -> rel.
+  | ---- next item starts here
+  |
+  = help: every item ends with a period
+
+error[E0001]: expected an expression, found `.`
+ --> tests/neg/syntax_recovery.hgn:4:22
+  |
+4 | path X Y :- edge X Y,.
+  |                      ^ expected an expression
+
+error[E0002]: unterminated string literal
+ --> tests/neg/syntax_recovery.hgn:6:5
+  |
+6 | bad "unterminated.
+  |     ^^^^^^^^^^^^^^ string starts here
+
+error[E0001]: expected an expression, found `.`
+ --> tests/neg/syntax_recovery.hgn:8:12
+  |
+8 | ok 1 2 3 + .
+  |            ^ expected an expression
+
+error[E0001]: unknown directive `%frobnicate`
+ --> tests/neg/syntax_recovery.hgn:9:1
+  |
+9 | %frobnicate ok.
+  | ^^^^^^^^^^^ unknown directive
+  |
+  = note: directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev
+
+error[E0002]: unterminated comment
+  --> tests/neg/syntax_recovery.hgn:10:1
+   |
+10 | (* this comment is never closed
+   | ^^ comment starts here
+
+6 errors found

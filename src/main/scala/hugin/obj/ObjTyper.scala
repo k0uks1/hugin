@@ -144,7 +144,9 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
         case _ => colT
       expect(v, pt, a.span, s"`as` binding in $where")
       expectPattern(x, colT, where)
-    case a @ Term.Ascr(x, tp) => expectPattern(x, tp, s"ascription in $where")
+    case a @ Term.Ascr(x, tp) =>
+      expectPattern(x, colT, where)
+      expectPattern(x, tp, s"ascription in $where")
     case _ =>
 
   private def collectExpected(f: Formula): Unit = f match
@@ -193,7 +195,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
             s"`${Var.display(v)}` has type `${occs(failedAt)._1.show}` here")
           for (t, sp, where) <- distinct if sp != occs(failedAt)._2 do
             d = d.withLabel(sp, s"`${Var.display(v)}` has type `${t.show}` here")
-          d = d.withNote(s"`${Var.display(v)}` occurs in ${occs.map(_._3).distinct.mkString(", ")}")
+          d = d.withNote(s"`${Var.display(v)}` is expected to have type ${occs.map((t, _, w) => s"`${t.show}` ($w)").distinct.mkString(", ")}")
           report(d)
           gamma(v) = OType.Err
     // equations and aggregates

@@ -1,0 +1,9 @@
+(* A.2 (1): transitive closure over an input graph (plain Datalog) *)
+node : type.
+a : node. b : node. c : node. d : node.
+edge : node -> node -> rel.
+%input edge.
+path : node -> node -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
+%output path.

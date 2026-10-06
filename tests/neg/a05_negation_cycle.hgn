@@ -1,0 +1,7 @@
+(* A.2 (5): rejection of a negation cycle *)
+p : int -> rel.
+q : int -> rel.
+base : int -> rel.
+base 1.
+p X :- base X, not q X.
+q X :- base X, not p X.

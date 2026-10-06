@@ -1,0 +1,15 @@
+(* A.2 (2): deriving the same nested fact from two different body matches yields one fact *)
+wrap : type.
+w : int -> wrap.
+src : int -> int -> rel.
+src 1 2.
+src 1 3.
+got : wrap -> rel.
+got (w X) :- src X _.
+facts_of_got : int -> rel.
+facts_of_got N :- N = count { G | got G }.
+wraps : int -> rel.
+wraps N :- N = count { X | X = w 1 }.
+%output got.
+%output facts_of_got.
+%output wraps.

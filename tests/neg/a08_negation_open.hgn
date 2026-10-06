@@ -1,0 +1,10 @@
+(* A.2 (8): rejection of negation over an %open relation *)
+user : type.
+login : user -> rel.
+%open login.
+known : user -> rel.
+%input known.
+active : user -> rel.
+active U :- login U.
+inactive : user -> rel.
+inactive U :- known U, not active U.

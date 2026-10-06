@@ -194,10 +194,12 @@ final class Lexer(src: SourceFile, reporter: Reporter):
     pos += 1
     val sb = new StringBuilder
     var done = false
+    var bad = false
     while !done do
       if pos >= s.length || peek() == '\n' then
         err("E0002", "unterminated string literal", start, pos, "string starts here")
         done = true
+        bad = true
       else
         val c = peek()
         if c == '"' then { pos += 1; done = true }
@@ -226,6 +228,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
               err("E0003", "invalid escape sequence", escStart, pos, "valid escapes are \\\" \\\\ \\n \\t \\u{...}")
         else
           sb += c; pos += 1
+    if bad then return mk(Tok.Error, start, space)
     val t = mk(Tok.StrLit, start, space)
     t.value = sb.toString
     t

@@ -1,0 +1,11 @@
+(* Unresolved names (with suggestions), duplicate declarations, forward references. *)
+city : type.
+berlin : city.
+road : city -> city -> rel.
+road berlin paris.
+path : city -> city -> rel.
+path X Y :- raod X Y.
+path : city -> rel.
+twice : int = once * 2.
+once : int = 1.
+self : int = self + 1.

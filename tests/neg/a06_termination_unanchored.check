@@ -1,0 +1,10 @@
+error[E0604]: invalid `%terminates` directive for `grow`
+ --> tests/neg/a06_termination_unanchored.hgn:8:20
+  |
+6 | %terminates L (grow L).
+  | ----------------------- directive declared here
+...
+8 | grow (cons 1 L) :- grow L.
+  |                    ^^^^^^ no anchor: the variables of `cons[int] 1 L` are not bound by a relation outside the component
+
+1 error found

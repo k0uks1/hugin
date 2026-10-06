@@ -62,9 +62,7 @@ object DepGraph:
       val ctors = newHeadConstructors(r).map(_.rel.sym).distinct
       val fromHead = for h <- heads; (o, neg, sp) <- occ yield DepEdge(h, o, neg, sp, r)
       val fromCtors = for c <- ctors; (o, neg, sp) <- occ yield DepEdge(c, o, neg, sp, r)
-      // facts constructed by a rule are produced in (or after) the rule's own component
-      val ctorToHead = for c <- ctors; h <- heads if c != h yield DepEdge(c, h, false, r.span, r)
-      fromHead ++ fromCtors ++ ctorToHead
+      fromHead ++ fromCtors
     }
 
 /** Phase: stratification (Section 6.4). Computes the evaluation order of components. */
@@ -92,6 +90,25 @@ final class StratifyPhase extends Phase:
       for x <- path.take(3) do d = d.withLabel(x.span, s"`${x.from.name}` depends on `${x.to.name}`")
       d = d.withNote("negation and aggregation must not occur in a recursive cycle (Section 6.4)")
       ctx.report(Diag.rule(e.rule)(d))
+
+    // Facts constructed through nested heads in relations of *earlier* components can be missed by
+    // readers evaluated in between (a gap in the ordering argument of Proposition 8.8); warn about it.
+    val readers = p.rules.flatMap(r => DepGraph.occurrences(r.body).map(o => (o._1, r))).groupBy(_._1).view.mapValues(_.map(_._2)).toMap
+    if ctx.settings.lint then
+     for r <- p.rules; h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c } do
+      val hi = compOf(h)
+      for t <- DepGraph.newHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
+        val affected = readers.getOrElse(c, Vector.empty).filter(rr => (rr ne r) && rr.heads.exists {
+          case Term.App(RelRef.Sym(x), _) => compOf(x) >= compOf(c) && compOf(x) <= hi
+          case _ => false
+        })
+        affected.headOption.foreach { rr =>
+          val reader = rr.heads.collectFirst { case Term.App(RelRef.Sym(x), _) => x.name }.getOrElse("?")
+          ctx.report(Diag.rule(r)(Diagnostic.warning("W0004", s"facts of `${c.name}` constructed here may be missed by `$reader`", t.span,
+            s"`${c.name}` is evaluated before `${h.name}`")
+            .withLabel(rr.span, s"`$reader` reads `${c.name}`")
+            .withNote("nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)")))
+        }
 
   private def shortestPath(from: RelSym, to: RelSym, es: List[DepEdge]): List[DepEdge] =
     if from == to then return Nil
@@ -141,7 +158,7 @@ final class CompletenessPhase extends Phase:
         .withNote(why(e.to))
         .withNote("the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)")))
     for q <- p.queries; (r, neg, sp) <- DepGraph.occurrences(q.body) if neg && why.contains(r) do
-      ctx.report(Diag.query(q)(Diagnostic.error("E0602", s"query negates or aggregates over the incomplete relation `${r.name}`", sp)
+      ctx.report(Diag.query(q)(Diagnostic.error("E0602", s"query negates or aggregates over the incomplete relation `${r.name}`", sp, "used negatively")
         .withNote(why(r))
         .withNote("queries may mention incomplete relations only positively (Section 8.5)")))
 
@@ -235,8 +252,10 @@ final class TerminationPhase extends Phase:
               if !decreases(s, h, r.body) then
                 Some((s"no decrease: `${ObjPrinter.term(s)}` is not smaller than `${ObjPrinter.term(h)}`", call.span, Some(r)))
               else if !anchored(s, h, r.body, inC, numeric) then
-                Some((s"no anchor: the caller's argument `${ObjPrinter.term(h)}` is not bounded",
-                  call.span, Some(r)))
+                val msg =
+                  if numeric then s"no anchor: the body does not bound `${ObjPrinter.term(s)}` by a literal (e.g. `${ObjPrinter.term(s)} < 100`)"
+                  else s"no anchor: the variables of `${ObjPrinter.term(h)}` are not bound by a relation outside the component"
+                Some((msg, call.span, Some(r)))
               else None
             }.collectFirst { case Some(v) => v })
         }.collectFirst { case Some(v) => v }

@@ -1,0 +1,43 @@
+error[E0501]: rule is not range-restricted
+ --> tests/neg/moding.hgn:6:8
+  |
+6 | unsafe X :- not edge X 1.
+  |        ^ `X` not bound by the body
+  |
+  = note: every variable of the head must be bound by a positive atom or an equation in the body
+
+error[E0501]: rule is not range-restricted
+ --> tests/neg/moding.hgn:8:8
+  |
+8 | free X Y :- edge X _.
+  |        ^ `Y` not bound by the body
+  |
+  = note: every variable of the head must be bound by a positive atom or an equation in the body
+
+error[E0501]: unbound variable `X`
+  --> tests/neg/moding.hgn:10:10
+   |
+10 | cmp X :- X < 3.
+   |          ^^^^^ cannot be evaluated: not all variables are bound
+   |
+   = note: comparisons require both sides to be bound
+
+error[E0502]: call to `fib` without an applicable mode
+  --> tests/neg/moding.hgn:12:11
+   |
+12 | call F :- fib N F.
+   |           ^^^^^^^ argument 1 is not bound
+   |
+   = note: declared mode of `fib`: +-
+   = note: unbound variable: `N`
+   = help: bind the input arguments with earlier formulas in the body
+
+error[E0503]: input position 1 of `fib` is not a pattern
+  --> tests/neg/moding.hgn:13:6
+   |
+13 | fib (N + 1) F :- edge N F.
+   |      ^^^^^ arithmetic, projections and updates are not allowed here
+   |
+   = note: `fib` has mode +-; its inputs must appear in the demand guard
+
+5 errors found

@@ -1,0 +1,5 @@
+binder "y".
+moved (abs (span "b.hgn" 1) "y" (var (span "a.hgn" 8) "y")).
+moved (var (span "b.hgn" 1) "x").
+report (span "a.hgn" 3).
+report (span "a.hgn" 7).

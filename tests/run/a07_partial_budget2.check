@@ -1,0 +1,4 @@
+(* truncated: the round budget was exhausted in {nat}; results are a subset *)
+small 0.
+small 1.
+small 2.

@@ -1,0 +1,3 @@
+binder "y".
+report (span "a.hgn" 3).
+report (span "a.hgn" 7).

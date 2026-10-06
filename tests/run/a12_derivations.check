@@ -1,0 +1,4 @@
+@p1 (path a b) (edge a b).
+@p1 (path a c) (edge a c).
+@p1 (path b c) (edge b c).
+@p2 (path a c) (edge a b) (path b c).

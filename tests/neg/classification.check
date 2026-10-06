@@ -1,0 +1,35 @@
+error[E0103]: cannot classify the declaration of `limit`
+ --> tests/neg/classification.hgn:2:9
+  |
+2 | limit : int.
+  |         ^^^ result is the base type `int`
+  |
+  = note: a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type
+  = help: to define a compile-time constant, write `limit : int = ...`.
+
+error[E0103]: cannot classify the declaration of `red`
+ --> tests/neg/classification.hgn:4:7
+  |
+4 | red : colour.
+  |       ^^^^^^ result is `colour`, which is not an open type
+  |
+  = note: a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type
+  = help: to define a compile-time constant, write `red : colour = ...`.
+
+error[E0103]: cannot classify the declaration of `f`
+ --> tests/neg/classification.hgn:5:5
+  |
+5 | f : int -> type.
+  |     ^^^^^^^^^^^ a function returning `type`
+  |
+  = help: declare a family with type parameters instead: `f A : type.`
+
+error[E0103]: relation `r` cannot be defined by `=`
+ --> tests/neg/classification.hgn:6:18
+  |
+6 | r : int -> rel = 5.
+  |                  ^ not allowed
+  |
+  = help: relations are defined by rules: `c X :- body.`
+
+4 errors found

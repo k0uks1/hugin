@@ -1,0 +1,58 @@
+error[E0401]: no value can occur in all these positions
+ --> tests/neg/object_types.hgn:8:28
+  |
+8 | both :- lives X _, lives _ X.
+  |               -            ^ `X` has type `city` here
+  |               `X` has type `person` here
+  |
+  = note: `X` is expected to have type `person` (column 1 of `lives`), `city` (column 2 of `lives`)
+
+error[E0402]: cannot compare `int` with `string`
+  --> tests/neg/object_types.hgn:10:31
+   |
+10 | older P :- age P A, name P N, A < N.
+   |                               ^^^^^ `<` on incompatible types
+   |
+   = note: ordering comparisons apply to two values of the same base type
+
+error[E0402]: operator `+` cannot be applied to `int` and `string`
+  --> tests/neg/object_types.hgn:12:34
+   |
+12 | plus P :- age P A, name P N, M = A + N, M > 0.
+   |                                  ^^^^^
+   |
+   = note: `+ - * /` apply to two ints or two floats, `^` to two strings; ints and floats are never converted
+
+error[E0402]: type mismatch
+  --> tests/neg/object_types.hgn:14:10
+   |
+14 | city_age C :- age C _.
+   |          ^ expected `city`, found `person`
+   |
+   = note: in column 1 of `city_age`
+
+error[E0402]: type mismatch
+  --> tests/neg/object_types.hgn:16:7
+   |
+16 | total S :- S = sum { A | age _ A }.
+   |       ^ expected `float`, found `int`
+   |
+   = note: in column 1 of `total`
+
+error[E0402]: type mismatch
+  --> tests/neg/object_types.hgn:18:7
+   |
+18 | wrong P :- age P _.
+   |       ^ expected `city`, found `person`
+   |
+   = note: in column 1 of `wrong`
+
+error[E0401]: no value can occur in all these positions
+  --> tests/neg/object_types.hgn:20:17
+   |
+20 | asc P :- lives (P : city) _.
+   |                 ^ `P` has type `city` here
+   |
+   = note: `P` is expected to have type `person` (column 1 of `lives`), `city` (ascription in column 1 of `lives`)
+
+7 errors found

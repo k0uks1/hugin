@@ -1,0 +1,14 @@
+(* A.2 (9): the `..` errors and other record errors *)
+pt : type = { x : int, y : int }.
+item : (name : string) -> (price : int) -> rel.
+shape : type.
+circle : (r : int) -> shape.
+missing : string -> rel.
+missing N :- item { name = N }.
+inhead : rel.
+item { name = "a", .. } :- inhead.
+unknown : string -> rel.
+unknown N :- item { title = N, .. }.
+open_proj : int -> rel.
+anyshape : shape -> rel.
+open_proj R :- anyshape S, R = S.r.

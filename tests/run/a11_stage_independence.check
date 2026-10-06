@@ -1,0 +1,10 @@
+// warning[W0001]: undefined constant expression
+//   --> tests/run/a11_stage_independence.hgn:10:19
+//    |
+// 10 | overflow X :- X = 9223372036854775807 + 1.   (* undefined: the rule never fires *)
+//    |                   ^^^^^^^^^^^^^^^^^^^^^^^ `9223372036854775807 + 1` is undefined
+//    |
+//    = note: the formula containing it never holds, so this rule instance never fires
+// 
+// 1 warning found
+equal.

@@ -37,6 +37,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
   final class ParseError extends Exception(null, null, false, false)
 
   private def fail(msg: String, label: String = "", help: Option[String] = None): Nothing =
+    if kind == Tok.Error then throw new ParseError // already reported by the lexer
     var d = Diagnostic.error("E0001", msg, tok.span, label)
     help.foreach(h => d = d.withHelp(h))
     reporter.report(d)
@@ -47,6 +48,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
 
   private def expect(k: Tok, what: String = ""): Token =
     if kind == k then advance()
+    else if kind == Tok.Error then throw new ParseError
     else
       val w = if what.nonEmpty then what else Lexer.describe(k)
       if k == Tok.Period && i > 0 && tok.span.startLine > toks(i - 1).span.startLine then
@@ -57,7 +59,8 @@ final class Parser(src: SourceFile, reporter: Reporter):
             .withLabel(tok.span, "next item starts here")
             .withHelp("every item ends with a period")
         )
-        throw new ParseError
+        // recover by accepting the item as if the period were present
+        return Token(Tok.Period, ".", Span(src, prev.end, prev.end), false)
       fail(s"expected $w, found $found", s"expected $w")
 
   // ---------------------------------------------------------------- infix prescan
@@ -112,6 +115,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
     var done = false
     if i == start && kind != Tok.EOF then advance()
     while !done && kind != Tok.EOF do
+      if depth == 0 && atLineStart(tok) && kind != Tok.Period then return
       kind match
         case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
         case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
@@ -359,10 +363,13 @@ final class Parser(src: SourceFile, reporter: Reporter):
         Lambda(param, tpe, body)(spanFrom(start))
       case _ => parseApp()
 
-  private def startsArg(t: Token): Boolean = t.kind match
+  private def atLineStart(t: Token): Boolean =
+    t.span.startCol == 0 && i > 0 && toks(i - 1).span.startLine < t.span.startLine
+
+  private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Name => !infixOps.contains(t.text)
-    case _ => false
+    case _ => false)
 
   private def parseApp(): Tree =
     var f = parsePostfix()
@@ -422,6 +429,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
       case Tok.LParen => parseParens()
       case Tok.LBrace => parseBraces()
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
+      case Tok.Error => throw new ParseError
       case _ =>
         fail(s"expected an expression, found $found", "expected an expression")
 

@@ -1,0 +1,17 @@
+error[E0205]: polymorphic recursion
+ --> tests/neg/polymorphic_recursion.hgn:6:11
+  |
+6 | nest X :- nest (put X).
+  |           ^^^^^^^^^^^^ `nest` used at [put[int]] while instantiating `nest` at [int]
+  |
+  = note: within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)
+
+error[E0206]: cannot infer type argument `A` of family `size`
+  --> tests/neg/polymorphic_recursion.hgn:14:4
+   |
+14 | ?- size nil.
+   |    ^^^^^^^^ type not determined
+   |
+   = help: add a type ascription, e.g. `(size ... : T)`
+
+2 errors found

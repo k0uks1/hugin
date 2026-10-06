@@ -1,0 +1,27 @@
+(* ---------------- after monomorphize ---------------- *)
+city : type.
+box[int] : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+r1.path : city -> city -> rel.
+r2.path : city -> city -> rel.
+a : box[int] -> rel.
+b : box[int] -> rel.
+same : rel.
+put[int] : int -> box[int].
+%output r1.path.
+%output r2.path.
+%output same.
+road berlin paris.
+r1.path X Y :- road X Y.
+r1.path X Z :- road X Y, r1.path Y Z.
+r2.path X Y :- road X Y.
+r2.path X Z :- road X Y, r2.path Y Z.
+a (put[int] 1).
+b (put[int] 1).
+same :- a X, b X.
+
+r1.path berlin paris.
+r2.path berlin paris.
+same.
