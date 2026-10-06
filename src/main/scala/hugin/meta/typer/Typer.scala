@@ -198,6 +198,7 @@ final class Typer(c: Context)
 
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
+    context.unit.index.scope(span, sc)
     val out = mutable.ListBuffer.empty[EItem]
     for (item, k) <- items.zipWithIndex do
       sc.processed = k
