@@ -58,18 +58,6 @@ final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: 
   /** Clauses of a formula function. */
   val clauses: mutable.ListBuffer[Rule] = mutable.ListBuffer.empty
 
-  /** Meta type, filled by the typer. */
-  var mtype: MType | Null = null
-
-  /** Static normal form (for transparent definitions: types, records of types and relations). */
-  var static: Option[MExpr] = None
-
-  /** For signature definitions (`graph : mod = {...}`): the signature itself. */
-  var sigValue: Option[MType] = None
-
-  /** Typing state for lazily elaborated symbols. */
-  var state: Sym.State = Sym.State.Pending
-
   /** Family type parameters (object declarations) or type definition parameters. */
   var tparams: List[TParam] = Nil
 
@@ -89,8 +77,6 @@ final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: 
   override def toString: String = name
 
 object Sym:
-  enum State:
-    case Pending, InProgress, Done
   private var n = 0
   private def next(): Int = { n += 1; n }
 

@@ -150,7 +150,7 @@ final class MetaEval(using Context):
   /** `%mode f m̄` (Section 4.8): the body is checked once, applied to fresh variables, to be well-moded
    *  from the input variables. */
   private def checkFnModes(s: Sym, v: Value, fr: Frame): Unit =
-    var t = s.mtype
+    var t = ctx.unit.symbols.mtype(s).getOrElse(MType.Err)
     var f = v
     val params = scala.collection.mutable.ListBuffer.empty[String]
     while t.isInstanceOf[MType.Pi] do
@@ -224,8 +224,8 @@ final class MetaEval(using Context):
 
   /** Requirements of a signature (Section 4.4) are checked once the argument relations are known. */
   private def checkRequirements(p: Sym, av: Value, span: Span, fr: Frame): Unit =
-    p.mtype match
-      case MType.Sig(_, reqs) if reqs.nonEmpty =>
+    ctx.unit.symbols.mtype(p) match
+      case Some(MType.Sig(_, reqs)) if reqs.nonEmpty =>
         av match
           case VRec(fs) =>
             for r <- reqs do

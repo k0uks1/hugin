@@ -96,7 +96,6 @@ object Namer:
               s.abbrev = abbrev
               if kd == SymKind.BaseType then
                 defn.collect { case Builtin(b) => builtins(b.name) }.foreach(b => s.base = Some(b))
-                s.state = Sym.State.Done
               if (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
                 ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
                   .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))

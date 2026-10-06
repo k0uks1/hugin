@@ -2,8 +2,9 @@ package hugin.meta
 
 import hugin.obj.*
 
-/** Prints elaborated meta programs with explicit quotes ⟨·⟩ and splices ~(·). */
-object MetaPrinter:
+/** Prints elaborated meta programs with explicit quotes ⟨·⟩ and splices ~(·); meta types of definitions
+ *  come from the typing results `syms`. */
+final class MetaPrinter(syms: TypingResults):
   def showBody(m: MExpr, indent: String = ""): String = m match
     case MExpr.Body(items, _, _) => items.map(i => indent + showItem(i, indent)).mkString("\n")
     case other => indent + show(other, indent)
@@ -26,7 +27,7 @@ object MetaPrinter:
       s"${s.name}${tps(s)} : ${(cols.map(ObjPrinter.column) :+ res.map(_.show).getOrElse("rel"))
           .mkString(" -> ")}.${if isStruct then "  (* struct *)" else ""}"
     case EItem.EdgeDecl(sub, sup, _) => s"${sub.show} <: ${MExpr.show(sup)}."
-    case EItem.MetaDef(s, rhs, _) => s"${s.name} : ${if s.mtype == null then "?" else s.mtype.nn.show} = ${show(rhs, indent)}."
+    case EItem.MetaDef(s, rhs, _) => s"${s.name} : ${syms.mtype(s).fold("?")(_.show)} = ${show(rhs, indent)}."
     case EItem.RuleItem(r) => ObjPrinter.rule(r)
     case EItem.QueryItem(q) => ObjPrinter.query(q)
     case EItem.DirectiveItem(d) => ObjPrinter.directive(d)

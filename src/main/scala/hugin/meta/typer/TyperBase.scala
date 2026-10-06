@@ -38,6 +38,9 @@ private[meta] trait TyperBase:
   protected val context: Context
   protected given Context = context
 
+  /** The typing results of this compilation (see [[SymTable]]). */
+  val syms: SymTable = SymTable()
+
   val declInfo: mutable.HashMap[Sym, DeclInfo] = mutable.HashMap.empty
   private var freshN = 0
   private[meta] def fresh(prefix: String): String = { freshN += 1; s"$prefix$freshN" }
@@ -81,14 +84,14 @@ private[meta] trait TyperBase:
   /** Forward-reference check for meta definitions (Section 2.3). */
   private[meta] def visible(s: Sym, span: Span): Boolean =
     if s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn then
-      s.state match
-        case Sym.State.Done => s.mtype != null
-        case Sym.State.InProgress =>
+      syms.state(s) match
+        case ElabState.Done => syms.mtype(s).isDefined
+        case ElabState.InProgress =>
           ctx.report(Diagnostic.error("E0105", s"`${s.name}` refers to itself", span, "recursive reference")
             .withLabel(s.span, "while elaborating this definition")
             .withNote("the meta level has no recursion; definitions may only refer to earlier definitions"))
           false
-        case Sym.State.Pending =>
+        case ElabState.Pending =>
           ctx.report(Diagnostic.error("E0105", s"`${s.name}` is used before its definition", span, "used here")
             .withLabel(s.span, "defined later here")
             .withNote("meta definitions may only refer to earlier definitions (Section 2.3)"))

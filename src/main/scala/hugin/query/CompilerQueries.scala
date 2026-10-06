@@ -47,6 +47,9 @@ final class Compiled(val context: Context, val printed: List[String]):
   def diagnostics: List[Diagnostic] = context.reporter.sorted
   def hasErrors: Boolean = context.reporter.hasErrors
   def index: SemanticIndex = context.unit.index
+
+  /** The typing results of the meta level. */
+  def symbols: hugin.meta.TypingResults = context.unit.symbols
   def source: SourceFile = context.unit.source
 
 /** Runs the compiler pipeline on a parsed program. */

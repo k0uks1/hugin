@@ -39,8 +39,8 @@ private[meta] trait Declarations extends TyperBase:
 
   /** Elaborates an object declaration (lazily: object declarations may be used before they occur). */
   def ensureDecl(s: Sym): Unit =
-    if s.state != Sym.State.Pending || !s.kind.isObjectDecl then return
-    s.state = Sym.State.InProgress
+    if syms.state(s) != ElabState.Pending || !s.kind.isObjectDecl then return
+    syms(s).state = ElabState.InProgress
     val d = s.decl.get.asInstanceOf[Decl]
     val sc = s.owner
     val explicit = d.params.flatMap {
@@ -72,7 +72,7 @@ private[meta] trait Declarations extends TyperBase:
         val k = d.sup match
           case Some(sup) => TypeKindE.Refinement(elabOType(sup, sc, tv))
           case None => TypeKindE.Open
-        s.mtype = TypeU
+        syms(s).mtype = Some(TypeU)
         DeclInfo(Nil, None, Some(k))
       case SymKind.Struct =>
         val rt = d.defn.get.asInstanceOf[RecordType]
@@ -82,12 +82,12 @@ private[meta] trait Declarations extends TyperBase:
           case SigEntry.ModeReq(_, _, sp) => err("E0004", "requirements are not allowed in struct declarations", sp); None
         }
         val cols = columns(doms)
-        s.mtype = RelT(cols)
+        syms(s).mtype = Some(RelT(cols))
         DeclInfo(cols, None, None)
       case SymKind.Rel =>
         val (doms, _) = flattenArrow(d.tpe)
         val cols = columns(doms)
-        s.mtype = RelT(cols)
+        syms(s).mtype = Some(RelT(cols))
         DeclInfo(cols, None, None)
       case SymKind.Ctor =>
         val (doms, cod) = flattenArrow(d.tpe)
@@ -103,12 +103,12 @@ private[meta] trait Declarations extends TyperBase:
               .withHelp(if doms.isEmpty then s"to define a compile-time constant, write `${s.name} : ${Printer.show(d.tpe)} = ...`."
               else "end the type in `rel` to declare a relation")
           )
-        s.mtype = RelT(cols)
+        syms(s).mtype = Some(RelT(cols))
         DeclInfo(cols, Some(res), None)
       case _ => DeclInfo(Nil, None, None)
     s.tparams = s.tparams ++ implicits.values
     declInfo(s) = di
-    s.state = Sym.State.Done
+    syms(s).state = ElabState.Done
 
   private[meta] def isOpenType(t: OType): Boolean = normO(t) match
     case OType.Splice(Ref(s)) => s.kind == SymKind.ObjType && info(s).typeKind.contains(TypeKindE.Open)
@@ -120,22 +120,21 @@ private[meta] trait Declarations extends TyperBase:
 
   /** Elaborates a type definition (Section 4.7) with cycle detection. */
   def ensureTypeDef(s: Sym, useSpan: Span): Boolean =
-    s.state match
-      case Sym.State.Done => true
-      case Sym.State.InProgress =>
+    syms.state(s) match
+      case ElabState.Done => true
+      case ElabState.InProgress =>
         ctx.report(Diagnostic.error("E0104", s"cyclic type definition `${s.name}`", useSpan, "refers back to the definition")
           .withLabel(s.span, "type definition declared here")
           .withNote("type definitions are unfolded and must not form a cycle; declare an open type or struct instead"))
         false
-      case Sym.State.Pending =>
-        s.state = Sym.State.InProgress
+      case ElabState.Pending =>
+        syms(s).state = ElabState.InProgress
         val d = s.decl.get.asInstanceOf[Decl]
         val psc = Scope(Some(s.owner), s"parameters of ${s.name}")
         val ps = d.params.flatMap {
           case Param.VarParam(v) =>
             val p = Sym(v.name, SymKind.MetaParam, v.span, psc)
-            p.mtype = TypeU
-            p.state = Sym.State.Done
+            syms.define(p, TypeU)
             psc.enter(p)
             Some(p)
           case p => err("E0004", "type definitions take only type parameters", p.span); None
@@ -167,8 +166,8 @@ private[meta] trait Declarations extends TyperBase:
           )
             .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
             .withSuggestion("mark it `%abbrev`", Span(d.span.source, d.span.start, d.span.start), "%abbrev "))
-        s.mtype = TypeU
-        s.state = Sym.State.Done
+        syms(s).mtype = Some(TypeU)
+        syms(s).state = ElabState.Done
         true
 
   private[meta] def unfoldTypeDef(s: Sym, args: List[OType], span: Span): OType =
