@@ -19,7 +19,7 @@ private[meta] trait ObjectCode extends TyperBase:
   // ======================================================================= object code
 
   private[meta] def isPrimMeta(m: MExpr): Option[BaseType] = m match
-    case Ref(s) => s.mtype match { case Prim(b) => Some(b); case _ => None }
+    case Ref(s) => syms.mtype(s).collect { case Prim(b) => b }
     case MExpr.Lit(l) => Some(BaseType.of(l))
     case Op(_, l, _, _) => isPrimMeta(l)
     case MExpr.Neg(x, _) => isPrimMeta(x)
@@ -36,9 +36,9 @@ private[meta] trait ObjectCode extends TyperBase:
     case Trees.Lit(l) => obj.Term.Lit(l)(t.span)
     case VarRef(n) =>
       sc.lookup(n) match
-        case Some(s) if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && s.mtype != null && capturesVar(s) =>
+        case Some(s) if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && capturesVar(s) =>
           noteUse(t.span, s)
-          s.mtype match
+          syms.mtype(s).get match
             case Code(_) | Prim(_) => obj.Term.Splice(Ref(s))(t.span)
             case other =>
               err("E0202", s"meta variable `$n` cannot be used as a term", t.span, s"has meta type `${showMT(other)}`")
@@ -75,9 +75,9 @@ private[meta] trait ObjectCode extends TyperBase:
       val vt = elabTerm(v, sc, rc)
       checkLabelsDistinct(fields.map(_.label))
       obj.Term.With(vt, fields.map(f => (f.label.name, elabTerm(f.value, sc, rc), f.label.span)))(t.span)
-    case Select(q @ VarRef(n), l) if !sc.lookup(n).exists(s => s.mtype != null && capturesVar(s)) =>
+    case Select(q @ VarRef(n), l) if !sc.lookup(n).exists(capturesVar) =>
       obj.Term.Proj(elabTerm(q, sc, rc), l)(t.span)
-    case Select(q @ VarRef(n), l) if sc.lookup(n).exists(s => s.mtype match { case Code(_) => true; case _ => false }) =>
+    case Select(q @ VarRef(n), l) if sc.lookup(n).exists(s => syms.mtype(s).exists(_.isInstanceOf[Code])) =>
       obj.Term.Proj(elabTerm(q, sc, rc), l)(t.span)
     case _: Ident | _: Apply | _: Select =>
       val (head, args) = flattenApp(t)
@@ -301,8 +301,8 @@ private[meta] trait ObjectCode extends TyperBase:
   /** A functor that negates or aggregates over a relation parameter must require %complete (Section 11). */
   private[meta] def checkCompleteParam(r: RelRef, span: Span, what: String): Unit = r match
     case RelRef.Spliced(Proj(Ref(p), l)) if p.kind == SymKind.MetaParam =>
-      p.mtype match
-        case Sig(_, reqs) if !reqs.exists { case Req.Complete(`l`, _) => true; case _ => false } =>
+      syms.mtype(p) match
+        case Some(Sig(_, reqs)) if !reqs.exists { case Req.Complete(`l`, _) => true; case _ => false } =>
           ctx.report(Diagnostic.error(
             "E0210",
             s"the functor $what the relation parameter `${p.name}.$l` without requiring `%complete $l`",

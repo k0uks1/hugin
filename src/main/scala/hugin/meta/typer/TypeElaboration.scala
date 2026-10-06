@@ -32,11 +32,11 @@ private[meta] trait TypeElaboration extends TyperBase:
           sc.lookup(n) match
             case Some(s) if s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef =>
               noteUse(t.span, s)
-              s.mtype match
-                case TypeU => OType.Splice(Ref(s))
-                case RelT(_) => OType.Splice(FactTypeOf(Ref(s)))
-                case null => OType.Err
-                case other =>
+              syms.mtype(s) match
+                case Some(TypeU) => OType.Splice(Ref(s))
+                case Some(RelT(_)) => OType.Splice(FactTypeOf(Ref(s)))
+                case None => OType.Err
+                case Some(other) =>
                   err("E0202", s"`$n` is not a type", t.span, s"has meta type ${other.show}")
                   OType.Err
             case _ =>
@@ -47,8 +47,7 @@ private[meta] trait TypeElaboration extends TyperBase:
                   OType.Param(p)
                 case TVars.MetaImplicit(isc, coll) =>
                   val p = Sym(n, SymKind.MetaParam, t.span, isc)
-                  p.mtype = TypeU
-                  p.state = Sym.State.Done
+                  syms.define(p, TypeU)
                   isc.enter(p)
                   coll += p
                   OType.Splice(Ref(p))
@@ -71,15 +70,16 @@ private[meta] trait TypeElaboration extends TyperBase:
                 case SymKind.ObjType | SymKind.Struct | SymKind.Rel | SymKind.Ctor =>
                   ensureDecl(s)
                   val as = argTypes
-                  if s.state == Sym.State.Done && as.length != s.tparams.length then
-                    if s.tparams.nonEmpty && as.isEmpty then
+                  val tparams = syms.tparams(s)
+                  if syms.state(s) == ElabState.Done && as.length != tparams.length then
+                    if tparams.nonEmpty && as.isEmpty then
                       err(
                         "E0207",
-                        s"family `$n` needs ${s.tparams.length} type argument(s)",
+                        s"family `$n` needs ${tparams.length} type argument(s)",
                         t.span,
-                        s"expected `$n ${s.tparams.map(_.name).mkString(" ")}`"
+                        s"expected `$n ${tparams.map(_.name).mkString(" ")}`"
                       )
-                    else err("E0207", s"`$n` expects ${s.tparams.length} type argument(s), found ${as.length}", t.span)
+                    else err("E0207", s"`$n` expects ${tparams.length} type argument(s), found ${as.length}", t.span)
                     OType.Err
                   else
                     val m = if as.isEmpty then Ref(s) else TApp(Ref(s), as)
@@ -89,11 +89,11 @@ private[meta] trait TypeElaboration extends TyperBase:
                   else if args.nonEmpty then
                     err("E0202", s"`$n` cannot be applied to type arguments", t.span); OType.Err
                   else
-                    s.mtype match
-                      case TypeU => OType.Splice(Ref(s))
-                      case RelT(_) => OType.Splice(FactTypeOf(Ref(s)))
+                    syms.mtype(s) match
+                      case Some(TypeU) => OType.Splice(Ref(s))
+                      case Some(RelT(_)) => OType.Splice(FactTypeOf(Ref(s)))
                       case other =>
-                        err("E0202", s"`$n` is not a type", id.span, s"has meta type ${if other == null then "?" else other.show}")
+                        err("E0202", s"`$n` is not a type", id.span, s"has meta type ${other.fold("?")(_.show)}")
                         OType.Err
                 case SymKind.FormulaFn =>
                   err("E0202", s"formula function `$n` is not a type", id.span); OType.Err
@@ -132,7 +132,7 @@ private[meta] trait TypeElaboration extends TyperBase:
         ) =>
       val s = sc.lookup(n).get
       noteUse(t.span, s)
-      if !visible(s, t.span) then MType.Err else s.sigValue.getOrElse(MType.Err)
+      if !visible(s, t.span) then MType.Err else syms.sigValue(s).getOrElse(MType.Err)
     case sel: Select =>
       val (m, mt) = inferM(sel, sc)
       mt match
@@ -155,8 +155,7 @@ private[meta] trait TypeElaboration extends TyperBase:
           doms.foldRight(PropT: MType) { case ((l, d), acc) =>
             val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
             val dt = Code(elabOType(d, sc, tv))
-            x.mtype = dt
-            x.state = Sym.State.Done
+            syms.define(x, dt)
             Pi(x, dt, acc, isImplicit = false)
           }
         case _ =>
@@ -166,8 +165,7 @@ private[meta] trait TypeElaboration extends TyperBase:
             case (l, d) :: rest =>
               val dt = elabMType(d, psc, tv)
               val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
-              x.mtype = dt
-              x.state = Sym.State.Done
+              syms.define(x, dt)
               l.foreach(_ => psc.enter(x))
               Pi(x, dt, go(rest), isImplicit = false)
           go(doms)
@@ -180,8 +178,9 @@ private[meta] trait TypeElaboration extends TyperBase:
     case Keyword(k) => k == Kw.Rel
     case Ident(n) =>
       sc.lookup(n) match
-        case Some(s) if s.kind == SymKind.MetaDef && s.sigValue.isDefined => false
-        case Some(s) if s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam => s.mtype == TypeU || s.mtype.isInstanceOf[RelT]
+        case Some(s) if s.kind == SymKind.MetaDef && syms.sigValue(s).isDefined => false
+        case Some(s) if s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam =>
+          syms.mtype(s).exists(t => t == TypeU || t.isInstanceOf[RelT])
         case _ => true
     case _ => true
 
@@ -197,8 +196,7 @@ private[meta] trait TypeElaboration extends TyperBase:
           else
             val fty = elabMType(ft, ssc, tv)
             val f = Sym(l.name, SymKind.MetaParam, l.span, ssc)
-            f.mtype = fty
-            f.state = Sym.State.Done
+            syms.define(f, fty)
             ssc.enter(f)
             fields += ((f, fty))
         case SigEntry.Complete(l, sp) =>

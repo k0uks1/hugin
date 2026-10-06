@@ -4,12 +4,9 @@ package typer
 import hugin.util.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
-import hugin.obj.{OType, Column, TParam, Expansion}
+import hugin.obj.{TParam, Expansion}
 import hugin.obj
 import scala.collection.mutable
-
-/** Elaborated information about an object declaration. */
-final case class DeclInfo(cols: List[Column], result: Option[OType], typeKind: Option[TypeKindE])
 
 /** Per-rule state while elaborating object code. */
 final class RuleCtx(val allowVars: Boolean):
@@ -38,7 +35,8 @@ private[meta] trait TyperBase:
   protected val context: Context
   protected given Context = context
 
-  val declInfo: mutable.HashMap[Sym, DeclInfo] = mutable.HashMap.empty
+  /** The typing results of this compilation (see [[SymTable]]). */
+  val syms: SymTable = SymTable()
   private var freshN = 0
   private[meta] def fresh(prefix: String): String = { freshN += 1; s"$prefix$freshN" }
 
@@ -71,24 +69,23 @@ private[meta] trait TyperBase:
 
   /** Records a resolved use of a symbol (for the semantic index and the unused-definition warning). */
   private[meta] def noteUse(span: Span, s: Sym, detail: Option[String] = None): Unit =
-    s.used = true
-    noteReference(span, s, detail)
+    context.unit.index.reference(span, s, detail, isUse = true)
 
   /** Records a reference for tooling only (e.g. a directive naming a function, which is not a use). */
   private[meta] def noteReference(span: Span, s: Sym, detail: Option[String] = None): Unit =
-    context.unit.index.reference(span, s, detail)
+    context.unit.index.reference(span, s, detail, isUse = false)
 
   /** Forward-reference check for meta definitions (Section 2.3). */
   private[meta] def visible(s: Sym, span: Span): Boolean =
     if s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn then
-      s.state match
-        case Sym.State.Done => s.mtype != null
-        case Sym.State.InProgress =>
+      syms.state(s) match
+        case ElabState.Done => syms.mtype(s).isDefined
+        case ElabState.InProgress =>
           ctx.report(Diagnostic.error("E0105", s"`${s.name}` refers to itself", span, "recursive reference")
             .withLabel(s.span, "while elaborating this definition")
             .withNote("the meta level has no recursion; definitions may only refer to earlier definitions"))
           false
-        case Sym.State.Pending =>
+        case ElabState.Pending =>
           ctx.report(Diagnostic.error("E0105", s"`${s.name}` is used before its definition", span, "used here")
             .withLabel(s.span, "defined later here")
             .withNote("meta definitions may only refer to earlier definitions (Section 2.3)"))

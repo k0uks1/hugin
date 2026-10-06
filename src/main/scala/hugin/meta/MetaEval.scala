@@ -150,7 +150,7 @@ final class MetaEval(using Context):
   /** `%mode f m̄` (Section 4.8): the body is checked once, applied to fresh variables, to be well-moded
    *  from the input variables. */
   private def checkFnModes(s: Sym, v: Value, fr: Frame): Unit =
-    var t = s.mtype
+    var t = ctx.unit.symbols.mtype(s).getOrElse(MType.Err)
     var f = v
     val params = scala.collection.mutable.ListBuffer.empty[String]
     while t.isInstanceOf[MType.Pi] do
@@ -165,7 +165,7 @@ final class MetaEval(using Context):
       t = cod
     f match
       case VFormula(body) =>
-        for (mode, span) <- s.fnModes do
+        for (mode, span) <- ctx.unit.symbols.fnModes(s) do
           if mode.length != params.length then
             ctx.report(Diagnostic.error(
               "E0701",
@@ -208,8 +208,8 @@ final class MetaEval(using Context):
   /** Requirements of a signature (Section 4.4) are recorded for the relations of the argument; they are
    *  checked by the `directives` phase (see [[RequirementCheck]]). */
   private def checkRequirements(p: Sym, av: Value, span: Span, fr: Frame): Unit =
-    p.mtype match
-      case MType.Sig(_, reqs) if reqs.nonEmpty =>
+    ctx.unit.symbols.mtype(p) match
+      case Some(MType.Sig(_, reqs)) if reqs.nonEmpty =>
         av match
           case VRec(fs) =>
             for r <- reqs do
@@ -341,13 +341,13 @@ final class MetaEval(using Context):
       i match
         case EItem.TypeDecl(s, _, sp) =>
           val ts = TypeSym(objName(s.name), TypeKind.Open, sp, fr.origin)
-          ts.tparams = s.tparams
+          ts.tparams = ctx.unit.symbols.tparams(s)
           typeSyms(s) = ts
           env += s -> VType(OType.Con(ts, Nil))
         case EItem.RelDecl(s, _, _, isStruct, sp) =>
           val kind = if isStruct then RelKind.Struct else if s.kind == SymKind.Ctor then RelKind.Ctor else RelKind.Plain
           val rs = RelSym(objName(s.name), kind, sp, fr.origin)
-          rs.tparams = s.tparams
+          rs.tparams = ctx.unit.symbols.tparams(s)
           relSyms(s) = rs
           env += s -> VRel(rs)
         case _ =>
@@ -373,7 +373,7 @@ final class MetaEval(using Context):
           case EItem.MetaDef(s, rhs, _) =>
             val v = eval(rhs, env, fr.copy(hint = qualify(prefix, s.name)))
             env += s -> v
-            if s.kind == SymKind.FormulaFn && s.fnModes.nonEmpty then checkFnModes(s, v, fr)
+            if s.kind == SymKind.FormulaFn && ctx.unit.symbols.fnModes(s).nonEmpty then checkFnModes(s, v, fr)
           case EItem.RuleItem(r) =>
             val body = reifyBody(r.body, env, fr, identity)
             val heads = r.heads.map(reifyTerm(_, env, fr, identity))

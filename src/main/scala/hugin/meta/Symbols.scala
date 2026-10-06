@@ -2,7 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.*
-import hugin.obj.{TParam, BaseType}
+import hugin.obj.BaseType
 import scala.collection.mutable
 
 enum SymKind:
@@ -48,49 +48,28 @@ enum SymKind:
     case MetaParam => "meta parameter"
     case BaseType => "base type"
 
-/** A declared name (meta-level symbol). */
-final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: Scope):
+/** A declared name (meta-level symbol): an identity with what the namer knows about it. What the typer
+ *  computes about a symbol is in its [[SymTable]] (`CompilationUnit.symbols`).
+ *
+ *  @param decl    the declaring item, for declarations entered by the namer
+ *  @param clauses the clauses of a formula function, in source order
+ *  @param abbrev  whether a type definition is marked `%abbrev` (always expanded)
+ *  @param base    the base type of a `BaseType` symbol
+ */
+final class Sym(
+    val name: String,
+    val kind: SymKind,
+    val span: Span,
+    val owner: Scope,
+    val decl: Option[Item] = None,
+    val clauses: List[Rule] = Nil,
+    val abbrev: Boolean = false,
+    val base: Option[BaseType] = None
+):
   val id: Int = Sym.next()
-
-  /** Declaring item (if any). */
-  var decl: Option[Item] = None
-
-  /** Clauses of a formula function. */
-  val clauses: mutable.ListBuffer[Rule] = mutable.ListBuffer.empty
-
-  /** Meta type, filled by the typer. */
-  var mtype: MType | Null = null
-
-  /** Static normal form (for transparent definitions: types, records of types and relations). */
-  var static: Option[MExpr] = None
-
-  /** For signature definitions (`graph : mod = {...}`): the signature itself. */
-  var sigValue: Option[MType] = None
-
-  /** Typing state for lazily elaborated symbols. */
-  var state: Sym.State = Sym.State.Pending
-
-  /** Family type parameters (object declarations) or type definition parameters. */
-  var tparams: List[TParam] = Nil
-
-  /** Type definition parameters as meta parameters, and the elaborated right-hand side. */
-  var typeDefParams: List[Sym] = Nil
-  var typeDefRhs: Option[hugin.obj.OType] = None
-  var abbrev: Boolean = false
-
-  /** The base type of a `BaseType` symbol. */
-  var base: Option[BaseType] = None
-
-  /** Labels and column count for object relations (filled by the typer). */
-  var used: Boolean = false
-
-  /** `%mode` declarations of a formula function (Section 4.8). */
-  var fnModes: List[(List[Boolean], Span)] = Nil
   override def toString: String = name
 
 object Sym:
-  enum State:
-    case Pending, InProgress, Done
   private var n = 0
   private def next(): Int = { n += 1; n }
 

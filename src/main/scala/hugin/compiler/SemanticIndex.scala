@@ -11,9 +11,11 @@ import scala.collection.mutable
 final class SemanticIndex:
   import SemanticIndex.*
 
-  /** A use of a symbol at a span. `detail` describes the symbol as seen at this use, e.g. with the type
-   *  instantiated through a module path (`roads.path : city -> city -> rel`). */
-  final case class Reference(span: Span, sym: Sym, detail: Option[String])
+  /** A reference to a symbol at a span. `detail` describes the symbol as seen at this reference, e.g. with
+   *  the type instantiated through a module path (`roads.path : city -> city -> rel`). `isUse` is false for
+   *  references that do not use the symbol, such as a `%mode` directive naming a formula function (a
+   *  definition with no uses is reported as unused, W0003). */
+  final case class Reference(span: Span, sym: Sym, detail: Option[String], isUse: Boolean)
 
   /** An occurrence of the object variable `name` with its inferred type. `item` is the span of the rule
    *  or query the variable belongs to (its scope); `name` is the internal name, unique within the item. */
@@ -36,9 +38,9 @@ final class SemanticIndex:
   private val descriptions = mutable.HashMap.empty[Sym, String]
   private val scopeExtents = mutable.ArrayBuffer.empty[(Span, Scope)]
 
-  def reference(span: Span, sym: Sym, detail: Option[String] = None): Unit =
+  def reference(span: Span, sym: Sym, detail: Option[String], isUse: Boolean): Unit =
     if span.exists && sym.kind != SymKind.BaseType then
-      refs += Reference(span, sym, detail)
+      refs += Reference(span, sym, detail, isUse)
       syms += sym
 
   def declare(sym: Sym): Unit = if sym.span.exists then syms += sym

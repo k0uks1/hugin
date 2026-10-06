@@ -67,12 +67,10 @@ final class Typer(c: Context)
       relTarget(tgt, sc, s"`%${d.kind}`").map(r => obj.Directive(k, Some(r), None)(d.span, Origin.Source))
     d.args match
       case DirArgs.Mode(tgt, ms) =>
-        // modes of formula functions are recorded on the symbol
+        // modes of formula functions were collected before the body (`collectFnModes`)
         tgt match
           case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.FormulaFn) =>
-            val f = sc.lookup(n).get
-            noteReference(tgt.span, f)
-            f.fnModes = f.fnModes :+ ((ms.map(_.input), d.span))
+            noteReference(tgt.span, sc.lookup(n).get)
             None
           case _ => mk(DirKind.ModeD(ModeSpec(ms.map(m => (m.input, m.label.map(_.name), m.span)))), tgt)
       case DirArgs.TerminatesVar(vs, tgt, args) =>
@@ -94,16 +92,17 @@ final class Typer(c: Context)
 
   /** Elaborates a meta definition or formula function in item order. */
   private[meta] def elabMetaDef(s: Sym): Option[MExpr] =
-    s.state = Sym.State.InProgress
+    val si = syms(s)
+    si.state = ElabState.InProgress
     val sc = s.owner
     val result: Option[MExpr] = s.decl.get match
       case d @ Decl(name, params, tpe, _, defn, _) =>
         tpe match
           case Keyword(Kw.Mod) =>
             val sig = elabMType(defn.get, sc, TVars.NoTVars)
-            s.sigValue = Some(sig)
-            s.mtype = ModU
-            s.static = Some(SigV(sig))
+            si.sigValue = Some(sig)
+            si.mtype = Some(ModU)
+            si.static = Some(SigV(sig))
             Some(SigV(sig))
           case _ =>
             val psc = Scope(Some(sc), s"parameters of ${name.name}")
@@ -112,9 +111,9 @@ final class Typer(c: Context)
             val ps = elabParams(params, psc, tv)
             val resT = elabMType(tpe, psc, tv)
             // implicit parameters from the declared type are bound outermost
-            val explicitT = ps.foldRight(resT)((p, acc) => Pi(p, p.mtype.nn, acc, isImplicit = false))
+            val explicitT = ps.foldRight(resT)((p, acc) => Pi(p, syms.mtype(p).get, acc, isImplicit = false))
             val fullT = coll.foldRight(explicitT)((a, acc) => Pi(a, TypeU, acc, isImplicit = true))
-            s.mtype = fullT
+            si.mtype = Some(fullT)
             if s.kind == SymKind.FormulaFn then
               if !endsInProp(resT) then
                 err("E0103", s"formula function `${name.name}` must have a type ending in `prop`", tpe.span)
@@ -140,17 +139,17 @@ final class Typer(c: Context)
         val coll = mutable.ListBuffer.empty[Sym]
         val ps = elabParams(params, psc, TVars.MetaImplicit(psc, coll))
         val (body, bt) = inferM(rhs, psc)
-        val explicitT = ps.foldRight(bt)((p, acc) => Pi(p, p.mtype.nn, acc, isImplicit = false))
-        s.mtype = coll.foldRight(explicitT)((a, acc) => Pi(a, TypeU, acc, isImplicit = true))
+        val explicitT = ps.foldRight(bt)((p, acc) => Pi(p, syms.mtype(p).get, acc, isImplicit = false))
+        si.mtype = Some(coll.foldRight(explicitT)((a, acc) => Pi(a, TypeU, acc, isImplicit = true)))
         if bt == ModU && ps.isEmpty then
           body match
-            case SigV(sig) => s.sigValue = Some(sig)
+            case SigV(sig) => si.sigValue = Some(sig)
             case _ =>
         Some(coll.foldRight(ps.foldRight(body)((p, acc) => Lam(p, acc)))((a, acc) => Lam(a, acc)))
       case _ => None
-    result.foreach(r => if isStatic(r) then s.static = Some(r))
-    if s.mtype == null then s.mtype = MType.Err
-    s.state = Sym.State.Done
+    result.foreach(r => if isStatic(r) then si.static = Some(r))
+    if si.mtype.isEmpty then si.mtype = Some(MType.Err)
+    si.state = ElabState.Done
     result
 
   private[meta] def arity(t: MType): Int = t match
@@ -176,8 +175,7 @@ final class Typer(c: Context)
         else
           val p = Sym(nm, SymKind.MetaParam, n.span, psc)
           paramTypes(p) = tp
-          p.mtype = mt
-          p.state = Sym.State.Done
+          syms.define(p, mt)
           psc.enter(p)
           Some(p)
       case Param.VarParam(v) =>
@@ -194,8 +192,7 @@ final class Typer(c: Context)
     while cur.isInstanceOf[Pi] do
       val Pi(x, d, c, _) = cur: @unchecked
       val p = Sym(s"${s.name}#${params.length + 1}", SymKind.MetaParam, s.span, csc)
-      p.mtype = d
-      p.state = Sym.State.Done
+      syms.define(p, d)
       params += p
       cur = substMT(c, Map(x -> Ref(p)))
     val alts = s.clauses.toList.flatMap { cl =>
@@ -218,9 +215,18 @@ final class Typer(c: Context)
       case many => List(obj.Formula.Disj(many)(s.span))
     params.foldRight(QuoteFormula(formula): MExpr)((p, acc) => Lam(p, acc))
 
+  /** Records the `%mode` declarations of formula functions (Section 4.8) among `items`, which the meta
+   *  evaluator checks; the function may be declared in an enclosing scope. */
+  private def collectFnModes(items: List[Item], sc: Scope): Unit =
+    for
+      case d @ Directive(_, DirArgs.Mode(Ident(n), ms)) <- items
+      f <- sc.lookup(n) if f.kind == SymKind.FormulaFn
+    do syms(f).fnModes :+= ((ms.map(_.input), d.span))
+
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
     context.unit.index.scope(span, sc)
+    collectFnModes(items, sc)
     val out = mutable.ListBuffer.empty[EItem]
     for item <- items do
       item match
@@ -269,17 +275,18 @@ final class Typer(c: Context)
     // exports
     val fields = sc.decls.values.toList.flatMap { s =>
       s.kind match
-        case SymKind.ObjType if s.tparams.isEmpty => Some(s -> TypeU)
-        case SymKind.Struct | SymKind.Rel | SymKind.Ctor if s.tparams.isEmpty && s.mtype != null => Some(s -> s.mtype.nn)
-        case SymKind.TypeDef if s.typeDefParams.isEmpty && s.typeDefRhs.isDefined => Some(s -> TypeU)
-        case SymKind.MetaDef | SymKind.FormulaFn if s.mtype != null && s.mtype != MType.Err => Some(s -> s.mtype.nn)
+        case SymKind.ObjType if syms.tparams(s).isEmpty => Some(s -> TypeU)
+        case SymKind.Struct | SymKind.Rel | SymKind.Ctor if syms.tparams(s).isEmpty && syms.mtype(s).isDefined =>
+          Some(s -> syms.mtype(s).get)
+        case SymKind.TypeDef if syms.typeDef(s).exists(_.params.isEmpty) => Some(s -> TypeU)
+        case SymKind.MetaDef | SymKind.FormulaFn if syms.mtype(s).exists(_ != MType.Err) => Some(s -> syms.mtype(s).get)
         case _ => None
     }
     (Body(out.toList, sc, span), Sig(fields, Nil))
 
   /** A one-line description of a symbol for tooling (hover). */
   def describe(s: Sym): String =
-    def tps = if s.tparams.isEmpty then "" else s.tparams.map(_.name).mkString(" ", " ", "")
+    def tps = if syms.tparams(s).isEmpty then "" else syms.tparams(s).map(_.name).mkString(" ", " ", "")
     def col(c: hugin.obj.Column) = c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))
     s.kind match
       case SymKind.BaseType => s"base type ${s.name}"
@@ -288,16 +295,17 @@ final class Typer(c: Context)
           case Some(TypeKindE.Refinement(b)) => s"type ${s.name}$tps <: ${showO(b)}"
           case _ => s"type ${s.name}$tps (open)"
       case SymKind.TypeDef =>
-        val ps = s.typeDefParams.map(_.name).mkString(" ", " ", "").stripSuffix(" ")
-        s"type ${s.name}${if s.typeDefParams.isEmpty then "" else ps} = ${s.typeDefRhs.map(showO).getOrElse("?")}"
+        val td = syms.typeDef(s)
+        val ps = td.toList.flatMap(_.params).map(p => s" ${p.name}").mkString
+        s"type ${s.name}$ps = ${td.map(d => showO(d.rhs)).getOrElse("?")}"
       case SymKind.Rel | SymKind.Ctor | SymKind.Struct =>
         val di = info(s)
         val res = di.result.map(showO).getOrElse("rel")
         s"${s.kind.describe} ${s.name}$tps : ${(di.cols.map(col) :+ res).mkString(" -> ")}"
       case _ =>
-        s.sigValue match
+        syms.sigValue(s) match
           case Some(sig) => s"signature ${s.name} = ${showMT(sig)}"
-          case None => s"${s.kind.describe} ${s.name} : ${if s.mtype == null then "?" else showMT(s.mtype.nn)}"
+          case None => s"${s.kind.describe} ${s.name} : ${syms.mtype(s).fold("?")(showMT)}"
 
 /** Phase: stage inference and meta typing of the whole program. */
 final class TyperPhase extends Phase:
@@ -307,14 +315,14 @@ final class TyperPhase extends Phase:
     val u = ctx.unit
     if u.untpd == null || u.rootScope == null then return
     val typer = Typer(ctx)
+    u.symbols = typer.syms
     // files in dependency order: the prelude and every imported file before the files importing it
     for lib <- u.libraries.values; sc <- Option(lib.scope) do
       val (body, sig) = typer.elabBody(lib.program.items, sc, lib.program.span)
       lib.body = body
       if !lib.isPrelude then
         val s = Sym(lib.name, SymKind.MetaDef, Span(lib.parsed.source, 0, 0), sc.parent.getOrElse(sc))
-        s.mtype = sig
-        s.state = Sym.State.Done
+        typer.syms.define(s, sig)
         lib.sym = s
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
@@ -324,10 +332,11 @@ final class TyperPhase extends Phase:
     for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
     for s <- u.index.symbols do u.index.describe(s, typer.describe(s))
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced
-    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !s.used do
-      val isModuleValued = s.mtype match
-        case MType.Sig(_, _) | MType.ModU | MType.Err | null => true
+    val used = u.index.references.collect { case r if r.isUse => r.sym }.toSet
+    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !used(s) do
+      val isModuleValued = typer.syms.mtype(s) match
+        case Some(MType.Sig(_, _) | MType.ModU | MType.Err) | None => true
         case _ => false
       if !isModuleValued then
         ctx.report(Diagnostic.warning("W0003", s"unused definition `${s.name}`", s.span, "never referenced"))
-  override def show(using Context): String = MetaPrinter.showBody(ctx.unit.elab.nn)
+  override def show(using Context): String = MetaPrinter(ctx.unit.symbols).showBody(ctx.unit.elab.nn)

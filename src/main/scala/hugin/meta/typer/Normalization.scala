@@ -46,7 +46,7 @@ private[meta] trait Normalization extends TyperBase:
 
   /** Static normal form of meta expressions occurring in types (Section 4.3). */
   def normM(m: MExpr): MExpr = m match
-    case Ref(s) if s.static.isDefined && (s.static.get ne m) => normM(s.static.get)
+    case Ref(s) if syms.static(s).exists(_ ne m) => normM(syms.static(s).get)
     case Proj(x, l) =>
       normM(x) match
         case Rec(fs) => fs.find(_._1 == l).map(f => normM(f._2)).getOrElse(Proj(Rec(fs), l))

@@ -2,7 +2,7 @@ package hugin.query
 
 import hugin.compiler.SemanticIndex
 import hugin.compiler.SemanticIndex.Stage
-import hugin.meta.{Scope, Sym, SymKind}
+import hugin.meta.{Scope, Sym, SymKind, TypingResults}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 
@@ -169,7 +169,7 @@ object Ide:
       // members of the module before the selector
       val qualEnd = start - 1
       val use = ix.references.filter(r => r.span.source.path == key.path && r.span.end == qualEnd).sortBy(r => size(r.span)).headOption
-      matching(use.toList.flatMap(r => members(ix, r.sym)))
+      matching(use.toList.flatMap(r => members(ix, db(Compile, key).symbols, r.sym)))
     else
       enclosingNamedPattern(source, start).flatMap(rel => labels(ix, key, rel)) match
         case Some(ls) => matching(ls)
@@ -199,9 +199,9 @@ object Ide:
       .flatMap(_.decls.values.toList.map(item(ix, _)))
 
   /** The exported members of a module-valued symbol, from its meta type. */
-  private def members(ix: SemanticIndex, s: Sym): List[CompletionItem] =
-    s.mtype match
-      case hugin.meta.MType.Sig(fields, _) => fields.map((f, _) => item(ix, f))
+  private def members(ix: SemanticIndex, syms: TypingResults, s: Sym): List[CompletionItem] =
+    syms.mtype(s) match
+      case Some(hugin.meta.MType.Sig(fields, _)) => fields.map((f, _) => item(ix, f))
       case _ => Nil
 
   /** The variables written in the item around an offset (from the period ending the previous item to the
@@ -239,12 +239,12 @@ object Ide:
     None
 
   /** The labels of the relation or constructor called `name` in the file. */
-  private def labels(ix: SemanticIndex, key: CompileKey, name: String): Option[List[CompletionItem]] =
+  private def labels(ix: SemanticIndex, key: CompileKey, name: String)(using db: Database): Option[List[CompletionItem]] =
     ix.symbols
       .find(s => s.name == name && (s.kind == SymKind.Rel || s.kind == SymKind.Ctor || s.kind == SymKind.Struct))
       .map { s =>
-        s.mtype match
-          case hugin.meta.MType.RelT(cols) => cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
+        db(Compile, key).symbols.mtype(s) match
+          case Some(hugin.meta.MType.RelT(cols)) => cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
           case _ => Nil
       }
 

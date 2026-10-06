@@ -4,6 +4,7 @@ import hugin.util.*
 import hugin.syntax.*
 import hugin.compiler.*
 import hugin.obj.BaseType
+import scala.collection.mutable
 
 /** Enters the declarations of a module body into its scope and classifies items by stage (Section 2.5).
  *  The top-level program is entered by the `namer` phase; nested bodies are entered on demand by the typer. */
@@ -21,20 +22,23 @@ object Namer:
     case Parens(i) => arrowArity(i)
     case _ => 0
 
+  /** Enters the declarations of `items` into the (new, empty) `scope`. Declarations are collected first,
+   *  then the clauses of formula functions; the symbols are created last, with all of the namer's output. */
   def enter(items: List[Item], scope: Scope)(using Context): Unit =
-    def declare(name: Ident, kind: SymKind, item: Item): Option[Sym] =
-      scope.lookupLocal(name.name) match
+    /** An accepted declaration. */
+    final case class Entry(name: Ident, kind: SymKind, item: Item, abbrev: Boolean, base: Option[BaseType])
+    val entries = mutable.LinkedHashMap.empty[String, Entry]
+    def declare(name: Ident, kind: SymKind, item: Item, abbrev: Boolean = false, base: Option[BaseType] = None): Boolean =
+      entries.get(name.name) match
         case Some(prev) =>
           ctx.report(
             Diagnostic.error("E0102", s"`${name.name}` is declared twice in this scope", name.span, "redeclared here")
-              .withLabel(prev.span, "first declared here")
+              .withLabel(prev.name.span, "first declared here")
           )
-          None
+          false
         case None =>
-          val s = Sym(name.name, kind, name.span, scope)
-          s.decl = Some(item)
-          scope.enter(s)
-          Some(s)
+          entries(name.name) = Entry(name, kind, item, abbrev, base)
+          true
 
     for item <- items do
       item match
@@ -91,20 +95,17 @@ object Namer:
           if abbrev && !kind.contains(SymKind.TypeDef) then
             ctx.error("E0103", "`%abbrev` only applies to type definitions", d.span)
           kind.foreach { kd =>
-            declare(name, kd, d).foreach { s =>
-              s.abbrev = abbrev
-              if kd == SymKind.BaseType then
-                defn.collect { case Builtin(b) => builtins(b.name) }.foreach(b => s.base = Some(b))
-                s.state = Sym.State.Done
-              if (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
-                ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
-                  .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
-            }
+            val base = if kd == SymKind.BaseType then defn.collect { case Builtin(b) => builtins(b.name) }
+            else None
+            if declare(name, kd, d, abbrev, base) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
+              ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
+                .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
           }
         case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d)
         case _ =>
 
     // clauses of formula functions
+    val clauses = mutable.HashMap.empty[String, mutable.ListBuffer[Rule]]
     for item <- items do
       item match
         case r @ Rule(_, heads, _) =>
@@ -113,12 +114,16 @@ object Namer:
             case Apply(f, _) => headName(f)
             case _ => None
           val fnHeads =
-            heads.flatMap(h => headName(h).flatMap(n => scope.lookupLocal(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
+            heads.flatMap(h => headName(h).flatMap(n => entries.get(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
           if fnHeads.nonEmpty then
             if heads.length > 1 then
               ctx.error("E0004", "a clause of a formula function must have exactly one head", r.span)
-            else fnHeads.head._2.clauses += r
+            else clauses.getOrElseUpdate(fnHeads.head._2.name.name, mutable.ListBuffer.empty) += r
         case _ =>
+
+    for e <- entries.values do
+      val cls = clauses.get(e.name.name).fold(Nil)(_.toList)
+      scope.enter(Sym(e.name.name, e.kind, e.name.span, scope, Some(e.item), cls, e.abbrev, e.base))
 
   /** Textual symbol table (output of the `namer` phase). */
   def show(scope: Scope): String =

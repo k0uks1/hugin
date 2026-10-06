@@ -40,12 +40,14 @@ private[meta] trait MetaExpressions extends TyperBase:
             case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => Head.TypeLike(s)
             case SymKind.Rel | SymKind.Ctor | SymKind.Struct => ensureDecl(s); Head.Obj(s)
             case SymKind.MetaDef | SymKind.FormulaFn | SymKind.MetaParam =>
-              if !visible(s, t.span) || s.mtype == null then Head.Bad else Head.Meta(Ref(s), s.mtype.nn)
+              if !visible(s, t.span) then Head.Bad
+              else syms.mtype(s).fold(Head.Bad)(Head.Meta(Ref(s), _))
     case VarRef(n) =>
       sc.lookup(n) match
-        case Some(s) if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && s.mtype != null && (rc == null || capturesVar(s)) =>
+        case Some(s)
+            if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && syms.mtype(s).isDefined && (rc == null || capturesVar(s)) =>
           noteUse(t.span, s)
-          Head.Meta(Ref(s), s.mtype.nn)
+          Head.Meta(Ref(s), syms.mtype(s).get)
         case _ =>
           if rc == null then
             unresolved(n, t.span, sc, "variable")
@@ -57,9 +59,9 @@ private[meta] trait MetaExpressions extends TyperBase:
     case _ => Head.Bad
 
   /** Inside object code, an uppercase meta variable is spliced/persisted only if it denotes code or a primitive. */
-  private[meta] def capturesVar(s: Sym): Boolean = s.mtype match
-    case Code(_) | Prim(_) | PropT | RelT(_) => true
-    case Pi(_, _, _, _) => true
+  private[meta] def capturesVar(s: Sym): Boolean = syms.mtype(s) match
+    case Some(Code(_) | Prim(_) | PropT | RelT(_)) => true
+    case Some(Pi(_, _, _, _)) => true
     case _ => false
 
   def inferM(t: Tree, sc: Scope): (MExpr, MType) = t match
@@ -110,7 +112,7 @@ private[meta] trait MetaExpressions extends TyperBase:
         else
           val (m, mt) = inferM(f.value, sc)
           val fsym = Sym(f.label.name, SymKind.MetaParam, f.label.span, sc)
-          fsym.mtype = mt
+          syms(fsym).mtype = Some(mt)
           Some((f.label.name, m, fsym, mt))
       }
       (Rec(fs.map(f => (f._1, f._2))), Sig(fs.map(f => (f._3, f._4)), Nil))
@@ -119,7 +121,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       Option(ctx.unit.imports.get(imp)).flatMap(ctx.unit.libraries.get).flatMap(l => Option(l.sym)) match
         case Some(s) =>
           noteUse(imp.pathSpan, s)
-          (Ref(s), s.mtype.nn)
+          (Ref(s), syms.mtype(s).get)
         case None => (MExpr.Err, MType.Err)
     case b: Builtin =>
       err("E0103", s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
@@ -134,8 +136,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       val coll = mutable.ListBuffer.empty[Sym]
       val dom = elabMType(pt, psc, TVars.MetaImplicit(psc, coll))
       val ps = Sym(paramName(p), SymKind.MetaParam, p.span, psc)
-      ps.mtype = dom
-      ps.state = Sym.State.Done
+      syms.define(ps, dom)
       psc.enter(ps)
       val (mb, cod) = inferM(body, psc)
       val lam = Lam(ps, mb)
@@ -176,9 +177,9 @@ private[meta] trait MetaExpressions extends TyperBase:
       case Sig(fields, _) =>
         fields.find(_._1.name == sel.name) match
           case Some((f, ft)) =>
-            if f.kind == SymKind.TypeDef && f.typeDefRhs.isDefined then
+            if f.kind == SymKind.TypeDef && syms.typeDef(f).isDefined then
               noteUse(sel.nameSpan, f)
-              (QuoteType(f.typeDefRhs.get), TypeU)
+              (QuoteType(syms.typeDef(f).get.rhs), TypeU)
             else
               val self = fields.map((g, _) => g -> Proj(mq, g.name)).toMap
               val tpe = substMT(ft, self)
@@ -223,7 +224,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       while cur match { case Pi(_, _, _, true) => true; case _ => false } do
         val Pi(x, _, cod, _) = cur: @unchecked
         val y = Sym(x.name, SymKind.MetaParam, x.span, x.owner)
-        y.mtype = TypeU
+        syms(y).mtype = Some(TypeU)
         solved(y) = None
         spine += Left(y)
         cur = substMT(cod, Map(x -> Ref(y)))
@@ -277,7 +278,7 @@ private[meta] trait MetaExpressions extends TyperBase:
 
   /** The first object variable (an uppercase name that is not a captured meta variable) in a tree. */
   private[meta] def objectVar(t: Tree, sc: Scope): Option[VarRef] = t match
-    case v @ VarRef(n) => if sc.lookup(n).exists(s => s.mtype != null && capturesVar(s)) then None else Some(v)
+    case v @ VarRef(n) => if sc.lookup(n).exists(capturesVar) then None else Some(v)
     case Apply(f, a) => objectVar(f, sc).orElse(objectVar(a, sc))
     case Select(q, _) => objectVar(q, sc)
     case Infix(_, l, r) => objectVar(l, sc).orElse(objectVar(r, sc))
@@ -286,14 +287,14 @@ private[meta] trait MetaExpressions extends TyperBase:
     case _ => None
 
   private[meta] def isMetaCode(t: Tree, sc: Scope): Boolean = t match
-    case VarRef(n) => sc.lookup(n).exists(s => s.mtype match { case Code(_) => true; case _ => false })
+    case VarRef(n) => sc.lookup(n).exists(s => syms.mtype(s).exists(_.isInstanceOf[Code]))
     case Parens(i) => isMetaCode(i, sc)
     case _ => false
 
   /** An object term passed where a meta argument of type ⇑τ is expected is quoted (Section 3.2, rule 4). */
   private[meta] def quoteArg(a: Tree, sc: Scope, rc: RuleCtx): MExpr =
     elabTerm(a, sc, rc) match
-      case obj.Term.Splice(m @ Ref(s)) if s.mtype match { case Code(_) => true; case _ => false } => m
+      case obj.Term.Splice(m @ Ref(s)) if syms.mtype(s).exists(_.isInstanceOf[Code]) => m
       case t => QuoteTerm(t)
 
   private[meta] def argInfer(a: Tree, sc: Scope, rc: RuleCtx | Null): (MExpr, MType) =
@@ -346,15 +347,13 @@ private[meta] trait MetaExpressions extends TyperBase:
     case (Lambda(p, None, body), Pi(x, dom, cod, false)) =>
       val psc = Scope(Some(sc), "lambda")
       val ps = Sym(paramName(p), SymKind.MetaParam, p.span, psc)
-      ps.mtype = dom
-      ps.state = Sym.State.Done
+      syms.define(ps, dom)
       psc.enter(ps)
       Lam(ps, checkM(body, substMT(cod, Map(x -> Ref(ps))), psc, rc))
     case (_, Pi(x, TypeU, cod, true)) =>
       val psc = Scope(Some(sc), "implicit parameters")
       val ps = Sym(x.name, SymKind.MetaParam, x.span, psc)
-      ps.mtype = TypeU
-      ps.state = Sym.State.Done
+      syms.define(ps, TypeU)
       psc.enter(ps)
       Lam(ps, checkM(t, substMT(cod, Map(x -> Ref(ps))), psc, rc))
     case (_, PropT) if !isMetaOfType(t, sc, PropT) =>
@@ -395,6 +394,6 @@ private[meta] trait MetaExpressions extends TyperBase:
 
   private[meta] def isMetaOfType(t: Tree, sc: Scope, mt: MType): Boolean = t match
     case Parens(i) => isMetaOfType(i, sc, mt)
-    case Ident(n) => sc.lookup(n).exists(s => (s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam) && s.mtype == mt)
-    case VarRef(n) => sc.lookup(n).exists(s => s.kind == SymKind.MetaParam && s.mtype == mt)
+    case Ident(n) => sc.lookup(n).exists(s => (s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam) && syms.mtype(s).contains(mt))
+    case VarRef(n) => sc.lookup(n).exists(s => s.kind == SymKind.MetaParam && syms.mtype(s).contains(mt))
     case _ => false

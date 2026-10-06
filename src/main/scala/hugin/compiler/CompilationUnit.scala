@@ -2,7 +2,7 @@ package hugin.compiler
 
 import hugin.util.SourceFile
 import hugin.syntax.Program
-import hugin.meta.{MExpr, Scope}
+import hugin.meta.{MExpr, Scope, TypingResults}
 import hugin.obj.*
 import scala.collection.mutable
 
@@ -22,6 +22,9 @@ final class CompilationUnit(val source: SourceFile):
   /** Scopes of module bodies (keyed by identity of the surface tree). */
   val scopes: java.util.IdentityHashMap[AnyRef, Scope] = java.util.IdentityHashMap()
   var elab: MExpr | Null = null
+
+  /** Typing results of the meta level (filled by the typer). */
+  var symbols: TypingResults = TypingResults.empty
 
   /** Object program after meta evaluation (may still contain families). */
   var generic: ObjProgram | Null = null
