@@ -86,3 +86,55 @@ class DatabaseSuite extends munit.FunSuite:
     db.remove(Text, "a")
     intercept[MissingInput](db(Length, "a"))
   }
+
+class DatabaseAccumulatorSuite extends munit.FunSuite:
+  object Text extends Input[String, String]("text")
+  object Notes extends Accumulator[String]("notes")
+
+  /** Words of a text; notes every word longer than five characters. */
+  object Words extends Query[String, Int]("words"):
+    def compute(key: String)(using db: Database): Int =
+      val ws = db.get(Text, key).split(" ").filter(_.nonEmpty)
+      ws.filter(_.length > 5).foreach(w => db.push(Notes, s"$key: long word $w"))
+      ws.length
+
+  object Sum extends Query[List[String], Int]("sum"):
+    def compute(keys: List[String])(using db: Database): Int =
+      db.push(Notes, "sum")
+      keys.map(db(Words, _)).sum
+
+  test("accumulated values are collected along dependencies, each query once") {
+    val db = Database()
+    db.set(Text, "a", "a lengthy text")
+    db.set(Text, "b", "short")
+    assertEquals(db.accumulated(Notes, Sum, List("a", "b", "a")), Vector("a: long word lengthy", "sum"))
+  }
+
+  test("accumulated values are replaced on recomputation, also when the value cuts off") {
+    val db = Database()
+    db.set(Text, "a", "a lengthy text")
+    db(Sum, List("a"))
+    db.set(Text, "a", "a shorter word") // same number of words: `sum` is not recomputed
+    db.stats.reset()
+    assertEquals(db.accumulated(Notes, Sum, List("a")), Vector("a: long word shorter", "sum"))
+    assertEquals(db.stats.computedBy("sum"), 0)
+  }
+
+  object Node extends Query[Int, String]("node"):
+    /** 0 -> 1 -> 2 -> 0 with recovery: the re-entered query sees "?" and reports it. */
+    def compute(n: Int)(using db: Database): String =
+      val next = db(Node, (n + 1) % 3)
+      s"$n($next)${if db.recoveredFromCycle then "!" else ""}"
+    override def onCycle(n: Int): Option[String] = Some("?")
+
+  object Outer extends Query[Unit, (String, Boolean)]("outer"):
+    def compute(u: Unit)(using db: Database): (String, Boolean) =
+      val v = db(Node, 0)
+      (v, db.recoveredFromCycle)
+
+  test("a cycle with a fallback is recovered; the flag stays inside the cycle") {
+    val db = Database()
+    val (v, outerRecovered) = db(Outer, ())
+    assertEquals(v, "0(1(2(?)!)!)!")
+    assert(!outerRecovered, "the query that demanded the cycle's head is not affected")
+  }
