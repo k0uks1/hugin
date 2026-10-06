@@ -2,6 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.*
+import hugin.syntax.TreeOps.{codomain, headName}
 import hugin.compiler.*
 import hugin.obj.BaseType
 import scala.collection.mutable
@@ -10,17 +11,6 @@ import scala.collection.mutable
  *  The top-level program is entered by the `namer` phase; nested bodies are entered on demand by the typer. */
 object Namer:
   private val builtins: Map[String, BaseType] = BaseType.values.map(b => b.show -> b).toMap
-
-  /** Final codomain of an arrow type, ignoring labels and parentheses. */
-  def codomain(t: Tree): Tree = t match
-    case Arrow(_, _, c) => codomain(c)
-    case Parens(i) => codomain(i)
-    case other => other
-
-  def arrowArity(t: Tree): Int = t match
-    case Arrow(_, _, c) => 1 + arrowArity(c)
-    case Parens(i) => arrowArity(i)
-    case _ => 0
 
   /** Enters the declarations of `items` into the (new, empty) `scope`. Declarations are collected first,
    *  then the clauses of formula functions; the symbols are created last, with all of the namer's output. */
@@ -109,10 +99,6 @@ object Namer:
     for item <- items do
       item match
         case r @ Rule(_, heads, _) =>
-          def headName(t: Tree): Option[Ident] = t match
-            case id: Ident => Some(id)
-            case Apply(f, _) => headName(f)
-            case _ => None
           val fnHeads =
             heads.flatMap(h => headName(h).flatMap(n => entries.get(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
           if fnHeads.nonEmpty then

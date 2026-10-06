@@ -1,6 +1,7 @@
 package hugin.meta
 package typer
 
+import hugin.syntax.TreeOps.flattenApp
 import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.Trees.*

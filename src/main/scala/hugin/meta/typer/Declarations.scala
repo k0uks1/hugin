@@ -1,6 +1,7 @@
 package hugin.meta
 package typer
 
+import hugin.syntax.TreeOps.flattenArrow
 import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.Trees.*
@@ -16,20 +17,6 @@ private[meta] trait Declarations extends TyperBase:
   import MType.*
 
   // ======================================================================= object declarations
-
-  private[meta] def flattenApp(t: Tree): (Tree, List[Tree]) =
-    def go(t: Tree, acc: List[Tree]): (Tree, List[Tree]) = t match
-      case Apply(f, a) => go(f, a :: acc)
-      case Parens(i) if acc.isEmpty => go(i, acc)
-      case other => (other, acc)
-    go(t, Nil)
-
-  private[meta] def flattenArrow(t: Tree): (List[(Option[Ident], Tree)], Tree) = t match
-    case Arrow(l, d, c) =>
-      val (ds, cod) = flattenArrow(c)
-      ((l, d) :: ds, cod)
-    case Parens(i @ Arrow(_, _, _)) => flattenArrow(i)
-    case other => (Nil, other)
 
   def info(s: Sym): DeclInfo =
     ensureDecl(s)
