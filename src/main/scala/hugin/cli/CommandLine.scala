@@ -13,6 +13,9 @@ enum Command:
   /** A position query (`hover`, `definition`, `references`) or a file query (`symbols`, `diagnostics`);
    *  positions are 1-based `line:column`. */
   case Query(file: String, request: String, position: Option[(Int, Int)])
+
+  /** The language server, speaking LSP over stdin and stdout. */
+  case Lsp
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -85,6 +88,9 @@ object CommandLine:
                 case _ => o
             )
         ),
+      cmd("lsp")
+        .text("run the language server (LSP over stdin/stdout) for editors")
+        .action((_, o) => o.copy(command = Command.Lsp)),
       note(""),
       opt[String]("facts")
         .valueName("<file>")

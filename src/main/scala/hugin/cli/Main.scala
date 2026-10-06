@@ -3,6 +3,7 @@ package hugin.cli
 import hugin.util.*
 import hugin.compiler.*
 import hugin.query.*
+import hugin.lsp.HuginLanguageServer
 import hugin.runtime.Evaluation
 import java.nio.file.{Files, Path}
 
@@ -56,6 +57,11 @@ object Main:
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
+    case Command.Lsp =>
+      // the protocol owns stdout; anything else printed there would corrupt it
+      val protocol = java.io.FileOutputStream(java.io.FileDescriptor.out)
+      System.setOut(System.err)
+      HuginLanguageServer.serve(System.in, protocol)
 
   /** Loads a file into the database; false if it does not exist. */
   private def load(db: Database, file: String): Boolean =
@@ -123,6 +129,6 @@ object Main:
       case "definition" => out(Ide.definition(key, offset.get).map(loc).getOrElse("(no definition)"))
       case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
       case "symbols" =>
-        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
+        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
       case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
     ExitCode.Ok
