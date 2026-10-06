@@ -37,8 +37,67 @@ private[meta] trait TyperBase:
 
   /** The typing results of this compilation (see [[SymTable]]). */
   val syms: SymTable = SymTable()
-  private var freshN = 0
-  private[meta] def fresh(prefix: String): String = { freshN += 1; s"$prefix$freshN" }
+
+  // ======================================================================= items and keys
+
+  /** Per-item counters, so that fresh names and local scope keys depend only on the item itself, not on
+   *  the order in which the typer elaborates the items of a file. */
+  private final class ItemState(val key: ItemKey):
+    var fresh = 0
+    var locals = 0
+
+  private val items = mutable.HashMap.empty[ItemKey, ItemState]
+  private var current: ItemState | Null = null
+
+  /** Runs `body` as part of the elaboration of the item `key` (items may be elaborated lazily, from
+   *  within another item; an item's counters continue where its previous elaboration left them). */
+  private[meta] def inItem[T](key: ItemKey)(body: => T): T =
+    val saved = current
+    current = items.getOrElseUpdate(key, ItemState(key))
+    try body
+    finally current = saved
+
+  /** Runs `body` as part of the elaboration of the item declaring `s`. */
+  private[meta] def inItemOf[T](s: Sym)(body: => T): T = s.item match
+    case Some(k) => inItem(k)(body)
+    case None => body
+
+  private def item: ItemState =
+    val c = current
+    if c == null then throw IllegalStateException("no item is being elaborated")
+    c
+
+  /** A fresh name, unique within the item being elaborated. */
+  private[meta] def fresh(prefix: String): String =
+    val i = item
+    i.fresh += 1
+    s"$prefix${i.fresh}"
+
+  /** A fresh local scope key of the item being elaborated. */
+  private[meta] def localKey(): ScopeKey =
+    val i = item
+    i.locals += 1
+    ScopeKey.Local(i.key, i.locals)
+
+  /** A fresh key for the scope of a module body in the item being elaborated. */
+  private[meta] def moduleKey(): ScopeKey =
+    val i = item
+    i.locals += 1
+    ScopeKey.Module(i.key, i.locals)
+
+  /** A new scope with a fresh local key. */
+  private[meta] def localScope(parent: Option[Scope], description: String): Scope = Scope(parent, description, localKey())
+
+  /** A new meta parameter bound in `owner`: its key is `SymKey(owner.key, name)` unless a binder of that
+   *  name was already created in `owner`; it then gets a key in a fresh local scope. */
+  private[meta] def newParam(name: String, span: Span, owner: Scope): Sym =
+    val sc = if owner.claim(name) then owner.key else localKey()
+    Sym(name, SymKind.MetaParam, span, owner, SymKey(sc, name), context.unit.symKeys)
+
+  /** A new meta parameter with the key `SymKey(scope, name)`, for symbols that `owner` does not bind
+   *  (fields of record values, instances of implicit parameters): `scope` is a fresh local key. */
+  private[meta] def newParamIn(name: String, span: Span, owner: Scope, scope: ScopeKey): Sym =
+    Sym(name, SymKind.MetaParam, span, owner, SymKey(scope, name), context.unit.symKeys)
 
   private[meta] def err(code: String, msg: String, span: Span, label: String = ""): Unit =
     ctx.error(code, msg, span, label)

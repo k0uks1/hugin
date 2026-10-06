@@ -46,7 +46,7 @@ private[meta] trait TypeElaboration extends TyperBase:
                   imp(n) = p
                   OType.Param(p)
                 case TVars.MetaImplicit(isc, coll) =>
-                  val p = Sym(n, SymKind.MetaParam, t.span, isc)
+                  val p = newParam(n, t.span, isc)
                   syms.define(p, TypeU)
                   isc.enter(p)
                   coll += p
@@ -151,20 +151,20 @@ private[meta] trait TypeElaboration extends TyperBase:
           RelT(doms.map((l, d) => Column(l.map(_.name), elabOType(d, sc, tv))))
         case Keyword(Kw.Prop) if doms.forall((_, d) => isObjectTypeTree(d, sc)) =>
           // a formula function type: ⇑A1 → ··· → ⇑An → ⇑prop (Section 4.8)
-          val psc = Scope(Some(sc), "formula function type")
+          val psc = localScope(Some(sc), "formula function type")
           doms.foldRight(PropT: MType) { case ((l, d), acc) =>
-            val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
+            val x = newParam(l.map(_.name).getOrElse(fresh("_")), l.map(_.span).getOrElse(d.span), psc)
             val dt = Code(elabOType(d, sc, tv))
             syms.define(x, dt)
             Pi(x, dt, acc, isImplicit = false)
           }
         case _ =>
-          val psc = Scope(Some(sc), "function type")
+          val psc = localScope(Some(sc), "function type")
           def go(ds: List[(Option[Ident], Tree)]): MType = ds match
             case Nil => elabMType(cod, psc, tv)
             case (l, d) :: rest =>
               val dt = elabMType(d, psc, tv)
-              val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
+              val x = newParam(l.map(_.name).getOrElse(fresh("_")), l.map(_.span).getOrElse(d.span), psc)
               syms.define(x, dt)
               l.foreach(_ => psc.enter(x))
               Pi(x, dt, go(rest), isImplicit = false)
@@ -197,7 +197,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case _ => None
 
   private[meta] def elabSig(rt: RecordType, sc: Scope, tv: TVars): MType =
-    val ssc = Scope(Some(sc), "signature")
+    val ssc = localScope(Some(sc), "signature")
     val fields = mutable.ListBuffer.empty[(Sym, MType)]
     val reqs = mutable.ListBuffer.empty[Req]
     for e <- rt.entries do
@@ -207,7 +207,7 @@ private[meta] trait TypeElaboration extends TyperBase:
             err("E0307", s"duplicate field `${l.name}` in signature", l.span)
           else
             val fty = constructorField(ft, ssc, tv).getOrElse(elabMType(ft, ssc, tv))
-            val f = Sym(l.name, SymKind.MetaParam, l.span, ssc)
+            val f = newParam(l.name, l.span, ssc)
             syms.define(f, fty)
             ssc.enter(f)
             fields += ((f, fty))
@@ -248,7 +248,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case (Pi(x, d1, c1, i1), Pi(y, d2, c2, i2)) if i1 == i2 =>
       subsumes(d2, d1).map("parameter: " + _).orElse(subsumes(substMT(c1, Map(x -> Ref(y))), c2))
     case (Sig(f1, _), Sig(f2, _)) =>
-      val self = Sym("self", SymKind.MetaParam, Span.NoSpan, Scope(None, "signature"))
+      val self = newParam("self", Span.NoSpan, localScope(None, "signature"))
       val s1 = f1.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
       val s2 = f2.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
       f2.iterator.map { (g, gt) =>

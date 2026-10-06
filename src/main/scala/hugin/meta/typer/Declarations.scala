@@ -39,7 +39,9 @@ private[meta] trait Declarations extends TyperBase:
 
   /** Elaborates an object declaration (lazily: object declarations may be used before they occur). */
   def ensureDecl(s: Sym): Unit =
-    if syms.state(s) != ElabState.Pending || !s.kind.isObjectDecl then return
+    if syms.state(s) == ElabState.Pending && s.kind.isObjectDecl then inItemOf(s)(elabDecl(s))
+
+  private def elabDecl(s: Sym): Unit =
     syms(s).state = ElabState.InProgress
     val d = s.decl.get.asInstanceOf[Decl]
     val sc = s.owner
@@ -125,47 +127,49 @@ private[meta] trait Declarations extends TyperBase:
           .withLabel(s.span, "type definition declared here")
           .withNote("type definitions are unfolded and must not form a cycle; declare an open type or struct instead"))
         false
-      case ElabState.Pending =>
-        syms(s).state = ElabState.InProgress
-        val d = s.decl.get.asInstanceOf[Decl]
-        val psc = Scope(Some(s.owner), s"parameters of ${s.name}")
-        val ps = d.params.flatMap {
-          case Param.VarParam(v) =>
-            val p = Sym(v.name, SymKind.MetaParam, v.span, psc)
-            syms.define(p, TypeU)
-            psc.enter(p)
-            Some(p)
-          case p => err("E0004", "type definitions take only type parameters", p.span); None
-        }
-        val rhs = elabOType(d.defn.get, psc, TVars.NoTVars)
-        // strictness: each parameter occurs on the right-hand side
-        val occurring = mutable.HashSet.empty[Sym]
-        def collect(m: MExpr): Unit = m match
-          case Ref(x) => occurring += x
-          case Proj(x, _) => collect(x)
-          case TApp(f, as) => collect(f); as.foreach(collectO)
-          case FactTypeOf(x) => collect(x)
-          case QuoteType(t) => collectO(t)
-          case _ =>
-        def collectO(t: OType): Unit = OType.exists(t) {
-          case OType.Splice(m) => collect(m); false
-          case _ => false
-        }
-        collectO(rhs)
-        val missing = ps.filterNot(occurring)
-        if missing.nonEmpty && !s.abbrev then
-          ctx.report(Diagnostic.error(
-            "E0106",
-            s"type definition `${s.name}` is not strict",
-            d.span,
-            s"parameter${if missing.length > 1 then "s" else ""} ${missing.map(p => s"`${p.name}`").mkString(", ")} not used"
-          )
-            .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
-            .withSuggestion("mark it `%abbrev`", Span(d.span.source, d.span.start, d.span.start), "%abbrev "))
-        syms(s).typeDef = Some(TypeDefInfo(ps, rhs))
-        syms(s).mtype = Some(TypeU)
-        syms(s).state = ElabState.Done
-        true
+      case ElabState.Pending => inItemOf(s)(elabTypeDef(s))
+
+  private def elabTypeDef(s: Sym): Boolean =
+    syms(s).state = ElabState.InProgress
+    val d = s.decl.get.asInstanceOf[Decl]
+    val psc = Scope(Some(s.owner), s"parameters of ${s.name}", ScopeKey.Params(s.key))
+    val ps = d.params.flatMap {
+      case Param.VarParam(v) =>
+        val p = newParam(v.name, v.span, psc)
+        syms.define(p, TypeU)
+        psc.enter(p)
+        Some(p)
+      case p => err("E0004", "type definitions take only type parameters", p.span); None
+    }
+    val rhs = elabOType(d.defn.get, psc, TVars.NoTVars)
+    // strictness: each parameter occurs on the right-hand side
+    val occurring = mutable.HashSet.empty[Sym]
+    def collect(m: MExpr): Unit = m match
+      case Ref(x) => occurring += x
+      case Proj(x, _) => collect(x)
+      case TApp(f, as) => collect(f); as.foreach(collectO)
+      case FactTypeOf(x) => collect(x)
+      case QuoteType(t) => collectO(t)
+      case _ =>
+    def collectO(t: OType): Unit = OType.exists(t) {
+      case OType.Splice(m) => collect(m); false
+      case _ => false
+    }
+    collectO(rhs)
+    val missing = ps.filterNot(occurring)
+    if missing.nonEmpty && !s.abbrev then
+      ctx.report(Diagnostic.error(
+        "E0106",
+        s"type definition `${s.name}` is not strict",
+        d.span,
+        s"parameter${if missing.length > 1 then "s" else ""} ${missing.map(p => s"`${p.name}`").mkString(", ")} not used"
+      )
+        .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
+        .withSuggestion("mark it `%abbrev`", Span(d.span.source, d.span.start, d.span.start), "%abbrev "))
+    syms(s).typeDef = Some(TypeDefInfo(ps, rhs))
+    syms(s).mtype = Some(TypeU)
+    syms(s).state = ElabState.Done
+    true
 
   private[meta] def unfoldTypeDef(s: Sym, args: List[OType], span: Span): OType =
     if !ensureTypeDef(s, span) then return OType.Err
