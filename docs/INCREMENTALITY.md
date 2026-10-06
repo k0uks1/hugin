@@ -46,8 +46,9 @@ program under edits) is the safety net for all of them.
 0. **Safety net** (this PR): `IncrementalSuite`, golden tests for every diagnostic code, a test that the
    `hugin explain` catalog equals the emitted codes, phase timings in `--stats`.
 1. **Dead state and settings split.** Delete `Sym.order`, `Scope.processed`; `Sym.kind`/`decl` immutable;
-   split `Settings` into semantic `CompileOptions` (prelude, lint) and rendering/reporting options
-   (colour, warnings, print-after, stop-after, explain-termination), so only the former key `Compile`.
+   split the options into what the compiler produces (`Settings`: prelude, lint, and print-after,
+   stop-after and explain-termination, whose output is part of a compilation) and how diagnostics are
+   shown (`Display`: colour, warnings), so only the former key `Compile`.
 2. **Database: accumulated diagnostics and cycle recovery.** Diagnostics as accumulated outputs of a
    query (replaced on recomputation even when the value cuts off); `Query.onCycle` fallbacks for object
    declarations and type definitions (E0104).

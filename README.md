@@ -209,25 +209,32 @@ Source layout:
 ```
 src/main/resources/hugin/stdlib/prelude.hgn   the prelude
 src/main/scala/hugin/
-  util/            sources and spans, rustc-style diagnostics, error-code catalog, graph algorithms (JGraphT)
-  syntax/          lexer, parser (ParserPhase), surface trees, printer
-  compiler/        Settings, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase plan,
-                   libraries (loading of the prelude and imported files)
-  meta/            symbols and scopes, namer, elaborated trees and their printer, evaluator, monomorphization
+  util/            sources, slices and spans, rustc-style diagnostics, error-code catalog, graph algorithms (JGraphT)
+  syntax/          lexer, parser (ParserPhase), surface trees, printer, generic tree operations (TreeOps),
+                   item slices of a file (Slices)
+  compiler/        Settings and Display, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase
+                   plan, libraries (the prelude and imported files: Libraries, ImportsPhase), the per-item
+                   elaboration of a program (ProgramElab), the semantic index for tooling (SemanticIndex)
+  meta/            symbols and scopes (Symbols), the typer's symbol table (SymTable), stable keys of items,
+                   scopes and symbols (Keys), namer, elaborated trees and their printer, evaluator (MetaEval),
+                   monomorphization
   meta/typer/      the typer, split into traits mixed into one class:
                      TyperBase (state, names), Normalization (substitution, static normal forms),
                      Declarations (object declarations, type definitions), TypeElaboration (object and
                      meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
                      application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
-  obj/             object-level AST: types and symbols, terms and formulas, primitives, printer
+  obj/             object-level AST: types and symbols, terms and formulas, primitives, probes, printer
   obj/typing/      type operations, directives, constant folding, object typer, moding
   obj/transform/   records, disjunctions, demand transformation, derivations (Section 7)
-  obj/check/       dependency graph, stratification, completeness, termination
+  obj/check/       dependency graph, stratification, completeness, termination (with interval reasoning)
   ir/              the core IR (Section 9.3), its printer, and lowering from core rules
   runtime/         interning store, semi-naive engine, loading of input facts, evaluation of a compiled program
-  query/           the query database, compiler queries, position queries for tooling (Ide)
-  lsp/             the language server (lsp4j) on top of the position queries
-  repl/            the interactive session (Session, testable without a terminal) and its JLine front end
+  query/           the query database (Database), the compiler's queries (CompilerQueries), diagnostics by
+                   file (FileDiagnostics), position queries for tooling (Ide)
+  lsp/             the language server (lsp4j): server and document state, request handlers (Features),
+                   position conversion (Positions), file URIs (Uris)
+  repl/            the interactive session (Session, testable without a terminal; its parts are Chunks),
+                   the reading of inputs (Input) and the JLine front end (Repl)
   cli/             command-line parsing and the entry point (a client of the query database)
 ```
 
@@ -239,10 +246,12 @@ src/main/scala/hugin/
   system and salsa. Inputs are set from outside, and queries are memoised together with the inputs and
   queries they read. A later revision revalidates memoised results "red-green": a result is reused if
   its dependencies did not change. A recomputed result equal to the previous one does not invalidate
-  its dependents (early cut-off). Cycles are reported with their path. There is no maintained JVM
-  library for this; the engine is about 150 lines and covered by `DatabaseSuite`.
+  its dependents (early cut-off). Cycles are reported with their path; diagnostics are accumulated
+  outputs of queries; memos that no recent demand reaches are evicted. There is no maintained JVM
+  library for this; the engine is about 300 lines and covered by `DatabaseSuite`.
 - Compiler queries: `SourceText` (input, by path) → `Parse` → `ParseProgram` → `Compile` → `Evaluate`
-  (program and facts files). The CLI is a client of the database. Editing a facts file re-evaluates
+  (program and facts files); in between, libraries and the program's items are queries of their own
+  (see below). The CLI is a client of the database. Editing a facts file re-evaluates
   without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
   their items form one module body, and each item keeps its file for diagnostics and for resolving its
   `%import`s.
@@ -344,11 +353,11 @@ cd editors/vscode && npm install
 code --extensionDevelopmentPath=$PWD ../..   # or: npx vsce package --skip-license, then install the .vsix
 ```
 
-CI packages the extension on every push (job `vscode`); the `.vsix` is the workflow run's artifact
-`hugin-vscode` (`code --install-extension hugin.vsix`).
-
 and set `hugin.server.path` to `<checkout>/bin/hugin` unless `hugin` is on the `PATH`. Any other LSP
 client works the same way: run `hugin lsp` for files with the extensions `.hgn` and `.facts`.
+
+CI packages the extension on every push (job `vscode`); the `.vsix` is the workflow run's artifact
+`hugin-vscode` (`code --install-extension hugin.vsix`).
 
 ## Diagnostics
 
@@ -382,8 +391,10 @@ or `hugin explain <code>`.
 Three kinds of tests, all run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
-  (precedence, braces, `%infix`, recovery), shared primitive semantics, type operations (subtyping,
-  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics,
+  (precedence, braces, `%infix`, recovery), tree operations, stable keys, meta evaluation,
+  monomorphization, shared primitive semantics, type operations (subtyping, members, meets), moding,
+  stratification, completeness, interval reasoning, lowering, the command-line parser and exit codes,
+  rendering of diagnostics,
   differential tests of the engine (random graphs against a naive fixpoint, budget monotonicity,
   interning, aggregates), the query layer, and the language server (position conversion, the
   request handlers on in-memory documents, and one session over piped streams).
