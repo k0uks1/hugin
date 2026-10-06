@@ -91,13 +91,22 @@ Source layout:
 
 ```
 src/main/scala/hugin/
-  util/      Source, Span, rustc-style diagnostics, error-code catalog
-  syntax/    lexer, parser, surface trees, printer
-  core/      Context, CompilationUnit, Phase / MiniPhase / MegaPhase
-  meta/      symbols, namer, typer (stage inference + meta typing), elaborated trees, evaluator, monomorphization
-  obj/       object types and trees, type operations, directives, object typer, moding, elaboration, checks
-  runtime/   core IR, lowering, engine, input facts
-  driver/    phase plan, runner, CLI glue (Main.scala)
+  util/            sources and spans, rustc-style diagnostics, error-code catalog, Tarjan's SCCs
+  syntax/          lexer, parser (+ ParserPhase), surface trees, printer
+  compiler/        Settings, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase plan
+  meta/            symbols and scopes, namer, elaborated trees, evaluator, monomorphization
+  meta/typer/      the typer, split into traits mixed into one class:
+                     TyperBase (state, names), Normalization (substitution, static normal forms),
+                     Declarations (object declarations, type definitions), TypeElaboration (object and
+                     meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
+                     application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
+  obj/             object-level AST: types and symbols, terms and formulas, primitives, printer
+  obj/typing/      type operations, directives, constant folding, object typer, moding
+  obj/transform/   records, disjunctions, demand transformation, derivations (Section 7)
+  obj/check/       dependency graph, stratification, completeness, termination
+  ir/              the core IR (Section 9.3), its printer, and lowering from core rules
+  runtime/         interning store, semi-naive engine, loading of input facts
+  cli/             command-line parsing, the `run` driver, the entry point
 ```
 
 ## Diagnostics
@@ -129,13 +138,19 @@ or `hugin explain <code>`.
 
 ## Tests
 
-`tests/` holds golden tests in the style of dotty's test suite:
+Two kinds of tests, both run by `sbt test`:
 
-- `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
-  `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--budget 1`).
-- `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
-  failure may come from loading the input).
-- `tests/pos/X.hgn` — must compile without errors.
+- **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
+  (precedence, braces, `%infix`, recovery), shared primitive semantics, type operations (subtyping,
+  members, meets), moding, the command-line parser and exit codes, rendering of diagnostics, and
+  differential tests of the engine (random graphs against a naive fixpoint, budget monotonicity,
+  interning, aggregates).
+- **Golden tests** in `tests/`, in the style of dotty's test suite:
+  - `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
+    `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--budget 1`).
+  - `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
+    failure may come from loading the input).
+  - `tests/pos/X.hgn` — must compile without errors.
 
 The conformance suite of Appendix A.2 is `tests/run/a01..a12` and `tests/neg/a05..a11`; the examples of
 Section 13 are `examples/*.hgn` (also run as `tests/run/ex_*`). To (re)generate check files, delete them and
@@ -163,3 +178,5 @@ scripts/smoke.sh                # CLI smoke test
 
 `docs/NOTES.md` records implementation decisions, deviations from the definition, and observations
 about the draft (including a gap in the ordering argument of Proposition 8.8 found while implementing it).
+Open theory and soundness questions are collected in issue #1; planned work (termination checker,
+REPL, query-able compiler, editor support, libraries, fuzzing) is tracked as GitHub issues.

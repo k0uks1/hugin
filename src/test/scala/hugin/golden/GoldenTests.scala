@@ -1,4 +1,4 @@
-package hugin
+package hugin.golden
 
 import hugin.cli.Main
 

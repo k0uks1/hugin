@@ -1,0 +1,64 @@
+package hugin.runtime
+
+import hugin.TestSupport
+import scala.util.Random
+
+/** Differential tests of the semi-naive engine against reference computations in Scala. */
+class EngineSuite extends munit.FunSuite:
+  private val tc = """
+    edge : int -> int -> rel.
+    %input edge.
+    path : int -> int -> rel.
+    path X Y :- edge X Y.
+    path X Z :- path X Y, path Y Z.
+    %output path.
+  """
+
+  private def reference(edges: Set[(Int, Int)]): Set[(Int, Int)] =
+    var closure = edges
+    var changed = true
+    while changed do
+      val next = closure ++ (for (a, b) <- closure; (c, d) <- closure if b == c yield (a, d))
+      changed = next.size != closure.size
+      closure = next
+    closure
+
+  test("transitive closure (non-linear recursion) agrees with a naive fixpoint on random graphs") {
+    val rnd = Random(42)
+    for trial <- 1 to 15 do
+      val n = 2 + rnd.nextInt(12)
+      val edges = Set.fill(rnd.nextInt(3 * n))((rnd.nextInt(n), rnd.nextInt(n)))
+      val facts = edges.map((a, b) => s"edge $a $b.").mkString("\n")
+      val expected = reference(edges).map((a, b) => s"path $a $b.").toList.sorted
+      assertEquals(TestSupport.run(tc, facts), Right(expected), s"trial $trial with edges $edges")
+  }
+
+  test("interning: equal nested facts have one identity (A.2 (2))") {
+    val out = TestSupport.run("""
+      w : type. mk : int -> w.
+      s : int -> int -> rel. s 1 2. s 1 3.
+      g : w -> rel. g (mk X) :- s X _.
+      n : int -> rel. n N :- N = count { M | M = mk 1 }.
+      %output n.
+    """)
+    assertEquals(out, Right(List("n 1.")))
+  }
+
+  test("budgets truncate partial components to subsets (Theorem 9.4)") {
+    val prog = "nat : int -> rel. %partial nat. nat 0. nat M :- nat N, M = N + 1. %output nat."
+    val results = (0 to 4).map(b => TestSupport.run(prog, budget = Some(b)).toOption.get.filterNot(_.startsWith("(*")).toSet)
+    for i <- 0 until 4 do assert(results(i).subsetOf(results(i + 1)))
+    assertEquals(results(2), Set("nat 0.", "nat 1.", "nat 2."))
+  }
+
+  test("aggregates count distinct bindings and sum of nothing is 0 (Definition 8.4)") {
+    val out = TestSupport.run("""
+      p : int -> int -> rel. p 1 5. p 2 5. p 3 7.
+      c : int -> rel. c N :- N = count { X | p X _ }.
+      s : int -> rel. s N :- N = sum { V | p _ V }.
+      z : int -> rel. z N :- N = sum { V | p 9 V }.
+      %output c. %output s. %output z.
+    """)
+    // the wildcard is a variable of the aggregate: three distinct bindings (1,5) (2,5) (3,7)
+    assertEquals(out, Right(List("c 3.", "s 17.", "z 0.")))
+  }
