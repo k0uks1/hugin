@@ -167,6 +167,34 @@ relation of the component, or the relation its demand relations belong to, may c
 `%terminates (l, m) c`. `--explain-termination` prints, for every recursive component, which case
 applies and the justification of every recursive step.
 
+**Constructive rules (Definition 10.1, refined; issue #1, F3).** Clause (a) of Definition 10.1 counts
+every constructor term of a head that is not matched in the body (issue #1, B9: the arguments themselves
+included). The implementation counts such a term only if it can take infinitely many values over the
+evaluation of the component: it is *not* constructive when it is ground (`d X red :- d X _`, `e (mk 1)`)
+or when each of its variables occurs in a positive body atom of a *plain* relation outside the component
+(`e X (mk Y) :- e X _, b Y`). Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
+head or computing a head variable) are unchanged.
+
+*Soundness.* The argument for components without constructive rules was: their facts consist of terms
+that exist before the component is evaluated, a finite set, so the fixed point is finite. With the
+refinement, the terms a rule can construct are the instances of its non-constructive head terms. A
+ground term has one instance. A term whose variables occur in positive atoms of plain relations outside
+the component has one instance per valuation of those variables, and each such variable is a subterm of a
+fact of such a relation (or the fact itself, for `as` variables). Those relations belong to earlier
+components, which are complete when this component is evaluated (Definition 8.7) and finite by induction
+over the evaluation order (recursive components are checked here or `%partial` with a budget; others are
+finite in their inputs). Plain relations only get facts from their own rules, so they do not grow later.
+So every rule constructs terms from a fixed finite set, and the component's facts consist of the existing
+terms plus that set: still finite. Constructor and struct relations do not count as finite sources even
+outside the component, because a nested head constructor can create their facts after their component
+(issue #1, A1), including the rule itself: `d (s (s N)) :- s N` makes `s (s N)` and then matches it
+(`tests/neg/t_termination_ctor_source.hgn`); the anchor condition below still counts every relation
+outside the component as finite, constructor relations included, which deserves the same caution. Variables bound only by equations, arithmetic or aggregates
+keep the term constructive (conservative). In the measured cases the conditions "rules of unmeasured
+relations are not constructive" use the same notion; there "only copy existing terms" becomes "construct
+terms from a fixed finite set", which the arguments below need in the same way (finitely many facts per
+round, finitely many terms overall). `tests/run/t_termination_finite_ctors.hgn` shows the accepted cases.
+
 **Measures.** A measure is a tuple of argument positions; all measured relations of a component have
 tuples of the same length, and slot `i` is of the same kind for all of them: *integer* slots (`int` or a
 refinement of `int`) are ordered by `<`, *structural* slots (any other type) by the proper-subterm
@@ -212,7 +240,8 @@ the chain in which slots `< j` are constant starts at a start fact or at a step 
 slot, whose slot `j` lies in a finite set by condition 3, and then increases only to values `≤ B`.
 Hence all measures on chains come from one finite set and chains are no longer than its size; the
 component reaches its fixed point after boundedly many rounds, each of which derives finitely many facts.
-Unmeasured relations (condition 1) only copy existing terms. The previous check (one slot, syntactic
+Unmeasured relations (condition 1) only copy existing terms or construct terms from a fixed finite set.
+The previous check (one slot, syntactic
 `s < b`, `w = u + l`, structural anchor on the head) is the special case with `n = 1`.
 
 **Demand-driven components** (a measured relation has modes; all measured relations must have modes,
@@ -242,7 +271,7 @@ guarded by `p` whose atoms of the component are measured (and guarded by demands
 children and finite relations), demand relations, or relations that depend only on demands (condition 2);
 the terms they construct come from finitely many valuations. König's lemma (finitely many seeds, finite
 branching, no infinite chain) bounds the set of demands, and so the component. Unmeasured relations only
-copy existing terms (condition 1).
+copy existing terms or construct terms from a fixed finite set (condition 1).
 
 **Diagnostics.** E0603 names the constructive rule, the cycle through the component, and a measure that
 would be accepted (single positions per relation, or a lexicographic pair for a single relation, found by

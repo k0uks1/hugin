@@ -112,14 +112,18 @@ object ProgramGen:
       val derived = mutable.ArrayBuffer.empty[Rel]
       var demand = Option.empty[Rel]
       for i <- 0 until between(1, 4) do
-        // a recursive relation has only columns of base types: its heads must not construct facts, not
-        // even ground ones like `red` (Definition 10.1; the termination check rejects growing components
-        // without `%terminates`)
+        // the heads of a recursive relation construct only terms that take finitely many values: ground
+        // terms (`none`, `mk 1`) or terms over variables bound by atoms of earlier relations (`some V`);
+        // others are constructive (Definition 10.1 as refined in docs/NOTES.md) and the termination check
+        // rejects the component without `%terminates`
         val recursive = chance(0.4)
         val lower = base ++ derived
         // a column of a read type needs a relation to read its values from
-        def colTy(): Ty = Iterator.continually(ty()).find(t => !read(t) || lower.exists(_.cols.contains(t))).get
-        val r = Rel(s"d$i", Vector.fill(between(1, 3))(if recursive then pick(Seq(IntT, IntT, StrT)) else colTy()))
+        def colTy(types: => Ty): Ty = Iterator.continually(types).find(t => !read(t) || lower.exists(_.cols.contains(t))).get
+        val r = Rel(
+          s"d$i",
+          Vector.fill(between(1, 3))(if recursive then colTy(pick(Seq(IntT, IntT, IntT, StrT, ColorT, OptT, BoxT))) else colTy(ty()))
+        )
         declare(r, named = true)
         val calls =
           for k <- 0 until between(1, 3) yield
@@ -140,7 +144,8 @@ object ProgramGen:
 
     /** One rule of `head`; positive atoms over `lower` (and `head` if `recursive`), negation and aggregates
      *  over `lower` only. In the rules of a relation with recursive rules (`inRecursion`), heads compute
-     *  nothing (the termination check rejects such growing components without `%terminates`). */
+     *  nothing and construct terms only over variables bound by atoms of `lower` (the termination check
+     *  rejects growing components without `%terminates`). */
     private final class RuleBuilder(head: Rel, lower: Vector[Rel], inRecursion: Boolean, recursive: Boolean):
       private val bound = mutable.LinkedHashMap.empty[String, Ty]
       private var fresh = 0
@@ -276,7 +281,8 @@ object ProgramGen:
           body += atom(r, r.cols.zipWithIndex.map((u, c) => if c == at then bind(u) else arg(u)))
         val args = head.cols.map { t =>
           val old = boundOf(t)
-          val ints = boundOf(IntT)
+          // a constructor term over a variable bound only through the recursion (or computed) can grow
+          val ints = boundOf(IntT).filter(v => !inRecursion || lowerVars(v))
           if t == OptT && ints.nonEmpty && chance(0.3) then s"(some ${pick(ints)})"
           else if t == BoxT && ints.nonEmpty && chance(0.3) then s"(mk ${pick(ints)})"
           else if old.nonEmpty && (t == ColorT || t == ListT || chance(0.9)) then pick(old)

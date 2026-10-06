@@ -393,8 +393,6 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
 - A comparison with a constructor term that has no value — `X <> red` while no fact constructs `red` —
   fails. Demand facts construct their arguments, so after `%mode d +a` the query `?- d red.` makes `red`
   exist and the same comparison succeeds: the demand transformation can change answers.
-- The termination check counts ground constructor terms in heads (`d X red :- d X _.`) as constructive
-  (Definition 10.1), so such recursive components need `%terminates` although they are finite.
 - The type argument of `nil`/`cons` is not inferred from the other side of a comparison (`L <> nil` is
   E0206), and the suggested ascription `(nil : list int)` is rejected (E0405).
 
