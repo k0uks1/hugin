@@ -177,9 +177,9 @@ private[meta] trait MetaExpressions extends TyperBase:
       case Sig(fields, _) =>
         fields.find(_._1.name == sel.name) match
           case Some((f, ft)) =>
-            if f.kind == SymKind.TypeDef && f.typeDefRhs.isDefined then
+            if f.kind == SymKind.TypeDef && syms.typeDef(f).isDefined then
               noteUse(sel.nameSpan, f)
-              (QuoteType(f.typeDefRhs.get), TypeU)
+              (QuoteType(syms.typeDef(f).get.rhs), TypeU)
             else
               val self = fields.map((g, _) => g -> Proj(mq, g.name)).toMap
               val tpe = substMT(ft, self)

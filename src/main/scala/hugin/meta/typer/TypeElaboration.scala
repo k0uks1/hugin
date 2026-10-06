@@ -70,15 +70,16 @@ private[meta] trait TypeElaboration extends TyperBase:
                 case SymKind.ObjType | SymKind.Struct | SymKind.Rel | SymKind.Ctor =>
                   ensureDecl(s)
                   val as = argTypes
-                  if syms.state(s) == ElabState.Done && as.length != s.tparams.length then
-                    if s.tparams.nonEmpty && as.isEmpty then
+                  val tparams = syms.tparams(s)
+                  if syms.state(s) == ElabState.Done && as.length != tparams.length then
+                    if tparams.nonEmpty && as.isEmpty then
                       err(
                         "E0207",
-                        s"family `$n` needs ${s.tparams.length} type argument(s)",
+                        s"family `$n` needs ${tparams.length} type argument(s)",
                         t.span,
-                        s"expected `$n ${s.tparams.map(_.name).mkString(" ")}`"
+                        s"expected `$n ${tparams.map(_.name).mkString(" ")}`"
                       )
-                    else err("E0207", s"`$n` expects ${s.tparams.length} type argument(s), found ${as.length}", t.span)
+                    else err("E0207", s"`$n` expects ${tparams.length} type argument(s), found ${as.length}", t.span)
                     OType.Err
                   else
                     val m = if as.isEmpty then Ref(s) else TApp(Ref(s), as)

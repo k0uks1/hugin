@@ -4,12 +4,9 @@ package typer
 import hugin.util.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
-import hugin.obj.{OType, Column, TParam, Expansion}
+import hugin.obj.{TParam, Expansion}
 import hugin.obj
 import scala.collection.mutable
-
-/** Elaborated information about an object declaration. */
-final case class DeclInfo(cols: List[Column], result: Option[OType], typeKind: Option[TypeKindE])
 
 /** Per-rule state while elaborating object code. */
 final class RuleCtx(val allowVars: Boolean):
@@ -40,8 +37,6 @@ private[meta] trait TyperBase:
 
   /** The typing results of this compilation (see [[SymTable]]). */
   val syms: SymTable = SymTable()
-
-  val declInfo: mutable.HashMap[Sym, DeclInfo] = mutable.HashMap.empty
   private var freshN = 0
   private[meta] def fresh(prefix: String): String = { freshN += 1; s"$prefix$freshN" }
 

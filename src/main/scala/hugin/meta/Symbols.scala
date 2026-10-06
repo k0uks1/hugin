@@ -2,7 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.*
-import hugin.obj.{TParam, BaseType}
+import hugin.obj.BaseType
 import scala.collection.mutable
 
 enum SymKind:
@@ -58,12 +58,6 @@ final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: 
   /** Clauses of a formula function. */
   val clauses: mutable.ListBuffer[Rule] = mutable.ListBuffer.empty
 
-  /** Family type parameters (object declarations) or type definition parameters. */
-  var tparams: List[TParam] = Nil
-
-  /** Type definition parameters as meta parameters, and the elaborated right-hand side. */
-  var typeDefParams: List[Sym] = Nil
-  var typeDefRhs: Option[hugin.obj.OType] = None
   var abbrev: Boolean = false
 
   /** The base type of a `BaseType` symbol. */

@@ -32,4 +32,4 @@ final class MetaPrinter(syms: TypingResults):
     case EItem.QueryItem(q) => ObjPrinter.query(q)
     case EItem.DirectiveItem(d) => ObjPrinter.directive(d)
 
-  private def tps(s: Sym): String = if s.tparams.isEmpty then "" else s.tparams.mkString(" ", " ", "")
+  private def tps(s: Sym): String = if syms.tparams(s).isEmpty then "" else syms.tparams(s).mkString(" ", " ", "")

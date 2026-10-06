@@ -33,7 +33,7 @@ private[meta] trait Declarations extends TyperBase:
 
   def info(s: Sym): DeclInfo =
     ensureDecl(s)
-    declInfo.getOrElse(s, DeclInfo(Nil, None, None))
+    syms.declInfo(s).getOrElse(DeclInfo(Nil, Nil, None, None))
 
   def relCols(s: Sym): List[Column] = info(s).cols
 
@@ -49,7 +49,6 @@ private[meta] trait Declarations extends TyperBase:
         err("E0004", "object declarations take only type parameters", p.span, "expected an uppercase type parameter")
         None
     }
-    s.tparams = explicit.map(_._2)
     val implicits = mutable.LinkedHashMap.empty[String, TParam]
     val allowImplicit = s.kind == SymKind.Rel || s.kind == SymKind.Ctor
     val tv = TVars.Family(explicit.toMap, implicits, allowImplicit)
@@ -67,13 +66,13 @@ private[meta] trait Declarations extends TyperBase:
         }
         Column(l.map(_.name), elabOType(t, sc, tv))
       }
-    val di = s.kind match
+    val (cols, result, typeKind): (List[Column], Option[OType], Option[TypeKindE]) = s.kind match
       case SymKind.ObjType =>
         val k = d.sup match
           case Some(sup) => TypeKindE.Refinement(elabOType(sup, sc, tv))
           case None => TypeKindE.Open
         syms(s).mtype = Some(TypeU)
-        DeclInfo(Nil, None, Some(k))
+        (Nil, None, Some(k))
       case SymKind.Struct =>
         val rt = d.defn.get.asInstanceOf[RecordType]
         val doms = rt.entries.flatMap {
@@ -83,12 +82,12 @@ private[meta] trait Declarations extends TyperBase:
         }
         val cols = columns(doms)
         syms(s).mtype = Some(RelT(cols))
-        DeclInfo(cols, None, None)
+        (cols, None, None)
       case SymKind.Rel =>
         val (doms, _) = flattenArrow(d.tpe)
         val cols = columns(doms)
         syms(s).mtype = Some(RelT(cols))
-        DeclInfo(cols, None, None)
+        (cols, None, None)
       case SymKind.Ctor =>
         val (doms, cod) = flattenArrow(d.tpe)
         val cols = columns(doms)
@@ -104,10 +103,9 @@ private[meta] trait Declarations extends TyperBase:
               else "end the type in `rel` to declare a relation")
           )
         syms(s).mtype = Some(RelT(cols))
-        DeclInfo(cols, Some(res), None)
-      case _ => DeclInfo(Nil, None, None)
-    s.tparams = s.tparams ++ implicits.values
-    declInfo(s) = di
+        (cols, Some(res), None)
+      case _ => (Nil, None, None)
+    syms(s).declInfo = Some(DeclInfo(explicit.map(_._2) ++ implicits.values, cols, result, typeKind))
     syms(s).state = ElabState.Done
 
   private[meta] def isOpenType(t: OType): Boolean = normO(t) match
@@ -139,9 +137,7 @@ private[meta] trait Declarations extends TyperBase:
             Some(p)
           case p => err("E0004", "type definitions take only type parameters", p.span); None
         }
-        s.typeDefParams = ps
         val rhs = elabOType(d.defn.get, psc, TVars.NoTVars)
-        s.typeDefRhs = Some(rhs)
         // strictness: each parameter occurs on the right-hand side
         val occurring = mutable.HashSet.empty[Sym]
         def collect(m: MExpr): Unit = m match
@@ -166,13 +162,15 @@ private[meta] trait Declarations extends TyperBase:
           )
             .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
             .withSuggestion("mark it `%abbrev`", Span(d.span.source, d.span.start, d.span.start), "%abbrev "))
+        syms(s).typeDef = Some(TypeDefInfo(ps, rhs))
         syms(s).mtype = Some(TypeU)
         syms(s).state = ElabState.Done
         true
 
   private[meta] def unfoldTypeDef(s: Sym, args: List[OType], span: Span): OType =
     if !ensureTypeDef(s, span) then return OType.Err
-    if args.length != s.typeDefParams.length then
-      err("E0207", s"type definition `${s.name}` expects ${s.typeDefParams.length} type argument(s), found ${args.length}", span)
+    val td = syms.typeDef(s).get
+    if args.length != td.params.length then
+      err("E0207", s"type definition `${s.name}` expects ${td.params.length} type argument(s), found ${args.length}", span)
       return OType.Err
-    normO(substO(s.typeDefRhs.getOrElse(OType.Err), s.typeDefParams.zip(args.map(QuoteType(_))).toMap))
+    normO(substO(td.rhs, td.params.zip(args.map(QuoteType(_))).toMap))

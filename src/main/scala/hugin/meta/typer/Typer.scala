@@ -268,9 +268,10 @@ final class Typer(c: Context)
     // exports
     val fields = sc.decls.values.toList.flatMap { s =>
       s.kind match
-        case SymKind.ObjType if s.tparams.isEmpty => Some(s -> TypeU)
-        case SymKind.Struct | SymKind.Rel | SymKind.Ctor if s.tparams.isEmpty && syms.mtype(s).isDefined => Some(s -> syms.mtype(s).get)
-        case SymKind.TypeDef if s.typeDefParams.isEmpty && s.typeDefRhs.isDefined => Some(s -> TypeU)
+        case SymKind.ObjType if syms.tparams(s).isEmpty => Some(s -> TypeU)
+        case SymKind.Struct | SymKind.Rel | SymKind.Ctor if syms.tparams(s).isEmpty && syms.mtype(s).isDefined =>
+          Some(s -> syms.mtype(s).get)
+        case SymKind.TypeDef if syms.typeDef(s).exists(_.params.isEmpty) => Some(s -> TypeU)
         case SymKind.MetaDef | SymKind.FormulaFn if syms.mtype(s).exists(_ != MType.Err) => Some(s -> syms.mtype(s).get)
         case _ => None
     }
@@ -278,7 +279,7 @@ final class Typer(c: Context)
 
   /** A one-line description of a symbol for tooling (hover). */
   def describe(s: Sym): String =
-    def tps = if s.tparams.isEmpty then "" else s.tparams.map(_.name).mkString(" ", " ", "")
+    def tps = if syms.tparams(s).isEmpty then "" else syms.tparams(s).map(_.name).mkString(" ", " ", "")
     def col(c: hugin.obj.Column) = c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))
     s.kind match
       case SymKind.BaseType => s"base type ${s.name}"
@@ -287,8 +288,9 @@ final class Typer(c: Context)
           case Some(TypeKindE.Refinement(b)) => s"type ${s.name}$tps <: ${showO(b)}"
           case _ => s"type ${s.name}$tps (open)"
       case SymKind.TypeDef =>
-        val ps = s.typeDefParams.map(_.name).mkString(" ", " ", "").stripSuffix(" ")
-        s"type ${s.name}${if s.typeDefParams.isEmpty then "" else ps} = ${s.typeDefRhs.map(showO).getOrElse("?")}"
+        val td = syms.typeDef(s)
+        val ps = td.toList.flatMap(_.params).map(p => s" ${p.name}").mkString
+        s"type ${s.name}$ps = ${td.map(d => showO(d.rhs)).getOrElse("?")}"
       case SymKind.Rel | SymKind.Ctor | SymKind.Struct =>
         val di = info(s)
         val res = di.result.map(showO).getOrElse("rel")

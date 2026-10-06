@@ -373,13 +373,13 @@ final class MetaEval(using Context):
       i match
         case EItem.TypeDecl(s, _, sp) =>
           val ts = TypeSym(objName(s.name), TypeKind.Open, sp, fr.origin)
-          ts.tparams = s.tparams
+          ts.tparams = ctx.unit.symbols.tparams(s)
           typeSyms(s) = ts
           env += s -> VType(OType.Con(ts, Nil))
         case EItem.RelDecl(s, _, _, isStruct, sp) =>
           val kind = if isStruct then RelKind.Struct else if s.kind == SymKind.Ctor then RelKind.Ctor else RelKind.Plain
           val rs = RelSym(objName(s.name), kind, sp, fr.origin)
-          rs.tparams = s.tparams
+          rs.tparams = ctx.unit.symbols.tparams(s)
           relSyms(s) = rs
           env += s -> VRel(rs)
         case _ =>
