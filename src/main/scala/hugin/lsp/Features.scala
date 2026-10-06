@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
-/** The language features of the server, answered through the [[Ide]] API and the compiler queries, in
+/** The language features of the server, answered through the [[hugin.query.Ide]] API and the compiler queries, in
  *  terms of the protocol: URIs, 0-based UTF-16 positions and lsp4j's data types.
  *
  *  Documents are keyed in the database by their path (see [[Uris]]); an open document's text is its

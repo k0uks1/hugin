@@ -3,11 +3,11 @@ package hugin.lsp
 import hugin.util.{SourceFile, Span}
 import org.eclipse.lsp4j.{Position, Range}
 
-/** Conversion between offsets into a [[SourceFile]] and LSP positions.
+/** Conversion between offsets into a [[hugin.util.SourceFile]] and LSP positions.
  *
  *  LSP positions are 0-based lines and columns counted in UTF-16 code units (the protocol's default
  *  position encoding). Offsets into a JVM string are UTF-16 indices as well, so an LSP column is the
- *  distance from the start of the line; [[SourceFile.columnOf]], which counts code points, differs from it
+ *  distance from the start of the line; [[hugin.util.SourceFile.columnOf]], which counts code points, differs from it
  *  after characters outside the Basic Multilingual Plane.
  */
 object Positions:

@@ -1,0 +1,58 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix"
+        ]
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "hoverProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"id":2,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

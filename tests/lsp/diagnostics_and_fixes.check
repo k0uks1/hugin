@@ -1,0 +1,374 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix"
+        ]
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "hoverProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y.\np : (a : int) -> (b : int) -> rel.\n%input p.\nq : int -> rel.\nq X :- p { a = X }.\nroad : int -> rel.\n%input road.\nr : int -> rel.\nr X :- rod X.\n","uri":"untitled:t.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":13,"line":3},"start":{"character":13,"line":3}},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "W0002",
+        "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
+        "range": {
+          "end": {
+            "character": 14,
+            "line": 3
+          },
+          "start": {
+            "character": 13,
+            "line": 3
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      },
+      {
+        "code": "E0301",
+        "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
+        "range": {
+          "end": {
+            "character": 18,
+            "line": 7
+          },
+          "start": {
+            "character": 9,
+            "line": 7
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
+      },
+      {
+        "code": "E0101",
+        "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
+        "range": {
+          "end": {
+            "character": 10,
+            "line": 11
+          },
+          "start": {
+            "character": 7,
+            "line": 11
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
+      }
+    ],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "diagnostics": [
+        {
+          "code": "W0002",
+          "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
+          "range": {
+            "end": {
+              "character": 14,
+              "line": 3
+            },
+            "start": {
+              "character": 13,
+              "line": 3
+            }
+          },
+          "severity": 2,
+          "source": "hugin",
+          "tags": [
+            1
+          ]
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:t.hgn": [
+            {
+              "newText": "_",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 3
+                },
+                "start": {
+                  "character": 13,
+                  "line": 3
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": true,
+      "kind": "quickfix",
+      "title": "Replace `Y` with `_`"
+    },
+    {
+      "diagnostics": [
+        {
+          "code": "W0002",
+          "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
+          "range": {
+            "end": {
+              "character": 14,
+              "line": 3
+            },
+            "start": {
+              "character": 13,
+              "line": 3
+            }
+          },
+          "severity": 2,
+          "source": "hugin",
+          "tags": [
+            1
+          ]
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:t.hgn": [
+            {
+              "newText": "_Y",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 3
+                },
+                "start": {
+                  "character": 13,
+                  "line": 3
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": false,
+      "kind": "quickfix",
+      "title": "Rename `Y` to `_Y`"
+    }
+  ]
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":18,"line":7},"start":{"character":9,"line":7}},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "diagnostics": [
+        {
+          "code": "E0301",
+          "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
+          "range": {
+            "end": {
+              "character": 18,
+              "line": 7
+            },
+            "start": {
+              "character": 9,
+              "line": 7
+            }
+          },
+          "severity": 1,
+          "source": "hugin"
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:t.hgn": [
+            {
+              "newText": ", b = _",
+              "range": {
+                "end": {
+                  "character": 16,
+                  "line": 7
+                },
+                "start": {
+                  "character": 16,
+                  "line": 7
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": true,
+      "kind": "quickfix",
+      "title": "Add the missing labels"
+    },
+    {
+      "diagnostics": [
+        {
+          "code": "E0301",
+          "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
+          "range": {
+            "end": {
+              "character": 18,
+              "line": 7
+            },
+            "start": {
+              "character": 9,
+              "line": 7
+            }
+          },
+          "severity": 1,
+          "source": "hugin"
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:t.hgn": [
+            {
+              "newText": ", ..",
+              "range": {
+                "end": {
+                  "character": 16,
+                  "line": 7
+                },
+                "start": {
+                  "character": 16,
+                  "line": 7
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": false,
+      "kind": "quickfix",
+      "title": "Ignore the missing labels with `..`"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":7,"line":11},"start":{"character":7,"line":11}},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "diagnostics": [
+        {
+          "code": "E0101",
+          "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
+          "range": {
+            "end": {
+              "character": 10,
+              "line": 11
+            },
+            "start": {
+              "character": 7,
+              "line": 11
+            }
+          },
+          "severity": 1,
+          "source": "hugin"
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:t.hgn": [
+            {
+              "newText": "road",
+              "range": {
+                "end": {
+                  "character": 10,
+                  "line": 11
+                },
+                "start": {
+                  "character": 7,
+                  "line": 11
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": true,
+      "kind": "quickfix",
+      "title": "Replace with `road`"
+    }
+  ]
+}
+--> {"jsonrpc":"2.0","method":"textDocument/didChange","params":{"contentChanges":[{"text":"e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X _.\n"}],"textDocument":{"uri":"untitled:t.hgn","version":2}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
+--> {"id":5,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}
