@@ -1,0 +1,41 @@
+(* The Hugin prelude. It is included in every program unless `--no-prelude` is given; its names are in
+   scope everywhere and can be shadowed by the program. Declarations that are generic (families,
+   functors) cost nothing unless they are used. *)
+
+(* Base types *)
+int : type = %builtin int.
+float : type = %builtin float.
+string : type = %builtin string.
+
+(* Lists (Section 13.3) *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+
+len : list A -> int -> rel.
+%terminates L (len L _).
+len nil 0.
+len (cons X L) M :- cons X L, len L N, M = N + 1.
+
+(* Optional values and pairs *)
+option A : type.
+none : option A.
+some : A -> option A.
+
+pair A B : type = { fst : A, snd : B }.
+
+(* Graphs (Section 13.1) *)
+graph : mod = { node : type, edge : node -> node -> rel }.
+
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+
+bounded (g : graph) (limit : int) = {
+  hop : g.node -> g.node -> int -> rel.
+  %terminates N (hop _ _ N).
+  hop X Y 1 :- g.edge X Y.
+  hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
+}.

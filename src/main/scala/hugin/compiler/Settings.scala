@@ -12,6 +12,8 @@ final case class Settings(
     warnings: Boolean = true,
     /** Extra advisory checks (W0004). */
     lint: Boolean = false,
+    /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
+    prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */
     explainTermination: Boolean = false
 )

@@ -1,0 +1,6 @@
+(* imported by imports.hgn and by lib/routes.hgn: evaluated once, so both see the same `place` *)
+place : type.
+here : place.
+there : place.
+near : place -> rel.
+near here.

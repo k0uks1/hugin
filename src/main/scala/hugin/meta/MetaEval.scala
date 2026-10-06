@@ -313,7 +313,21 @@ final class MetaEval(using Context):
   // ------------------------------------------------------------------ module bodies
 
   def evalBody(items: List[EItem], scope: Scope, env0: Map[Sym, Value], fr0: Frame, span: Span): Value =
-    val prefix = if scope.parent.exists(_ eq Namer.prelude) then "" else freshPrefix(fr0.hint)
+    val env = bodyEnv(items, scope, env0, fr0)
+    VRec(scope.decls.values.toList.flatMap(s => env.get(s).map(s.name -> _)))
+
+  /** Evaluates a file: the prelude, an imported file or the program. Returns the environment extended
+   *  with the file's declarations. */
+  def evalFile(body: MExpr, env: Map[Sym, Value]): Map[Sym, Value] = body match
+    case MExpr.Body(items, scope, _) => bodyEnv(items, scope, env, Frame(None, "", Origin.Source, None))
+    case _ => env
+
+  /** Reserves the prefix of a file's object declarations, so module bodies do not reuse it. */
+  def reserve(prefix: String): Unit = usedPrefixes += prefix
+
+  private def bodyEnv(items: List[EItem], scope: Scope, env0: Map[Sym, Value], fr0: Frame): Map[Sym, Value] =
+    val prefix = scope.qualifier.getOrElse(freshPrefix(fr0.hint))
+    def objName(name: String) = if scope.shadowed(name) then qualify("prelude", name) else qualify(prefix, name)
     val fr = fr0.copy(hyg = None)
     var env = env0
     // bind_π for all object declarations first: they may be mutually recursive
@@ -322,13 +336,13 @@ final class MetaEval(using Context):
     for i <- items do
       i match
         case EItem.TypeDecl(s, _, sp) =>
-          val ts = TypeSym(qualify(prefix, s.name), TypeKind.Open, sp, fr.origin)
+          val ts = TypeSym(objName(s.name), TypeKind.Open, sp, fr.origin)
           ts.tparams = s.tparams
           typeSyms(s) = ts
           env += s -> VType(OType.Con(ts, Nil))
         case EItem.RelDecl(s, _, _, isStruct, sp) =>
           val kind = if isStruct then RelKind.Struct else if s.kind == SymKind.Ctor then RelKind.Ctor else RelKind.Plain
-          val rs = RelSym(qualify(prefix, s.name), kind, sp, fr.origin)
+          val rs = RelSym(objName(s.name), kind, sp, fr.origin)
           rs.tparams = s.tparams
           relSyms(s) = rs
           env += s -> VRel(rs)
@@ -375,7 +389,7 @@ final class MetaEval(using Context):
               case k => k
             directives += Directive(kind, tgt, d.rule.map(qualify(prefix, _)))(d.span, fr.origin)
       catch case _: Abort => ()
-    VRec(scope.decls.values.toList.flatMap(s => env.get(s).map(s.name -> _)))
+    env
 
 /** Phase: evaluate the meta level; the result is an object program that may still contain families. */
 final class MetaEvalPhase extends Phase:
@@ -385,7 +399,19 @@ final class MetaEvalPhase extends Phase:
     val u = ctx.unit
     if u.elab == null then return
     val ev = MetaEval()
-    ev.eval(u.elab.nn, Map.empty, Frame(None, "", Origin.Source, None))
+    for lib <- u.libraries.values; sc <- Option(lib.scope) do sc.qualifier.foreach(ev.reserve)
+    // each file is evaluated once; the prelude's declarations are in scope everywhere, an imported file is
+    // the module value of its `%import`s
+    var preludeEnv = Map.empty[Sym, Value]
+    var libraryValues = Map.empty[Sym, Value]
+    for lib <- u.libraries.values; body <- Option(lib.body) do
+      val env = ev.evalFile(body, preludeEnv ++ libraryValues)
+      if lib.isPrelude then preludeEnv = env
+      else
+        val sc = lib.scope.nn
+        for s <- Option(lib.sym) do
+          libraryValues += s -> Value.VRec(sc.decls.values.toList.flatMap(d => env.get(d).map(d.name -> _)))
+    ev.evalFile(u.elab.nn, preludeEnv ++ libraryValues)
     u.generic =
       ObjProgram(ev.types.toVector, ev.rels.toVector, ev.edges.toVector, ev.rules.toVector, ev.queries.toVector, ev.directives.toVector)
   override def show(using Context): String = ObjPrinter.program(ctx.unit.generic.nn)

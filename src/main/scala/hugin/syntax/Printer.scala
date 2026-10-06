@@ -30,6 +30,8 @@ object Printer:
     case Conj(l, r) => s"${show(l)}, ${show(r)}"
     case Disj(l, r) => s"(${show(l)} ; ${show(r)})"
     case Parens(i) => s"(${show(i)})"
+    case Builtin(n) => s"%builtin ${n.name}"
+    case Import(path) => s"%import ${Literal.quote(path)}"
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"

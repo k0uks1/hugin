@@ -23,6 +23,11 @@ object ErrorCodes:
       "A type definition whose right-hand side does not mention every parameter must be marked %abbrev (Section 4.7)."
     ),
     ("E0107", "not a module", "A path `m.x` requires `m` to be module-valued."),
+    (
+      "E0108",
+      "import error",
+      "An imported file does not exist, or files import each other in a cycle. A file is a module body that is elaborated before the files importing it, so imports must form an acyclic graph."
+    ),
     // stage and meta typing
     (
       "E0201",

@@ -4,6 +4,9 @@ import scala.collection.mutable
 
 /** An input of the database: a value set from outside (e.g. the text of a file), keyed by `K`. */
 abstract class Input[K, V](val name: String):
+  /** The value of an input that was never set, read on first use (e.g. a file from disk). A default stays
+   *  in place until the input is set or removed. */
+  def default(key: K): Option[V] = None
   override def toString: String = name
 
 /** A derived query: a pure function of other queries and inputs, memoised by the database. `compute` must
@@ -78,14 +81,26 @@ final class Database:
   def get[K, V](input: Input[K, V], key: K): V =
     val slot = (input, key)
     record(slot)
-    inputs.get(slot) match
-      case Some(cell) => cell.value.asInstanceOf[V]
+    cell(input, key) match
+      case Some(c) => c.value.asInstanceOf[V]
       case None => throw MissingInput(s"$input($key)")
 
-  /** Whether an input is set (also recorded as a dependency). */
+  /** Whether an input is set or has a default (also recorded as a dependency). */
   def has[K, V](input: Input[K, V], key: K): Boolean =
     record((input, key))
-    inputs.contains((input, key))
+    cell(input, key).isDefined
+
+  /** The cell of an input, filled from its default on first use. A default does not start a revision:
+   *  the value is treated as if it had been there all along. */
+  private def cell[K, V](input: Input[K, V], key: K): Option[InputCell] =
+    val slot = (input, key)
+    inputs.get(slot).orElse {
+      input.default(key).map { v =>
+        val c = InputCell(v, 0)
+        inputs(slot) = c
+        c
+      }
+    }
 
   /** Demands a query, recording the dependency of the running query. */
   def apply[K, V](query: Query[K, V], key: K): V =

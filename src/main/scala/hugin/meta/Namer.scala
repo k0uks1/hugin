@@ -4,18 +4,12 @@ import hugin.util.*
 import hugin.syntax.*
 import hugin.compiler.*
 import hugin.obj.BaseType
+import scala.collection.mutable
 
 /** Enters the declarations of a module body into its scope and classifies items by stage (Section 2.5).
  *  The top-level program is entered by the `namer` phase; nested bodies are entered on demand by the typer. */
 object Namer:
-  val prelude: Scope =
-    val s = Scope(None, "prelude")
-    for (n, b) <- List("int" -> BaseType.IntT, "float" -> BaseType.FloatT, "string" -> BaseType.StringT) do
-      val sym = Sym(n, SymKind.PreludeType, Span.NoSpan, s)
-      sym.base = Some(b)
-      sym.state = Sym.State.Done
-      s.enter(sym)
-    s
+  private val builtins: Map[String, BaseType] = BaseType.values.map(b => b.show -> b).toMap
 
   /** Final codomain of an arrow type, ignoring labels and parentheses. */
   def codomain(t: Tree): Tree = t match
@@ -51,6 +45,14 @@ object Namer:
             case Keyword(Kw.Type) =>
               defn match
                 case None => Some(SymKind.ObjType)
+                case Some(Builtin(b)) =>
+                  if params.nonEmpty || sup.isDefined then
+                    ctx.error("E0103", "a base type has no parameters or supertype", d.span)
+                  if builtins.contains(b.name) then Some(SymKind.BaseType)
+                  else
+                    ctx.report(Diagnostic.error("E0103", s"unknown base type `${b.name}`", b.span, "not a builtin")
+                      .withNote(s"the builtin base types are ${builtins.keys.toList.sorted.mkString(", ")}"))
+                    None
                 case Some(_: RecordType) if !abbrev =>
                   if sup.isDefined then
                     ctx.error("E0103", "a struct declaration cannot have a supertype", sup.get.span)
@@ -93,6 +95,9 @@ object Namer:
           kind.foreach { kd =>
             declare(name, kd, d, k).foreach { s =>
               s.abbrev = abbrev
+              if kd == SymKind.BaseType then
+                defn.collect { case Builtin(b) => builtins(b.name) }.foreach(b => s.base = Some(b))
+                s.state = Sym.State.Done
               if (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
                 ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
                   .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
@@ -122,14 +127,26 @@ object Namer:
     scope.decls.values.map(s => s"${s.name} : ${s.kind.describe}${if s.clauses.nonEmpty then s" (${s.clauses.length} clauses)" else ""}")
       .mkString("\n")
 
-/** Phase: enter the top-level program. */
+/** Phase: enter the prelude, the imported files and the program. The prelude's scope encloses the others,
+ *  so its names are visible everywhere and can be shadowed; imported files see only the prelude. */
 final class NamerPhase extends Phase:
   def phaseName = "namer"
   def description = "enter declarations, classify items by stage, detect duplicates"
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null then return
-    val root = Scope(Some(Namer.prelude), "program")
+    val prelude = Scope(None, "prelude")
+    prelude.qualifier = Some("")
+    val taken = mutable.HashSet("")
+    for lib <- u.libraries.values do
+      val sc = if lib.isPrelude then prelude else Scope(Some(prelude), s"file ${lib.path}")
+      if !lib.isPrelude then
+        sc.qualifier = Some(Iterator.from(1).map(k => if k == 1 then lib.name else s"${lib.name}$k").find(taken.add).get)
+      lib.scope = sc
+      Namer.enter(lib.program.items, sc)
+    val root = Scope(Some(prelude), "program")
+    root.qualifier = Some("")
     u.rootScope = root
     Namer.enter(u.untpd.nn.items, root)
+    prelude.shadowed = root.decls.keySet.intersect(prelude.decls.keySet).toSet
   override def show(using Context): String = Namer.show(ctx.unit.rootScope.nn)

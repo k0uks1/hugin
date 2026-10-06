@@ -74,6 +74,12 @@ object Trees:
   final case class Disj(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   final case class Parens(inner: Tree)(val span: Span) extends Tree
 
+  /** `%builtin int`: a base type provided by the implementation (used by the prelude). */
+  final case class Builtin(name: Ident)(val span: Span) extends Tree
+
+  /** `%import "path"`: the module value of another source file (Section 4.3, M-Body). */
+  final case class Import(path: String)(val span: Span, val pathSpan: Span) extends Tree
+
   final case class Field(label: Ident, value: Tree)
 
   enum SigEntry:

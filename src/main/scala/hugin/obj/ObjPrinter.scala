@@ -56,6 +56,7 @@ object ObjPrinter:
       case RelKind.Struct => "  (* struct *)"
       case RelKind.Demand(c, m) => s"  (* demand of ${c.name} at ${m.show} *)"
       case RelKind.Derivation(rn) => s"  (* derivations of @$rn *)"
+      case RelKind.Auxiliary(purpose) => s"  (* $purpose *)"
       case _ => ""
     s"${r.name}$tps : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
 

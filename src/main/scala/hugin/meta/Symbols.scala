@@ -30,8 +30,8 @@ enum SymKind:
   /** Parameters of meta functions and lambdas (including implicit type parameters). */
   case MetaParam
 
-  /** Base types of the prelude (`int`, `float`, `string`). */
-  case PreludeType
+  /** `n : type = %builtin b.`: a base type (`int`, `float`, `string`), declared by the prelude. */
+  case BaseType
 
   def isObjectDecl: Boolean = this match
     case ObjType | Struct | Rel | Ctor => true
@@ -46,7 +46,7 @@ enum SymKind:
     case FormulaFn => "formula function"
     case MetaDef => "meta definition"
     case MetaParam => "meta parameter"
-    case PreludeType => "base type"
+    case BaseType => "base type"
 
 /** A declared name (meta-level symbol). */
 final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: Scope):
@@ -84,7 +84,7 @@ final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: 
   /** Number of explicit parameters (for formula functions: arity). */
   var arity: Int = 0
 
-  /** Base type for prelude symbols. */
+  /** The base type of a `BaseType` symbol. */
   var base: Option[BaseType] = None
 
   /** Labels and column count for object relations (filled by the typer). */
@@ -106,6 +106,13 @@ final class Scope(val parent: Option[Scope], val description: String):
 
   /** Ordering index of items processed so far (forward-reference check for meta definitions). */
   var processed: Int = -1
+
+  /** For the scopes of files (the program, the prelude, imported files): the prefix of the names of their
+   *  object declarations (`""` for none). Module bodies inside files get a fresh prefix instead. */
+  var qualifier: Option[String] = None
+
+  /** Names whose object declarations get the prefix `prelude.` because the program declares the same name. */
+  var shadowed: Set[String] = Set.empty
 
   def lookupLocal(name: String): Option[Sym] = decls.get(name)
 

@@ -9,6 +9,14 @@ import scala.collection.mutable
 /** Everything the compiler knows about one source program; each phase fills in its part. */
 final class CompilationUnit(val source: SourceFile):
   var untpd: Program | Null = null
+
+  /** The prelude and the imported files, keyed by resolved path, in dependency order (prelude first). */
+  val libraries: mutable.LinkedHashMap[String, Library] = mutable.LinkedHashMap.empty
+
+  /** Resolved paths of `%import` expressions (keyed by tree identity), and paths that were not found. */
+  val imports: java.util.IdentityHashMap[hugin.syntax.Trees.Import, String] = java.util.IdentityHashMap()
+  val missingImports: mutable.Set[String] = mutable.HashSet.empty
+
   var rootScope: Scope | Null = null
 
   /** Scopes of module bodies (keyed by identity of the surface tree). */

@@ -35,8 +35,8 @@ hugin check <file.hgn>    compile only and report diagnostics
 hugin phases              list the compiler phases
 hugin explain <code>      explain a diagnostic code (e.g. E0401)
 hugin query <file.hgn> <request> [<line>:<col>]
-                          ask the compiler: hover, definition, references (at a position),
-                          symbols, diagnostics
+                          ask the compiler: hover, definition, references, completions
+                          (at a position), symbols, diagnostics
 
   --facts <file>          load ground facts for input relations (repeatable)
   --budget <n>            round budget for components with %partial relations (default: unbounded)
@@ -47,7 +47,22 @@ hugin query <file.hgn> <request> [<line>:<col>]
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
   --lint                  enable advisory checks (W0004)
+  --no-prelude            do not include the standard prelude
 ```
+
+## Libraries and the prelude
+
+A source file is a module body. `m = %import "path".` binds the module value of another file, resolved
+relative to the importing file (`.hgn` is appended if the path has no extension). A file is elaborated
+and evaluated once however often it is imported, so every importer sees the same declarations; it sees
+the prelude but not the program that imports it. Its object declarations are named after the file
+(`geo.here`). Missing and cyclic imports are errors (E0108).
+
+The prelude, [`prelude.hgn`](src/main/resources/hugin/stdlib/prelude.hgn), is ordinary Hugin source
+bundled with the compiler and included in every program (unless `--no-prelude`). It declares the base
+types (`int : type = %builtin int.`), lists with `len`, `option`, `pair`, the signature `graph` and the
+functors `tc` and `bounded` of Section 13.1. Its names can be shadowed by the program. The design and its
+relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).
 
 ## Dependencies
 
@@ -93,6 +108,7 @@ only on error-free programs.
 | phase | section | what it does |
 |---|---|---|
 | `parser` | 2 | hand-written lexer and precedence-climbing parser with error recovery; `%infix` operators are resolved into applications |
+| `imports` | — | loads the prelude and, transitively, every `%import`ed file (in dependency order); missing and cyclic imports |
 | `namer` | 2.3, 2.5 | scopes, duplicate declarations, classification of items by stage, collection of formula-function clauses |
 | `typer` | 3, 4.2–4.4, 4.7, 4.8 | bidirectional stage inference and meta typing: inserts quotes `⟨·⟩` and splices `~(·)`, signature matching, implicit type parameters, named patterns → positional, type definitions (unfolded), arity and label checks |
 | `metaEval` | 4.5 | call-by-value evaluation of the meta level; module bodies with fresh prefixes (`roads.path`), hygienic expansion of formula functions, cross-stage persistence, deferred checks of `%complete`/`%mode` requirements |
@@ -118,10 +134,12 @@ evaluated in order by semi-naive iteration with old/delta/full windows (Section 
 Source layout:
 
 ```
+src/main/resources/hugin/stdlib/prelude.hgn   the prelude
 src/main/scala/hugin/
   util/            sources and spans, rustc-style diagnostics, error-code catalog, Tarjan's SCCs
   syntax/          lexer, parser (+ ParserPhase), surface trees, printer
-  compiler/        Settings, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase plan
+  compiler/        Settings, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase plan,
+                   libraries (loading of the prelude and imported files)
   meta/            symbols and scopes, namer, elaborated trees, evaluator, monomorphization
   meta/typer/      the typer, split into traits mixed into one class:
                      TyperBase (state, names), Normalization (substitution, static normal forms),
@@ -154,16 +172,22 @@ src/main/scala/hugin/
   to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
   `g.edge` to the field of the signature), a description of every symbol, and the inferred type of
   every object variable.
-- `Ide` answers position queries on top of it: `hover`, `definition`, `references`, `symbols` (an
-  outline with enclosing definitions) and `diagnostics`:
+- `Ide` answers position queries on top of it:
+  - `hover`: the description of a symbol as seen at that use (through a module path, with the type
+    instantiated there: `roads.path : city -> city -> rel`), or the type of an object variable (all
+    types if a functor body is instantiated at several);
+  - `definition` / `references`: for symbols across module paths; for object variables within their rule;
+  - `completions`: names in scope at the position (innermost module body outwards, plus the variables
+    of the rule), members after `m.`, labels inside a named pattern `c { ... }`, directives after `%`;
+  - `symbols` (an outline with enclosing definitions) and `diagnostics`:
 
 ```
-$ hugin query examples/graphs.hgn hover 32:27
-relation path : g.node -> g.node -> rel
-$ hugin query examples/graphs.hgn definition 6:21
-examples/graphs.hgn:2:30
-$ hugin query examples/graphs.hgn hover 6:27
-variable X : city
+$ hugin query examples/graphs.hgn hover 18:27
+relation roads.path : city -> city -> rel
+$ hugin query examples/graphs.hgn definition 18:27
+<stdlib>/prelude.hgn:31:3
+$ hugin query examples/graphs.hgn hover 18:16
+variable C : city
 ```
 
 Incrementality is per file for now: a change to a program recompiles that program. Finer granularity

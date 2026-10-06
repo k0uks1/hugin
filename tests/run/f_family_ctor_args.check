@@ -1,0 +1,3 @@
+route (push here (push there empty)).
+t (tagged "a" (just 3)).
+t (tagged "b" nothing).

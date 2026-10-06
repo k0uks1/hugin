@@ -67,12 +67,13 @@ private[meta] trait TyperBase:
       case None => unresolved(name, span, sc); None
 
   /** Records a resolved use of a symbol (for the semantic index and the unused-definition warning). */
-  private[meta] def noteUse(span: Span, s: Sym): Unit =
+  private[meta] def noteUse(span: Span, s: Sym, detail: Option[String] = None): Unit =
     s.used = true
-    noteReference(span, s)
+    noteReference(span, s, detail)
 
   /** Records a reference for tooling only (e.g. a directive naming a function, which is not a use). */
-  private[meta] def noteReference(span: Span, s: Sym): Unit = context.unit.index.reference(span, s)
+  private[meta] def noteReference(span: Span, s: Sym, detail: Option[String] = None): Unit =
+    context.unit.index.reference(span, s, detail)
 
   /** Forward-reference check for meta definitions (Section 2.3). */
   private[meta] def visible(s: Sym, span: Span): Boolean =
