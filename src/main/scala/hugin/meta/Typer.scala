@@ -1197,7 +1197,10 @@ final class Typer(using Context):
       case DirArgs.Mode(tgt, ms) =>
         // modes of formula functions are recorded on the symbol
         tgt match
-          case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.FormulaFn) => None
+          case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.FormulaFn) =>
+            val f = sc.lookup(n).get
+            f.fnModes = f.fnModes :+ ((ms.map(_.input), d.span))
+            None
           case _ => mk(DirKind.ModeD(ModeSpec(ms.map(m => (m.input, m.label.map(_.name), m.span)))), tgt)
       case DirArgs.TerminatesVar(v, tgt, args) =>
         val rc = RuleCtx(allowVars = true)

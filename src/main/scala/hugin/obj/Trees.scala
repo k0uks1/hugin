@@ -55,7 +55,12 @@ object Var:
   /** Wildcards become fresh variables with this prefix. */
   val WildPrefix = "_#"
   def isWild(n: String): Boolean = n.startsWith(WildPrefix)
-  def display(n: String): String = if isWild(n) then "_" else n
+  /** User-facing name: wildcards print as `_`, hygiene suffixes `#k` (Section 4.8) are dropped. */
+  def display(n: String): String =
+    if isWild(n) then "_"
+    else
+      val base = n.replaceAll("(#\\d+)+$", "")
+      if base.isEmpty then n else base
 
 /** Object terms, patterns and head terms (Figure 2). */
 sealed trait Term:

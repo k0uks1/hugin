@@ -7,7 +7,8 @@ import scala.jdk.CollectionConverters.*
  *
  *  - `tests/run/X.hgn`: compiled and run; stdout must equal `X.check`. Optional `X.facts` is loaded and
  *    `X.flags` holds extra command-line options (one line).
- *  - `tests/neg/X.hgn`: must fail to compile; the rendered diagnostics must equal `X.check`.
+ *  - `tests/neg/X.hgn`: must fail to compile (or, with `X.facts`, to load its input); the rendered
+ *    diagnostics must equal `X.check`.
  *  - `tests/pos/X.hgn`: must compile without errors.
  *
  *  Set `HUGIN_UPDATE_CHECKS=1` to (re)write the check files.
@@ -53,8 +54,10 @@ class GoldenTests extends munit.FunSuite:
 
   for p <- files("neg") do
     test(s"neg/${p.getFileName}") {
-      val (code, _, err) = runMain(List("check", p.toString) ++ flags(p))
-      assertEquals(code, 1, s"expected compilation errors in $p")
+      val facts = sibling(p, ".facts")
+      val cmd = if Files.exists(facts) then List("run", p.toString, "--facts", facts.toString) else List("check", p.toString)
+      val (code, _, err) = runMain(cmd ++ flags(p))
+      assertEquals(code, 1, s"expected errors in $p")
       compare(p, err)
     }
 

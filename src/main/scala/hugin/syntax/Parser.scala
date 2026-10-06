@@ -174,7 +174,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
         fail("a rule name cannot start a declaration", "unexpected `:`",
           Some("rule names are written `@name head :- body.`; declarations have no `@`"))
       expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
-    advance()
+    else advance()
     Rule(name, heads.toList, body)(spanFrom(start))
 
   private def declHead(lhs: Tree): (Ident, List[Param]) =

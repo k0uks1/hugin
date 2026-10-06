@@ -1,0 +1,11 @@
+(* %mode on formula functions: the body is checked once from the input variables (Section 4.8) *)
+edge : int -> int -> rel.
+succ2 : int -> int -> prop.
+%mode succ2 + -.
+succ2 X Y :- Y = X + 2.
+pred2 : int -> int -> prop.
+%mode pred2 - +.
+pred2 X Y :- Y = X + 2.
+far : int -> int -> prop.
+%mode far + -.
+far X Y :- edge X Z.

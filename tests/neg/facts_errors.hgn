@@ -1,0 +1,5 @@
+(* Section 9.6: input facts must be ground, well-typed facts of input relations *)
+edge : int -> int -> rel.
+%input edge.
+path : int -> int -> rel.
+path X Y :- edge X Y.

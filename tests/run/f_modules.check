@@ -1,0 +1,11 @@
+hops.r one four 3.
+hops.r one three 2.
+hops.r one two 1.
+hops.r three four 1.
+hops.r two four 2.
+hops.r two three 1.
+keep 1.
+words.distinct "A" "b".
+words.distinct "a" "b".
+words.distinct "b" "A".
+words.distinct "b" "a".

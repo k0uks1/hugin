@@ -1,0 +1,23 @@
+error[E0501]: unbound variables `Arg1`, `X`
+ --> tests/neg/formula_modes.hgn:8:7
+  |
+7 | %mode pred2 - +.
+  | ---------------- mode declared here
+8 | pred2 X Y :- Y = X + 2.
+  |       ^ cannot be evaluated: not all variables are bound
+  |
+  = note: an equation binds a variable or pattern on one side only when the other side is fully bound
+  = note: the body of formula function `pred2` is not well-moded for mode -+
+
+error[E0501]: unbound variables `Arg2`, `Y`
+  --> tests/neg/formula_modes.hgn:11:7
+   |
+10 | %mode far + -.
+   | -------------- mode declared here
+11 | far X Y :- edge X Z.
+   |       ^ cannot be evaluated: not all variables are bound
+   |
+   = note: an equation binds a variable or pattern on one side only when the other side is fully bound
+   = note: the body of formula function `far` is not well-moded for mode +-
+
+2 errors found

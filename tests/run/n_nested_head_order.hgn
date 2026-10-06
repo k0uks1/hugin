@@ -1,0 +1,11 @@
+(* docs/NOTES.md: nested head constructors of an earlier component (Proposition 8.8); see W0004 *)
+w : type.
+mk : int -> w.
+src : int -> rel.
+src 1.
+r : int -> rel.
+r N :- mk N.
+h : w -> rel.
+h (mk N) :- src N.
+?- r N.
+?- h X.

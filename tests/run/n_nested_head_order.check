@@ -1,0 +1,16 @@
+// warning[W0004]: facts of `mk` constructed here may be missed by `r`
+//  --> tests/run/n_nested_head_order.hgn:9:4
+//   |
+// 7 | r N :- mk N.
+//   | ------------ `r` reads `mk`
+// ...
+// 9 | h (mk N) :- src N.
+//   |    ^^^^ `mk` is evaluated before `h`
+//   |
+//   = note: nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)
+// 
+// 1 warning found
+?- r N.
+no.
+?- h X.
+X = mk 1.

@@ -1,0 +1,46 @@
+(* the meta level: nested modules, paths, dependent signatures, functors over formula functions,
+   compile-time constants, implicit type parameters and type components *)
+setoid : mod = { t : type, eq : t -> t -> prop }.
+
+graph : mod = { node : type, edge : node -> node -> rel }.
+
+lib = {
+  limit : int = 3.
+  reach (g : graph) = {
+    r : g.node -> g.node -> int -> rel.
+    %terminates N (r _ _ N).
+    r X Y 1 :- g.edge X Y.
+    r X Z M :- r X Y N, g.edge Y Z, N < limit, M = N + 1.
+  }.
+  dedup (s : setoid) (src : s.t -> rel) = {
+    distinct : s.t -> s.t -> rel.
+    distinct X Y :- src X, src Y, X <> Y, not_eq X Y.
+    not_eq : s.t -> s.t -> rel.
+    not_eq X Y :- src X, src Y, not same X Y.
+    same : s.t -> s.t -> rel.
+    same X Y :- src X, src Y, s.eq X Y.
+  }.
+}.
+
+word : type = string.
+w : word -> rel.
+w "a". w "A". w "b".
+ci : word -> word -> prop.
+ci X Y :- X = Y.
+ci X Y :- X = "a", Y = "A".
+ci X Y :- X = "A", Y = "a".
+words = lib.dedup { t = word, eq = ci } w.
+
+n : type. one : n. two : n. three : n. four : n.
+next : n -> n -> rel.
+next one two. next two three. next three four.
+hops = lib.reach { node = n, edge = next }.
+
+twice (p : A -> prop) = [X : A] p X, p X.
+small : int -> prop = [X] X < 2.
+num : int -> rel.
+num 1. num 5.
+keep : int -> rel.
+keep X :- num X, twice small X.
+
+%output words.distinct. %output hops.r. %output keep.

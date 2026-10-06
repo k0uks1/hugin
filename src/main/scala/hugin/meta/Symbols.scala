@@ -69,6 +69,8 @@ final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: 
   var base: Option[BaseType] = None
   /** Labels and column count for object relations (filled by the typer). */
   var used: Boolean = false
+  /** `%mode` declarations of a formula function (Section 4.8). */
+  var fnModes: List[(List[Boolean], Span)] = Nil
   override def toString: String = name
 
 object Sym:

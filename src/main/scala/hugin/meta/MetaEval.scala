@@ -98,19 +98,7 @@ final class MetaEval(using Context):
     case MExpr.App(f, a, span) =>
       val fv = eval(f, env, fr)
       val av = eval(a, env, fr)
-      fv match
-        case VClosure(cenv, p, body) =>
-          checkRequirements(p, av, span, fr)
-          hygCounter += 1
-          val name = fnName(f)
-          val inner = Frame(
-            hyg = Some(hygCounter),
-            hint = fr.hint,
-            origin = fr.origin.push(TraceFrame(s"in application of `${name.getOrElse("<function>")}`", span)),
-            fnName = name
-          )
-          eval(body, cenv + (p -> av), inner)
-        case _ => VErr
+      apply(fv, av, fnName(f), span, fr)
     case MExpr.QuoteTerm(t) => VTerm(reifyTerm(t, env, fr, renamer(fr)))
     case MExpr.QuoteFormula(b) => VFormula(reifyBody(b, env, fr, renamer(fr)))
     case MExpr.QuoteType(t) => VType(reifyType(t, env, fr))
@@ -128,6 +116,57 @@ final class MetaEval(using Context):
     case MExpr.Body(items, scope, span) => evalBody(items, scope, env, fr, span)
     case MExpr.SigV(t) => VSig(t)
     case MExpr.Err => VErr
+
+  def apply(fv: Value, av: Value, name: Option[String], span: Span, fr: Frame): Value = fv match
+    case VClosure(cenv, p, body) =>
+      checkRequirements(p, av, span, fr)
+      hygCounter += 1
+      val inner = Frame(
+        hyg = Some(hygCounter),
+        hint = fr.hint,
+        origin = fr.origin.push(TraceFrame(s"in application of `${name.getOrElse("<function>")}`", span)),
+        fnName = name
+      )
+      eval(body, cenv + (p -> av), inner)
+    case _ => VErr
+
+  /** `%mode f m̄` (Section 4.8): the body is checked once, applied to fresh variables, to be well-moded
+   *  from the input variables. */
+  private def checkFnModes(s: Sym, v: Value, fr: Frame): Unit =
+    var t = s.mtype
+    var f = v
+    val params = scala.collection.mutable.ListBuffer.empty[String]
+    while t.isInstanceOf[MType.Pi] do
+      val MType.Pi(x, _, cod, imp) = t: @unchecked
+      val arg =
+        if imp then VType(OType.Err)
+        else
+          val n = s"Arg${params.length + 1}"
+          params += n
+          VTerm(Term.Var(n)(s.span))
+      f = apply(f, arg, Some(s.name), s.span, fr)
+      t = cod
+    f match
+      case VFormula(body) =>
+        for (mode, span) <- s.fnModes do
+          if mode.length != params.length then
+            ctx.report(Diagnostic.error("E0701", s"mode for `${s.name}` has ${mode.length} items but the function takes ${params.length} arguments", span))
+          else
+            val inputs = params.zip(mode).collect { case (p, true) => p }.toSet
+            Moding.canonical(body, inputs) match
+              case Left(stuck) =>
+                ctx.report(Moding.describe(stuck)
+                  .withLabel(span, "mode declared here")
+                  .withNote(s"the body of formula function `${s.name}` is not well-moded for mode ${mode.map(b => if b then "+" else "-").mkString}")
+                  .withOrigin(fr.origin))
+              case Right((_, b)) =>
+                val outs = params.zip(mode).collect { case (p, false) => p }.filterNot(b)
+                if outs.nonEmpty then
+                  ctx.report(Diagnostic.error("E0501", s"formula function `${s.name}` does not bind its output argument${if outs.length > 1 then "s" else ""}", span,
+                    s"mode ${mode.map(b => if b then "+" else "-").mkString}")
+                    .withNote(s"argument${if outs.length > 1 then "s" else ""} ${outs.map(o => o.drop(3)).mkString(", ")} must be bound by the body")
+                    .withOrigin(fr.origin))
+      case _ =>
 
   private def fnName(f: MExpr): Option[String] = f match
     case MExpr.Ref(s) => Some(s.name)
@@ -292,7 +331,9 @@ final class MetaEval(using Context):
               case VType(OType.Con(ts, _)) => edges += Edge(st, ts)(sp, fr.origin)
               case _ =>
           case EItem.MetaDef(s, rhs, _) =>
-            env += s -> eval(rhs, env, fr.copy(hint = qualify(prefix, s.name)))
+            val v = eval(rhs, env, fr.copy(hint = qualify(prefix, s.name)))
+            env += s -> v
+            if s.kind == SymKind.FormulaFn && s.fnModes.nonEmpty then checkFnModes(s, v, fr)
           case EItem.RuleItem(r) =>
             val body = reifyBody(r.body, env, fr, identity)
             val heads = r.heads.map(reifyTerm(_, env, fr, identity))

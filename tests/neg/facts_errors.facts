@@ -1,0 +1,7 @@
+edge 1 "two".
+edge 1.
+path 1 2.
+edge X 3.
+nope 1 2.
+edge 1 2
+edge 3 4.
