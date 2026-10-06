@@ -107,10 +107,20 @@ final class Scope(val parent: Option[Scope], val description: String, val key: S
   /** Names for which a key `SymKey(key, name)` was handed out (see [[claim]]). */
   private val claimed = mutable.HashSet.empty[String]
 
+  private var frozen = false
+
+  /** Forbids entering further names (the scope of a library, shared by the compilations importing it). */
+  def freeze(): Unit = frozen = true
+
+  private def check(name: String): Unit =
+    if frozen then throw IllegalStateException(s"`$name` entered into the frozen scope $key")
+
   /** Whether the key `SymKey(key, name)` is still free; claims it if so. A binder that shadows another
    *  one in the same scope (a duplicate label in a function type, a lambda parameter named like one of
    *  its implicit parameters) finds the key taken and is given a key in a scope of its own. */
-  def claim(name: String): Boolean = claimed.add(name)
+  def claim(name: String): Boolean =
+    check(name)
+    claimed.add(name)
 
   def lookupLocal(name: String): Option[Sym] = decls.get(name)
 
@@ -119,4 +129,6 @@ final class Scope(val parent: Option[Scope], val description: String, val key: S
 
   def allNames: Iterator[String] = decls.keysIterator ++ parent.iterator.flatMap(_.allNames)
 
-  def enter(s: Sym): Unit = decls(s.name) = s
+  def enter(s: Sym): Unit =
+    check(s.name)
+    decls(s.name) = s

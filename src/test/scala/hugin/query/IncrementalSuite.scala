@@ -22,7 +22,7 @@ class IncrementalSuite extends munit.FunSuite:
     }.sortBy(_.toString)
 
   /** What a client observes about a program. */
-  private def observe(text: String)(using db: Database): (List[String], List[String], List[Option[String]]) =
+  private def observe(text: String, path: String = path)(using db: Database): (List[String], List[String], List[Option[String]]) =
     val key = CompileKey(path, settings)
     val compiled = db(Compile, key)
     val renderer = DiagnosticRenderer(color = false)
@@ -54,4 +54,35 @@ class IncrementalSuite extends munit.FunSuite:
       for text <- edits(original) do
         db.set(SourceText, path, text)
         assertEquals(observe(text), fresh(text), s"after an edit of ${p.getFileName}")
+    }
+
+  /** The files imported (transitively) by a golden program at its own path, which exist. */
+  private def libraries(p: Path): List[String] =
+    given db: Database = Database()
+    db(Compile, CompileKey(p.toString)).context.unit.libraries.values.filterNot(_.isPrelude).map(_.path).toList
+
+  for p <- programs if Files.readString(p).contains("%import") do
+    test(s"incremental = from scratch under edits of imported files: ${p.getParent.getFileName}/${p.getFileName}") {
+      val program = p.toString
+      val original = Files.readString(p)
+      val libs = libraries(p)
+      assert(libs.nonEmpty || p.toString.contains("neg"), s"no imported files found for $p")
+      var texts = (program :: libs).map(f => f -> Files.readString(Path.of(f))).toMap
+      def fresh() =
+        given db: Database = Database()
+        texts.foreach((f, t) => db.set(SourceText, f, t))
+        observe(original, program)
+      given db: Database = Database()
+      texts.foreach((f, t) => db.set(SourceText, f, t))
+      assertEquals(observe(original, program), fresh())
+      for lib <- libs; text <- edits(Files.readString(Path.of(lib))) do
+        texts = texts.updated(lib, text)
+        db.set(SourceText, lib, text)
+        assertEquals(observe(original, program), fresh(), s"after an edit of $lib")
+        // the program's own edits do not elaborate any library again
+        db.stats.reset()
+        db.set(SourceText, program, original + "\nincremental_extra : rel.\n")
+        observe(original, program)
+        assertEquals(db.stats.computedBy("elabLibrary"), 0, s"libraries elaborated again after editing $program")
+        db.set(SourceText, program, original)
     }

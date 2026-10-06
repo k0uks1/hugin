@@ -3,12 +3,12 @@ package hugin.compiler
 import hugin.util.*
 
 /** The state threaded through all phases: the unit, the settings, the diagnostics reporter, and where
- *  imported files come from. */
+ *  imported files and their elaborations come from. */
 final class Context(
     val unit: CompilationUnit,
     val settings: Settings,
     val reporter: Reporter,
-    val loader: SourceLoader = SourceLoader.files
+    val libraries: Libraries = Libraries.direct(SourceLoader.files)
 ):
   /** Wall-clock time per phase that ran, in nanoseconds, in phase order (for `--stats`). */
   val timings: scala.collection.mutable.ListBuffer[(String, Long)] = scala.collection.mutable.ListBuffer.empty

@@ -134,18 +134,20 @@ object Namer:
       .mkString("\n")
 
 /** Phase: enter the prelude, the imported files and the program. The prelude's scope encloses the others,
- *  so its names are visible everywhere and can be shadowed; imported files see only the prelude. */
+ *  so its names are visible everywhere and can be shadowed; imported files see only the prelude. The
+ *  libraries are named apart, once ([[NamedLibrary]]); only the program is entered here. */
 final class NamerPhase extends Phase:
   def phaseName = "namer"
   def description = "enter declarations, classify items by stage, detect duplicates"
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null then return
-    val prelude = Scope(None, "prelude", ScopeKey.File(SourceLoader.PreludePath))
     for lib <- u.libraries.values do
-      val sc = if lib.isPrelude then prelude else Scope(Some(prelude), s"file ${lib.path}", ScopeKey.File(lib.path))
-      lib.scope = sc
-      Namer.enter(lib.program.items, sc)
+      val n = ctx.libraries.named(lib.key.nameKey)
+      lib.named = n
+      n.diagnostics.foreach(ctx.report)
+      u.symKeys.inherit(n.keys)
+    val prelude = u.libraries.values.find(_.isPrelude).flatMap(l => Option(l.scope)).getOrElse(Library.emptyPrelude)
     val root = Scope(Some(prelude), "program", ScopeKey.File(u.source.path))
     u.rootScope = root
     Namer.enter(u.untpd.nn.items, root)

@@ -36,7 +36,7 @@ private[meta] trait TyperBase:
   protected given Context = context
 
   /** The typing results of this compilation (see [[SymTable]]). */
-  val syms: SymTable = SymTable()
+  val syms: SymTable
 
   // ======================================================================= items and keys
 

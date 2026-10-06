@@ -58,6 +58,16 @@ final class SemanticIndex:
   /** Records the source extent of a scope (a module body or the program). */
   def scope(span: Span, scope: Scope): Unit = if span.exists then scopeExtents += ((span, scope))
 
+  /** Adds everything recorded in `other` (the index of a library elaborated apart), after what is here. */
+  def include(other: SemanticIndex): Unit =
+    refs ++= other.refs.map(r => Reference(r.span, r.sym, r.detail, r.isUse))
+    stagings ++= other.stagings.map(s => Staged(s.span, s.stage, s.value))
+    instanceSet ++= other.instanceSet.map(i => Instance(i.family, i.name, i.use))
+    vars ++= other.vars.map(v => VarOccurrence(v.span, v.name, v.display, v.tpe, v.item))
+    syms ++= other.syms
+    descriptions ++= other.descriptions
+    scopeExtents ++= other.scopeExtents
+
   def references: Seq[Reference] = refs.toSeq
   def variables: Seq[VarOccurrence] = vars.toSeq
   def staging: Seq[Staged] = stagings.toSeq

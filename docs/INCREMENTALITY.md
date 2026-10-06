@@ -1,7 +1,8 @@
 # Per-item incrementality: plan (issue #4)
 
-Today `Compile` runs the whole pipeline per file: every edit, also whitespace, recompiles everything,
-including the prelude and imported files. This note records the plan for finer-grained queries. Each
+Today `Compile` runs the whole pipeline per file: every edit, also whitespace, recompiles the program;
+since step 7 the prelude and imported files are named and elaborated once per database revision and
+shared by all compilations. This note records the plan for finer-grained queries. Each
 step is one PR that keeps all tests green; `IncrementalSuite` (incremental = from scratch on every golden
 program under edits) is the safety net for all of them.
 
@@ -14,7 +15,13 @@ program under edits) is the safety net for all of them.
 * `CompilationUnit` maps keyed by tree identity (`imports`, `scopes`) and `deferred` closures that run
   in a later phase; since steps 4–6 imports are resolved at use, module-body scopes are keyed by
   `ScopeKey` and requirement checks are data.
-* Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place.
+* Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
+  per compilation, so this does not touch shared library results).
+* Libraries: since step 7 a library's `Scope`, `SymTable` and `SymKeys` are frozen once elaborated and
+  read through the program's layered table; MetaEval still evaluates every library once per compilation
+  (its object names depend on the program: the prelude's `prelude.n` when the program shadows `n`, the
+  numbered prefixes `geo2`). A `%mode` written in a file for a prelude formula function is seen by that
+  file only (copy-on-write); the prelude has no formula functions.
 * Equality: surface and object trees keep spans in a second parameter list (`==` ignores them), meta
   trees do not; `SourceFile` compares by identity, so `Parse` never cuts off today. A per-item query
   whose result ignores spans would keep stale positions after an edit before the item.
@@ -42,9 +49,20 @@ program under edits) is the safety net for all of them.
    by key, with a check that no two symbols of a compilation share one (`SymKeys`); per-item fresh-name
    and local-scope counters in the typer. Items are keyed by name or by a span-insensitive hash of their
    tree, never by index, so inserting or editing an item keeps the keys of the others (`KeysSuite`).
-7. **Libraries as queries**: imports, the library graph and file elaboration as queries; the prelude
-   and imported files are elaborated once per process, not once per compilation (the largest win for
-   the REPL and the language server).
+7. **Libraries as queries** (done, `compiler/Libraries.scala`, `query/CompilerQueries.scala`): `Imports`
+   (the resolved imports of a file), `LibraryGraph` (the program's walk of its imports: files in
+   dependency order, missing files, the imports that close a cycle, parse diagnostics and E0108, cut off
+   when the imports stay the same), `NameLibrary` (a file's frozen scope) and `ElabLibrary` (its body,
+   module value, frozen typing results, symbol keys, part of the semantic index and diagnostics, also
+   pushed to the `LibraryDiagnostics` accumulator). A library's elaboration is keyed by its path, the
+   prelude flag and the imports cut by cycles (empty for an acyclic graph, so all programs share it); it
+   depends only on the prelude and on the files it imports, so the keys never form a query cycle and an
+   edit invalidates exactly the dependants. Which import of a cycle is reported depends on where the
+   walk enters it, so the graph and its diagnostics belong to the program. The program's typer layers
+   its `SymTable` and `SymKeys` over those of its libraries (reads fall through, writes stay local) and
+   includes their semantic index; the namer and typer phases report the libraries' diagnostics in the
+   same order as before. The REPL and the language server keep one database, so the prelude is
+   elaborated once per session (`LibraryQueriesSuite`, `IncrementalSuite` with library edits).
 8. **Per-item elaboration**: `ScopeOf`, `DeclSig`, `TypeDefSig`, `MetaDefType`/`MetaDefResult`,
    `ElabItem` (with its part of the semantic index), `ElabFile`; a static forward-reference check
    replaces `Sym.state`; the object pipeline stays one query over the elaborated file.

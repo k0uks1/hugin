@@ -313,3 +313,17 @@ class SessionSuite extends munit.FunSuite:
     val c = Chunk("<input 1>", "p.\n?- p.\nq.", file = false).blank(List((3, 8)))
     assertEquals(c.text, "p.\n     \nq.")
   }
+
+  test("the prelude and imported files are elaborated once for the whole session") {
+    val lib = tempFile("geo.hgn", "place : type. here : place.\n")
+    val s = Session()
+    s.execute(s"g = %import \"${lib.toString.replace("\\", "/")}\".")
+    val db = s.database
+    assertEquals(db.stats.computedBy("elabLibrary"), 2)
+    db.stats.reset()
+    for i <- graph do assertEquals(s.execute(i), Reply(), i)
+    assertEquals(s.execute("?- path a X.").output, List("X = b.", "X = c."))
+    assert(db.stats.computedBy("compile") > 0)
+    assertEquals(db.stats.computedBy("elabLibrary"), 0)
+    assertEquals(db.stats.computedBy("nameLibrary"), 0)
+  }
