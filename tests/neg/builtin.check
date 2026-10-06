@@ -1,0 +1,15 @@
+error[E0103]: unknown base type `integer`
+ --> tests/neg/builtin.hgn:1:23
+  |
+1 | num : type = %builtin integer.
+  |                       ^^^^^^^ not a builtin
+  |
+  = note: the builtin base types are float, int, string
+
+error[E0103]: `%builtin int` is only allowed as the definition of a base type
+ --> tests/neg/builtin.hgn:2:5
+  |
+2 | n = %builtin int.
+  |     ^^^^^^^^^^^^ not a type declaration
+
+2 errors found

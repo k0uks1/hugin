@@ -37,7 +37,7 @@ private[meta] trait MetaExpressions extends TyperBase:
         case None => Head.Bad
         case Some(s) =>
           s.kind match
-            case SymKind.ObjType | SymKind.TypeDef | SymKind.PreludeType => Head.TypeLike(s)
+            case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => Head.TypeLike(s)
             case SymKind.Rel | SymKind.Ctor | SymKind.Struct => ensureDecl(s); Head.Obj(s)
             case SymKind.MetaDef | SymKind.FormulaFn | SymKind.MetaParam =>
               if !visible(s, t.span) || s.mtype == null then Head.Bad else Head.Meta(Ref(s), s.mtype.nn)
@@ -114,6 +114,16 @@ private[meta] trait MetaExpressions extends TyperBase:
           Some((f.label.name, m, fsym, mt))
       }
       (Rec(fs.map(f => (f._1, f._2))), Sig(fs.map(f => (f._3, f._4)), Nil))
+    case imp: Import =>
+      // the module value of an imported file; a missing or cyclic import was reported when loading
+      Option(ctx.unit.imports.get(imp)).flatMap(ctx.unit.libraries.get).flatMap(l => Option(l.sym)) match
+        case Some(s) =>
+          noteUse(imp.pathSpan, s)
+          (Ref(s), s.mtype.nn)
+        case None => (MExpr.Err, MType.Err)
+    case b: Builtin =>
+      err("E0103", s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
+      (MExpr.Err, MType.Err)
     case mb: ModuleBody =>
       val bsc = Scope(Some(sc), "module body")
       ctx.unit.scopes.put(mb, bsc)
@@ -151,6 +161,14 @@ private[meta] trait MetaExpressions extends TyperBase:
     case VarRef(n) => n
     case _ => "_"
 
+  /** Describes a symbol as seen through a module path, with its type instantiated at that path. */
+  private[meta] def describeAt(s: Sym, path: String, t: MType): String =
+    val what = if s.kind == SymKind.MetaParam then "field" else s.kind.describe
+    t match
+      case RelT(cols) =>
+        s"$what $path : ${(cols.map(c => c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))) :+ "rel").mkString(" -> ")}"
+      case other => s"$what $path : ${showMT(other)}"
+
   private[meta] def inferSelect(sel: Select, sc: Scope): (MExpr, MType) =
     val (mq, tq) = inferM(sel.qual, sc)
     tq match
@@ -158,11 +176,14 @@ private[meta] trait MetaExpressions extends TyperBase:
       case Sig(fields, _) =>
         fields.find(_._1.name == sel.name) match
           case Some((f, ft)) =>
-            noteUse(sel.nameSpan, f)
-            if f.kind == SymKind.TypeDef && f.typeDefRhs.isDefined then (QuoteType(f.typeDefRhs.get), TypeU)
+            if f.kind == SymKind.TypeDef && f.typeDefRhs.isDefined then
+              noteUse(sel.nameSpan, f)
+              (QuoteType(f.typeDefRhs.get), TypeU)
             else
               val self = fields.map((g, _) => g -> Proj(mq, g.name)).toMap
-              (Proj(mq, sel.name), substMT(ft, self))
+              val tpe = substMT(ft, self)
+              noteUse(sel.nameSpan, f, Some(describeAt(f, Printer.show(sel), tpe)))
+              (Proj(mq, sel.name), tpe)
           case None =>
             var d = Diagnostic.error("E0101", s"`${Printer.show(sel.qual)}` has no member `${sel.name}`", sel.nameSpan, "unknown member")
               .withNote(s"available members: ${fields.map(_._1.name).mkString(", ")}")

@@ -439,6 +439,14 @@ final class Parser(src: SourceFile, reporter: Reporter):
         Agg(k, term, body)(spanFrom(start))
       case Tok.LParen => parseParens()
       case Tok.LBrace => parseBraces()
+      case Tok.Directive if t.text == "%builtin" =>
+        advance()
+        val n = expect(Tok.Name, "the name of a base type")
+        Builtin(Ident(n.text)(n.span))(spanFrom(start))
+      case Tok.Directive if t.text == "%import" =>
+        advance()
+        val p = expect(Tok.StrLit, "a file path in quotes")
+        Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
       case Tok.Error => throw new ParseError
       case _ =>

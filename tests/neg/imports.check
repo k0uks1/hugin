@@ -1,0 +1,41 @@
+error[E0108]: cannot find `lib/missing`
+ --> tests/neg/imports.hgn:2:13
+  |
+2 | m = %import "lib/missing".
+  |             ^^^^^^^^^^^^^ no such file
+  |
+  = note: resolved to `tests/neg/lib/missing.hgn`
+
+error[E0108]: cyclic import of `imports`
+ --> tests/neg/imports.hgn:7:16
+  |
+7 | self = %import "imports".
+  |                ^^^^^^^^^ imported here
+  |
+  = note: import cycle: tests/neg/imports.hgn -> tests/neg/imports.hgn
+  = help: a file is a module body; move what both files need into a third file
+
+error[E0402]: type mismatch
+ --> tests/neg/lib/broken.hgn:3:3
+  |
+3 | p 1.
+  |   ^ expected `broken.thing`, found `int`
+  |
+  = note: in column 1 of `broken.p`
+
+error[E0101]: unresolved name `undefined`
+ --> tests/neg/lib/broken.hgn:5:8
+  |
+5 | q X :- undefined X.
+  |        ^^^^^^^^^ not found in this scope
+
+error[E0108]: cyclic import of `cycle_a`
+ --> tests/neg/lib/cycle_b.hgn:1:13
+  |
+1 | a = %import "cycle_a".
+  |             ^^^^^^^^^ imported here
+  |
+  = note: import cycle: tests/neg/lib/cycle_a.hgn -> tests/neg/lib/cycle_b.hgn -> tests/neg/lib/cycle_a.hgn
+  = help: a file is a module body; move what both files need into a third file
+
+5 errors found
