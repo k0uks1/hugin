@@ -1,0 +1,17 @@
+error[E0108]: cannot find `/`
+ --> tests/neg/import_paths.hgn:3:16
+  |
+3 | root = %import "/".
+  |                ^^^ no such file
+  |
+  = note: resolved to `/.hgn`
+
+error[E0108]: cannot find `.`
+ --> tests/neg/import_paths.hgn:4:16
+  |
+4 | here = %import ".".
+  |                ^^^ no such file
+  |
+  = note: resolved to `tests/neg`
+
+2 errors found
