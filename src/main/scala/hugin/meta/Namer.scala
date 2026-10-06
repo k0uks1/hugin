@@ -139,17 +139,11 @@ final class NamerPhase extends Phase:
     val u = ctx.unit
     if u.untpd == null then return
     val prelude = Scope(None, "prelude")
-    prelude.qualifier = Some("")
-    val taken = mutable.HashSet("")
     for lib <- u.libraries.values do
       val sc = if lib.isPrelude then prelude else Scope(Some(prelude), s"file ${lib.path}")
-      if !lib.isPrelude then
-        sc.qualifier = Some(Iterator.from(1).map(k => if k == 1 then lib.name else s"${lib.name}$k").find(taken.add).get)
       lib.scope = sc
       Namer.enter(lib.program.items, sc)
     val root = Scope(Some(prelude), "program")
-    root.qualifier = Some("")
     u.rootScope = root
     Namer.enter(u.untpd.nn.items, root)
-    prelude.shadowed = root.decls.keySet.intersect(prelude.decls.keySet).toSet
   override def show(using Context): String = Namer.show(ctx.unit.rootScope.nn)

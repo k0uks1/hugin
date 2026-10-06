@@ -77,13 +77,6 @@ object Sym:
 final class Scope(val parent: Option[Scope], val description: String):
   val decls: mutable.LinkedHashMap[String, Sym] = mutable.LinkedHashMap.empty
 
-  /** For the scopes of files (the program, the prelude, imported files): the prefix of the names of their
-   *  object declarations (`""` for none). Module bodies inside files get a fresh prefix instead. */
-  var qualifier: Option[String] = None
-
-  /** Names whose object declarations get the prefix `prelude.` because the program declares the same name. */
-  var shadowed: Set[String] = Set.empty
-
   def lookupLocal(name: String): Option[Sym] = decls.get(name)
 
   def lookup(name: String): Option[Sym] =

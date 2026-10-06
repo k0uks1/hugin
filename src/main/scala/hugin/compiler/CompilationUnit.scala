@@ -35,14 +35,13 @@ final class CompilationUnit(val source: SourceFile):
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
-  /** Deferred checks of signature requirements (Section 4.4), run after evaluation. */
-  val deferred: mutable.ListBuffer[() => Unit] = mutable.ListBuffer.empty
+  /** Signature requirements (Section 4.4) recorded by `metaEval`, checked by `directives`. */
+  var requirements: List[RequirementCheck] = Nil
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
 
   /** Positions → symbols and types, for tooling. */
   val index: SemanticIndex = SemanticIndex()
-  var incomplete: Set[RelSym] = Set.empty
 
   /** Reports requested by settings (`--explain-termination`), printed with the compiler's output. */
   val explanations: mutable.ListBuffer[String] = mutable.ListBuffer.empty

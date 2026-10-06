@@ -7,9 +7,10 @@ program under edits) is the safety net for all of them.
 
 ## Obstacles (state shared across items)
 
-* ~~`Sym` carries typing results (`mtype`, `static`, `sigValue`, `state`, `tparams`, `typeDef*`, `used`,
-  `fnModes`)~~ (step 3: they are in the typer's `SymTable`, read as `CompilationUnit.symbols`; `Sym` holds
-  only namer output); `Scope` carries `qualifier`/`shadowed`, which the program writes into the prelude's scope.
+* `Sym` carried typing results (`mtype`, `static`, `sigValue`, `state`, `tparams`, `typeDef*`, `used`,
+  `fnModes`); since step 3 they are in the typer's `SymTable` (read as `CompilationUnit.symbols`) and
+  `Sym` holds only namer output. `Scope` carried `qualifier`/`shadowed`, which the program wrote into the
+  prelude's scope; since step 4 they are MetaEval inputs.
 * `CompilationUnit` maps keyed by tree identity (`imports`, `scopes`) and `deferred` closures that run
   in a later phase.
 * Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place.

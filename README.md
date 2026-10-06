@@ -193,7 +193,7 @@ only on error-free programs.
 | `disjunction` | 7.2 | splits disjunctions and multi-head rules |
 | `demand` | 7.3 | guards and propagation rules (`typed^d[++-]`) for moded relations |
 | `derivations` | 7.4 | derivation relations `@r` / `@r#i` |
-| `stratify` | 6.4 | dependency graph, Tarjan components, negative cycles (reported with the cycle) |
+| `stratify` | 6.4 | dependency graph, strongly connected components in dependency order, negative cycles (reported with the cycle) |
 | `completeness` | 6.5 | incompleteness propagation and Definition 6.6 (also for queries) |
 | `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3, generalised: interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
 | `lower` | 9.3 | compiles core rules to `Scan / Deref / Tag / Eval / Test / Lookup / NotIn / Agg` and `Make / Insert` over registers |
@@ -208,11 +208,11 @@ Source layout:
 ```
 src/main/resources/hugin/stdlib/prelude.hgn   the prelude
 src/main/scala/hugin/
-  util/            sources and spans, rustc-style diagnostics, error-code catalog, Tarjan's SCCs
-  syntax/          lexer, parser (+ ParserPhase), surface trees, printer
+  util/            sources and spans, rustc-style diagnostics, error-code catalog, graph algorithms (JGraphT)
+  syntax/          lexer, parser (ParserPhase), surface trees, printer
   compiler/        Settings, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase plan,
                    libraries (loading of the prelude and imported files)
-  meta/            symbols and scopes, namer, elaborated trees, evaluator, monomorphization
+  meta/            symbols and scopes, namer, elaborated trees and their printer, evaluator, monomorphization
   meta/typer/      the typer, split into traits mixed into one class:
                      TyperBase (state, names), Normalization (substitution, static normal forms),
                      Declarations (object declarations, type definitions), TypeElaboration (object and
@@ -225,6 +225,8 @@ src/main/scala/hugin/
   ir/              the core IR (Section 9.3), its printer, and lowering from core rules
   runtime/         interning store, semi-naive engine, loading of input facts, evaluation of a compiled program
   query/           the query database, compiler queries, position queries for tooling (Ide)
+  lsp/             the language server (lsp4j) on top of the position queries
+  repl/            the interactive session (Session, testable without a terminal) and its JLine front end
   cli/             command-line parsing and the entry point (a client of the query database)
 ```
 

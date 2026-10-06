@@ -49,9 +49,9 @@ object Main:
             group.foreach(m => out(f"    ${m.phaseName}%-12s ${m.description}"))
       ExitCode.Ok
     case Command.Explain(code) =>
-      ErrorCodes.lookup(code.toUpperCase) match
-        case Some((c, title, text)) =>
-          out(s"$c: $title\n\n$text")
+      ErrorCodes.explain(code) match
+        case Some(text) =>
+          out(text)
           ExitCode.Ok
         case None =>
           err(s"error: unknown diagnostic code `$code`")
@@ -132,17 +132,16 @@ object Main:
       err(s"error: no such file `$file`")
       return ExitCode.Usage
     val key = CompileKey(file, opts.settings)
-    def loc(s: Span) = s"${s.source.path}:${s.startLine + 1}:${s.startCol + 1}"
     val offset = position.flatMap((l, c) => db(Parse, file).source.offset(l - 1, c - 1))
     if position.isDefined && offset.isEmpty then
       err(s"error: position ${position.get._1}:${position.get._2} is outside `$file`")
       return ExitCode.Usage
     request match
       case "hover" => out(Ide.hover(key, offset.get).getOrElse("(no information)"))
-      case "definition" => out(Ide.definition(key, offset.get).map(loc).getOrElse("(no definition)"))
-      case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
+      case "definition" => out(Ide.definition(key, offset.get).map(_.show).getOrElse("(no definition)"))
+      case "references" => Ide.references(key, offset.get).foreach(s => out(s.show))
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
-        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
+        for s <- Ide.symbols(key) do out(s"${s.span.show}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
       case "diagnostics" => render(Ide.diagnostics(key), opts.display, out)
     ExitCode.Ok

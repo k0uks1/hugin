@@ -5,7 +5,7 @@ import hugin.compiler.*
 import scala.collection.mutable
 
 /** Section 7.4: derivation relations for rules under `%derivations`. */
-final class DerivationsPhase extends Phase:
+final class DerivationsPhase extends ObjProgramPhase:
   def phaseName = "derivations"
   def description = "introduce derivation relations (Section 7.4)"
 
@@ -50,5 +50,3 @@ final class DerivationsPhase extends Phase:
       replaced(r) = List(r1, r2)
     p.rules = p.rules.flatMap(r => replaced.getOrElse(r, List(r)))
     p.rels = p.rels ++ newRels
-
-  override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)

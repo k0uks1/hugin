@@ -7,7 +7,6 @@ import hugin.compiler.SemanticIndex.Stage
 import hugin.obj.*
 import hugin.obj.typing.Moding
 import scala.collection.mutable
-import scala.util.chaining.*
 
 /** Meta values V (Section 4.5). */
 enum Value:
@@ -46,6 +45,7 @@ final class MetaEval(using Context):
   val rules: mutable.ArrayBuffer[Rule] = mutable.ArrayBuffer.empty
   val queries: mutable.ArrayBuffer[Query] = mutable.ArrayBuffer.empty
   val directives: mutable.ArrayBuffer[Directive] = mutable.ArrayBuffer.empty
+  val requirements: mutable.ArrayBuffer[RequirementCheck] = mutable.ArrayBuffer.empty
 
   private val usedPrefixes = mutable.HashSet.empty[String]
   private var hygCounter = 0
@@ -205,63 +205,19 @@ final class MetaEval(using Context):
 
   private def qualify(prefix: String, name: String): String = if prefix.isEmpty then name else s"$prefix.$name"
 
-  /** Suggests inserting a directive on its own line before the declaration of `rel`, if the declaration
-   *  names it as written (not a relation of a module body, whose name has a prefix). */
-  private def directiveBefore(d: Diagnostic, rel: RelSym, directive: String): Diagnostic =
-    val decl = rel.span
-    val text = decl.text
-    val namesIt =
-      text.startsWith(rel.name) && !text.drop(rel.name.length).headOption.exists(c => c.isLetterOrDigit || c == '_' || c == '\'')
-    if !decl.exists || !namesIt then d
-    else
-      val src = decl.source
-      val indent = src.content.substring(src.lineStart(decl.startLine), decl.start)
-      d.withSuggestion(
-        s"declare `$directive`",
-        Span(src, decl.start, decl.start),
-        s"$directive\n${if indent.isBlank then indent else ""}"
-      )
-
-  /** Requirements of a signature (Section 4.4) are checked once the argument relations are known. */
+  /** Requirements of a signature (Section 4.4) are recorded for the relations of the argument; they are
+   *  checked by the `directives` phase (see [[RequirementCheck]]). */
   private def checkRequirements(p: Sym, av: Value, span: Span, fr: Frame): Unit =
     ctx.unit.symbols.mtype(p) match
       case Some(MType.Sig(_, reqs)) if reqs.nonEmpty =>
         av match
           case VRec(fs) =>
             for r <- reqs do
-              val (label, rspan) = r match
-                case Req.Complete(l, s) => (l, s)
-                case Req.HasMode(l, _, s) => (l, s)
-              fs.find(_._1 == label).map(_._2) match
-                case Some(VRel(rel)) =>
-                  val origin = fr.origin
-                  ctx.unit.deferred += (() =>
-                    r match
-                      case Req.Complete(_, _) =>
-                        if rel.isOpen || rel.isPartial then
-                          ctx.report(Diagnostic.error(
-                            "E0208",
-                            s"relation `${rel.name}` does not satisfy `%complete $label`",
-                            span,
-                            s"`${rel.name}` is ${if rel.isOpen then "open" else "partial"}"
-                          )
-                            .withLabel(rspan, "required here")
-                            .withNote("the functor negates or aggregates over this relation, which needs complete knowledge")
-                            .withOrigin(origin))
-                      case Req.HasMode(_, mode, _) =>
-                        if !rel.modes.exists(_._1 == mode) then
-                          val directive = s"%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}."
-                          ctx.report(Diagnostic.error(
-                            "E0208",
-                            s"relation `${rel.name}` does not have mode `${mode.show}`",
-                            span,
-                            s"required for field `$label`"
-                          )
-                            .withLabel(rspan, "required here")
-                            .withHelp(s"declare `$directive`")
-                            .pipe(directiveBefore(_, rel, directive))
-                            .withOrigin(origin))
-                  )
+              val req = r match
+                case Req.Complete(l, s) => Requirement.Complete(l, s)
+                case Req.HasMode(l, m, s) => Requirement.HasMode(l, m, s)
+              fs.find(_._1 == req.label).map(_._2) match
+                case Some(VRel(rel)) => requirements += RequirementCheck(req, rel, span, fr.origin)
                 case _ =>
           case _ =>
       case _ =>
@@ -352,18 +308,30 @@ final class MetaEval(using Context):
     val env = bodyEnv(items, scope, env0, fr0)
     VRec(scope.decls.values.toList.flatMap(s => env.get(s).map(s.name -> _)))
 
-  /** Evaluates a file: the prelude, an imported file or the program. Returns the environment extended
-   *  with the file's declarations. */
-  def evalFile(body: MExpr, env: Map[Sym, Value]): Map[Sym, Value] = body match
-    case MExpr.Body(items, scope, _) => bodyEnv(items, scope, env, Frame(None, "", Origin.Source, None))
-    case _ => env
+  /** Evaluates a file: the prelude, an imported file or the program. Its object declarations are named
+   *  with the prefix `qualifier` (none if empty), except names in `shadowed`, which get the prefix
+   *  `prelude` (the prelude's declarations that the program redeclares). Returns the environment
+   *  extended with the file's declarations. */
+  def evalFile(body: MExpr, env: Map[Sym, Value], qualifier: String, shadowed: Set[String] = Set.empty): Map[Sym, Value] =
+    body match
+      case MExpr.Body(items, scope, _) =>
+        usedPrefixes += qualifier
+        bodyEnv(items, scope, env, Frame(None, "", Origin.Source, None), Some(qualifier), shadowed)
+      case _ => env
 
   /** Reserves the prefix of a file's object declarations, so module bodies do not reuse it. */
   def reserve(prefix: String): Unit = usedPrefixes += prefix
 
-  private def bodyEnv(items: List[EItem], scope: Scope, env0: Map[Sym, Value], fr0: Frame): Map[Sym, Value] =
-    val prefix = scope.qualifier.getOrElse(freshPrefix(fr0.hint))
-    def objName(name: String) = if scope.shadowed(name) then qualify("prelude", name) else qualify(prefix, name)
+  private def bodyEnv(
+      items: List[EItem],
+      scope: Scope,
+      env0: Map[Sym, Value],
+      fr0: Frame,
+      qualifier: Option[String] = None,
+      shadowed: Set[String] = Set.empty
+  ): Map[Sym, Value] =
+    val prefix = qualifier.getOrElse(freshPrefix(fr0.hint))
+    def objName(name: String) = if shadowed(name) then qualify("prelude", name) else qualify(prefix, name)
     val fr = fr0.copy(hyg = None)
     var env = env0
     // bind_π for all object declarations first: they may be mutually recursive
@@ -435,19 +403,29 @@ final class MetaEvalPhase extends Phase:
     val u = ctx.unit
     if u.elab == null then return
     val ev = MetaEval()
-    for lib <- u.libraries.values; sc <- Option(lib.scope) do sc.qualifier.foreach(ev.reserve)
+    // object names: the program's and the prelude's declarations have no prefix (the prelude's get
+    // `prelude.` where the program redeclares them), an imported file's are prefixed with its name
+    val taken = mutable.HashSet("")
+    val qualifiers = u.libraries.values.toList.map { lib =>
+      lib -> (if lib.isPrelude then ""
+              else Iterator.from(1).map(k => if k == 1 then lib.name else s"${lib.name}$k").find(taken.add).get)
+    }.toMap
+    qualifiers.values.foreach(ev.reserve)
+    val shadowed = (for root <- Option(u.rootScope); lib <- u.libraries.values.find(_.isPrelude); p <- Option(lib.scope)
+    yield root.decls.keySet.intersect(p.decls.keySet).toSet).getOrElse(Set.empty)
     // each file is evaluated once; the prelude's declarations are in scope everywhere, an imported file is
     // the module value of its `%import`s
     var preludeEnv = Map.empty[Sym, Value]
     var libraryValues = Map.empty[Sym, Value]
     for lib <- u.libraries.values; body <- Option(lib.body) do
-      val env = ev.evalFile(body, preludeEnv ++ libraryValues)
+      val env = ev.evalFile(body, preludeEnv ++ libraryValues, qualifiers(lib), if lib.isPrelude then shadowed else Set.empty)
       if lib.isPrelude then preludeEnv = env
       else
         val sc = lib.scope.nn
         for s <- Option(lib.sym) do
           libraryValues += s -> Value.VRec(sc.decls.values.toList.flatMap(d => env.get(d).map(d.name -> _)))
-    ev.evalFile(u.elab.nn, preludeEnv ++ libraryValues)
+    ev.evalFile(u.elab.nn, preludeEnv ++ libraryValues, "")
+    u.requirements = ev.requirements.toList
     u.generic =
       ObjProgram(ev.types.toVector, ev.rels.toVector, ev.edges.toVector, ev.rules.toVector, ev.queries.toVector, ev.directives.toVector)
   override def show(using Context): String = ObjPrinter.program(ctx.unit.generic.nn)
