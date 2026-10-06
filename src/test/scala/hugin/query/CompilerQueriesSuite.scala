@@ -90,3 +90,10 @@ class CompilerQueriesSuite extends munit.FunSuite:
     assert(outline.contains(("roads", None)))
     assertEquals(outline.head, ("graph", None))
   }
+
+  test("singleton variables are warned about (W0002), except names starting with `_`") {
+    given db: Database = Database()
+    db.set(SourceText, "s.hgn", "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y, e X _Z.\n")
+    val diags = Ide.diagnostics(CompileKey("s.hgn"))
+    assertEquals(diags.map(d => (d.code, d.primarySpan.text)), List((Some("W0002"), "Y")))
+  }
