@@ -10,7 +10,7 @@ import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.*
 import scala.jdk.CollectionConverters.*
 
-/** The Hugin language server. It keeps one query [[Database]]; an opened or changed document (full
+/** The Hugin language server. It keeps one query [[hugin.query.Database]]; an opened or changed document (full
  *  synchronisation) sets its `SourceText`, and the diagnostics of every open document are published again,
  *  since an edit can affect the documents importing the edited one. Requests are answered by [[Features]]
  *  through the compiler queries, so unchanged documents are not recompiled.

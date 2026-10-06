@@ -56,7 +56,10 @@ private[meta] trait TyperBase:
 
   private[meta] def unresolved(name: String, span: Span, sc: Scope, what: String = "name"): Unit =
     var d = Diagnostic.error("E0101", s"unresolved $what `$name`", span, "not found in this scope")
-    suggestion(name, sc).foreach(s => d = d.withHelp(s"a declaration with a similar name exists: `$s`"))
+    suggestion(name, sc).foreach { s =>
+      d = d.withHelp(s"a declaration with a similar name exists: `$s`")
+      if span.text == name then d = d.withSuggestion(s"replace with `$s`", span, s)
+    }
     ctx.report(d)
 
   private[meta] def lookup(name: String, span: Span, sc: Scope): Option[Sym] =

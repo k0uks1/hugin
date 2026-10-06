@@ -107,6 +107,16 @@ elaboration, no variables local to negations or aggregates).
   generic name (Section 9.6). Instantiating an open family also instantiates the constructors whose
   result is that family applied to their own parameters, so `mem(list[int])` is complete. Instantiation
   is capped at 10 000 instances.
+* **Staging and instances for tooling.** The typer decides statically where quotes and splices go, but
+  the meta evaluator records them in the semantic index (`compiler/SemanticIndex`), because only it knows
+  the values: a splice of a primitive is cross-stage persistence (rule Persist) of the literal it
+  evaluates to, and code in a functor or formula function has one value per application. Unapplied
+  functors therefore have no staging information. Monomorphization records the instance of every family
+  use by the span of the application (the reference to the family starts there), and every instance by the
+  span of the family's declaration.
+* **Suggestions** (`util/Diagnostics`) are edits with a message, attached next to the help that describes
+  them in prose. The renderer prints only the help, so diagnostics read the same on the command line;
+  the language server maps the edits to quick fixes without knowing any diagnostic code.
 * **Type definitions** are always unfolded; strict definitions are not folded back in diagnostics.
 * **Formula functions.** Every literal object variable of a quote is renamed at each application
   (hygiene, Section 4.8); renamed variables print without the suffix. `%mode f m̄` is checked once on

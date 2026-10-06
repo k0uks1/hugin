@@ -1,0 +1,551 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix"
+        ]
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "hoverProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"graph2 : mod = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n","uri":"untitled:t.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "children": [],
+      "detail": "meta definition",
+      "kind": 2,
+      "name": "graph2",
+      "range": {
+        "end": {
+          "character": 59,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 6,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "detail": "relation",
+          "kind": 12,
+          "name": "path",
+          "range": {
+            "end": {
+              "character": 33,
+              "line": 2
+            },
+            "start": {
+              "character": 2,
+              "line": 2
+            }
+          },
+          "selectionRange": {
+            "end": {
+              "character": 6,
+              "line": 2
+            },
+            "start": {
+              "character": 2,
+              "line": 2
+            }
+          }
+        }
+      ],
+      "detail": "meta definition",
+      "kind": 2,
+      "name": "tc2",
+      "range": {
+        "end": {
+          "character": 2,
+          "line": 5
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 3,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      }
+    },
+    {
+      "children": [],
+      "detail": "object type",
+      "kind": 5,
+      "name": "city",
+      "range": {
+        "end": {
+          "character": 12,
+          "line": 6
+        },
+        "start": {
+          "character": 0,
+          "line": 6
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 4,
+          "line": 6
+        },
+        "start": {
+          "character": 0,
+          "line": 6
+        }
+      }
+    },
+    {
+      "children": [],
+      "detail": "constructor",
+      "kind": 9,
+      "name": "berlin",
+      "range": {
+        "end": {
+          "character": 27,
+          "line": 6
+        },
+        "start": {
+          "character": 13,
+          "line": 6
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 19,
+          "line": 6
+        },
+        "start": {
+          "character": 13,
+          "line": 6
+        }
+      }
+    },
+    {
+      "children": [],
+      "detail": "constructor",
+      "kind": 9,
+      "name": "paris",
+      "range": {
+        "end": {
+          "character": 41,
+          "line": 6
+        },
+        "start": {
+          "character": 28,
+          "line": 6
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 33,
+          "line": 6
+        },
+        "start": {
+          "character": 28,
+          "line": 6
+        }
+      }
+    },
+    {
+      "children": [],
+      "detail": "relation",
+      "kind": 12,
+      "name": "road",
+      "range": {
+        "end": {
+          "character": 27,
+          "line": 7
+        },
+        "start": {
+          "character": 0,
+          "line": 7
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 4,
+          "line": 7
+        },
+        "start": {
+          "character": 0,
+          "line": 7
+        }
+      }
+    },
+    {
+      "children": [],
+      "detail": "meta definition",
+      "kind": 2,
+      "name": "roads",
+      "range": {
+        "end": {
+          "character": 41,
+          "line": 9
+        },
+        "start": {
+          "character": 0,
+          "line": 9
+        }
+      },
+      "selectionRange": {
+        "end": {
+          "character": 5,
+          "line": 9
+        },
+        "start": {
+          "character": 0,
+          "line": 9
+        }
+      }
+    }
+  ]
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/completion","params":{"position":{"character":14,"line":10},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "detail": "relation path : g.node -> g.node -> rel",
+      "kind": 3,
+      "label": "path"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/completion","params":{"position":{"character":4,"line":10},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "detail": "%output",
+      "kind": 14,
+      "label": "output"
+    }
+  ]
+}
+--> {"id":5,"jsonrpc":"2.0","method":"textDocument/semanticTokens/full","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": {
+    "data": [
+      0,
+      0,
+      6,
+      0,
+      1,
+      0,
+      17,
+      4,
+      6,
+      1,
+      0,
+      13,
+      4,
+      6,
+      1,
+      0,
+      7,
+      4,
+      6,
+      0,
+      0,
+      8,
+      4,
+      6,
+      0,
+      1,
+      0,
+      3,
+      0,
+      1,
+      0,
+      5,
+      1,
+      6,
+      1,
+      0,
+      4,
+      6,
+      0,
+      0,
+      1,
+      2,
+      4,
+      3,
+      1,
+      0,
+      7,
+      1,
+      6,
+      0,
+      0,
+      2,
+      4,
+      6,
+      0,
+      0,
+      8,
+      1,
+      6,
+      0,
+      0,
+      2,
+      4,
+      6,
+      0,
+      1,
+      2,
+      4,
+      3,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      0,
+      5,
+      1,
+      6,
+      0,
+      0,
+      2,
+      4,
+      6,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      1,
+      2,
+      4,
+      3,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      0,
+      5,
+      1,
+      6,
+      0,
+      0,
+      2,
+      4,
+      6,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      0,
+      3,
+      4,
+      3,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      2,
+      0,
+      4,
+      1,
+      1,
+      0,
+      13,
+      6,
+      4,
+      1,
+      0,
+      9,
+      4,
+      1,
+      0,
+      0,
+      6,
+      5,
+      4,
+      1,
+      0,
+      8,
+      4,
+      1,
+      0,
+      1,
+      0,
+      4,
+      3,
+      1,
+      0,
+      7,
+      4,
+      1,
+      0,
+      0,
+      8,
+      4,
+      1,
+      0,
+      1,
+      0,
+      4,
+      3,
+      0,
+      0,
+      5,
+      6,
+      4,
+      0,
+      0,
+      7,
+      5,
+      4,
+      0,
+      1,
+      0,
+      5,
+      0,
+      1,
+      0,
+      8,
+      3,
+      0,
+      0,
+      0,
+      13,
+      4,
+      1,
+      0,
+      0,
+      13,
+      4,
+      3,
+      0,
+      1,
+      8,
+      5,
+      0,
+      0,
+      0,
+      6,
+      4,
+      3,
+      0
+    ]
+  }
+}
+--> {"id":6,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

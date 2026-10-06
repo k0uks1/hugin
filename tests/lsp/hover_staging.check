@@ -1,0 +1,197 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix"
+        ]
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "hoverProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"k : int = 6 * 7.\nat_k : int -> rel.\nat_k X :- X = k.\ncheap : int -> prop = [I] I < 10.\nlow : int -> rel.\nlow X :- at_k X, cheap X.\nnums : list int -> rel.\nnums (cons 1 nil).\n?- nums L, len L _.\n","uri":"untitled:t.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":14,"line":2},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal"
+    }
+  }
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":17,"line":5},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nformula function cheap : ⇑int -> ⇑prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here"
+    }
+  }
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":23,"line":5},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nvariable X : int\n```\n\nquoted: passed to the meta level as the code `X`"
+    }
+  }
+}
+--> {"id":5,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":26,"line":3},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta parameter I : ⇑int\n```\n\nspliced: the meta-level code `X` is inserted here"
+    }
+  }
+}
+--> {"id":6,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":6,"line":7},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`"
+    }
+  }
+}
+--> {"id":7,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":13,"line":7},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 7,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nconstructor nil A : list A\n```\n\ninstance: `nil[int]`"
+    }
+  }
+}
+--> {"id":8,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":11,"line":8},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 8,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nrelation len A : list A -> int -> rel\n```\n\ninstance: `len[int]`"
+    }
+  }
+}
+--> {"id":9,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":14,"line":2},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 9,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "uri": "untitled:t.hgn"
+    }
+  ]
+}
+--> {"id":10,"jsonrpc":"2.0","method":"textDocument/references","params":{"context":{"includeDeclaration":true},"position":{"character":0,"line":0},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 10,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 1,
+          "line": 0
+        },
+        "start": {
+          "character": 0,
+          "line": 0
+        }
+      },
+      "uri": "untitled:t.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 15,
+          "line": 2
+        },
+        "start": {
+          "character": 14,
+          "line": 2
+        }
+      },
+      "uri": "untitled:t.hgn"
+    }
+  ]
+}
+--> {"id":11,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 11,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

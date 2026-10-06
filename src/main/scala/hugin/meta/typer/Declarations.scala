@@ -165,7 +165,8 @@ private[meta] trait Declarations extends TyperBase:
             d.span,
             s"parameter${if missing.length > 1 then "s" else ""} ${missing.map(p => s"`${p.name}`").mkString(", ")} not used"
           )
-            .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded"))
+            .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
+            .withSuggestion("mark it `%abbrev`", Span(d.span.source, d.span.start, d.span.start), "%abbrev "))
         s.mtype = TypeU
         s.state = Sym.State.Done
         true

@@ -78,6 +78,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         val i = TypeSym(instName(s.name, args), TypeKind.Open, s.span, s.origin)
         i.instanceOf = Some((s, args))
         typeMemo((s, args)) = i
+        ctx.unit.index.instance(s.span, i.name)
         val sub = s.tparams.zip(args).toMap
         i.kind = s.kind match
           case TypeKind.Refinement(b) => TypeKind.Refinement(monoType(OType.subst(b, sub), span, origin))
@@ -102,6 +103,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         val i = RelSym(instName(r.name, args), r.kind, r.span, r.origin)
         i.instanceOf = Some((r, args))
         relMemo((r, args)) = i
+        ctx.unit.index.instance(r.span, i.name)
         instancesOf.getOrElseUpdate(r, mutable.ListBuffer.empty) += i
         val sub = r.tparams.zip(args).toMap
         i.cols = r.cols.map(c => c.copy(tpe = monoType(OType.subst(c.tpe, sub), span, origin)))
@@ -275,7 +277,10 @@ final class Monomorphizer(p: ObjProgram)(using Context):
               ).withNote("family instantiation does not terminate"))
             ok = false
             rel
-          else relInstance(rel, margs, span, r.origin)
+          else
+            val i = relInstance(rel, margs, span, r.origin)
+            ctx.unit.index.instance(rel.span, i.name, span)
+            i
     def t(x: Term): Term = x match
       case a @ Term.App(RelRef.Sym(s), args) => Term.App(RelRef.Sym(inst(a, s)), args.map(t))(a.span)
       case a @ Term.As(y, v) => Term.As(t(y), v)(a.span)

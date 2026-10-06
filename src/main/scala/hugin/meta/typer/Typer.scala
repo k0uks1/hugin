@@ -23,6 +23,9 @@ final class Typer(c: Context)
   import MType.*
   protected val context: Context = c
 
+  /** The declared types of meta parameters as written, for suggested edits to signatures. */
+  private[meta] val paramTypes = scala.collection.mutable.HashMap.empty[Sym, Tree]
+
   // ======================================================================= items and bodies
 
   private[meta] def elabRule(r: Rule, sc: Scope): Option[obj.Rule] =
@@ -46,7 +49,9 @@ final class Typer(c: Context)
       if !sc.lookup(name).exists(s => s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef)
     do
       ctx.report(Diagnostic.warning("W0002", s"variable `$name` occurs only once in this rule", v.span, "singleton variable")
-        .withHelp(s"use `_` or `_$name` if this is intended"))
+        .withHelp(s"use `_` or `_$name` if this is intended")
+        .withSuggestion(s"replace `$name` with `_`", v.span, "_")
+        .withSuggestion(s"rename `$name` to `_$name`", v.span, s"_$name"))
 
   private[meta] def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
     classify(t, sc, null) match
@@ -171,6 +176,7 @@ final class Typer(c: Context)
           err("E0102", s"duplicate parameter `$nm`", n.span); None
         else
           val p = Sym(nm, SymKind.MetaParam, n.span, psc)
+          paramTypes(p) = tp
           p.mtype = mt
           p.state = Sym.State.Done
           psc.enter(p)

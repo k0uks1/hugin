@@ -54,3 +54,29 @@ jobs:
         with:
           name: test-reports-jdk${{ matrix.java }}
           path: target/test-reports
+
+  vscode:
+    name: VS Code extension (.vsix)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Check that the grammar and the language configuration are valid JSON
+        run: node -e "for (const f of ['syntaxes/hugin.tmLanguage.json', 'language-configuration.json']) JSON.parse(require('fs').readFileSync(f, 'utf8'))"
+      - name: Package the extension (vsce)
+        run: npx @vscode/vsce package --skip-license --out hugin.vsix
+      - name: Upload the extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: hugin-vscode
+          path: editors/vscode/hugin.vsix
+          if-no-files-found: error

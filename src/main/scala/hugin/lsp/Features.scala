@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
-/** The language features of the server, answered through the [[Ide]] API and the compiler queries, in
+/** The language features of the server, answered through the [[hugin.query.Ide]] API and the compiler queries, in
  *  terms of the protocol: URIs, 0-based UTF-16 positions and lsp4j's data types.
  *
  *  Documents are keyed in the database by their path (see [[Uris]]); an open document's text is its
@@ -103,10 +103,16 @@ final class Features(using db: Database):
 
   // ----------------------------------------------------------------------------------- position queries
 
+  /** The signature as a Hugin code block, then the compiler's notes (staging, family instances) as
+   *  Markdown paragraphs. */
   def hover(uri: String, pos: Position): Option[Hover] =
     val path = Uris.path(uri)
     if isFacts(path) then None
-    else Ide.hover(key(path), offset(path, pos)).map(text => Hover(MarkupContent(MarkupKind.MARKDOWN, s"```hugin\n$text\n```")))
+    else
+      Ide.hoverInfo(key(path), offset(path, pos)).map { info =>
+        val parts = info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes
+        Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n")))
+      }
 
   /** The declaration of the name at a position; nothing for declarations of the bundled standard library. */
   def definition(uri: String, pos: Position): List[Location] =
@@ -238,8 +244,9 @@ final class Features(using db: Database):
 
   // --------------------------------------------------------------------------------------- code actions
 
-  /** Quick fixes for the diagnostics overlapping a range: `_` for singleton variables (W0002), and the
-   *  missing labels of a named pattern (E0301). */
+  /** Quick fixes for the diagnostics overlapping a range: their suggested edits (see [[hugin.util.Suggestion]]),
+   *  the first one of each diagnostic preferred. An edit may lie in another file (a signature); edits in
+   *  the bundled standard library are not offered. */
   def codeActions(uri: String, range: Range): List[CodeAction] =
     val path = Uris.path(uri)
     if isFacts(path) then return Nil
@@ -249,35 +256,13 @@ final class Features(using db: Database):
       d <- compilerDiagnostics(path)
       sp = d.primarySpan
       if inFile(sp, path) && sp.start <= to && from <= sp.end
-      (title, edit, preferred) <- fixes(d, sp)
+      (s, i) <- d.suggestions.zipWithIndex
+      target <- uriOf(s.span.source.path).toList
     yield
-      val action = CodeAction(title)
+      val action = CodeAction(s.message.capitalize)
       action.setKind(CodeActionKind.QuickFix)
       action.setDiagnostics(List(toLsp(d)).asJava)
-      action.setEdit(WorkspaceEdit(Map(uri -> List(edit).asJava).asJava))
-      action.setIsPreferred(preferred)
+      val edit = TextEdit(Positions.range(s.span), s.replacement)
+      action.setEdit(WorkspaceEdit(Map(target -> List(edit).asJava).asJava))
+      action.setIsPreferred(i == 0)
       action
-
-  private def fixes(d: HDiagnostic, sp: Span): List[(String, TextEdit, Boolean)] =
-    def replace(text: String) = TextEdit(Positions.range(sp), text)
-    def insert(at: Int, text: String) = TextEdit(Range(Positions.position(sp.source, at), Positions.position(sp.source, at)), text)
-    d.code match
-      case Some("W0002") =>
-        val v = sp.text
-        List((s"Replace `$v` with `_`", replace("_"), true), (s"Rename `$v` to `_$v`", replace(s"_$v"), false))
-      case Some("E0301") =>
-        // the primary label lists the missing labels: missing `a`, `b`
-        val missing = "`([^`]+)`".r.findAllMatchIn(d.labels.find(_.primary).fold("")(_.message)).map(_.group(1)).toList
-        val text = sp.text
-        val (open, close) = (text.indexOf('{'), text.lastIndexOf('}'))
-        if missing.isEmpty || open < 0 || close < open then Nil
-        else
-          // insert after the last field, before the closing brace
-          val at = sp.start + text.lastIndexWhere(!_.isWhitespace, close - 1) + 1
-          val sep = if text.substring(open + 1, close).isBlank then "" else ", "
-          // in a body the missing columns are ignored (`_`); a head needs a value, here a variable named after the label
-          val inBody = d.helps.exists(_.contains("`..`"))
-          def value(l: String) = if inBody then "_" else l.capitalize
-          val add = ("Add the missing labels", insert(at, sep + missing.map(l => s"$l = ${value(l)}").mkString(", ")), true)
-          if inBody then List(add, ("Ignore the missing labels with `..`", insert(at, sep + ".."), false)) else List(add)
-      case _ => Nil
