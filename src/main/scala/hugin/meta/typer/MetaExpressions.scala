@@ -86,17 +86,14 @@ private[meta] trait MetaExpressions extends TyperBase:
     case _: Ident | _: VarRef | _: Select | _: Apply =>
       val (head, args) = flattenApp(t)
       head match
-        case Select(q, l) if args.isEmpty => inferSelect(t.asInstanceOf[Select], sc)
+        case sel: Select if args.isEmpty => inferSelect(sel, sc)
         case _ =>
           classify(head, sc, null) match
             case Head.Bad => (MExpr.Err, MType.Err)
             case Head.ObjVar(_) => (MExpr.Err, MType.Err)
             case Head.TypeLike(s) => (QuoteType(elabOType(t, sc, TVars.NoTVars)), TypeU)
             case Head.Obj(s) =>
-              if args.isEmpty then
-                if s.tparams.nonEmpty && s.kind != SymKind.Ctor && s.kind != SymKind.Rel then
-                  (Ref(s), RelT(relCols(s)))
-                else (Ref(s), RelT(relCols(s)))
+              if args.isEmpty then (Ref(s), RelT(relCols(s)))
               else
                 // constructor application at the meta level: object code
                 val rc = RuleCtx(allowVars = false)
@@ -145,7 +142,6 @@ private[meta] trait MetaExpressions extends TyperBase:
     case _: Conj | _: Disj | _: Trees.Not | Infix(_, _, _) =>
       val rc = RuleCtx(allowVars = true)
       (QuoteFormula(elabFormula(t, sc, rc)), PropT)
-    case ErrorTree() => (MExpr.Err, MType.Err)
     case other =>
       err("E0202", "expected a meta expression", other.span, "this is object-level syntax")
       (MExpr.Err, MType.Err)

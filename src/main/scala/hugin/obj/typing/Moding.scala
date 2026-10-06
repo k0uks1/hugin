@@ -16,7 +16,6 @@ object Moding:
     case Term.With(v, fs) => vars(v) ++ fs.flatMap(f => vars(f._2))
     case Term.Arith(_, l, r) => vars(l) ++ vars(r)
     case Term.Neg(x) => vars(x)
-    case Term.Named(_, fs, _) => fs.flatMap(f => vars(f._2)).toSet
     case _ => Set.empty
 
   /** Variables that must be bound before a term can be matched at an unbound position:

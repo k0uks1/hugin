@@ -111,7 +111,7 @@ final class Typer(c: Context)
                 Some(coll.foldRight(ps.foldRight(body)((p, acc) => Lam(p, acc)))((a, acc) => Lam(a, acc)))
               case None if s.kind == SymKind.FormulaFn =>
                 if s.clauses.isEmpty then
-                  ctx.report(Diagnostic.warning("W0003", s"formula function `${name.name}` has no clauses", name.span, "always false"))
+                  ctx.report(Diagnostic.warning("W0005", s"formula function `${name.name}` has no clauses", name.span, "always false"))
                 Some(coll.foldRight(elabClauses(s, resT, psc))((a, acc) => Lam(a, acc)))
               case None => None
       case Def(name, params, rhs) =>
@@ -243,7 +243,6 @@ final class Typer(c: Context)
           val body = elabFormula(q.body, sc, rc)
           if !rc.failed then out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
         case d: Directive => elabDirective(d, sc).foreach(x => out += EItem.DirectiveItem(x))
-        case _: ErrorItem =>
     // exports
     val fields = sc.decls.values.toList.flatMap { s =>
       s.kind match
@@ -265,7 +264,11 @@ final class TyperPhase extends Phase:
     val typer = Typer(ctx)
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
-    // unused meta definitions
-    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !s.used && false do
-      ctx.report(Diagnostic.warning("W0003", s"unused definition `${s.name}`", s.span))
+    // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced
+    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !s.used do
+      val isModuleValued = s.mtype match
+        case MType.Sig(_, _) | MType.ModU | MType.Err | null => true
+        case _ => false
+      if !isModuleValued then
+        ctx.report(Diagnostic.warning("W0003", s"unused definition `${s.name}`", s.span, "never referenced"))
   override def show(using Context): String = MetaPrinter.showBody(ctx.unit.elab.nn)

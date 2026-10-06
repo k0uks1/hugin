@@ -112,7 +112,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
 
   // ------------------------------------------------------------------ inference
 
-  private final class Inference(origin: Origin, expansions: List[Expansion]):
+  private final class Inference(origin: Origin):
     private val sol = mutable.HashMap.empty[Int, OType]
     private var next = 0
     val varTypes = mutable.HashMap.empty[String, OType]
@@ -202,7 +202,6 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         unify(tl, tr, t.span)
         tl
       case Term.Neg(x) => term(x)
-      case Term.Named(_, fs, _) => fs.foreach(f => term(f._2)); fresh()
       case _ => fresh()
 
     def head(h: Term, pre: Option[List[OType]]): Unit = h match
@@ -305,7 +304,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       .withOrigin(origin))
 
   private def inferRule(r: Rule, family: Option[(RelSym, List[OType])]): Option[Rule] =
-    val inf = Inference(r.origin, r.expansions)
+    val inf = Inference(r.origin)
     r.heads.zipWithIndex.foreach { (h, i) =>
       val pre = family.flatMap { (f, ts) =>
         h match
@@ -331,7 +330,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     // monomorphic rules and queries
     for r <- p.rules if headFamily(r).isEmpty do inferRule(r, None).foreach(outRules += _)
     for q <- p.queries do
-      val inf = Inference(q.origin, q.expansions)
+      val inf = Inference(q.origin)
       q.body.foreach(inf.formula)
       rewriteRule(Rule(None, Nil, q.body)(q.span, q.origin, q.expansions), inf, None).foreach(r => outQueries += q.withBody(r.body))
     // declared column types of monomorphic relations (after rules, so that instances are requested in source order)

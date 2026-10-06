@@ -73,7 +73,6 @@ object Trees:
   final case class Conj(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   final case class Disj(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   final case class Parens(inner: Tree)(val span: Span) extends Tree
-  final case class ErrorTree()(val span: Span) extends Tree
 
   final case class Field(label: Ident, value: Tree)
 
@@ -112,7 +111,6 @@ object Trees:
   final case class Rule(name: Option[Ident], heads: List[Tree], body: Option[Tree])(val span: Span) extends Item
   final case class Query(body: Tree)(val span: Span) extends Item
   final case class Directive(kind: String, args: DirArgs)(val span: Span, val kindSpan: Span) extends Item
-  final case class ErrorItem()(val span: Span) extends Item
 
   enum DirArgs:
     case Mode(target: Tree, modes: List[ModeItem])

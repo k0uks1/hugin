@@ -272,10 +272,6 @@ final class MetaEval(using Context):
       reifyRel(r, env, fr, a.span) match
         case Some(s) => Term.App(RelRef.Sym(s), args.map(reifyTerm(_, env, fr, rn)))(a.span)
         case None => throw Abort()
-    case n @ Term.Named(r, fs, rest) =>
-      reifyRel(r, env, fr, n.span) match
-        case Some(s) => Term.Named(RelRef.Sym(s), fs.map((l, x, sp) => (l, reifyTerm(x, env, fr, rn), sp)), rest)(n.span)
-        case None => throw Abort()
     case a @ Term.As(x, v) => Term.As(reifyTerm(x, env, fr, rn), rn(v))(a.span)
     case a @ Term.Ascr(x, tp) => Term.Ascr(reifyTerm(x, env, fr, rn), reifyType(tp, env, fr))(a.span)
     case p @ Term.Proj(v, l) => Term.Proj(reifyTerm(v, env, fr, rn), l)(p.span)

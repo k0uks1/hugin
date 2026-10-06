@@ -228,11 +228,8 @@ final class Parser(src: SourceFile, reporter: Reporter):
     val b = mutable.ListBuffer.empty[ModeItem]
     while kind == Tok.Plus || kind == Tok.Minus do
       val t = advance()
-      val lbl = if kind == Tok.Name && !tok.spaceBefore then
-        val n = advance(); Some(Ident(n.text)(n.span))
-      else if kind == Tok.Name && peekTok(1).kind != Tok.Period && peekTok(1).kind != Tok.Comma && peekTok(1).kind != Tok.RBrace then
-        val n = advance(); Some(Ident(n.text)(n.span))
-      else if kind == Tok.Name then
+      // `+e` names the column labelled `e`
+      val lbl = if kind == Tok.Name then
         val n = advance(); Some(Ident(n.text)(n.span))
       else None
       b += ModeItem(t.kind == Tok.Plus, lbl, t.span.to(lbl.map(_.span).getOrElse(t.span)))

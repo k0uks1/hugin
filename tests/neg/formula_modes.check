@@ -1,3 +1,15 @@
+warning[W0003]: unused definition `succ2`
+ --> tests/neg/formula_modes.hgn:3:1
+  |
+3 | succ2 : int -> int -> prop.
+  | ^^^^^ never referenced
+
+warning[W0003]: unused definition `pred2`
+ --> tests/neg/formula_modes.hgn:6:1
+  |
+6 | pred2 : int -> int -> prop.
+  | ^^^^^ never referenced
+
 error[E0501]: unbound variables `Arg1`, `X`
  --> tests/neg/formula_modes.hgn:8:7
   |
@@ -8,6 +20,12 @@ error[E0501]: unbound variables `Arg1`, `X`
   |
   = note: an equation binds a variable or pattern on one side only when the other side is fully bound
   = note: the body of formula function `pred2` is not well-moded for mode -+
+
+warning[W0003]: unused definition `far`
+ --> tests/neg/formula_modes.hgn:9:1
+  |
+9 | far : int -> int -> prop.
+  | ^^^ never referenced
 
 error[E0501]: unbound variables `Arg2`, `Y`
   --> tests/neg/formula_modes.hgn:11:7
@@ -20,4 +38,4 @@ error[E0501]: unbound variables `Arg2`, `Y`
    = note: an equation binds a variable or pattern on one side only when the other side is fully bound
    = note: the body of formula function `far` is not well-moded for mode +-
 
-2 errors found
+2 errors, 3 warnings found

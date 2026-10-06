@@ -108,7 +108,6 @@ private[meta] trait TypeElaboration extends TyperBase:
               case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); OType.Err
         case other =>
           err("E0202", "expected an object type", other.span); OType.Err
-    case ErrorTree() => OType.Err
     case other =>
       err("E0202", "expected an object type", other.span, "not a type")
       OType.Err
@@ -161,13 +160,10 @@ private[meta] trait TypeElaboration extends TyperBase:
           }
         case _ =>
           val psc = Scope(Some(sc), "function type")
-          val tv2 = tv match
-            case TVars.MetaImplicit(_, coll) => tv
-            case other => other
           def go(ds: List[(Option[Ident], Tree)]): MType = ds match
-            case Nil => elabMType(cod, psc, tv2)
+            case Nil => elabMType(cod, psc, tv)
             case (l, d) :: rest =>
-              val dt = elabMType(d, psc, tv2)
+              val dt = elabMType(d, psc, tv)
               val x = Sym(l.map(_.name).getOrElse(fresh("_")), SymKind.MetaParam, l.map(_.span).getOrElse(d.span), psc)
               x.mtype = dt
               x.state = Sym.State.Done

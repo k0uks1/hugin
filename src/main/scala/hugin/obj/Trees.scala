@@ -74,8 +74,6 @@ object Term:
   /** Constructor term / fact pattern `c t̄`. */
   final case class App(rel: RelRef, args: List[Term])(val span: Span) extends Term
 
-  /** Named pattern `c { l = t, .. }` (removed by the `namedPatterns` phase). */
-  final case class Named(rel: RelRef, fields: List[(String, Term, Span)], rest: Boolean)(val span: Span) extends Term
   final case class As(t: Term, v: String)(val span: Span) extends Term
   final case class Ascr(t: Term, tpe: OType)(val span: Span) extends Term
   final case class Proj(v: Term, label: String)(val span: Span) extends Term

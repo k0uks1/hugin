@@ -68,7 +68,6 @@ private[meta] trait ObjectCode extends TyperBase:
       err("E0202", s"`$op` is a formula, not a term", t.span, "expected a term")
       obj.Term.Var(rc.freshWild())(t.span)
     case As(x, v) =>
-      checkNotMeta(v, sc)
       obj.Term.As(elabTerm(x, sc, rc), v.name)(t.span)
     case Ascribe(x, tp) => obj.Term.Ascr(elabTerm(x, sc, rc), elabOType(tp, sc, TVars.NoTVars))(t.span)
     case With(v, fields) =>
@@ -118,12 +117,9 @@ private[meta] trait ObjectCode extends TyperBase:
     case _: RecordLit =>
       err("E0202", "a record can only follow a relation (named pattern)", t.span)
       obj.Term.Var(rc.freshWild())(t.span)
-    case ErrorTree() => obj.Term.Var(rc.freshWild())(t.span)
     case other =>
       err("E0202", "expected a term", other.span)
       obj.Term.Var(rc.freshWild())(t.span)
-
-  private[meta] def checkNotMeta(v: VarRef, sc: Scope): Unit = ()
 
   private[meta] def checkLabelsDistinct(ls: List[Ident]): Unit =
     val seen = mutable.HashMap.empty[String, Span]
@@ -283,7 +279,6 @@ private[meta] trait ObjectCode extends TyperBase:
           ctx.report(Diagnostic.error("E0202", "expected a formula", head.span, s"`${s.name}` is a type, not a relation")
             .withHelp(s"to test membership in a type, write an ascription `(X : ${s.name})` inside an atom"))
           Nil
-    case ErrorTree() => Nil
     case other =>
       err("E0202", "expected a formula", other.span, "not a formula")
       Nil

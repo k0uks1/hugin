@@ -1,14 +1,15 @@
 package hugin.compiler
 
-/** Command-line settings that influence compilation. */
+/** Settings that influence compilation. */
 final case class Settings(
+    /** Render diagnostics with ANSI colours. */
     color: Boolean = false,
+    /** Phases after which the program is printed (`all` for every phase). */
     printAfter: Set[String] = Set.empty,
+    /** Phase after which compilation stops. */
     stopAfter: Option[String] = None,
-    budget: Option[Int] = None,
-    facts: List[String] = Nil,
+    /** Report warnings. */
     warnings: Boolean = true,
-    explainCodes: Boolean = false,
     /** Extra advisory checks (W0004). */
     lint: Boolean = false
 )

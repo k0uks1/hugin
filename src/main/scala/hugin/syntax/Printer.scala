@@ -30,7 +30,6 @@ object Printer:
     case Conj(l, r) => s"${show(l)}, ${show(r)}"
     case Disj(l, r) => s"(${show(l)} ; ${show(r)})"
     case Parens(i) => s"(${show(i)})"
-    case ErrorTree() => "<error>"
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"
@@ -65,6 +64,5 @@ object Printer:
         case DirArgs.Infix(a, p, n) => s"$a $p ${n.name}"
         case DirArgs.NameHint(t, v) => s"${show(t)} ${v.name}"
       s"%$k $a."
-    case ErrorItem() => "<error>."
 
   def showProgram(p: Program): String = p.items.map(showItem).mkString("\n")

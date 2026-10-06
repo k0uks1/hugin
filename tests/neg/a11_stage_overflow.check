@@ -1,3 +1,9 @@
+warning[W0003]: unused definition `next`
+ --> tests/neg/a11_stage_overflow.hgn:3:1
+  |
+3 | next : int = big + 1.
+  | ^^^^ never referenced
+
 error[E0209]: compile-time arithmetic failure
  --> tests/neg/a11_stage_overflow.hgn:3:14
   |
@@ -16,4 +22,4 @@ error[E0209]: compile-time arithmetic failure
   = note: 64-bit integer overflow
   = note: at the meta level an undefined primitive operation is a compile-time error (Section 3.3)
 
-2 errors found
+2 errors, 1 warning found

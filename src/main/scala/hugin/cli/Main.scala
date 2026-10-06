@@ -4,106 +4,93 @@ import hugin.util.*
 import hugin.compiler.*
 import java.nio.file.{Files, Path}
 
-/** Command-line interface. */
-object Main:
-  val usage: String =
-    """usage: hugin <command> [options] <file.hgn>
-      |
-      |commands:
-      |  run <file>          compile and evaluate; print output relations and query answers
-      |  check <file>        compile only and report diagnostics
-      |  phases              list the compiler phases
-      |  explain <code>      explain a diagnostic code (e.g. E0401)
-      |
-      |options:
-      |  --facts <file>      load ground facts for input relations (repeatable)
-      |  --budget <n>        round budget for components with %partial relations (default: unbounded)
-      |  --print-after <p>   print the program after phase p (comma-separated, repeatable; `all`)
-      |  --stop-after <p>    stop compilation after phase p
-      |  --stats             print evaluation statistics
-      |  --all-relations     print the facts of every relation (including constructors and demand relations)
-      |  --color / --no-color
-      |  --no-warnings       suppress warnings
-      |  --lint              enable advisory checks (W0004)
-      |""".stripMargin
+/** Process exit codes. */
+object ExitCode:
+  val Ok = 0
 
+  /** Compilation, input or evaluation errors were reported. */
+  val Errors = 1
+
+  /** The command line was malformed. */
+  val Usage = 2
+
+/** Command-line entry point. */
+object Main:
   def main(args: Array[String]): Unit =
     val out = java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8")
     val err = java.io.PrintStream(java.io.FileOutputStream(java.io.FileDescriptor.err), true, "UTF-8")
     sys.exit(run(args.toList, s => out.println(s), s => err.println(s)))
 
-  /** Entry point usable from tests; returns the exit code. */
+  /** Runs one command; returns the exit code. `out` receives results, `err` diagnostics. */
   def run(args: List[String], out: String => Unit, err: String => Unit): Int =
-    var settings = Settings(color = System.console() != null && System.getenv("NO_COLOR") == null)
-    var stats = false
-    var allRelations = false
-    var positional = List.empty[String]
-    var rest = args
-    var bad = false
-    while rest.nonEmpty do
-      rest match
-        case "--facts" :: f :: tl => settings = settings.copy(facts = settings.facts :+ f); rest = tl
-        case "--budget" :: n :: tl =>
-          n.toIntOption match
-            case Some(b) if b >= 0 => settings = settings.copy(budget = Some(b))
-            case _ => err(s"error: --budget expects a natural number, got `$n`"); bad = true
-          rest = tl
-        case "--print-after" :: p :: tl => settings = settings.copy(printAfter = settings.printAfter ++ p.split(",").map(_.trim)); rest = tl
-        case "--stop-after" :: p :: tl => settings = settings.copy(stopAfter = Some(p)); rest = tl
-        case "--stats" :: tl => stats = true; rest = tl
-        case "--all-relations" :: tl => allRelations = true; rest = tl
-        case "--color" :: tl => settings = settings.copy(color = true); rest = tl
-        case "--no-color" :: tl => settings = settings.copy(color = false); rest = tl
-        case "--lint" :: tl => settings = settings.copy(lint = true); rest = tl
-        case "--no-warnings" :: tl => settings = settings.copy(warnings = false); rest = tl
-        case ("-h" | "--help") :: tl => out(usage); return 0
-        case opt :: tl if opt.startsWith("--") => err(s"error: unknown option `$opt`"); bad = true; rest = tl
-        case x :: tl => positional = positional :+ x; rest = tl
-        case Nil =>
-    if bad then { err(usage); return 2 }
-    val known = Compiler.allPhaseNames.toSet + "all"
-    (settings.printAfter ++ settings.stopAfter).find(p => !known(p)) match
-      case Some(p) =>
-        err(s"error: unknown phase `$p`; see `hugin phases`")
-        return 2
+    val defaultColor = System.console() != null && System.getenv("NO_COLOR") == null
+    CommandLine.parse(args, defaultColor) match
+      case Left(msg) =>
+        err(s"error: $msg")
+        err(CommandLine.usage)
+        ExitCode.Usage
+      case Right(opts) => dispatch(opts, out, err)
+
+  private def dispatch(opts: Options, out: String => Unit, err: String => Unit): Int = opts.command match
+    case Command.Help =>
+      out(CommandLine.usage)
+      ExitCode.Ok
+    case Command.Phases =>
+      for p <- Compiler.phasePlan do
+        p match
+          case List(single) => out(f"  ${single.phaseName}%-14s ${single.description}")
+          case group =>
+            out(s"  (fused: ${group.map(_.phaseName).mkString(" + ")})")
+            group.foreach(m => out(f"    ${m.phaseName}%-12s ${m.description}"))
+      ExitCode.Ok
+    case Command.Explain(code) =>
+      ErrorCodes.lookup(code.toUpperCase) match
+        case Some((c, title, text)) =>
+          out(s"$c: $title\n\n$text")
+          ExitCode.Ok
+        case None =>
+          err(s"error: unknown diagnostic code `$code`")
+          ExitCode.Usage
+    case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
+    case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
+
+  private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
+    readSource(file) match
       case None =>
-    positional match
-      case List("phases") =>
-        for p <- Compiler.phasePlan do
-          p match
-            case List(single) => out(f"  ${single.phaseName}%-14s ${single.description}")
-            case group =>
-              out(s"  (fused: ${group.map(_.phaseName).mkString(" + ")})")
-              group.foreach(m => out(f"    ${m.phaseName}%-12s ${m.description}"))
-        0
-      case List("explain", code) =>
-        ErrorCodes.lookup(code.toUpperCase) match
-          case Some((c, title, text)) => out(s"$c: $title\n\n$text"); 0
-          case None => err(s"error: unknown diagnostic code `$code`"); 2
-      case List(cmd @ ("run" | "check"), file) =>
-        val path = Path.of(file)
-        if !Files.exists(path) then { err(s"error: no such file `$file`"); return 2 }
-        val src = SourceFile.fromPath(path)
+        err(s"error: no such file `$file`")
+        ExitCode.Usage
+      case Some(src) =>
+        val settings = opts.settings
         val renderer = DiagnosticRenderer(settings.color)
         val c = Compiler.compile(src, settings, out)
-        def flush(): Unit =
+        def flushDiagnostics(): Unit =
           c.reporter.sorted.foreach(d => err(renderer.render(d)))
-          val s = renderer.summary(c.reporter)
-          if s.nonEmpty then err(s)
-        if c.reporter.hasErrors then { flush(); return 1 }
-        if cmd == "check" || settings.stopAfter.isDefined then { flush(); return 0 }
-        val facts = settings.facts.flatMap { f =>
-          val p = Path.of(f)
-          if Files.exists(p) then Some(SourceFile.fromPath(p))
-          else { err(s"error: no such facts file `$f`"); None }
-        }
-        Runner.run(c, facts, settings.budget, allRelations) match
-          case None => flush(); 1
-          case Some(res) =>
-            flush()
-            res.output.foreach(out)
-            if stats then
-              for s <- res.stats if s.rounds > 0 || s.truncated do
-                err(s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)")
-            0
-      case _ => err(usage); 2
+          val summary = renderer.summary(c.reporter)
+          if summary.nonEmpty then err(summary)
+        if c.reporter.hasErrors then
+          flushDiagnostics()
+          ExitCode.Errors
+        else if !evaluate || settings.stopAfter.isDefined then
+          flushDiagnostics()
+          ExitCode.Ok
+        else
+          val factFiles = opts.run.facts.flatMap { f =>
+            val s = readSource(f)
+            if s.isEmpty then err(s"error: no such facts file `$f`")
+            s
+          }
+          Runner.run(c, factFiles, opts.run.budget, opts.run.allRelations) match
+            case None =>
+              flushDiagnostics()
+              ExitCode.Errors
+            case Some(res) =>
+              flushDiagnostics()
+              res.output.foreach(out)
+              if opts.run.stats then
+                for s <- res.stats if s.rounds > 0 || s.truncated do
+                  err(s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)")
+              ExitCode.Ok
+
+  private def readSource(file: String): Option[SourceFile] =
+    val path = Path.of(file)
+    if Files.isRegularFile(path) then Some(SourceFile.fromPath(path)) else None

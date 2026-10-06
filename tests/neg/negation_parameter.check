@@ -1,3 +1,9 @@
+warning[W0003]: unused definition `sinks`
+ --> tests/neg/negation_parameter.hgn:3:1
+  |
+3 | sinks (x : g) = {
+  | ^^^^^ never referenced
+
 error[E0210]: the functor negates the relation parameter `x.edge` without requiring `%complete edge`
  --> tests/neg/negation_parameter.hgn:5:29
   |
@@ -20,6 +26,12 @@ error[E0210]: the functor aggregates over the relation parameter `x.edge` withou
   |
   = help: add `%complete edge` to the signature of `x`
 
+warning[W0003]: unused definition `without`
+ --> tests/neg/negation_parameter.hgn:9:1
+  |
+9 | without (r : A -> rel) (s : A -> rel) = {
+  | ^^^^^^^ never referenced
+
 error[E0210]: the function negates the relation parameter `s`
   --> tests/neg/negation_parameter.hgn:11:22
    |
@@ -31,4 +43,4 @@ error[E0210]: the function negates the relation parameter `s`
    |
    = help: pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`
 
-3 errors found
+3 errors, 2 warnings found

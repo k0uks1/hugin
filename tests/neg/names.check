@@ -19,6 +19,12 @@ error[E0102]: `path` is declared twice in this scope
 8 | path : city -> rel.
   | ^^^^ redeclared here
 
+warning[W0003]: unused definition `twice`
+ --> tests/neg/names.hgn:9:1
+  |
+9 | twice : int = once * 2.
+  | ^^^^^ never referenced
+
 error[E0105]: `once` is used before its definition
   --> tests/neg/names.hgn:9:15
    |
@@ -38,4 +44,4 @@ error[E0105]: `self` refers to itself
    |
    = note: the meta level has no recursion; definitions may only refer to earlier definitions
 
-5 errors found
+5 errors, 1 warning found

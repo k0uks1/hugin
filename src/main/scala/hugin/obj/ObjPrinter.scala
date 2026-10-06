@@ -9,8 +9,6 @@ object ObjPrinter:
     case Term.Lit(l) => l.show
     case Term.App(r, Nil) => r.show
     case Term.App(r, as) => (r.show :: as.map(arg)).mkString(" ")
-    case Term.Named(r, fs, rest) =>
-      s"${r.show} " + (fs.map((l, t, _) => s"$l = ${term(t)}") ++ (if rest then List("..") else Nil)).mkString("{ ", ", ", " }")
     case Term.As(x, v) => s"(${term(x)} as $v)"
     case Term.Ascr(x, tp) => s"(${term(x)} : ${tp.show})"
     case Term.Proj(v, l) => s"${arg(v)}.$l"
@@ -20,7 +18,7 @@ object ObjPrinter:
     case Term.Splice(m) => s"~(${MExpr.show(m)})"
 
   def arg(t: Term): String = t match
-    case Term.App(_, _ :: _) | Term.Arith(_, _, _) | Term.Named(_, _, _) => s"(${term(t)})"
+    case Term.App(_, _ :: _) | Term.Arith(_, _, _) => s"(${term(t)})"
     case _ => term(t)
 
   private def arith(t: Term): String = t match
