@@ -1,0 +1,12 @@
+(* A variable that occurs twice in one atom (also inside a nested pattern): the later occurrences are
+   checked after the atom binds the first one. *)
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+edge a b. edge b c. edge c a. edge b b.
+?- edge X X.
+step : int -> int -> rel.
+step 1 2. step 2 2. step 3 4. step 5 3.
+?- step N N.
+twin : list node -> rel.
+twin (cons a (cons a nil)). twin (cons a (cons b nil)).
+?- twin (cons X (cons X nil)).

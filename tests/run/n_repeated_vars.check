@@ -1,0 +1,6 @@
+?- edge X X.
+X = b.
+?- step N N.
+N = 2.
+?- twin (cons X (cons X nil)).
+X = a.
