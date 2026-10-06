@@ -44,6 +44,28 @@ class MonomorphizeSuite extends munit.FunSuite:
     assertEquals(ObjPrinter.relDecl(rel(generic, "ints")), "ints : list int -> rel.")
   }
 
+  test("directives on a family are rewritten to its instances (only instances carry directives)") {
+    val c = TestSupport.compile("""
+      firsts : list A -> A -> rel.
+      @first firsts (cons X L) X :- cons X L.
+      %derivations firsts.
+      %partial firsts.
+      xs : list int -> rel.
+      xs (cons 1 nil).
+      ys : int -> rel.
+      ys Y :- xs L, firsts L Y.
+      %output ys.
+    """)
+    assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message))
+    val p = c.unit.prog.nn
+    val inst = rel(p, "firsts[int]")
+    assert(c.unit.facts(inst).derivations && c.unit.facts(inst).partial)
+    val family = inst.instanceOf.get._1
+    assert(!p.rels.contains(family))
+    assertEquals(c.unit.facts(family), RelDirectives.none)
+    assert(p.rels.exists(_.isDerivation), p.rels.map(_.name))
+  }
+
   test("polymorphic recursion is rejected (Definition 4.2)") {
     val code = """
       box A : type.

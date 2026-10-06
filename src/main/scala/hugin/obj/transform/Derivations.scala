@@ -19,7 +19,7 @@ final class DerivationsPhase extends ObjProgramPhase:
       case i => n.substring(0, i)
     def wanted(r: Rule): Boolean = r.name.exists { n =>
       !n.endsWith("^d") && (names.contains(baseName(n)) || r.heads.exists {
-        case Term.App(RelRef.Sym(c), _) => facts(c).derivations || c.instanceOf.exists(i => facts(i._1).derivations)
+        case Term.App(RelRef.Sym(c), _) => facts(c).derivations
         case _ => false
       })
     }
