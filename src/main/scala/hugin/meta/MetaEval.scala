@@ -165,7 +165,7 @@ final class MetaEval(using Context):
       t = cod
     f match
       case VFormula(body) =>
-        for (mode, span) <- s.fnModes do
+        for (mode, span) <- ctx.unit.symbols.fnModes(s) do
           if mode.length != params.length then
             ctx.report(Diagnostic.error(
               "E0701",
@@ -405,7 +405,7 @@ final class MetaEval(using Context):
           case EItem.MetaDef(s, rhs, _) =>
             val v = eval(rhs, env, fr.copy(hint = qualify(prefix, s.name)))
             env += s -> v
-            if s.kind == SymKind.FormulaFn && s.fnModes.nonEmpty then checkFnModes(s, v, fr)
+            if s.kind == SymKind.FormulaFn && ctx.unit.symbols.fnModes(s).nonEmpty then checkFnModes(s, v, fr)
           case EItem.RuleItem(r) =>
             val body = reifyBody(r.body, env, fr, identity)
             val heads = r.heads.map(reifyTerm(_, env, fr, identity))

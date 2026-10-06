@@ -48,26 +48,25 @@ enum SymKind:
     case MetaParam => "meta parameter"
     case BaseType => "base type"
 
-/** A declared name (meta-level symbol). */
-final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: Scope):
+/** A declared name (meta-level symbol): an identity with what the namer knows about it. What the typer
+ *  computes about a symbol is in its [[SymTable]] (`CompilationUnit.symbols`).
+ *
+ *  @param decl    the declaring item, for declarations entered by the namer
+ *  @param clauses the clauses of a formula function, in source order
+ *  @param abbrev  whether a type definition is marked `%abbrev` (always expanded)
+ *  @param base    the base type of a `BaseType` symbol
+ */
+final class Sym(
+    val name: String,
+    val kind: SymKind,
+    val span: Span,
+    val owner: Scope,
+    val decl: Option[Item] = None,
+    val clauses: List[Rule] = Nil,
+    val abbrev: Boolean = false,
+    val base: Option[BaseType] = None
+):
   val id: Int = Sym.next()
-
-  /** Declaring item (if any). */
-  var decl: Option[Item] = None
-
-  /** Clauses of a formula function. */
-  val clauses: mutable.ListBuffer[Rule] = mutable.ListBuffer.empty
-
-  var abbrev: Boolean = false
-
-  /** The base type of a `BaseType` symbol. */
-  var base: Option[BaseType] = None
-
-  /** Labels and column count for object relations (filled by the typer). */
-  var used: Boolean = false
-
-  /** `%mode` declarations of a formula function (Section 4.8). */
-  var fnModes: List[(List[Boolean], Span)] = Nil
   override def toString: String = name
 
 object Sym:

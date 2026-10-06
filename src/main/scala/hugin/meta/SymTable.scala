@@ -1,6 +1,7 @@
 package hugin.meta
 
 import hugin.obj.{Column, OType, TParam}
+import hugin.util.Span
 import scala.collection.mutable
 
 /** Elaboration state of a lazily elaborated symbol (meta definitions, formula functions, object declarations,
@@ -37,6 +38,9 @@ final class SymInfo:
   /** For type definitions. */
   var typeDef: Option[TypeDefInfo] = None
 
+  /** `%mode` declarations of a formula function (Section 4.8): input flags and the directive's span. */
+  var fnModes: List[(List[Boolean], Span)] = Nil
+
 /** Read-only view on the typing results of a compilation, for the phases after the typer and for tooling.
  *  Symbols the typer did not elaborate have no results. */
 trait TypingResults:
@@ -57,6 +61,9 @@ trait TypingResults:
 
   /** The elaborated type definition. */
   def typeDef(s: Sym): Option[TypeDefInfo]
+
+  /** The `%mode` declarations of a formula function. */
+  def fnModes(s: Sym): List[(List[Boolean], Span)]
 
 object TypingResults:
   /** No results (before the typer ran). */
@@ -84,3 +91,4 @@ final class SymTable extends TypingResults:
   def sigValue(s: Sym): Option[MType] = infos.get(s).flatMap(_.sigValue)
   def declInfo(s: Sym): Option[DeclInfo] = infos.get(s).flatMap(_.declInfo)
   def typeDef(s: Sym): Option[TypeDefInfo] = infos.get(s).flatMap(_.typeDef)
+  def fnModes(s: Sym): List[(List[Boolean], Span)] = infos.get(s).fold(Nil)(_.fnModes)

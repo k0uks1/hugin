@@ -67,12 +67,10 @@ final class Typer(c: Context)
       relTarget(tgt, sc, s"`%${d.kind}`").map(r => obj.Directive(k, Some(r), None)(d.span, Origin.Source))
     d.args match
       case DirArgs.Mode(tgt, ms) =>
-        // modes of formula functions are recorded on the symbol
+        // modes of formula functions were collected before the body (`collectFnModes`)
         tgt match
           case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.FormulaFn) =>
-            val f = sc.lookup(n).get
-            noteReference(tgt.span, f)
-            f.fnModes = f.fnModes :+ ((ms.map(_.input), d.span))
+            noteReference(tgt.span, sc.lookup(n).get)
             None
           case _ => mk(DirKind.ModeD(ModeSpec(ms.map(m => (m.input, m.label.map(_.name), m.span)))), tgt)
       case DirArgs.TerminatesVar(vs, tgt, args) =>
@@ -217,9 +215,18 @@ final class Typer(c: Context)
       case many => List(obj.Formula.Disj(many)(s.span))
     params.foldRight(QuoteFormula(formula): MExpr)((p, acc) => Lam(p, acc))
 
+  /** Records the `%mode` declarations of formula functions (Section 4.8) among `items`, which the meta
+   *  evaluator checks; the function may be declared in an enclosing scope. */
+  private def collectFnModes(items: List[Item], sc: Scope): Unit =
+    for
+      case d @ Directive(_, DirArgs.Mode(Ident(n), ms)) <- items
+      f <- sc.lookup(n) if f.kind == SymKind.FormulaFn
+    do syms(f).fnModes :+= ((ms.map(_.input), d.span))
+
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
     context.unit.index.scope(span, sc)
+    collectFnModes(items, sc)
     val out = mutable.ListBuffer.empty[EItem]
     for item <- items do
       item match
@@ -325,7 +332,8 @@ final class TyperPhase extends Phase:
     for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
     for s <- u.index.symbols do u.index.describe(s, typer.describe(s))
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced
-    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !s.used do
+    val used = u.index.references.collect { case r if r.isUse => r.sym }.toSet
+    for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !used(s) do
       val isModuleValued = typer.syms.mtype(s) match
         case Some(MType.Sig(_, _) | MType.ModU | MType.Err) | None => true
         case _ => false
