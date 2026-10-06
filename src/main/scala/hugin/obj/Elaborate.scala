@@ -1,7 +1,7 @@
 package hugin.obj
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
 import scala.collection.mutable
 
 /** Section 7.1: projections `X.l` and updates `(X with {...})` on a closed type with members c1..cn

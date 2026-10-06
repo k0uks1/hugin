@@ -1,7 +1,7 @@
 package hugin.obj
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
 import scala.collection.mutable
 
 /** Binding steps, canonical order and range restriction (Section 6.3). */

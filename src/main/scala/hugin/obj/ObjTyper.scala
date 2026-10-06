@@ -1,7 +1,7 @@
 package hugin.obj
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
 import hugin.syntax.{AggKind, Literal}
 import scala.collection.mutable
 

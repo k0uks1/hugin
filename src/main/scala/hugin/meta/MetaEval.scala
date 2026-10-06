@@ -2,7 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.Literal
-import hugin.core.*
+import hugin.compiler.*
 import hugin.obj.*
 import scala.collection.mutable
 

@@ -1,7 +1,7 @@
 package hugin.obj
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
 
 /** Attaches the meta-level call chain and formula-function expansions to diagnostics about generated code. */
 object Diag:

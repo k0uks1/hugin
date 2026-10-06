@@ -14,4 +14,4 @@ if [[ ! -s "$CP_FILE" || "${HUGIN_REBUILD:-0}" == "1" ]]; then
   fi
   mv "$CP_FILE.tmp" "$CP_FILE"
 fi
-exec java -Xss64m -cp "$(cat "$CP_FILE")" hugin.Main "$@"
+exec java -Xss64m -cp "$(cat "$CP_FILE")" hugin.cli.Main "$@"

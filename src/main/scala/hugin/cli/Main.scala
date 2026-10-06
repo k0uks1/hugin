@@ -1,8 +1,7 @@
-package hugin
+package hugin.cli
 
 import hugin.util.*
-import hugin.core.*
-import hugin.driver.*
+import hugin.compiler.*
 import java.nio.file.{Files, Path}
 
 /** Command-line interface. */

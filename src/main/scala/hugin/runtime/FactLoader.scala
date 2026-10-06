@@ -3,6 +3,7 @@ package hugin.runtime
 import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.Trees.*
+import hugin.ir.{CoreProgram, Id}
 import hugin.obj.{OType, TypeOps, RelSym, BaseType}
 
 /** Loads ground facts of input relations (Section 9.6). Loading interns them, which establishes subfact closure. */

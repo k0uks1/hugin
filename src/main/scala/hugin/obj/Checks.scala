@@ -1,8 +1,8 @@
 package hugin.obj
 
 import hugin.util.*
-import hugin.core.*
-import hugin.meta.Tarjan
+import hugin.compiler.*
+import hugin.util.Tarjan
 import scala.collection.mutable
 
 /** An edge of the dependency graph (Section 6.4): `from` depends on `to`. */

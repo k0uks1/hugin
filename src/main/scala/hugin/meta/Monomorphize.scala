@@ -1,7 +1,7 @@
 package hugin.meta
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
 import hugin.obj.*
 import hugin.syntax.AggKind
 import scala.collection.mutable
@@ -354,48 +354,6 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         case _ => Vector(d)
     }
     ObjProgram(outTypes.toVector, outRels.toVector, edges, outRules.toVector, outQueries.toVector, dirs)
-
-object Tarjan:
-  /** Strongly connected components in reverse topological order (dependencies first). */
-  def components[N](nodes: List[N], succ: N => List[N]): List[List[N]] =
-    val index = mutable.HashMap.empty[N, Int]
-    val low = mutable.HashMap.empty[N, Int]
-    val onStack = mutable.HashSet.empty[N]
-    val stack = mutable.Stack.empty[N]
-    val out = mutable.ListBuffer.empty[List[N]]
-    var i = 0
-    val known = nodes.toSet
-    def strong(v: N): Unit =
-      // iterative to avoid deep recursion on long chains
-      val work = mutable.Stack.empty[(N, Iterator[N])]
-      def push(n: N): Unit =
-        index(n) = i; low(n) = i; i += 1
-        stack.push(n); onStack += n
-        work.push((n, succ(n).iterator.filter(known)))
-      push(v)
-      while work.nonEmpty do
-        val (n, it) = work.top
-        if it.hasNext then
-          val w = it.next()
-          if !index.contains(w) then push(w)
-          else if onStack(w) then low(n) = low(n).min(index(w))
-        else
-          work.pop()
-          if work.nonEmpty then
-            val parent = work.top._1
-            low(parent) = low(parent).min(low(n))
-          if low(n) == index(n) then
-            val comp = mutable.ListBuffer.empty[N]
-            var w: N = null.asInstanceOf[N]
-            while
-              w = stack.pop()
-              onStack -= w
-              comp += w
-              w != n
-            do ()
-            out += comp.toList.reverse
-    for n <- nodes if !index.contains(n) do strong(n)
-    out.toList
 
 /** Phase: instantiate families. */
 final class MonomorphizePhase extends Phase:

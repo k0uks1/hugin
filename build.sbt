@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
     // warnings are errors on CI
     scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Nil),
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.2" % Test,
-    Compile / mainClass := Some("hugin.Main"),
+    Compile / mainClass := Some("hugin.cli.Main"),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,
     run / fork := true,

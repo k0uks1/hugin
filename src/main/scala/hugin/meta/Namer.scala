@@ -2,7 +2,7 @@ package hugin.meta
 
 import hugin.util.*
 import hugin.syntax.*
-import hugin.core.*
+import hugin.compiler.*
 import hugin.obj.BaseType
 
 /** Enters the declarations of a module body into its scope and classifies items by stage (Section 2.5).

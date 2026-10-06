@@ -1,20 +1,11 @@
-package hugin.driver
+package hugin.compiler
 
 import hugin.util.*
-import hugin.core.*
-import hugin.syntax.*
-
-final class ParserPhase extends Phase:
-  def phaseName = "parser"
-  def description = "lex and parse into surface trees (Section 2)"
-  def run(using Context): Unit =
-    ctx.unit.untpd = Parser.parse(ctx.unit.source, ctx.reporter)
-  override def show(using Context): String = Printer.showProgram(ctx.unit.untpd.nn)
 
 /** The phase plan. Inner lists are fused into one traversal (dotty's MegaPhase). */
 object Compiler:
   def phasePlan: List[List[Phase]] = List(
-    List(ParserPhase()),
+    List(hugin.syntax.ParserPhase()),
     List(hugin.meta.NamerPhase()),
     List(hugin.meta.TyperPhase()),
     List(hugin.meta.MetaEvalPhase()),
@@ -29,7 +20,7 @@ object Compiler:
     List(hugin.obj.StratifyPhase()),
     List(hugin.obj.CompletenessPhase()),
     List(hugin.obj.TerminationPhase()),
-    List(hugin.runtime.LowerPhase())
+    List(hugin.ir.LowerPhase())
   )
 
   def phases: List[Phase] = phasePlan.map {

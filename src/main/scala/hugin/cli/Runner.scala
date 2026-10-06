@@ -1,7 +1,8 @@
-package hugin.driver
+package hugin.cli
 
 import hugin.util.*
-import hugin.core.*
+import hugin.compiler.*
+import hugin.ir.*
 import hugin.runtime.*
 import hugin.obj.{TypeOps, RelKind}
 

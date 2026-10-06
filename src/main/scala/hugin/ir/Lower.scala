@@ -1,6 +1,6 @@
-package hugin.runtime
+package hugin.ir
 
-import hugin.core.*
+import hugin.compiler.*
 import hugin.obj.*
 import hugin.syntax.Literal
 import scala.collection.mutable
@@ -204,4 +204,4 @@ final class LowerPhase extends Phase:
     val queries = p.queries.map(low.lowerQuery)
     val comps = ctx.unit.components.map(_.map(_.tag).toVector).toVector
     ctx.unit.core = CoreProgram(p.rels, comps, rules, queries, low.indexes.view.mapValues(_.toSet).toMap)
-  override def show(using Context): String = CorePrinter.show(ctx.unit.core.nn)
+  override def show(using Context): String = IRPrinter.show(ctx.unit.core.nn)

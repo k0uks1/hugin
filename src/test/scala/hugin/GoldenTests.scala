@@ -1,5 +1,7 @@
 package hugin
 
+import hugin.cli.Main
+
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
