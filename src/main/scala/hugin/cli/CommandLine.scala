@@ -122,6 +122,9 @@ object CommandLine:
       opt[Unit]("no-warnings")
         .text("suppress warnings")
         .action((_, o) => o.copy(settings = o.settings.copy(warnings = false))),
+      opt[Unit]("no-prelude")
+        .text("do not include the standard prelude (base types must then be declared with %builtin)")
+        .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
       opt[Unit]("lint")
         .text("enable advisory checks (W0004)")
         .action((_, o) => o.copy(settings = o.settings.copy(lint = true))),

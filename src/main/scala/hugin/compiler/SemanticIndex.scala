@@ -23,7 +23,7 @@ final class SemanticIndex:
   private val scopeExtents = mutable.ArrayBuffer.empty[(Span, Scope)]
 
   def reference(span: Span, sym: Sym, detail: Option[String] = None): Unit =
-    if span.exists && sym.kind != SymKind.PreludeType then
+    if span.exists && sym.kind != SymKind.BaseType then
       refs += Reference(span, sym, detail)
       syms += sym
 

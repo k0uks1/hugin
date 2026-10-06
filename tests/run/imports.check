@@ -1,0 +1,3 @@
+reachable geo.there.
+?- hops L, len L N.
+L = cons geo.here (cons geo.there nil), N = 2.

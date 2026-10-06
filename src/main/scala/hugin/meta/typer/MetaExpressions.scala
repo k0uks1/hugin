@@ -37,7 +37,7 @@ private[meta] trait MetaExpressions extends TyperBase:
         case None => Head.Bad
         case Some(s) =>
           s.kind match
-            case SymKind.ObjType | SymKind.TypeDef | SymKind.PreludeType => Head.TypeLike(s)
+            case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => Head.TypeLike(s)
             case SymKind.Rel | SymKind.Ctor | SymKind.Struct => ensureDecl(s); Head.Obj(s)
             case SymKind.MetaDef | SymKind.FormulaFn | SymKind.MetaParam =>
               if !visible(s, t.span) || s.mtype == null then Head.Bad else Head.Meta(Ref(s), s.mtype.nn)
@@ -114,6 +114,16 @@ private[meta] trait MetaExpressions extends TyperBase:
           Some((f.label.name, m, fsym, mt))
       }
       (Rec(fs.map(f => (f._1, f._2))), Sig(fs.map(f => (f._3, f._4)), Nil))
+    case imp: Import =>
+      // the module value of an imported file; a missing or cyclic import was reported when loading
+      Option(ctx.unit.imports.get(imp)).flatMap(ctx.unit.libraries.get).flatMap(l => Option(l.sym)) match
+        case Some(s) =>
+          noteUse(imp.pathSpan, s)
+          (Ref(s), s.mtype.nn)
+        case None => (MExpr.Err, MType.Err)
+    case b: Builtin =>
+      err("E0103", s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
+      (MExpr.Err, MType.Err)
     case mb: ModuleBody =>
       val bsc = Scope(Some(sc), "module body")
       ctx.unit.scopes.put(mb, bsc)

@@ -1,0 +1,7 @@
+(* missing, cyclic and erroneous imports are reported; the rest of the program is still checked *)
+m = %import "lib/missing".
+c = %import "lib/cycle_a".
+b = %import "lib/broken".
+x : int -> rel.
+x Y :- b.q Y, m.r Y.
+self = %import "imports".
