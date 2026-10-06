@@ -13,12 +13,13 @@ final class DerivationsPhase extends ObjProgramPhase:
     val p = ctx.unit.prog
     if p == null then return
     val names = ctx.unit.derivationRules
+    val facts = ctx.unit.facts
     def baseName(n: String): String = n.indexOf('[') match
       case -1 => n
       case i => n.substring(0, i)
     def wanted(r: Rule): Boolean = r.name.exists { n =>
       !n.endsWith("^d") && (names.contains(baseName(n)) || r.heads.exists {
-        case Term.App(RelRef.Sym(c), _) => c.derivations || c.instanceOf.exists(_._1.derivations)
+        case Term.App(RelRef.Sym(c), _) => facts(c).derivations || c.instanceOf.exists(i => facts(i._1).derivations)
         case _ => false
       })
     }
@@ -42,7 +43,7 @@ final class DerivationsPhase extends ObjProgramPhase:
       }
       val d = RelSym(rn, RelKind.Derivation(name), r.span, r.origin)
       d.cols = (Column(None, OType.Fact(c, Nil)) :: atoms.toList.map((rel, _) => Column(None, OType.Fact(rel, Nil)))).toVector
-      d.isOutput = true
+      ctx.unit.facts = ctx.unit.facts.updated(d)(_.copy(output = true))
       newRels += d
       val r1 = r.withParts(body = body)
       val dh = Term.App(RelRef.Sym(d), head :: atoms.toList.map((_, v) => Term.Var(v)(r.span)))(r.span)

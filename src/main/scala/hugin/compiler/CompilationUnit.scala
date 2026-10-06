@@ -37,6 +37,9 @@ final class CompilationUnit(val source: SourceFile):
   /** The object program, transformed in place by the object-level phases. */
   var prog: ObjProgram | Null = null
 
+  /** Directives of the relations of `prog` (from `directives` on; see [[ProgramFacts]]). */
+  var facts: ProgramFacts = ProgramFacts.empty
+
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 

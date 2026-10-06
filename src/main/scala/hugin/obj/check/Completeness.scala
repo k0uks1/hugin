@@ -19,9 +19,10 @@ final class CompletenessPhase extends Phase:
     val es = DepGraph.edges(p)
     // reason for incompleteness, propagated backwards along positive edges
     val why = mutable.LinkedHashMap.empty[RelSym, String]
+    val facts = ctx.unit.facts
     for r <- p.rels do
-      if r.isOpen then why(r) = s"`${r.name}` is declared %open"
-      else if r.isPartial then why(r) = s"`${r.name}` is declared %partial"
+      if facts(r).open then why(r) = s"`${r.name}` is declared %open"
+      else if facts(r).partial then why(r) = s"`${r.name}` is declared %partial"
     var changed = true
     while changed do
       changed = false

@@ -21,7 +21,9 @@ program under edits) is the safety net for all of them.
   `ScopeKey` and requirement checks are data.
 * Monomorphize mutated the generic program's `RelSym`/`TypeSym` in place (they are created by MetaEval
   per compilation, so this did not touch shared library results); it now copies the monomorphic
-  declarations, so the generic program stays as MetaEval produced it.
+  declarations, so the generic program stays as MetaEval produced it. The object-level phases no
+  longer write into the symbols either: directives are `ProgramFacts` on the unit (keyed by symbol,
+  replaced when a later phase adds a relation), runtime tags are the core IR's.
 * Libraries: since step 7 a library's `Scope`, `SymTable` and `SymKeys` are frozen once elaborated and
   read through the program's layered table; MetaEval still evaluates every library once per compilation
   (its object names depend on the program: the prelude's `prelude.n` when the program shadows `n`, the

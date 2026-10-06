@@ -66,8 +66,11 @@ final case class Mode(inputs: Vector[Boolean]):
 object Mode:
   def allOut(n: Int): Mode = Mode(Vector.fill(n)(false))
 
-/** An object relation (plain relation, constructor or struct). The fact type has the same name. */
-final class RelSym(val name: String, var kind: RelKind, val span: Span, val origin: Origin):
+/** An object relation (plain relation, constructor or struct). The fact type has the same name. Its
+ *  declaration (`tparams`, `cols`, `result`, `instanceOf`) is filled in when the symbol is created, by the
+ *  meta evaluator, monomorphization or the phase that introduces it; what later phases learn about it is in
+ *  [[ProgramFacts]] (directives) and the core IR (runtime tags). */
+final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin):
   val id: Int = SymIds.next()
   var tparams: List[TParam] = Nil
   var cols: Vector[Column] = Vector.empty
@@ -75,20 +78,6 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   /** `None` for plain relations (ω = rel); the open result type for constructors. */
   var result: Option[OType] = None
   var instanceOf: Option[(RelSym, List[OType])] = None
-  // directives
-  var modes: List[(Mode, Span)] = Nil
-  var isOpen = false
-  var isPartial = false
-  var isInput = false
-  var isOutput = false
-
-  /** `%terminates`: the measured argument positions (lexicographic if several) and the directive. */
-  var terminates: Option[(List[Int], Span)] = None
-  var derivations = false
-  var nameHint: Option[String] = None
-
-  /** Runtime index (assigned during lowering). */
-  var tag: Int = -1
 
   def arity: Int = cols.length
   def isCtor: Boolean = kind == RelKind.Ctor
@@ -100,7 +89,6 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   def labelIndex(l: String): Option[Int] = cols.indexWhere(_.label.contains(l)) match
     case -1 => None
     case k => Some(k)
-  def hasModes: Boolean = modes.nonEmpty
   override def toString: String = name
 
 /** Object types (Figure 2), plus forms that only exist before monomorphization or meta evaluation. */

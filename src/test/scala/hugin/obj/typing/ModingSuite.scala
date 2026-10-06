@@ -21,3 +21,26 @@ class ModingSuite extends munit.FunSuite:
       Some(List("E0502"))
     )
   }
+
+  test("directives are phase output in the unit's facts; the core IR carries them by tag") {
+    val c = TestSupport.compile("""
+      f : (n : int) -> (m : int) -> rel.
+      %mode f + -. %mode f + +. %partial f.
+      f 1 2.
+      q : int -> rel.
+      q M :- f 1 M.
+      %output q.
+    """)
+    assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message))
+    val f = c.unit.prog.nn.rels.find(_.name == "f").get
+    val facts = c.unit.facts
+    assertEquals(facts.modesOf(f).map(_.show), List("+-", "++"))
+    assert(facts(f).partial && !facts(f).output)
+    val core = c.unit.core.nn
+    assertEquals(core.directives.length, core.rels.length)
+    assert(core.directives(core.tag(f)).partial)
+    val q = core.rels.find(_.name == "q").get
+    assert(core.directives(core.tag(q)).output)
+    // a relation without directives reads as none (all outputs, complete)
+    assertEquals(facts.modesOf(q).map(_.show), List("-"))
+  }

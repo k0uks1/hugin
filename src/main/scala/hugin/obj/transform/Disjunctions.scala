@@ -103,7 +103,8 @@ final class Disjunctions extends MiniPhase:
     val aux = RelSym(s"${item.name}^or${auxRels.length + 1}", RelKind.Auxiliary("disjunction inside an aggregate"), d.span, item.origin)
     val params = inputs ++ outputs
     aux.cols = params.map(v => Column(None, item.types.getOrElse(v, OType.Err))).toVector
-    if inputs.nonEmpty then aux.modes = List((Mode(params.map(inputs.contains).toVector), d.span))
+    if inputs.nonEmpty then
+      ctx.unit.facts = ctx.unit.facts.updated(aux)(_.copy(modes = List((Mode(params.map(inputs.contains).toVector), d.span))))
     auxRels += aux
     def args = params.map(v => Term.Var(v)(d.span): Term)
     for alt <- d.alts do
@@ -117,9 +118,10 @@ final class Disjunctions extends MiniPhase:
     case _ => "rule"
 
   /** Variables bound by the head in every mode of the head relation. */
-  private def headInputs(r: Rule): Set[String] = r.heads
+  private def headInputs(r: Rule)(using facts: ProgramFacts): Set[String] = r.heads
     .collect {
-      case h @ Term.App(RelRef.Sym(c), _) if c.hasModes => c.modes.map((m, _) => Moding.headInputVars(h, m)).reduce(_ intersect _)
+      case h @ Term.App(RelRef.Sym(c), _) if facts.hasModes(c) =>
+        facts.modes(c).map((m, _) => Moding.headInputVars(h, m)).reduce(_ intersect _)
     }
     .foldLeft(Set.empty[String])(_ ++ _)
 

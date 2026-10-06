@@ -8,6 +8,9 @@ import scala.collection.mutable
 
 /** Compiles core rules into the register-based IR of Section 9.3. Bodies are compiled in canonical order. */
 final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
+  /** Runtime tags: the index of a relation in `p.rels`. */
+  val tagOf: Map[RelSym, Int] = p.rels.zipWithIndex.toMap
+  extension (c: RelSym) private def tag: Int = tagOf(c)
   private val compOf: Map[RelSym, Int] = ctx.unit.components.zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
   val indexes: mutable.HashMap[Int, mutable.Set[Vector[Int]]] = mutable.HashMap.empty
 
@@ -211,11 +214,10 @@ final class LowerPhase extends Phase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
-    p.rels.zipWithIndex.foreach((r, i) => r.tag = i)
     val ops = TypeOps(p)
     val low = Lowering(p, ops)
     val rules = p.rules.map(low.lowerRule)
     val queries = p.queries.map(low.lowerQuery)
-    val comps = ctx.unit.components.map(_.map(_.tag).toVector).toVector
-    ctx.unit.core = CoreProgram(p.rels, comps, rules, queries, low.indexes.view.mapValues(_.toSet).toMap)
+    val comps = ctx.unit.components.map(_.map(low.tagOf).toVector).toVector
+    ctx.unit.core = CoreProgram(p.rels, p.rels.map(ctx.unit.facts(_)), comps, rules, queries, low.indexes.view.mapValues(_.toSet).toMap)
   override def show(using Context): String = IRPrinter.show(ctx.unit.core.nn)

@@ -43,7 +43,7 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
       val name = path(h).getOrElse(err("expected a constructor term", t.span))
       val cands = byName.getOrElse(name, Vector.empty).filter(c => c.arity == args.length && ops.isSub(OType.Fact(c, Nil), expected))
       cands match
-        case Vector(c) => Id(c.tag, build(c, args))
+        case Vector(c) => Id(prog.tag(c), build(c, args))
         case Vector() =>
           if byName.contains(name) then
             err(
@@ -57,7 +57,7 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
 
   private def build(c: RelSym, args: List[Tree]): Int =
     val vs = args.zip(c.cols).map((a, col) => value(a, col.tpe)).toArray[Any]
-    engine.store(c.tag).intern(vs, assert = true)
+    engine.store(prog.tag(c)).intern(vs, assert = true)
 
   def load(src: SourceFile): Int =
     val prog0 = Parser.parse(src, reporter)
@@ -71,7 +71,8 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
             val rels = byName.getOrElse(name, Vector.empty).filter(r => !r.isCtor && r.arity == args.length)
             rels match
               case Vector(r) =>
-                if !r.isInput && !r.isOpen then
+                val dirs = prog.directives(prog.tag(r))
+                if !dirs.input && !dirs.open then
                   err(
                     s"`${r.displayName}` is not an input relation",
                     h.span,
