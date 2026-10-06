@@ -19,21 +19,34 @@ reach X :- path a X.
 (* Several items, and queries, on one line. *)
 label : node -> string -> rel. label a "a. b." . ?- label N L.
 ?- path c X. ?- path X c.
-(* A warning is reported once, for the input that has it. *)
-from : node -> rel. from X :- edge X Y.
+(* A warning is reported once, for the input that has it; unused definitions are not reported. *)
+never : node -> prop.
 to : node -> rel. to Y :- edge _ Y.
+start : node = a.
+?- path start X.
+(* Comments may span lines;
+   the input continues until they are closed. *)
 (* An input that breaks earlier text is rejected too. *)
 p : rel. q : rel. p :- q.
 q :- not p.
 :type path
+:type a
+:type cons a nil
+:type 1 + 2
+:type cons nothing nil
 :type nothing
+:kind edge
+?- path X X.
+edge c a.
+?- path X X.
+:list
 :print records path
 :stats on
 ?- path a c.
 :stats off
 :budget 1
 :budget off
-:explain W0002
+:explain W0005
 :lod x
 :reset
 ?- path a X.

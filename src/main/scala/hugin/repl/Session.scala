@@ -22,8 +22,12 @@ final case class CommandInfo(name: String, args: String, help: String)
  *  An input becomes a new chunk of a candidate text, which is compiled. If that reports errors, the
  *  previous text is restored and the input is rejected as a whole; otherwise the candidate becomes the
  *  session. Diagnostics are mapped to the chunks they lie in, and only diagnostics the session did not
- *  have before are reported. Queries are answered over the candidate and the facts files, then blanked
- *  out of the session text, so they are answered once.
+ *  have before are reported (W0003, an unused definition, is not reported at all: in a session,
+ *  definitions are made to be used by later inputs). Queries are answered over the candidate and the facts
+ *  files, then blanked out of the session text, so they are answered once.
+ *
+ *  `:type`, `:kind` and completion ask the position queries of [[hugin.query.Ide]] about a probe: a
+ *  candidate session text with one more chunk, which is never accepted.
  */
 final class Session(settings: Settings = Settings(), initialBudget: Option[Int] = None, initialStats: Boolean = false):
   private given db: Database = Database()
@@ -96,7 +100,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     db.set(SourceText, SessionText.path, candidate.text)
     facts.foreach((f, text) => db.set(SourceText, f, text))
     val compiled = db(Compile, key)
-    val diagnostics = compiled.diagnostics.map(candidate.toChunks)
+    val diagnostics = compiled.diagnostics.filterNot(Session.silenced).map(candidate.toChunks)
     val fresh = diagnostics.filterNot(known)
     if compiled.hasErrors then
       restore()
@@ -116,9 +120,12 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     factFiles = facts
     known = diagnostics.toSet
     restore()
+    // the query is repeated before its answers when it is not the only one the user just typed
     val answers =
       for r <- outcome.flatMap(_.result).toList if queries.nonEmpty
-      yield r.notice.toList ++ r.answers.flatMap(a => a.query :: a.lines) ++ (if stats then r.statistics else Nil)
+      yield
+        val headers = done.nonEmpty || r.answers.length > 1
+        r.notice.toList ++ r.answers.flatMap(a => if headers then a.query :: a.lines else a.lines) ++ (if stats then r.statistics else Nil)
     Reply(done.toList ++ answers.flatten, fresh ++ factDiagnostics)
 
   /** Sets the database inputs to the accepted session. */
@@ -140,7 +147,9 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     CommandInfo("reload", "", "read the loaded program and facts files again"),
     CommandInfo("facts", "<file>", "load ground facts for input relations"),
     CommandInfo("reset", "", "start an empty session"),
-    CommandInfo("type", "<name>", "describe the symbols with this name"),
+    CommandInfo("type", "<expr>", "the type of a name, a module path, a meta expression or an object term"),
+    CommandInfo("kind", "<name>", "what a name (or module path) denotes"),
+    CommandInfo("list", "", "show the inputs, files and facts files of the session"),
     CommandInfo("print", "<phase> [<name>]", "print the session after a phase; with a name, only the items mentioning it"),
     CommandInfo("explain", "<code>", "explain a diagnostic code (e.g. E0401)"),
     CommandInfo("budget", "<n>|off", "round budget for components with %partial relations"),
@@ -157,7 +166,9 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       case ("reload", Nil) => reload()
       case ("facts", List(f)) => loadFacts(f)
       case ("reset", Nil) => reset()
-      case ("type", List(n)) => describe(n)
+      case ("type", _ :: _) => typeOf(rest.trim)
+      case ("kind", List(n)) => kindOf(n)
+      case ("list", Nil) => list
       case ("print", p :: n) if n.length <= 1 => print(p, n.headOption)
       case ("explain", List(c)) => explain(c)
       case ("budget", List("off")) =>
@@ -195,11 +206,81 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       ""
     ) ++ commands.map(c => s"  ${s":${c.name} ${c.args}".padTo(width, ' ')}  ${c.help}")
 
-  /** `:type`: the descriptions of the symbols with this name, in source order. */
-  private def describe(name: String): Reply =
-    val index = db(Compile, key).index
-    val descriptions = index.symbols.filter(s => s.name == name && s.span.exists).sortBy(_.span.start).flatMap(index.description).distinct
-    if descriptions.isEmpty then error(s"no symbol `$name` in the session") else Reply(descriptions.toList)
+  /** Runs `f` on a probe: the session text with `text` as one more chunk. `f` gets the offset of the probe
+   *  in the session text; the database inputs are restored afterwards. */
+  private def probe[A](text: String)(f: Int => A): A =
+    val candidate = SessionText(current.chunks :+ Chunk(SourceFile.virtual("<probe>", text), file = false))
+    db.set(SourceText, SessionText.path, candidate.text)
+    try f(candidate.offsets.last)
+    finally restore()
+
+  /** The new errors of compiling a probe whose text is `prefix`, `expr` and a period, with their spans
+   *  moved into `expr` as entered (`<input>`). */
+  private def probeErrors(prefix: String, expr: String): List[Diagnostic] =
+    val view = SourceFile.virtual("<input>", expr)
+    val candidate = SessionText(current.chunks :+ Chunk(SourceFile.virtual("<probe>", prefix + expr + "."), file = false))
+    def move(span: Span): Span =
+      val mapped = candidate.toChunk(span)
+      if mapped.source.path != "<probe>" then mapped
+      else
+        val start = (mapped.start - prefix.length).max(0).min(expr.length)
+        Span(view, start, (mapped.end - prefix.length).max(start).min(expr.length))
+    db(Compile, key).diagnostics
+      .filter(_.severity == Severity.Error)
+      .map(d =>
+        d.copy(
+          labels = d.labels.map(l => l.copy(span = move(l.span))),
+          origin = Origin(d.origin.frames.map(f => f.copy(span = move(f.span))))
+        )
+      )
+      .filterNot(known)
+
+  /** `:type`: for a name or module path, its description as hover shows it (with the instantiated type of
+   *  a member of a module); for an object term, its object type; for another meta expression, its meta
+   *  type. Each is asked by compiling a probe item: `?- V = term.` and `it = expr.`. */
+  private def typeOf(expr: String): Reply =
+    val metaPrefix = s"${Session.probeName} = "
+    val meta = probe(metaPrefix + expr + ".") { offset =>
+      val errors = probeErrors(metaPrefix, expr)
+      if errors.nonEmpty then Left(errors)
+      else if Session.isPath(expr) then Right(Ide.hover(key, offset + metaPrefix.length + expr.length - 1))
+      else Right(Ide.hover(key, offset + 1).map(_.stripPrefix(s"meta definition ${Session.probeName} : ")).map(t => s"$expr : $t"))
+    }
+    val objPrefix = s"?- ${Session.probeVar} = "
+    def obj = probe(objPrefix + expr + ".") { offset =>
+      if probeErrors(objPrefix, expr).nonEmpty then None
+      else Ide.hover(key, offset + 4).map(_.stripPrefix(s"variable ${Session.probeVar} : ")).map(t => s"$expr : $t")
+    }
+    meta match
+      case Left(errors) => Reply(diagnostics = errors)
+      case Right(Some(described)) if Session.isPath(expr) => Reply(List(described))
+      case Right(metaType) =>
+        obj.orElse(metaType) match
+          case Some(t) => Reply(List(t))
+          case None => error(s"no type for `$expr`")
+
+  /** `:kind`: what a name denotes (an object type, a relation, a constructor, a meta definition, ...). */
+  private def kindOf(name: String): Reply =
+    if !Session.isPath(name) then error(s":kind expects a name or a module path, got `$name`")
+    else
+      val prefix = s"${Session.probeName} = "
+      probe(prefix + name + ".") { offset =>
+        probeErrors(prefix, name) match
+          case Nil =>
+            Ide.symbolAt(key, offset + prefix.length + name.length - 1) match
+              case Some(s) => Reply(List(s"$name : ${s.kind.describe}"))
+              case None => error(s"no symbol `$name` in the session")
+          case errors => Reply(diagnostics = errors)
+      }
+
+  /** `:list`: the accepted inputs (without the queries, which were answered), loaded files and facts files. */
+  private def list: Reply =
+    val chunks = current.chunks.flatMap { c =>
+      if c.file then List(s"(* loaded ${c.view.path} *)")
+      else c.text.linesIterator.map(_.stripTrailing).toList.dropWhile(_.isEmpty).reverse.dropWhile(_.isEmpty).reverse
+    }
+    val facts = factFiles.map((f, _) => s"(* facts from $f *)")
+    if chunks.isEmpty && facts.isEmpty then Reply(List("(* the session is empty *)")) else Reply((chunks ++ facts).toList)
 
   /** `:print`: the session after a phase; with a name, the phase headers and the items mentioning it. */
   private def print(phase: String, name: Option[String]): Reply =
@@ -216,23 +297,43 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
 
   // ---------------------------------------------------------------------------------------- completion
 
-  /** The names declared in the session, for completion. */
-  def names: List[String] = Ide.symbols(key).map(_.name).distinct.sorted
+  /** Completion candidates for the identifier before `cursor` in `line` (the input typed so far, possibly
+   *  several lines): commands and their arguments for a command line, otherwise
+   *  [[hugin.query.Ide.completions]] at the cursor of a probe (the input up to the cursor, terminated).
+   *  Files after `:load` and `:facts` are left to the terminal layer. */
+  def complete(line: String, cursor: Int): List[String] =
+    val before = line.take(cursor)
+    if Input.isCommand(before) then
+      val words = before.trim.split("\\s+").toList
+      val previous = if before.last.isWhitespace then words else words.init
+      commandCompletions(previous).filter(_.startsWith(if before.last.isWhitespace then "" else words.last))
+    else probe(before + " .")(offset => Ide.completions(key, offset + before.length).map(_.label))
 
-  /** Completion candidates for the word after `before` (the preceding words of the line). Files after
-   *  `:load` and `:facts` are left to the terminal layer. */
-  def completions(before: List[String]): List[String] = before match
-    case Nil => commands.map(":" + _.name) ++ names
+  /** Candidates for a command word, or its argument after the words `previous`. */
+  private def commandCompletions(previous: List[String]): List[String] = previous match
+    case Nil => commands.map(":" + _.name)
     case List(":print") => Compiler.allPhaseNames :+ "all"
-    case List(":print", _) | List(":type") => names
+    case List(":print", _) | List(":type") | List(":kind") => names
     case List(":explain") => ErrorCodes.all.map(_._1)
     case List(":budget") => List("off")
     case List(":stats") => List("on", "off")
-    case c :: _ if c.startsWith(":") => Nil
-    case _ => names
+    case _ => Nil
+
+  /** The top-level names of the session (and the prelude), for the arguments of commands. */
+  private def names: List[String] = probe("")(offset => Ide.completions(key, offset)).map(_.label).distinct.sorted
 
 object Session:
   private val header = "(* ----"
+
+  /** The names of the probe items of `:type`, chosen not to clash with names of the session. */
+  private val probeName = "it'repl"
+  private val probeVar = "It'repl"
+
+  /** Diagnostics that the session does not report: W0003 (unused definition). */
+  private def silenced(d: Diagnostic): Boolean = d.code.contains("W0003")
+
+  /** Whether a text is a name or a module path `a.b.c`. */
+  private def isPath(text: String): Boolean = text.split('.').forall(_.matches("[A-Za-z_][A-Za-z0-9_']*"))
 
   /** The lines of printed items that mention `name` (also as part of a qualified name `a.name.b`),
    *  together with the phase headers. An item is a line and the indented lines after it. */

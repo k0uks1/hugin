@@ -1,6 +1,11 @@
 (* Started as `hugin repl examples/graphs.hgn`. *)
 ?- from_berlin C.
 :type roads
+:type roads.path
+:type short.hop
+:type tc
+:kind tc
+:type tc { node = city, edge = road }
 :print lower from_berlin
 :load examples/graphs.hgn
 :load no/such/file.hgn

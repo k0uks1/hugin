@@ -30,7 +30,7 @@ class SessionSuite extends munit.FunSuite:
     val s = Session()
     for i <- graph do assertEquals(s.execute(i), Reply(), i)
     assertEquals(s.text, graph.mkString("\n"))
-    assertEquals(s.execute("?- path a X.").output, List("?- path a X.", "X = b.", "X = c."))
+    assertEquals(s.execute("?- path a X.").output, List("X = b.", "X = c."))
   }
 
   test("an input with errors is rejected and the session is unchanged") {
@@ -49,7 +49,7 @@ class SessionSuite extends munit.FunSuite:
     assert(s.execute("d : node. edge c d. edge d e.").hasErrors)
     assertEquals(s.text, before)
     assertEquals(s.execute("d : node. edge c d.").diagnostics, Nil)
-    assertEquals(s.execute("?- path d X.").output, List("?- path d X.", "no."))
+    assertEquals(s.execute("?- path d X.").output, List("no."))
   }
 
   test("diagnostics point into the input as typed, with its own lines and columns") {
@@ -77,14 +77,26 @@ class SessionSuite extends munit.FunSuite:
 
   test("warnings are reported for the new input only, once") {
     val s = session(graph*)
-    val r = s.execute("from : node -> rel. from X :- edge X Y.")
+    val r = s.execute("never : node -> prop.")
     assert(!r.hasErrors)
-    assertEquals(r.diagnostics.flatMap(_.code), List("W0002"))
+    assertEquals(r.diagnostics.flatMap(_.code), List("W0005"))
     assertEquals(r.diagnostics.head.primarySpan.source.path, "<input 7>")
     assertEquals(s.execute("to : node -> rel. to Y :- edge _ Y.").diagnostics, Nil)
   }
 
-  test("queries are answered once and do not stay in the session") {
+  test("unused definitions are not reported: later inputs use them") {
+    val s = session(graph*)
+    assertEquals(s.execute("start : node = a.").diagnostics, Nil)
+    assertEquals(s.execute("?- path start X.").output, List("X = b.", "X = c."))
+  }
+
+  test("repeated variables in one atom") {
+    val s = session(graph*)
+    s.execute("edge c a.")
+    assertEquals(s.execute("?- path X X.").output, List("X = a.", "X = b.", "X = c."))
+  }
+
+  test("queries are answered once and do not stay in the session; several are headed by the query") {
     val s = session(graph*)
     val r = s.execute("?- path a c. ?- path c X.")
     assertEquals(r.output, List("?- path a c.", "yes.", "?- path c X.", "no."))
@@ -92,7 +104,7 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.execute("edge c a.").output, Nil)
     // a rule and a query in one input: the query sees the rule
     val both = s.execute("loop : node -> rel. loop X :- path X X. ?- loop X.")
-    assertEquals(both.output, List("?- loop X.", "X = a.", "X = b.", "X = c."))
+    assertEquals(both.output, List("X = a.", "X = b.", "X = c."))
   }
 
   test("a query with errors is rejected") {
@@ -102,11 +114,34 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.text, before)
   }
 
-  test(":type describes symbols through the semantic index") {
+  test(":type shows the type of names, module paths, meta expressions and object terms") {
     val s = session(graph*)
+    // the session's `path` shadows the one of the prelude's `tc`
     assertEquals(s.execute(":type path").output, List("relation path : node -> node -> rel"))
-    assertEquals(s.execute(":type node").output, List("object type node"))
-    assert(s.execute(":type nothing").hasErrors)
+    assertEquals(s.execute(":type a").output, List("constructor a : node"))
+    assertEquals(s.execute(":type cons a nil").output, List("cons a nil : cons[node]"))
+    assertEquals(s.execute(":type 1 + 2").output, List("1 + 2 : int"))
+    assertEquals(s.execute("g = tc { node = node, edge = edge }.").diagnostics, Nil)
+    assertEquals(s.execute(":type g.path").output, List("relation g.path : node -> node -> rel"))
+    assertEquals(
+      s.execute(":type tc { node = node, edge = edge }").output,
+      List("tc { node = node, edge = edge } : { path : ⇑(node -> node -> rel) }")
+    )
+    val d = errors(s.execute(":type cons nothing nil")).head
+    assertEquals(d.code, Some("E0101"))
+    assertEquals((d.primarySpan.source.path, d.primarySpan.start, d.primarySpan.text), ("<input>", 5, "nothing"))
+    // probes do not change the session
+    assertEquals(s.execute(":type nothing").diagnostics.flatMap(_.code), List("E0101"))
+    assert(!s.text.contains("repl"))
+  }
+
+  test(":kind and :list") {
+    val s = session(graph*)
+    assertEquals(s.execute(":kind node").output, List("node : object type"))
+    assertEquals(s.execute(":kind edge").output, List("edge : relation"))
+    s.execute("?- path a b.")
+    assertEquals(s.execute(":list").output, graph)
+    assertEquals(Session().execute(":list").output, List("(* the session is empty *)"))
   }
 
   test(":load adds a file; its diagnostics point into the file") {
@@ -136,7 +171,7 @@ class SessionSuite extends munit.FunSuite:
     val s = session("node : type. a : node. b : node.", "edge : node -> node -> rel. %input edge.")
     val good = tempFile("e.facts", "edge a b.")
     assertEquals(s.execute(s":facts $good").output, List(s"loaded facts from $good"))
-    assertEquals(s.execute("?- edge X Y.").output, List("?- edge X Y.", "X = a, Y = b."))
+    assertEquals(s.execute("?- edge X Y.").output, List("X = a, Y = b."))
     val bad = tempFile("bad.facts", "edge a z.")
     assertEquals(errors(s.execute(s":facts $bad")).flatMap(_.code), List("E0801"))
     assertEquals(s.facts, List(good.toString))
@@ -155,7 +190,10 @@ class SessionSuite extends munit.FunSuite:
     val all = s.execute(":print records").output
     assert(all.head.contains("after records"))
     assert(all.contains("edge a b."))
-    assertEquals(s.execute(":print records path").output.tail, List("path : node -> node -> rel.", "path X Y :- edge X Y.", "path X Z :- edge X Y, path Y Z."))
+    assertEquals(
+      s.execute(":print records path").output.tail,
+      List("path : node -> node -> rel.", "path X Y :- edge X Y.", "path X Z :- edge X Y, path Y Z.")
+    )
     assert(s.execute(":print nophase").hasErrors)
   }
 
@@ -178,13 +216,22 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(Session().execute(":load").diagnostics.head.message, "usage: :load <file.hgn>")
   }
 
-  test("completion offers commands and the names in scope") {
+  test("completion offers commands, their arguments and the names in scope at the cursor") {
     val s = session(graph*)
-    assert(s.completions(Nil).contains(":load"))
-    assert(s.completions(Nil).contains("path"))
-    assertEquals(s.completions(List(":type")), List("a", "b", "c", "edge", "node", "path"))
-    assert(s.completions(List(":print")).contains("lower"))
-    assertEquals(s.completions(List(":stats")), List("on", "off"))
+    assertEquals(s.complete(":lo", 3), List(":load"))
+    assertEquals(s.complete(":stats ", 7), List("on", "off"))
+    assert(s.complete(":print ", 7).contains("lower"))
+    assert(s.complete(":type ", 6).containsSlice(List("edge")))
+    assertEquals(s.complete("?- pa", 5), List("pair", "path")) // `pair` is from the prelude
+    assertEquals(s.complete("p X :- ed", 9), List("edge"))
+    // members of a module
+    s.execute("g = tc { node = node, edge = edge }.")
+    assertEquals(s.complete("?- g.", 5), List("path"))
+    assertEquals(s.complete("?- g.pa", 7), List("path"))
+    assertEquals(s.complete("%inp", 4), List("input"))
+    // completion does not change the session
+    assertEquals(s.complete("?- pat", 6), List("path"))
+    assert(!s.text.contains("?-"))
   }
 
   test("session text: chunks keep their offsets; spans map back to the chunk they lie in") {

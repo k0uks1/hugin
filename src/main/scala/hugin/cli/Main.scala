@@ -58,9 +58,9 @@ object Main:
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
-    case Command.Repl(files, batch) =>
+    case Command.Repl(files, batch, echo) =>
       val session = Session(opts.settings, opts.run.budget, opts.run.stats)
-      val ok = Repl.run(session, files, opts.run.facts, batch, opts.settings.color, in, out, err)
+      val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.settings.color, in, out, err)
       if ok then ExitCode.Ok else ExitCode.Errors
 
   /** Loads a file into the database; false if it does not exist. */
