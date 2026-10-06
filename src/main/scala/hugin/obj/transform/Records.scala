@@ -13,8 +13,7 @@ final class Records extends MiniPhase:
   def phaseName = "records"
   def description = "expand projections and updates (Section 7.1)"
 
-  private var ops: TypeOps | Null = null
-  override def prepare(using Context): Unit = ops = TypeOps(ctx.unit.prog.nn)
+  def start(using Context): MiniPhase.Transformer = Expander(TypeOps(ctx.unit.prog.nn))
 
   private def projected(t: Term, acc: mutable.LinkedHashSet[String]): Unit = t match
     case Term.Proj(Term.Var(x), _) => acc += x
@@ -88,6 +87,7 @@ final class Records extends MiniPhase:
     rewritten ++ here.toList.filter(choice.contains).map(x => guardFor(x, choice(x), span))
 
   private def expand(
+      ops: TypeOps,
       heads: List[Term],
       body: List[Formula],
       gamma: Map[String, OType],
@@ -98,7 +98,7 @@ final class Records extends MiniPhase:
     body.foreach(projectedF(_, vs))
     if vs.isEmpty then return List((heads, body, gamma))
     val choices = vs.toList.foldLeft(List(Map.empty[String, RelSym])) { (acc, x) =>
-      val ms = gamma.get(x).map(t => ops.nn.members(t).toList.sortBy(_.id)).getOrElse(Nil)
+      val ms = gamma.get(x).map(t => ops.members(t).toList.sortBy(_.id)).getOrElse(Nil)
       for m <- acc; c <- ms yield m + (x -> c)
     }
     choices.map { ch =>
@@ -118,20 +118,22 @@ final class Records extends MiniPhase:
       (hs, b, g2)
     }
 
-  override def transformRule(r: Rule)(using Context): List[Rule] =
-    val g = Option(ctx.unit.varTypes.get(r)).getOrElse(Map.empty)
-    expand(r.heads, r.body, g, r.span).map { (hs, b, g2) =>
-      val nr = r.withParts(heads = hs, body = b)
-      ctx.unit.varTypes.put(nr, g2)
-      nr
-    }
+  /** A traversal, with the type operations of the program being transformed. */
+  private final class Expander(ops: TypeOps) extends MiniPhase.Transformer:
+    override def transformRule(r: Rule)(using Context): List[Rule] =
+      val g = Option(ctx.unit.varTypes.get(r)).getOrElse(Map.empty)
+      expand(ops, r.heads, r.body, g, r.span).map { (hs, b, g2) =>
+        val nr = r.withParts(heads = hs, body = b)
+        ctx.unit.varTypes.put(nr, g2)
+        nr
+      }
 
-  override def transformQuery(q: Query)(using Context): Query =
-    val g = Option(ctx.unit.varTypes.get(q)).getOrElse(Map.empty)
-    expand(Nil, q.body, g, q.span) match
-      case List((_, b, g2)) => val nq = q.withBody(b); ctx.unit.varTypes.put(nq, g2); nq
-      case many =>
-        // alternatives of a query are kept as one top-level disjunction, expanded when lowering
-        val nq = q.withBody(List(Formula.Disj(many.map(_._2))(q.span)))
-        ctx.unit.varTypes.put(nq, many.map(_._3).reduce(_ ++ _))
-        nq
+    override def transformQuery(q: Query)(using Context): Query =
+      val g = Option(ctx.unit.varTypes.get(q)).getOrElse(Map.empty)
+      expand(ops, Nil, q.body, g, q.span) match
+        case List((_, b, g2)) => val nq = q.withBody(b); ctx.unit.varTypes.put(nq, g2); nq
+        case many =>
+          // alternatives of a query are kept as one top-level disjunction, expanded when lowering
+          val nq = q.withBody(List(Formula.Disj(many.map(_._2))(q.span)))
+          ctx.unit.varTypes.put(nq, many.map(_._3).reduce(_ ++ _))
+          nq

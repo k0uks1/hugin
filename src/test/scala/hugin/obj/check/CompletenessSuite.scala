@@ -59,3 +59,16 @@ class CompletenessSuite extends munit.FunSuite:
     val ds = errors(code + "?- d X, not e X.")
     assertEquals(ds.map(_.message), List("query negates or aggregates over the incomplete relation `e`"))
   }
+
+  test("the incomplete relations are a result of the unit, not state of the phase object") {
+    val a = TestSupport.compile("x : int -> rel. %open x. y : int -> rel. y N :- x N.")
+    val b = TestSupport.compile("z : int -> rel. %partial z. z 1.")
+    assertEquals(a.unit.incomplete.map(_.name), Set("x", "y"))
+    assertEquals(b.unit.incomplete.map(_.name), Set("z"))
+    // one phase object serves both units
+    val phase = CompletenessPhase()
+    phase.run(using b)
+    phase.run(using a)
+    assertEquals(phase.show(using b), "incomplete: z")
+    assertEquals(phase.show(using a), "incomplete: x, y")
+  }

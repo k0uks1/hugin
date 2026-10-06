@@ -45,6 +45,9 @@ final class CompilationUnit(val source: SourceFile):
 
   /** Signature requirements (Section 4.4) recorded by `metaEval`, checked by `directives`. */
   var requirements: List[RequirementCheck] = Nil
+
+  /** Relations that may be incomplete (Section 6.5), computed by `completeness`. */
+  var incomplete: Set[RelSym] = Set.empty
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
 
