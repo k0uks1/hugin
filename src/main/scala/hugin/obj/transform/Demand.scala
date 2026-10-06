@@ -9,7 +9,7 @@ import hugin.obj.check.DepGraph
 import hugin.obj.typing.Moding
 
 /** Section 7.3: demand transformation (magic sets) for relations with declared modes. */
-final class DemandPhase extends Phase:
+final class DemandPhase extends ObjProgramPhase:
   def phaseName = "demand"
   def description = "demand transformation for moded relations (Section 7.3)"
 
@@ -128,5 +128,3 @@ final class DemandPhase extends Phase:
           case Left(_) => (ks, b)
     }
     if binds.subsetOf(bound) then kept.toList else prefix
-
-  override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)

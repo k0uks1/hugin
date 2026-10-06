@@ -337,8 +337,8 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       Reply(name.fold(lines)(n => Session.mentioning(lines, n)))
 
   private def explain(code: String): Reply =
-    ErrorCodes.lookup(code.toUpperCase) match
-      case Some((c, title, text)) => Reply(List(s"$c: $title", "", text))
+    ErrorCodes.explain(code) match
+      case Some(text) => Reply(text.linesIterator.toList)
       case None => error(s"unknown diagnostic code `$code`")
 
   // ---------------------------------------------------------------------------------------- completion

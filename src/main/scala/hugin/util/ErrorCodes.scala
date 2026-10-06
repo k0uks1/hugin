@@ -123,3 +123,6 @@ object ErrorCodes:
   )
 
   def lookup(code: String): Option[(String, String, String)] = all.find(_._1 == code)
+
+  /** The explanation of a code (case-insensitive) as printed by `hugin explain` and `:explain`. */
+  def explain(code: String): Option[String] = lookup(code.toUpperCase).map((c, title, text) => s"$c: $title\n\n$text")
