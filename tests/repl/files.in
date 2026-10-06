@@ -1,0 +1,14 @@
+(* Started as `hugin repl examples/graphs.hgn`. *)
+?- from_berlin C.
+:type roads
+:print lower from_berlin
+:load examples/graphs.hgn
+:load no/such/file.hgn
+:reload
+(* Input facts for %input relations. *)
+:load examples/typechecker.hgn
+:facts examples/typechecker.facts
+?- result (lam X T B) Ty.
+:facts no/such.facts
+:quit
+?- from_berlin C.

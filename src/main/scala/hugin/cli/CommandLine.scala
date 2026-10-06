@@ -13,6 +13,9 @@ enum Command:
   /** A position query (`hover`, `definition`, `references`) or a file query (`symbols`, `diagnostics`);
    *  positions are 1-based `line:column`. */
   case Query(file: String, request: String, position: Option[(Int, Int)])
+
+  /** An interactive session, starting with the given program files; `batch` reads it from stdin. */
+  case Repl(files: List[String], batch: Boolean)
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -82,6 +85,26 @@ object CommandLine:
             .action((p, o) =>
               o.command match
                 case q: Command.Query => o.copy(command = q.copy(position = position(p)))
+                case _ => o
+            )
+        ),
+      cmd("repl")
+        .text("an interactive session (reads the session from stdin when it is not a terminal)")
+        .action((_, o) => o.copy(command = Command.Repl(Nil, batch = false)))
+        .children(
+          opt[Unit]("batch")
+            .text("read the session from stdin without prompts or echo")
+            .action((_, o) =>
+              o.command match
+                case r: Command.Repl => o.copy(command = r.copy(batch = true))
+                case _ => o
+            ),
+          arg[String]("<file.hgn>...")
+            .optional()
+            .unbounded()
+            .action((f, o) =>
+              o.command match
+                case r: Command.Repl => o.copy(command = r.copy(files = r.files :+ f))
                 case _ => o
             )
         ),

@@ -12,18 +12,22 @@ import scala.jdk.CollectionConverters.*
  *  - `tests/neg/X.hgn`: must fail to compile (or, with `X.facts`, to load its input); the rendered
  *    diagnostics must equal `X.check`.
  *  - `tests/pos/X.hgn`: must compile without errors.
+ *  - `tests/repl/X.in`: a REPL session, run by `hugin repl --batch`; output and diagnostics, interleaved,
+ *    must equal `X.check`. `X.flags` holds extra options (e.g. files to load).
  *
  *  Set `HUGIN_UPDATE_CHECKS=1` to (re)write the check files.
  */
 class GoldenTests extends munit.FunSuite:
   private val update = sys.env.get("HUGIN_UPDATE_CHECKS").contains("1")
 
-  private def files(dir: String): List[Path] =
+  private def files(dir: String, ext: String = ".hgn"): List[Path] =
     val d = Path.of("tests", dir)
     if !Files.isDirectory(d) then Nil
-    else Files.list(d).iterator().asScala.filter(_.toString.endsWith(".hgn")).toList.sortBy(_.toString)
+    else Files.list(d).iterator().asScala.filter(_.toString.endsWith(ext)).toList.sortBy(_.toString)
 
-  private def sibling(p: Path, ext: String): Path = Path.of(p.toString.stripSuffix(".hgn") + ext)
+  private def sibling(p: Path, ext: String): Path =
+    val name = p.toString
+    Path.of(name.substring(0, name.lastIndexOf('.')) + ext)
 
   private def flags(p: Path): List[String] =
     val f = sibling(p, ".flags")
@@ -67,4 +71,14 @@ class GoldenTests extends munit.FunSuite:
     test(s"pos/${p.getFileName}") {
       val (code, _, err) = runMain(List("check", p.toString) ++ flags(p))
       assertEquals(code, 0, s"unexpected errors:\n$err")
+    }
+
+  for p <- files("repl", ".in") do
+    test(s"repl/${p.getFileName}") {
+      val transcript = new StringBuilder
+      val print = (s: String) => { transcript ++= s += '\n'; () }
+      val in = Files.newInputStream(p)
+      try Main.run(List("repl", "--batch", "--no-color") ++ flags(p), print, print, in)
+      finally in.close()
+      compare(p, transcript.toString)
     }
