@@ -25,7 +25,9 @@ object Positions:
     else
       val start = source.lineStart(pos.getLine)
       val off = start + pos.getCharacter.max(0).min(source.lineText(pos.getLine).length)
-      if off > start && off < source.content.length && Character.isLowSurrogate(source.content.charAt(off)) && Character.isHighSurrogate(source.content.charAt(off - 1))
+      if off > start && off < source.content.length && Character.isLowSurrogate(source.content.charAt(off)) && Character.isHighSurrogate(
+          source.content.charAt(off - 1)
+        )
       then off - 1
       else off
 
