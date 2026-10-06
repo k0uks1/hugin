@@ -1,6 +1,5 @@
 package hugin.runtime
 
-import hugin.util.*
 import hugin.core.*
 import hugin.obj.*
 import hugin.syntax.Literal
@@ -92,10 +91,13 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
           out += BodyOp.Deref(src, c.tag, binds, checks)
           nested.foreach((t, r) => matchReg(t, r, out))
         case None =>
-          val asReg = a.as.map { v => val r = fresh(); regOf(v) = r; r }.getOrElse(-1)
+          val asReg = a.as.map { v =>
+            val r = fresh(); regOf(v) = r; r
+          }.getOrElse(-1)
           val (binds, checks, nested) = columns(a.args)
           val recIdx =
-            if versioned && currentComp.isDefined && compOf.get(c) == currentComp then { recAtoms += 1; recAtoms - 1 } else -1
+            if versioned && currentComp.isDefined && compOf.get(c) == currentComp then { recAtoms += 1; recAtoms - 1 }
+            else -1
           if checks.nonEmpty then indexes.getOrElseUpdate(c.tag, mutable.Set.empty) += checks.map(_._1).toVector.sorted
           out += BodyOp.Scan(c.tag, recIdx, asReg, binds, checks.sortBy(_._1))
           nested.foreach((t, r) => matchReg(t, r, out))
@@ -135,7 +137,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
         val inner = mutable.ListBuffer.empty[BodyOp]
         val ordered = Moding.canonical(b, regOf.keySet.toSet).map(_._1).getOrElse(b)
         ordered.foreach(formula(_, inner, versioned = false))
-        val locals = (regOf.keySet -- saved.keySet).toList.sorted.map(regOf).toArray
+        val locals = (regOf.keySet.toSet -- saved.keySet).toList.sorted.map(regOf).toArray
         val te = expr(t)
         regOf.clear(); regOf ++= saved
         regOf.get(res) match

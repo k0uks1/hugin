@@ -6,6 +6,8 @@ lazy val root = (project in file("."))
   .settings(
     name := "hugin",
     scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Wunused:imports"),
+    // warnings are errors on CI
+    scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Nil),
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.2" % Test,
     Compile / mainClass := Some("hugin.Main"),
     Test / fork := true,

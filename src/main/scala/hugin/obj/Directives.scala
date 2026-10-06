@@ -2,14 +2,15 @@ package hugin.obj
 
 import hugin.util.*
 import hugin.core.*
-import scala.collection.mutable
 
 /** Attaches the meta-level call chain and formula-function expansions to diagnostics about generated code. */
 object Diag:
   def inItem(span: Span, origin: Origin, expansions: List[Expansion])(d: Diagnostic): Diagnostic =
     val ps = d.primarySpan
-    val exp = expansions.filter(e => e.body.exists && ps.exists && ps.source == e.body.source &&
-      ps.start >= e.body.start && ps.end <= e.body.end && !(ps.start >= span.start && ps.end <= span.end))
+    val exp = expansions.filter(e =>
+      e.body.exists && ps.exists && ps.source == e.body.source &&
+        ps.start >= e.body.start && ps.end <= e.body.end && !(ps.start >= span.start && ps.end <= span.end)
+    )
     val frames = exp.map(e => TraceFrame(s"in expansion of formula function `${e.fn}`", e.use))
     val withExp = if frames.isEmpty then d else d.copy(origin = Origin(frames ++ d.origin.frames))
     withExp.withOrigin(Origin(withExp.origin.frames ++ origin.frames))
@@ -38,14 +39,19 @@ final class DirectivesPhase extends Phase:
                 for ((_, lbl, sp), i) <- spec.inputs.zipWithIndex; l <- lbl do
                   if !r.cols(i).label.contains(l) then
                     ok = false
-                    ctx.report(Diagnostic.error("E0701", s"mode item names label `$l`, but column ${i + 1} of `${r.name}` is ${r.cols(i).label.map(x => s"labelled `$x`").getOrElse("unlabelled")}", sp)
+                    ctx.report(Diagnostic.error(
+                      "E0701",
+                      s"mode item names label `$l`, but column ${i + 1} of `${r.name}` is ${r.cols(i).label.map(x => s"labelled `$x`").getOrElse("unlabelled")}",
+                      sp
+                    )
                       .withOrigin(d.origin))
                 if ok then
                   val m = Mode(spec.inputs.map(_._1).toVector)
                   if !r.modes.exists(_._1 == m) then r.modes = r.modes :+ (m, d.span)
             case DirKind.TerminatesVar(v, args) =>
               val pos = args.zipWithIndex.collect { case (Term.Var(`v`), i) => i }
-              if args.length != r.arity then err(s"`%terminates` pattern has ${args.length} arguments but `${r.name}` has ${r.arity} columns")
+              if args.length != r.arity then
+                err(s"`%terminates` pattern has ${args.length} arguments but `${r.name}` has ${r.arity} columns")
               else if pos.length != 1 then err(s"variable `$v` must occur exactly once in the pattern", "ambiguous position")
               else r.terminates = Some((pos.head, d.span))
             case DirKind.TerminatesLabel(l) =>

@@ -63,9 +63,11 @@ object Main:
         case Nil =>
     if bad then { err(usage); return 2 }
     val known = Compiler.allPhaseNames.toSet + "all"
-    for p <- settings.printAfter ++ settings.stopAfter if !known(p) do
-      err(s"error: unknown phase `$p`; see `hugin phases`")
-      return 2
+    (settings.printAfter ++ settings.stopAfter).find(p => !known(p)) match
+      case Some(p) =>
+        err(s"error: unknown phase `$p`; see `hugin phases`")
+        return 2
+      case None =>
     positional match
       case List("phases") =>
         for p <- Compiler.phasePlan do

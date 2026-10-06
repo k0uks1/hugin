@@ -142,6 +142,23 @@ Section 13 are `examples/*.hgn` (also run as `tests/run/ex_*`). To (re)generate 
 run `sbt test` once (missing check files are written and the test fails), or set `HUGIN_UPDATE_CHECKS=1`
 in the environment of the test JVM.
 
+## Continuous integration and formatting
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+- **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck` (configuration in `.scalafmt.conf`).
+- **Build and test** on JDK 17 and 21 — compilation with warnings as errors (`CI` set in the
+  environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
+  `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher.
+
+Locally:
+
+```
+sbt scalafmtAll scalafmtSbt     # format
+CI=1 sbt compile test           # what CI checks
+scripts/smoke.sh                # CLI smoke test
+```
+
 ## Notes
 
 `docs/NOTES.md` records implementation decisions, deviations from the definition, and observations

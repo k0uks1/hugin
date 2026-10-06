@@ -24,7 +24,8 @@ object Prims:
     case _ => None
 
   private def exact(f: => Long): Option[Literal] =
-    try Some(IntL(f)) catch case _: ArithmeticException => None
+    try Some(IntL(f))
+    catch case _: ArithmeticException => None
 
   /** Strings compare lexicographically by code point; ints and floats numerically. */
   def compare(a: Literal, b: Literal): Option[Int] = (a, b) match

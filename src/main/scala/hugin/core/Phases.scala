@@ -22,20 +22,26 @@ final case class Settings(
 final class CompilationUnit(val source: SourceFile):
   var untpd: Program | Null = null
   var rootScope: Scope | Null = null
+
   /** Scopes of module bodies (keyed by identity of the surface tree). */
   val scopes: java.util.IdentityHashMap[AnyRef, Scope] = java.util.IdentityHashMap()
   var elab: MExpr | Null = null
+
   /** Object program after meta evaluation (may still contain families). */
   var generic: ObjProgram | Null = null
+
   /** The object program, transformed in place by the object-level phases. */
   var prog: ObjProgram | Null = null
+
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
+
   /** Deferred checks of signature requirements (Section 4.4), run after evaluation. */
   val deferred: mutable.ListBuffer[() => Unit] = mutable.ListBuffer.empty
   var core: hugin.runtime.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
   var incomplete: Set[RelSym] = Set.empty
+
   /** Rules named by `%derivations @r`. */
   val derivationRules: mutable.Set[String] = mutable.LinkedHashSet.empty
 
@@ -51,9 +57,11 @@ def ctx(using c: Context): Context = c
 abstract class Phase:
   def phaseName: String
   def description: String
+
   /** Whether the phase is meaningful when earlier phases reported errors. */
   def runsAfterErrors: Boolean = true
   def run(using Context): Unit
+
   /** Textual form of the unit after this phase (for `--print-after`). */
   def show(using Context): String = ""
 

@@ -17,8 +17,10 @@ object Printer:
     case Union(l, r) => s"(${show(l)} | ${show(r)})"
     case Keyword(k) => k.toString.toLowerCase
     case RecordType(es) => es.map(showSig).mkString("{ ", ", ", " }")
-    case ModuleBody(items) => if items.isEmpty then "{ }" else items.map(i => "  " + showItem(i).replace("\n", "\n  ")).mkString("{\n", "\n", "\n}")
-    case RecordLit(fs, rest) => (fs.map(f => s"${f.label.name} = ${show(f.value)}") ++ (if rest then List("..") else Nil)).mkString("{ ", ", ", " }")
+    case ModuleBody(items) =>
+      if items.isEmpty then "{ }" else items.map(i => "  " + showItem(i).replace("\n", "\n  ")).mkString("{\n", "\n", "\n}")
+    case RecordLit(fs, rest) =>
+      (fs.map(f => s"${f.label.name} = ${show(f.value)}") ++ (if rest then List("..") else Nil)).mkString("{ ", ", ", " }")
     case Lambda(p, tpe, b) => s"[${show(p)}${tpe.map(t => " : " + show(t)).getOrElse("")}] ${show(b)}"
     case As(t, v) => s"(${show(t)} as ${v.name})"
     case Ascribe(t, tp) => s"(${show(t)} : ${show(tp)})"

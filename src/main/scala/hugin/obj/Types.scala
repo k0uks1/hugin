@@ -31,6 +31,7 @@ private object SymIds:
 enum TypeKind:
   /** `a : type.` — open type of facts. */
   case Open
+
   /** `a : type <: b.` — nominal refinement of a base type or refinement. */
   case Refinement(base: OType)
 
@@ -38,6 +39,7 @@ enum TypeKind:
 final class TypeSym(val name: String, var kind: TypeKind, val span: Span, val origin: Origin):
   val id: Int = SymIds.next()
   var tparams: List[TParam] = Nil
+
   /** For family instances: the generic family and the type arguments. */
   var instanceOf: Option[(TypeSym, List[OType])] = None
   def isOpen: Boolean = kind == TypeKind.Open
@@ -48,8 +50,10 @@ final case class Column(label: Option[String], tpe: OType)
 
 enum RelKind:
   case Plain, Ctor, Struct
+
   /** Demand relation d^c_m of Section 7.3. */
   case Demand(of: RelSym, mode: Mode)
+
   /** Derivation relation @r#i of Section 7.4. */
   case Derivation(rule: String)
 
@@ -65,6 +69,7 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   val id: Int = SymIds.next()
   var tparams: List[TParam] = Nil
   var cols: Vector[Column] = Vector.empty
+
   /** `None` for plain relations (ω = rel); the open result type for constructors. */
   var result: Option[OType] = None
   var instanceOf: Option[(RelSym, List[OType])] = None
@@ -77,6 +82,7 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   var terminates: Option[(Int, Span)] = None
   var derivations = false
   var nameHint: Option[String] = None
+
   /** Runtime index (assigned during lowering). */
   var tag: Int = -1
 
@@ -84,6 +90,7 @@ final class RelSym(val name: String, var kind: RelKind, val span: Span, val orig
   def isCtor: Boolean = kind == RelKind.Ctor
   def isDemand: Boolean = kind match { case RelKind.Demand(_, _) => true; case _ => false }
   def isDerivation: Boolean = kind match { case RelKind.Derivation(_) => true; case _ => false }
+
   /** Source name used in output: qualified, without type arguments. */
   def displayName: String = instanceOf.map(_._1.displayName).getOrElse(name)
   def labelIndex(l: String): Option[Int] = cols.indexWhere(_.label.contains(l)) match
@@ -99,10 +106,13 @@ enum OType:
   case Fact(rel: RelSym, args: List[OType])
   case RelTop
   case Union(members: List[OType])
+
   /** Family type parameter (before monomorphization). */
   case Param(p: TParam)
+
   /** Unification variable used by monomorphization. */
   case Meta(id: Int)
+
   /** Splice of a meta expression of meta type `type` (before meta evaluation). */
   case Splice(m: MExpr)
   case Err
@@ -141,27 +151,31 @@ object OType:
     case Con(_, _ :: _) | Fact(_, _ :: _) | Union(_) => s"(${show(t)})"
     case _ => show(t)
 
-  def subst(t: OType, m: Map[TParam, OType]): OType = if m.isEmpty then t else t match
-    case Param(p) => m.getOrElse(p, t)
-    case Con(s, as) => Con(s, as.map(subst(_, m)))
-    case Fact(r, as) => Fact(r, as.map(subst(_, m)))
-    case Union(ms) => union(ms.map(subst(_, m)))
-    case other => other
+  def subst(t: OType, m: Map[TParam, OType]): OType = if m.isEmpty then t
+  else
+    t match
+      case Param(p) => m.getOrElse(p, t)
+      case Con(s, as) => Con(s, as.map(subst(_, m)))
+      case Fact(r, as) => Fact(r, as.map(subst(_, m)))
+      case Union(ms) => union(ms.map(subst(_, m)))
+      case other => other
 
   def mapDeep(t: OType)(f: PartialFunction[OType, OType]): OType =
     if f.isDefinedAt(t) then f(t)
-    else t match
-      case Con(s, as) => Con(s, as.map(mapDeep(_)(f)))
-      case Fact(r, as) => Fact(r, as.map(mapDeep(_)(f)))
-      case Union(ms) => union(ms.map(mapDeep(_)(f)))
-      case other => other
+    else
+      t match
+        case Con(s, as) => Con(s, as.map(mapDeep(_)(f)))
+        case Fact(r, as) => Fact(r, as.map(mapDeep(_)(f)))
+        case Union(ms) => union(ms.map(mapDeep(_)(f)))
+        case other => other
 
   def exists(t: OType)(p: OType => Boolean): Boolean =
     p(t) || (t match
       case Con(_, as) => as.exists(exists(_)(p))
       case Fact(_, as) => as.exists(exists(_)(p))
       case Union(ms) => ms.exists(exists(_)(p))
-      case _ => false)
+      case _ => false
+    )
 
   def isGround(t: OType): Boolean = !exists(t) {
     case Param(_) | Meta(_) | Splice(_) | Err => true

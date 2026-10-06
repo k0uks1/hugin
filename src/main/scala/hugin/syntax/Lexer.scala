@@ -19,9 +19,17 @@ final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean
 
 object Lexer:
   val keywords: Map[String, Tok] = Map(
-    "type" -> Tok.KwType, "mod" -> Tok.KwMod, "rel" -> Tok.KwRel, "prop" -> Tok.KwProp,
-    "not" -> Tok.KwNot, "as" -> Tok.KwAs, "with" -> Tok.KwWith, "count" -> Tok.KwCount,
-    "sum" -> Tok.KwSum, "min" -> Tok.KwMin, "max" -> Tok.KwMax
+    "type" -> Tok.KwType,
+    "mod" -> Tok.KwMod,
+    "rel" -> Tok.KwRel,
+    "prop" -> Tok.KwProp,
+    "not" -> Tok.KwNot,
+    "as" -> Tok.KwAs,
+    "with" -> Tok.KwWith,
+    "count" -> Tok.KwCount,
+    "sum" -> Tok.KwSum,
+    "min" -> Tok.KwMin,
+    "max" -> Tok.KwMax
   )
 
   def describe(t: Tok): String = t match
@@ -39,13 +47,42 @@ object Lexer:
         case s => s"`$s`"
 
   val symbolText: Map[Tok, String] = Map(
-    Tok.Turnstile -> ":-", Tok.Query -> "?-", Tok.Arrow -> "->", Tok.SubT -> "<:", Tok.Neq -> "<>",
-    Tok.Le -> "<=", Tok.Ge -> ">=", Tok.DotDot -> "..", Tok.Comma -> ",", Tok.Semi -> ";", Tok.Colon -> ":",
-    Tok.Bar -> "|", Tok.Eq -> "=", Tok.Lt -> "<", Tok.Gt -> ">", Tok.Plus -> "+", Tok.Minus -> "-",
-    Tok.Star -> "*", Tok.Slash -> "/", Tok.Caret -> "^", Tok.LParen -> "(", Tok.RParen -> ")",
-    Tok.LBrace -> "{", Tok.RBrace -> "}", Tok.LBrack -> "[", Tok.RBrack -> "]",
-    Tok.KwType -> "type", Tok.KwMod -> "mod", Tok.KwRel -> "rel", Tok.KwProp -> "prop", Tok.KwNot -> "not",
-    Tok.KwAs -> "as", Tok.KwWith -> "with", Tok.KwCount -> "count", Tok.KwSum -> "sum", Tok.KwMin -> "min",
+    Tok.Turnstile -> ":-",
+    Tok.Query -> "?-",
+    Tok.Arrow -> "->",
+    Tok.SubT -> "<:",
+    Tok.Neq -> "<>",
+    Tok.Le -> "<=",
+    Tok.Ge -> ">=",
+    Tok.DotDot -> "..",
+    Tok.Comma -> ",",
+    Tok.Semi -> ";",
+    Tok.Colon -> ":",
+    Tok.Bar -> "|",
+    Tok.Eq -> "=",
+    Tok.Lt -> "<",
+    Tok.Gt -> ">",
+    Tok.Plus -> "+",
+    Tok.Minus -> "-",
+    Tok.Star -> "*",
+    Tok.Slash -> "/",
+    Tok.Caret -> "^",
+    Tok.LParen -> "(",
+    Tok.RParen -> ")",
+    Tok.LBrace -> "{",
+    Tok.RBrace -> "}",
+    Tok.LBrack -> "[",
+    Tok.RBrack -> "]",
+    Tok.KwType -> "type",
+    Tok.KwMod -> "mod",
+    Tok.KwRel -> "rel",
+    Tok.KwProp -> "prop",
+    Tok.KwNot -> "not",
+    Tok.KwAs -> "as",
+    Tok.KwWith -> "with",
+    Tok.KwCount -> "count",
+    Tok.KwSum -> "sum",
+    Tok.KwMin -> "min",
     Tok.KwMax -> "max"
   )
 
@@ -112,9 +149,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
       while isIdent(peek()) do pos += 1
       val text = s.substring(start, pos)
       if c.isUpper || c == '_' then mk(Tok.Var, start, space)
-      else Lexer.keywords.get(text) match
-        case Some(kw) => mk(kw, start, space)
-        case None => mk(Tok.Name, start, space)
+      else
+        Lexer.keywords.get(text) match
+          case Some(kw) => mk(kw, start, space)
+          case None => mk(Tok.Name, start, space)
     else if c.isDigit then lexNumber(start, space)
     else if c == '"' then lexString(start, space)
     else if c == '@' || c == '%' then
@@ -185,9 +223,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
       val t = mk(Tok.IntLit, start, space)
       t.value =
         try java.lang.Long.parseLong(text)
-        catch case _: NumberFormatException =>
-          // -9223372036854775808 is written as unary minus applied to an out-of-range literal; keep BigInt for the parser
-          BigInt(text)
+        catch
+          case _: NumberFormatException =>
+            // -9223372036854775808 is written as unary minus applied to an out-of-range literal; keep BigInt for the parser
+            BigInt(text)
       t
 
   private def lexString(start: Int, space: Boolean): Token =
@@ -221,8 +260,9 @@ final class Lexer(src: SourceFile, reporter: Reporter):
                 val cp = Integer.parseInt(hex, 16)
                 if cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) then throw new NumberFormatException
                 sb.appendAll(Character.toChars(cp))
-              catch case _: NumberFormatException =>
-                err("E0003", s"invalid unicode escape `\\u{$hex}`", escStart, pos, "not a Unicode scalar value")
+              catch
+                case _: NumberFormatException =>
+                  err("E0003", s"invalid unicode escape `\\u{$hex}`", escStart, pos, "not a Unicode scalar value")
             case _ =>
               pos += 1
               err("E0003", "invalid escape sequence", escStart, pos, "valid escapes are \\\" \\\\ \\n \\t \\u{...}")

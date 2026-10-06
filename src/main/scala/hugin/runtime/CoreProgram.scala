@@ -16,6 +16,7 @@ enum Expr:
   case Const(w: Any)
   case Arith(op: ArithOp, l: Expr, r: Expr)
   case Neg(e: Expr)
+
   /** Head construction of a nested fact (Make), possibly nested. */
   case Make(rel: Int, args: Array[Expr])
 
@@ -23,11 +24,13 @@ enum Expr:
 enum BodyOp:
   /** Iterate facts of `rel` (`recIdx` ≥ 0 for atoms of the current component, which get versions). */
   case Scan(rel: Int, recIdx: Int, asReg: Int, binds: Array[(Int, Int)], checks: Array[(Int, Expr)])
+
   /** `src` holds an identity: look up its tuple. */
   case Deref(src: Int, rel: Int, binds: Array[(Int, Int)], checks: Array[(Int, Expr)])
   case Tag(src: Int, tags: Set[Int])
   case Eval(dst: Int, e: Expr)
   case Test(op: CmpOp, a: Expr, b: Expr)
+
   /** Look up the identity of an existing fact (no interning). */
   case Lookup(dst: Int, rel: Int, args: Array[Expr])
   case NotIn(ops: Array[BodyOp])
@@ -87,7 +90,8 @@ object CorePrinter:
     case BodyOp.Test(o, a, b) => s"${ind}Test ${expr(a, p)} ${o.show} ${expr(b, p)}"
     case BodyOp.Lookup(dst, rel, as) => s"${ind}Lookup r$dst := ${p.rels(rel).name}(${as.map(expr(_, p)).mkString(", ")})"
     case BodyOp.NotIn(ops) => s"${ind}NotIn {\n${ops.map(this.op(_, p, ind + "  ")).mkString("\n")}\n$ind}"
-    case BodyOp.Agg(dst, k, t, _, ops) => s"${ind}Agg r$dst := ${k.show} { ${expr(t, p)} |\n${ops.map(this.op(_, p, ind + "  ")).mkString("\n")}\n$ind}"
+    case BodyOp.Agg(dst, k, t, _, ops) =>
+      s"${ind}Agg r$dst := ${k.show} { ${expr(t, p)} |\n${ops.map(this.op(_, p, ind + "  ")).mkString("\n")}\n$ind}"
 
   def show(p: CoreProgram): String =
     val sb = new StringBuilder

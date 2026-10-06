@@ -84,8 +84,8 @@ final class StratifyPhase extends Phase:
       val inComp = es.filter(x => compOf(x.from) == compOf(e.from) && compOf(x.to) == compOf(e.from))
       val path = shortestPath(e.to, e.from, inComp)
       val cycle = (e :: path).map(x => (if x.negative then "not " else "") + x.to.name)
-      var d = Diagnostic.error("E0601", "stratification cycle through negation", e.span,
-        s"`${e.from.name}` depends negatively on `${e.to.name}`")
+      var d =
+        Diagnostic.error("E0601", "stratification cycle through negation", e.span, s"`${e.from.name}` depends negatively on `${e.to.name}`")
       d = d.withNote(s"cycle: ${e.from.name} -> ${cycle.mkString(" -> ")}")
       for x <- path.take(3) do d = d.withLabel(x.span, s"`${x.from.name}` depends on `${x.to.name}`")
       d = d.withNote("negation and aggregation must not occur in a recursive cycle (Section 6.4)")
@@ -95,20 +95,26 @@ final class StratifyPhase extends Phase:
     // readers evaluated in between (a gap in the ordering argument of Proposition 8.8); warn about it.
     val readers = p.rules.flatMap(r => DepGraph.occurrences(r.body).map(o => (o._1, r))).groupBy(_._1).view.mapValues(_.map(_._2)).toMap
     if ctx.settings.lint then
-     for r <- p.rules; h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c } do
-      val hi = compOf(h)
-      for t <- DepGraph.newHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
-        val affected = readers.getOrElse(c, Vector.empty).filter(rr => (rr ne r) && rr.heads.exists {
-          case Term.App(RelRef.Sym(x), _) => compOf(x) >= compOf(c) && compOf(x) <= hi
-          case _ => false
-        })
-        affected.headOption.foreach { rr =>
-          val reader = rr.heads.collectFirst { case Term.App(RelRef.Sym(x), _) => x.name }.getOrElse("?")
-          ctx.report(Diag.rule(r)(Diagnostic.warning("W0004", s"facts of `${c.name}` constructed here may be missed by `$reader`", t.span,
-            s"`${c.name}` is evaluated before `${h.name}`")
-            .withLabel(rr.span, s"`$reader` reads `${c.name}`")
-            .withNote("nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)")))
-        }
+      for r <- p.rules; h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c } do
+        val hi = compOf(h)
+        for t <- DepGraph.newHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
+          val affected = readers.getOrElse(c, Vector.empty).filter(rr =>
+            (rr ne r) && rr.heads.exists {
+              case Term.App(RelRef.Sym(x), _) => compOf(x) >= compOf(c) && compOf(x) <= hi
+              case _ => false
+            }
+          )
+          affected.headOption.foreach { rr =>
+            val reader = rr.heads.collectFirst { case Term.App(RelRef.Sym(x), _) => x.name }.getOrElse("?")
+            ctx.report(Diag.rule(r)(Diagnostic.warning(
+              "W0004",
+              s"facts of `${c.name}` constructed here may be missed by `$reader`",
+              t.span,
+              s"`${c.name}` is evaluated before `${h.name}`"
+            )
+              .withLabel(rr.span, s"`$reader` reads `${c.name}`")
+              .withNote("nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)")))
+          }
 
   private def shortestPath(from: RelSym, to: RelSym, es: List[DepEdge]): List[DepEdge] =
     if from == to then return Nil
@@ -153,12 +159,21 @@ final class CompletenessPhase extends Phase:
         changed = true
     ctx.unit.incomplete = why.keySet.toSet
     for e <- es if e.negative && why.contains(e.to) do
-      ctx.report(Diag.rule(e.rule)(Diagnostic.error("E0602", s"negation or aggregation over the incomplete relation `${e.to.name}`", e.span,
-        "incomplete relation used negatively")
+      ctx.report(Diag.rule(e.rule)(Diagnostic.error(
+        "E0602",
+        s"negation or aggregation over the incomplete relation `${e.to.name}`",
+        e.span,
+        "incomplete relation used negatively"
+      )
         .withNote(why(e.to))
         .withNote("the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)")))
     for q <- p.queries; (r, neg, sp) <- DepGraph.occurrences(q.body) if neg && why.contains(r) do
-      ctx.report(Diag.query(q)(Diagnostic.error("E0602", s"query negates or aggregates over the incomplete relation `${r.name}`", sp, "used negatively")
+      ctx.report(Diag.query(q)(Diagnostic.error(
+        "E0602",
+        s"query negates or aggregates over the incomplete relation `${r.name}`",
+        sp,
+        "used negatively"
+      )
         .withNote(why(r))
         .withNote("queries may mention incomplete relations only positively (Section 8.5)")))
 
@@ -172,7 +187,9 @@ final class TerminationPhase extends Phase:
 
   /** Why a rule is constructive (Definition 10.1), if it is. */
   def constructive(r: Rule): Option[(String, Span)] =
-    DepGraph.newHeadConstructors(r).headOption.map(t => (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span))
+    DepGraph.newHeadConstructors(r).headOption.map(t =>
+      (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span)
+    )
       .orElse {
         val asVars = r.body.collect { case Formula.Atom(_, _, Some(v)) => v }.toSet
         val headVars = r.heads.flatMap(Moding.vars).toSet
@@ -191,8 +208,10 @@ final class TerminationPhase extends Phase:
       .orElse {
         val headVars = r.heads.flatMap(Moding.vars).toSet
         r.body.collectFirst {
-          case c @ Formula.Cmp(CmpOp.Eq, Term.Var(x), e) if headVars(x) && hasOp(e) => (s"head variable `$x` is computed by `${ObjPrinter.formula(c)}`", c.span)
-          case c @ Formula.Cmp(CmpOp.Eq, e, Term.Var(x)) if headVars(x) && hasOp(e) => (s"head variable `$x` is computed by `${ObjPrinter.formula(c)}`", c.span)
+          case c @ Formula.Cmp(CmpOp.Eq, Term.Var(x), e) if headVars(x) && hasOp(e) =>
+            (s"head variable `$x` is computed by `${ObjPrinter.formula(c)}`", c.span)
+          case c @ Formula.Cmp(CmpOp.Eq, e, Term.Var(x)) if headVars(x) && hasOp(e) =>
+            (s"head variable `$x` is computed by `${ObjPrinter.formula(c)}`", c.span)
         }
       }
 
@@ -220,8 +239,12 @@ final class TerminationPhase extends Phase:
           val (r, (why, sp)) = constructiveRules.head
           val names = comp.filterNot(c => c.isCtor || c.isDemand).map(_.name)
           ctx.report(Diag.rule(r)(Diagnostic.error("E0603", "growing component without a valid %terminates directive", sp, why)
-            .withNote(s"the recursive component {${comp.map(_.name).mkString(", ")}} contains this constructive rule, so its fixed point may be infinite")
-            .withHelp(names.headOption.map(n => s"declare a structurally decreasing argument, e.g. `%terminates X ($n ...)`, or mark the relation `%partial $n.`").getOrElse("mark a relation of the component %partial"))))
+            .withNote(
+              s"the recursive component {${comp.map(_.name).mkString(", ")}} contains this constructive rule, so its fixed point may be infinite"
+            )
+            .withHelp(names.headOption.map(n =>
+              s"declare a structurally decreasing argument, e.g. `%terminates X ($n ...)`, or mark the relation `%partial $n.`"
+            ).getOrElse("mark a relation of the component %partial"))))
         else
           val results = candidates.map(c => c -> validate(c, inC, rules))
           if !results.exists(_._2.isEmpty) then
@@ -238,9 +261,15 @@ final class TerminationPhase extends Phase:
       case _ => false
     // every rule of C whose head is neither c nor a demand relation of c is non-constructive
     rules.find(r => headRel(r).exists(h => h != c && !isDemandOf(h)) && constructive(r).isDefined).map { r =>
-      (s"another constructive relation in the component: `${headRel(r).get.name}` (${constructive(r).get._1})", constructive(r).get._2, Some(r))
+      (
+        s"another constructive relation in the component: `${headRel(r).get.name}` (${constructive(r).get._1})",
+        constructive(r).get._2,
+        Some(r)
+      )
     }.orElse {
-      val numeric = c.cols.lift(k).exists(col => col.tpe == OType.Int || (col.tpe match { case OType.Con(s, _) => s.kind.isInstanceOf[TypeKind.Refinement]; case _ => false }))
+      val numeric = c.cols.lift(k).exists(col =>
+        col.tpe == OType.Int || (col.tpe match { case OType.Con(s, _) => s.kind.isInstanceOf[TypeKind.Refinement]; case _ => false })
+      )
       if !c.hasModes then
         rules.filter(r => headRel(r).contains(c)).iterator.map { r =>
           val Term.App(_, hs) = r.heads.head: @unchecked
@@ -253,7 +282,8 @@ final class TerminationPhase extends Phase:
                 Some((s"no decrease: `${ObjPrinter.term(s)}` is not smaller than `${ObjPrinter.term(h)}`", call.span, Some(r)))
               else if !anchored(s, h, r.body, inC, numeric) then
                 val msg =
-                  if numeric then s"no anchor: the body does not bound `${ObjPrinter.term(s)}` by a literal (e.g. `${ObjPrinter.term(s)} < 100`)"
+                  if numeric then
+                    s"no anchor: the body does not bound `${ObjPrinter.term(s)}` by a literal (e.g. `${ObjPrinter.term(s)} < 100`)"
                   else s"no anchor: the variables of `${ObjPrinter.term(h)}` are not bound by a relation outside the component"
                 Some((msg, call.span, Some(r)))
               else None
@@ -262,10 +292,12 @@ final class TerminationPhase extends Phase:
       else
         val notInput = c.modes.find((m, _) => !m.inputs.lift(k).contains(true))
         notInput.map((m, sp) => (s"argument ${k + 1} is not an input of mode ${m.show}", sp, None)).orElse {
-          rules.filter(r => headRel(r).exists(isDemandOf) && r.body.exists {
-            case Formula.Atom(RelRef.Sym(x), _, _) => inC(x)
-            case _ => false
-          }).iterator.map { r =>
+          rules.filter(r =>
+            headRel(r).exists(isDemandOf) && r.body.exists {
+              case Formula.Atom(RelRef.Sym(x), _, _) => inC(x)
+              case _ => false
+            }
+          ).iterator.map { r =>
             val Term.App(RelRef.Sym(d), us) = r.heads.head: @unchecked
             val pos = inputIndex(d, c, k)
             r.body.headOption match
@@ -275,12 +307,23 @@ final class TerminationPhase extends Phase:
                   case (Some(i), Some(j)) =>
                     val u = us(i)
                     val w = ws(j)
-                    if !decreases(u, w, r.body) then Some((s"no decrease: demand `${ObjPrinter.term(u)}` is not smaller than `${ObjPrinter.term(w)}`", r.heads.head.span, Some(r)))
+                    if !decreases(u, w, r.body) then
+                      Some((
+                        s"no decrease: demand `${ObjPrinter.term(u)}` is not smaller than `${ObjPrinter.term(w)}`",
+                        r.heads.head.span,
+                        Some(r)
+                      ))
                     else if numeric && !r.body.exists {
                         case Formula.Cmp(CmpOp.Gt | CmpOp.Ge, x, Term.Lit(_)) => x == u
                         case Formula.Cmp(CmpOp.Lt | CmpOp.Le, Term.Lit(_), x) => x == u
                         case _ => false
-                      } then Some((s"no anchor: the body does not bound the demanded `${ObjPrinter.term(u)}` below by a literal (e.g. `${ObjPrinter.term(u)} >= 0`)", r.heads.head.span, Some(r)))
+                      }
+                    then
+                      Some((
+                        s"no anchor: the body does not bound the demanded `${ObjPrinter.term(u)}` below by a literal (e.g. `${ObjPrinter.term(u)} >= 0`)",
+                        r.heads.head.span,
+                        Some(r)
+                      ))
                     else None
                   case _ => Some(("the terminating argument is not an input of the demand", r.span, Some(r)))
               case _ => Some(("a demand rule without guard", r.span, Some(r)))
@@ -310,13 +353,15 @@ final class TerminationPhase extends Phase:
       case Term.Var(v) => strictlyInside(v, w)
       case _ => false
     structural || plus(w, u) || minus(u, w) || body.exists {
-      case Formula.Cmp(CmpOp.Eq, a, b) => (a == w && plus(b, u)) || (b == w && plus(a, u)) || (a == u && minus(b, w)) || (b == u && minus(a, w))
+      case Formula.Cmp(CmpOp.Eq, a, b) =>
+        (a == w && plus(b, u)) || (b == w && plus(a, u)) || (a == u && minus(b, w)) || (b == u && minus(a, w))
       case _ => false
     }
 
   private def anchored(s: Term, h: Term, body: List[Formula], inC: Set[RelSym], numeric: Boolean): Boolean =
     val hv = Moding.vars(h)
-    val boundOutside = body.collect { case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
+    val boundOutside =
+      body.collect { case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
     val structuralAnchor = hv.nonEmpty && hv.subsetOf(boundOutside)
     val numericAnchor = numeric && body.exists {
       case Formula.Cmp(CmpOp.Lt | CmpOp.Le, x, Term.Lit(_)) => x == s

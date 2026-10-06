@@ -13,18 +13,25 @@ enum Req:
 enum MType:
   /** ⇑τ */
   case Code(t: OType)
+
   /** `type` */
   case TypeU
+
   /** ⇑(τ̄ → rel) */
   case RelT(cols: List[Column])
+
   /** ⇑prop */
   case PropT
+
   /** b̂ */
   case Prim(b: BaseType)
+
   /** Π(x:μ).μ' — `implicit` for implicit type parameters. */
   case Pi(x: Sym, dom: MType, cod: MType, isImplicit: Boolean)
+
   /** {l1 : μ1, ...} with requirements; field symbols allow dependency on earlier fields. */
   case Sig(fields: List[(Sym, MType)], reqs: List[Req])
+
   /** `mod`, the universe of meta types (the type of signatures). */
   case ModU
   case Err
@@ -65,18 +72,25 @@ enum MExpr:
   case Rec(fields: List[(String, MExpr)])
   case Lam(param: Sym, body: MExpr)
   case App(f: MExpr, arg: MExpr, span: Span)
+
   /** ⟨t⟩ for object terms. */
   case QuoteTerm(t: Term)
+
   /** ⟨φ̄⟩ for formulas. */
   case QuoteFormula(body: List[Formula])
+
   /** An object type as a meta value of type `type`. */
   case QuoteType(t: OType)
+
   /** The fact type of a relation-valued expression. */
   case FactTypeOf(m: MExpr)
+
   /** Family application `f τ̄`. */
   case TApp(f: MExpr, args: List[OType])
+
   /** A module body. `hint` is used to build readable fresh prefixes. */
   case Body(items: List[EItem], scope: Scope, span: Span)
+
   /** A signature as a value (`graph : mod = {...}`). */
   case SigV(t: MType)
   case Err

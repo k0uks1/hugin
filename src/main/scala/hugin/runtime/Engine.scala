@@ -201,10 +201,15 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         if found then true else exec(ops, i + 1, regs, k)
       case BodyOp.Agg(dst, kind, term, locals, sub) =>
         val seen = mutable.LinkedHashMap.empty[Key, Option[Any]]
-        exec(sub, 0, regs, rs => {
-          seen.getOrElseUpdate(Key(locals.map(rs(_))), eval(term, rs, build = false))
-          true
-        })
+        exec(
+          sub,
+          0,
+          regs,
+          rs => {
+            seen.getOrElseUpdate(Key(locals.map(rs(_))), eval(term, rs, build = false))
+            true
+          }
+        )
         aggregate(kind, seen.values.toList) match
           case Some(v) => regs(dst) = v; exec(ops, i + 1, regs, k)
           case None => true
@@ -222,22 +227,28 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       case AggKind.Min | AggKind.Max =>
         if xs.isEmpty then None
         else
-          val ord: Ordering[Any] = (a: Any, b: Any) => (toLit(a), toLit(b)) match
-            case (Some(x), Some(y)) => Prims.compare(x, y).getOrElse(0)
-            case _ => 0
+          val ord: Ordering[Any] = (a: Any, b: Any) =>
+            (toLit(a), toLit(b)) match
+              case (Some(x), Some(y)) => Prims.compare(x, y).getOrElse(0)
+              case _ => 0
           Some(if kind == AggKind.Min then xs.min(ord) else xs.max(ord))
 
   // ------------------------------------------------------------------ rules and components
 
   private def fire(r: CompiledRule): Unit =
     val regs = new Array[Any](r.nregs.max(1))
-    exec(r.body, 0, regs, rs => {
-      // arithmetic in the head is evaluated before any nested fact is interned
-      if r.headArgs.forall(e => eval(e, rs, build = false).isDefined) then
-        val vs = r.headArgs.map(e => eval(e, rs, build = true).get)
-        store(r.headRel).intern(vs)
-      true
-    })
+    exec(
+      r.body,
+      0,
+      regs,
+      rs => {
+        // arithmetic in the head is evaluated before any nested fact is interned
+        if r.headArgs.forall(e => eval(e, rs, build = false).isDefined) then
+          val vs = r.headArgs.map(e => eval(e, rs, build = true).get)
+          store(r.headRel).intern(vs)
+        true
+      }
+    )
 
   def run(): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
@@ -246,11 +257,15 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       val partial = comp.exists(t => prog.rels(t).isPartial)
       val limit = if partial then budget else None
       // Init: every rule once, all atoms read the full relations
-      comp.foreach { t => oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size }
+      comp.foreach { t =>
+        oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size
+      }
       versionOf = _ => Version.Full
       val before = comp.map(t => store(t).size)
       rules.foreach(fire)
-      comp.foreach { t => oldEnd(t) = before(comp.indexOf(t)); deltaEnd(t) = store(t).size }
+      comp.foreach { t =>
+        oldEnd(t) = before(comp.indexOf(t)); deltaEnd(t) = store(t).size
+      }
       var rounds = 0
       var cut = false
       def deltaNonEmpty = comp.exists(t => deltaEnd(t) > oldEnd(t))
@@ -262,9 +277,13 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           for r <- recursive; j <- 0 until r.recursiveAtoms do
             versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
             fire(r)
-          comp.foreach { t => oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size }
+          comp.foreach { t =>
+            oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
+          }
       if cut then truncated = true
-      comp.foreach { t => oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue }
+      comp.foreach { t =>
+        oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue
+      }
       versionOf = _ => Version.Full
       stats += ComponentStats(comp.map(prog.rels(_).name), rounds, cut)
 

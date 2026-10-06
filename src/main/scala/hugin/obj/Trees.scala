@@ -55,6 +55,7 @@ object Var:
   /** Wildcards become fresh variables with this prefix. */
   val WildPrefix = "_#"
   def isWild(n: String): Boolean = n.startsWith(WildPrefix)
+
   /** User-facing name: wildcards print as `_`, hygiene suffixes `#k` (Section 4.8) are dropped. */
   def display(n: String): String =
     if isWild(n) then "_"
@@ -69,8 +70,10 @@ sealed trait Term:
 object Term:
   final case class Var(name: String)(val span: Span) extends Term
   final case class Lit(value: Literal)(val span: Span) extends Term
+
   /** Constructor term / fact pattern `c t̄`. */
   final case class App(rel: RelRef, args: List[Term])(val span: Span) extends Term
+
   /** Named pattern `c { l = t, .. }` (removed by the `namedPatterns` phase). */
   final case class Named(rel: RelRef, fields: List[(String, Term, Span)], rest: Boolean)(val span: Span) extends Term
   final case class As(t: Term, v: String)(val span: Span) extends Term
@@ -79,6 +82,7 @@ object Term:
   final case class With(v: Term, fields: List[(String, Term, Span)])(val span: Span) extends Term
   final case class Arith(op: ArithOp, l: Term, r: Term)(val span: Span) extends Term
   final case class Neg(t: Term)(val span: Span) extends Term
+
   /** Splice of a meta expression of type ⇑τ or a meta primitive (persisted). */
   final case class Splice(m: MExpr)(val span: Span) extends Term
 
@@ -92,6 +96,7 @@ object Formula:
   final case class Not(atom: Atom)(val span: Span) extends Formula
   final case class Agg(res: String, kind: AggKind, term: Term, body: List[Formula])(val span: Span) extends Formula
   final case class Disj(alts: List[List[Formula]])(val span: Span) extends Formula
+
   /** Use of a formula function (meta application of type ⇑prop), before meta evaluation. */
   final case class Splice(m: MExpr)(val span: Span) extends Formula
 

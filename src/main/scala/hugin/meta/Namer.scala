@@ -57,8 +57,12 @@ object Namer:
                   Some(SymKind.Struct)
                 case Some(_) =>
                   if sup.isDefined then
-                    ctx.error("E0103", "a type definition cannot have a supertype", sup.get.span,
-                      "remove this, or declare a refinement `a : type <: b.`")
+                    ctx.error(
+                      "E0103",
+                      "a type definition cannot have a supertype",
+                      sup.get.span,
+                      "remove this, or declare a refinement `a : type <: b.`"
+                    )
                   Some(SymKind.TypeDef)
             case Keyword(Kw.Mod) =>
               if defn.isEmpty then
@@ -75,8 +79,12 @@ object Namer:
                   Some(SymKind.Rel)
                 case Keyword(Kw.Prop) => Some(SymKind.FormulaFn)
                 case Keyword(Kw.Type) =>
-                  ctx.report(Diagnostic.error("E0103", s"cannot classify the declaration of `${name.name}`", tpe.span,
-                    "a function returning `type`").withHelp("declare a family with type parameters instead: `f A : type.`"))
+                  ctx.report(Diagnostic.error(
+                    "E0103",
+                    s"cannot classify the declaration of `${name.name}`",
+                    tpe.span,
+                    "a function returning `type`"
+                  ).withHelp("declare a family with type parameters instead: `f A : type.`"))
                   None
                 case _ =>
                   if defn.isDefined then Some(SymKind.MetaDef) else Some(SymKind.Ctor)
@@ -101,7 +109,8 @@ object Namer:
             case id: Ident => Some(id)
             case Apply(f, _) => headName(f)
             case _ => None
-          val fnHeads = heads.flatMap(h => headName(h).flatMap(n => scope.lookupLocal(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
+          val fnHeads =
+            heads.flatMap(h => headName(h).flatMap(n => scope.lookupLocal(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
           if fnHeads.nonEmpty then
             if heads.length > 1 then
               ctx.error("E0004", "a clause of a formula function must have exactly one head", r.span)
@@ -110,7 +119,8 @@ object Namer:
 
   /** Textual symbol table (output of the `namer` phase). */
   def show(scope: Scope): String =
-    scope.decls.values.map(s => s"${s.name} : ${s.kind.describe}${if s.clauses.nonEmpty then s" (${s.clauses.length} clauses)" else ""}").mkString("\n")
+    scope.decls.values.map(s => s"${s.name} : ${s.kind.describe}${if s.clauses.nonEmpty then s" (${s.clauses.length} clauses)" else ""}")
+      .mkString("\n")
 
 /** Phase: enter the top-level program. */
 final class NamerPhase extends Phase:

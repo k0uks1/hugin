@@ -48,8 +48,8 @@ object ObjPrinter:
   def column(c: Column): String = c.label match
     case Some(l) => s"($l : ${c.tpe.show})"
     case None => c.tpe match
-      case OType.Union(_) => s"(${c.tpe.show})"
-      case _ => c.tpe.show
+        case OType.Union(_) => s"(${c.tpe.show})"
+        case _ => c.tpe.show
 
   def relDecl(r: RelSym): String =
     val res = r.result.map(_.show).getOrElse("rel")

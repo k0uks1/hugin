@@ -72,17 +72,24 @@ final class Records extends MiniPhase:
         val inner = rwBody(ib, choice, g.span)
         val termVars = mutable.LinkedHashSet.empty[String]
         projected(t, termVars)
-        val extra = termVars.toList.filter(x => choice.contains(x) && !inner.exists {
-          case Formula.Atom(_, _, Some(`x`)) => true
-          case _ => false
-        }).map(x => guardFor(x, choice(x), g.span))
+        val extra = termVars.toList.filter(x =>
+          choice.contains(x) && !inner.exists {
+            case Formula.Atom(_, _, Some(`x`)) => true
+            case _ => false
+          }
+        ).map(x => guardFor(x, choice(x), g.span))
         Formula.Agg(res, k, rw(t, choice), inner ++ extra)(g.span)
       case d @ Formula.Disj(alts) => Formula.Disj(alts.map(rwBody(_, choice, d.span)))(d.span)
       case other => other
     }
     rewritten ++ here.toList.filter(choice.contains).map(x => guardFor(x, choice(x), span))
 
-  private def expand(heads: List[Term], body: List[Formula], gamma: Map[String, OType], span: Span): List[(List[Term], List[Formula], Map[String, OType])] =
+  private def expand(
+      heads: List[Term],
+      body: List[Formula],
+      gamma: Map[String, OType],
+      span: Span
+  ): List[(List[Term], List[Formula], Map[String, OType])] =
     val vs = mutable.LinkedHashSet.empty[String]
     heads.foreach(projected(_, vs))
     body.foreach(projectedF(_, vs))
@@ -97,11 +104,14 @@ final class Records extends MiniPhase:
       val hs = heads.map(rw(_, ch))
       var b = rwBody(body, ch, span)
       // projections occurring only in heads need their guard in the top-level body
-      for x <- headVarsProj if ch.contains(x) && !b.exists {
+      for
+        x <- headVarsProj if ch.contains(x) && !b.exists {
           case Formula.Atom(_, _, Some(`x`)) => true
           case _ => false
-        } do b = b :+ guardFor(x, ch(x), span)
-      val g2 = gamma ++ ch.flatMap((x, c) => c.cols.indices.map(k => zName(x, c, k) -> c.cols(k).tpe)) ++ ch.map((x, c) => x -> OType.Fact(c, Nil))
+        }
+      do b = b :+ guardFor(x, ch(x), span)
+      val g2 =
+        gamma ++ ch.flatMap((x, c) => c.cols.indices.map(k => zName(x, c, k) -> c.cols(k).tpe)) ++ ch.map((x, c) => x -> OType.Fact(c, Nil))
       (hs, b, g2)
     }
 
@@ -140,8 +150,12 @@ final class Disjunctions extends MiniPhase:
       case g @ Formula.Agg(_, _, _, b) =>
         val inner = b.exists(_.isInstanceOf[Formula.Disj])
         if inner then
-          report(Diagnostic.error("E0202", "disjunction inside an aggregate is not supported", g.span,
-            "this aggregate's body contains a disjunction")
+          report(Diagnostic.error(
+            "E0202",
+            "disjunction inside an aggregate is not supported",
+            g.span,
+            "this aggregate's body contains a disjunction"
+          )
             .withHelp("define a helper relation with one rule per alternative and aggregate over it"))
         !inner && checkNested(b, report)
       case _ => true
@@ -176,11 +190,13 @@ final class DemandPhase extends Phase:
     if p == null then return
     val demandRels = mutable.LinkedHashMap.empty[(RelSym, Mode), RelSym]
     def demand(c: RelSym, m: Mode): RelSym =
-      demandRels.getOrElseUpdate((c, m), {
-        val d = RelSym(s"${c.name}^d[${m.show}]", RelKind.Demand(c, m), c.span, c.origin)
-        d.cols = c.cols.zip(m.inputs).filter(_._2).map(_._1)
-        d
-      })
+      demandRels.getOrElseUpdate(
+        (c, m), {
+          val d = RelSym(s"${c.name}^d[${m.show}]", RelKind.Demand(c, m), c.span, c.origin)
+          d.cols = c.cols.zip(m.inputs).filter(_._2).map(_._1)
+          d
+        }
+      )
     def inputs(args: List[Term], m: Mode): List[Term] = args.zip(m.inputs).filter(_._2).map(_._1)
 
     // 1. guarding

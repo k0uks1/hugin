@@ -52,7 +52,8 @@ final class MetaEval(using Context):
     ctx.report(Diagnostic.error(code, msg, span, label).withOrigin(fr.origin))
 
   private def freshPrefix(hint: String): String =
-    val base = if hint.isEmpty then { anon += 1; s"_m$anon" } else hint
+    val base = if hint.isEmpty then { anon += 1; s"_m$anon" }
+    else hint
     if usedPrefixes.add(base) then base
     else
       var k = 2
@@ -73,8 +74,12 @@ final class MetaEval(using Context):
           Prims.arith(op, a, b) match
             case Some(x) => VLit(x)
             case None =>
-              ctx.report(Diagnostic.error("E0209", "compile-time arithmetic failure", span,
-                s"`${a.show} ${op.show} ${b.show}` is undefined")
+              ctx.report(Diagnostic.error(
+                "E0209",
+                "compile-time arithmetic failure",
+                span,
+                s"`${a.show} ${op.show} ${b.show}` is undefined"
+              )
                 .withNote(if op == ArithOp.Div then "division by zero" else "64-bit integer overflow")
                 .withNote("at the meta level an undefined primitive operation is a compile-time error (Section 3.3)")
                 .withOrigin(fr.origin))
@@ -150,21 +155,33 @@ final class MetaEval(using Context):
       case VFormula(body) =>
         for (mode, span) <- s.fnModes do
           if mode.length != params.length then
-            ctx.report(Diagnostic.error("E0701", s"mode for `${s.name}` has ${mode.length} items but the function takes ${params.length} arguments", span))
+            ctx.report(Diagnostic.error(
+              "E0701",
+              s"mode for `${s.name}` has ${mode.length} items but the function takes ${params.length} arguments",
+              span
+            ))
           else
             val inputs = params.zip(mode).collect { case (p, true) => p }.toSet
             Moding.canonical(body, inputs) match
               case Left(stuck) =>
                 ctx.report(Moding.describe(stuck)
                   .withLabel(span, "mode declared here")
-                  .withNote(s"the body of formula function `${s.name}` is not well-moded for mode ${mode.map(b => if b then "+" else "-").mkString}")
+                  .withNote(
+                    s"the body of formula function `${s.name}` is not well-moded for mode ${mode.map(b => if b then "+" else "-").mkString}"
+                  )
                   .withOrigin(fr.origin))
               case Right((_, b)) =>
                 val outs = params.zip(mode).collect { case (p, false) => p }.filterNot(b)
                 if outs.nonEmpty then
-                  ctx.report(Diagnostic.error("E0501", s"formula function `${s.name}` does not bind its output argument${if outs.length > 1 then "s" else ""}", span,
-                    s"mode ${mode.map(b => if b then "+" else "-").mkString}")
-                    .withNote(s"argument${if outs.length > 1 then "s" else ""} ${outs.map(o => o.drop(3)).mkString(", ")} must be bound by the body")
+                  ctx.report(Diagnostic.error(
+                    "E0501",
+                    s"formula function `${s.name}` does not bind its output argument${if outs.length > 1 then "s" else ""}",
+                    span,
+                    s"mode ${mode.map(b => if b then "+" else "-").mkString}"
+                  )
+                    .withNote(
+                      s"argument${if outs.length > 1 then "s" else ""} ${outs.map(o => o.drop(3)).mkString(", ")} must be bound by the body"
+                    )
                     .withOrigin(fr.origin))
       case _ =>
 
@@ -193,15 +210,23 @@ final class MetaEval(using Context):
                     r match
                       case Req.Complete(_, _) =>
                         if rel.isOpen || rel.isPartial then
-                          ctx.report(Diagnostic.error("E0208", s"relation `${rel.name}` does not satisfy `%complete $label`", span,
-                            s"`${rel.name}` is ${if rel.isOpen then "open" else "partial"}")
+                          ctx.report(Diagnostic.error(
+                            "E0208",
+                            s"relation `${rel.name}` does not satisfy `%complete $label`",
+                            span,
+                            s"`${rel.name}` is ${if rel.isOpen then "open" else "partial"}"
+                          )
                             .withLabel(rspan, "required here")
                             .withNote("the functor negates or aggregates over this relation, which needs complete knowledge")
                             .withOrigin(origin))
                       case Req.HasMode(_, mode, _) =>
                         if !rel.modes.exists(_._1 == mode) then
-                          ctx.report(Diagnostic.error("E0208", s"relation `${rel.name}` does not have mode `${mode.show}`", span,
-                            s"required for field `$label`")
+                          ctx.report(Diagnostic.error(
+                            "E0208",
+                            s"relation `${rel.name}` does not have mode `${mode.show}`",
+                            span,
+                            s"required for field `$label`"
+                          )
                             .withLabel(rspan, "required here")
                             .withHelp(s"declare `%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}.`")
                             .withOrigin(origin))
@@ -364,5 +389,6 @@ final class MetaEvalPhase extends Phase:
     if u.elab == null then return
     val ev = MetaEval()
     ev.eval(u.elab.nn, Map.empty, Frame(None, "", Origin.Source, None))
-    u.generic = ObjProgram(ev.types.toVector, ev.rels.toVector, ev.edges.toVector, ev.rules.toVector, ev.queries.toVector, ev.directives.toVector)
+    u.generic =
+      ObjProgram(ev.types.toVector, ev.rels.toVector, ev.edges.toVector, ev.rules.toVector, ev.queries.toVector, ev.directives.toVector)
   override def show(using Context): String = ObjPrinter.program(ctx.unit.generic.nn)

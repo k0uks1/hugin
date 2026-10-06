@@ -14,18 +14,21 @@ final class Parser(src: SourceFile, reporter: Reporter):
   private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
   private var i = 0
   private val infixOps = mutable.HashMap.empty[String, (Assoc, Int)]
+
   /** True while parsing a type: comparison operators (in particular `=`) end the type. */
   private var inType = false
 
   private def parseType(minLevel: Int = LvlArrow): Tree =
     val saved = inType
     inType = true
-    try parseExpr(minLevel) finally inType = saved
+    try parseExpr(minLevel)
+    finally inType = saved
 
   private def parseNonType(minLevel: Int): Tree =
     val saved = inType
     inType = false
-    try parseExpr(minLevel) finally inType = saved
+    try parseExpr(minLevel)
+    finally inType = saved
 
   private def tok: Token = toks(i)
   private def peekTok(k: Int): Token = toks((i + k).min(toks.length - 1))
@@ -69,7 +72,8 @@ final class Parser(src: SourceFile, reporter: Reporter):
     var k = 0
     while k + 4 < toks.length do
       if toks(k).kind == Tok.Directive && toks(k).text == "%infix" &&
-        toks(k + 1).kind == Tok.Name && toks(k + 2).kind == Tok.IntLit && toks(k + 3).kind == Tok.Name then
+        toks(k + 1).kind == Tok.Name && toks(k + 2).kind == Tok.IntLit && toks(k + 3).kind == Tok.Name
+      then
         val assoc = toks(k + 1).text match
           case "left" => Some(Assoc.Left)
           case "right" => Some(Assoc.Right)
@@ -144,8 +148,10 @@ final class Parser(src: SourceFile, reporter: Reporter):
             advance()
             val (name, params) = declHead(lhs)
             val tpe = parseType()
-            val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) } else None
-            val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) } else None
+            val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) }
+            else None
+            val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
+            else None
             expect(Tok.Period, "`.` after declaration")
             Decl(name, params, tpe, sup, defn, abbrev = false)(spanFrom(start))
           case Tok.Eq =>
@@ -171,8 +177,11 @@ final class Parser(src: SourceFile, reporter: Reporter):
       else None
     if kind != Tok.Period then
       if kind == Tok.Colon && name.isDefined then
-        fail("a rule name cannot start a declaration", "unexpected `:`",
-          Some("rule names are written `@name head :- body.`; declarations have no `@`"))
+        fail(
+          "a rule name cannot start a declaration",
+          "unexpected `:`",
+          Some("rule names are written `@name head :- body.`; declarations have no `@`")
+        )
       expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
     else advance()
     Rule(name, heads.toList, body)(spanFrom(start))
@@ -360,7 +369,8 @@ final class Parser(src: SourceFile, reporter: Reporter):
           case Tok.Var => advance(); VarRef(p.text)(p.span)
           case Tok.Name => advance(); Ident(p.text)(p.span)
           case _ => fail(s"expected a lambda parameter, found $found", "expected a name or variable")
-        val tpe = if kind == Tok.Colon then { advance(); Some(parseType()) } else None
+        val tpe = if kind == Tok.Colon then { advance(); Some(parseType()) }
+        else None
         expect(Tok.RBrack)
         val body = parseExpr(minLevel.max(LvlSemi))
         Lambda(param, tpe, body)(spanFrom(start))
@@ -372,7 +382,8 @@ final class Parser(src: SourceFile, reporter: Reporter):
   private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Name => !infixOps.contains(t.text)
-    case _ => false)
+    case _ => false
+  )
 
   private def parseApp(): Tree =
     var f = parsePostfix()
@@ -552,6 +563,7 @@ object Parser:
   val LvlArrow = 30
   val LvlBar = 40
   val LvlCmp = 50
+
   /** Items' heads: everything binding tighter than comparisons. */
   val LvlHead = 51
   val LvlAdd = 60

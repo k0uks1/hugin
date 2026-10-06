@@ -25,38 +25,43 @@ final class TypeOps(p: ObjProgram):
   /** τ ≤ τ' (least preorder of Section 5.5). Erroneous types are compatible with everything. */
   def isSub(a: OType, b: OType): Boolean =
     if a == b || a == OType.Err || b == OType.Err then true
-    else subCache.getOrElseUpdate((a, b), {
-      (a, b) match
-        case (OType.Union(ms), _) => ms.forall(isSub(_, b))
-        case (_, OType.Union(ms)) if ms.exists(isSub(a, _)) => true
-        case _ =>
-          // breadth-first search upwards
-          val seen = mutable.HashSet(a)
-          val queue = mutable.Queue(a)
-          var found = false
-          while queue.nonEmpty && !found do
-            val x = queue.dequeue()
-            for u <- ups(x) if !found do
-              if u == b then found = true
-              else
-                b match
-                  case OType.Union(ms) if ms.contains(u) => found = true
-                  case _ =>
-                if seen.add(u) then queue.enqueue(u)
-          found
-    })
+    else
+      subCache.getOrElseUpdate(
+        (a, b), {
+          (a, b) match
+            case (OType.Union(ms), _) => ms.forall(isSub(_, b))
+            case (_, OType.Union(ms)) if ms.exists(isSub(a, _)) => true
+            case _ =>
+              // breadth-first search upwards
+              val seen = mutable.HashSet(a)
+              val queue = mutable.Queue(a)
+              var found = false
+              while queue.nonEmpty && !found do
+                val x = queue.dequeue()
+                for u <- ups(x) if !found do
+                  if u == b then found = true
+                  else
+                    b match
+                      case OType.Union(ms) if ms.contains(u) => found = true
+                      case _ =>
+                    if seen.add(u) then queue.enqueue(u)
+              found
+        }
+      )
 
   def isRelLike(t: OType): Boolean = t match
     case OType.Err => true
     case _ => isSub(t, OType.RelTop)
 
   /** mem(τ) for τ ≤ rel (Definition 5.2). */
-  def members(t: OType): Set[RelSym] = memCache.getOrElseUpdate(t, t match
-    case OType.Fact(c, _) => Set(c)
-    case OType.Union(ms) => ms.flatMap(members).toSet
-    case OType.RelTop => p.rels.toSet
-    case OType.Con(_, _) => p.rels.filter(c => isSub(OType.Fact(c, Nil), t)).toSet
-    case _ => Set.empty
+  def members(t: OType): Set[RelSym] = memCache.getOrElseUpdate(
+    t,
+    t match
+      case OType.Fact(c, _) => Set(c)
+      case OType.Union(ms) => ms.flatMap(members).toSet
+      case OType.RelTop => p.rels.toSet
+      case OType.Con(_, _) => p.rels.filter(c => isSub(OType.Fact(c, Nil), t)).toSet
+      case _ => Set.empty
   )
   private val memCache = mutable.HashMap.empty[OType, Set[RelSym]]
 

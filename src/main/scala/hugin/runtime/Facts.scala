@@ -44,8 +44,12 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
         case Vector(c) => Id(c.tag, build(c, args))
         case Vector() =>
           if byName.contains(name) then
-            err(s"`$name` cannot occur here", h.span, s"expected a value of type `${expected.show}`",
-              Some(s"`$name` takes ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)"))
+            err(
+              s"`$name` cannot occur here",
+              h.span,
+              s"expected a value of type `${expected.show}`",
+              Some(s"`$name` takes ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)")
+            )
           else err(s"unknown constructor `$name`", h.span, "not declared in the program")
         case _ => err(s"ambiguous constructor `$name`", h.span, s"several instances fit `${expected.show}`")
 
@@ -66,12 +70,17 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
             rels match
               case Vector(r) =>
                 if !r.isInput && !r.isOpen then
-                  err(s"`${r.displayName}` is not an input relation", h.span, "facts can only be loaded into input relations",
-                    Some(s"declare `%input ${r.displayName}.` in the program"))
+                  err(
+                    s"`${r.displayName}` is not an input relation",
+                    h.span,
+                    "facts can only be loaded into input relations",
+                    Some(s"declare `%input ${r.displayName}.` in the program")
+                  )
                 build(r, args)
                 count += 1
               case Vector() =>
-                if byName.contains(name) then err(s"`$name` expects ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)", head.span)
+                if byName.contains(name) then
+                  err(s"`$name` expects ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)", head.span)
                 else err(s"unknown relation `$name`", h.span, "not declared in the program")
               case _ => err(s"ambiguous relation `$name`", h.span)
           case other => err("input files contain only ground facts", other.span, "not a fact")

@@ -87,8 +87,9 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         if s.isOpen then
           for c <- p.rels if c.tparams.nonEmpty do
             c.result match
-              case Some(OType.Con(`s`, ps)) if ps.forall(_.isInstanceOf[OType.Param]) &&
-                  ps.map { case OType.Param(x) => x; case _ => null }.toSet == c.tparams.toSet && ps.distinct.length == ps.length =>
+              case Some(OType.Con(`s`, ps))
+                  if ps.forall(_.isInstanceOf[OType.Param]) &&
+                    ps.map { case OType.Param(x) => x; case _ => null }.toSet == c.tparams.toSet && ps.distinct.length == ps.length =>
                 val m = ps.map { case OType.Param(x) => x; case _ => null }.zip(args).toMap
                 relInstance(c, c.tparams.map(m), span, origin)
               case _ =>
@@ -115,6 +116,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     private val sol = mutable.HashMap.empty[Int, OType]
     private var next = 0
     val varTypes = mutable.HashMap.empty[String, OType]
+
     /** Family occurrences: node identity → (relation, metas). */
     val occs = new java.util.IdentityHashMap[AnyRef, (RelSym, List[OType], Span)]()
 
@@ -150,7 +152,10 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         case (OType.Meta(_), _) | (_, OType.Meta(_)) => unify(sub, sup, span)
         case (OType.Con(s1, as), OType.Con(s2, bs)) if s1 == s2 =>
           as.zip(bs).foreach((x, y) => unify(x, y, span))
-          if as.nonEmpty && as.map(resolve) != bs.map(resolve) && as.forall(x => OType.isGround(resolve(x))) && bs.forall(x => OType.isGround(resolve(x))) then
+          if as.nonEmpty && as.map(resolve) != bs.map(resolve) && as.forall(x => OType.isGround(resolve(x))) && bs.forall(x =>
+              OType.isGround(resolve(x))
+            )
+          then
             report(Diagnostic.error("E0402", "type mismatch", span, s"`${resolve(sub).show}` is not `${resolve(sup).show}`")
               .withNote("type arguments of families are invariant"))
         case (OType.Fact(r1, as), OType.Fact(r2, bs)) if r1 == r2 => as.zip(bs).foreach((x, y) => unify(x, y, span))
@@ -237,9 +242,14 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           val first = ok
           ok = false
           val missing = rel.tparams.zip(args).filterNot((_, a) => OType.isGround(a)).map(_._1.name)
-          if first then inf.report(Diagnostic.error("E0206", s"cannot infer type argument${if missing.length > 1 then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`", span,
-            "type not determined")
-            .withHelp(s"add a type ascription, e.g. `(${rel.name} ... : T)`"))
+          if first then
+            inf.report(Diagnostic.error(
+              "E0206",
+              s"cannot infer type argument${if missing.length > 1 then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`",
+              span,
+              "type not determined"
+            )
+              .withHelp(s"add a type ascription, e.g. `(${rel.name} ... : T)`"))
           rel
         else
           val margs = args.map(monoType(_, span, r.origin))
@@ -254,8 +264,12 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           if recursive then rel
           else if relMemo.size > MaxInstances then
             if ok then
-              inf.report(Diagnostic.error("E0205", s"too many family instances (more than $MaxInstances)", span,
-                s"while instantiating `${rel.name}`").withNote("family instantiation does not terminate"))
+              inf.report(Diagnostic.error(
+                "E0205",
+                s"too many family instances (more than $MaxInstances)",
+                span,
+                s"while instantiating `${rel.name}`"
+              ).withNote("family instantiation does not terminate"))
             ok = false
             rel
           else relInstance(rel, margs, span, r.origin)
@@ -279,9 +293,15 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     if ok then Some(out) else None
 
   private def polyRec(g: RelSym, f: RelSym, us: List[OType], ts: List[OType], span: Span, origin: Origin): Unit =
-    ctx.report(Diagnostic.error("E0205", "polymorphic recursion", span,
-      s"`${g.name}` used at [${us.map(showInst).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(showInst).mkString(", ")}]")
-      .withNote("within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)")
+    ctx.report(Diagnostic.error(
+      "E0205",
+      "polymorphic recursion",
+      span,
+      s"`${g.name}` used at [${us.map(showInst).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(showInst).mkString(", ")}]"
+    )
+      .withNote(
+        "within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)"
+      )
       .withOrigin(origin))
 
   private def inferRule(r: Rule, family: Option[(RelSym, List[OType])]): Option[Rule] =
@@ -289,7 +309,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     r.heads.zipWithIndex.foreach { (h, i) =>
       val pre = family.flatMap { (f, ts) =>
         h match
-          case Term.App(RelRef.Sym(`f`), _) if i == r.heads.indexWhere { case Term.App(RelRef.Sym(`f`), _) => true; case _ => false } => Some(ts)
+          case Term.App(RelRef.Sym(`f`), _) if i == r.heads.indexWhere { case Term.App(RelRef.Sym(`f`), _) => true; case _ => false } =>
+            Some(ts)
           case _ => None
       }
       inf.head(h, pre)
