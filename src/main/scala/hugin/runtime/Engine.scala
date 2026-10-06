@@ -37,22 +37,23 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case Literal.FloatL(v) => java.lang.Double.valueOf(v)
     case Literal.StrL(v) => v
 
-  /** Evaluates an expression; Make is only allowed in heads (`build` = true interns nested facts). */
-  private def eval(e: Expr, regs: Array[Any], build: Boolean): Option[Any] = e match
+  /** Evaluates an expression. Make is only allowed in heads: with `build` it interns the value and, if
+   *  `assert`, makes it (and the values nested in it) facts. */
+  private def eval(e: Expr, regs: Array[Any], build: Boolean, assert: Boolean = true): Option[Any] = e match
     case Expr.Reg(r) => Some(regs(r))
     case Expr.Const(w) => Some(w)
     case Expr.Arith(op, l, r) =>
-      for a <- eval(l, regs, build); b <- eval(r, regs, build); v <- arith(op, a, b) yield v
-    case Expr.Neg(x) => eval(x, regs, build).flatMap(toLit).flatMap(Prims.neg).map(fromLit)
+      for a <- eval(l, regs, build, assert); b <- eval(r, regs, build, assert); v <- arith(op, a, b) yield v
+    case Expr.Neg(x) => eval(x, regs, build, assert).flatMap(toLit).flatMap(Prims.neg).map(fromLit)
     case Expr.Make(rel, as) =>
       val vs = new Array[Any](as.length)
       var i = 0
       while i < as.length do
-        eval(as(i), regs, build) match
+        eval(as(i), regs, build, assert) match
           case Some(v) => vs(i) = v
           case None => return None
         i += 1
-      if build then Some(Id(rel, store(rel).intern(vs)._1)) else Some(Id(rel, -1))
+      if build then Some(Id(rel, store(rel).intern(vs, assert))) else Some(Id(rel, -1))
 
   private def compare(op: CmpOp, a: Any, b: Any): Boolean = op match
     case CmpOp.Eq => a == b
@@ -80,7 +81,9 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         val r = store(rel)
         val (lo, hi0) = range(rel, recIdx)
         val hi = hi0.min(r.size)
-        def visit(n: Int): Boolean =
+        // positions in the relation's assertion order (see [[Relation]])
+        def visit(pos: Int): Boolean =
+          val n = r.facts(pos)
           val t = r.tuples(n)
           var ok = true
           var j = 0
@@ -109,7 +112,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           r.index(checks.map(_._1).toVector).get(Key(key)) match
             case None => true
             case Some(ids) =>
-              // ids are ascending: restrict to the version window
+              // positions are ascending: restrict to the version window
               val snapshot = ids.length
               var from = 0
               if lo > 0 then
@@ -213,8 +216,8 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       rs => {
         // arithmetic in the head is evaluated before any nested fact is interned
         if r.headArgs.forall(e => eval(e, rs, build = false).isDefined) then
-          val vs = r.headArgs.map(e => eval(e, rs, build = true).get)
-          store(r.headRel).intern(vs)
+          val vs = r.headArgs.indices.map(i => eval(r.headArgs(i), rs, build = true, assert = !r.probeCols(i)).get).toArray
+          store(r.headRel).intern(vs, assert = true)
         true
       }
     )
@@ -283,4 +286,4 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
 
   def facts(rel: Int): List[String] =
     val r = store(rel)
-    r.tuples.indices.map(n => show(Id(rel, n)) + ".").toList.sorted
+    r.facts.map(n => show(Id(rel, n)) + ".").toList.sorted

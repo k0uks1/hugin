@@ -2,13 +2,15 @@ app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z")).
 app (lam "x" (base "int") (ref "x")) (ref "y").
 arrow (base "int") (base "int").
 base "int".
-bind empty "x" (base "int").
-bind empty "z" (base "int").
-empty.
 lam "x" (base "int") (ref "x").
 lam "z" (base "int") (ref "z").
 lookup (bind empty "x" (base "int")) "x" (base "int").
 lookup (bind empty "z" (base "int")) "z" (base "int").
+lookup^d[++-] (bind empty "x" (base "int")) "x".
+lookup^d[++-] (bind empty "z" (base "int")) "z".
+lookup^d[++-] empty "x".
+lookup^d[++-] empty "y".
+lookup^d[++-] empty "z".
 program (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))).
 program (app (lam "x" (base "int") (ref "x")) (ref "y")).
 program (lam "x" (base "int") (ref "x")).

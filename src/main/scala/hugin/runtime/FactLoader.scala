@@ -57,7 +57,7 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
 
   private def build(c: RelSym, args: List[Tree]): Int =
     val vs = args.zip(c.cols).map((a, col) => value(a, col.tpe)).toArray[Any]
-    engine.store(c.tag).intern(vs)._1
+    engine.store(c.tag).intern(vs, assert = true)
 
   def load(src: SourceFile): Int =
     val prog0 = Parser.parse(src, reporter)
