@@ -1,6 +1,7 @@
 package hugin.meta
 
 import hugin.obj.{Column, OType, TParam}
+import hugin.syntax.Tree
 import hugin.util.Span
 import scala.collection.mutable
 
@@ -41,6 +42,18 @@ final class SymInfo:
   /** `%mode` declarations of a formula function (Section 4.8): input flags and the directive's span. */
   var fnModes: List[(List[Boolean], Span)] = Nil
 
+  /** A copy, for a table that changes the results of a symbol of one of its parents. */
+  def copy(): SymInfo =
+    val c = SymInfo()
+    c.state = state
+    c.mtype = mtype
+    c.static = static
+    c.sigValue = sigValue
+    c.declInfo = declInfo
+    c.typeDef = typeDef
+    c.fnModes = fnModes
+    c
+
 /** Read-only view on the typing results of a compilation, for the phases after the typer and for tooling.
  *  Symbols the typer did not elaborate have no results. */
 trait TypingResults:
@@ -70,15 +83,44 @@ object TypingResults:
   def empty: TypingResults = SymTable()
 
 /** The typer's symbol table: typing results per symbol, owned and filled by the typer, exposed afterwards
- *  as [[TypingResults]] (`CompilationUnit.symbols`). Symbols are keyed by their (stable) keys. */
-final class SymTable extends TypingResults:
+ *  as [[TypingResults]] (`CompilationUnit.symbols`). Symbols are keyed by their (stable) keys.
+ *
+ *  A table is layered over the (frozen) tables of the files it was elaborated against (`parents`: the
+ *  prelude and the imported files, see [[hugin.compiler.ElaboratedLibrary]]): reads fall through to them,
+ *  writes go to this table only (a symbol of a parent that is changed, such as a formula function of the
+ *  prelude that gets a `%mode` declaration, is copied first), so a library's results are shared read-only
+ *  by every compilation importing it. */
+final class SymTable(parents: List[SymTable] = Nil) extends TypingResults:
   private val infos = mutable.HashMap.empty[Sym, SymInfo]
+  private val paramTrees = mutable.HashMap.empty[Sym, Tree]
+  private var frozen = false
+
+  /** The parents and their ancestors, nearest first, each once. */
+  private val ancestors: Vector[SymTable] =
+    val seen = java.util.IdentityHashMap[SymTable, Unit]()
+    (parents.iterator ++ parents.iterator.flatMap(_.ancestors)).filter(t => !seen.containsKey(t) && { seen.put(t, ()); true }).toVector
+
+  /** Forbids further changes (the table of a library, shared by the compilations importing it). */
+  def freeze(): Unit = frozen = true
+
+  private def find(s: Sym): Option[SymInfo] =
+    infos.get(s) match
+      case some @ Some(_) => some
+      case None =>
+        var i = 0
+        var found: Option[SymInfo] = None
+        while found.isEmpty && i < ancestors.length do
+          found = ancestors(i).infos.get(s)
+          i += 1
+        found
 
   /** The (mutable) results of a symbol, created on first access. */
-  private[meta] def apply(s: Sym): SymInfo = infos.getOrElseUpdate(s, SymInfo())
+  private[meta] def apply(s: Sym): SymInfo =
+    if frozen then throw IllegalStateException(s"typing results of `$s` changed in a frozen table")
+    infos.getOrElseUpdate(s, find(s).fold(SymInfo())(_.copy()))
 
   /** The elaboration state of a symbol. */
-  private[meta] def state(s: Sym): ElabState = infos.get(s).fold(ElabState.Pending)(_.state)
+  private[meta] def state(s: Sym): ElabState = find(s).fold(ElabState.Pending)(_.state)
 
   /** Records the meta type of a symbol that needs no further elaboration (parameters, fields). */
   private[meta] def define(s: Sym, t: MType): Unit =
@@ -86,9 +128,17 @@ final class SymTable extends TypingResults:
     i.mtype = Some(t)
     i.state = ElabState.Done
 
-  def mtype(s: Sym): Option[MType] = infos.get(s).flatMap(_.mtype)
-  def static(s: Sym): Option[MExpr] = infos.get(s).flatMap(_.static)
-  def sigValue(s: Sym): Option[MType] = infos.get(s).flatMap(_.sigValue)
-  def declInfo(s: Sym): Option[DeclInfo] = infos.get(s).flatMap(_.declInfo)
-  def typeDef(s: Sym): Option[TypeDefInfo] = infos.get(s).flatMap(_.typeDef)
-  def fnModes(s: Sym): List[(List[Boolean], Span)] = infos.get(s).fold(Nil)(_.fnModes)
+  /** The declared type of a meta parameter as written, for suggested edits to signatures. */
+  private[meta] def paramType(p: Sym): Option[Tree] =
+    paramTrees.get(p).orElse(ancestors.iterator.flatMap(_.paramTrees.get(p)).nextOption())
+
+  private[meta] def setParamType(p: Sym, t: Tree): Unit =
+    if frozen then throw IllegalStateException(s"parameter `$p` declared in a frozen table")
+    paramTrees(p) = t
+
+  def mtype(s: Sym): Option[MType] = find(s).flatMap(_.mtype)
+  def static(s: Sym): Option[MExpr] = find(s).flatMap(_.static)
+  def sigValue(s: Sym): Option[MType] = find(s).flatMap(_.sigValue)
+  def declInfo(s: Sym): Option[DeclInfo] = find(s).flatMap(_.declInfo)
+  def typeDef(s: Sym): Option[TypeDefInfo] = find(s).flatMap(_.typeDef)
+  def fnModes(s: Sym): List[(List[Boolean], Span)] = find(s).fold(Nil)(_.fnModes)

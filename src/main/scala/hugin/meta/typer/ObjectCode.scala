@@ -336,7 +336,7 @@ private[meta] trait ObjectCode extends TyperBase:
   /** The signature a meta parameter was declared with, as written: a record type in the parameter, or the
    *  definition of the named signature. */
   private def signatureOf(p: Sym): Option[RecordType] =
-    paramTypes.get(p).flatMap {
+    syms.paramType(p).flatMap {
       case rt: RecordType => Some(rt)
       case Ident(n) => p.owner.lookup(n).flatMap(_.decl).collect { case Decl(_, _, _, _, Some(rt: RecordType), _) => rt }
       case _ => None

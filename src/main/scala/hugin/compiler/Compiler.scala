@@ -35,10 +35,14 @@ object Compiler:
   def compile(source: SourceFile, settings: Settings, out: String => Unit): Context =
     run(Context(CompilationUnit(source), settings, Reporter()), out)
 
-  /** Runs the pipeline on an already parsed file, loading imports with `loader` (the query database
-   *  parses separately so that parsing is memoised per file). */
+  /** Runs the pipeline on an already parsed file, loading imports with `loader`. */
   def compileParsed(parsed: Parsed, settings: Settings, loader: SourceLoader, out: String => Unit): Context =
-    val ctx = Context(CompilationUnit(parsed.source), settings, Reporter(), loader)
+    compileWith(parsed, settings, Libraries.direct(loader), out)
+
+  /** Runs the pipeline on an already parsed file, taking the prelude and imported files from `libraries`
+   *  (the query database shares them between compilations). */
+  def compileWith(parsed: Parsed, settings: Settings, libraries: Libraries, out: String => Unit): Context =
+    val ctx = Context(CompilationUnit(parsed.source), settings, Reporter(), libraries)
     ctx.unit.untpd = parsed.program
     parsed.diagnostics.foreach(ctx.report)
     run(ctx, out)

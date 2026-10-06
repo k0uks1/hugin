@@ -33,6 +33,10 @@ final case class CommandInfo(name: String, args: String, help: String, aliases: 
  */
 final class Session(settings: Settings = Settings(), initialBudget: Option[Int] = None, initialStats: Boolean = false):
   private given db: Database = Database()
+
+  /** The session's query database: every input, probe and `:reload` compiles in it, so the prelude and
+   *  imported files are elaborated once for the whole session (for tests). */
+  private[repl] def database: Database = db
   private val compileSettings = settings.copy(printAfter = Set.empty, stopAfter = None)
   private val key = CompileKey(Session.path, compileSettings)
   private val probeKey = CompileKey(Session.probePath, compileSettings)

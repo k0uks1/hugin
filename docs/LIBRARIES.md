@@ -28,6 +28,8 @@ types. If an import were a textual copy of the body, a file imported twice (dire
 library) would declare its types twice, and the two importers could not exchange values. Instead, a file
 is elaborated and evaluated **once per compilation**, and every `%import` of it denotes that single module
 value. Generativity is preserved within a file; across files, identity is the file's resolved path.
+(Elaboration is even shared between compilations, see below; evaluation, which names the file's object
+declarations, happens once per compilation.)
 
 Consequently the files of a compilation form a directed graph that must be acyclic: a file is elaborated
 before the files that import it, which matches the rule that meta definitions may only refer to earlier
@@ -96,9 +98,13 @@ call chain as before; a call chain may cross files.
 ## The query layer
 
 Imported files are read through the `SourceText` input of the query database, so they are parsed once
-and an edit to a library invalidates exactly the programs that import it. A `SourceText` that was never
-set is read on first use (from the bundled standard library for `<stdlib>/` paths, otherwise from disk);
-an editor sets the text of open files explicitly.
+and an edit to a library invalidates exactly the programs that import it. The prelude and imported files
+are also named and elaborated by queries (`NameLibrary`, `ElabLibrary`), once per database revision:
+compilations in the same database (the REPL's inputs, the files open in the language server) share
+them, and editing a program does not elaborate its libraries again. Their results are frozen and read by
+the importing compilations; only the evaluation of the meta level runs per compilation. A `SourceText`
+that was never set is read on first use (from the bundled standard library for `<stdlib>/` paths,
+otherwise from disk); an editor sets the text of open files explicitly.
 
 ## Interfaces
 
@@ -125,10 +131,11 @@ s : shapes_sig = %import "lib/shapes".
 * **Sealing.** An opt-in opaque ascription that makes the signature's types abstract. It needs
   generative abstract types at evaluation (fresh object types standing for the hidden ones) and is left
   for later; transparent ascription already covers hiding.
-* **Separate compilation.** Every compilation elaborates the prelude and the imported files from source.
+* **Separate compilation.** Every process elaborates the prelude and the imported files from source
+  (once, when they are first used).
   The interface of a compiled library would be its signature, its object declarations, and its families
   as generic templates (monomorphization must happen in the client so that family instances are shared,
-  Section 4.6). Within one process the query database already caches parsing.
+  Section 4.6). Within one process the query database already shares parsing and elaboration.
 * **Build manifest.** A project file with source roots, dependencies and default facts; a search path for
   imports of installed libraries (`%import "std/graphs"`).
 * **Aggregates as library functions** (Section 14, future work) would move `count`, `sum`, `min`, `max`

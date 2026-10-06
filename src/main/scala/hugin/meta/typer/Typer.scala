@@ -12,7 +12,7 @@ import scala.collection.mutable
 /** Stage inference and meta typing (Sections 3.2, 4.2–4.4). Produces elaborated meta expressions with
  *  explicit quotes and splices; object code is checked for staging, arity and labels here, while object
  *  typing proper happens after elaboration (`objTyper`), with the meta-level call chain as context. */
-final class Typer(c: Context)
+final class Typer(c: Context, parents: List[SymTable] = Nil)
     extends TyperBase
     with Normalization
     with Declarations
@@ -22,9 +22,7 @@ final class Typer(c: Context)
   import MExpr.*
   import MType.*
   protected val context: Context = c
-
-  /** The declared types of meta parameters as written, for suggested edits to signatures. */
-  private[meta] val paramTypes = scala.collection.mutable.HashMap.empty[Sym, Tree]
+  val syms: SymTable = SymTable(parents)
 
   // ======================================================================= items and bodies
 
@@ -176,7 +174,7 @@ final class Typer(c: Context)
           err("E0102", s"duplicate parameter `$nm`", n.span); None
         else
           val p = newParam(nm, n.span, psc)
-          paramTypes(p) = tp
+          syms.setParamType(p, tp)
           syms.define(p, mt)
           psc.enter(p)
           Some(p)
@@ -290,6 +288,15 @@ final class Typer(c: Context)
     }
     (Body(out.toList, sc, span), Sig(fields, Nil))
 
+  /** The module value of the file whose top-level scope is `sc` (what `%import` of the file refers to),
+   *  with the signature of its exports. */
+  def moduleValue(name: String, sc: Scope, sig: MType): Sym =
+    val path = sc.key.file
+    val s =
+      Sym(name, SymKind.MetaDef, Span(context.unit.source, 0, 0), sc.parent.getOrElse(sc), Typer.moduleKey(path), context.unit.symKeys)
+    syms.define(s, sig)
+    s
+
   /** A one-line description of a symbol for tooling (hover). */
   def describe(s: Sym): String =
     def tps = if syms.tparams(s).isEmpty then "" else syms.tparams(s).map(_.name).mkString(" ", " ", "")
@@ -316,25 +323,26 @@ final class Typer(c: Context)
 object Typer:
   /** The key of the module value of an imported file (`%import` refers to it); `%import` is not a name,
    *  so the key differs from the keys of the file's declarations. */
-  def moduleKey(lib: Library): SymKey = SymKey(ScopeKey.File(lib.path), "%import")
+  def moduleKey(path: String): SymKey = SymKey(ScopeKey.File(path), "%import")
 
-/** Phase: stage inference and meta typing of the whole program. */
+/** Phase: stage inference and meta typing of the program. The prelude and the imported files are
+ *  elaborated apart, once ([[ElaboratedLibrary]]); the program's typer reads their results. */
 final class TyperPhase extends Phase:
   def phaseName = "typer"
   def description = "stage inference and meta typing; inserts quotes and splices"
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null || u.rootScope == null then return
-    val typer = Typer(ctx)
-    u.symbols = typer.syms
     // files in dependency order: the prelude and every imported file before the files importing it
-    for lib <- u.libraries.values; sc <- Option(lib.scope) do
-      val (body, sig) = typer.elabBody(lib.program.items, sc, lib.program.span)
-      lib.body = body
-      if !lib.isPrelude then
-        val s = Sym(lib.name, SymKind.MetaDef, Span(lib.parsed.source, 0, 0), sc.parent.getOrElse(sc), Typer.moduleKey(lib), u.symKeys)
-        typer.syms.define(s, sig)
-        lib.sym = s
+    for lib <- u.libraries.values if lib.named != null do
+      val e = ctx.libraries.elaborated(lib.key)
+      lib.elaborated = e
+      e.diagnostics.foreach(ctx.report)
+      u.symKeys.inherit(e.keys)
+      u.index.include(e.index)
+      u.scopes ++= e.scopes
+    val typer = Typer(ctx, u.libraries.values.toList.flatMap(l => Option(l.elaborated).map(_.symbols)))
+    u.symbols = typer.syms
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
     // the semantic index: declarations of all scopes and descriptions of every known symbol

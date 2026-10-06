@@ -90,13 +90,22 @@ object ItemKey:
 final case class SymKey(scope: ScopeKey, name: String):
   override def toString: String = s"$scope.$name"
 
-/** The keys of the symbols created in one compilation, to check that keys are unique. */
+/** The keys of the symbols created in one compilation, to check that keys are unique. The keys of the
+ *  libraries a compilation uses were registered when the libraries were named and elaborated (once, see
+ *  [[hugin.compiler.ElaboratedLibrary]]); they are inherited, not registered again. */
 final class SymKeys:
   private val seen = mutable.HashSet.empty[SymKey]
+  private val inherited = mutable.ArrayBuffer.empty[SymKeys]
+
+  /** Adds the keys of a library (they must not be registered again). */
+  def inherit(keys: SymKeys): Unit = if !inherited.exists(_ eq keys) then inherited += keys
+
+  /** Whether a key was registered here or in an inherited registry. */
+  def contains(key: SymKey): Boolean = seen.contains(key) || inherited.exists(_.contains(key))
 
   /** Records a new key; fails if a symbol with this key was created before. */
   def register(key: SymKey): Unit =
-    assert(seen.add(key), s"two symbols with the key $key")
+    assert(!inherited.exists(_.contains(key)) && seen.add(key), s"two symbols with the key $key")
 
-  /** The keys registered so far. */
-  def all: Set[SymKey] = seen.toSet
+  /** The keys registered so far, also those inherited. */
+  def all: Set[SymKey] = seen.toSet ++ inherited.flatMap(_.all)

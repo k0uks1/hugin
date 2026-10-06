@@ -15,10 +15,56 @@ object SourceText extends Input[String, String]("sourceText"):
 object Parse extends Query[String, Parsed]("parse"):
   def compute(path: String)(using db: Database): Parsed = Parsed(SourceFile.virtual(path, db.get(SourceText, path)))
 
-/** Loads imported files through the database, so that they are parsed once and their edits invalidate
- *  the programs importing them. */
-private final class DatabaseLoader(using db: Database) extends SourceLoader:
+/** The `%import`s of a file with their resolved paths. The parsed source is part of the value so that an
+ *  edit of the file is a change even when the imports are equal up to positions (trees compare without
+ *  their spans). */
+final case class FileImports(source: SourceFile, imports: List[(hugin.syntax.Trees.Import, String)])
+
+object Imports extends Query[String, FileImports]("imports"):
+  def compute(path: String)(using db: Database): FileImports =
+    val parsed = db(Parse, path)
+    FileImports(parsed.source, Library.importsOf(path, parsed.program))
+
+final case class GraphKey(root: String, prelude: Boolean)
+
+/** The import graph of a program ([[ImportGraph]]): recomputed when the program changes, cut off when its
+ *  imports stay the same. */
+object LibraryGraph extends Query[GraphKey, ImportGraph]("libraryGraph"):
+  def compute(key: GraphKey)(using db: Database): ImportGraph =
+    ImportGraph.compute(key.root, db(ParseProgram, key.root).program, key.prelude, DatabaseLibraries())
+
+/** Diagnostics of the libraries, accumulated by the queries that name and elaborate them (a compilation
+ *  reports the diagnostics of the libraries it includes from their results). */
+object LibraryDiagnostics extends Accumulator[Diagnostic]("libraryDiagnostics")
+
+/** Names a library file (the prelude or an imported file), once per revision of its text and of the
+ *  prelude's; shared by all programs. */
+object NameLibrary extends Query[NameKey, NamedLibrary]("nameLibrary"):
+  def compute(key: NameKey)(using db: Database): NamedLibrary =
+    val named = Library.name(key, DatabaseLibraries())
+    named.diagnostics.foreach(db.push(LibraryDiagnostics, _))
+    named
+
+/** Elaborates a library file, once per revision of the files it depends on (its text, the prelude and
+ *  the files it imports, transitively); shared by all programs. The keys never form a cycle: the import
+ *  graph cuts every import that closes one (see [[LibraryKey]]). */
+object ElabLibrary extends Query[LibraryKey, ElaboratedLibrary]("elabLibrary"):
+  def compute(key: LibraryKey)(using db: Database): ElaboratedLibrary =
+    val elaborated = Library.elaborate(key, DatabaseLibraries())
+    elaborated.diagnostics.foreach(db.push(LibraryDiagnostics, _))
+    elaborated
+
+/** Loads files and libraries through the database, so that files are parsed, and libraries named and
+ *  elaborated, once, and an edit of a file invalidates exactly what depends on it. */
+private final class DatabaseLibraries(using db: Database) extends Libraries:
   def load(path: String): Option[Parsed] = if db.has(SourceText, path) then Some(db(Parse, path)) else None
+  def imports(path: String): List[(hugin.syntax.Trees.Import, String)] = db(Imports, path).imports
+  def graph(root: String, program: hugin.syntax.Program, prelude: Boolean): ImportGraph =
+    // the graph of the program being compiled is memoised; another program (not from `ParseProgram`) is walked
+    if db(ParseProgram, root).program eq program then db(LibraryGraph, GraphKey(root, prelude))
+    else ImportGraph.compute(root, program, prelude, this)
+  def named(key: NameKey): NamedLibrary = db(NameLibrary, key)
+  def elaborated(key: LibraryKey): ElaboratedLibrary = db(ElabLibrary, key)
 
 /** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
 final case class Part(path: String, queries: Boolean = true)
@@ -56,7 +102,7 @@ final class Compiled(val context: Context, val printed: List[String]):
 object Compile extends Query[CompileKey, Compiled]("compile"):
   def compute(key: CompileKey)(using db: Database): Compiled =
     val printed = mutable.ListBuffer.empty[String]
-    val ctx = Compiler.compileParsed(db(ParseProgram, key.path), key.settings, DatabaseLoader(), printed += _)
+    val ctx = Compiler.compileWith(db(ParseProgram, key.path), key.settings, DatabaseLibraries(), printed += _)
     Compiled(ctx, printed.toList)
 
 final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, budget: Option[Int] = None, allRelations: Boolean = false)
