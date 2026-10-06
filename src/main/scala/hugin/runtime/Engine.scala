@@ -219,6 +219,8 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       }
     )
 
+  /** Evaluates all components. Cancellable: an interrupt of the evaluating thread ends evaluation with
+   *  an `InterruptedException` at the next round (a non-terminating `%partial` component without budget). */
   def run(): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for (comp, ci) <- prog.components.zipWithIndex do
@@ -240,6 +242,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       def deltaNonEmpty = comp.exists(t => deltaEnd(t) > oldEnd(t))
       val recursive = rules.filter(_.recursiveAtoms > 0)
       while deltaNonEmpty && recursive.nonEmpty && !cut do
+        if Thread.interrupted() then throw InterruptedException("evaluation cancelled")
         if limit.exists(rounds >= _) then cut = true
         else
           rounds += 1
