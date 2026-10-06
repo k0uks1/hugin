@@ -14,8 +14,12 @@ abstract class Phase:
   /** Textual form of the unit after this phase (for `--print-after`). */
   def show(using Context): String = ""
 
+/** A phase whose result is the object program (`unit.prog`), printed by `--print-after`. */
+trait ObjProgramPhase extends Phase:
+  override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)
+
 /** A rule-level transformation that can be fused with others into a [[MegaPhase]]. */
-abstract class MiniPhase extends Phase:
+abstract class MiniPhase extends ObjProgramPhase:
   def prepare(using Context): Unit = ()
   def transformRule(r: Rule)(using Context): List[Rule] = List(r)
   def transformQuery(q: Query)(using Context): Query = q
@@ -23,10 +27,8 @@ abstract class MiniPhase extends Phase:
 
   def run(using Context): Unit = MegaPhase(List(this)).run
 
-  override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)
-
 /** Runs a group of mini phases in one traversal, each rule flowing through all of them. */
-final class MegaPhase(val minis: List[MiniPhase]) extends Phase:
+final class MegaPhase(val minis: List[MiniPhase]) extends ObjProgramPhase:
   def phaseName: String = minis.map(_.phaseName).mkString("+")
   def description: String = minis.map(_.description).mkString("; ")
   override def runsAfterErrors: Boolean = minis.forall(_.runsAfterErrors)
@@ -40,4 +42,3 @@ final class MegaPhase(val minis: List[MiniPhase]) extends Phase:
     p.rules = p.rules.flatMap(r => through(r, minis))
     p.queries = p.queries.map(q => minis.foldLeft(q)((q, m) => m.transformQuery(q)))
     minis.foreach(_.finish)
-  override def show(using Context): String = ObjPrinter.program(ctx.unit.prog.nn)
