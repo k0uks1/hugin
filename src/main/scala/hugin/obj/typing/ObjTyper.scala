@@ -21,7 +21,7 @@ final class ObjTyperPhase extends Phase:
       RuleTyper(ops, r.heads, r.body, Diag.rule(r)).run() match
         case Some(g) =>
           ctx.unit.varTypes.put(r, g)
-          recordVariables(r.heads, r.body, g)
+          recordVariables(r.span, r.heads, r.body, g)
           true
         case None => false
     }
@@ -29,17 +29,18 @@ final class ObjTyperPhase extends Phase:
       RuleTyper(ops, Nil, q.body, Diag.query(q)).run() match
         case Some(g) =>
           ctx.unit.varTypes.put(q, g)
-          recordVariables(Nil, q.body, g)
+          recordVariables(q.span, Nil, q.body, g)
           true
         case None => false
     }
 
   /** Records the inferred type of every object variable occurrence in the semantic index. */
-  private def recordVariables(heads: List[Term], body: List[Formula], g: Map[String, OType])(using Context): Unit =
+  private def recordVariables(item: Span, heads: List[Term], body: List[Formula], g: Map[String, OType])(using Context): Unit =
+    def note(span: Span, n: String) = g.get(n).foreach(tp => ctx.unit.index.variable(span, n, Var.display(n), tp.show, item))
     def term(t: Term): Unit = t match
-      case v @ Term.Var(n) if !Var.isWild(n) => g.get(n).foreach(tp => ctx.unit.index.variable(v.span, Var.display(n), tp.show))
+      case v @ Term.Var(n) if !Var.isWild(n) => note(v.span, n)
       case Term.App(_, as) => as.foreach(term)
-      case a @ Term.As(x, v) => term(x); g.get(v).foreach(tp => ctx.unit.index.variable(a.span, Var.display(v), tp.show))
+      case a @ Term.As(x, v) => term(x); note(a.span, v)
       case Term.Ascr(x, _) => term(x)
       case Term.Proj(v, _) => term(v)
       case Term.With(v, fs) => term(v); fs.foreach(f => term(f._2))

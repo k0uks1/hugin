@@ -122,6 +122,7 @@ object Main:
       case "hover" => out(Ide.hover(key, offset.get).getOrElse("(no information)"))
       case "definition" => out(Ide.definition(key, offset.get).map(loc).getOrElse("(no definition)"))
       case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
+      case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
         for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
       case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
