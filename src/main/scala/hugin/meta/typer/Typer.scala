@@ -50,6 +50,7 @@ final class Typer(c: Context)
         tgt match
           case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.FormulaFn) =>
             val f = sc.lookup(n).get
+            noteReference(tgt.span, f)
             f.fnModes = f.fnModes :+ ((ms.map(_.input), d.span))
             None
           case _ => mk(DirKind.ModeD(ModeSpec(ms.map(m => (m.input, m.label.map(_.name), m.span)))), tgt)
@@ -254,6 +255,28 @@ final class Typer(c: Context)
     }
     (Body(out.toList, sc, span), Sig(fields, Nil))
 
+  /** A one-line description of a symbol for tooling (hover). */
+  def describe(s: Sym): String =
+    def tps = if s.tparams.isEmpty then "" else s.tparams.map(_.name).mkString(" ", " ", "")
+    def col(c: hugin.obj.Column) = c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))
+    s.kind match
+      case SymKind.PreludeType => s"base type ${s.name}"
+      case SymKind.ObjType =>
+        info(s).typeKind match
+          case Some(TypeKindE.Refinement(b)) => s"type ${s.name}$tps <: ${showO(b)}"
+          case _ => s"type ${s.name}$tps (open)"
+      case SymKind.TypeDef =>
+        val ps = s.typeDefParams.map(_.name).mkString(" ", " ", "").stripSuffix(" ")
+        s"type ${s.name}${if s.typeDefParams.isEmpty then "" else ps} = ${s.typeDefRhs.map(showO).getOrElse("?")}"
+      case SymKind.Rel | SymKind.Ctor | SymKind.Struct =>
+        val di = info(s)
+        val res = di.result.map(showO).getOrElse("rel")
+        s"${s.kind.describe} ${s.name}$tps : ${(di.cols.map(col) :+ res).mkString(" -> ")}"
+      case _ =>
+        s.sigValue match
+          case Some(sig) => s"signature ${s.name} = ${showMT(sig)}"
+          case None => s"${s.kind.describe} ${s.name} : ${if s.mtype == null then "?" else showMT(s.mtype.nn)}"
+
 /** Phase: stage inference and meta typing of the whole program. */
 final class TyperPhase extends Phase:
   def phaseName = "typer"
@@ -264,6 +287,10 @@ final class TyperPhase extends Phase:
     val typer = Typer(ctx)
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
+    // the semantic index: declarations of all scopes and descriptions of every known symbol
+    val scopes = u.rootScope.nn :: scala.jdk.CollectionConverters.CollectionHasAsScala(u.scopes.values).asScala.toList
+    for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
+    for s <- u.index.symbols do u.index.describe(s, typer.describe(s))
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced
     for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !s.used do
       val isModuleValued = s.mtype match

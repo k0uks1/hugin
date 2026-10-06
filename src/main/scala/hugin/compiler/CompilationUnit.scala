@@ -28,6 +28,9 @@ final class CompilationUnit(val source: SourceFile):
   val deferred: mutable.ListBuffer[() => Unit] = mutable.ListBuffer.empty
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
+
+  /** Positions → symbols and types, for tooling. */
+  val index: SemanticIndex = SemanticIndex()
   var incomplete: Set[RelSym] = Set.empty
 
   /** Rules named by `%derivations @r`. */

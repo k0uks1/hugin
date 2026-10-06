@@ -1,24 +1,28 @@
-package hugin.cli
+package hugin.runtime
 
 import hugin.util.*
 import hugin.compiler.*
 import hugin.ir.*
-import hugin.runtime.*
 import hugin.obj.RelKind
 import hugin.obj.typing.TypeOps
 
-/** Runs a compiled program: loads input facts, evaluates, prints outputs and query answers. */
-object Runner:
+/** Evaluates a compiled program: loads input facts, runs the engine, renders output relations and query
+ *  answers (Section 9.6). The compilation result is not modified; input diagnostics are returned. */
+object Evaluation:
   final case class Result(output: List[String], truncated: Boolean, stats: List[ComponentStats])
 
-  def run(c: Context, factFiles: List[SourceFile], budget: Option[Int], allRelations: Boolean = false): Option[Result] =
+  /** `result` is empty if the program could not be evaluated (compile errors or invalid input facts). */
+  final case class Outcome(result: Option[Result], diagnostics: List[Diagnostic])
+
+  def run(c: Context, factFiles: List[SourceFile], budget: Option[Int], allRelations: Boolean = false): Outcome =
     val core = c.unit.core
-    if core == null then return None
+    if core == null || c.reporter.hasErrors then return Outcome(None, Nil)
     val prog = core.nn
     val engine = Engine(prog, budget)
-    val loader = FactLoader(engine, prog, TypeOps(c.unit.prog.nn), c.reporter)
+    val reporter = Reporter()
+    val loader = FactLoader(engine, prog, TypeOps(c.unit.prog.nn), reporter)
     factFiles.foreach(loader.load)
-    if c.reporter.hasErrors then return None
+    if reporter.hasErrors then return Outcome(None, reporter.sorted)
     engine.run()
     val out = List.newBuilder[String]
     if engine.truncated then
@@ -38,4 +42,4 @@ object Runner:
       else if as.isEmpty then out += "no."
       else
         out ++= as.map(a => q.vars.zip(a).map((v, w) => s"$v = ${engine.show(w)}").mkString(", ") + ".").sorted
-    Some(Result(out.result(), engine.truncated, engine.stats.toList))
+    Outcome(Some(Result(out.result(), engine.truncated, engine.stats.toList)), reporter.sorted)

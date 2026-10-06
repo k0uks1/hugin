@@ -2,6 +2,8 @@ package hugin.cli
 
 import hugin.util.*
 import hugin.compiler.*
+import hugin.query.*
+import hugin.runtime.Evaluation
 import java.nio.file.{Files, Path}
 
 /** Process exit codes. */
@@ -53,44 +55,74 @@ object Main:
           ExitCode.Usage
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
+    case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
+
+  /** Loads a file into the database; false if it does not exist. */
+  private def load(db: Database, file: String): Boolean =
+    val path = Path.of(file)
+    if Files.isRegularFile(path) then
+      db.set(SourceText, file, Files.readString(path))
+      true
+    else false
+
+  private def render(diags: List[Diagnostic], settings: Settings, err: String => Unit): Unit =
+    val renderer = DiagnosticRenderer(settings.color)
+    diags.foreach(d => err(renderer.render(d)))
+    val r = Reporter()
+    diags.foreach(r.report)
+    val summary = renderer.summary(r)
+    if summary.nonEmpty then err(summary)
 
   private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
-    readSource(file) match
-      case None =>
-        err(s"error: no such file `$file`")
-        ExitCode.Usage
-      case Some(src) =>
-        val settings = opts.settings
-        val renderer = DiagnosticRenderer(settings.color)
-        val c = Compiler.compile(src, settings, out)
-        def flushDiagnostics(): Unit =
-          c.reporter.sorted.foreach(d => err(renderer.render(d)))
-          val summary = renderer.summary(c.reporter)
-          if summary.nonEmpty then err(summary)
-        if c.reporter.hasErrors then
-          flushDiagnostics()
-          ExitCode.Errors
-        else if !evaluate || settings.stopAfter.isDefined then
-          flushDiagnostics()
-          ExitCode.Ok
-        else
-          val factFiles = opts.run.facts.flatMap { f =>
-            val s = readSource(f)
-            if s.isEmpty then err(s"error: no such facts file `$f`")
-            s
-          }
-          Runner.run(c, factFiles, opts.run.budget, opts.run.allRelations) match
-            case None =>
-              flushDiagnostics()
-              ExitCode.Errors
-            case Some(res) =>
-              flushDiagnostics()
-              res.output.foreach(out)
-              if opts.run.stats then
-                for s <- res.stats if s.rounds > 0 || s.truncated do
-                  err(s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)")
-              ExitCode.Ok
+    given db: Database = Database()
+    if !load(db, file) then
+      err(s"error: no such file `$file`")
+      return ExitCode.Usage
+    val key = CompileKey(file, opts.settings)
+    val compiled = db(Compile, key)
+    compiled.printed.foreach(out)
+    if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
+      render(compiled.diagnostics, opts.settings, err)
+      return if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
+    val facts = opts.run.facts.filter { f =>
+      val ok = load(db, f)
+      if !ok then err(s"error: no such facts file `$f`")
+      ok
+    }
+    val outcome = db(Evaluate, EvaluateKey(key, facts, opts.run.budget, opts.run.allRelations))
+    render(compiled.diagnostics ++ outcome.diagnostics, opts.settings, err)
+    outcome.result match
+      case None => ExitCode.Errors
+      case Some(res) =>
+        res.output.foreach(out)
+        if opts.run.stats then
+          for s <- res.stats if s.rounds > 0 || s.truncated do
+            err(s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)")
+        ExitCode.Ok
 
-  private def readSource(file: String): Option[SourceFile] =
-    val path = Path.of(file)
-    if Files.isRegularFile(path) then Some(SourceFile.fromPath(path)) else None
+  private def query(
+      file: String,
+      request: String,
+      position: Option[(Int, Int)],
+      opts: Options,
+      out: String => Unit,
+      err: String => Unit
+  ): Int =
+    given db: Database = Database()
+    if !load(db, file) then
+      err(s"error: no such file `$file`")
+      return ExitCode.Usage
+    val key = CompileKey(file, opts.settings)
+    def loc(s: Span) = s"${s.source.path}:${s.startLine + 1}:${s.startCol + 1}"
+    val offset = position.flatMap((l, c) => db(Parse, file).source.offset(l - 1, c - 1))
+    if position.isDefined && offset.isEmpty then
+      err(s"error: position ${position.get._1}:${position.get._2} is outside `$file`")
+      return ExitCode.Usage
+    request match
+      case "hover" => out(Ide.hover(key, offset.get).getOrElse("(no information)"))
+      case "definition" => out(Ide.definition(key, offset.get).map(loc).getOrElse("(no definition)"))
+      case "references" => Ide.references(key, offset.get).foreach(s => out(loc(s)))
+      case "symbols" =>
+        for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
+      case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
+    ExitCode.Ok

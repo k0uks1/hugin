@@ -17,6 +17,7 @@ object TestSupport:
     if c.reporter.hasErrors then Left(errorCodes(c))
     else
       val factFiles = if facts.isEmpty then Nil else List(SourceFile.virtual("test.facts", facts))
-      hugin.cli.Runner.run(c, factFiles, budget) match
+      val outcome = hugin.runtime.Evaluation.run(c, factFiles, budget)
+      outcome.result match
         case Some(res) => Right(res.output)
-        case None => Left(errorCodes(c))
+        case None => Left(outcome.diagnostics.flatMap(_.code))

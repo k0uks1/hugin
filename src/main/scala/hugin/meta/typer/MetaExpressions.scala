@@ -44,7 +44,7 @@ private[meta] trait MetaExpressions extends TyperBase:
     case VarRef(n) =>
       sc.lookup(n) match
         case Some(s) if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && s.mtype != null && (rc == null || capturesVar(s)) =>
-          s.used = true
+          noteUse(t.span, s)
           Head.Meta(Ref(s), s.mtype.nn)
         case _ =>
           if rc == null then
@@ -158,6 +158,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       case Sig(fields, _) =>
         fields.find(_._1.name == sel.name) match
           case Some((f, ft)) =>
+            noteUse(sel.nameSpan, f)
             if f.kind == SymKind.TypeDef && f.typeDefRhs.isDefined then (QuoteType(f.typeDefRhs.get), TypeU)
             else
               val self = fields.map((g, _) => g -> Proj(mq, g.name)).toMap

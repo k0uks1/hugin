@@ -31,6 +31,7 @@ private[meta] trait TypeElaboration extends TyperBase:
         case _ =>
           sc.lookup(n) match
             case Some(s) if s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef =>
+              noteUse(t.span, s)
               s.mtype match
                 case TypeU => OType.Splice(Ref(s))
                 case RelT(_) => OType.Splice(FactTypeOf(Ref(s)))
@@ -130,7 +131,7 @@ private[meta] trait TypeElaboration extends TyperBase:
           }
         ) =>
       val s = sc.lookup(n).get
-      s.used = true
+      noteUse(t.span, s)
       if !visible(s, t.span) then MType.Err else s.sigValue.getOrElse(MType.Err)
     case sel: Select =>
       val (m, mt) = inferM(sel, sc)

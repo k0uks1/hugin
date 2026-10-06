@@ -34,6 +34,9 @@ hugin run <file.hgn>      compile and evaluate; print output relations and query
 hugin check <file.hgn>    compile only and report diagnostics
 hugin phases              list the compiler phases
 hugin explain <code>      explain a diagnostic code (e.g. E0401)
+hugin query <file.hgn> <request> [<line>:<col>]
+                          ask the compiler: hover, definition, references (at a position),
+                          symbols, diagnostics
 
   --facts <file>          load ground facts for input relations (repeatable)
   --budget <n>            round budget for components with %partial relations (default: unbounded)
@@ -130,9 +133,41 @@ src/main/scala/hugin/
   obj/transform/   records, disjunctions, demand transformation, derivations (Section 7)
   obj/check/       dependency graph, stratification, completeness, termination
   ir/              the core IR (Section 9.3), its printer, and lowering from core rules
-  runtime/         interning store, semi-naive engine, loading of input facts
-  cli/             command-line parsing, the `run` driver, the entry point
+  runtime/         interning store, semi-naive engine, loading of input facts, evaluation of a compiled program
+  query/           the query database, compiler queries, position queries for tooling (Ide)
+  cli/             command-line parsing and the entry point (a client of the query database)
 ```
+
+## The query layer
+
+`hugin.query` makes the compiler query-able, as the basis for tooling (issue #4):
+
+- `Database` is a small demand-driven, incremental computation engine in the style of rustc's query
+  system and salsa. Inputs are set from outside, and queries are memoised together with the inputs and
+  queries they read. A later revision revalidates memoised results "red-green": a result is reused if
+  its dependencies did not change. A recomputed result equal to the previous one does not invalidate
+  its dependents (early cut-off). Cycles are reported with their path. There is no maintained JVM
+  library for this; the engine is about 150 lines and covered by `DatabaseSuite`.
+- Compiler queries: `SourceText` (input, by path) → `Parse` → `Compile` → `Evaluate` (program and facts
+  files). The CLI is a client of the database. Editing a facts file re-evaluates without recompiling.
+- `SemanticIndex`, filled by the typer and the object typer, records which symbol every name resolves
+  to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
+  `g.edge` to the field of the signature), a description of every symbol, and the inferred type of
+  every object variable.
+- `Ide` answers position queries on top of it: `hover`, `definition`, `references`, `symbols` (an
+  outline with enclosing definitions) and `diagnostics`:
+
+```
+$ hugin query examples/graphs.hgn hover 32:27
+relation path : g.node -> g.node -> rel
+$ hugin query examples/graphs.hgn definition 6:21
+examples/graphs.hgn:2:30
+$ hugin query examples/graphs.hgn hover 6:27
+variable X : city
+```
+
+Incrementality is per file for now: a change to a program recompiles that program. Finer granularity
+(per item) needs the typer to stop mutating shared symbol state; it is tracked in issue #4.
 
 ## Diagnostics
 

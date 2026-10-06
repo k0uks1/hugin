@@ -61,8 +61,18 @@ private[meta] trait TyperBase:
 
   private[meta] def lookup(name: String, span: Span, sc: Scope): Option[Sym] =
     sc.lookup(name) match
-      case some @ Some(s) => s.used = true; some
+      case some @ Some(s) =>
+        noteUse(span, s)
+        some
       case None => unresolved(name, span, sc); None
+
+  /** Records a resolved use of a symbol (for the semantic index and the unused-definition warning). */
+  private[meta] def noteUse(span: Span, s: Sym): Unit =
+    s.used = true
+    noteReference(span, s)
+
+  /** Records a reference for tooling only (e.g. a directive naming a function, which is not a use). */
+  private[meta] def noteReference(span: Span, s: Sym): Unit = context.unit.index.reference(span, s)
 
   /** Forward-reference check for meta definitions (Section 2.3). */
   private[meta] def visible(s: Sym, span: Span): Boolean =

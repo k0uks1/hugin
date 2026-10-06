@@ -9,6 +9,10 @@ enum Command:
   case Check(file: String)
   case Phases
   case Explain(code: String)
+
+  /** A position query (`hover`, `definition`, `references`) or a file query (`symbols`, `diagnostics`);
+   *  positions are 1-based `line:column`. */
+  case Query(file: String, request: String, position: Option[(Int, Int)])
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -56,6 +60,31 @@ object CommandLine:
         .text("explain a diagnostic code (e.g. E0401)")
         .action((_, o) => o.copy(command = Command.Explain("")))
         .children(arg[String]("<code>").action((c, o) => o.copy(command = Command.Explain(c)))),
+      cmd("query")
+        .text("ask the compiler about a file: hover, definition, references (at <line>:<col>), symbols, diagnostics")
+        .action((_, o) => o.copy(command = Command.Query("", "", None)))
+        .children(
+          arg[String]("<file.hgn>").action((f, o) =>
+            o.command match
+              case q: Command.Query => o.copy(command = q.copy(file = f))
+              case _ => o
+          ),
+          arg[String]("<request>")
+            .validate(r => if requests(r) then success else failure(s"unknown query `$r`; expected one of ${requests.mkString(", ")}"))
+            .action((r, o) =>
+              o.command match
+                case q: Command.Query => o.copy(command = q.copy(request = r))
+                case _ => o
+            ),
+          arg[String]("<line>:<col>")
+            .optional()
+            .validate(p => if position(p).isDefined then success else failure(s"expected a position `line:column`, got `$p`"))
+            .action((p, o) =>
+              o.command match
+                case q: Command.Query => o.copy(command = q.copy(position = position(p)))
+                case _ => o
+            )
+        ),
       note(""),
       opt[String]("facts")
         .valueName("<file>")
@@ -99,11 +128,19 @@ object CommandLine:
       checkConfig(o =>
         o.command match
           case Command.Help => failure("no command given")
+          case Command.Query(_, r, None) if positional(r) => failure(s"`$r` needs a position `line:column`")
           case _ => success
       )
     )
 
   val usage: String = OParser.usage(parser)
+
+  private def positional = Set("hover", "definition", "references")
+  private def requests = positional ++ Set("symbols", "diagnostics")
+
+  private def position(s: String): Option[(Int, Int)] = s.split(":") match
+    case Array(l, c) => for line <- l.toIntOption if line >= 1; col <- c.toIntOption if col >= 1 yield (line, col)
+    case _ => None
 
   /** Parses `args`; `Left` carries an error message. `--help` yields [[Command.Help]]. */
   def parse(args: List[String], defaultColor: Boolean = false): Either[String, Options] =

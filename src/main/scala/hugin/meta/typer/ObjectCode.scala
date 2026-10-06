@@ -36,7 +36,7 @@ private[meta] trait ObjectCode extends TyperBase:
     case VarRef(n) =>
       sc.lookup(n) match
         case Some(s) if (s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef) && s.mtype != null && capturesVar(s) =>
-          s.used = true
+          noteUse(t.span, s)
           s.mtype match
             case Code(_) | Prim(_) => obj.Term.Splice(Ref(s))(t.span)
             case other =>

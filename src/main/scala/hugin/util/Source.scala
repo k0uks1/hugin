@@ -39,6 +39,15 @@ final class SourceFile(val path: String, val content: String):
     val s = lineStarts(lineOf(off))
     content.codePointCount(s, off)
 
+  /** The offset of a 0-based line and code-point column, if inside the file. */
+  def offset(line: Int, column: Int): Option[Int] =
+    if line < 0 || line >= lineCount then None
+    else
+      val start = lineStarts(line)
+      val text = lineText(line)
+      if column < 0 || column > text.codePointCount(0, text.length) then None
+      else Some(start + text.offsetByCodePoints(0, column))
+
   override def toString: String = path
 
 object SourceFile:

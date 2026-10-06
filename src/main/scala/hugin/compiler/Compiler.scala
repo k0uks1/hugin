@@ -1,6 +1,7 @@
 package hugin.compiler
 
 import hugin.util.*
+import hugin.syntax.Program
 
 /** The phase plan. Inner lists are fused into one traversal (dotty's MegaPhase). */
 object Compiler:
@@ -32,7 +33,15 @@ object Compiler:
 
   /** Runs the pipeline; returns the context. Printing goes to `out`. */
   def compile(source: SourceFile, settings: Settings, out: String => Unit): Context =
+    compileParsed(source, None, settings, out)
+
+  /** Runs the pipeline; with `parsed`, the given program and its parse diagnostics are used instead of
+   *  running the parser (the query database parses separately so that parsing is memoised on its own). */
+  def compileParsed(source: SourceFile, parsed: Option[(Program, List[Diagnostic])], settings: Settings, out: String => Unit): Context =
     val ctx = Context(CompilationUnit(source), settings, Reporter())
+    for (program, diags) <- parsed do
+      ctx.unit.untpd = program
+      diags.foreach(ctx.report)
     given Context = ctx
     var stop = false
     for p <- phases if !stop do
