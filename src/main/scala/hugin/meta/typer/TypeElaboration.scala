@@ -34,7 +34,7 @@ private[meta] trait TypeElaboration extends TyperBase:
               noteUse(t.span, s)
               syms.mtype(s) match
                 case Some(TypeU) => OType.Splice(Ref(s))
-                case Some(RelT(_)) => OType.Splice(FactTypeOf(Ref(s)))
+                case Some(RelT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                 case None => OType.Err
                 case Some(other) =>
                   err("E0202", s"`$n` is not a type", t.span, s"has meta type ${other.show}")
@@ -91,7 +91,7 @@ private[meta] trait TypeElaboration extends TyperBase:
                   else
                     syms.mtype(s) match
                       case Some(TypeU) => OType.Splice(Ref(s))
-                      case Some(RelT(_)) => OType.Splice(FactTypeOf(Ref(s)))
+                      case Some(RelT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                       case other =>
                         err("E0202", s"`$n` is not a type", id.span, s"has meta type ${other.fold("?")(_.show)}")
                         OType.Err
@@ -104,7 +104,7 @@ private[meta] trait TypeElaboration extends TyperBase:
           else
             mt match
               case TypeU => OType.Splice(m)
-              case RelT(_) => OType.Splice(FactTypeOf(m))
+              case RelT(_, _) => OType.Splice(FactTypeOf(m))
               case MType.Err => OType.Err
               case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); OType.Err
         case other =>
@@ -140,7 +140,7 @@ private[meta] trait TypeElaboration extends TyperBase:
             case SigV(sig) => sig
             case _ => err("E0202", "signature paths must be statically known", sel.span); MType.Err
         case TypeU => Code(OType.Splice(m))
-        case RelT(_) => Code(OType.Splice(FactTypeOf(m)))
+        case RelT(_, _) => Code(OType.Splice(FactTypeOf(m)))
         case MType.Err => MType.Err
         case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); MType.Err
     case rt: RecordType => elabSig(rt, sc, tv)
@@ -184,6 +184,18 @@ private[meta] trait TypeElaboration extends TyperBase:
         case _ => true
     case _ => true
 
+  /** A signature field `c : τ̄ -> a` with an object type `a` declares a constructor, as the same declaration
+   *  does in a module body (Section 2.5): ⇑(τ̄ → a). A field `x : a` stays a value of code type ⇑a. */
+  private def constructorField(t: Tree, sc: Scope, tv: TVars): Option[MType] = t match
+    case _: Arrow =>
+      val (doms, cod) = flattenArrow(t)
+      cod match
+        case Keyword(_) => None
+        case _ if isObjectTypeTree(cod, sc) && doms.forall((_, d) => isObjectTypeTree(d, sc)) =>
+          Some(RelT(doms.map((l, d) => Column(l.map(_.name), elabOType(d, sc, tv))), Some(elabOType(cod, sc, tv))))
+        case _ => None
+    case _ => None
+
   private[meta] def elabSig(rt: RecordType, sc: Scope, tv: TVars): MType =
     val ssc = localScope(Some(sc), "signature")
     val fields = mutable.ListBuffer.empty[(Sym, MType)]
@@ -194,19 +206,19 @@ private[meta] trait TypeElaboration extends TyperBase:
           if ssc.lookupLocal(l.name).isDefined then
             err("E0307", s"duplicate field `${l.name}` in signature", l.span)
           else
-            val fty = elabMType(ft, ssc, tv)
+            val fty = constructorField(ft, ssc, tv).getOrElse(elabMType(ft, ssc, tv))
             val f = newParam(l.name, l.span, ssc)
             syms.define(f, fty)
             ssc.enter(f)
             fields += ((f, fty))
         case SigEntry.Complete(l, sp) =>
           fields.find(_._1.name == l.name) match
-            case Some((_, RelT(_))) => reqs += Req.Complete(l.name, sp)
+            case Some((_, RelT(_, _))) => reqs += Req.Complete(l.name, sp)
             case Some(_) => err("E0208", s"`%complete` requires a relation field, but `${l.name}` is not one", l.span)
             case None => unresolved(l.name, l.span, ssc, "field")
         case SigEntry.ModeReq(l, ms, sp) =>
           fields.find(_._1.name == l.name) match
-            case Some((_, RelT(cols))) =>
+            case Some((_, RelT(cols, _))) =>
               if ms.length != cols.length then
                 err("E0207", s"mode for `${l.name}` has ${ms.length} items but the relation has ${cols.length} columns", sp)
               else reqs += Req.HasMode(l.name, Mode(ms.map(_.input).toVector), sp)
@@ -222,7 +234,10 @@ private[meta] trait TypeElaboration extends TyperBase:
     case (Code(_), Code(_)) => None // checked by subsumption at the object level after elaboration
     case (TypeU, TypeU) | (PropT, PropT) | (ModU, ModU) => None
     case (Prim(x), Prim(y)) if x == y => None
-    case (RelT(c1), RelT(c2)) =>
+    case (RelT(_, r1), RelT(_, r2)) if r1.isDefined != r2.isDefined =>
+      Some(if r1.isDefined then "a constructor where a relation is expected" else "a relation where a constructor is expected")
+    case (RelT(c1, _), RelT(c2, _)) =>
+      // constructor results are checked at the object level after elaboration, like code types
       if c1.length != c2.length then Some(s"relation with ${c1.length} columns where ${c2.length} are expected")
       else
         c1.zip(c2).zipWithIndex.collectFirst {
@@ -255,7 +270,8 @@ private[meta] trait TypeElaboration extends TyperBase:
 
   def showMT(t: MType): String = t match
     case Code(o) => s"⇑${showO(o)}"
-    case RelT(cols) => s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ "rel").mkString(" -> ")})"
+    case RelT(cols, res) =>
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
     case Pi(x, d, c, imp) =>
       val dom = if imp then s"{${x.name} : ${showMT(d)}}" else if x.name.startsWith("_") then showMT(d) else s"(${x.name} : ${showMT(d)})"
       s"$dom -> ${showMT(c)}"

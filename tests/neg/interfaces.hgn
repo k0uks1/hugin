@@ -1,0 +1,14 @@
+(* interfaces: hidden members, missing fields, constructor arity, constructor vs. relation *)
+small_sig : mod = { shape : type, dot : shape }.
+a : small_sig = %import "lib/shapes".
+x : a.shape -> rel.
+x X :- a.internal X.
+
+more_sig : mod = { shape : type, circle : shape }.
+b : more_sig = %import "lib/shapes".
+
+arity_sig : mod = { shape : type, square : int -> int -> shape }.
+c : arity_sig = %import "lib/shapes".
+
+kind_sig : mod = { shape : type, area : shape -> int -> shape }.
+d : kind_sig = %import "lib/shapes".

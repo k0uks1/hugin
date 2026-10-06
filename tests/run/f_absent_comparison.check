@@ -1,0 +1,6 @@
+notlist (cons blue nil).
+other blue.
+?- d red.
+no.
+?- d blue.
+yes.

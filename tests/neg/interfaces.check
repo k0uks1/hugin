@@ -1,0 +1,33 @@
+error[E0101]: `a` has no member `internal`
+ --> tests/neg/interfaces.hgn:5:10
+  |
+5 | x X :- a.internal X.
+  |          ^^^^^^^^ unknown member
+  |
+  = note: available members: shape, dot
+
+error[E0204]: signature mismatch
+ --> tests/neg/interfaces.hgn:8:16
+  |
+8 | b : more_sig = %import "lib/shapes".
+  |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, circle : ⇑shape }`
+  |
+  = note: missing field `circle`
+
+error[E0204]: signature mismatch
+  --> tests/neg/interfaces.hgn:11:17
+   |
+11 | c : arity_sig = %import "lib/shapes".
+   |                 ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, square : ⇑(int -> int -> shape) }`
+   |
+   = note: field `square`: relation with 1 columns where 2 are expected
+
+error[E0204]: signature mismatch
+  --> tests/neg/interfaces.hgn:14:16
+   |
+14 | d : kind_sig = %import "lib/shapes".
+   |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, area : ⇑(shape -> int -> shape) }`
+   |
+   = note: field `area`: a relation where a constructor is expected
+
+4 errors found

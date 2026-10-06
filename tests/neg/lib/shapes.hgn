@@ -1,0 +1,7 @@
+shape : type.
+dot : shape.
+square : int -> shape.
+area : shape -> int -> rel.
+area dot 0.
+internal : shape -> rel.
+internal dot.

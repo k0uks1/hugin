@@ -60,7 +60,7 @@ private[meta] trait MetaExpressions extends TyperBase:
 
   /** Inside object code, an uppercase meta variable is spliced/persisted only if it denotes code or a primitive. */
   private[meta] def capturesVar(s: Sym): Boolean = syms.mtype(s) match
-    case Some(Code(_) | Prim(_) | PropT | RelT(_)) => true
+    case Some(Code(_) | Prim(_) | PropT | RelT(_, _)) => true
     case Some(Pi(_, _, _, _)) => true
     case _ => false
 
@@ -95,7 +95,7 @@ private[meta] trait MetaExpressions extends TyperBase:
             case Head.ObjVar(_) => (MExpr.Err, MType.Err)
             case Head.TypeLike(s) => (QuoteType(elabOType(t, sc, TVars.NoTVars)), TypeU)
             case Head.Obj(s) =>
-              if args.isEmpty then (Ref(s), RelT(relCols(s)))
+              if args.isEmpty then (Ref(s), syms.mtype(s).collect { case r: RelT => r }.getOrElse(RelT(relCols(s))))
               else
                 // constructor application at the meta level: object code
                 val rc = RuleCtx(allowVars = false)
@@ -167,7 +167,7 @@ private[meta] trait MetaExpressions extends TyperBase:
   private[meta] def describeAt(s: Sym, path: String, t: MType): String =
     val what = if s.kind == SymKind.MetaParam then "field" else s.kind.describe
     t match
-      case RelT(cols) =>
+      case RelT(cols, _) =>
         s"$what $path : ${(cols.map(c => c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))) :+ "rel").mkString(" -> ")}"
       case other => s"$what $path : ${showMT(other)}"
 
@@ -317,7 +317,7 @@ private[meta] trait MetaExpressions extends TyperBase:
     def o(x: OType): Boolean = OType.exists(x) { case OType.Splice(e) => m(e); case _ => false }
     t match
       case Code(x) => o(x)
-      case RelT(cols) => cols.exists(c => o(c.tpe))
+      case RelT(cols, _) => cols.exists(c => o(c.tpe))
       case Pi(_, d, c, _) => mentions(d, s) || mentions(c, s)
       case Sig(fs, _) => fs.exists(f => mentions(f._2, s))
       case _ => false
@@ -325,7 +325,7 @@ private[meta] trait MetaExpressions extends TyperBase:
   /** First-order matching of a pattern meta type (with unsolved implicit parameters) against an actual one. */
   private[meta] def matchM(p: MType, a: MType, solved: mutable.LinkedHashMap[Sym, Option[OType]]): Unit = (p, a) match
     case (Code(x), Code(y)) => matchO(x, y, solved)
-    case (RelT(xs), RelT(ys)) if xs.length == ys.length => xs.zip(ys).foreach((x, y) => matchO(x.tpe, y.tpe, solved))
+    case (RelT(xs, _), RelT(ys, _)) if xs.length == ys.length => xs.zip(ys).foreach((x, y) => matchO(x.tpe, y.tpe, solved))
     case (Pi(_, d1, c1, _), Pi(_, d2, c2, _)) => matchM(d1, d2, solved); matchM(c1, c2, solved)
     case (Sig(f1, _), Sig(f2, _)) =>
       for (g, gt) <- f1; (h, ht) <- f2.find(_._1.name == g.name) do matchM(gt, ht, solved)
@@ -383,6 +383,9 @@ private[meta] trait MetaExpressions extends TyperBase:
       Rec(done.toList)
     case _ =>
       val (m, mt) = inferM(t, sc)
+      (mt, expected) match
+        case (have: Sig, want: Sig) => return ascribe(m, have, want, t.span)
+        case _ =>
       subsumes(mt, expected).foreach { r =>
         if expected.isInstanceOf[Sig] || mt.isInstanceOf[Sig] then
           var d = Diagnostic.error("E0204", "signature mismatch", t.span, s"expected `${showMT(expected)}`")
@@ -392,6 +395,54 @@ private[meta] trait MetaExpressions extends TyperBase:
         else mismatch(expected, mt, t.span, r)
       }
       m
+
+  /** Ascription of a module value `m` of signature `have` to the signature `want` (e.g. an imported file
+   *  checked against an interface, `geo : geo_sig = %import "geo".`). The result is a record with exactly
+   *  the fields of `want`, so other members are hidden; the fields are projections of `m`, so types stay
+   *  transparent (`geo.place` is the file's `place`). A constructor matches a constructor field
+   *  (`spot : int -> place`); a constant also matches a value field (`here : place`), as the code `⟨here⟩`.
+   *  Object-level types (columns, results) are checked after elaboration, as for all code types. */
+  private[meta] def ascribe(m: MExpr, have: Sig, want: Sig, span: Span): MExpr =
+    def mismatch(why: String): MExpr =
+      ctx.report(Diagnostic.error("E0204", "signature mismatch", span, s"expected `${showMT(want)}`").withNote(why))
+      MExpr.Err
+    val self = newParam("self", Span.NoSpan, localScope(None, "signature"))
+    val haveSubst = have.fields.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
+    val wantSubst = want.fields.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
+    def field(g: Sym, gt: MType): Either[String, (String, MExpr)] =
+      have.fields.find(_._1.name == g.name) match
+        case None => Left(s"missing field `${g.name}`")
+        case Some((f, ft)) =>
+          val proj = Proj(m, g.name)
+          if f.kind == SymKind.Ctor && !gt.isInstanceOf[RelT] then
+            constructorAs(proj, relCols(f).length, substMT(gt, wantSubst))
+              .map(g.name -> _).left.map(why => s"field `${g.name}`: $why")
+          else
+            subsumes(substMT(ft, haveSubst), substMT(gt, wantSubst))
+              .map(why => s"field `${g.name}`: $why").toLeft(g.name -> proj)
+    want.fields.foldLeft[Either[String, List[(String, MExpr)]]](Right(Nil)) { case (acc, (g, gt)) =>
+      acc.flatMap(fs => field(g, gt).map(_ :: fs))
+    } match
+      case Right(fs) => Rec(fs.reverse)
+      case Left(why) => mismatch(why)
+
+  /** A constructor (the relation `c` with `arity` columns) as a value of meta type `t`: code of its result
+   *  type for a constant, a function from its arguments for a constructor with arguments. */
+  private def constructorAs(c: MExpr, arity: Int, t: MType): Either[String, MExpr] =
+    def params(t: MType): (List[(Sym, MType)], MType) = t match
+      case Pi(x, d, cod, false) =>
+        val p = newParam(x.name, x.span, localScope(None, "constructor"))
+        syms.define(p, d)
+        val (ps, res) = params(substMT(cod, Map(x -> Ref(p))))
+        ((p, d) :: ps, res)
+      case other => (Nil, other)
+    val (ps, res) = params(t)
+    res match
+      case Code(_) if ps.length == arity =>
+        val term = obj.Term.App(obj.RelRef.Spliced(c), ps.map((p, _) => obj.Term.Splice(Ref(p))(Span.NoSpan)))(Span.NoSpan)
+        Right(ps.foldRight(QuoteTerm(term): MExpr)((p, body) => Lam(p._1, body)))
+      case Code(_) => Left(s"constructor with $arity argument${if arity == 1 then "" else "s"} where ${ps.length} are expected")
+      case other => Left(s"a constructor is not a value of meta type `${showMT(other)}`")
 
   private[meta] def isMetaOfType(t: Tree, sc: Scope, mt: MType): Boolean = t match
     case Parens(i) => isMetaOfType(i, sc, mt)

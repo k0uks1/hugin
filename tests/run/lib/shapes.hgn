@@ -1,0 +1,10 @@
+(* a library with more than its interface exposes *)
+shape : type.
+dot : shape.
+square : int -> shape.
+area : shape -> int -> rel.
+area dot 0.
+area (square 2) 4.
+area (square 3) 9.
+internal : shape -> rel.
+internal dot.

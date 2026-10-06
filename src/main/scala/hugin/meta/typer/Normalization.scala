@@ -39,7 +39,7 @@ private[meta] trait Normalization extends TyperBase:
   else
     t match
       case Code(o) => Code(substO(o, s))
-      case RelT(cols) => RelT(cols.map(c => c.copy(tpe = substO(c.tpe, s))))
+      case RelT(cols, res) => RelT(cols.map(c => c.copy(tpe = substO(c.tpe, s))), res.map(substO(_, s)))
       case Pi(x, d, c, imp) => Pi(x, substMT(d, s), substMT(c, s - x), imp)
       case Sig(fs, reqs) => Sig(fs.map((f, ft) => (f, substMT(ft, s))), reqs)
       case other => other

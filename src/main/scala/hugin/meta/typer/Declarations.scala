@@ -104,7 +104,7 @@ private[meta] trait Declarations extends TyperBase:
               .withHelp(if doms.isEmpty then s"to define a compile-time constant, write `${s.name} : ${Printer.show(d.tpe)} = ...`."
               else "end the type in `rel` to declare a relation")
           )
-        syms(s).mtype = Some(RelT(cols))
+        syms(s).mtype = Some(RelT(cols, Some(res)))
         (cols, Some(res), None)
       case _ => (Nil, None, None)
     syms(s).declInfo = Some(DeclInfo(explicit.map(_._2) ++ implicits.values, cols, result, typeKind))

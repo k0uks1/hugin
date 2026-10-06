@@ -161,12 +161,14 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         (eval(a, regs, build = false), eval(b, regs, build = false)) match
           case (Some(x), Some(y)) if compare(op, x, y) => exec(ops, i + 1, regs, k)
           case _ => true
-      case BodyOp.Lookup(dst, rel, as) =>
+      case BodyOp.Lookup(dst, rel, as, orAbsent) =>
         val vs = as.map(eval(_, regs, build = false))
         if vs.exists(_.isEmpty) then true
         else
           val n = store(rel).lookup(vs.map(_.get))
-          if n < 0 then true else { regs(dst) = Id(rel, n); exec(ops, i + 1, regs, k) }
+          if n >= 0 then { regs(dst) = Id(rel, n); exec(ops, i + 1, regs, k) }
+          else if orAbsent then { regs(dst) = Absent(rel, vs.map(_.get).toVector); exec(ops, i + 1, regs, k) }
+          else true
       case BodyOp.NotIn(sub) =>
         var found = false
         exec(sub, 0, regs, _ => { found = true; false })
