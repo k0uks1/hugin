@@ -443,9 +443,6 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
   (`s Y :- s X, Y = X + 1, N = count { V | e V ; p Y V }, …`) is rejected with a stratification cycle
   (E0601) through the demand of its auxiliary relation (see `docs/NOTES.md`, "Disjunction inside
   aggregates"); the generator binds such variables with atoms of earlier relations.
-- A comparison with a constructor term that has no value — `X <> red` while no fact constructs `red` —
-  fails. Demand facts construct their arguments, so after `%mode d +a` the query `?- d red.` makes `red`
-  exist and the same comparison succeeds: the demand transformation can change answers.
 
 ## Continuous integration and formatting
 

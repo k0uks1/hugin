@@ -225,12 +225,15 @@ can no longer enumerate `bind` facts; it is moded and terminates structurally on
 strongly connected components of its demand graph (see "Termination (issue #2)"), because `typed` calls
 `lookup` (one way) while the dependency graph joins them through answers.
 
-**Open point.** A comparison with a constructor term (`X <> red`) is evaluated by looking up the value of
-`red`; if `red` was never interned, the comparison fails (the rule does not fire). Since probes are
-interned, whether such a comparison can succeed still depends on whether some demand has built the
-value, and the dependency graph does not order a comparison after probe construction. Reading a
-comparison with a term that does not exist as "different from every existing value" (`=` false, `<>`
-true) would remove the dependence on existence altogether.
+**Comparisons with terms that were never built.** A comparison with a constructor term (`X <> red`)
+looks up the value of `red`. If `red` was never built, it is *absent*: different from every existing
+value (`=` is false, `<>` is true) and equal only to an absent value of the same structure (decision on
+issue #1, F2). Before, the comparison failed, so whether it could succeed depended on which values
+existed — after probes, on whether some demand had built the value, which the evaluation order does not
+track. Comparisons are now independent of existence, which amounts to structural comparison. A binding
+equation (`X = cons 1 nil` with `X` unbound) still requires the value to exist, since `X` then denotes
+it. Implementation: `BodyOp.Lookup(…, orAbsent = true)` for comparison operands yields an `Absent` word,
+which occurs only in tests, never in facts.
 
 ## Termination (issue #2)
 

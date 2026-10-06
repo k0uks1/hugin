@@ -36,17 +36,18 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Term.Ascr(x, _) => expr(x)
       case other => throw IllegalStateException(s"cannot lower term ${ObjPrinter.term(other)}")
 
-    /** The value of a bound term in a body. The value of a constructor term is an existing fact, also
-     *  nested (`cons 1 nil`), so it is looked up rather than built. An ascription of a constructor term
-     *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to
-     *  it), so it is dropped. */
-    def operand(t: Term, out: mutable.ListBuffer[BodyOp]): Expr = t match
+    /** The value of a bound term in a body. The value of a constructor term, also nested (`cons 1 nil`),
+     *  is looked up rather than built. In a binding equation it must exist (the variable denotes it); in a
+     *  comparison (`orAbsent`) a term that was never built is [[Absent]]: different from every existing
+     *  value. An ascription of a constructor term accepted by the typer always holds (the fact type is a
+     *  subtype of the ascribed type, or equal to it), so it is dropped. */
+    def operand(t: Term, out: mutable.ListBuffer[BodyOp], orAbsent: Boolean = false): Expr = t match
       case Term.App(RelRef.Sym(c), as) =>
-        val args = as.map(operand(_, out)).toArray
+        val args = as.map(operand(_, out, orAbsent)).toArray
         val y = fresh()
-        out += BodyOp.Lookup(y, c.tag, args)
+        out += BodyOp.Lookup(y, c.tag, args, orAbsent)
         Expr.Reg(y)
-      case Term.Ascr(x: Term.App, _) => operand(x, out)
+      case Term.Ascr(x: Term.App, _) => operand(x, out, orAbsent)
       case other => expr(other)
 
     /** Whether a term is fully bound (it can be compared as a value). */
@@ -136,8 +137,8 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
             out += BodyOp.Eval(y, e)
             matchReg(pat, y, out)
       case Formula.Cmp(op, l, r) =>
-        val a = operand(l, out)
-        val b = operand(r, out)
+        val a = operand(l, out, orAbsent = true)
+        val b = operand(r, out, orAbsent = true)
         out += BodyOp.Test(op, a, b)
       case Formula.Not(a) =>
         val saved = regOf.clone()
