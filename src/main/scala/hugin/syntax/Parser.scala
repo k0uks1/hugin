@@ -61,6 +61,7 @@ final class Parser(src: SourceFile, reporter: Reporter):
           Diagnostic.error("E0001", s"expected $w, found $found", Span(src, prev.end, prev.end), "expected `.` here")
             .withLabel(tok.span, "next item starts here")
             .withHelp("every item ends with a period")
+            .withSuggestion("add `.`", Span(src, prev.end, prev.end), ".")
         )
         // recover by accepting the item as if the period were present
         return Token(Tok.Period, ".", Span(src, prev.end, prev.end), false)

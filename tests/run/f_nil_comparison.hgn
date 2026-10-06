@@ -1,0 +1,20 @@
+(* the type argument of a family constructor in a comparison is inferred from the other side, and a
+   constructor term can be ascribed with its declared result type (issue #1, F4) *)
+l : list int -> rel.
+l nil. l (cons 1 nil). l (cons 2 (cons 1 nil)).
+nonempty : list int -> rel.
+nonempty L :- l L, L <> nil.
+empty : list int -> rel.
+empty L :- l L, nil = L.
+single : list int -> rel.
+single L :- l L, L = cons 1 nil.
+longer : list int -> rel.
+longer L :- l L, L <> cons 1 nil, L <> (nil : list int).
+start : list int -> rel.
+start M :- l _, M = (nil : list int).
+ok : rel.
+ok :- (nil : list int) = nil.
+color : type. red : color. green : color. c : color -> rel. c red. c green.
+reds : color -> rel.
+reds X :- c X, X = (red : color).
+%output nonempty. %output empty. %output single. %output longer. %output start. %output ok. %output reds.

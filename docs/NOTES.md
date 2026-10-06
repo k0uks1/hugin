@@ -77,6 +77,22 @@ type itself. Consequently `(P : person)` in a column of type `student | teacher`
 type is not a subtype of a union of fact types even if its members are), while `(P : student)` is
 accepted.
 
+The circularity only concerns variables. A term that is not a variable has its synthesized type and, by
+subsumption, every supertype of it, so `Γ ⊢ t : τ` holds with `τ` the ascribed type itself whenever the
+term's type is a subtype of it: `(nil : list int)` ascribes a constructor term with its declared result
+type, which is accepted (also outside a column, e.g. in a comparison) and always holds, so no test is
+needed (issue #1, F4). The term must still fit the column it occupies.
+
+Type arguments of families are inferred by first-order matching (Section 4.6). In a comparison both
+sides have one type; a constructor fact of a family stands for the constructor's declared result type
+there, as it does when it solves a type parameter, so `L <> nil` with `L : list int` gives `nil[int]`, and
+`cons 1 nil = nil` relates both type arguments. When nothing determines them, E0206 suggests the
+ascription above with the missing parameters left for the user to fill in.
+
+The value of a constructor term in a comparison is an existing fact (it is looked up, not built). Nested
+constructor terms (`L = cons 1 nil`) are now looked up level by level too; before, the inner term was
+built without an identity and the comparison never held.
+
 ### Brace disambiguation (Section 2.2)
 
 "One token of lookahead past the first identifier" does not distinguish a record type from a module
@@ -107,6 +123,16 @@ elaboration, no variables local to negations or aggregates).
   generic name (Section 9.6). Instantiating an open family also instantiates the constructors whose
   result is that family applied to their own parameters, so `mem(list[int])` is complete. Instantiation
   is capped at 10 000 instances.
+* **Staging and instances for tooling.** The typer decides statically where quotes and splices go, but
+  the meta evaluator records them in the semantic index (`compiler/SemanticIndex`), because only it knows
+  the values: a splice of a primitive is cross-stage persistence (rule Persist) of the literal it
+  evaluates to, and code in a functor or formula function has one value per application. Unapplied
+  functors therefore have no staging information. Monomorphization records the instance of every family
+  use by the span of the application (the reference to the family starts there), and every instance by the
+  span of the family's declaration.
+* **Suggestions** (`util/Diagnostics`) are edits with a message, attached next to the help that describes
+  them in prose. The renderer prints only the help, so diagnostics read the same on the command line;
+  the language server maps the edits to quick fixes without knowing any diagnostic code.
 * **Type definitions** are always unfolded; strict definitions are not folded back in diagnostics.
 * **Formula functions.** Every literal object variable of a quote is renamed at each application
   (hygiene, Section 4.8); renamed variables print without the suffix. `%mode f m̄` is checked once on
@@ -121,9 +147,31 @@ elaboration, no variables local to negations or aggregates).
   inputs `ī` are the disjunction's variables bound before it in canonical order; the outputs `ō` are the
   variables bound by *every* alternative. A variable bound by only some alternatives is existential
   within its alternative: Definition 8.4 would otherwise range over unconstrained valuations. If there
-  are inputs, `aux` is moded `+…+-…-`, so the demand transformation supplies exactly the input bindings
-  that arise at the call site. The aggregate then counts distinct bindings of its variables as usual.
+  are inputs, `aux` is moded `+…+-…-`, so the demand transformation supplies the input bindings that
+  arise at the call site. The aggregate then counts distinct bindings of its variables as usual.
   This is the semantics proposed for issue #1, item B4.
+
+  *Demand of `aux` (issue #1, F1).* The aggregate is a negative edge `h → aux` of the rule's head `h`.
+  Built from the whole prefix of the call (as Section 7.3 does for other calls), the demand rule
+  `aux^d(ī) :- prefix` reads the atoms before the aggregate, which in a recursive rule include `h`'s own
+  component: `s X :- p X _, s X, N = count { V | e V ; p X V }, N > 0` became the cycle
+  `s → not s^or1 → s^or1^d → s` (E0601) although the source program is stratified. The demand rule of
+  `aux` therefore keeps only the formulas of the prefix (in canonical order) that mention no relation
+  depending on `h` — in the dependency graph without these demand rules — and are well-moded without
+  the dropped ones, provided they still bind `ī`: `s^or1^d X :- p X _`.
+  - *Answers.* The kept formulas are a subset of the conjunction that holds at the call, so every input
+    binding that arises at the call is demanded, and `aux` is complete for it (Section 7.3, magic sets
+    with a weaker guard). Extra demanded bindings only compute extra facts of `aux`, which only this
+    aggregate reads, always with its own inputs bound, so the aggregate's value is unchanged.
+  - *Stratification.* The kept formulas do not depend on `h`, so `aux^d` (and with it `aux`) no longer
+    depends on `h`'s component through them: the negative edge `h → aux` leaves the component. The
+    kept demand rule reads a subset of the relations the full one reads, so the change only removes
+    edges: no cycle is introduced and no program accepted before is rejected.
+  - *Fallback.* If the outer variables are bound only through relations that depend on `h`
+    (`s Y :- s X, Y = X + 1, N = count { V | e V ; p Y V }`), the whole prefix is used and the cycle is
+    reported (E0601, with a note naming the disjunction; `tests/neg/f_aggregate_disjunction_cycle.hgn`).
+    Such a program is stratified in the source; accepting it would need disjunctions inside aggregates in
+    the core (the aggregate would range over the alternatives directly) instead of the lifting.
 * **Demand relations** are named `c^d[m]`, derivation relations `@r` or `@r#i`. Derivation relations
   are output relations; they cannot be referenced in atoms.
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
@@ -194,6 +242,34 @@ relation of the component, or the relation its demand relations belong to, may c
 `%terminates (l, m) c`. `--explain-termination` prints, for every recursive component, which case
 applies and the justification of every recursive step.
 
+**Constructive rules (Definition 10.1, refined; issue #1, F3).** Clause (a) of Definition 10.1 counts
+every constructor term of a head that is not matched in the body (issue #1, B9: the arguments themselves
+included). The implementation counts such a term only if it can take infinitely many values over the
+evaluation of the component: it is *not* constructive when it is ground (`d X red :- d X _`, `e (mk 1)`)
+or when each of its variables occurs in a positive body atom of a *plain* relation outside the component
+(`e X (mk Y) :- e X _, b Y`). Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
+head or computing a head variable) are unchanged.
+
+*Soundness.* The argument for components without constructive rules was: their facts consist of terms
+that exist before the component is evaluated, a finite set, so the fixed point is finite. With the
+refinement, the terms a rule can construct are the instances of its non-constructive head terms. A
+ground term has one instance. A term whose variables occur in positive atoms of plain relations outside
+the component has one instance per valuation of those variables, and each such variable is a subterm of a
+fact of such a relation (or the fact itself, for `as` variables). Those relations belong to earlier
+components, which are complete when this component is evaluated (Definition 8.7) and finite by induction
+over the evaluation order (recursive components are checked here or `%partial` with a budget; others are
+finite in their inputs). Plain relations only get facts from their own rules, so they do not grow later.
+So every rule constructs terms from a fixed finite set, and the component's facts consist of the existing
+terms plus that set: still finite. Constructor and struct relations do not count as finite sources even
+outside the component, because a nested head constructor can create their facts after their component
+(issue #1, A1), including the rule itself: `d (s (s N)) :- s N` makes `s (s N)` and then matches it
+(`tests/neg/t_termination_ctor_source.hgn`); the anchor condition below still counts every relation
+outside the component as finite, constructor relations included, which deserves the same caution. Variables bound only by equations, arithmetic or aggregates
+keep the term constructive (conservative). In the measured cases the conditions "rules of unmeasured
+relations are not constructive" use the same notion; there "only copy existing terms" becomes "construct
+terms from a fixed finite set", which the arguments below need in the same way (finitely many facts per
+round, finitely many terms overall). `tests/run/t_termination_finite_ctors.hgn` shows the accepted cases.
+
 **Measures.** A measure is a tuple of argument positions; all measured relations of a component have
 tuples of the same length, and slot `i` is of the same kind for all of them: *integer* slots (`int` or a
 refinement of `int`) are ordered by `<`, *structural* slots (any other type) by the proper-subterm
@@ -239,7 +315,8 @@ the chain in which slots `< j` are constant starts at a start fact or at a step 
 slot, whose slot `j` lies in a finite set by condition 3, and then increases only to values `≤ B`.
 Hence all measures on chains come from one finite set and chains are no longer than its size; the
 component reaches its fixed point after boundedly many rounds, each of which derives finitely many facts.
-Unmeasured relations (condition 1) only copy existing terms. The previous check (one slot, syntactic
+Unmeasured relations (condition 1) only copy existing terms or construct terms from a fixed finite set.
+The previous check (one slot, syntactic
 `s < b`, `w = u + l`, structural anchor on the head) is the special case with `n = 1`.
 
 **Demand-driven components** (a measured relation has modes; all measured relations must have modes,
@@ -277,7 +354,7 @@ guarded by `p` whose atoms of the component are measured (and guarded by demands
 children and finite relations), demand relations, or relations that depend only on demands (condition 2);
 the terms they construct come from finitely many valuations. König's lemma (finitely many seeds, finite
 branching, no infinite chain) bounds the set of demands, and so the component. Unmeasured relations only
-copy existing terms (condition 1).
+copy existing terms or construct terms from a fixed finite set (condition 1).
 
 **Diagnostics.** E0603 names the constructive rule, the cycle through the component, and a measure that
 would be accepted (single positions per relation, or a lexicographic pair for a single relation, found by

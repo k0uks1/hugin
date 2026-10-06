@@ -8,6 +8,7 @@ import hugin.compiler.*
 import hugin.obj.{Column, BaseType, ArithOp, CmpOp, RelRef, Expansion}
 import hugin.obj
 import scala.collection.mutable
+import scala.util.chaining.*
 
 /** Stage inference for object code: terms, formulas, heads and named patterns (Sections 2.4, 3.2). */
 private[meta] trait ObjectCode extends TyperBase:
@@ -121,6 +122,19 @@ private[meta] trait ObjectCode extends TyperBase:
       err("E0202", "expected a term", other.span)
       obj.Term.Var(rc.freshWild())(t.span)
 
+  /** Fixes of a named pattern with missing labels: add them after the last field, in a body as `_` (or
+   *  ignore them with `..`), in a head as variables named after the labels. */
+  private def missingLabelFixes(d: Diagnostic, fields: List[Field], missing: List[String], isHead: Boolean): Diagnostic =
+    fields.lastOption.fold(d) { last =>
+      val at = Span(last.value.span.source, last.value.span.end, last.value.span.end)
+      val add = d.withSuggestion(
+        "add the missing labels",
+        at,
+        missing.map(l => s", $l = ${if isHead then l.capitalize else "_"}").mkString
+      )
+      if isHead then add else add.withSuggestion("ignore the missing labels with `..`", at, ", ..")
+    }
+
   private[meta] def checkLabelsDistinct(ls: List[Ident]): Unit =
     val seen = mutable.HashMap.empty[String, Span]
     for l <- ls do
@@ -159,14 +173,15 @@ private[meta] trait ObjectCode extends TyperBase:
         val missing = cols.flatMap(_.label).filterNot(byLabel.contains)
         if missing.nonEmpty && !rest && cols.forall(_.label.isDefined) then
           rc.failed = true
-          ctx.report(Diagnostic.error(
+          val d = Diagnostic.error(
             "E0301",
             s"missing label${if missing.length > 1 then "s" else ""} in named pattern for `$rel`",
             rl.span,
             s"missing ${missing.map(l => s"`$l`").mkString(", ")}"
           )
             .withHelp(if isHead then s"add ${missing.map(l => s"`$l = ...`").mkString(", ")}"
-            else "add the missing labels, or end the pattern with `..` to ignore them"))
+            else "add the missing labels, or end the pattern with `..` to ignore them")
+          ctx.report(missingLabelFixes(d, fields, missing, isHead))
         if cols.exists(_.label.isEmpty) then
           rc.failed = true
           err("E0306", s"`$rel` does not label all of its columns, so it cannot be used with a named pattern", rl.span)
@@ -295,7 +310,16 @@ private[meta] trait ObjectCode extends TyperBase:
             s"`${p.name}.$l` may be bound to an incomplete relation"
           )
             .withLabel(p.span, s"parameter `${p.name}` declared here")
-            .withHelp(s"add `%complete $l` to the signature of `${p.name}`"))
+            .withHelp(s"add `%complete $l` to the signature of `${p.name}`")
+            .pipe(d =>
+              signatureOf(p).flatMap(_.entries.lastOption).fold(d) { last =>
+                val end = last match
+                  case SigEntry.FieldDecl(_, tpe) => tpe.span
+                  case SigEntry.Complete(_, sp) => sp
+                  case SigEntry.ModeReq(_, _, sp) => sp
+                d.withSuggestion(s"add `%complete $l`", Span(end.source, end.end, end.end), s", %complete $l")
+              }
+            ))
         case _ =>
     case RelRef.Spliced(Ref(p)) if p.kind == SymKind.MetaParam =>
       // a relation parameter `(r : A -> rel)` cannot carry requirements
@@ -308,6 +332,15 @@ private[meta] trait ObjectCode extends TyperBase:
         .withLabel(p.span, s"parameter `${p.name}` declared here")
         .withHelp("pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`"))
     case _ =>
+
+  /** The signature a meta parameter was declared with, as written: a record type in the parameter, or the
+   *  definition of the named signature. */
+  private def signatureOf(p: Sym): Option[RecordType] =
+    paramTypes.get(p).flatMap {
+      case rt: RecordType => Some(rt)
+      case Ident(n) => p.owner.lookup(n).flatMap(_.decl).collect { case Decl(_, _, _, _, Some(rt: RecordType), _) => rt }
+      case _ => None
+    }
 
   def elabHead(t: Tree, sc: Scope, rc: RuleCtx): Option[obj.Term] =
     val (head, args) = flattenApp(t)

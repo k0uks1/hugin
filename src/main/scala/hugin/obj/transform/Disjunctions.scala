@@ -14,7 +14,8 @@ import scala.collection.mutable
  *  - the outputs `ō` are the variables every alternative binds; a variable bound by only some
  *    alternatives is existential within its alternative;
  *  - if there are inputs, `aux` gets the mode `+…+-…-`, so that the demand transformation (Section 7.3)
- *    supplies exactly the input bindings that arise at the call site.
+ *    supplies the input bindings that arise at the call site; the demand is built only from formulas
+ *    that do not depend on the calling rule's head (`DemandPhase.auxDemand`, issue #1, F1).
  *  The aggregate then ranges over the distinct bindings of `ō` (and its other variables), as for a
  *  relation atom. See issue #1, item B4.
  */

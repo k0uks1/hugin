@@ -1,0 +1,9 @@
+error[E0206]: cannot infer type argument `A` of family `nil`
+ --> tests/neg/f_nil_ascription_help.hgn:4:9
+  |
+4 | ?- e X, nil = nil.
+  |         ^^^ type not determined
+  |
+  = help: ascribe the constructor term with its result type, e.g. `(nil : list A)`, with `A` replaced by the intended type
+
+1 error found

@@ -1,0 +1,11 @@
+// Diagnostics on open, quick fixes from the compiler's suggestions, and diagnostics cleared by an edit.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y.\np : (a : int) -> (b : int) -> rel.\n%input p.\nq : int -> rel.\nq X :- p { a = X }.\nroad : int -> rel.\n%input road.\nr : int -> rel.\nr X :- rod X.\n"}}}
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "range": {"start": {"line": 3, "character": 13}, "end": {"line": 3, "character": 13}}, "context": {"diagnostics": []}}}
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "range": {"start": {"line": 7, "character": 9}, "end": {"line": 7, "character": 18}}, "context": {"diagnostics": []}}}
+{"jsonrpc": "2.0", "id": 4, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "range": {"start": {"line": 11, "character": 7}, "end": {"line": 11, "character": 7}}, "context": {"diagnostics": []}}}
+{"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {"textDocument": {"uri": "untitled:t.hgn", "version": 2}, "contentChanges": [{"text": "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X _.\n"}]}}
+{"jsonrpc": "2.0", "method": "textDocument/didClose", "params": {"textDocument": {"uri": "untitled:t.hgn"}}}
+{"jsonrpc": "2.0", "id": 5, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

@@ -5,9 +5,12 @@ import hugin.util.Span
 import scala.collection.mutable
 
 /** What the compiler learned about positions in the source, for tooling (hover, go to definition, find
- *  references, completion, document symbols). Filled by the typer (name resolution, scopes) and the
- *  object typer (types of object variables). */
+ *  references, completion, document symbols). Filled by the typer (name resolution, scopes), the meta
+ *  evaluator (staging), monomorphization (family instances) and the object typer (types of object
+ *  variables). */
 final class SemanticIndex:
+  import SemanticIndex.*
+
   /** A use of a symbol at a span. `detail` describes the symbol as seen at this use, e.g. with the type
    *  instantiated through a module path (`roads.path : city -> city -> rel`). */
   final case class Reference(span: Span, sym: Sym, detail: Option[String])
@@ -16,7 +19,18 @@ final class SemanticIndex:
    *  or query the variable belongs to (its scope); `name` is the internal name, unique within the item. */
   final case class VarOccurrence(span: Span, name: String, display: String, tpe: String, item: Span)
 
+  /** How the code at `span` crossed between the levels when it was evaluated, and the value it had
+   *  (printed). Code in a functor or formula function is evaluated once per application, so a span can
+   *  have several values. */
+  final case class Staged(span: Span, stage: Stage, value: String)
+
+  /** A family instance `name` (`len[int]`) of the family declared at `family`; `use` is the span of the
+   *  application that requested it, or no span for an instance requested by a type or another instance. */
+  final case class Instance(family: Span, name: String, use: Span)
+
   private val refs = mutable.ArrayBuffer.empty[Reference]
+  private val stagings = mutable.LinkedHashSet.empty[Staged]
+  private val instanceSet = mutable.LinkedHashSet.empty[Instance]
   private val vars = mutable.LinkedHashSet.empty[VarOccurrence]
   private val syms = mutable.LinkedHashSet.empty[Sym]
   private val descriptions = mutable.HashMap.empty[Sym, String]
@@ -34,13 +48,32 @@ final class SemanticIndex:
 
   def describe(sym: Sym, text: String): Unit = descriptions(sym) = text
 
+  def staged(span: Span, stage: Stage, value: String): Unit = if span.exists then stagings += Staged(span, stage, value)
+
+  def instance(family: Span, name: String, use: Span = Span.NoSpan): Unit =
+    if family.exists then instanceSet += Instance(family, name, use)
+
   /** Records the source extent of a scope (a module body or the program). */
   def scope(span: Span, scope: Scope): Unit = if span.exists then scopeExtents += ((span, scope))
 
   def references: Seq[Reference] = refs.toSeq
   def variables: Seq[VarOccurrence] = vars.toSeq
+  def staging: Seq[Staged] = stagings.toSeq
+  def instances: Seq[Instance] = instanceSet.toSeq
 
   /** All declared or referenced symbols with a source position. */
   def symbols: Seq[Sym] = syms.toSeq
   def description(sym: Sym): Option[String] = descriptions.get(sym)
   def scopes: Seq[(Span, Scope)] = scopeExtents.toSeq
+
+object SemanticIndex:
+  /** The staging of object code inside meta code (Section 3.2). */
+  enum Stage:
+    /** An object term or formula passed where meta code is expected becomes a code value `⟨t⟩`. */
+    case Quoted
+
+    /** A meta value of code (`⇑τ`, `⇑prop`) used in object code is inserted, `~(m)`. */
+    case Spliced
+
+    /** A compile-time primitive used in object code is embedded as a literal (cross-stage persistence). */
+    case Persisted

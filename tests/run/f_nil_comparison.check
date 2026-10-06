@@ -1,0 +1,8 @@
+empty nil.
+longer (cons 2 (cons 1 nil)).
+nonempty (cons 1 nil).
+nonempty (cons 2 (cons 1 nil)).
+ok.
+reds red.
+single (cons 1 nil).
+start nil.

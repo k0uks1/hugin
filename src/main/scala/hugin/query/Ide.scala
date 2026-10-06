@@ -1,6 +1,7 @@
 package hugin.query
 
 import hugin.compiler.SemanticIndex
+import hugin.compiler.SemanticIndex.Stage
 import hugin.meta.{Scope, Sym, SymKind}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
@@ -8,6 +9,11 @@ import hugin.util.*
 /** A declaration in a document outline: `span` is its name, `extent` the whole declaration, `container`
  *  the name of the enclosing definition. */
 final case class DocumentSymbol(name: String, kind: SymKind, span: Span, extent: Span, container: Option[String])
+
+/** Hover information: the signature of the symbol or variable at a position, and notes on what the
+ *  compiler decided there (staging, family instances). */
+final case class HoverInfo(signature: Option[String], notes: List[String]):
+  def text: String = (signature.toList ++ notes).mkString("\n")
 
 /** A completion candidate: the text to insert, what it is, and a description. */
 final case class CompletionItem(label: String, kind: String, detail: String)
@@ -43,16 +49,68 @@ object Ide:
   private def occurrences(ix: SemanticIndex, v: SemanticIndex#VarOccurrence): List[Span] =
     ix.variables.filter(o => o.item == v.item && o.name == v.name).map(_.span).distinct.sortBy(_.start).toList
 
-  /** Hover text: the description of a symbol (as seen at this use), or the type of an object variable.
-   *  A variable in a functor body may have different types in different instances; all are shown. */
-  def hover(key: CompileKey, offset: Int)(using db: Database): Option[String] =
+  /** Hover text: [[hoverInfo]] as lines. */
+  def hover(key: CompileKey, offset: Int)(using db: Database): Option[String] = hoverInfo(key, offset).map(_.text)
+
+  /** Hover information at an offset. The signature is the description of a symbol (as seen at this use),
+   *  or the type of an object variable; a variable in a functor body may have different types in different
+   *  instances, and all are shown. The notes say what the compiler decided there:
+   *  - for a use of a family, the instance it resolved to (`len[int]`); for a family's declaration, all
+   *    of its instances;
+   *  - inside the innermost piece of staged code around the offset, whether a meta value was quoted,
+   *    spliced or persisted, with the values it had. */
+  def hoverInfo(key: CompileKey, offset: Int)(using db: Database): Option[HoverInfo] =
     val ix = index(key)
-    targetAt(key, offset).flatMap {
+    val target = targetAt(key, offset)
+    val signature = target.flatMap {
       case Target.Symbol(s, use) => use.flatMap(_.detail).orElse(ix.description(s))
       case Target.Variable(v) =>
         val types = ix.variables.filter(o => o.span == v.span && o.name == v.name).map(_.tpe).distinct
         Some(s"variable ${v.display} : ${types.mkString(" | ")}${if types.length > 1 then "  (in different instances)" else ""}")
     }
+    val instances = target.toList.flatMap {
+      case Target.Symbol(s, use) => familyInstances(ix, s, use.map(_.span))
+      case Target.Variable(_) => Nil
+    }
+    val notes = instances ++ staging(ix, key.path, offset)
+    Option.when(signature.isDefined || notes.nonEmpty)(HoverInfo(signature, notes))
+
+  private def declares(family: Span, s: Sym): Boolean =
+    s.span.exists && family.source.path == s.span.source.path && family.start <= s.span.start && s.span.end <= family.end
+
+  /** The instances of the family `s`: at a use, those the use resolved to; at the declaration, all. */
+  private def familyInstances(ix: SemanticIndex, s: Sym, use: Option[Span]): List[String] =
+    val ofFamily = ix.instances.filter(i => declares(i.family, s))
+    use match
+      case Some(u) =>
+        val names = ofFamily.filter(i => i.use.exists && i.use.source.path == u.source.path && i.use.start == u.start).map(_.name).distinct
+        if names.isEmpty then Nil
+        else List(s"instance: ${values(names)}${if names.length > 1 then "  (in different instances)" else ""}")
+      case None =>
+        val names = ofFamily.map(_.name).distinct
+        if names.isEmpty then Nil else List(s"instances: ${names.map(n => s"`$n`").mkString(", ")}")
+
+  /** The staging of the innermost staged code around an offset, one line per stage. */
+  private def staging(ix: SemanticIndex, path: String, offset: Int): List[String] =
+    val around = ix.staging.filter(st => covers(st.span, path, offset))
+    around.map(_.span).minByOption(size).toList.flatMap { innermost =>
+      val here = around.filter(_.span == innermost)
+      here.map(_.stage).distinct.toList.map { stage =>
+        val vs = here.filter(_.stage == stage).map(_.value).distinct
+        val many = if vs.length > 1 then "  (in different applications)" else ""
+        stage match
+          case Stage.Quoted => s"quoted: passed to the meta level as the code ${values(vs)}$many"
+          case Stage.Spliced => s"spliced: the meta-level code ${values(vs)} is inserted here$many"
+          case Stage.Persisted => s"persisted: the compile-time value ${values(vs)} is embedded as a literal$many"
+      }
+    }
+
+  /** Values in backticks, at most a few. */
+  private def values(vs: Seq[String]): String =
+    val shown = vs.take(MaxValues).map(v => s"`$v`").mkString(" | ")
+    if vs.length > MaxValues then s"$shown | …" else shown
+
+  private val MaxValues = 5
 
   /** Where the symbol at an offset is declared; for an object variable, its first occurrence in the rule. */
   def definition(key: CompileKey, offset: Int)(using db: Database): Option[Span] =

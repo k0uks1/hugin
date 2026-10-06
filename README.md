@@ -279,13 +279,50 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
 - diagnostics for every open document and for the files it imports, with the code, the primary label as
   the range, notes and helps in the message, and secondary labels and the meta-level expansion chain as
   related information (singleton variables and unused definitions are shown faded);
-- hover, go to definition and find references (through module paths; declarations in the bundled
-  prelude have no location and are not returned), the document outline, completion (names in scope,
-  module members after `.`, labels in named patterns, directives after `%`), semantic tokens and quick
-  fixes (`_` for a singleton variable, the missing labels of a named pattern).
+- hover: the meta type of a definition or path, the inferred object type of a variable, and what the
+  compiler decided there (below);
+- go to definition and find references (through module paths; declarations in the bundled prelude have
+  no location and are not returned), the document outline, completion (names in scope, module members
+  after `.`, labels in named patterns, directives after `%`) and semantic tokens;
+- quick fixes: every suggested edit the compiler attaches to a diagnostic (below).
+
+**Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
+
+- *staging* (recorded by the meta evaluator): object code passed where meta code is expected is
+  *quoted* (`p X` passes the code `⟨X⟩` to the formula function `p`), meta code used in object code is
+  *spliced* (`I.price < 10` in the body of `cheap` inserts the code bound to `I`), and a compile-time
+  primitive in object code is *persisted* as a literal (`X = k` with `k : int = 6 * 7` embeds `42`).
+  Code in a functor or a formula function is evaluated once per application; every value is shown.
+  The innermost staged piece of code around the position is described;
+- *family instances* (recorded by monomorphization): a use of `cons`, `len` or `list` shows the
+  instance it resolved to (`len[int]`; a use in the body of a family rule may resolve to several), a
+  family's declaration lists all of its instances.
+
+```
+$ hugin query examples/formula_functions.hgn hover 10:20
+meta parameter p : ⇑A -> ⇑prop
+spliced: the meta-level code `X.price < 10` is inserted here
+$ hugin query examples/lists.hgn hover 4:15
+relation len A : list A -> int -> rel
+instance: `len[int]`
+```
+
+**Suggestions.** Like rustc, a diagnostic can carry machine-applicable suggestions: an edit (a span and
+its replacement) with a short message, the most likely first; each comes with a help that describes it in
+prose (the rendered output shows the help). The language server offers them as quick fixes, the first one
+preferred. They exist for singleton variables (`_` or `_X`), missing labels of a named pattern (`b = _`,
+or `..`), a functor that negates over a parameter whose signature lacks `%complete edge` (added to the
+signature, inline or named, unless it is in the prelude), a relation without a mode a signature requires
+(`%mode f + -.` before its declaration), a name with a similar declaration, a missing period at the end of
+a line, and a type definition that is not strict (`%abbrev`).
 
 Positions are converted between the protocol's 0-based lines and UTF-16 columns and the compiler's
 character offsets in `lsp/Positions`. Facts files (`.facts`) get syntax diagnostics only.
+
+The server is tested on recorded protocol transcripts (`tests/lsp/X.in`: the client's JSON-RPC messages,
+one per line; `X.check`: the normalized transcript with the server's responses and notifications), which
+`TranscriptSuite` replays over streams with `Content-Length` framing, as an editor would. Update them
+like the golden tests, with `HUGIN_UPDATE_CHECKS=1`.
 
 [`editors/vscode`](editors/vscode) is a minimal VS Code extension: the language configuration
 (`(* *)` comments, brackets), a TextMate grammar
@@ -297,6 +334,9 @@ sbt stage                                    # or let bin/hugin stage on first u
 cd editors/vscode && npm install
 code --extensionDevelopmentPath=$PWD ../..   # or: npx vsce package --skip-license, then install the .vsix
 ```
+
+CI packages the extension on every push (job `vscode`); the `.vsix` is the workflow run's artifact
+`hugin-vscode` (`code --install-extension hugin.vsix`).
 
 and set `hugin.server.path` to `<checkout>/bin/hugin` unless `hugin` is on the `PATH`. Any other LSP
 client works the same way: run `hugin lsp` for files with the extensions `.hgn` and `.facts`.
@@ -397,17 +437,13 @@ seed as inputs) and uploads `target/fuzz-failures` as an artifact when it fails.
 
 Known issues the fuzzers found, which the generator avoids until they are resolved:
 
-- A disjunction inside an aggregate with inputs becomes a moded auxiliary relation whose demand is
-  computed from the whole rule body before the aggregate. In a recursive rule that body contains the
-  recursive atom, so `s X :- p X _, s X, N = count { V | e V ; p X V }, N > 0.` is rejected with a
-  stratification cycle (E0601) through `s^or1^d[+-]`, although the program is stratified.
+- A disjunction inside an aggregate whose outer variables are bound only through the recursion
+  (`s Y :- s X, Y = X + 1, N = count { V | e V ; p Y V }, …`) is rejected with a stratification cycle
+  (E0601) through the demand of its auxiliary relation (see `docs/NOTES.md`, "Disjunction inside
+  aggregates"); the generator binds such variables with atoms of earlier relations.
 - A comparison with a constructor term that has no value — `X <> red` while no fact constructs `red` —
   fails. Demand facts construct their arguments, so after `%mode d +a` the query `?- d red.` makes `red`
   exist and the same comparison succeeds: the demand transformation can change answers.
-- The termination check counts ground constructor terms in heads (`d X red :- d X _.`) as constructive
-  (Definition 10.1), so such recursive components need `%terminates` although they are finite.
-- The type argument of `nil`/`cons` is not inferred from the other side of a comparison (`L <> nil` is
-  E0206), and the suggested ascription `(nil : list int)` is rejected (E0405).
 
 ## Continuous integration and formatting
 
@@ -418,6 +454,8 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
   `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
   `hugin lsp` answers `initialize`.
+- **VS Code extension** — `npm ci` and `vsce package` in `editors/vscode`; the `.vsix` is uploaded as the
+  artifact `hugin-vscode`.
 
 `.github/workflows/fuzz.yml` runs the long fuzz run nightly (see "Fuzz testing").
 

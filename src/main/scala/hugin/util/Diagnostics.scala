@@ -22,7 +22,14 @@ final case class Origin(frames: List[TraceFrame]):
 object Origin:
   val Source: Origin = Origin(Nil)
 
-/** A structured diagnostic in the style of rustc. */
+/** A machine-applicable fix of a diagnostic, like rustc's suggestions: replace the text of `span` by
+ *  `replacement` (an empty span inserts). `message` names the edit (``replace `X` with `_` ``); editors
+ *  offer it as a quick fix. The edit may lie in another file than the diagnostic, e.g. in the signature a
+ *  requirement is missing from. */
+final case class Suggestion(message: String, span: Span, replacement: String)
+
+/** A structured diagnostic in the style of rustc. `suggestions` are machine-applicable edits, the most
+ *  likely one first; each one comes with a help that describes it in prose. */
 final case class Diagnostic(
     severity: Severity,
     code: Option[String],
@@ -30,7 +37,8 @@ final case class Diagnostic(
     labels: List[Label] = Nil,
     notes: List[String] = Nil,
     helps: List[String] = Nil,
-    origin: Origin = Origin.Source
+    origin: Origin = Origin.Source,
+    suggestions: List[Suggestion] = Nil
 ):
   def primarySpan: Span = labels.find(_.primary).map(_.span).getOrElse(Span.NoSpan)
   def withLabel(span: Span, msg: String = ""): Diagnostic = copy(labels = labels :+ Label(span, msg, primary = false))
@@ -38,6 +46,10 @@ final case class Diagnostic(
   def withNote(n: String): Diagnostic = copy(notes = notes :+ n)
   def withHelp(h: String): Diagnostic = copy(helps = helps :+ h)
   def withOrigin(o: Origin): Diagnostic = if o.isEmpty then this else copy(origin = o)
+
+  /** Adds a suggested edit, if its span is real (generated code has no text to edit). */
+  def withSuggestion(message: String, span: Span, replacement: String): Diagnostic =
+    if span.exists then copy(suggestions = suggestions :+ Suggestion(message, span, replacement)) else this
 
 object Diagnostic:
   def error(code: String, msg: String, span: Span, label: String = ""): Diagnostic =
@@ -72,7 +84,8 @@ final class Reporter(val maxErrors: Int = 200):
       (s.source.path, s.start, i)
     }.map(_._1)
 
-/** Renders diagnostics in a rustc-like layout. */
+/** Renders diagnostics in a rustc-like layout. Suggestions are not shown as patched source lines: each
+ *  one is described by a help, and editors apply them as quick fixes. */
 final class DiagnosticRenderer(color: Boolean):
   private def style(attrs: fansi.Attrs, s: String): String = if color then attrs(s).render else s
   private def bold(s: String) = style(fansi.Bold.On, s)

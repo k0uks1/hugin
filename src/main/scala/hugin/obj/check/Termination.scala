@@ -26,9 +26,21 @@ final class TerminationPhase extends Phase:
   def phaseName = "termination"
   def description = "every growing component has a valid %terminates directive or is %partial (Section 10)"
 
-  /** Why a rule is constructive (Definition 10.1), if it is. */
-  def constructive(r: Rule): Option[(String, Span)] =
-    DepGraph.newHeadConstructors(r).headOption.map(t =>
+  /** Why a rule of the component `inC` is constructive (Definition 10.1, refined), if it is.
+   *
+   *  A new constructor term in the head counts only if it can take infinitely many values: a ground term
+   *  (`red`, `mk 1`) is one fixed term, and a term whose variables are all bound by positive atoms of
+   *  plain relations outside the component ranges over finitely many valuations, since those relations
+   *  are complete and finite when the component is evaluated (induction over the evaluation order).
+   *  Constructor and struct relations do not count: their facts can be created by nested heads of later
+   *  components, including this one (issue #1, A1), so `d (s (s N)) :- s N` keeps growing. See
+   *  docs/NOTES.md, "Termination" (issue #1, F3).
+   */
+  def constructive(r: Rule, inC: RelSym => Boolean): Option[(String, Span)] =
+    val finite = r.body.collect {
+      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !x.isCtor && x.kind != RelKind.Struct => as.flatMap(Moding.vars).toSet ++ v
+    }.flatten.toSet
+    DepGraph.newHeadConstructors(r).find(t => !Moding.vars(t).subsetOf(finite)).map(t =>
       (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span)
     )
       .orElse {
@@ -71,7 +83,7 @@ final class TerminationPhase extends Phase:
       val inC = comp.toSet
       val recursive = comp.length > 1 || es.exists(e => e.from == comp.head && e.to == comp.head)
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
-      val constructiveRules = rules.flatMap(r => constructive(r).map(r -> _))
+      val constructiveRules = rules.flatMap(r => constructive(r, inC).map(r -> _))
       val names = Termination.showComponent(comp)
       def explain(s: String): Unit = if ctx.settings.explainTermination then ctx.unit.explanations += s
       // a cycle through negation or aggregation is a stratification error (E0601), reported already;
@@ -79,7 +91,7 @@ final class TerminationPhase extends Phase:
       val stratified = !es.exists(e => e.negative && inC(e.from) && inC(e.to))
       if recursive && stratified then
         if constructiveRules.isEmpty then
-          explain(s"termination: $names: finite: recursive, but no rule is constructive (no new terms or numbers)")
+          explain(s"termination: $names: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)")
         else if comp.exists(_.isPartial) then
           val partial = comp.filter(_.isPartial).map(r => s"`${r.name}`").mkString(", ")
           explain(s"termination: $names: not checked: $partial is %partial (evaluated with the round budget)")
@@ -274,7 +286,7 @@ final class Termination(
   private def unmeasuredConstructive(ctx: Ctx, allowed: RelSym => Boolean): Option[TerminationFailure] =
     rules.iterator.collectFirst(Function.unlift { r =>
       headRel(r).filterNot(allowed).flatMap(h =>
-        phase.constructive(r).map((why, sp) =>
+        phase.constructive(r, inC).map((why, sp) =>
           TerminationFailure(
             s"constructive rule for `${h.name}`, which has no measure",
             sp,
