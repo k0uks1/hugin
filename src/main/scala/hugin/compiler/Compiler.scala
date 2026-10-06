@@ -7,7 +7,7 @@ object Compiler:
   def phasePlan: List[List[Phase]] = List(
     List(hugin.syntax.ParserPhase()),
     List(hugin.meta.NamerPhase()),
-    List(hugin.meta.TyperPhase()),
+    List(hugin.meta.typer.TyperPhase()),
     List(hugin.meta.MetaEvalPhase()),
     List(hugin.meta.MonomorphizePhase()),
     List(hugin.obj.DirectivesPhase()),
