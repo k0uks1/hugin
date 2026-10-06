@@ -61,7 +61,7 @@ object CommandLine:
         .action((_, o) => o.copy(command = Command.Explain("")))
         .children(arg[String]("<code>").action((c, o) => o.copy(command = Command.Explain(c)))),
       cmd("query")
-        .text("ask the compiler about a file: hover, definition, references (at <line>:<col>), symbols, diagnostics")
+        .text("ask the compiler about a file: hover, definition, references, completions (at <line>:<col>), symbols, diagnostics")
         .action((_, o) => o.copy(command = Command.Query("", "", None)))
         .children(
           arg[String]("<file.hgn>").action((f, o) =>
@@ -135,7 +135,7 @@ object CommandLine:
 
   val usage: String = OParser.usage(parser)
 
-  private def positional = Set("hover", "definition", "references")
+  private def positional = Set("hover", "definition", "references", "completions")
   private def requests = positional ++ Set("symbols", "diagnostics")
 
   private def position(s: String): Option[(Int, Int)] = s.split(":") match

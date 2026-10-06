@@ -35,8 +35,8 @@ hugin check <file.hgn>    compile only and report diagnostics
 hugin phases              list the compiler phases
 hugin explain <code>      explain a diagnostic code (e.g. E0401)
 hugin query <file.hgn> <request> [<line>:<col>]
-                          ask the compiler: hover, definition, references (at a position),
-                          symbols, diagnostics
+                          ask the compiler: hover, definition, references, completions
+                          (at a position), symbols, diagnostics
 
   --facts <file>          load ground facts for input relations (repeatable)
   --budget <n>            round budget for components with %partial relations (default: unbounded)
@@ -154,8 +154,14 @@ src/main/scala/hugin/
   to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
   `g.edge` to the field of the signature), a description of every symbol, and the inferred type of
   every object variable.
-- `Ide` answers position queries on top of it: `hover`, `definition`, `references`, `symbols` (an
-  outline with enclosing definitions) and `diagnostics`:
+- `Ide` answers position queries on top of it:
+  - `hover`: the description of a symbol as seen at that use (through a module path, with the type
+    instantiated there: `roads.path : city -> city -> rel`), or the type of an object variable (all
+    types if a functor body is instantiated at several);
+  - `definition` / `references`: for symbols across module paths; for object variables within their rule;
+  - `completions`: names in scope at the position (innermost module body outwards, plus the variables
+    of the rule), members after `m.`, labels inside a named pattern `c { ... }`, directives after `%`;
+  - `symbols` (an outline with enclosing definitions) and `diagnostics`:
 
 ```
 $ hugin query examples/graphs.hgn hover 32:27
