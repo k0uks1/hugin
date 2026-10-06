@@ -47,7 +47,7 @@ class MonomorphizeSuite extends munit.FunSuite:
   test("directives on a family are rewritten to its instances (only instances carry directives)") {
     val c = TestSupport.compile("""
       firsts : list A -> A -> rel.
-      @first firsts (cons X L) X :- cons X L.
+      @first firsts (cons X L) X :- xs (cons X L).
       %derivations firsts.
       %partial firsts.
       xs : list int -> rel.

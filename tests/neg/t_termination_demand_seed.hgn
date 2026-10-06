@@ -1,0 +1,11 @@
+(* A call of a moded relation whose input is read from a relation that depends on the relation's answers:
+   `u` feeds `f`'s demands with `f`'s answers, so the demands grow without bound (docs/NOTES.md,
+   "Termination"). *)
+f : (n : int) -> (m : int) -> rel.
+%mode f +n -m.
+%terminates n f.
+f N M :- M = N + 1.
+u : int -> rel.
+u 0.
+u M :- u N, f N M.
+%output u.

@@ -17,9 +17,13 @@ enum MType:
   /** `type` */
   case TypeU
 
-  /** ⇑(τ̄ → rel): a relation; with a `result` type, ⇑(τ̄ → a): a constructor (its relation of facts, used
-   *  as a relation or to build terms). */
+  /** ⇑(τ̄ → rel): a relation; with a `result` type, a fact constructor `%fact ⇑(τ̄ → a)` (its relation of
+   *  facts, used as a relation or to build terms). */
   case RelT(cols: List[Column], result: Option[OType] = None)
+
+  /** ⇑(τ̄ → a): a data constructor, which only builds terms (it is not a relation). A fact constructor is
+   *  one too: `RelT(τ̄, Some(a)) ≤ CtorT(τ̄, a)`, and `CtorT(τ̄, a) ≰ RelT`. */
+  case CtorT(cols: List[Column], result: OType)
 
   /** ⇑prop */
   case PropT
@@ -44,7 +48,10 @@ object MType:
     case Code(o) => s"⇑${OType.showArg(o)}"
     case TypeU => "type"
     case RelT(cols, res) =>
-      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ res.map(OType.showArg(_)).getOrElse("rel")).mkString(" -> ")})"
+      val fact = if res.isDefined then "%fact " else ""
+      s"$fact⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ res.map(OType.showArg(_)).getOrElse("rel")).mkString(" -> ")})"
+    case CtorT(cols, res) =>
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ OType.showArg(res)).mkString(" -> ")})"
     case PropT => "⇑prop"
     case Prim(b) => b.show
     case Pi(x, d, c, imp) =>

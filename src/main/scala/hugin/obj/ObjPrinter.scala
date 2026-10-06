@@ -58,7 +58,7 @@ object ObjPrinter:
       case RelKind.Derivation(rn) => s"  (* derivations of @$rn *)"
       case RelKind.Auxiliary(purpose) => s"  (* $purpose *)"
       case _ => ""
-    s"${r.name}$tps : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
+    s"${if r.fact then "%fact " else ""}${r.name}$tps : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
 
   def typeDecl(t: TypeSym): String =
     val tps = if t.tparams.isEmpty then "" else t.tparams.mkString(" [", " ", "]")

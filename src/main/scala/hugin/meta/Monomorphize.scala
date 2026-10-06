@@ -30,7 +30,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private val typeCopies: Map[TypeSym, TypeSym] =
     p.types.filter(_.tparams.isEmpty).map(t => t -> TypeSym(t.name, t.kind, t.span, t.origin)).toMap
   private val relCopies: Map[RelSym, RelSym] =
-    p.rels.filter(_.tparams.isEmpty).map(r => r -> RelSym(r.name, r.kind, r.span, r.origin)).toMap
+    p.rels.filter(_.tparams.isEmpty).map(r => r -> RelSym(r.name, r.kind, r.span, r.origin, r.fact)).toMap
 
   /** The program's symbol for a monomorphic relation of the generic program (other relations unchanged). */
   def monoRel(r: RelSym): RelSym = relCopies.getOrElse(r, r)
@@ -102,7 +102,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
     relMemo.get((r, args)) match
       case Some(i) => i
       case None =>
-        val i = RelSym(instName(r.name, args), r.kind, r.span, r.origin)
+        val i = RelSym(instName(r.name, args), r.kind, r.span, r.origin, r.fact)
         i.instanceOf = Some((r, args))
         relMemo((r, args)) = i
         ctx.unit.index.instance(r.span, i.name)

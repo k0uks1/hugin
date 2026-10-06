@@ -3,7 +3,7 @@ L = cons "a" (cons "b" nil), N = 2.
 ?- len (cons "b" nil) N.
 N = 1.
 ?- len (cons "c" nil) N.
-no.
+N = 1.
 ?- counter N.
 N = 0.
 N = 1.

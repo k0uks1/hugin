@@ -1,7 +1,7 @@
 (* E0307: duplicate labels; E0304/E0305: projection on a union needs a common label with a join *)
 sig : mod = { a : type, a : type }.
 rec = { n = 1, n = 2 }.
-pt : type = { x : int, y : int }.
+%fact pt : type = { x : int, y : int }.
 qt : type = { x : int, z : int }.
 st : type = { x : string, y : int }.
 both : pt | qt -> rel.

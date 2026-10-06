@@ -7,15 +7,17 @@ int : type = %builtin int.
 float : type = %builtin float.
 string : type = %builtin string.
 
-(* Lists (Section 13.3) *)
+(* Lists (Section 13.3). `nil` and `cons` are data constructors: lists are values, not facts. *)
 list A : type.
 nil : list A.
 cons : A -> list A -> list A.
 
-len : list A -> int -> rel.
-%terminates L (len L _).
+(* The length of a given list: moded, so it is computed on demand for the lists that are asked about. *)
+len : (l : list A) -> (n : int) -> rel.
+%mode len +l -n.
+%terminates l len.
 len nil 0.
-len (cons X L) M :- cons X L, len L N, M = N + 1.
+len (cons _ L) M :- len L N, M = N + 1.
 
 (* Optional values and pairs *)
 option A : type.

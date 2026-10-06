@@ -30,7 +30,7 @@ final case class RunOptions(
     budget: Option[Int] = None,
     /** Print evaluation statistics to stderr. */
     stats: Boolean = false,
-    /** Print every relation, including constructors and demand relations. */
+    /** Print every relation, including fact constructors and demand relations. */
     allRelations: Boolean = false
 )
 
@@ -148,7 +148,7 @@ object CommandLine:
         .text("print compiler phase timings and evaluation statistics")
         .action((_, o) => o.copy(run = o.run.copy(stats = true))),
       opt[Unit]("all-relations")
-        .text("print the facts of every relation (including constructors and demand relations)")
+        .text("print the facts of every relation (including fact constructors and demand relations)")
         .action((_, o) => o.copy(run = o.run.copy(allRelations = true))),
       opt[Unit]("color")
         .text("colour diagnostics")

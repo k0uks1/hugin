@@ -83,7 +83,8 @@ object Trees:
   final case class Field(label: Ident, value: Tree)
 
   enum SigEntry:
-    case FieldDecl(label: Ident, tpe: Tree)
+    /** `l : τ`, or `%fact l : τ̄ -> a` (a field that must be a fact constructor). */
+    case FieldDecl(label: Ident, tpe: Tree, fact: Boolean = false)
     case Complete(label: Ident, span: Span)
     case ModeReq(label: Ident, modes: List[ModeItem], span: Span)
 
@@ -105,8 +106,16 @@ object Trees:
   sealed trait Item:
     def span: Span
 
-  /** `name param* : type [<: sup] [= defn].` and `%abbrev`. */
-  final case class Decl(name: Ident, params: List[Param], tpe: Tree, sup: Option[Tree], defn: Option[Tree], abbrev: Boolean)(val span: Span)
+  /** `name param* : type [<: sup] [= defn].`, `%abbrev` and `%fact` (a fact constructor or struct). */
+  final case class Decl(
+      name: Ident,
+      params: List[Param],
+      tpe: Tree,
+      sup: Option[Tree],
+      defn: Option[Tree],
+      abbrev: Boolean,
+      fact: Boolean = false
+  )(val span: Span)
       extends Item
 
   /** `name param* = expr.` */

@@ -1,7 +1,7 @@
-(* A.2 (6): a non-decreasing variant of `len` is rejected *)
+(* A.2 (6): a non-decreasing variant of `len` is rejected (`cons` is a fact constructor: its facts are read) *)
 list A : type.
 nil : list A.
-cons : A -> list A -> list A.
+%fact cons : A -> list A -> list A.
 len : list A -> int -> rel.
 %terminates L (len L _).
 len nil 0.

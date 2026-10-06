@@ -1,0 +1,7 @@
+grow (node (leaf 1) (leaf 2)).
+lefts (leaf 1).
+node (leaf 1) (leaf 2).
+seen 1 "a".
+seen 2 "b".
+whats "a".
+whats "b".

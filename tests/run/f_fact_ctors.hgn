@@ -1,0 +1,17 @@
+(* Data and fact constructors: `%fact` marks a constructor (or a struct) whose facts can be read as a
+   relation; other constructors only build values. `%fact` applies to every instance of a family.
+   `--all-relations` prints facts only: the data constructor `leaf` is not a relation, so it is not listed. *)
+tree A : type.
+leaf : A -> tree A.
+%fact node : tree A -> tree A -> tree A.
+%fact seen : type = { at : int, what : string }.
+
+grow : tree int -> rel.
+grow (node (leaf 1) (leaf 2)).
+lefts : tree int -> rel.
+lefts L :- node L _.
+
+seen 1 "a".
+seen { at = 2, what = "b" }.
+whats : string -> rel.
+whats W :- seen { at = _, what = W }.

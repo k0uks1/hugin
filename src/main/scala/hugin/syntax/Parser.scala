@@ -153,16 +153,7 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
       case _ =>
         val lhs = parseExpr(LvlHead)
         kind match
-          case Tok.Colon =>
-            advance()
-            val (name, params) = declHead(lhs)
-            val tpe = parseType()
-            val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) }
-            else None
-            val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
-            else None
-            expect(Tok.Period, "`.` after declaration")
-            Decl(name, params, tpe, sup, defn, abbrev = false)(spanFrom(start))
+          case Tok.Colon => parseDeclRest(lhs, start, fact = false)
           case Tok.Eq =>
             advance()
             val (name, params) = declHead(lhs)
@@ -175,6 +166,18 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
             expect(Tok.Period, "`.` after subtyping edge")
             SubEdge(lhs, sup)(spanFrom(start))
           case _ => parseRuleRest(None, start, lhs)
+
+  /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:`. */
+  private def parseDeclRest(lhs: Tree, start: Int, fact: Boolean): Item =
+    expect(Tok.Colon)
+    val (name, params) = declHead(lhs)
+    val tpe = parseType()
+    val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) }
+    else None
+    val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
+    else None
+    expect(Tok.Period, "`.` after declaration")
+    Decl(name, params, tpe, sup, defn, abbrev = false, fact = fact)(spanFrom(start))
 
   private def parseRuleRest(name: Option[Ident], start: Int, first: Tree): Item =
     val heads = mutable.ListBuffer(first)
@@ -258,6 +261,16 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         val defn = parseNonType(LvlSemi)
         expect(Tok.Period)
         return Decl(name, params, tpe, None, Some(defn), abbrev = true)(spanFrom(start))
+      case "fact" =>
+        // `%fact c : τ̄ -> a.`: a modifier of a constructor or struct declaration
+        val lhs = parseExpr(LvlHead)
+        if kind != Tok.Colon then
+          fail(
+            s"expected `:` after the name of a `%fact` declaration, found $found",
+            "expected `:`",
+            Some("`%fact` marks a constructor or struct declaration: `%fact c : int -> t.`")
+          )
+        return parseDeclRest(lhs, start, fact = true)
       case "mode" =>
         val p = parsePath()
         DirArgs.Mode(p, parseModeItems())
@@ -306,7 +319,7 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         throw new ParseError
       case other =>
         reporter.report(Diagnostic.error("E0001", s"unknown directive `%$other`", d.span, "unknown directive")
-          .withNote("directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev"))
+          .withNote("directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev %fact"))
         throw new ParseError
     expect(Tok.Period, "`.` after directive")
     Directive(kindName, args)(spanFrom(start), d.span)
@@ -512,7 +525,9 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
     if k0 == Tok.DotDot then
       advance(); expect(Tok.RBrace)
       RecordLit(Nil, rest = true)(spanFrom(start))
-    else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
+    else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok
+        .Directive && (tok.text == "%complete" || tok.text == "%fact" && k1 == Tok.Name && peekTok(2).kind == Tok.Colon))) && !periodFirst
+    then
       parseRecordType(start)
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(start)
     else
@@ -556,9 +571,11 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         val ms = parseModeItems()
         entries += SigEntry.ModeReq(Ident(l.text)(l.span), ms, d.span.to(ms.lastOption.map(_.span).getOrElse(l.span)))
       else
+        val fact = kind == Tok.Directive && tok.text == "%fact"
+        if fact then advance()
         val l = expect(Tok.Name, "a label")
         expect(Tok.Colon, "`:` in record type")
-        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType())
+        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType(), fact)
       if kind == Tok.Comma then advance() else continue = false
     expect(Tok.RBrace, "`,` or `}`")
     RecordType(entries.toList)(spanFrom(start))

@@ -1,5 +1,12 @@
 known 2 4.
 known 3 9.
+marked 1.
+marked 2.
+mc.marks 2.
+plains (marks.plain 7).
 ?- small X, s.area X A.
 X = shapes.dot, A = 0.
 X = shapes.square 2, A = 4.
+?- m.mark N, X = d.mark N.
+N = 1, X = marks.mark 1.
+N = 2, X = marks.mark 2.

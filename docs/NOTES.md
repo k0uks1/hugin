@@ -235,6 +235,72 @@ equation (`X = cons 1 nil` with `X` unbound) still requires the value to exist, 
 it. Implementation: `BodyOp.Lookup(…, orAbsent = true)` for comparison operands yields an `Absent` word,
 which occurs only in tests, never in facts.
 
+## Data and fact constructors
+
+**Decision.** Constructors are data by default; facts are opt-in. A declaration `c : τ̄ -> a.` with an
+open type `a` declares a *data constructor*: `c t̄` builds a value, but `c` is not a relation. The
+modifier `%fact c : τ̄ -> a.` declares a *fact constructor*, which is also the relation of its facts, as
+every constructor was before. `%fact` applies in the same way to structs (`%fact s : type = { ... }.`;
+a struct without it is a data struct) and to signature fields (`{ t : type, %fact c : int -> t }`). On a
+family it applies to every instance (monomorphization copies the flag). The flag is fixed when the
+symbol is created (`meta.Sym.fact`, `obj.RelSym.fact`).
+
+**Meta typing.** A data constructor has the meta type `CtorT(τ̄, a)`, written `⇑(τ̄ -> a)`; a fact
+constructor keeps `RelT(τ̄, Some a)`, written `%fact ⇑(τ̄ -> a)`. Subtyping:
+`RelT(τ̄, Some a) ≤ CtorT(τ̄, a) ≤ Π(⇑τ̄ → ⇑a)`, the latter by the conversion of interface ascription
+(`constructorAs`: a constructor matches a value field `dot : shape` or a function field); `CtorT ≰ RelT`,
+neither `RelT(_, None)` nor `RelT(_, Some a)`. Columns are invariant, results are checked after
+elaboration, as before. A signature field `c : τ̄ -> a` over object types elaborates to `CtorT` and is
+matched by both kinds; a field `%fact c : τ̄ -> a` elaborates to `RelT(τ̄, Some a)` and requires a fact
+constructor (a data constructor is E0204, with the reason as a note). So inside a functor body only
+`%fact` fields can be read.
+
+**E0406, data constructor used as a relation.** Reported by the typer (stage inference of object code,
+`meta/typer/ObjectCode`), where the symbol (or the field's meta type) is known: an atom whose relation is a
+data constructor or data struct in a body, under `not`, in an aggregate or in a query; a rule head
+`c t̄ :- ...`; a directive naming it; and, at the meta level, a data constructor passed where a relation
+is expected (`closure { node = shape, edge = square }`). The help suggests `%fact` (with an edit when the
+declaration is in the same file). Terms `c t̄` remain allowed everywhere a term is: arguments of heads,
+nested patterns, comparisons, aggregate terms, inputs of moded calls. The check runs on source code only:
+code the compiler generates later (the guards `(c Z̄ as X)` of the records phase, which lower to `Deref`
+and never to `Scan`; demand rules; derivation rules) is not checked and not affected. `--all-relations`
+prints facts only: data constructors are not relations, so their values are not listed.
+
+**PR A versus PR B.** This change (PR A) is typing only: evaluation is unchanged, so data constructors
+still intern their values and assert them internally (subfact closure, probes, `Absent`, the two-tier
+store of "Values and facts" above), but nothing can read them as a relation any more, so the change is
+unobservable except through the programs and outputs that had to change. A follow-up (PR B) changes
+evaluation: data constructors never assert; probes, `Absent` and the two-tier store go away; a binding
+equation with a fact-constructor term checks that the fact exists; E0504 is planned there.
+
+**The prelude.** `nil` and `cons` are data constructors, so `len` can no longer match existing `cons`
+facts (`len (cons X L) M :- cons X L, ...`). It is moded instead:
+
+```
+len : (l : list A) -> (n : int) -> rel.
+%mode len +l -n.
+%terminates l len.
+len nil 0.
+len (cons _ L) M :- len L N, M = N + 1.
+```
+
+It computes the length of any list it is given, also of a list that was never asserted:
+`?- len (cons "c" nil) N.` now answers `N = 1` (`tests/run/a06_termination_len.hgn`).
+
+**Consequences of a moded `len`.** The demand rule of a call `len L N` is built from the prefix of the
+calling rule, so a relation in that prefix that depends on answers of `len` joins `len`'s strongly
+connected component (`pick L :- e L, len L N, N < 3.` and `long N :- pick L, len L N.` give the
+component `{pick, len, len^d}`). Two refinements of the demand-driven termination check (see
+"Termination" below, conditions 1 and 5) accept such components when they are finite
+(`tests/run/t_termination_len_callers.hgn`). One limitation remains: if the prefix negates or
+aggregates over a relation that calls `len`, the program is no longer stratified after the demand
+transformation (E0601), although it is in the source, since all calls share one demand relation. The
+same happens within one rule that calls `len` twice with a disjunction inside an aggregate between the
+calls (the auxiliary relation's demand reads the first call, the second call's demand reads the
+aggregate). The remedy would be demand relations per call site (or a generalisation of the pruning of
+demand prefixes of "Disjunction inside aggregates"); the fuzz generator (`ProgramGen`) avoids such
+programs: a rule that calls `len` calls it once and reads only base relations.
+
 ## Termination (issue #2)
 
 The termination check (`obj/check/Termination.scala`) generalises Definition 10.3. A recursive
@@ -326,7 +392,9 @@ The previous check (one slot, syntactic
 and every measured position is an input of every mode). Conditions:
 
 1. Rules whose head is neither measured nor a demand relation of a measured relation are not
-   constructive.
+   constructive. Here a head term over variables bound by answers of measured relations is not
+   constructive either (`sized (some N) :- e L, len L N`): there are finitely many demands (below), so
+   finitely many answers.
 2. A rule of a measured relation calls relations of the component only if they are measured, demand
    relations, or unmeasured relations that do not depend on answers of measured relations other than
    through demand relations.
@@ -346,11 +414,23 @@ and every measured position is an input of every mode). Conditions:
    either stays in its group and decreases the measure, or moves to a later group, so ranks decrease
    lexicographically along demand chains and the argument below applies unchanged.
 
+5. A *seed* of the component — a demand rule without a guard, or guarded by a demand of a relation
+   outside the component, that reads the component (the prefix of a call reads relations that depend
+   on the callee's answers, see "Data and fact constructors") — demands only values from a finite set:
+   every input of its head is a term over *finite variables*. A variable is finite if a positive atom
+   of a plain relation outside the component binds it, if it occurs in a *finite column* of an atom of
+   the component, or if an equation `X = t` relates it to a term over finite variables. The finite
+   columns are a least fixed point: a column of an unmeasured plain relation of the component is finite
+   if every rule of the relation puts a term over finite variables (given the columns found so far)
+   into it. A column value is a function of the valuation of those variables, each from a finite set,
+   so a finite column takes finitely many values over the whole evaluation, whatever else the component
+   derives. `u M :- u N, f N M` with `f` moded is rejected (`tests/neg/t_termination_demand_seed.hgn`).
+
 *Soundness.* By condition 3 every chain of demand facts, each derived from the previous one as guard, is
 lexicographically decreasing, and the order is well founded on the values that occur: slot 1 never
 increases and decreases only to values above a fixed bound, so it decreases finitely often; then slot 2,
 and so on (structural slots decrease in the well-founded subterm order). Demands are seeded by finitely
-many facts (propagation rules without premises of the component and queries). By well-founded induction
+many facts (propagation rules without premises of the component, queries, and seeds by condition 5). By well-founded induction
 on the demand, the facts demanded under a demand `p` are finite: the answers of `p` are derived by rules
 guarded by `p` whose atoms of the component are measured (and guarded by demands that are children of
 `p`, finitely many by induction since they are derived from `p`, finitely many answers of earlier

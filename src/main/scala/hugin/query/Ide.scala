@@ -188,7 +188,7 @@ object Ide:
           matching((vars ++ typed).filterNot(_.label == "_") ++ names)
 
   private val directives =
-    List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "import", "builtin")
+    List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "fact", "import", "builtin")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 
@@ -262,6 +262,8 @@ object Ide:
     resolved.orElse(scopeAt(ix, key, path, offset).flatMap(_.lookup(name.text))).filter(s => relationKinds(s.kind)).map { s =>
       db(Compile, key).symbols.mtype(s) match
         case Some(hugin.meta.MType.RelT(cols, _)) =>
+          cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
+        case Some(hugin.meta.MType.CtorT(cols, _)) =>
           cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
         case _ => Nil
     }

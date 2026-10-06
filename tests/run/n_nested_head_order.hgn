@@ -1,6 +1,6 @@
 (* docs/NOTES.md: nested head constructors of an earlier component (Proposition 8.8); see W0004 *)
 w : type.
-mk : int -> w.
+%fact mk : int -> w.
 src : int -> rel.
 src 1.
 r : int -> rel.

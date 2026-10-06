@@ -50,8 +50,14 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
 
   private[meta] def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
     classify(t, sc, null) match
+      case Head.Obj(s) if s.isData =>
+        dataUsedAsRelation(s, t, null, s"$what expects a relation")
+        None
       case Head.Obj(s) => Some(RelRef.Spliced(Ref(s)))
       case Head.Meta(m, RelT(_, _)) => Some(RelRef.Spliced(m))
+      case Head.Meta(m, CtorT(_, _)) =>
+        dataFieldUsedAsRelation(m, t, null, s"$what expects a relation")
+        None
       case Head.Bad | Head.Meta(_, MType.Err) => None
       case _ =>
         err("E0701", s"$what expects a relation", t.span, "not a relation")
@@ -93,7 +99,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
     si.state = ElabState.InProgress
     val sc = s.owner
     val result: Option[MExpr] = s.decl.get match
-      case d @ Decl(name, params, tpe, _, defn, _) =>
+      case d @ Decl(name, params, tpe, _, defn, _, _) =>
         tpe match
           case Keyword(Kw.Mod) =>
             val sig = elabMType(defn.get, sc, TVars.NoTVars)
@@ -330,7 +336,8 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
       case SymKind.Rel | SymKind.Ctor | SymKind.Struct =>
         val di = info(s)
         val res = di.result.map(showO).getOrElse("rel")
-        s"${s.kind.describe} ${s.name}$tps : ${(di.cols.map(col) :+ res).mkString(" -> ")}"
+        val fact = if s.fact then "%fact " else ""
+        s"$fact${s.kind.describe} ${s.name}$tps : ${(di.cols.map(col) :+ res).mkString(" -> ")}"
       case _ =>
         syms.sigValue(s) match
           case Some(sig) => s"signature ${s.name} = ${showMT(sig)}"
