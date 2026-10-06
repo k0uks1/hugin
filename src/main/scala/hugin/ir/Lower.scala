@@ -191,7 +191,8 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Formula.Disj(as) => as.flatMap(x => userVars(x))
       case f => Moding.formulaVars(f)
     }.toSet.filter(v => !v.contains('#') && !v.contains('.'))
-    val vars = alts.map(userVars).reduce(_ intersect _).toList.sortBy(v => firstOccurrence(q, v))
+    val written = Lowering.varsInOrder(q.body)
+    val vars = alts.map(userVars).reduce(_ intersect _).toList.sortBy(v => firstOccurrence(written, v))
     var nregs = 0
     val compiled = alts.map { b =>
       val rc = RuleCompiler(None)
@@ -201,10 +202,39 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
     }
     CompiledQuery(q, nregs, compiled.map(_._1).toArray, vars, compiled.map(_._2).toArray)
 
-  private def firstOccurrence(q: Query, v: String): Int =
-    val s = ObjPrinter.query(q)
-    val i = ("\\b" + java.util.regex.Pattern.quote(v) + "\\b").r.findFirstMatchIn(s).map(_.start).getOrElse(Int.MaxValue)
-    i
+  /** Where `v` first occurs among the variables of a query in written order; a variable `X.l` (a
+   *  projection expanded by `records`) and a renamed `X#k` are occurrences of `X`. */
+  private def firstOccurrence(written: Vector[String], v: String): Int =
+    written.indexWhere { n =>
+      val d = Var.display(n)
+      d == v || d.startsWith(v + ".")
+    } match
+      case -1 => Int.MaxValue
+      case i => i
+
+object Lowering:
+  /** The variables of a body in the order they are written (as `ObjPrinter` prints them), with repeats. */
+  def varsInOrder(body: List[Formula]): Vector[String] =
+    val out = Vector.newBuilder[String]
+    def term(t: Term): Unit = t match
+      case Term.Var(n) => out += n
+      case Term.App(_, as) => as.foreach(term)
+      case Term.As(x, v) => term(x); out += v
+      case Term.Ascr(x, _) => term(x)
+      case Term.Proj(x, _) => term(x)
+      case Term.With(x, fs) => term(x); fs.foreach(f => term(f._2))
+      case Term.Arith(_, l, r) => term(l); term(r)
+      case Term.Neg(x) => term(x)
+      case Term.Lit(_) | Term.Splice(_) =>
+    def formula(f: Formula): Unit = f match
+      case Formula.Atom(_, as, v) => as.foreach(term); v.foreach(out += _)
+      case Formula.Cmp(_, l, r) => term(l); term(r)
+      case Formula.Not(a) => formula(a)
+      case Formula.Agg(res, _, t, b) => out += res; term(t); b.foreach(formula)
+      case Formula.Disj(alts) => alts.foreach(_.foreach(formula))
+      case Formula.Splice(_) =>
+    body.foreach(formula)
+    out.result()
 
 /** Phase: compile to the core IR. */
 final class LowerPhase extends Phase:

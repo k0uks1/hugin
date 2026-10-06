@@ -57,3 +57,17 @@ class LowerSuite extends munit.FunSuite:
     val kinds = rule(p, "q").body.toList.map(_.getClass.getSimpleName)
     assert(kinds.contains("NotIn") && kinds.contains("Agg") && kinds.contains("Test"), kinds)
   }
+
+  test("query variables are answered in the order they are first written, found structurally") {
+    val p = core("""
+      p : string -> int -> rel.
+      p "Y" 1.
+      q : int -> rel.
+      q 2.
+      ?- p "Y" X, q Y.
+      ?- q Z', q Z.
+      ?- N = count { A | q A }, q M.
+    """)
+    // a string literal or a primed variable does not count as an occurrence
+    assertEquals(p.queries.map(_.vars).toList, List(List("X", "Y"), List("Z'", "Z"), List("N", "M")))
+  }
