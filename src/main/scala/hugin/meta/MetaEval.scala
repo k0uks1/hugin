@@ -3,9 +3,11 @@ package hugin.meta
 import hugin.util.*
 import hugin.syntax.Literal
 import hugin.compiler.*
+import hugin.compiler.SemanticIndex.Stage
 import hugin.obj.*
 import hugin.obj.typing.Moding
 import scala.collection.mutable
+import scala.util.chaining.*
 
 /** Meta values V (Section 4.5). */
 enum Value:
@@ -51,6 +53,9 @@ final class MetaEval(using Context):
 
   private def err(code: String, msg: String, span: Span, fr: Frame, label: String = ""): Unit =
     ctx.report(Diagnostic.error(code, msg, span, label).withOrigin(fr.origin))
+
+  /** Records for tooling how object code crossed between the levels (see [[SemanticIndex.Stage]]). */
+  private def staged(span: Span, stage: Stage, value: String): Unit = ctx.unit.index.staged(span, stage, value)
 
   private def freshPrefix(hint: String): String =
     val base = if hint.isEmpty then { anon += 1; s"_m$anon" }
@@ -105,8 +110,14 @@ final class MetaEval(using Context):
       val fv = eval(f, env, fr)
       val av = eval(a, env, fr)
       apply(fv, av, fnName(f), span, fr)
-    case MExpr.QuoteTerm(t) => VTerm(reifyTerm(t, env, fr, renamer(fr)))
-    case MExpr.QuoteFormula(b) => VFormula(reifyBody(b, env, fr, renamer(fr)))
+    case MExpr.QuoteTerm(t) =>
+      val code = reifyTerm(t, env, fr, renamer(fr))
+      staged(t.span, Stage.Quoted, ObjPrinter.term(code))
+      VTerm(code)
+    case MExpr.QuoteFormula(b) =>
+      val code = reifyBody(b, env, fr, renamer(fr))
+      if b.nonEmpty then staged(b.head.span.to(b.last.span), Stage.Quoted, ObjPrinter.body(code))
+      VFormula(code)
     case MExpr.QuoteType(t) => VType(reifyType(t, env, fr))
     case MExpr.FactTypeOf(x) =>
       eval(x, env, fr) match
@@ -194,6 +205,23 @@ final class MetaEval(using Context):
 
   private def qualify(prefix: String, name: String): String = if prefix.isEmpty then name else s"$prefix.$name"
 
+  /** Suggests inserting a directive on its own line before the declaration of `rel`, if the declaration
+   *  names it as written (not a relation of a module body, whose name has a prefix). */
+  private def directiveBefore(d: Diagnostic, rel: RelSym, directive: String): Diagnostic =
+    val decl = rel.span
+    val text = decl.text
+    val namesIt =
+      text.startsWith(rel.name) && !text.drop(rel.name.length).headOption.exists(c => c.isLetterOrDigit || c == '_' || c == '\'')
+    if !decl.exists || !namesIt then d
+    else
+      val src = decl.source
+      val indent = src.content.substring(src.lineStart(decl.startLine), decl.start)
+      d.withSuggestion(
+        s"declare `$directive`",
+        Span(src, decl.start, decl.start),
+        s"$directive\n${if indent.isBlank then indent else ""}"
+      )
+
   /** Requirements of a signature (Section 4.4) are checked once the argument relations are known. */
   private def checkRequirements(p: Sym, av: Value, span: Span, fr: Frame): Unit =
     p.mtype match
@@ -222,6 +250,7 @@ final class MetaEval(using Context):
                             .withOrigin(origin))
                       case Req.HasMode(_, mode, _) =>
                         if !rel.modes.exists(_._1 == mode) then
+                          val directive = s"%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}."
                           ctx.report(Diagnostic.error(
                             "E0208",
                             s"relation `${rel.name}` does not have mode `${mode.show}`",
@@ -229,7 +258,8 @@ final class MetaEval(using Context):
                             s"required for field `$label`"
                           )
                             .withLabel(rspan, "required here")
-                            .withHelp(s"declare `%mode ${rel.name} ${mode.inputs.map(b => if b then "+" else "-").mkString(" ")}.`")
+                            .withHelp(s"declare `$directive`")
+                            .pipe(directiveBefore(_, rel, directive))
                             .withOrigin(origin))
                   )
                 case _ =>
@@ -280,8 +310,12 @@ final class MetaEval(using Context):
     case n @ Term.Neg(x) => Term.Neg(reifyTerm(x, env, fr, rn))(n.span)
     case s @ Term.Splice(m) =>
       eval(m, env, fr) match
-        case VTerm(x) => x
-        case VLit(l) => Term.Lit(l)(s.span) // cross-stage persistence (rule Persist)
+        case VTerm(x) =>
+          staged(s.span, Stage.Spliced, ObjPrinter.term(x))
+          x
+        case VLit(l) =>
+          staged(s.span, Stage.Persisted, l.show)
+          Term.Lit(l)(s.span) // cross-stage persistence (rule Persist)
         case VErr => throw Abort()
         case other =>
           err("E0202", "splice of a value that is not code", s.span, fr, s"evaluates to ${other.describe}")
@@ -301,7 +335,9 @@ final class MetaEval(using Context):
     case d @ Formula.Disj(alts) => List(Formula.Disj(alts.map(reifyBody(_, env, fr, rn)))(d.span))
     case s @ Formula.Splice(m) =>
       eval(m, env, fr) match
-        case VFormula(b) => b
+        case VFormula(b) =>
+          staged(s.span, Stage.Spliced, ObjPrinter.body(b))
+          b
         case VErr => throw Abort()
         case other =>
           err("E0202", "splice of a value that is not a formula", s.span, fr, s"evaluates to ${other.describe}")

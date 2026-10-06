@@ -190,6 +190,65 @@ class LanguageServerSuite extends munit.FunSuite:
     assertEquals((edit.getNewText, edit.getRange.getStart), ("_", y))
   }
 
+  test("hover shows the staging of meta values and the instances of families") {
+    val (s, _) = server()
+    val text = "k : int = 6 * 7.\nat_k : int -> rel.\nat_k X :- X = k.\nnums : list int -> rel.\nnums (cons 1 nil).\n"
+    open(s, uri, text)
+    def hover(needle: String, shift: Int) =
+      s.getTextDocumentService.hover(HoverParams(doc(uri), pos(needle, shift, text = text))).get().getContents.getRight.getValue
+    assertEquals(
+      hover("X = k", 4),
+      "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal"
+    )
+    assertEquals(hover("cons 1", 0), "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`")
+  }
+
+  private def actions(s: HuginLanguageServer, at: Position): List[CodeAction] =
+    s.getTextDocumentService.codeAction(CodeActionParams(doc(uri), Range(at, at), CodeActionContext(Nil.asJava))).get().asScala.map(
+      _.getRight
+    ).toList
+
+  test("code actions: missing labels, in the order the compiler suggests them") {
+    val (s, _) = server()
+    val text = "p : (a : int) -> (b : int) -> rel.\n%input p.\nq : int -> rel.\nq X :- p { a = X }.\n"
+    open(s, uri, text)
+    val fixes = actions(s, pos("{ a", text = text))
+    assertEquals(
+      fixes.map(a => (a.getTitle, a.getIsPreferred.booleanValue)),
+      List(("Add the missing labels", true), ("Ignore the missing labels with `..`", false))
+    )
+    val edit = fixes.head.getEdit.getChanges.get(uri).asScala.loneElement
+    assertEquals(
+      (edit.getNewText, edit.getRange.getStart, edit.getRange.getEnd),
+      (", b = _", pos(" }", text = text), pos(" }", text = text))
+    )
+    assertEquals(fixes.head.getDiagnostics.asScala.loneElement.getCode.getLeft, "E0301")
+  }
+
+  test("code actions: add `%complete edge` to the signature, away from the diagnostic") {
+    val (s, _) = server()
+    val text =
+      """g : mod = { node : type, edge : node -> node -> rel }.
+        |iso (x : g) = {
+        |  lonely : x.node -> rel.
+        |  lonely N :- x.edge N _, not x.edge _ N.
+        |}.
+        |""".stripMargin
+    open(s, uri, text)
+    val fix = actions(s, pos("x.edge _ N", text = text)).loneElement
+    assertEquals(fix.getTitle, "Add `%complete edge`")
+    val edit = fix.getEdit.getChanges.get(uri).asScala.loneElement
+    assertEquals((edit.getNewText, edit.getRange.getStart), (", %complete edge", pos(" }.", text = text)))
+  }
+
+  test("code actions: nothing for a diagnostic without suggestions, or away from diagnostics") {
+    val (s, _) = server()
+    val text = "p : int -> rel.\np X :- zzz X.\nr : rel.\n"
+    open(s, uri, text)
+    assertEquals(actions(s, pos("zzz", text = text)), Nil)
+    assertEquals(actions(s, pos("r : rel", text = text)), Nil)
+  }
+
   test("the server speaks the protocol over streams") {
     val toServer = PipedOutputStream()
     val serverIn = PipedInputStream(toServer)

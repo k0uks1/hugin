@@ -188,7 +188,7 @@ private[meta] trait MetaExpressions extends TyperBase:
             var d = Diagnostic.error("E0101", s"`${Printer.show(sel.qual)}` has no member `${sel.name}`", sel.nameSpan, "unknown member")
               .withNote(s"available members: ${fields.map(_._1.name).mkString(", ")}")
             val sugg = fields.map(_._1.name).filter(n => editDistance(n, sel.name) <= (sel.name.length / 3).max(1))
-            sugg.headOption.foreach(s => d = d.withHelp(s"did you mean `$s`?"))
+            sugg.headOption.foreach(s => d = d.withHelp(s"did you mean `$s`?").withSuggestion(s"replace with `$s`", sel.nameSpan, s))
             ctx.report(d)
             (MExpr.Err, MType.Err)
       case other =>
