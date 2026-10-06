@@ -1,5 +1,6 @@
 package hugin.repl
 
+import hugin.compiler.Display
 import hugin.util.DiagnosticRenderer
 import java.io.{BufferedReader, InputStream, InputStreamReader}
 import java.nio.charset.StandardCharsets
@@ -27,16 +28,16 @@ object Repl:
       facts: List[String],
       batch: Boolean,
       echo: Boolean,
-      color: Boolean,
+      display: Display,
       in: InputStream,
       out: String => Unit,
       err: String => Unit
   ): Boolean =
-    val renderer = DiagnosticRenderer(color)
+    val renderer = DiagnosticRenderer(display.color)
     var ok = true
     def show(reply: Reply): Boolean =
       reply.output.foreach(out)
-      reply.diagnostics.foreach(d => err(renderer.render(d)))
+      display.shown(reply.diagnostics).foreach(d => err(renderer.render(d)))
       ok &&= !reply.hasErrors
       !reply.quit
     (files.map(session.load) ++ facts.map(session.loadFacts)).foreach(show)

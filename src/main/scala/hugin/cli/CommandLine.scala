@@ -1,6 +1,6 @@
 package hugin.cli
 
-import hugin.compiler.{Compiler, Settings}
+import hugin.compiler.{Compiler, Display, Settings}
 import scopt.{OEffect, OParser}
 
 /** What the user asked for. */
@@ -34,7 +34,7 @@ final case class RunOptions(
     allRelations: Boolean = false
 )
 
-final case class Options(command: Command, settings: Settings, run: RunOptions)
+final case class Options(command: Command, settings: Settings, run: RunOptions, display: Display = Display())
 
 /** Command-line parsing with scopt. `parse` is pure: scopt's effects are interpreted here, so nothing is
  *  printed and the process is never terminated. */
@@ -152,13 +152,13 @@ object CommandLine:
         .action((_, o) => o.copy(run = o.run.copy(allRelations = true))),
       opt[Unit]("color")
         .text("colour diagnostics")
-        .action((_, o) => o.copy(settings = o.settings.copy(color = true))),
+        .action((_, o) => o.copy(display = o.display.copy(color = true))),
       opt[Unit]("no-color")
         .text("do not colour diagnostics")
-        .action((_, o) => o.copy(settings = o.settings.copy(color = false))),
+        .action((_, o) => o.copy(display = o.display.copy(color = false))),
       opt[Unit]("no-warnings")
         .text("suppress warnings")
-        .action((_, o) => o.copy(settings = o.settings.copy(warnings = false))),
+        .action((_, o) => o.copy(display = o.display.copy(warnings = false))),
       opt[Unit]("no-prelude")
         .text("do not include the standard prelude (base types must then be declared with %builtin)")
         .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
@@ -187,7 +187,7 @@ object CommandLine:
 
   /** Parses `args`; `Left` carries an error message. `--help` yields [[Command.Help]]. */
   def parse(args: List[String], defaultColor: Boolean = false): Either[String, Options] =
-    val init = Options(Command.Help, Settings(color = defaultColor), RunOptions())
+    val init = Options(Command.Help, Settings(), RunOptions(), Display(color = defaultColor))
     if args.contains("--help") || args.contains("-h") then return Right(init)
     val (result, effects) = OParser.runParser(parser, args, init)
     val errors = effects.collect { case OEffect.ReportError(msg) => msg }

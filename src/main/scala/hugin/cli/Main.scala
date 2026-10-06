@@ -61,7 +61,7 @@ object Main:
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
     case Command.Repl(files, batch, echo) =>
       val session = Session(opts.settings, opts.run.budget, opts.run.stats)
-      val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.settings.color, in, out, err)
+      val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.display, in, out, err)
       if ok then ExitCode.Ok else ExitCode.Errors
     case Command.Lsp =>
       // the protocol owns stdout; anything else printed there would corrupt it
@@ -77,8 +77,9 @@ object Main:
       true
     else false
 
-  private def render(diags: List[Diagnostic], settings: Settings, err: String => Unit): Unit =
-    val renderer = DiagnosticRenderer(settings.color)
+  private def render(all: List[Diagnostic], display: Display, err: String => Unit): Unit =
+    val diags = display.shown(all)
+    val renderer = DiagnosticRenderer(display.color)
     diags.foreach(d => err(renderer.render(d)))
     val r = Reporter()
     diags.foreach(r.report)
@@ -95,7 +96,7 @@ object Main:
     compiled.printed.foreach(out)
     if opts.run.stats then err(phaseTimings(compiled))
     if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
-      render(compiled.diagnostics, opts.settings, err)
+      render(compiled.diagnostics, opts.display, err)
       return if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
     val facts = opts.run.facts.filter { f =>
       val ok = load(db, f)
@@ -103,7 +104,7 @@ object Main:
       ok
     }
     val outcome = db(Evaluate, EvaluateKey(key, facts, opts.run.budget, opts.run.allRelations))
-    render(compiled.diagnostics ++ outcome.diagnostics, opts.settings, err)
+    render(compiled.diagnostics ++ outcome.diagnostics, opts.display, err)
     outcome.result match
       case None => ExitCode.Errors
       case Some(res) =>
@@ -143,5 +144,5 @@ object Main:
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
         for s <- Ide.symbols(key) do out(s"${loc(s.span)}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
-      case "diagnostics" => render(Ide.diagnostics(key), opts.settings, out)
+      case "diagnostics" => render(Ide.diagnostics(key), opts.display, out)
     ExitCode.Ok

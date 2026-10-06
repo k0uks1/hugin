@@ -14,7 +14,7 @@ final class Context(
   val timings: scala.collection.mutable.ListBuffer[(String, Long)] = scala.collection.mutable.ListBuffer.empty
 
   def report(d: Diagnostic): Unit =
-    if d.severity != Severity.Warning || settings.warnings then reporter.report(d)
+    reporter.report(d)
   def error(code: String, msg: String, span: Span, label: String = ""): Unit =
     report(Diagnostic.error(code, msg, span, label))
 

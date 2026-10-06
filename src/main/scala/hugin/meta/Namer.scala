@@ -23,7 +23,7 @@ object Namer:
     case _ => 0
 
   def enter(items: List[Item], scope: Scope)(using Context): Unit =
-    def declare(name: Ident, kind: SymKind, item: Item, order: Int): Option[Sym] =
+    def declare(name: Ident, kind: SymKind, item: Item): Option[Sym] =
       scope.lookupLocal(name.name) match
         case Some(prev) =>
           ctx.report(
@@ -34,11 +34,10 @@ object Namer:
         case None =>
           val s = Sym(name.name, kind, name.span, scope)
           s.decl = Some(item)
-          s.order = order
           scope.enter(s)
           Some(s)
 
-    for (item, k) <- items.zipWithIndex do
+    for item <- items do
       item match
         case d @ Decl(name, params, tpe, sup, defn, abbrev) =>
           val kind: Option[SymKind] = tpe match
@@ -93,7 +92,7 @@ object Namer:
           if abbrev && !kind.contains(SymKind.TypeDef) then
             ctx.error("E0103", "`%abbrev` only applies to type definitions", d.span)
           kind.foreach { kd =>
-            declare(name, kd, d, k).foreach { s =>
+            declare(name, kd, d).foreach { s =>
               s.abbrev = abbrev
               if kd == SymKind.BaseType then
                 defn.collect { case Builtin(b) => builtins(b.name) }.foreach(b => s.base = Some(b))
@@ -103,11 +102,11 @@ object Namer:
                   .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
             }
           }
-        case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d, k)
+        case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d)
         case _ =>
 
     // clauses of formula functions
-    for (item, k) <- items.zipWithIndex do
+    for item <- items do
       item match
         case r @ Rule(_, heads, _) =>
           def headName(t: Tree): Option[Ident] = t match
