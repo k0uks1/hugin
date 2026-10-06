@@ -319,7 +319,7 @@ or `hugin explain <code>`.
 
 ## Tests
 
-Two kinds of tests, both run by `sbt test`:
+Three kinds of tests, all run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
   (precedence, braces, `%infix`, recovery), shared primitive semantics, type operations (subtyping,
@@ -335,11 +335,68 @@ Two kinds of tests, both run by `sbt test`:
   - `tests/pos/X.hgn` — must compile without errors.
   - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
     their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.
+- **Fuzz suites** (`src/test/scala/hugin/fuzz`), a short deterministic run; see below.
 
 The conformance suite of Appendix A.2 is `tests/run/a01..a12` and `tests/neg/a05..a11`; the examples of
 Section 13 are `examples/*.hgn` (also run as `tests/run/ex_*`). To (re)generate check files, delete them and
 run `sbt test` once (missing check files are written and the test fails), or set `HUGIN_UPDATE_CHECKS=1`
 in the environment of the test JVM.
+
+## Fuzz testing
+
+The fuzz suites are ScalaCheck properties (issue #7); a failing input is shrunk by ScalaCheck.
+
+- **Mutation fuzzing** (`MutationFuzzSuite`): the programs of `examples/` and `tests/` are mutated one to
+  four times — tokens deleted, duplicated, swapped, replaced or inserted; identifiers renamed everywhere;
+  periods removed; brackets unbalanced or mismatched; literals replaced by boundary values (2^63, 1e309,
+  invalid escapes, …); lines deleted, duplicated, swapped, moved or the file truncated. Shrinking removes
+  tokens. Properties: no uncaught exception, `check` finishes within the time limit with exit code 0 or 1
+  and the same diagnostics twice, a failing `check` says why, every diagnostic span lies inside its
+  file, diagnostics render (with and without colours), `run --budget 3` exits with 0 or 1. A mutant is
+  compiled as if it were in the directory of its original (so relative `%import`s find the same
+  libraries) inside a scratch copy of the corpus; imports that resolve outside it are never read.
+- **Generated programs** (`ProgramGen`, `GeneratedFuzzSuite`): well-typed, stratified, terminating
+  programs over a small vocabulary — base relations with facts (some `%input`, loaded from a facts file),
+  derived relations in strata with recursion, negation, aggregates (with disjunctions inside), comparisons,
+  disjunctions, arithmetic, a user enumeration, a constructor type, the prelude families `option` and
+  `list`, `len`, and a counter with `%terminates`. Properties: the compiler accepts them; the semi-naive
+  engine agrees on every relation with a naive reference evaluator of the core program
+  (`NaiveEvaluator`: Definition 8.7 with structural words, no deltas, no indexes); the output does not
+  change when the items are permuted, an unused relation is added or relations are renamed; adding
+  `%mode` (the demand transformation) does not change query answers; and the robustness properties above
+  hold, with "accepted programs run to completion" in addition. Shrinking removes rules and facts.
+
+Every compilation and run happens on a thread with a time limit (20 s); the engine stops at its next
+round when interrupted. Failing programs (after shrinking) are written to `target/fuzz-failures/<suite>/`
+together with the problem and the seed.
+
+```
+sbt test                                                    # short run: 100–150 tests per property, fixed seed
+sbt fuzz                                                    # long run: 2000 tests per property, random seed
+HUGIN_FUZZ_COUNT=10000 HUGIN_FUZZ_SEED=42 sbt fuzz          # more tests, a given seed
+```
+
+The long run prints its seed (`MutationFuzzSuite: 2000 tests per property, seed …`). To reproduce a
+failure, rerun with that seed and the same count (`HUGIN_FUZZ_SEED=<seed> HUGIN_FUZZ_COUNT=<n> sbt fuzz`),
+or rerun only the failing case with the `Failing seed` that munit prints:
+`HUGIN_FUZZ_SEED=<failing seed> HUGIN_FUZZ_COUNT=1 sbt "testOnly hugin.fuzz.GeneratedFuzzSuite"`. A bug
+that is fixed gets a golden test in `tests/` (e.g. `tests/run/f_repeated_variable.hgn`, found by the
+differential test). `.github/workflows/fuzz.yml` runs `sbt fuzz` nightly (and on demand, with count and
+seed as inputs) and uploads `target/fuzz-failures` as an artifact when it fails.
+
+Known issues the fuzzers found, which the generator avoids until they are resolved:
+
+- A disjunction inside an aggregate with inputs becomes a moded auxiliary relation whose demand is
+  computed from the whole rule body before the aggregate. In a recursive rule that body contains the
+  recursive atom, so `s X :- p X _, s X, N = count { V | e V ; p X V }, N > 0.` is rejected with a
+  stratification cycle (E0601) through `s^or1^d[+-]`, although the program is stratified.
+- A comparison with a constructor term that has no value — `X <> red` while no fact constructs `red` —
+  fails. Demand facts construct their arguments, so after `%mode d +a` the query `?- d red.` makes `red`
+  exist and the same comparison succeeds: the demand transformation can change answers.
+- The termination check counts ground constructor terms in heads (`d X red :- d X _.`) as constructive
+  (Definition 10.1), so such recursive components need `%terminates` although they are finite.
+- The type argument of `nil`/`cons` is not inferred from the other side of a comparison (`L <> nil` is
+  E0206), and the suggested ascription `(nil : list int)` is rejected (E0405).
 
 ## Continuous integration and formatting
 
@@ -350,6 +407,8 @@ in the environment of the test JVM.
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
   `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
   `hugin lsp` answers `initialize`.
+
+`.github/workflows/fuzz.yml` runs the long fuzz run nightly (see "Fuzz testing").
 
 Locally:
 

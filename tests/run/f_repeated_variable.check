@@ -1,0 +1,7 @@
+diag 1.
+diag 3.
+loop 3.
+same 1.
+?- e X X.
+X = 1.
+X = 3.

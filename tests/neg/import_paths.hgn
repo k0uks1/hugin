@@ -1,0 +1,4 @@
+(* import paths that do not name a file are reported as missing (a root without a file name used to
+   crash the compiler; found by the fuzzer, issue #7) *)
+root = %import "/".
+here = %import ".".

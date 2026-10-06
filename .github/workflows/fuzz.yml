@@ -1,0 +1,52 @@
+name: Fuzz
+
+# The long run of the fuzz suites (src/test/scala/hugin/fuzz, issue #7): mutated corpus programs and
+# generated programs with differential and metamorphic checks. A short deterministic run is part of
+# `sbt test` on every push (ci.yml).
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # nightly
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Tests per property"
+        required: false
+        default: "10000"
+      seed:
+        description: "Seed: `random`, a number, or a base64 ScalaCheck seed from a failing run"
+        required: false
+        default: "random"
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: Fuzz (long run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: "true"
+      HUGIN_FUZZ_COUNT: ${{ github.event.inputs.count || '10000' }}
+      HUGIN_FUZZ_SEED: ${{ github.event.inputs.seed || 'random' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Fuzz
+        run: sbt -batch fuzz
+      - name: Upload failing inputs and seeds
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failures-${{ github.run_id }}
+          path: |
+            target/fuzz-failures
+            target/test-reports
+          if-no-files-found: ignore

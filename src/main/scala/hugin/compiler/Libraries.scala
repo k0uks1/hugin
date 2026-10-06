@@ -46,11 +46,16 @@ object SourceLoader:
   /** Reads and parses files directly (no caching). */
   val files: SourceLoader = path => read(path).map(text => Parsed(SourceFile.virtual(path, text)))
 
-  /** Resolves an import path relative to the importing file; `.hgn` is appended if there is no extension. */
+  /** Resolves an import path relative to the importing file; `.hgn` is appended if there is no extension.
+   *  A path that is not a valid file path (a NUL character, characters the file system cannot encode, a
+   *  root without a file name) is returned unchanged; loading it then fails with "cannot find". */
   def resolve(from: String, path: String): String =
-    val withExt = if Path.of(path).getFileName.toString.contains('.') then path else path + ".hgn"
-    val parent = Option(Path.of(from).getParent)
-    parent.map(_.resolve(withExt)).getOrElse(Path.of(withExt)).normalize.toString
+    try
+      val hasExt = Option(Path.of(path).getFileName).exists(_.toString.contains('.'))
+      val withExt = if hasExt then path else path + ".hgn"
+      val parent = Option(Path.of(from).getParent)
+      parent.map(_.resolve(withExt)).getOrElse(Path.of(withExt)).normalize.toString
+    catch case _: InvalidPathException => path
 
 /** A source file included in a compilation: the prelude or an imported file. Its items form a module
  *  body (rule M-Body) that is elaborated and evaluated once, however often it is imported. */
