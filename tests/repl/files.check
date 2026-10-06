@@ -1,0 +1,44 @@
+loaded examples/graphs.hgn
+hugin> (* Started as `hugin repl examples/graphs.hgn`. *)
+hugin> ?- from_berlin C.
+C = berlin.
+C = paris.
+C = rome.
+hugin> :type roads
+meta definition roads : { path : ⇑(city -> city -> rel) }
+hugin> :type roads.path
+relation roads.path : city -> city -> rel
+hugin> :type short.hop
+relation short.hop : city -> city -> int -> rel
+hugin> :type tc
+meta definition tc : (g : { node : type, edge : ⇑(node -> node -> rel) }) -> { path : ⇑(g.node -> g.node -> rel) }
+hugin> :kind tc
+tc : meta definition
+hugin> :type tc { node = city, edge = road }
+tc { node = city, edge = road } : { path : ⇑(city -> city -> rel) }
+hugin> :print lower from_berlin
+(* ---------------- after lower ---------------- *)
+rule  @q from_berlin C :- roads.path berlin C.
+  Scan roads.path [0 := r0] [1 := r1]
+  Deref r0 berlin
+  Insert from_berlin(r1)
+hugin> :load examples/graphs.hgn
+error: `examples/graphs.hgn` is already loaded; use :reload to read it again
+
+hugin> :load no/such/file.hgn
+error: no such file `no/such/file.hgn`
+
+hugin> :reload
+reloaded 1 file(s)
+hugin> (* Input facts for %input relations. *)
+hugin> :load examples/typechecker.hgn
+loaded examples/typechecker.hgn
+hugin> :facts examples/typechecker.facts
+loaded facts from examples/typechecker.facts
+hugin> ?- result (lam X T B) Ty.
+X = "f", T = arrow (base "int") (base "bool"), B = lam "x" (base "int") (app (ref "f") (ref "x")), Ty = arrow (arrow (base "int") (base "bool")) (arrow (base "int") (base "bool")).
+X = "x", T = base "int", B = ref "x", Ty = arrow (base "int") (base "int").
+hugin> :facts no/such.facts
+error: no such facts file `no/such.facts`
+
+hugin> :quit

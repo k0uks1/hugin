@@ -37,6 +37,8 @@ hugin explain <code>      explain a diagnostic code (e.g. E0401)
 hugin query <file.hgn> <request> [<line>:<col>]
                           ask the compiler: hover, definition, references, completions
                           (at a position), symbols, diagnostics
+hugin repl [<file.hgn> ...]
+                          an interactive session, starting with these files (see below)
 hugin lsp                 run the language server (LSP over stdin/stdout) for editors
 
   --facts <file>          load ground facts for input relations (repeatable)
@@ -50,6 +52,64 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --lint                  enable advisory checks (W0004)
   --no-prelude            do not include the standard prelude
 ```
+
+## The REPL
+
+`hugin repl [file.hgn ...] [--facts f]` starts an interactive session. Line editing, history (kept in
+`~/.hugin_history`) and completion come from [JLine 3](https://github.com/jline/jline3).
+
+- **Input.** Declarations, definitions, rules and directives extend the session; `?- query.` is answered
+  at once against the session and the loaded facts. An item continues over several lines (with a `...`
+  prompt) until its terminating period; periods in comments, strings and selections (`roads.path`) and
+  inside brackets do not count. Several items may share a line.
+- **Errors do not lose state.** An input is accepted or rejected as a whole: if the session with the
+  input has errors (also errors the input causes in earlier text, such as a cycle through negation), the
+  session stays as it was. Diagnostics are rendered as in batch mode, with lines and columns relative to
+  the input as typed (`<input 7>:2:3`) or to the loaded file. A warning is reported once, for the input
+  that introduced it; W0003 (unused definition) is not reported, as later inputs are expected to use
+  definitions.
+- **Commands.**
+
+  | command | |
+  |---|---|
+  | `:load <file.hgn>`, `:reload` | add a program file to the session; read the loaded files again |
+  | `:facts <file>` | load ground facts for `%input` relations |
+  | `:type <expr>` | the type of a name or module path (`:type roads.path`, as hover shows it), of an object term (`:type cons 1 nil`) or of a meta expression (`:type tc { node = city, edge = road }`) |
+  | `:kind <name>` | what a name denotes (object type, relation, constructor, meta definition, ...) |
+  | `:list` | the accepted inputs, loaded files and facts files |
+  | `:print <phase> [<name>]` | the session after a phase (as `--print-after`), optionally only the items mentioning a name |
+  | `:explain <code>` | explain a diagnostic code |
+  | `:budget <n>\|off`, `:stats on\|off` | round budget and evaluation statistics |
+  | `:reset`, `:help`, `:quit` | start an empty session, list the commands, end the session |
+
+- **Completion** (Tab) offers commands and their arguments, and otherwise asks the compiler
+  (`Ide.completions`) at the cursor: names in scope, members after `m.`, directives after `%`.
+
+```
+$ hugin repl examples/graphs.hgn
+loaded examples/graphs.hgn
+hugin> ?- from_berlin C.
+C = berlin.
+C = paris.
+C = rome.
+hugin> :type roads.path
+relation roads.path : city -> city -> rel
+hugin> near : city -> rel.
+hugin> near C :-
+  ...    road berlin C,
+  ...    goal C.
+error[E0101]: unresolved name `goal`
+ --> <input 3>:3:3
+  |
+3 |   goal C.
+  |   ^^^^ not found in this scope
+```
+
+The session (`hugin.repl.Session`) is independent of the terminal (`hugin.repl.Repl`). It is a client
+of the query layer: the session text is one input of the query database, so compiling, `:type`
+(a probe item asked with `Ide.hover`) and evaluation reuse what did not change. When stdin is not a
+terminal, or with `--batch`, inputs are read from stdin without prompts; `--echo` writes each input after
+its prompt, which is how the transcript tests run.
 
 ## Libraries and the prelude
 
@@ -78,6 +138,7 @@ implementation or something no library does adequately:
 | "did you mean" suggestions (edit distance) | [Apache Commons Text](https://commons.apache.org/proper/commons-text/) |
 | language server protocol, JSON-RPC | [Eclipse LSP4J](https://github.com/eclipse-lsp4j/lsp4j) |
 | terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
+| line editing, history and completion in the REPL | [JLine 3](https://github.com/jline/jline3) |
 | tests, property-based tests | [munit](https://scalameta.org/munit/), [ScalaCheck](https://scalacheck.org/) via munit-scalacheck |
 | formatting | [scalafmt](https://scalameta.org/scalafmt/) |
 
@@ -271,6 +332,8 @@ Two kinds of tests, both run by `sbt test`:
   - `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
     failure may come from loading the input).
   - `tests/pos/X.hgn` — must compile without errors.
+  - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
+    their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.
 
 The conformance suite of Appendix A.2 is `tests/run/a01..a12` and `tests/neg/a05..a11`; the examples of
 Section 13 are `examples/*.hgn` (also run as `tests/run/ex_*`). To (re)generate check files, delete them and
