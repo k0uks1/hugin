@@ -13,6 +13,18 @@ abstract class Input[K, V](val name: String):
  *  read everything it depends on through the given [[Database]], so that dependencies are recorded. */
 abstract class Query[K, V](val name: String):
   def compute(key: K)(using db: Database): V
+
+  /** The value of a query that is demanded again while it is being computed. `None` (the default) makes
+   *  such a cycle an error ([[CycleError]]); a value lets the outer computation continue with it (e.g. an
+   *  empty declaration while its own declaration is elaborated). The fallback is not memoised; the queries
+   *  that received it can ask [[Database.recoveredFromCycle]] and report the cycle themselves. */
+  def onCycle(key: K): Option[V] = None
+  override def toString: String = name
+
+/** A side output of queries, collected along the dependencies (e.g. diagnostics). Pushed values belong to
+ *  the running query: they are replaced when it is recomputed, also when its value stays the same (early
+ *  cut-off), and reused with it otherwise. */
+abstract class Accumulator[A](val name: String):
   override def toString: String = name
 
 /** A cycle among queries: `path` lists the active queries from the outermost to the re-entered one. */
@@ -37,8 +49,21 @@ final class Database:
   private type Slot = (AnyRef, Any)
 
   private final class InputCell(val value: Any, val changedAt: Long)
-  private final class Memo(var value: Any, var verifiedAt: Long, var changedAt: Long, var deps: Vector[Slot])
-  private final class Frame(val slot: Slot, val deps: mutable.LinkedHashSet[Slot])
+  private final class Memo(
+      var value: Any,
+      var verifiedAt: Long,
+      var changedAt: Long,
+      var deps: Vector[Slot],
+      val accumulated: Map[Accumulator[?], Vector[Any]]
+  )
+  private final class Frame(val slot: Slot, val deps: mutable.LinkedHashSet[Slot]):
+    val accumulated: mutable.LinkedHashMap[Accumulator[?], mutable.ArrayBuffer[Any]] = mutable.LinkedHashMap.empty
+
+    /** Computed with a cycle fallback (passed on to the demanding query, up to the cycle's head). */
+    var recovered = false
+
+    /** Re-entered by a cycle that was recovered: this query closed the cycle (not passed on). */
+    var cycleHead = false
 
   private var current: Long = 0
   private val inputs = mutable.HashMap.empty[Slot, InputCell]
@@ -110,11 +135,43 @@ final class Database:
 
   private def record(slot: Slot): Unit = stack.lastOption.foreach(_.deps += slot)
 
+  /** Adds a value to an accumulator on behalf of the running query (ignored outside queries). */
+  def push[A](acc: Accumulator[A], value: A): Unit =
+    stack.lastOption.foreach(_.accumulated.getOrElseUpdate(acc, mutable.ArrayBuffer.empty) += value)
+
+  /** The values pushed to `acc` by a query and, transitively, by every query it depends on, each query
+   *  once, dependencies before dependents. Brings the query up to date first. */
+  def accumulated[K, V, A](acc: Accumulator[A], query: Query[K, V], key: K): Vector[A] =
+    apply(query, key)
+    val seen = mutable.HashSet.empty[Slot]
+    val out = mutable.ArrayBuffer.empty[A]
+    def visit(slot: Slot): Unit =
+      if seen.add(slot) then
+        memos.get(slot).foreach { m =>
+          m.deps.foreach(visit)
+          m.accumulated.get(acc).foreach(vs => out ++= vs.asInstanceOf[Vector[A]])
+        }
+    visit((query, key))
+    out.toVector
+
+  /** Whether the running query received a cycle fallback ([[Query.onCycle]]), directly or through a query
+   *  it demanded during this computation. */
+  def recoveredFromCycle: Boolean = stack.lastOption.exists(f => f.recovered || f.cycleHead)
+
   /** Brings the memo of a query up to date with the current revision and returns it. */
   private def fresh(slot: Slot): Memo =
     if stack.exists(_.slot == slot) then
-      val path = stack.dropWhile(_.slot != slot).map(f => describe(f.slot)).toList :+ describe(slot)
-      throw CycleError(path)
+      val (query, key) = slot.asInstanceOf[(Query[Any, Any], Any)]
+      query.onCycle(key) match
+        case Some(fallback) =>
+          // the queries inside the cycle computed with the fallback; the re-entered one closes it
+          val cycle = stack.dropWhile(_.slot != slot)
+          cycle.head.cycleHead = true
+          cycle.tail.foreach(_.recovered = true)
+          return Memo(fallback, current, current, Vector.empty, Map.empty)
+        case None =>
+          val path = stack.dropWhile(_.slot != slot).map(f => describe(f.slot)).toList :+ describe(slot)
+          throw CycleError(path)
     memos.get(slot) match
       case Some(m) if m.verifiedAt == current => m
       case Some(m) if m.deps.forall(d => changedAt(d) <= m.verifiedAt) =>
@@ -135,13 +192,16 @@ final class Database:
     val value =
       try query.compute(key)(using this)
       finally stack.remove(stack.length - 1)
+    // a query that computed with a fallback passes the recovery on to the query that demanded it
+    if frame.recovered && !frame.cycleHead then stack.lastOption.foreach(_.recovered = true)
+    val accumulated = frame.accumulated.view.mapValues(_.toVector).toMap
     stats.computed += 1
     stats.computedBy(query.name) += 1
     val memo = old match
       case Some(m) if m.value == value =>
-        // early cut-off: same value, dependents need not be recomputed
-        Memo(m.value, current, m.changedAt, frame.deps.toVector)
-      case _ => Memo(value, current, current, frame.deps.toVector)
+        // early cut-off: same value, dependents need not be recomputed (side outputs are the new ones)
+        Memo(m.value, current, m.changedAt, frame.deps.toVector, accumulated)
+      case _ => Memo(value, current, current, frame.deps.toVector, accumulated)
     memos(slot) = memo
     memo
 
