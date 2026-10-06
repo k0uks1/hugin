@@ -28,12 +28,6 @@ lazy val root = (project in file("."))
     Global / cancelable := true
   )
 
-// `sbt fuzz`: the long run of the fuzz suites (hugin.fuzz), with HUGIN_FUZZ_COUNT tests per property
-// (default 2000) from the seed HUGIN_FUZZ_SEED (a number, or the seed printed by a failing run; default random)
-addCommandAlias(
-  "fuzz",
-  "set Test / javaOptions ++= Seq(" +
-    "s\"-Dhugin.fuzz.count=${sys.env.getOrElse(\"HUGIN_FUZZ_COUNT\", \"2000\")}\", " +
-    "s\"-Dhugin.fuzz.seed=${sys.env.getOrElse(\"HUGIN_FUZZ_SEED\", \"random\")}\"); " +
-    "testOnly hugin.fuzz.*"
-)
+// `sbt fuzz`: the long run of the fuzz suites (hugin.fuzz): 2000 tests per property from a random seed;
+// HUGIN_FUZZ_COUNT and HUGIN_FUZZ_SEED in the environment override both (see README, "Fuzz testing")
+addCommandAlias("fuzz", "set Test / javaOptions += \"-Dhugin.fuzz.long=true\"; testOnly hugin.fuzz.*")
