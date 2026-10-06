@@ -29,6 +29,16 @@ final class StratifyPhase extends Phase:
       d = d.withNote(s"cycle: ${e.from.name} -> ${cycle.mkString(" -> ")}")
       for x <- path.take(3) do d = d.withLabel(x.span, s"`${x.from.name}` depends on `${x.to.name}`")
       d = d.withNote("negation and aggregation must not occur in a recursive cycle (Section 6.4)")
+      // the demand of a disjunction inside an aggregate reads the caller (see `DemandPhase.auxDemand`)
+      (e :: path).map(_.to.kind).collectFirst { case RelKind.Demand(aux, _) if aux.kind.isInstanceOf[RelKind.Auxiliary] => aux }.foreach {
+        aux =>
+          d = d.withNote(
+            s"`${aux.name}` stands for a disjunction inside an aggregate; its demand needs the disjunction's outer variables, which are bound only by relations that depend on `${e.from.name}`"
+          )
+          d = d.withHelp(
+            s"bind the disjunction's outer variables with relations evaluated before `${e.from.name}`, or define the disjunction as a relation with one rule per alternative"
+          )
+      }
       ctx.report(Diag.rule(e.rule)(d))
 
     // Facts constructed through nested heads in relations of *earlier* components can be missed by

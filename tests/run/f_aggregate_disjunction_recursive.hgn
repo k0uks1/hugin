@@ -1,0 +1,18 @@
+(* a disjunction inside an aggregate in a recursive rule (issue #1, F1): the demand of the auxiliary
+   relation is built from the formulas that do not depend on the rule's head (`p X _`, not `s X`), so the
+   program stays stratified *)
+p : int -> int -> rel. p 1 2. p 2 3. p 3 3. p 4 9.
+e : int -> rel. e 5.
+next : int -> int -> rel. next 1 2. next 2 3. next 3 4.
+s : int -> rel.
+s 1.
+s Y :- s X, next X Y, p Y _, N = count { V | e V ; p Y V }, N > 1.
+t : int -> int -> rel.
+t X N :- p X _, s X, N = count { V | e V ; (p X V, V > 2) }.
+(* mutual recursion: the demand of `u`'s auxiliary relation must not read `w` *)
+u : int -> rel.
+w : int -> rel.
+u 1.
+w X :- u X.
+u Y :- w X, next X Y, M = sum { V | (p Y V, V < 9) ; (e V, Y < 3) }, M > 2.
+%output s. %output t. %output u.

@@ -1,0 +1,11 @@
+(* issue #1, F3: a head constructor term counts as constructive unless its variables are bound by plain
+   relations outside the component. `N` is bound by the constructor relation `s`, which lies outside
+   `{d}` but whose facts this very rule creates (`s (s N)` makes new `s` facts match), so it is no
+   finite source *)
+t : type. z : t. s : t -> t.
+b : t -> rel. b z.
+d : t -> rel.
+d z :- b z.
+d X :- d X.
+d (s (s N)) :- s N.
+%output d.

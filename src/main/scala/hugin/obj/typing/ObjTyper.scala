@@ -274,6 +274,11 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       }
       checkArgs(c, args, inHead)
     case Term.As(x, _) => checkTerm(x, col, inHead, where)
+    case Term.Ascr(x, tp) if !x.isInstanceOf[Term.Var] && synth(x).exists(sx => sx != OType.Err && ops.isSub(sx, tp)) =>
+      // a term that is not a variable has its synthesized type, and by subsumption every supertype of it:
+      // `(nil : list int)` ascribes the constructor term with its declared result type (`Γ ⊢ t : τ` with
+      // τ = T), which always holds; the term must still fit the position
+      checkTerm(x, col, inHead, where)
     case Term.Ascr(x, tp) =>
       // τ is the type of the position (column) the ascribed term occupies, or its synthesized type
       val inner = col.orElse(synth(x)).getOrElse(OType.Err)

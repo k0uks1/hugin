@@ -112,14 +112,18 @@ object ProgramGen:
       val derived = mutable.ArrayBuffer.empty[Rel]
       var demand = Option.empty[Rel]
       for i <- 0 until between(1, 4) do
-        // a recursive relation has only columns of base types: its heads must not construct facts, not
-        // even ground ones like `red` (Definition 10.1; the termination check rejects growing components
-        // without `%terminates`)
+        // the heads of a recursive relation construct only terms that take finitely many values: ground
+        // terms (`none`, `mk 1`) or terms over variables bound by atoms of earlier relations (`some V`);
+        // others are constructive (Definition 10.1 as refined in docs/NOTES.md) and the termination check
+        // rejects the component without `%terminates`
         val recursive = chance(0.4)
         val lower = base ++ derived
         // a column of a read type needs a relation to read its values from
-        def colTy(): Ty = Iterator.continually(ty()).find(t => !read(t) || lower.exists(_.cols.contains(t))).get
-        val r = Rel(s"d$i", Vector.fill(between(1, 3))(if recursive then pick(Seq(IntT, IntT, StrT)) else colTy()))
+        def colTy(types: => Ty): Ty = Iterator.continually(types).find(t => !read(t) || lower.exists(_.cols.contains(t))).get
+        val r = Rel(
+          s"d$i",
+          Vector.fill(between(1, 3))(if recursive then colTy(pick(Seq(IntT, IntT, IntT, StrT, ColorT, OptT, BoxT))) else colTy(ty()))
+        )
         declare(r, named = true)
         val calls =
           for k <- 0 until between(1, 3) yield
@@ -140,7 +144,8 @@ object ProgramGen:
 
     /** One rule of `head`; positive atoms over `lower` (and `head` if `recursive`), negation and aggregates
      *  over `lower` only. In the rules of a relation with recursive rules (`inRecursion`), heads compute
-     *  nothing (the termination check rejects such growing components without `%terminates`). */
+     *  nothing and construct terms only over variables bound by atoms of `lower` (the termination check
+     *  rejects growing components without `%terminates`). */
     private final class RuleBuilder(head: Rel, lower: Vector[Rel], inRecursion: Boolean, recursive: Boolean):
       private val bound = mutable.LinkedHashMap.empty[String, Ty]
       private var fresh = 0
@@ -167,16 +172,18 @@ object ProgramGen:
         val old = boundOf(t)
         if old.nonEmpty && chance(0.5) then pick(old) else if chance(0.5) then "_" else pattern(t)
 
+      /** Variables that occur in positive atoms of `lower` relations (bound without the recursion). */
+      private val lowerVars = mutable.HashSet.empty[String]
+
       private def positive(): String =
         val r = if recursive && chance(0.5) then head else pick(lower)
-        atom(r, r.cols.map(arg))
+        val a = atom(r, r.cols.map(arg))
+        if r != head then lowerVars ++= raw"V\d+".r.findAllIn(a)
+        a
 
       private def comparison(): Option[String] =
         val ints = boundOf(IntT)
-        // lists are compared with lists only: the type argument of `nil` or `cons` is not inferred from the
-        // other side of a comparison, and an ascription `(nil : list int)` is rejected (E0405)
-        val others = Seq(StrT, ColorT).flatMap(t => boundOf(t).map(_ -> t)) ++
-          Some(boundOf(ListT)).filter(_.length > 1).toSeq.flatMap(_.map(_ -> ListT))
+        val others = Seq(StrT, ColorT, ListT).flatMap(t => boundOf(t).map(_ -> t))
         if ints.nonEmpty && (others.isEmpty || chance(0.7)) then
           val op = pick(Seq("<", "<=", ">", ">=", "=", "<>"))
           val rhs = if ints.length > 1 && chance(0.4) then pick(ints) else int()
@@ -184,9 +191,15 @@ object ProgramGen:
         else if others.nonEmpty then
           val (v, t) = pick(others)
           val same = boundOf(t).filter(_ != v)
-          if same.nonEmpty && (t == ListT || chance(0.4)) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
+          if same.nonEmpty && chance(0.4) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
           // `X <> red` is false while `red` was never constructed (the term has no value); demand facts
-          // construct their arguments, so with `%mode` the answer would change (a known issue, see README)
+          // construct their arguments, so with `%mode` the answer would change (a known issue, see README).
+          // `nil` exists whenever a list does (it ends every list).
+          else if t == ListT then
+            val c = const(t)
+            val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c
+            val op = if c == "nil" then pick(Seq("=", "<>")) else "="
+            Some(if chance(0.5) then s"$v $op $rhs" else s"$rhs $op $v")
           else if t == ColorT then Some(s"$v = ${const(t)}")
           else Some(s"$v ${pick(Seq("=", "<>"))} ${const(t)}")
         else None
@@ -203,11 +216,12 @@ object ProgramGen:
         val vt = if numeric then IntT else pick(lower).cols.head
         val kind = if numeric then pick(Seq("count", "sum", "min", "max")) else if vt == StrT && chance(0.5) then "min" else "count"
         val v = newVar()
-        // A disjunction with inputs (outer variables) becomes a moded auxiliary relation whose demand
-        // depends on the whole rule body before the aggregate; in a recursive component that is a cycle
-        // through the aggregate (E0601) although the program is stratified (a known bug, see README)
+        // A disjunction with inputs (outer variables) becomes a moded auxiliary relation; its demand is
+        // built from the formulas that do not depend on the rule's head. In a recursive rule an outer
+        // variable bound only by the recursive atom would make the demand read the head: a cycle through
+        // the aggregate (E0601, `tests/neg/f_aggregate_disjunction_cycle.hgn`).
         val n = if chance(0.3) then 2 else 1
-        val outer = !(inRecursion && n > 1)
+        def outer(v: String) = !(recursive && n > 1) || lowerVars(v)
         def alternative(): String =
           val r = pick(lower.filter(_.cols.contains(vt)))
           val at = between(0, r.cols.length - 1)
@@ -217,8 +231,8 @@ object ProgramGen:
           val args = r.cols.zipWithIndex.map { (t, c) =>
             if c == col then v
             else
-              val old = boundOf(t)
-              if outer && old.nonEmpty && chance(0.3) then pick(old)
+              val old = boundOf(t).filter(outer)
+              if old.nonEmpty && chance(0.3) then pick(old)
               else if chance(0.4) then "_"
               else if chance(0.4) then pattern(t)
               else newVar() // local to the aggregate
@@ -270,7 +284,8 @@ object ProgramGen:
           body += atom(r, r.cols.zipWithIndex.map((u, c) => if c == at then bind(u) else arg(u)))
         val args = head.cols.map { t =>
           val old = boundOf(t)
-          val ints = boundOf(IntT)
+          // a constructor term over a variable bound only through the recursion (or computed) can grow
+          val ints = boundOf(IntT).filter(v => !inRecursion || lowerVars(v))
           if t == OptT && ints.nonEmpty && chance(0.3) then s"(some ${pick(ints)})"
           else if t == BoxT && ints.nonEmpty && chance(0.3) then s"(mk ${pick(ints)})"
           else if old.nonEmpty && (t == ColorT || t == ListT || chance(0.9)) then pick(old)

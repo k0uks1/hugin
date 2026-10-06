@@ -173,6 +173,20 @@ final class Monomorphizer(p: ObjProgram)(using Context):
             case _ =>
         case _ =>
 
+    /** Both sides of a comparison have one type. Facts of different constructors of a family (`L <> nil`
+     *  with `L : list int`, `cons 1 nil = nil`) are compared at the constructors' declared result types,
+     *  as in `constrain`, so the family arguments of both sides are unified (issue #1, F4). */
+    def compare(a0: OType, b0: OType, span: Span): Unit =
+      (resolve(a0), resolve(b0)) match
+        case (a @ OType.Fact(r1, _), b @ OType.Fact(r2, _)) if r1 == r2 => unify(a, b, span)
+        case (a, b) => unify(widen(a), widen(b), span)
+
+    /** The declared result type of a constructor fact of a family; other types unchanged. */
+    private def widen(t: OType): OType = t match
+      case OType.Fact(c, as) if c.kind == RelKind.Ctor && c.tparams.nonEmpty && c.result.isDefined =>
+        OType.subst(c.result.get, c.tparams.zip(as).toMap)
+      case other => other
+
     def report(d: Diagnostic): Unit = ctx.report(d.withOrigin(origin))
 
     def varType(n: String): OType = varTypes.getOrElseUpdate(n, fresh())
@@ -221,10 +235,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
         val (cols, ft) = instantiate(r, a, a.span)
         args.zip(cols).foreach((x, c) => constrain(term(x), c.tpe, x.span))
         as.foreach(v => unify(varType(v), ft, a.span))
-      case Formula.Cmp(_, l, r) =>
-        val tl = term(l)
-        val tr = term(r)
-        unify(tl, tr, f.span)
+      case Formula.Cmp(_, l, r) => compare(term(l), term(r), f.span)
       case Formula.Not(a) => formula(a)
       case Formula.Agg(res, k, t, b) =>
         b.foreach(formula)
@@ -248,13 +259,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           ok = false
           val missing = rel.tparams.zip(args).filterNot((_, a) => OType.isGround(a)).map(_._1.name)
           if first then
-            inf.report(Diagnostic.error(
-              "E0206",
-              s"cannot infer type argument${if missing.length > 1 then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`",
-              span,
-              "type not determined"
-            )
-              .withHelp(s"add a type ascription, e.g. `(${rel.name} ... : T)`"))
+            inf.report(cannotInfer(rel, node, args, missing, span))
           rel
         else
           val margs = args.map(monoType(_, span, r.origin))
@@ -299,6 +304,37 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       case other => other
     val out = r.withParts(heads = r.heads.map(t), body = r.body.map(f))
     if ok then Some(out) else None
+
+  /** E0206, with an ascription that determines the missing arguments: a constructor term ascribed with
+   *  its declared result type (`(nil : list A)`), or an argument of a relation atom ascribed with its
+   *  column type. The missing parameters are left as names for the user to replace. */
+  private def cannotInfer(rel: RelSym, node: AnyRef, args: List[OType], missing: List[String], span: Span): Diagnostic =
+    val known = rel.tparams.zip(args).map((p, a) => p -> (if OType.isGround(a) then a else OType.Param(p))).toMap
+    val plural = missing.length > 1
+    val d = Diagnostic.error(
+      "E0206",
+      s"cannot infer type argument${if plural then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`",
+      span,
+      "type not determined"
+    )
+    val ascription = (node, rel.result) match
+      case (Term.App(_, as), Some(res)) =>
+        val t = ObjPrinter.term(Term.App(RelRef.Sym(rel), as)(span))
+        Some(s"ascribe the constructor term with its result type, e.g. `($t : ${OType.subst(res, known).show})`")
+      case _ =>
+        val as = node match
+          case Formula.Atom(_, as, _) => as
+          case Term.App(_, as) => as
+          case _ => Nil
+        val mentions = (t: OType) => OType.exists(t) { case OType.Param(p) => missing.contains(p.name); case _ => false }
+        as.zip(rel.cols).zipWithIndex.collectFirst {
+          case ((a, c), i) if mentions(c.tpe) =>
+            s"ascribe argument ${i + 1} of `${rel.name}` with its type, e.g. `(${ObjPrinter.term(a)} : ${OType.subst(c.tpe, known).show})`"
+        }
+    val names = missing.map(m => s"`$m`").mkString(", ")
+    ascription match
+      case Some(h) => d.withHelp(s"$h, with $names replaced by the intended type${if plural then "s" else ""}")
+      case None => d.withHelp("add a type ascription to an argument, e.g. `(X : T)`")
 
   private def polyRec(g: RelSym, f: RelSym, us: List[OType], ts: List[OType], span: Span, origin: Origin): Unit =
     ctx.report(Diagnostic.error(

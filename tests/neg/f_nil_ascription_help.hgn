@@ -1,0 +1,4 @@
+(* issue #1, F4: when nothing determines the type argument of `nil`, the help suggests an ascription with
+   the constructor's result type, which is accepted (`tests/run/f_nil_comparison.hgn`) *)
+e : int -> rel. e 1.
+?- e X, nil = nil.
