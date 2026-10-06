@@ -70,7 +70,7 @@ object TypingResults:
   def empty: TypingResults = SymTable()
 
 /** The typer's symbol table: typing results per symbol, owned and filled by the typer, exposed afterwards
- *  as [[TypingResults]] (`CompilationUnit.symbols`). Symbols are keyed by identity. */
+ *  as [[TypingResults]] (`CompilationUnit.symbols`). Symbols are keyed by their (stable) keys. */
 final class SymTable extends TypingResults:
   private val infos = mutable.HashMap.empty[Sym, SymInfo]
 

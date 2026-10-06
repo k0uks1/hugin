@@ -2,7 +2,7 @@ package hugin.compiler
 
 import hugin.util.SourceFile
 import hugin.syntax.Program
-import hugin.meta.{MExpr, Scope, TypingResults}
+import hugin.meta.{MExpr, Scope, ScopeKey, SymKeys, TypingResults}
 import hugin.obj.*
 import scala.collection.mutable
 
@@ -13,14 +13,16 @@ final class CompilationUnit(val source: SourceFile):
   /** The prelude and the imported files, keyed by resolved path, in dependency order (prelude first). */
   val libraries: mutable.LinkedHashMap[String, Library] = mutable.LinkedHashMap.empty
 
-  /** Resolved paths of `%import` expressions (keyed by tree identity), and paths that were not found. */
-  val imports: java.util.IdentityHashMap[hugin.syntax.Trees.Import, String] = java.util.IdentityHashMap()
+  /** Resolved paths of imports that were not found. */
   val missingImports: mutable.Set[String] = mutable.HashSet.empty
 
   var rootScope: Scope | Null = null
 
-  /** Scopes of module bodies (keyed by identity of the surface tree). */
-  val scopes: java.util.IdentityHashMap[AnyRef, Scope] = java.util.IdentityHashMap()
+  /** Scopes of nested module bodies, in elaboration order. */
+  val scopes: mutable.LinkedHashMap[ScopeKey, Scope] = mutable.LinkedHashMap.empty
+
+  /** The keys of all meta-level symbols created so far, to check that they are unique. */
+  val symKeys: SymKeys = SymKeys()
   var elab: MExpr | Null = null
 
   /** Typing results of the meta level (filled by the typer). */

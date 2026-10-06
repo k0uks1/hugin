@@ -12,12 +12,15 @@ program under edits) is the safety net for all of them.
   `Sym` holds only namer output. `Scope` carried `qualifier`/`shadowed`, which the program wrote into the
   prelude's scope; since step 4 they are MetaEval inputs.
 * `CompilationUnit` maps keyed by tree identity (`imports`, `scopes`) and `deferred` closures that run
-  in a later phase.
+  in a later phase; since steps 4–6 imports are resolved at use, module-body scopes are keyed by
+  `ScopeKey` and requirement checks are data.
 * Monomorphize mutates the generic program's `RelSym`/`TypeSym` in place.
 * Equality: surface and object trees keep spans in a second parameter list (`==` ignores them), meta
   trees do not; `SourceFile` compares by identity, so `Parse` never cuts off today. A per-item query
   whose result ignores spans would keep stale positions after an edit before the item.
-* Fresh names (`_17`, module prefixes, hygiene) come from counters over the whole file.
+* Fresh names (`_17`, module prefixes, hygiene) come from counters over the whole file; since step 6 the
+  typer's counters (anonymous Π-parameter names, local scope keys) are per item, MetaEval's module
+  prefixes and hygiene counters are still global (MetaEval stays whole-program).
 
 ## Steps
 
@@ -34,8 +37,11 @@ program under edits) is the safety net for all of them.
    from a pre-pass).
 4. **Naming state into MetaEval**: qualifiers and prelude shadowing become MetaEval inputs.
 5. **No identity-keyed unit maps**: resolve imports at use, scopes by key, requirement checks as data.
-6. **Stable keys**: `ItemKey(scope, Named | Rule | Anon(kind, structural hash, occurrence))`,
-   `ScopeKey`, `SymKey`; symbol equality by key; per-item fresh-name counters.
+6. **Stable keys** (done, `meta/Keys.scala`): `ItemKey(scope, Named | Rule | Anon(kind, structural hash,
+   occurrence))`, `ScopeKey` (`File`, `Module`, `Params`, `Local`), `SymKey(scope, name)`; symbol equality
+   by key, with a check that no two symbols of a compilation share one (`SymKeys`); per-item fresh-name
+   and local-scope counters in the typer. Items are keyed by name or by a span-insensitive hash of their
+   tree, never by index, so inserting or editing an item keeps the keys of the others (`KeysSuite`).
 7. **Libraries as queries**: imports, the library graph and file elaboration as queries; the prelude
    and imported files are elaborated once per process, not once per compilation (the largest win for
    the REPL and the language server).

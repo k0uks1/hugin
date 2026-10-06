@@ -99,8 +99,7 @@ final class ImportsPhase extends Phase:
   private def visit(from: String, program: Program, stack: List[String])(using Context): Unit =
     val u = ctx.unit
     for imp <- ImportsPhase.importsIn(program) do
-      val path = SourceLoader.resolve(if imp.pathSpan.exists then imp.pathSpan.source.path else from, imp.path)
-      u.imports.put(imp, path)
+      val path = ImportsPhase.resolve(imp, from)
       if stack.contains(path) then
         val cycle = (path :: stack.takeWhile(_ != path).reverse) :+ path
         ctx.report(
@@ -125,6 +124,11 @@ object ImportsPhase:
   private def normalize(path: String): String =
     try Path.of(path).normalize.toString
     catch case _: InvalidPathException => path
+
+  /** The resolved path of an import: relative to the file it is written in (the source of its span), or
+   *  to `from` if it has no position. */
+  def resolve(imp: Trees.Import, from: String): String =
+    SourceLoader.resolve(if imp.pathSpan.exists then imp.pathSpan.source.path else from, imp.path)
 
   /** All `%import` expressions of a program, in source order. */
   def importsIn(program: Program): List[Trees.Import] =

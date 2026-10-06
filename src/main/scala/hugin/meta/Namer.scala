@@ -26,9 +26,9 @@ object Namer:
    *  then the clauses of formula functions; the symbols are created last, with all of the namer's output. */
   def enter(items: List[Item], scope: Scope)(using Context): Unit =
     /** An accepted declaration. */
-    final case class Entry(name: Ident, kind: SymKind, item: Item, abbrev: Boolean, base: Option[BaseType])
+    final case class Entry(name: Ident, kind: SymKind, item: Item, key: ItemKey, abbrev: Boolean, base: Option[BaseType])
     val entries = mutable.LinkedHashMap.empty[String, Entry]
-    def declare(name: Ident, kind: SymKind, item: Item, abbrev: Boolean = false, base: Option[BaseType] = None): Boolean =
+    def declare(name: Ident, kind: SymKind, item: Item, key: ItemKey, abbrev: Boolean = false, base: Option[BaseType] = None): Boolean =
       entries.get(name.name) match
         case Some(prev) =>
           ctx.report(
@@ -37,10 +37,10 @@ object Namer:
           )
           false
         case None =>
-          entries(name.name) = Entry(name, kind, item, abbrev, base)
+          entries(name.name) = Entry(name, kind, item, key, abbrev, base)
           true
 
-    for item <- items do
+    for (item, key) <- items.zip(ItemKey.assign(scope.key, items)) do
       item match
         case d @ Decl(name, params, tpe, sup, defn, abbrev) =>
           val kind: Option[SymKind] = tpe match
@@ -97,11 +97,11 @@ object Namer:
           kind.foreach { kd =>
             val base = if kd == SymKind.BaseType then defn.collect { case Builtin(b) => builtins(b.name) }
             else None
-            if declare(name, kd, d, abbrev, base) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
+            if declare(name, kd, d, key, abbrev, base) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
               ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
                 .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
           }
-        case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d)
+        case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d, key)
         case _ =>
 
     // clauses of formula functions
@@ -123,7 +123,10 @@ object Namer:
 
     for e <- entries.values do
       val cls = clauses.get(e.name.name).fold(Nil)(_.toList)
-      scope.enter(Sym(e.name.name, e.kind, e.name.span, scope, Some(e.item), cls, e.abbrev, e.base))
+      val name = e.name.name
+      if !scope.claim(name) then throw IllegalStateException(s"`$name` entered twice into ${scope.key}")
+      val key = SymKey(scope.key, name)
+      scope.enter(Sym(name, e.kind, e.name.span, scope, key, ctx.unit.symKeys, Some(e.key), Some(e.item), cls, e.abbrev, e.base))
 
   /** Textual symbol table (output of the `namer` phase). */
   def show(scope: Scope): String =
@@ -138,12 +141,12 @@ final class NamerPhase extends Phase:
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null then return
-    val prelude = Scope(None, "prelude")
+    val prelude = Scope(None, "prelude", ScopeKey.File(SourceLoader.PreludePath))
     for lib <- u.libraries.values do
-      val sc = if lib.isPrelude then prelude else Scope(Some(prelude), s"file ${lib.path}")
+      val sc = if lib.isPrelude then prelude else Scope(Some(prelude), s"file ${lib.path}", ScopeKey.File(lib.path))
       lib.scope = sc
       Namer.enter(lib.program.items, sc)
-    val root = Scope(Some(prelude), "program")
+    val root = Scope(Some(prelude), "program", ScopeKey.File(u.source.path))
     u.rootScope = root
     Namer.enter(u.untpd.nn.items, root)
   override def show(using Context): String = Namer.show(ctx.unit.rootScope.nn)

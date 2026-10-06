@@ -91,7 +91,9 @@ final class Typer(c: Context)
       case DirArgs.Infix(_, _, _) => None
 
   /** Elaborates a meta definition or formula function in item order. */
-  private[meta] def elabMetaDef(s: Sym): Option[MExpr] =
+  private[meta] def elabMetaDef(s: Sym): Option[MExpr] = inItemOf(s)(elabMetaDefIn(s))
+
+  private def elabMetaDefIn(s: Sym): Option[MExpr] =
     val si = syms(s)
     si.state = ElabState.InProgress
     val sc = s.owner
@@ -105,7 +107,7 @@ final class Typer(c: Context)
             si.static = Some(SigV(sig))
             Some(SigV(sig))
           case _ =>
-            val psc = Scope(Some(sc), s"parameters of ${name.name}")
+            val psc = Scope(Some(sc), s"parameters of ${name.name}", ScopeKey.Params(s.key))
             val coll = mutable.ListBuffer.empty[Sym]
             val tv = TVars.MetaImplicit(psc, coll)
             val ps = elabParams(params, psc, tv)
@@ -135,7 +137,7 @@ final class Typer(c: Context)
                 Some(coll.foldRight(elabClauses(s, resT, psc))((a, acc) => Lam(a, acc)))
               case None => None
       case Def(name, params, rhs) =>
-        val psc = Scope(Some(sc), s"parameters of ${name.name}")
+        val psc = Scope(Some(sc), s"parameters of ${name.name}", ScopeKey.Params(s.key))
         val coll = mutable.ListBuffer.empty[Sym]
         val ps = elabParams(params, psc, TVars.MetaImplicit(psc, coll))
         val (body, bt) = inferM(rhs, psc)
@@ -173,7 +175,7 @@ final class Typer(c: Context)
         if psc.lookupLocal(nm).isDefined then
           err("E0102", s"duplicate parameter `$nm`", n.span); None
         else
-          val p = Sym(nm, SymKind.MetaParam, n.span, psc)
+          val p = newParam(nm, n.span, psc)
           paramTypes(p) = tp
           syms.define(p, mt)
           psc.enter(p)
@@ -188,10 +190,10 @@ final class Typer(c: Context)
   private[meta] def elabClauses(s: Sym, t: MType, sc: Scope): MExpr =
     val params = mutable.ListBuffer.empty[Sym]
     var cur = t
-    val csc = Scope(Some(sc), s"clauses of ${s.name}")
+    val csc = localScope(Some(sc), s"clauses of ${s.name}")
     while cur.isInstanceOf[Pi] do
       val Pi(x, d, c, _) = cur: @unchecked
-      val p = Sym(s"${s.name}#${params.length + 1}", SymKind.MetaParam, s.span, csc)
+      val p = newParam(s"${s.name}#${params.length + 1}", s.span, csc)
       syms.define(p, d)
       params += p
       cur = substMT(c, Map(x -> Ref(p)))
@@ -223,55 +225,59 @@ final class Typer(c: Context)
       f <- sc.lookup(n) if f.kind == SymKind.FormulaFn
     do syms(f).fnModes :+= ((ms.map(_.input), d.span))
 
+  /** Elaborates one item of a module body into `out`. */
+  private def elabItem(item: Item, sc: Scope, out: mutable.ListBuffer[EItem]): Unit =
+    item match
+      case d: Decl =>
+        sc.lookupLocal(d.name.name).filter(_.decl.contains(d)) match
+          case None =>
+          case Some(s) =>
+            s.kind match
+              case SymKind.ObjType =>
+                val di = info(s)
+                out += EItem.TypeDecl(s, di.typeKind.getOrElse(TypeKindE.Open), d.span)
+              case SymKind.Struct | SymKind.Rel | SymKind.Ctor =>
+                val di = info(s)
+                out += EItem.RelDecl(s, di.cols, di.result, s.kind == SymKind.Struct, d.span)
+              case SymKind.TypeDef => ensureTypeDef(s, d.span)
+              case SymKind.MetaDef | SymKind.FormulaFn =>
+                elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
+              case _ =>
+      case d: Def =>
+        sc.lookupLocal(d.name.name).filter(_.decl.contains(d)).foreach { s =>
+          elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
+        }
+      case SubEdge(sub, sup) =>
+        val st = elabOType(sub, sc, TVars.NoTVars)
+        classify(sup, sc, null) match
+          case Head.TypeLike(s) if s.kind == SymKind.ObjType =>
+            if !info(s).typeKind.contains(TypeKindE.Open) then
+              ctx.report(Diagnostic.error("E0404", s"`${s.name}` is not an open type", sup.span, "edge target must be open")
+                .withLabel(s.span, "declared here"))
+            else out += EItem.EdgeDecl(st, Ref(s), item.span)
+          case Head.Meta(m, TypeU) => out += EItem.EdgeDecl(st, m, item.span)
+          case Head.Bad =>
+          case _ => err("E0404", "the target of a subtyping edge must be an open type", sup.span)
+      case r: Rule =>
+        val isClause = r.heads.headOption.exists { h =>
+          flattenApp(h)._1 match
+            case Ident(n) => sc.lookupLocal(n).exists(_.kind == SymKind.FormulaFn)
+            case _ => false
+        }
+        if !isClause then elabRule(r, sc).foreach(x => out += EItem.RuleItem(x))
+      case q: Query =>
+        val rc = RuleCtx(allowVars = true)
+        val body = elabFormula(q.body, sc, rc)
+        if !rc.failed then out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
+      case d: Directive => elabDirective(d, sc).foreach(x => out += EItem.DirectiveItem(x))
+
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
     context.unit.index.scope(span, sc)
     collectFnModes(items, sc)
     val out = mutable.ListBuffer.empty[EItem]
-    for item <- items do
-      item match
-        case d: Decl =>
-          sc.lookupLocal(d.name.name).filter(_.decl.contains(d)) match
-            case None =>
-            case Some(s) =>
-              s.kind match
-                case SymKind.ObjType =>
-                  val di = info(s)
-                  out += EItem.TypeDecl(s, di.typeKind.getOrElse(TypeKindE.Open), d.span)
-                case SymKind.Struct | SymKind.Rel | SymKind.Ctor =>
-                  val di = info(s)
-                  out += EItem.RelDecl(s, di.cols, di.result, s.kind == SymKind.Struct, d.span)
-                case SymKind.TypeDef => ensureTypeDef(s, d.span)
-                case SymKind.MetaDef | SymKind.FormulaFn =>
-                  elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
-                case _ =>
-        case d: Def =>
-          sc.lookupLocal(d.name.name).filter(_.decl.contains(d)).foreach { s =>
-            elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
-          }
-        case SubEdge(sub, sup) =>
-          val st = elabOType(sub, sc, TVars.NoTVars)
-          classify(sup, sc, null) match
-            case Head.TypeLike(s) if s.kind == SymKind.ObjType =>
-              if !info(s).typeKind.contains(TypeKindE.Open) then
-                ctx.report(Diagnostic.error("E0404", s"`${s.name}` is not an open type", sup.span, "edge target must be open")
-                  .withLabel(s.span, "declared here"))
-              else out += EItem.EdgeDecl(st, Ref(s), item.span)
-            case Head.Meta(m, TypeU) => out += EItem.EdgeDecl(st, m, item.span)
-            case Head.Bad =>
-            case _ => err("E0404", "the target of a subtyping edge must be an open type", sup.span)
-        case r: Rule =>
-          val isClause = r.heads.headOption.exists { h =>
-            flattenApp(h)._1 match
-              case Ident(n) => sc.lookupLocal(n).exists(_.kind == SymKind.FormulaFn)
-              case _ => false
-          }
-          if !isClause then elabRule(r, sc).foreach(x => out += EItem.RuleItem(x))
-        case q: Query =>
-          val rc = RuleCtx(allowVars = true)
-          val body = elabFormula(q.body, sc, rc)
-          if !rc.failed then out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
-        case d: Directive => elabDirective(d, sc).foreach(x => out += EItem.DirectiveItem(x))
+    for (item, key) <- items.zip(ItemKey.assign(sc.key, items)) do
+      inItem(key)(elabItem(item, sc, out))
     // exports
     val fields = sc.decls.values.toList.flatMap { s =>
       s.kind match
@@ -307,6 +313,11 @@ final class Typer(c: Context)
           case Some(sig) => s"signature ${s.name} = ${showMT(sig)}"
           case None => s"${s.kind.describe} ${s.name} : ${syms.mtype(s).fold("?")(showMT)}"
 
+object Typer:
+  /** The key of the module value of an imported file (`%import` refers to it); `%import` is not a name,
+   *  so the key differs from the keys of the file's declarations. */
+  def moduleKey(lib: Library): SymKey = SymKey(ScopeKey.File(lib.path), "%import")
+
 /** Phase: stage inference and meta typing of the whole program. */
 final class TyperPhase extends Phase:
   def phaseName = "typer"
@@ -321,14 +332,14 @@ final class TyperPhase extends Phase:
       val (body, sig) = typer.elabBody(lib.program.items, sc, lib.program.span)
       lib.body = body
       if !lib.isPrelude then
-        val s = Sym(lib.name, SymKind.MetaDef, Span(lib.parsed.source, 0, 0), sc.parent.getOrElse(sc))
+        val s = Sym(lib.name, SymKind.MetaDef, Span(lib.parsed.source, 0, 0), sc.parent.getOrElse(sc), Typer.moduleKey(lib), u.symKeys)
         typer.syms.define(s, sig)
         lib.sym = s
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
     // the semantic index: declarations of all scopes and descriptions of every known symbol
     val scopes = u.rootScope.nn :: u.libraries.values.toList.flatMap(l => Option(l.scope)) :::
-      scala.jdk.CollectionConverters.CollectionHasAsScala(u.scopes.values).asScala.toList
+      u.scopes.values.toList
     for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
     for s <- u.index.symbols do u.index.describe(s, typer.describe(s))
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced

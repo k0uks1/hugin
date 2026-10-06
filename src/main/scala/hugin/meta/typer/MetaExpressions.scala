@@ -106,19 +106,20 @@ private[meta] trait MetaExpressions extends TyperBase:
     case RecordLit(fields, rest) =>
       if rest then err("E0001", "`..` is only allowed in named patterns", t.span)
       val seen = mutable.HashSet.empty[String]
+      val fieldScope = localKey()
       val fs = fields.flatMap { f =>
         if !seen.add(f.label.name) then
           err("E0307", s"duplicate field `${f.label.name}`", f.label.span); None
         else
           val (m, mt) = inferM(f.value, sc)
-          val fsym = Sym(f.label.name, SymKind.MetaParam, f.label.span, sc)
+          val fsym = newParamIn(f.label.name, f.label.span, sc, fieldScope)
           syms(fsym).mtype = Some(mt)
           Some((f.label.name, m, fsym, mt))
       }
       (Rec(fs.map(f => (f._1, f._2))), Sig(fs.map(f => (f._3, f._4)), Nil))
     case imp: Import =>
       // the module value of an imported file; a missing or cyclic import was reported when loading
-      Option(ctx.unit.imports.get(imp)).flatMap(ctx.unit.libraries.get).flatMap(l => Option(l.sym)) match
+      ctx.unit.libraries.get(ImportsPhase.resolve(imp, sc.key.file)).flatMap(l => Option(l.sym)) match
         case Some(s) =>
           noteUse(imp.pathSpan, s)
           (Ref(s), syms.mtype(s).get)
@@ -127,15 +128,15 @@ private[meta] trait MetaExpressions extends TyperBase:
       err("E0103", s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
       (MExpr.Err, MType.Err)
     case mb: ModuleBody =>
-      val bsc = Scope(Some(sc), "module body")
-      ctx.unit.scopes.put(mb, bsc)
+      val bsc = Scope(Some(sc), "module body", moduleKey())
+      ctx.unit.scopes(bsc.key) = bsc
       Namer.enter(mb.items, bsc)
       elabBody(mb.items, bsc, mb.span)
     case Lambda(p, Some(pt), body) =>
-      val psc = Scope(Some(sc), "lambda")
+      val psc = localScope(Some(sc), "lambda")
       val coll = mutable.ListBuffer.empty[Sym]
       val dom = elabMType(pt, psc, TVars.MetaImplicit(psc, coll))
-      val ps = Sym(paramName(p), SymKind.MetaParam, p.span, psc)
+      val ps = newParam(paramName(p), p.span, psc)
       syms.define(ps, dom)
       psc.enter(ps)
       val (mb, cod) = inferM(body, psc)
@@ -223,7 +224,7 @@ private[meta] trait MetaExpressions extends TyperBase:
     def peel(): Unit =
       while cur match { case Pi(_, _, _, true) => true; case _ => false } do
         val Pi(x, _, cod, _) = cur: @unchecked
-        val y = Sym(x.name, SymKind.MetaParam, x.span, x.owner)
+        val y = newParamIn(x.name, x.span, x.owner, localKey())
         syms(y).mtype = Some(TypeU)
         solved(y) = None
         spine += Left(y)
@@ -345,14 +346,14 @@ private[meta] trait MetaExpressions extends TyperBase:
     case (_, MType.Err) => inferM(t, sc)._1
     case (Parens(i), _) => checkM(i, expected, sc, rc)
     case (Lambda(p, None, body), Pi(x, dom, cod, false)) =>
-      val psc = Scope(Some(sc), "lambda")
-      val ps = Sym(paramName(p), SymKind.MetaParam, p.span, psc)
+      val psc = localScope(Some(sc), "lambda")
+      val ps = newParam(paramName(p), p.span, psc)
       syms.define(ps, dom)
       psc.enter(ps)
       Lam(ps, checkM(body, substMT(cod, Map(x -> Ref(ps))), psc, rc))
     case (_, Pi(x, TypeU, cod, true)) =>
-      val psc = Scope(Some(sc), "implicit parameters")
-      val ps = Sym(x.name, SymKind.MetaParam, x.span, psc)
+      val psc = localScope(Some(sc), "implicit parameters")
+      val ps = newParam(x.name, x.span, psc)
       syms.define(ps, TypeU)
       psc.enter(ps)
       Lam(ps, checkM(t, substMT(cod, Map(x -> Ref(ps))), psc, rc))
