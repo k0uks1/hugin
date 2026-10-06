@@ -1,0 +1,6 @@
+(* imported by trip.hgn; imports geo.hgn from its own directory *)
+geo = %import "geo".
+leg : geo.place -> geo.place -> rel.
+leg geo.here geo.there.
+leg geo.there geo.far.
+legs = tc { node = geo.place, edge = leg }.

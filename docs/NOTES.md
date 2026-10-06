@@ -145,6 +145,55 @@ elaboration, no variables local to negations or aggregates).
   occurs in a `Scan`. Bodies are executed by backtracking over the IR; aggregates collect one value per
   distinct binding of the aggregate's local variables (Definition 8.4).
 
+## Values and facts: probe semantics (issue #1, F2)
+
+Constructing a value asserts a fact (subfact closure), which is what lets created facts trigger rules. The
+demand transformation also constructs values, the input arguments of moded calls, so without a
+distinction `%mode`, which should only choose an evaluation strategy, added facts to the constructor
+relations (`d B (bind G X T1) :- d (lam X T1 B) G` made `bind` facts appear) and changed answers of
+queries, negations, aggregates and patterns over them. The implementation separates two notions that
+the definition identifies:
+
+* **values** are interned terms with identities; every constructed term is one;
+* **facts** are values that belong to the database (asserted).
+
+1. Construction in ordinary rule heads asserts, as before, with the values nested in it (subfact
+   closure); created facts trigger rules.
+2. Construction in the input columns of demand rules, and in the input columns (of the guarding mode) of
+   a moded relation's own rules, only interns: such a value is a **probe**. The demand fact itself, and
+   the moded relation's answer, are facts.
+3. Nested patterns destructure values structurally; only top-level atoms require facts. For values built
+   by ordinary heads the subvalues are facts anyway, so this changes nothing for programs without modes.
+
+Guarantee: `%mode` never adds facts to relations other than the moded relation and its demand relations.
+The definition needs four changes: structural matching of nested patterns (no existence condition); the
+store invariant "every identity refers to an interned value, and values built by ordinary heads are
+facts" instead of "every identity in a fact refers to a fact"; demand rules intern their input terms
+without asserting them; probe construction counts as constructive for termination (it invents values).
+
+**Implementation.** `runtime/Store.scala`: each relation keeps all values by identity and, separately,
+the identities of its facts in assertion order; scans and their indexes read facts only, and the
+old/delta/full windows of semi-naive evaluation are positions in the assertion order, so a probe that an
+ordinary head asserts later enters the delta like any new fact. `Deref` and `Lookup` see all values.
+`obj/Probes.scala` decides the probe columns of a rule (used by lowering and by the dependency graph).
+**Dependency graph (Section 6.4)**: a body depends on the relations of its atoms only, not on constructor
+patterns nested in them (structural matching reads no facts); a head constructor adds an edge only if it
+is built outside the probe columns (a probe adds no facts). Constructor terms compared with `=` / `<>`
+still count, because such a comparison requires the value to exist.
+
+**Consequence for the type checker example (Section 13.4).** Contexts are arguments, not data, so `lookup`
+can no longer enumerate `bind` facts; it is moded and terminates structurally on the context:
+`%mode lookup +g +x -t. %terminates g lookup.` The termination check now groups a moded component by the
+strongly connected components of its demand graph (see "Termination (issue #2)"), because `typed` calls
+`lookup` (one way) while the dependency graph joins them through answers.
+
+**Open point.** A comparison with a constructor term (`X <> red`) is evaluated by looking up the value of
+`red`; if `red` was never interned, the comparison fails (the rule does not fire). Since probes are
+interned, whether such a comparison can succeed still depends on whether some demand has built the
+value, and the dependency graph does not order a comparison after probe construction. Reading a
+comparison with a term that does not exist as "different from every existing value" (`=` false, `<>`
+true) would remove the dependence on existence altogether.
+
 ## Termination (issue #2)
 
 The termination check (`obj/check/Termination.scala`) generalises Definition 10.3. A recursive
@@ -210,14 +259,22 @@ and every measured position is an input of every mode). Conditions:
    constructive.
 2. A rule of a measured relation calls relations of the component only if they are measured, demand
    relations, or unmeasured relations that do not depend on answers of measured relations other than
-   through demand relations (the type checker's `lookup` depends only on `bind` facts constructed by
-   demands).
+   through demand relations.
 3. Every propagation rule `e^d(ū) :- g^d(w̄), …` whose guard is a demand of a measured relation `g` (in
    any component — the demands of `log2` form their own component), and every propagation rule of the
    component that reads the component, decreases the measure from guard to head: `μ_e(ū) < μ_g(w̄)`,
    decreasing at slot `i`; if slot `i` is an integer, the body bounds `u_i` below (or binds it by relations
    outside the component). Later slots are unconstrained (Ackermann: `ack (M - 1) R1 R` with `R1`
    computed).
+4. Conditions 2 and 3 apply per *demand group*: a strongly connected component of the demand graph
+   (an edge `g → e` for every propagation rule `e^d … :- g^d …` between measured relations). A
+   propagation rule from one group into another needs no decrease, and measures of different groups
+   need not have the same shape. The type checker's `typed` (measure `e`) calls `lookup` (measure `g`),
+   which never calls back; the dependency graph joins them through answers (`typed` reads `lookup`, whose
+   demands come from `typed`'s demands), but their demands form two groups. *Soundness:* order the
+   groups topologically; a demand's rank is (position of its group, measure). Every propagation rule
+   either stays in its group and decreases the measure, or moves to a later group, so ranks decrease
+   lexicographically along demand chains and the argument below applies unchanged.
 
 *Soundness.* By condition 3 every chain of demand facts, each derived from the previous one as guard, is
 lexicographically decreasing, and the order is well founded on the values that occur: slot 1 never

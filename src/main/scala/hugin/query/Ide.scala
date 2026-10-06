@@ -153,7 +153,7 @@ object Ide:
    *  - inside the braces of a named pattern `c { ... }`: the labels of `c`;
    *  - after `m.`: the members of the module `m`;
    *  - otherwise: the names in scope at the offset (innermost module body outwards) and the variables of
-   *    the enclosing rule.
+   *    the enclosing rule (also of a rule that is still being typed and does not compile).
    *  Candidates are filtered by the identifier prefix before the offset. */
   def completions(key: CompileKey, offset: Int)(using db: Database): List[CompletionItem] =
     val ix = index(key)
@@ -174,13 +174,16 @@ object Ide:
       enclosingNamedPattern(source, start).flatMap(rel => labels(ix, key, rel)) match
         case Some(ls) => matching(ls)
         case None =>
-          val scopes = ix.scopes.filter((sp, _) => covers(sp, key.path, offset)).sortBy((sp, _) => size(sp))
-          val names = scopes.headOption.toList.flatMap((_, sc) => inScope(ix, sc))
+          // outside every recorded extent (e.g. in a part of a program made of several files): the program's scope
+          val scopes = ix.scopes.filter((sp, _) => covers(sp, key.path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
+          val scope = scopes.headOption.orElse(Option(db(Compile, key).context.unit.rootScope))
+          val names = scope.toList.flatMap(inScope(ix, _))
           val vars = ix.variables
             .filter(v => covers(v.item, key.path, offset))
             .map(v => CompletionItem(v.display, "variable", v.tpe))
-            .filterNot(_.label == "_")
-          matching(vars ++ names)
+          // the variables of an item that does not compile (yet) are not in the index: they are lexed
+          val typed = itemVariables(source, start, offset).map(v => CompletionItem(v, "variable", "variable"))
+          matching((vars ++ typed).filterNot(_.label == "_") ++ names)
 
   private val directives =
     List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "import", "builtin")
@@ -200,6 +203,23 @@ object Ide:
     s.mtype match
       case hugin.meta.MType.Sig(fields, _) => fields.map((f, _) => item(ix, f))
       case _ => Nil
+
+  /** The variables written in the item around an offset (from the period ending the previous item to the
+   *  one ending this item), except the one being typed (from `start` to `offset`). */
+  private def itemVariables(source: SourceFile, start: Int, offset: Int): List[String] =
+    val toks = Lexer(source, Reporter()).tokenize().toVector
+    val depths = toks.scanLeft(0) { (depth, t) =>
+      t.kind match
+        case Tok.LParen | Tok.LBrack | Tok.LBrace => depth + 1
+        case Tok.RParen | Tok.RBrack | Tok.RBrace => (depth - 1).max(0)
+        case _ => depth
+    }
+    def ends(i: Int) = toks(i).kind == Tok.Period && depths(i) == 0
+    val first = toks.indices.filter(i => ends(i) && toks(i).span.end <= start).lastOption.fold(0)(_ + 1)
+    val last = toks.indices.find(i => i >= first && ends(i) && toks(i).span.start >= offset).getOrElse(toks.length)
+    toks.slice(first, last).toList.collect {
+      case t if t.kind == Tok.Var && !(t.span.start == start && t.span.end == offset) => t.text
+    }
 
   /** If the offset is inside the braces of `c { ... }`, the name of `c`. */
   private def enclosingNamedPattern(source: SourceFile, offset: Int): Option[String] =

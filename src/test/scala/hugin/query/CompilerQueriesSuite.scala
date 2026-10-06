@@ -139,3 +139,30 @@ class CompilerQueriesSuite extends munit.FunSuite:
     // inside the functor body: its parameter, its declarations and the program's names are in scope
     assert(labels("reach X :- g").contains("g"))
   }
+
+  test("completions offer the variables of an item that does not compile yet") {
+    given db: Database = Database()
+    val text = "edge : int -> int -> rel.\nreach Start Goal :- edge Start Mid, edge Mid (G\n"
+    db.set(SourceText, "v.hgn", text)
+    val k = CompileKey("v.hgn")
+    assert(db(Compile, k).hasErrors)
+    assertEquals(Ide.completions(k, text.length - 1).map(_.label), List("Goal"))
+    assertEquals(Ide.completions(k, text.indexOf("Mid,")).filter(_.kind == "variable").map(_.label), List("G", "Goal", "Mid", "Start"))
+  }
+
+  test("a composite program: the items of several files, each keeping its file") {
+    given db: Database = Database()
+    val dir = java.nio.file.Files.createTempDirectory("hugin-composite")
+    java.nio.file.Files.writeString(dir.resolve("geo.hgn"), "place : type. here : place.")
+    val main = dir.resolve("main.hgn").toString
+    db.set(SourceText, main, "g = %import \"geo\".\n?- g.here = g.here.")
+    db.set(SourceText, "<input 1>", "at : g.place -> rel.\nat g.her.")
+    db.set(Composite, "<s>", Vector(Part(main, queries = false), Part("<input 1>")))
+    val compiled = db(Compile, CompileKey("<s>"))
+    // the import is resolved relative to main.hgn; the error points into `<input 1>`
+    assertEquals(compiled.context.unit.libraries.keys.toList.last, dir.resolve("geo.hgn").toString)
+    val d = compiled.diagnostics.filter(_.severity == hugin.util.Severity.Error)
+    assertEquals(d.map(e => (e.primarySpan.source.path, e.primarySpan.startLine, e.primarySpan.text)), List(("<input 1>", 1, "her")))
+    // the queries of a part are left out unless asked for
+    assertEquals(db(ParseProgram, "<s>").program.items.length, 3)
+  }

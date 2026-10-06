@@ -172,7 +172,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
     val rc = RuleCompiler(compOf.get(h))
     val body = rc.body(r.body, versioned = true)
     val head = hargs.map(rc.expr).toArray
-    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms)
+    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms, Probes.columns(r))
 
   def lowerQuery(q: Query): CompiledQuery =
     val alts = q.body match

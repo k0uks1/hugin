@@ -20,6 +20,25 @@ object Parse extends Query[String, Parsed]("parse"):
 private final class DatabaseLoader(using db: Database) extends SourceLoader:
   def load(path: String): Option[Parsed] = if db.has(SourceText, path) then Some(db(Parse, path)) else None
 
+/** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
+final case class Part(path: String, queries: Boolean = true)
+
+/** The files of a program that is not one file, such as a REPL session (its inputs and loaded files): the
+ *  items of the parts, in order, form one module body. A path without this input is a file of its own. */
+object Composite extends Input[String, Vector[Part]]("composite")
+
+/** Parses a program: the file at `path`, or the parts set as its [[Composite]]. The items of a part keep
+ *  their own source file, so their diagnostics point into it and their `%import`s resolve relative to it. */
+object ParseProgram extends Query[String, Parsed]("parseProgram"):
+  def compute(path: String)(using db: Database): Parsed =
+    if !db.has(Composite, path) then db(Parse, path)
+    else
+      val parts = db.get(Composite, path).map(p => (p, db(Parse, p.path)))
+      val items = parts.toList.flatMap((p, parsed) =>
+        if p.queries then parsed.program.items else parsed.program.items.filterNot(_.isInstanceOf[hugin.syntax.Trees.Query])
+      )
+      Parsed(SourceFile.virtual(path, ""), hugin.syntax.Program(items, Span.NoSpan), parts.toList.flatMap(_._2.diagnostics))
+
 final case class CompileKey(path: String, settings: Settings = Settings())
 
 /** The result of compiling a program: the compilation context (unit, semantic index, diagnostics) and
@@ -30,11 +49,11 @@ final class Compiled(val context: Context, val printed: List[String]):
   def index: SemanticIndex = context.unit.index
   def source: SourceFile = context.unit.source
 
-/** Runs the compiler pipeline on a parsed file. */
+/** Runs the compiler pipeline on a parsed program. */
 object Compile extends Query[CompileKey, Compiled]("compile"):
   def compute(key: CompileKey)(using db: Database): Compiled =
     val printed = mutable.ListBuffer.empty[String]
-    val ctx = Compiler.compileParsed(db(Parse, key.path), key.settings, DatabaseLoader(), printed += _)
+    val ctx = Compiler.compileParsed(db(ParseProgram, key.path), key.settings, DatabaseLoader(), printed += _)
     Compiled(ctx, printed.toList)
 
 final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, budget: Option[Int] = None, allRelations: Boolean = false)

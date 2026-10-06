@@ -43,7 +43,11 @@ final class CompiledRule(
     val body: Array[BodyOp],
     val headRel: Int,
     val headArgs: Array[Expr],
-    val recursiveAtoms: Int
+    val recursiveAtoms: Int,
+    /** Head columns whose constructed values are probes: interned, not asserted. These are the input
+     *  columns of demand relations and, in a rule of a moded relation guarded by the demand of mode `m`,
+     *  the inputs of `m`. Values built in other columns are facts, with the values nested in them. */
+    val probeCols: Set[Int] = Set.empty
 )
 
 final class CompiledQuery(
