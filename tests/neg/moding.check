@@ -6,6 +6,14 @@ error[E0501]: rule is not range-restricted
   |
   = note: every variable of the head must be bound by a positive atom or an equation in the body
 
+warning[W0002]: variable `Y` occurs only once in this rule
+ --> tests/neg/moding.hgn:8:8
+  |
+8 | free X Y :- edge X _.
+  |        ^ singleton variable
+  |
+  = help: use `_` or `_Y` if this is intended
+
 error[E0501]: rule is not range-restricted
  --> tests/neg/moding.hgn:8:8
   |
@@ -32,6 +40,14 @@ error[E0502]: call to `fib` without an applicable mode
    = note: unbound variable: `N`
    = help: bind the input arguments with earlier formulas in the body
 
+warning[W0002]: variable `N` occurs only once in this rule
+  --> tests/neg/moding.hgn:12:15
+   |
+12 | call F :- fib N F.
+   |               ^ singleton variable
+   |
+   = help: use `_` or `_N` if this is intended
+
 error[E0503]: input position 1 of `fib` is not a pattern
   --> tests/neg/moding.hgn:13:6
    |
@@ -40,4 +56,4 @@ error[E0503]: input position 1 of `fib` is not a pattern
    |
    = note: `fib` has mode +-; its inputs must appear in the demand guard
 
-5 errors found
+5 errors, 2 warnings found

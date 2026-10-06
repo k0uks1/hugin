@@ -27,6 +27,14 @@ warning[W0003]: unused definition `far`
 9 | far : int -> int -> prop.
   | ^^^ never referenced
 
+warning[W0002]: variable `Y` occurs only once in this rule
+  --> tests/neg/formula_modes.hgn:11:7
+   |
+11 | far X Y :- edge X Z.
+   |       ^ singleton variable
+   |
+   = help: use `_` or `_Y` if this is intended
+
 error[E0501]: unbound variables `Arg2`, `Y`
   --> tests/neg/formula_modes.hgn:11:7
    |
@@ -38,4 +46,12 @@ error[E0501]: unbound variables `Arg2`, `Y`
    = note: an equation binds a variable or pattern on one side only when the other side is fully bound
    = note: the body of formula function `far` is not well-moded for mode +-
 
-2 errors, 3 warnings found
+warning[W0002]: variable `Z` occurs only once in this rule
+  --> tests/neg/formula_modes.hgn:11:19
+   |
+11 | far X Y :- edge X Z.
+   |                   ^ singleton variable
+   |
+   = help: use `_` or `_Z` if this is intended
+
+2 errors, 5 warnings found
