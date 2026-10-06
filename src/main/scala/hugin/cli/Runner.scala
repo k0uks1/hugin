@@ -4,7 +4,8 @@ import hugin.util.*
 import hugin.compiler.*
 import hugin.ir.*
 import hugin.runtime.*
-import hugin.obj.{TypeOps, RelKind}
+import hugin.obj.RelKind
+import hugin.obj.typing.TypeOps
 
 /** Runs a compiled program: loads input facts, evaluates, prints outputs and query answers. */
 object Runner:

@@ -2,10 +2,9 @@ package hugin.meta
 package typer
 
 import hugin.util.*
-import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
-import hugin.obj.{OType, Column, TParam, BaseType, Mode, ArithOp, CmpOp, RelRef, Expansion, ModeSpec, DirKind}
+import hugin.obj.{OType, Column, TParam, Expansion}
 import hugin.obj
 import scala.collection.mutable
 
@@ -38,8 +37,6 @@ enum TVars:
 private[meta] trait TyperBase:
   protected val context: Context
   protected given Context = context
-  import MExpr.*
-  import MType.*
 
   val declInfo: mutable.HashMap[Sym, DeclInfo] = mutable.HashMap.empty
   private var freshN = 0

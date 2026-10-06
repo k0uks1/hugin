@@ -1,4 +1,5 @@
 package hugin.obj
+package typing
 
 import scala.collection.mutable
 

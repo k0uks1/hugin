@@ -5,7 +5,7 @@ import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
-import hugin.obj.{OType, Column, TParam, BaseType, Mode, ArithOp, CmpOp, RelRef, Expansion, ModeSpec, DirKind}
+import hugin.obj.{CmpOp, RelRef, ModeSpec, DirKind}
 import hugin.obj
 import scala.collection.mutable
 

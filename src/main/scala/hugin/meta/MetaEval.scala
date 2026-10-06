@@ -4,6 +4,7 @@ import hugin.util.*
 import hugin.syntax.Literal
 import hugin.compiler.*
 import hugin.obj.*
+import hugin.obj.typing.Moding
 import scala.collection.mutable
 
 /** Meta values V (Section 4.5). */

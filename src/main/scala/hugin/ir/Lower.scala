@@ -2,6 +2,7 @@ package hugin.ir
 
 import hugin.compiler.*
 import hugin.obj.*
+import hugin.obj.typing.{Moding, TypeOps}
 import hugin.syntax.Literal
 import scala.collection.mutable
 
