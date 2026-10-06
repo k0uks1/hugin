@@ -1,0 +1,5 @@
+(* imported by trip.hgn and by routes.hgn: one module, so both see the same `place` *)
+place : type.
+here : place.
+there : place.
+far : place.
