@@ -1,0 +1,13 @@
+(* Started as `hugin repl tests/repl/lib/trip.hgn`, from the root of the repository. *)
+?- trip g.far.
+:imports
+:hover r.legs.path
+:type trip
+:print-after lower trip
+:load tests/repl/lib/broken.hgn
+(* The session still has trip.hgn. *)
+:list
+:reload
+:reset
+:imports
+:quit

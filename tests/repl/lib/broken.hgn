@@ -1,0 +1,4 @@
+(* Diagnostics of a loaded file point into it, also for its imports. *)
+h = %import "geo".
+gone = %import "nowhere".
+stay : h.plac -> rel.
