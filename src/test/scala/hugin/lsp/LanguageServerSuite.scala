@@ -179,6 +179,46 @@ class LanguageServerSuite extends munit.FunSuite:
       Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.delete)
   }
 
+  test("diagnostics are published per file: an error in an imported file on its URI, cleared once fixed") {
+    val dir = Files.createTempDirectory("hugin-lsp")
+    try
+      val lib = dir.resolve("geo.hgn")
+      Files.writeString(lib, "place : type.\nhere : place.\nbad X :- nothing X.\n")
+      val main = dir.resolve("main.hgn")
+      val other = dir.resolve("other.hgn")
+      val (s, c) = server()
+      val (mainUri, otherUri, libUri) = (main.toUri.toString, other.toUri.toString, lib.toUri.toString)
+      open(s, mainUri, "g = %import \"geo\".\nat : g.place -> rel.\nat g.here.\n")
+      val errors = c.published(libUri)
+      assertEquals(errors.map(_.getCode.getLeft), List("E0101", "E0101"))
+      assertEquals(errors.map(_.getRange.getStart), List(Position(2, 0), Position(2, 9)))
+      assertEquals(c.published(mainUri), Nil)
+      def sent(uri: String) =
+        val all = Iterator.continually(c.queue.poll()).takeWhile(_ != null).toList
+        all.filter(_.getUri == uri).map(_.getDiagnostics.asScala.toList)
+      sent(libUri)
+      // editing the importer (or opening another importer) does not publish the library's unchanged diagnostics again
+      change(s, mainUri, "g = %import \"geo\".\nat : g.place -> rel.\nat g.here.\nat X :- at X.\n")
+      open(s, otherUri, "h = %import \"geo\".\n")
+      assertEquals(sent(libUri), Nil)
+      assertEquals(c.published(libUri), errors)
+      // fixed on disk: the library's diagnostics are cleared, on its URI
+      Files.writeString(lib, "place : type.\nhere : place.\n")
+      s.getWorkspaceService.didChangeWatchedFiles(DidChangeWatchedFilesParams(List(FileEvent(libUri, FileChangeType.Changed)).asJava))
+      assertEquals(sent(libUri), List(Nil))
+      assertEquals(c.published(mainUri), Nil)
+      // broken again: published again
+      Files.writeString(lib, "place : type.\nhere : place.\nhere : place.\n")
+      s.getWorkspaceService.didChangeWatchedFiles(DidChangeWatchedFilesParams(List(FileEvent(libUri, FileChangeType.Changed)).asJava))
+      assertEquals(sent(libUri).map(_.length), List(1))
+      // once no open document imports it, its diagnostics are cleared
+      change(s, mainUri, "at : int -> rel.\n")
+      s.getTextDocumentService.didClose(DidCloseTextDocumentParams(doc(otherUri)))
+      assertEquals(c.published(libUri), Nil)
+    finally
+      Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.delete)
+  }
+
   test("code actions: replace a singleton variable with `_`") {
     val (s, _) = server()
     val text = "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y.\n"

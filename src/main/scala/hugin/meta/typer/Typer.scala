@@ -357,12 +357,12 @@ final class TyperPhase extends Phase:
     for lib <- u.libraries.values if lib.named != null do
       val e = ctx.libraries.elaborated(lib.key)
       lib.elaborated = e
-      e.diagnostics.foreach(ctx.report)
+      ctx.reportPart(hugin.compiler.DiagnosticPart.LibraryElab(lib.key), e.diagnostics)
       u.symKeys.inherit(e.keys)
       u.index.include(e.index)
       u.scopes ++= e.scopes
     val program = ctx.libraries.elabProgram(u.source.path, u.untpd.nn, ctx.settings.prelude, u.named.nn)
-    program.diagnostics.foreach(ctx.report)
+    ctx.reportPart(hugin.compiler.DiagnosticPart.ProgramElab(u.source.path, ctx.settings.prelude), program.diagnostics)
     u.symKeys.absorb(program.keys)
     u.index.include(program.index)
     u.scopes ++= program.scopes

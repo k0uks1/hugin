@@ -122,29 +122,47 @@ final class Scope(val parent: Option[Scope], val description: String, val key: S
     check(name)
     claimed.add(name)
 
-  /** Told about every symbol found by a lookup in this scope, while set (see [[observing]]). */
-  private var observer: (Sym => Unit) | Null = null
+  /** Told about every lookup in this scope, while set (see [[observing]]). */
+  private var observer: Scope.Observer | Null = null
 
-  /** Runs `body`, telling `f` about every symbol a lookup finds in this scope (also through a nested
-   *  scope). The per-item elaboration of a program records with it which declarations an item uses (see
+  /** Runs `body`, telling `o` about every lookup in this scope (also through a nested scope): the names
+   *  looked up, found or not, the symbols found, and whether all names were listed. The per-item
+   *  elaboration of a program records with it which names and declarations an item uses (see
    *  `hugin.compiler.ProgramElab`); the scope itself does not change. */
-  def observing[T](f: Sym => Unit)(body: => T): T =
+  def observing[T](o: Scope.Observer)(body: => T): T =
     val saved = observer
-    observer = f
+    observer = o
     try body
     finally observer = saved
 
   def lookupLocal(name: String): Option[Sym] =
     val found = decls.get(name)
     val o = observer
-    if o != null then found.foreach(o)
+    if o != null then
+      o.looked(name)
+      found.foreach(o.found)
     found
 
   def lookup(name: String): Option[Sym] =
     lookupLocal(name).orElse(parent.flatMap(_.lookup(name)))
 
-  def allNames: Iterator[String] = decls.keysIterator ++ parent.iterator.flatMap(_.allNames)
+  def allNames: Iterator[String] =
+    val o = observer
+    if o != null then o.listed()
+    decls.keysIterator ++ parent.iterator.flatMap(_.allNames)
 
   def enter(s: Sym): Unit =
     check(s.name)
     decls(s.name) = s
+
+object Scope:
+  /** Told about the lookups in a scope (see [[Scope.observing]]). */
+  trait Observer:
+    /** A name was looked up in the scope (whether or not it is declared there). */
+    def looked(name: String): Unit
+
+    /** A lookup found this symbol in the scope. */
+    def found(s: Sym): Unit
+
+    /** All names of the scope were listed (e.g. for a suggestion of a similar name). */
+    def listed(): Unit

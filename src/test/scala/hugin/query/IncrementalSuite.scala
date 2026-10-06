@@ -27,6 +27,10 @@ class IncrementalSuite extends munit.FunSuite:
     val compiled = db(Compile, key)
     val renderer = DiagnosticRenderer(color = false)
     val diags = compiled.diagnostics.map(renderer.render)
+    // the diagnostics by file, from the accumulators, are the compilation's output
+    val byFile = FileDiagnostics.of(key)
+    assertEquals(byFile.flatMap(_.diagnostics), compiled.diagnostics, s"diagnostics by file of $path")
+    assertEquals(byFile.map(_.path).distinct.length, byFile.length)
     val probes = Lexer(SourceFile.virtual(path, text), Reporter()).tokenize()
       .filter(t => t.kind == Tok.Name || t.kind == Tok.Var)
       .zipWithIndex.collect { case (t, i) if i % 5 == 0 => t.span.start + 1 }

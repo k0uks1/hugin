@@ -145,11 +145,11 @@ final class NamerPhase extends Phase:
     for lib <- u.libraries.values do
       val n = ctx.libraries.named(lib.key.nameKey)
       lib.named = n
-      n.diagnostics.foreach(ctx.report)
+      ctx.reportPart(hugin.compiler.DiagnosticPart.LibraryNames(lib.key.nameKey), n.diagnostics)
       u.symKeys.inherit(n.keys)
     // the program's top level is named apart (memoised by the query database, see `ProgramElab`)
     val named = ctx.libraries.nameProgram(u.source.path, u.source, u.untpd.nn, ctx.settings.prelude)
-    named.diagnostics.foreach(ctx.report)
+    ctx.reportPart(hugin.compiler.DiagnosticPart.ProgramNames(u.source.path, ctx.settings.prelude), named.diagnostics)
     u.symKeys.inherit(named.keys)
     u.named = named
     u.rootScope = named.scope

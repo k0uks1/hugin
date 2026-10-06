@@ -87,6 +87,74 @@ class DatabaseSuite extends munit.FunSuite:
     intercept[MissingInput](db(Length, "a"))
   }
 
+  test("a removed input read again from its default invalidates the results of its old value") {
+    var disk = "one"
+    object File extends Input[String, String]("file"):
+      override def default(key: String): Option[String] = Some(disk)
+    object Size extends Query[String, Int]("size"):
+      def compute(key: String)(using db: Database): Int = db.get(File, key).length
+    object Both extends Query[String, Int]("both"):
+      def compute(key: String)(using db: Database): Int = if db.has(File, key) then db(Size, key) else 0
+    val db = Database()
+    assertEquals(db(Both, "f"), 3)
+    disk = "three"
+    db.remove(File, "f")
+    // `both` reads the default again (through `has`) before `size` is verified
+    assertEquals(db(Both, "f"), 5)
+  }
+
+  // --------------------------------------------------------------------------------------- eviction
+
+  /** The words of a text, each measured by its own query (keys that come and go with edits). */
+  object Words extends Query[String, Int]("words"):
+    def compute(key: String)(using db: Database): Int = db.get(Text, key).split(' ').toList.map(w => db(Word, w)).sum
+  object Word extends Query[String, Int]("word"):
+    def compute(w: String)(using db: Database): Int = w.length
+
+  test("collection drops the memos of keys that are no longer reached, and keeps the others") {
+    val db = Database(retainEpochs = 1, collectAbove = Int.MaxValue)
+    db.set(Text, "a", "one two three")
+    assertEquals(db(Words, "a"), 11)
+    assertEquals(db.memoCount, 4)
+    db.set(Text, "a", "one two four")
+    assertEquals(db(Words, "a"), 10)
+    assertEquals(db.memoCount, 5)
+    assertEquals(db.collect(), 1) // `three`
+    assertEquals(db.memoCount, 4)
+    db.stats.reset()
+    assertEquals(db(Words, "a"), 10)
+    assertEquals(db.stats.computed, 0)
+  }
+
+  test("collection keeps what the last epochs demanded; dropped results are computed again") {
+    val db = Database(retainEpochs = 2, collectAbove = Int.MaxValue)
+    db.set(Text, "a", "x y")
+    db.set(Text, "b", "z")
+    db(Words, "a")
+    db.set(Text, "c", "w") // a new revision, and epoch: `b` is demanded
+    db(Words, "b")
+    assertEquals(db.collect(), 0) // both epochs are retained
+    db.set(Text, "c", "v")
+    db(Words, "b")
+    assertEquals(db.collect(), 3) // `a` was demanded three epochs ago: `words(a)`, `word(x)`, `word(y)`
+    db.stats.reset()
+    assertEquals(db(Words, "a"), 2)
+    assertEquals(db.stats.computedBy("words"), 1)
+    assertEquals(db(Words, "b"), 1)
+  }
+
+  test("collections run automatically and keep the number of memos bounded") {
+    val db = Database(collectAbove = 16)
+    val rnd = scala.util.Random(7)
+    var max = 0
+    for i <- 1 to 300 do
+      db.set(Text, "a", List.fill(5)(rnd.nextInt(1000).toString).mkString(" "))
+      db(Words, "a")
+      max = max.max(db.memoCount)
+    assert(db.stats.collections > 0)
+    assert(max <= 3 * 16, s"up to $max memos")
+  }
+
 class DatabaseAccumulatorSuite extends munit.FunSuite:
   object Text extends Input[String, String]("text")
   object Notes extends Accumulator[String]("notes")

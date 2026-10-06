@@ -19,7 +19,8 @@ final case class HoverInfo(signature: Option[String], notes: List[String]):
 final case class CompletionItem(label: String, kind: String, detail: String)
 
 /** Position-based queries for tooling (hover, go to definition, find references, completion, outline).
- *  Positions are character offsets into the file's text. */
+ *  Positions are character offsets into the text of the program's file, or of the file `in` (a part of a
+ *  program made of several files, such as the probe of a REPL session). */
 object Ide:
   private def index(key: CompileKey)(using db: Database): SemanticIndex = db(Compile, key).index
 
@@ -33,24 +34,27 @@ object Ide:
     case Symbol(sym: Sym, use: Option[SemanticIndex#Reference])
     case Variable(occurrence: SemanticIndex#VarOccurrence)
 
-  private def targetAt(key: CompileKey, offset: Int)(using db: Database): Option[Target] =
+  private def targetAt(key: CompileKey, offset: Int, in: Option[String])(using db: Database): Option[Target] =
     val ix = index(key)
-    val uses = ix.references.filter(r => covers(r.span, key.path, offset)).map(r => (r.span, Target.Symbol(r.sym, Some(r))))
-    val decls = ix.symbols.filter(s => covers(s.span, key.path, offset)).map(s => (s.span, Target.Symbol(s, None)))
-    val vars = ix.variables.filter(v => covers(v.span, key.path, offset)).map(v => (v.span, Target.Variable(v)))
+    val path = in.getOrElse(key.path)
+    val uses = ix.references.filter(r => covers(r.span, path, offset)).map(r => (r.span, Target.Symbol(r.sym, Some(r))))
+    val decls = ix.symbols.filter(s => covers(s.span, path, offset)).map(s => (s.span, Target.Symbol(s, None)))
+    val vars = ix.variables.filter(v => covers(v.span, path, offset)).map(v => (v.span, Target.Variable(v)))
     (uses ++ decls ++ vars).sortBy((sp, _) => size(sp)).headOption.map(_._2)
 
   /** The symbol referenced or declared at an offset (the innermost one). */
-  def symbolAt(key: CompileKey, offset: Int)(using db: Database): Option[Sym] = targetAt(key, offset).collect {
-    case Target.Symbol(s, _) => s
-  }
+  def symbolAt(key: CompileKey, offset: Int, in: Option[String] = None)(using db: Database): Option[Sym] =
+    targetAt(key, offset, in).collect {
+      case Target.Symbol(s, _) => s
+    }
 
   /** All occurrences of the object variable of `v`: same rule, same (internal) name. */
   private def occurrences(ix: SemanticIndex, v: SemanticIndex#VarOccurrence): List[Span] =
     ix.variables.filter(o => o.item == v.item && o.name == v.name).map(_.span).distinct.sortBy(_.start).toList
 
   /** Hover text: [[hoverInfo]] as lines. */
-  def hover(key: CompileKey, offset: Int)(using db: Database): Option[String] = hoverInfo(key, offset).map(_.text)
+  def hover(key: CompileKey, offset: Int, in: Option[String] = None)(using db: Database): Option[String] =
+    hoverInfo(key, offset, in).map(_.text)
 
   /** Hover information at an offset. The signature is the description of a symbol (as seen at this use),
    *  or the type of an object variable; a variable in a functor body may have different types in different
@@ -59,9 +63,9 @@ object Ide:
    *    of its instances;
    *  - inside the innermost piece of staged code around the offset, whether a meta value was quoted,
    *    spliced or persisted, with the values it had. */
-  def hoverInfo(key: CompileKey, offset: Int)(using db: Database): Option[HoverInfo] =
+  def hoverInfo(key: CompileKey, offset: Int, in: Option[String] = None)(using db: Database): Option[HoverInfo] =
     val ix = index(key)
-    val target = targetAt(key, offset)
+    val target = targetAt(key, offset, in)
     val signature = target.flatMap {
       case Target.Symbol(s, use) => use.flatMap(_.detail).orElse(ix.description(s))
       case Target.Variable(v) =>
@@ -72,7 +76,7 @@ object Ide:
       case Target.Symbol(s, use) => familyInstances(ix, s, use.map(_.span))
       case Target.Variable(_) => Nil
     }
-    val notes = instances ++ staging(ix, key.path, offset)
+    val notes = instances ++ staging(ix, in.getOrElse(key.path), offset)
     Option.when(signature.isDefined || notes.nonEmpty)(HoverInfo(signature, notes))
 
   private def declares(family: Span, s: Sym): Boolean =
@@ -114,7 +118,7 @@ object Ide:
 
   /** Where the symbol at an offset is declared; for an object variable, its first occurrence in the rule. */
   def definition(key: CompileKey, offset: Int)(using db: Database): Option[Span] =
-    targetAt(key, offset).flatMap {
+    targetAt(key, offset, None).flatMap {
       case Target.Symbol(s, _) => Some(s.span).filter(_.exists)
       case Target.Variable(v) => occurrences(index(key), v).headOption
     }
@@ -122,7 +126,7 @@ object Ide:
   /** The declaration and all uses of the symbol (or variable) at an offset, in source order. */
   def references(key: CompileKey, offset: Int)(using db: Database): List[Span] =
     val ix = index(key)
-    targetAt(key, offset).toList.flatMap {
+    targetAt(key, offset, None).toList.flatMap {
       case Target.Symbol(s, _) =>
         val uses = ix.references.filter(_.sym == s).map(_.span)
         (s.span +: uses).filter(_.exists).distinct.sortBy(sp => (sp.source.path, sp.start)).toList
@@ -155,9 +159,10 @@ object Ide:
    *  - otherwise: the names in scope at the offset (innermost module body outwards) and the variables of
    *    the enclosing rule (also of a rule that is still being typed and does not compile).
    *  Candidates are filtered by the identifier prefix before the offset. */
-  def completions(key: CompileKey, offset: Int)(using db: Database): List[CompletionItem] =
+  def completions(key: CompileKey, offset: Int, in: Option[String] = None)(using db: Database): List[CompletionItem] =
     val ix = index(key)
-    val source = db(Parse, key.path).source
+    val path = in.getOrElse(key.path)
+    val source = db(Parse, path).source
     val text = source.content
     val start = Iterator.iterate(offset)(_ - 1).find(i => i <= 0 || !isIdentChar(text.charAt(i - 1))).get
     val prefix = text.substring(start, offset.min(text.length))
@@ -168,18 +173,18 @@ object Ide:
     else if start > 0 && text.charAt(start - 1) == '.' then
       // members of the module before the selector
       val qualEnd = start - 1
-      val use = ix.references.filter(r => r.span.source.path == key.path && r.span.end == qualEnd).sortBy(r => size(r.span)).headOption
+      val use = ix.references.filter(r => r.span.source.path == path && r.span.end == qualEnd).sortBy(r => size(r.span)).headOption
       matching(use.toList.flatMap(r => members(ix, db(Compile, key).symbols, r.sym)))
     else
       enclosingNamedPattern(source, start).flatMap(rel => labels(ix, key, rel)) match
         case Some(ls) => matching(ls)
         case None =>
           // outside every recorded extent (e.g. in a part of a program made of several files): the program's scope
-          val scopes = ix.scopes.filter((sp, _) => covers(sp, key.path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
+          val scopes = ix.scopes.filter((sp, _) => covers(sp, path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
           val scope = scopes.headOption.orElse(Option(db(Compile, key).context.unit.rootScope))
           val names = scope.toList.flatMap(inScope(ix, _))
           val vars = ix.variables
-            .filter(v => covers(v.item, key.path, offset))
+            .filter(v => covers(v.item, path, offset))
             .map(v => CompletionItem(v.display, "variable", v.tpe))
           // the variables of an item that does not compile (yet) are not in the index: they are lexed
           val typed = itemVariables(source, start, offset).map(v => CompletionItem(v, "variable", "variable"))

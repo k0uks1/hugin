@@ -28,8 +28,10 @@ final case class CommandInfo(name: String, args: String, help: String, aliases: 
  *  definitions are made to be used by later inputs). Queries are answered over the candidate and the facts
  *  files, then left out of the session, so they are answered once.
  *
- *  `:type`, `:kind` and completion ask the position queries of [[hugin.query.Ide]] about a probe: a
- *  program of the session's parts and one more, `<probe>`, compiled apart from the session.
+ *  `:type`, `:kind` and completion ask the position queries of [[hugin.query.Ide]] about a probe: one
+ *  more part of the session's program, `<probe>`, removed again afterwards. As an extra item of the
+ *  session's program, a probe (like a query) is elaborated on its own over the session's elaborated items,
+ *  which are not elaborated again (`docs/INCREMENTALITY.md`, step 10).
  */
 final class Session(settings: Settings = Settings(), initialBudget: Option[Int] = None, initialStats: Boolean = false):
   private given db: Database = Database()
@@ -39,7 +41,9 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
   private[repl] def database: Database = db
   private val compileSettings = settings.copy(printAfter = Set.empty, stopAfter = None)
   private val key = CompileKey(Session.path, compileSettings)
-  private val probeKey = CompileKey(Session.probePath, compileSettings)
+
+  /** Position queries about the probe, in the session's program. */
+  private val inProbe = Some(Session.probePath)
 
   /** The accepted parts of the session, in order. */
   private var current = Vector.empty[Chunk]
@@ -262,12 +266,17 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       s"  ${s":${c.name} ${c.args}".padTo(width, ' ')}  ${c.help}$aliases"
     }
 
-  /** Sets up a probe: the program of the session's parts and `text` as one more part, [[Session.probePath]],
-   *  compiled with `probeKey`. Offsets of position queries about the probe are offsets into `text`. The
-   *  session itself is not changed. */
+  /** Sets up a probe: `text` as one more part of the session's program, [[Session.probePath]]. Offsets of
+   *  position queries about the probe (`in = inProbe`) are offsets into `text`. The session is restored by
+   *  [[probing]]. */
   private def probe(text: String): Unit =
     db.set(SourceText, Session.probePath, text)
-    db.set(Composite, Session.probePath, current.map(c => Part(c.path, queries = false)) :+ Part(Session.probePath))
+    db.set(Composite, Session.path, current.map(c => Part(c.path, queries = false)) :+ Part(Session.probePath))
+
+  /** Runs `body`, which sets up probes, and restores the session afterwards. */
+  private def probing[T](body: => T): T =
+    try body
+    finally restore()
 
   /** The new errors of compiling a probe whose text is `prefix`, `expr` and a period, with their spans
    *  moved into `expr` as entered (`<input>`). */
@@ -279,7 +288,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       else
         val start = (span.start - prefix.length).max(0).min(expr.length)
         Span(view, start, (span.end - prefix.length).max(start).min(expr.length))
-    db(Compile, probeKey).diagnostics
+    db(Compile, key).diagnostics
       .filter(_.severity == Severity.Error)
       .filterNot(d => known(Session.identity(d)))
       .map(d =>
@@ -292,17 +301,17 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
   /** `:type`: for a name or module path, its description as hover shows it (with the instantiated type of
    *  a member of a module); for an object term, its object type; for another meta expression, its meta
    *  type. Each is asked by compiling a probe item: `?- V = term.` and `it = expr.`. */
-  private def typeOf(expr: String): Reply =
+  private def typeOf(expr: String): Reply = probing:
     val metaPrefix = s"${Session.probeName} = "
     val errors = probeErrors(metaPrefix, expr)
     val meta =
       if errors.nonEmpty then Left(errors)
-      else if Session.isPath(expr) then Right(Ide.hover(probeKey, metaPrefix.length + expr.length - 1))
-      else Right(Ide.hover(probeKey, 1).map(_.stripPrefix(s"meta definition ${Session.probeName} : ")).map(t => s"$expr : $t"))
+      else if Session.isPath(expr) then Right(Ide.hover(key, metaPrefix.length + expr.length - 1, inProbe))
+      else Right(Ide.hover(key, 1, inProbe).map(_.stripPrefix(s"meta definition ${Session.probeName} : ")).map(t => s"$expr : $t"))
     val objPrefix = s"?- ${Session.probeVar} = "
     def obj =
       if probeErrors(objPrefix, expr).nonEmpty then None
-      else Ide.hover(probeKey, 4).map(_.stripPrefix(s"variable ${Session.probeVar} : ")).map(t => s"$expr : $t")
+      else Ide.hover(key, 4, inProbe).map(_.stripPrefix(s"variable ${Session.probeVar} : ")).map(t => s"$expr : $t")
     meta match
       case Left(errors) => Reply(diagnostics = errors)
       case Right(Some(described)) if Session.isPath(expr) => Reply(List(described))
@@ -312,13 +321,13 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
           case None => error(s"no type for `$expr`")
 
   /** `:kind`: what a name denotes (an object type, a relation, a constructor, a meta definition, ...). */
-  private def kindOf(name: String): Reply =
+  private def kindOf(name: String): Reply = probing:
     if !Session.isPath(name) then error(s":kind expects a name or a module path, got `$name`")
     else
       val prefix = s"${Session.probeName} = "
       probeErrors(prefix, name) match
         case Nil =>
-          Ide.symbolAt(probeKey, prefix.length + name.length - 1) match
+          Ide.symbolAt(key, prefix.length + name.length - 1, inProbe) match
             case Some(s) => Reply(List(s"$name : ${s.kind.describe}"))
             case None => error(s"no symbol `$name` in the session")
         case errors => Reply(diagnostics = errors)
@@ -358,8 +367,9 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       val previous = if before.last.isWhitespace then words else words.init
       commandCompletions(previous).filter(_.startsWith(if before.last.isWhitespace then "" else words.last))
     else
-      probe(before + " .")
-      Ide.completions(probeKey, before.length).map(_.label)
+      probing:
+        probe(before + " .")
+        Ide.completions(key, before.length, inProbe).map(_.label)
 
   /** Candidates for a command word, or its argument after the words `previous`. */
   private def commandCompletions(previous: List[String]): List[String] = previous match
@@ -374,15 +384,15 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     case _ => Nil
 
   /** The top-level names of the session (and the prelude), for the arguments of commands. */
-  private def names: List[String] =
+  private def names: List[String] = probing:
     probe("")
-    Ide.completions(probeKey, 0).map(_.label).distinct.sorted
+    Ide.completions(key, 0, inProbe).map(_.label).distinct.sorted
 
 object Session:
   /** The name of the session program, made of the parts of the session ([[hugin.query.Composite]]). */
   val path = "<repl>"
 
-  /** The name of the extra part of a probe (and of the program of a probe). */
+  /** The name of the extra part of the session's program that is a probe. */
   val probePath = "<probe>"
 
   private val header = "(* ----"

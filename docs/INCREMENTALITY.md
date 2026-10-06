@@ -5,7 +5,8 @@ since step 7 the prelude and imported files are named and elaborated once per da
 shared by all compilations, and since step 8 the items of the program are elaborated one by one, so an
 edit elaborates again only the items it affects (the object-level pipeline still runs per edit), and since
 step 9 the items are parsed from their own text slices, so an edit does not elaborate the items it only
-moves. This note records the plan for finer-grained queries. Each
+moves; step 10 made the clients (diagnostics, the language server, the REPL) and the database's memory
+follow (see *Status* at the end). This note records the plan for finer-grained queries. Each
 step is one PR that keeps all tests green; `IncrementalSuite` (incremental = from scratch on every golden
 program under edits) is the safety net for all of them.
 
@@ -92,7 +93,7 @@ program under edits) is the safety net for all of them.
      (`ItemOf`), on `ScopeNames`, on the libraries (`ProgramLibrariesOf`), on the declarations after it
      (`LaterDecls`) and on the `DeclSig` of every declaration it read: the table's `View` and the scope's
      `observing` hook record every symbol an item reads from the signatures or finds in the top-level
-     scope. The scope and the signatures themselves are read untracked (`Database.untracked`), since these
+     scope (step 10 replaces `ScopeNames` and `LaterDecls` by finer dependencies). The scope and the signatures themselves are read untracked (`Database.untracked`), since these
      dependencies cover what the item uses of them. The static forward-reference check replaces
      `ElabState` for items: the view hides the meta definitions and formula functions of later items (they
      read as not elaborated, as they were when the body was elaborated in item order), which gives E0105.
@@ -103,7 +104,7 @@ program under edits) is the safety net for all of them.
 
    Editing a rule elaborates that rule again, and the items whose position changed; editing a declaration
    elaborates the items that use it; adding or removing a declaration (a change of the names) elaborates
-   every item (`ItemQueriesSuite`). Positions (as of step 8; step 9 makes them item-relative): an item's
+   every item (`ItemQueriesSuite`; since step 10 only the items using its name). Positions (as of step 8; step 9 makes them item-relative): an item's
    results keep spans into the source file it was parsed from, and they are reused only while the item's fingerprint (tree, offsets, first
    line, text of its lines) is unchanged, so every reused span has the same offset, line, column and line
    text in the current file; diagnostics are moved to the current source file (`Context.sources`), and the
@@ -111,7 +112,7 @@ program under edits) is the safety net for all of them.
    of an item elaborates every later item again (also their declarations' dependants when declarations
    move); step 9 removes it. Remaining: declarations and definitions are elaborated together (a change of
    one elaborates all of them again, though only the items using a changed one follow); a change of the
-   names of the top level elaborates every item; `ElabFile`, the object pipeline and MetaEval run after
+   names of the top level elaborates every item (step 10 removes it); `ElabFile`, the object pipeline and MetaEval run after
    every edit.
 9. **Item slices** (done for the program's files; `syntax/Slices.scala`, `util/Source.scala`,
    `query/CompilerQueries.scala`). Items are parsed from their own text with item-relative spans:
@@ -146,11 +147,83 @@ program under edits) is the safety net for all of them.
    Inserting blank lines or comments between items, or moving items to other lines and columns,
    elaborates nothing; lengthening one rule elaborates that rule only (`ItemQueriesSuite`). Remaining:
    libraries (the prelude, imported files) are still parsed and elaborated as whole files, with spans into
-   the file (an edit of a library elaborates it again anyway); slices are never evicted from the database
-   (step 10); a change of the `%infix` operators parses every item again; the whole file is still parsed
+   the file (an edit of a library elaborates it again anyway); slices were never evicted from the database
+   (step 10 evicts them); a change of the `%infix` operators parses every item again; the whole file is still parsed
    after every edit (cheap; it decides the item boundaries and reports parse errors).
-10. **Clients**: diagnostics per file from accumulators, the language server publishing per file, REPL
-    probes as an extra item, eviction of unused memos.
+10. **Clients** (done; `query/FileDiagnostics.scala`, `query/Database.scala`, `lsp/`, `repl/Session.scala`).
+    * *Diagnostics per file.* `FileDiagnostics.of(key)` gives a compilation's diagnostics by file (the
+      program's files and every library, in path order); concatenated they are `Compiled.diagnostics`
+      (`IncrementalSuite` and `FileDiagnosticsSuite` check this for every golden program, also under
+      edits). The diagnostics of the elaboration are read from the accumulators of the queries that
+      computed them: a library's from `LibraryDiagnostics` pushed by its `NameLibrary` and `ElabLibrary`
+      (shared by every program importing it), the program's from `ProgramDiagnostics` pushed by
+      `ScopeOf`, `Signatures` and each `ElabItem` (`Database.pushed` reads a query's own pushes). The
+      compilation contributes what its own phases report (parse and import errors, the typer's
+      unused-definition warnings, the object-level phases) and the order in which it reported the parts
+      (`Context.reported`, `Context.reportPart`); the output is assembled in that order with the
+      compiler's deduplication, placement in the current text and sorting.
+    * *The language server publishes per file*: each open document from its own compilation, and every
+      file it imports that is not open on that file's URI (the library's group of `FileDiagnostics`). An
+      open document is published after every change, as before (the transcripts are unchanged); a file
+      that is not open is published only when its diagnostics changed, and cleared when they disappear (it
+      is no longer imported, or it was fixed on disk: `workspace/didChangeWatchedFiles`). Fixing a file on
+      disk exposed a bug in the database, also fixed: an input removed and read again from its default (a
+      file read from disk) was dated revision 0, so results computed from its old value were reused.
+    * *Names and order as dependencies.* An item no longer depends on all names of the top level
+      (`ScopeNames`) and on all declarations after it (`LaterDecls`, removed): the scope's observer records
+      every name the item looks up, found or not (`ScopeName(program, name)`: the kind and key of its
+      symbol, or none), whether it listed all names (for the suggestion of a similar name; it then depends
+      on `ScopeNames`), and the meta definitions whose order relative to it decided whether they are
+      hidden (`DeclAfter(item, decl)`). So adding or removing a declaration elaborates only the items that
+      use its name (`ItemQueriesSuite`); in a REPL session, a new input elaborates its own items only.
+    * *REPL probes as an extra item.* A query typed in the REPL was already one more item of the session's
+      program; the probes of `:type`, `:kind` and completion were a separate program (`<probe>`) of the
+      session's parts and the probe, with keys of its own, so every item of the session was elaborated
+      again for them. Now the probe is one more part of the session's program itself, removed afterwards,
+      and the position queries ask about the probe's file (`Ide`'s `in`). A query or an object probe
+      elaborates one item, a meta probe (`it'repl = expr.`, a definition) only the declarations
+      (`SessionSuite` counts the executions). Restoring the session after a meta probe makes the next
+      input elaborate the declarations again (they are elaborated together).
+    * *Eviction.* `Database.collect` drops the memos that are not reachable, along recorded dependencies,
+      from the queries demanded from outside any query (roots) in the last `retainEpochs` epochs
+      (revisions in which queries were demanded; default 2) or from the memos verified in them: the slices
+      (`ParseItem`) and items (`ItemOf`, `ElabItem`, ...) of texts and keys that no longer exist, and
+      programs no longer asked about. It runs when an epoch starts and the number of memos exceeds both
+      `collectAbove` (default 1024) and twice the number the last collection kept, so its cost is
+      amortised. Dropping is always safe: a dropped result is computed again, kept memos keep their
+      dependencies, and an item's fingerprint compares its slice by identity, so a slice parsed again is a
+      change, never a stale position. Under 500 random edits of a golden program the memos stay within 4
+      times those of a compilation from scratch, with results equal to it (`ItemQueriesSuite`,
+      `DatabaseSuite`).
 
 The object-level phases (stratification, demand, termination, lowering) stay whole-program: they are
 global by nature and cheap compared with elaboration (`--stats` shows the split).
+
+## Status (after step 10)
+
+Incremental now:
+* Parsing: the whole file is parsed after every edit (it decides the item boundaries and reports parse
+  errors); the items are parsed from their own slices, memoised by text.
+* Libraries (the prelude, imported files): named and elaborated once per revision of the files they
+  depend on, shared by all programs, by the REPL session and by the language server's documents.
+* The program's top level: named after every edit (cut off unless declarations change); declarations and
+  definitions are elaborated together when one of them changes; every other item is elaborated on its
+  own, again only when its text, a name it looks up, a declaration it reads or the order of a meta
+  definition it asked about changes. Moving items (blank lines, comments, other items growing)
+  elaborates nothing.
+* Clients: diagnostics by file from the accumulators; the language server publishes per file; REPL
+  queries and probes are extra items over the session's elaborated items; unused memos are evicted.
+
+Still coarse:
+* `ElabFile` (assembling the items), MetaEval, monomorphization and the object-level phases (directives,
+  object typing, moding, records, demand, stratification, completeness, termination, lowering) run on
+  the whole program after every edit, and evaluation after every REPL query: they are global by nature
+  (the demand transformation depends on the queries) and cheap next to elaboration (`--stats`).
+* Declarations and definitions are elaborated together (`Signatures`): editing one elaborates all of
+  them again, though only the items using a changed one follow. A meta probe in the REPL is a
+  definition, so it and the next input elaborate the declarations again.
+* Libraries are elaborated as whole files (an edit of a library elaborates it, and the files importing
+  it, again); a change of the `%infix` operators of a file parses all its items again.
+* The slices' placement (`SourceFile.place`) is mutable state set by `ItemSlices`; it relies on the
+  database being single-threaded (the language server answers on lsp4j's single message thread).
+* The language server republishes every open document's diagnostics after any change.

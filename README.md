@@ -116,7 +116,8 @@ The session (`hugin.repl.Session`) is independent of the terminal (`hugin.repl.R
 of the query layer: the session is a program made of several files (the `Composite` input of the query
 database: each input as a virtual file `<input N>`, each loaded file under its path), compiled as one
 module body whose items keep their files. Compiling, `:type` (a probe part asked with `Ide.hover`) and
-evaluation reuse what did not change. When stdin is not a
+evaluation reuse what did not change: a query or a probe is one more item of the session's program,
+elaborated on its own over the session's items, which are not elaborated again. When stdin is not a
 terminal, or with `--batch`, inputs are read from stdin without prompts; `--echo` writes each input after
 its prompt, which is how the transcript tests run.
 
@@ -267,8 +268,12 @@ $ hugin query examples/graphs.hgn hover 18:16
 variable C : city
 ```
 
-Incrementality is per file for now: a change to a program recompiles that program. Finer granularity
-(per item) needs the typer to stop mutating shared symbol state; it is tracked in issue #4.
+Incrementality is per item for the elaboration: libraries are named and elaborated once and shared by
+all programs, the items of a program are parsed from their own text and elaborated one by one, an item
+depends on the names and declarations it uses, `FileDiagnostics` gives a compilation's diagnostics by
+file from the queries that computed them, and memos no recent demand reaches are evicted. Meta
+evaluation and the object-level phases still run on the whole program after an edit. See
+`docs/INCREMENTALITY.md` (issue #4).
 
 ## Editor support
 
@@ -278,9 +283,11 @@ Incrementality is per file for now: a change to a program recompiles that progra
 database: an open document's text is its `SourceText` input, files that are not open (imports) are read
 from disk, and every request is answered by `Ide` on the memoised compilation. It provides
 
-- diagnostics for every open document and for the files it imports, with the code, the primary label as
-  the range, notes and helps in the message, and secondary labels and the meta-level expansion chain as
-  related information (singleton variables and unused definitions are shown faded);
+- diagnostics for every open document and for the files it imports, published per file (`FileDiagnostics`:
+  an imported file's on its own URI, from the queries that elaborated it; those of a file that is not
+  open are sent again only when they changed, and cleared when they disappear), with the code, the
+  primary label as the range, notes and helps in the message, and secondary labels and the meta-level
+  expansion chain as related information (singleton variables and unused definitions are shown faded);
 - hover: the meta type of a definition or path, the inferred object type of a variable, and what the
   compiler decided there (below);
 - go to definition and find references (through module paths; declarations in the bundled prelude have

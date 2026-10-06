@@ -42,10 +42,22 @@ final class MissingInput(val description: String) extends RuntimeException(s"inp
  *  - Early cut-off: a recomputed result equal to the previous one does not count as a change, so
  *    dependents are not recomputed.
  *
+ *  - Eviction ([[collect]]): memos that no recent demand can reach are dropped, so that the memory a
+ *    long-running client (an editor, a REPL session) holds stays proportional to what it currently
+ *    asks, not to its history of edits. A demand from outside any query (a *root*) is recorded with the
+ *    epoch it was made in; an epoch is a revision in which queries were demanded. A collection keeps the
+ *    memos reachable, along their recorded dependencies, from the roots demanded in the last
+ *    `retainEpochs` epochs and from the memos verified in them, and drops the others (results of keys
+ *    that no longer exist, such as the items and slices of an earlier text, or of programs no longer
+ *    asked about). Collections run automatically when an epoch starts and the number of memos has grown
+ *    past `collectAbove` and twice the number kept by the previous collection, so their cost is
+ *    amortised. Dropping a memo is always safe: a dropped result is computed again when demanded, and
+ *    every memo kept keeps its dependencies.
+ *
  *  Results must be immutable values with meaningful `equals` for early cut-off to apply. The database is
  *  single-threaded.
  */
-final class Database:
+final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
   private type Slot = (AnyRef, Any)
 
   private final class InputCell(val value: Any, val changedAt: Long)
@@ -70,6 +82,16 @@ final class Database:
   private val memos = mutable.HashMap.empty[Slot, Memo]
   private val stack = mutable.ArrayBuffer.empty[Frame]
 
+  /** The queries demanded from outside any query, with the epoch of their last demand. */
+  private val roots = mutable.HashMap.empty[Slot, Long]
+
+  /** The current epoch (see [[collect]]) and the revision it started in. */
+  private var epoch = 0L
+  private val epochStarts = mutable.ArrayDeque.empty[Long]
+
+  /** The number of memos kept by the last collection. */
+  private var kept = 0
+
   /** Counters for tests and diagnostics of incrementality. */
   object stats:
     /** Number of query executions. */
@@ -80,13 +102,28 @@ final class Database:
 
     /** Executions per query name. */
     val computedBy: mutable.Map[String, Int] = mutable.HashMap.empty.withDefaultValue(0)
+
+    /** Number of memos dropped by collections. */
+    var evicted = 0
+
+    /** Number of collections. */
+    var collections = 0
+
     def reset(): Unit =
       computed = 0
       reused = 0
+      evicted = 0
+      collections = 0
       computedBy.clear()
 
   /** The current revision; it increases whenever an input changes. */
   def revision: Long = current
+
+  /** The number of memoised query results. */
+  def memoCount: Int = memos.size
+
+  /** The number of memoised results of one query. */
+  def memoCount(query: Query[?, ?]): Int = memos.keysIterator.count(_._1 eq query)
 
   /** Sets an input. Setting an equal value does not start a new revision. */
   def set[K, V](input: Input[K, V], key: K, value: V): Unit =
@@ -100,7 +137,9 @@ final class Database:
 
   /** Removes an input (e.g. a closed file); dependents are recomputed on their next use. */
   def remove[K, V](input: Input[K, V], key: K): Unit =
-    if inputs.remove((input, key)).isDefined then current += 1
+    if inputs.remove((input, key)).isDefined then
+      current += 1
+      removedAt((input, key)) = current
 
   /** Reads an input, recording the dependency of the running query. */
   def get[K, V](input: Input[K, V], key: K): V =
@@ -115,13 +154,17 @@ final class Database:
     record((input, key))
     cell(input, key).isDefined
 
+  /** The revision in which an input was last removed: its default, read again, dates from then. */
+  private val removedAt = mutable.HashMap.empty[Slot, Long]
+
   /** The cell of an input, filled from its default on first use. A default does not start a revision:
-   *  the value is treated as if it had been there all along. */
+   *  the value is treated as if it had been there all along, or since the input was removed (so that the
+   *  results computed from the value before the removal are not taken as still valid). */
   private def cell[K, V](input: Input[K, V], key: K): Option[InputCell] =
     val slot = (input, key)
     inputs.get(slot).orElse {
       input.default(key).map { v =>
-        val c = InputCell(v, 0)
+        val c = InputCell(v, removedAt.getOrElse(slot, 0L))
         inputs(slot) = c
         c
       }
@@ -131,12 +174,46 @@ final class Database:
   def apply[K, V](query: Query[K, V], key: K): V =
     val slot = (query, key)
     record(slot)
+    if stack.isEmpty then demanded(slot)
     fresh(slot).value.asInstanceOf[V]
 
   /** Demands a query without recording a dependency of the running query: the caller must record, with
    *  tracked reads, dependencies that cover everything it uses of the value (e.g. per-declaration
    *  projections of a shared result), so that it is recomputed whenever what it used changed. */
-  def untracked[K, V](query: Query[K, V], key: K): V = fresh((query, key)).value.asInstanceOf[V]
+  def untracked[K, V](query: Query[K, V], key: K): V =
+    if stack.isEmpty then demanded((query, key))
+    fresh((query, key)).value.asInstanceOf[V]
+
+  /** Records a demand from outside any query; the first one in a revision starts an epoch, which may
+   *  collect first (see [[collect]]). */
+  private def demanded(slot: Slot): Unit =
+    if epochStarts.lastOption.forall(_ != current) then
+      if memos.size > collectAbove && memos.size > 2 * kept then collect()
+      epoch += 1
+      epochStarts += current
+      while epochStarts.length > retainEpochs.max(1) do epochStarts.removeHead()
+    roots(slot) = epoch
+
+  /** Drops the memos that are not reachable, along recorded dependencies, from the roots demanded in the
+   *  last `retainEpochs` epochs (the current one included, if it started) or from the memos verified in
+   *  them; forgets older roots. Returns the number of memos dropped. Must not be called from a query. */
+  def collect(): Int =
+    require(stack.isEmpty, "memos cannot be collected while queries are running")
+    val since = epoch - retainEpochs.max(1) + 1
+    roots.filterInPlace((_, e) => e >= since)
+    val oldest = epochStarts.headOption.getOrElse(current)
+    val live = mutable.HashSet.empty[Slot]
+    val todo = mutable.ArrayBuffer.empty[Slot]
+    def mark(slot: Slot): Unit = if memos.contains(slot) && live.add(slot) then todo += slot
+    roots.keysIterator.foreach(mark)
+    for (slot, m) <- memos if m.verifiedAt >= oldest do mark(slot)
+    while todo.nonEmpty do memos(todo.remove(todo.length - 1)).deps.foreach(mark)
+    val before = memos.size
+    memos.filterInPlace((slot, _) => live(slot))
+    kept = memos.size
+    stats.collections += 1
+    stats.evicted += before - kept
+    before - kept
 
   private def record(slot: Slot): Unit = stack.lastOption.foreach(_.deps += slot)
 
@@ -158,6 +235,12 @@ final class Database:
         }
     visit((query, key))
     out.toVector
+
+  /** The values pushed to `acc` by a query itself (not by the queries it depends on), in order. Brings the
+   *  query up to date first. */
+  def pushed[K, V, A](acc: Accumulator[A], query: Query[K, V], key: K): Vector[A] =
+    apply(query, key)
+    memos.get((query, key)).flatMap(_.accumulated.get(acc)).fold(Vector.empty)(_.asInstanceOf[Vector[A]])
 
   /** Whether the running query received a cycle fallback ([[Query.onCycle]]), directly or through a query
    *  it demanded during this computation. */

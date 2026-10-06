@@ -154,11 +154,34 @@ class ItemQueriesSuite extends munit.FunSuite:
     assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
   }
 
-  test("adding a declaration elaborates the items after it, whose positions changed") {
+  test("adding a declaration elaborates no item; adding a meta definition only the items using its name") {
     given db: Database = setup()
     compile
     edit("t : int -> rel.\n", "t : int -> rel.\nu : int -> rel.\n")
-    assertEquals(elaborated, items)
+    assertEquals(elaborated, 0)
+    // the rule of `r` uses `limit` (from the top level); a new `X` would not change it, a shadowing `p` would
+    edit("u : int -> rel.\n", "u : int -> rel.\nlimit2 : int = 3.\n")
+    assertEquals(elaborated, 0)
+    // a name that items look up and do not find (they fall through to the prelude) is a dependency too
+    edit("r X :- p X, X < limit.", "r X :- p X, X < limit, X < lim.")
+    assertEquals(elaborated, 1)
+    assert(compile.diagnostics.exists(_.code.contains("E0101")))
+    edit("limit2 : int = 3.\n", "limit2 : int = 3.\nlim : int = 4.\n")
+    assertEquals(elaborated, 1)
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
+  }
+
+  test("a meta definition after an item is hidden from it (E0105) until it moves before it") {
+    val text = program.replace("?- r X.", "?- r X.\nu : int -> rel.\nu X :- p X, X < late.\nlate : int = 2.")
+    given db: Database = setup(text)
+    compile
+    assertEquals(compile.diagnostics.flatMap(_.code), List("E0105"))
+    // moving the definition before the rule: the order changed, the rule is elaborated again
+    edit("late : int = 2.\n", "")
+    edit("limit : int = 5.\n", "limit : int = 5.\nlate : int = 2.\n")
+    assertEquals(elaborated, 1)
+    assertEquals(compile.diagnostics, Nil)
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
   }
 
   test("a meta definition after a rule is used before its definition (E0105), also incrementally") {
@@ -184,8 +207,8 @@ class ItemQueriesSuite extends munit.FunSuite:
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn")))
     db.stats.reset()
     assert(!db(Compile, key).hasErrors)
-    // the new declaration changes the names of the top level, so every item is elaborated again
-    assertEquals(elaborated, 4)
+    // the new declaration does not change the names the other items use: only the new rule is elaborated
+    assertEquals(elaborated, 1)
     db.set(SourceText, "in4.hgn", "?- r X.\n")
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn"), Part("in4.hgn")))
     db.stats.reset()
@@ -268,3 +291,42 @@ class ItemQueriesSuite extends munit.FunSuite:
       db.set(SourceText, path, original)
       assertEquals(rendered(observe(original)), rendered(fresh(original)))
     }
+
+  // ------------------------------------------------------------------------------------------- eviction
+
+  test("memos stay bounded under a long sequence of edits, and results equal those from scratch") {
+    val original = Files.readString(Path.of("tests", "run", "f_modules.hgn"))
+    def memos(text: String): Int =
+      given db: Database = setup(text)
+      compile
+      db.memoCount
+    val baseline = memos(original)
+    val rnd = scala.util.Random(10)
+    given db: Database = Database(collectAbove = baseline)
+    db.set(SourceText, path, original)
+    compile
+    var text = original
+    var max = 0
+    for step <- 1 to 500 do
+      // the edits drift away from the program; now and then it is restored
+      text = if step % 50 == 0 then original else randomEdit(text, rnd)
+      db.set(SourceText, path, text)
+      compile
+      max = max.max(db.memoCount)
+      if step % 50 == 25 then assertEquals(rendered(observe(text)), rendered(fresh(text)), s"after edit $step:\n$text")
+    assert(db.stats.collections > 0)
+    assert(max <= 4 * baseline, s"$max memos after edits, $baseline for a compilation from scratch")
+    // a collection now keeps what the current text needs (and the results of the previous epoch's)
+    db.collect()
+    assert(db.memoCount <= 2 * memos(text), s"${db.memoCount} memos kept, ${memos(text)} from scratch")
+    // ... and after another edit and collection, only the slices and items of the current text
+    db.set(SourceText, path, original)
+    compile
+    db.collect()
+    db.set(SourceText, path, original + "\nlast : rel.\n")
+    compile
+    db.collect()
+    val items = db(ParseProgram, path).program.items.length
+    assertEquals(db.memoCount(ParseItem), items)
+    assertEquals(db.memoCount(ItemOf), items - db(ScopeOf, ProgramKey(path, true)).declarations.length)
+  }

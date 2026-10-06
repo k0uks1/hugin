@@ -1,7 +1,7 @@
 package hugin.lsp
 
 import hugin.meta.SymKind
-import hugin.query.{CompileKey, Compile, Database, Ide, Parse, SourceText}
+import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
 import org.eclipse.lsp4j.*
 import scala.collection.mutable
@@ -52,23 +52,35 @@ final class Features(using db: Database):
 
   // ---------------------------------------------------------------------------------------- diagnostics
 
-  /** The compiler's diagnostics for a document, including those in the files it imports. */
-  def compilerDiagnostics(path: String): List[HDiagnostic] =
-    try if isFacts(path) then db(Parse, path).diagnostics else Ide.diagnostics(key(path))
+  /** Whether a URI is that of an open document. */
+  def isOpen(uri: String): Boolean = opened.valuesIterator.contains(uri)
+
+  /** The compiler's diagnostics for a document by file ([[hugin.query.FileDiagnostics]]): its own and those
+   *  in the files it imports, each library's read from the queries that named and elaborated it. */
+  def fileDiagnostics(path: String): List[FileDiagnostics] =
+    try
+      if isFacts(path) then List(FileDiagnostics(path, db(Parse, path).diagnostics)).filter(_.diagnostics.nonEmpty)
+      else FileDiagnostics.of(key(path))
     catch
       case NonFatal(e) =>
         // a compiler crash must not take the other documents' diagnostics with it
-        List(HDiagnostic(Severity.Error, None, s"internal compiler error: $e", notes = List("please report this as a bug")))
+        val crash = HDiagnostic(Severity.Error, None, s"internal compiler error: $e", notes = List("please report this as a bug"))
+        List(FileDiagnostics(path, List(crash)))
+
+  /** The compiler's diagnostics for a document, including those in the files it imports. */
+  def compilerDiagnostics(path: String): List[HDiagnostic] = fileDiagnostics(path).flatMap(_.diagnostics)
 
   /** The diagnostics to publish, by URI: every open document (possibly with none) and every imported file
    *  with diagnostics. An open file is reported from its own compilation; a file that is not open, from the
-   *  compilations of the documents importing it. The bundled standard library has no URI and is skipped. */
+   *  compilations of the documents importing it (the diagnostics of its own queries, shared by them).
+   *  Diagnostics without a position belong to the document whose compilation reported them. The bundled
+   *  standard library has no URI and is skipped. */
   def diagnostics: Map[String, List[Diagnostic]] =
     val byFile = mutable.LinkedHashMap.empty[String, mutable.ListBuffer[HDiagnostic]]
     for path <- opened.keys do byFile(path) = mutable.ListBuffer.empty
-    for path <- opened.keys; d <- compilerDiagnostics(path) do
-      val file = if d.primarySpan.exists then d.primarySpan.source.path else path
-      if file == path || !opened.contains(file) then byFile.getOrElseUpdate(file, mutable.ListBuffer.empty) += d
+    for path <- opened.keys; f <- fileDiagnostics(path) do
+      val file = if f.path == SourceFile.NoSource.path then path else f.path
+      if file == path || !opened.contains(file) then byFile.getOrElseUpdate(file, mutable.ListBuffer.empty) ++= f.diagnostics
     (for (file, ds) <- byFile; uri <- uriOf(file) yield uri -> ds.distinct.map(toLsp).toList).toMap
 
   /** The diagnostics of one document. */
