@@ -66,6 +66,13 @@ private final class DatabaseLibraries(using db: Database) extends Libraries:
   def named(key: NameKey): NamedLibrary = db(NameLibrary, key)
   def elaborated(key: LibraryKey): ElaboratedLibrary = db(ElabLibrary, key)
 
+  // the program being compiled is named and elaborated by queries (per item); another program directly
+  private def isProgram(root: String, program: hugin.syntax.Program): Boolean = db(ParseProgram, root).program eq program
+  override def nameProgram(root: String, source: SourceFile, program: hugin.syntax.Program, prelude: Boolean): NamedProgram =
+    if isProgram(root, program) then db(ScopeOf, ProgramKey(root, prelude)) else super.nameProgram(root, source, program, prelude)
+  override def elabProgram(root: String, program: hugin.syntax.Program, prelude: Boolean, named: NamedProgram): ElaboratedProgram =
+    if isProgram(root, program) then db(ElabFile, ProgramKey(root, prelude)) else super.elabProgram(root, program, prelude, named)
+
 /** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
 final case class Part(path: String, queries: Boolean = true)
 
@@ -84,6 +91,120 @@ object ParseProgram extends Query[String, Parsed]("parseProgram"):
         if p.queries then parsed.program.items else parsed.program.items.filterNot(_.isInstanceOf[hugin.syntax.Trees.Query])
       )
       Parsed(SourceFile.virtual(path, ""), hugin.syntax.Program(items, Span.NoSpan), parts.toList.flatMap(_._2.diagnostics))
+
+// ------------------------------------------------------------------------------ per-item elaboration
+
+/** Identifies the elaboration of a program's top level: the program (a file or a [[Composite]]) and
+ *  whether the prelude is included (the only option the typer reads). */
+final case class ProgramKey(path: String, prelude: Boolean)
+
+/** Identifies one top-level item of a program by its stable key (see [[hugin.meta.ItemKey]]). */
+final case class ItemQueryKey(program: ProgramKey, item: hugin.meta.ItemKey)
+
+/** Diagnostics of the program's naming and elaboration, accumulated by the queries that compute them. */
+object ProgramDiagnostics extends Accumulator[Diagnostic]("programDiagnostics")
+
+/** The top-level items of a program with their keys, in order, and the declarations after each item.
+ *  Recomputed after every edit of the program (cheap); the per-item queries project it. */
+final class ProgramItems(val items: List[(hugin.meta.ItemKey, hugin.syntax.Trees.Item)]):
+  val byKey: Map[hugin.meta.ItemKey, hugin.syntax.Trees.Item] = items.toMap
+  lazy val later: Map[hugin.meta.ItemKey, List[hugin.meta.ItemKey]] = ProgramElab.laterDeclarations(items)
+
+object ProgramItemsOf extends Query[ProgramKey, ProgramItems]("programItems"):
+  def compute(key: ProgramKey)(using db: Database): ProgramItems =
+    val items = db(ParseProgram, key.path).program.items
+    ProgramItems(items.zip(hugin.meta.ItemKey.assign(hugin.meta.ScopeKey.File(key.path), items)).map(_.swap))
+
+/** One item with its position ([[ItemFingerprint]]): cut off unless the item or its position changed. */
+final class PositionedItem(val item: hugin.syntax.Trees.Item, val fingerprint: ItemFingerprint):
+  override def equals(that: Any): Boolean = that match
+    case p: PositionedItem => fingerprint == p.fingerprint
+    case _ => false
+  override def hashCode: Int = fingerprint.hashCode
+
+object ItemOf extends Query[ItemQueryKey, PositionedItem]("itemOf"):
+  def compute(key: ItemQueryKey)(using db: Database): PositionedItem =
+    val item = db(ProgramItemsOf, key.program).byKey(key.item)
+    PositionedItem(item, ItemFingerprint.of(item))
+
+/** The declarations and definitions after an item: their meta definitions are hidden from it (E0105). */
+object LaterDecls extends Query[ItemQueryKey, List[hugin.meta.ItemKey]]("laterDecls"):
+  def compute(key: ItemQueryKey)(using db: Database): List[hugin.meta.ItemKey] =
+    db(ProgramItemsOf, key.program).later.getOrElse(key.item, Nil)
+
+/** Names the top level of a program ([[NamedProgram]]); cut off unless a declaration, a clause or a
+ *  `%mode` of a formula function changed (with its position), or the prelude did. */
+object ScopeOf extends Query[ProgramKey, NamedProgram]("scopeOf"):
+  def compute(key: ProgramKey)(using db: Database): NamedProgram =
+    val parsed = db(ParseProgram, key.path)
+    val named = ProgramElab.name(key.path, parsed.source, parsed.program, key.prelude, DatabaseLibraries())
+    named.diagnostics.foreach(db.push(ProgramDiagnostics, _))
+    named
+
+/** The names declared at a program's top level with their kinds and keys, and the enclosing scope: what
+ *  name resolution in an item depends on besides the declarations it finds. */
+final class ScopeNamesValue(val names: List[(String, hugin.meta.SymKind, hugin.meta.SymKey)], val parent: Option[hugin.meta.Scope]):
+  override def equals(that: Any): Boolean = that match
+    case n: ScopeNamesValue => names == n.names && parent.zip(n.parent).forall(_ eq _) && parent.isDefined == n.parent.isDefined
+    case _ => false
+  override def hashCode: Int = names.hashCode
+
+object ScopeNames extends Query[ProgramKey, ScopeNamesValue]("scopeNames"):
+  def compute(key: ProgramKey)(using db: Database): ScopeNamesValue =
+    val scope = db(ScopeOf, key).scope
+    ScopeNamesValue(scope.decls.values.toList.map(s => (s.name, s.kind, s.key)), scope.parent)
+
+/** The libraries of a program, elaborated (cut off unless one of them changed). */
+object ProgramLibrariesOf extends Query[ProgramKey, ProgramLibraries]("programLibraries"):
+  def compute(key: ProgramKey)(using db: Database): ProgramLibraries =
+    ProgramElab.libraries(key.path, db(ParseProgram, key.path).program, key.prelude, DatabaseLibraries())
+
+/** The declarations and definitions of a program, elaborated together ([[ProgramSignatures]]): recomputed
+ *  when one of them changes; the items depend on its parts ([[DeclSig]]), not on it. */
+object Signatures extends Query[ProgramKey, ProgramSignatures]("signatures"):
+  def compute(key: ProgramKey)(using db: Database): ProgramSignatures =
+    val named = db(ScopeOf, key)
+    val sigs = ProgramElab.signatures(named, db(ProgramLibrariesOf, key), key.prelude, DatabaseLibraries())
+    sigs.diagnostics.foreach(db.push(ProgramDiagnostics, _))
+    sigs
+
+final case class DeclSigKey(program: ProgramKey, owner: SigOwner)
+
+/** What items see of one declaration ([[DeclSigValue]]: an object declaration's columns, a type
+ *  definition, a meta definition's type and value, with the positions of the declaring item); cut off
+ *  unless that changed, so that only the items using a declaration are elaborated again after it changed. */
+object DeclSig extends Query[DeclSigKey, DeclSigValue]("declSig"):
+  def compute(key: DeclSigKey)(using db: Database): DeclSigValue =
+    db(Signatures, key.program).parts.getOrElse(key.owner, DeclSigValue.empty)
+
+/** Elaborates one top-level item of a program that is not a declaration or definition (a rule, query,
+ *  directive or subtyping edge). It depends on the item with its position, on the names of the top level,
+ *  on the libraries, on the declarations after it, and on the parts of the signatures it read
+ *  ([[DeclSig]]); the shared results it is elaborated against (the scope, the signatures) are read
+ *  untracked, since those dependencies cover everything it uses of them. */
+object ElabItem extends Query[ItemQueryKey, ElaboratedItem]("elabItem"):
+  def compute(key: ItemQueryKey)(using db: Database): ElaboratedItem =
+    val item = db(ItemOf, key).item
+    db(ScopeNames, key.program)
+    val plibs = db(ProgramLibrariesOf, key.program)
+    val later = db(LaterDecls, key).toSet
+    val named = db.untracked(ScopeOf, key.program)
+    val sigs = db.untracked(Signatures, key.program)
+    val (elaborated, read) =
+      ProgramElab.item(named, sigs, plibs, key.item, item, later, key.program.prelude, DatabaseLibraries())
+    read.foreach(o => db(DeclSig, DeclSigKey(key.program, o)))
+    elaborated.diagnostics.foreach(db.push(ProgramDiagnostics, _))
+    elaborated
+
+/** The top level of a program, elaborated: its parts assembled in item order (recomputed after every edit
+ *  of the program; the parts are reused). */
+object ElabFile extends Query[ProgramKey, ElaboratedProgram]("elabFile"):
+  def compute(key: ProgramKey)(using db: Database): ElaboratedProgram =
+    val program = db(ParseProgram, key.path).program
+    val named = db(ScopeOf, key)
+    val sigs = db(Signatures, key)
+    val items = db(ProgramItemsOf, key).items
+    ProgramElab.assemble(named, sigs, items, k => db(ElabItem, ItemQueryKey(key, k)), program.span)
 
 final case class CompileKey(path: String, settings: Settings = Settings())
 

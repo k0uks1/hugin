@@ -44,6 +44,7 @@ object Compiler:
   def compileWith(parsed: Parsed, settings: Settings, libraries: Libraries, out: String => Unit): Context =
     val ctx = Context(CompilationUnit(parsed.source), settings, Reporter(), libraries)
     ctx.unit.untpd = parsed.program
+    ctx.sources = (parsed.source :: parsed.program.items.map(_.span.source)).filter(_ ne SourceFile.NoSource).map(f => f.path -> f).toMap
     parsed.diagnostics.foreach(ctx.report)
     run(ctx, out)
 

@@ -133,6 +133,11 @@ final class Database:
     record(slot)
     fresh(slot).value.asInstanceOf[V]
 
+  /** Demands a query without recording a dependency of the running query: the caller must record, with
+   *  tracked reads, dependencies that cover everything it uses of the value (e.g. per-declaration
+   *  projections of a shared result), so that it is recomputed whenever what it used changed. */
+  def untracked[K, V](query: Query[K, V], key: K): V = fresh((query, key)).value.asInstanceOf[V]
+
   private def record(slot: Slot): Unit = stack.lastOption.foreach(_.deps += slot)
 
   /** Adds a value to an accumulator on behalf of the running query (ignored outside queries). */

@@ -307,7 +307,7 @@ private[meta] trait MetaExpressions extends TyperBase:
 
   private[meta] def mentions(t: MType, s: Sym): Boolean =
     def m(e: MExpr): Boolean = e match
-      case Ref(x) => x eq s
+      case Ref(x) => x == s
       case Proj(x, _) => m(x)
       case FactTypeOf(x) => m(x)
       case TApp(f, as) => m(f) || as.exists(o)

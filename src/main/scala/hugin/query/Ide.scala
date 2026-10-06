@@ -124,7 +124,7 @@ object Ide:
     val ix = index(key)
     targetAt(key, offset).toList.flatMap {
       case Target.Symbol(s, _) =>
-        val uses = ix.references.filter(_.sym eq s).map(_.span)
+        val uses = ix.references.filter(_.sym == s).map(_.span)
         (s.span +: uses).filter(_.exists).distinct.sortBy(sp => (sp.source.path, sp.start)).toList
       case Target.Variable(v) => occurrences(ix, v)
     }
@@ -141,7 +141,7 @@ object Ide:
       .sortBy(_.span.start)
       .map { s =>
         val enclosing = containers
-          .filter((c, sp) => (c ne s) && sp.start <= s.span.start && s.span.end <= sp.end)
+          .filter((c, sp) => c != s && sp.start <= s.span.start && s.span.end <= sp.end)
           .sortBy((_, sp) => size(sp))
           .headOption
           .map(_._1.name)

@@ -81,9 +81,10 @@ final class Disjunctions extends MiniPhase:
       case d @ Formula.Disj(alts) =>
         val b = boundBefore.getOrElse(d, bound)
         val altVars = alts.map(_.flatMap(allVars).toSet)
-        val inputs = altVars.reduce(_ ++ _).intersect(b).toList.sorted
+        val inputs = altVars.foldLeft(Set.empty[String])(_ ++ _).intersect(b).toList.sorted
         val results = alts.map(alt => Moding.canonical(alt, inputs.toSet).map(_._2).getOrElse(inputs.toSet))
-        val outputs = (results.reduce(_ intersect _) -- inputs).toList.sorted
+        // an empty disjunction (a formula function without clauses) is false and binds nothing
+        val outputs = (results.reduceOption(_ intersect _).getOrElse(Set.empty) -- inputs).toList.sorted
         lift(d, inputs, outputs, item)
       case g @ Formula.Agg(res, k, t, ib) if hasDisj(ib) =>
         Formula.Agg(res, k, t, liftInAggregate(ib, boundBefore.getOrElse(g, bound), item))(g.span)

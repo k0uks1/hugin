@@ -12,7 +12,7 @@ import scala.collection.mutable
 /** Stage inference and meta typing (Sections 3.2, 4.2–4.4). Produces elaborated meta expressions with
  *  explicit quotes and splices; object code is checked for staging, arity and labels here, while object
  *  typing proper happens after elaboration (`objTyper`), with the meta-level call chain as context. */
-final class Typer(c: Context, parents: List[SymTable] = Nil)
+final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View = SymTable.View.All)
     extends TyperBase
     with Normalization
     with Declarations
@@ -22,7 +22,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil)
   import MExpr.*
   import MType.*
   protected val context: Context = c
-  val syms: SymTable = SymTable(parents)
+  val syms: SymTable = SymTable(parents, view)
 
   // ======================================================================= items and bodies
 
@@ -227,7 +227,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil)
   private def elabItem(item: Item, sc: Scope, out: mutable.ListBuffer[EItem]): Unit =
     item match
       case d: Decl =>
-        sc.lookupLocal(d.name.name).filter(_.decl.contains(d)) match
+        sc.lookupLocal(d.name.name).filter(_.decl.exists(_ eq d)) match
           case None =>
           case Some(s) =>
             s.kind match
@@ -242,7 +242,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil)
                 elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
               case _ =>
       case d: Def =>
-        sc.lookupLocal(d.name.name).filter(_.decl.contains(d)).foreach { s =>
+        sc.lookupLocal(d.name.name).filter(_.decl.exists(_ eq d)).foreach { s =>
           elabMetaDef(s).foreach(m => out += EItem.MetaDef(s, m, d.span))
         }
       case SubEdge(sub, sup) =>
@@ -288,6 +288,25 @@ final class Typer(c: Context, parents: List[SymTable] = Nil)
     }
     (Body(out.toList, sc, span), Sig(fields, Nil))
 
+  /** Elaborates the declarations and definitions (`Decl` and `Def` items, with their keys, in item order) of
+   *  a program's top level, after recording the `%mode` declarations of formula functions among
+   *  `fnModeDirectives`: the part of rule M-Body that the other items of the program depend on (see
+   *  `hugin.compiler.ProgramElab`). Returns the elaborated items of each declaration. */
+  def elabDeclarations(items: List[(ItemKey, Item)], sc: Scope, fnModeDirectives: List[Item]): List[(ItemKey, List[EItem])] =
+    collectFnModes(fnModeDirectives, sc)
+    items.map { (key, item) =>
+      val out = mutable.ListBuffer.empty[EItem]
+      inItem(key)(elabItem(item, sc, out))
+      key -> out.toList
+    }
+
+  /** Elaborates one item of a program's top level (a rule, query, directive or subtyping edge) against the
+   *  declarations elaborated by [[elabDeclarations]] (this typer's parent table). */
+  def elabTopItem(item: Item, key: ItemKey, sc: Scope): List[EItem] =
+    val out = mutable.ListBuffer.empty[EItem]
+    inItem(key)(elabItem(item, sc, out))
+    out.toList
+
   /** The module value of the file whose top-level scope is `sc` (what `%import` of the file refers to),
    *  with the signature of its exports. */
   def moduleValue(name: String, sc: Scope, sig: MType): Sym =
@@ -326,13 +345,14 @@ object Typer:
   def moduleKey(path: String): SymKey = SymKey(ScopeKey.File(path), "%import")
 
 /** Phase: stage inference and meta typing of the program. The prelude and the imported files are
- *  elaborated apart, once ([[ElaboratedLibrary]]); the program's typer reads their results. */
+ *  elaborated apart, once ([[ElaboratedLibrary]]), and the program's top level item by item
+ *  ([[ProgramElab]]); this phase assembles their results. */
 final class TyperPhase extends Phase:
   def phaseName = "typer"
   def description = "stage inference and meta typing; inserts quotes and splices"
   def run(using Context): Unit =
     val u = ctx.unit
-    if u.untpd == null || u.rootScope == null then return
+    if u.untpd == null || u.rootScope == null || u.named == null then return
     // files in dependency order: the prelude and every imported file before the files importing it
     for lib <- u.libraries.values if lib.named != null do
       val e = ctx.libraries.elaborated(lib.key)
@@ -341,11 +361,15 @@ final class TyperPhase extends Phase:
       u.symKeys.inherit(e.keys)
       u.index.include(e.index)
       u.scopes ++= e.scopes
-    val typer = Typer(ctx, u.libraries.values.toList.flatMap(l => Option(l.elaborated).map(_.symbols)))
-    u.symbols = typer.syms
-    val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
-    u.elab = body
+    val program = ctx.libraries.elabProgram(u.source.path, u.untpd.nn, ctx.settings.prelude, u.named.nn)
+    program.diagnostics.foreach(ctx.report)
+    u.symKeys.absorb(program.keys)
+    u.index.include(program.index)
+    u.scopes ++= program.scopes
+    u.symbols = program.table
+    u.elab = program.body
     // the semantic index: declarations of all scopes and descriptions of every known symbol
+    val typer = Typer(ctx, List(program.table))
     val scopes = u.rootScope.nn :: u.libraries.values.toList.flatMap(l => Option(l.scope)) :::
       u.scopes.values.toList
     for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
@@ -353,7 +377,7 @@ final class TyperPhase extends Phase:
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced
     val used = u.index.references.collect { case r if r.isUse => r.sym }.toSet
     for s <- u.rootScope.nn.decls.values if (s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn) && !used(s) do
-      val isModuleValued = typer.syms.mtype(s) match
+      val isModuleValued = program.table.mtype(s) match
         case Some(MType.Sig(_, _) | MType.ModU | MType.Err) | None => true
         case _ => false
       if !isModuleValued then

@@ -122,10 +122,26 @@ final class Scope(val parent: Option[Scope], val description: String, val key: S
     check(name)
     claimed.add(name)
 
-  def lookupLocal(name: String): Option[Sym] = decls.get(name)
+  /** Told about every symbol found by a lookup in this scope, while set (see [[observing]]). */
+  private var observer: (Sym => Unit) | Null = null
+
+  /** Runs `body`, telling `f` about every symbol a lookup finds in this scope (also through a nested
+   *  scope). The per-item elaboration of a program records with it which declarations an item uses (see
+   *  `hugin.compiler.ProgramElab`); the scope itself does not change. */
+  def observing[T](f: Sym => Unit)(body: => T): T =
+    val saved = observer
+    observer = f
+    try body
+    finally observer = saved
+
+  def lookupLocal(name: String): Option[Sym] =
+    val found = decls.get(name)
+    val o = observer
+    if o != null then found.foreach(o)
+    found
 
   def lookup(name: String): Option[Sym] =
-    decls.get(name).orElse(parent.flatMap(_.lookup(name)))
+    lookupLocal(name).orElse(parent.flatMap(_.lookup(name)))
 
   def allNames: Iterator[String] = decls.keysIterator ++ parent.iterator.flatMap(_.allNames)
 

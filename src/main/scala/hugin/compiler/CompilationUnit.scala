@@ -18,6 +18,9 @@ final class CompilationUnit(val source: SourceFile):
 
   var rootScope: Scope | Null = null
 
+  /** The program's top level after naming (its scope is `rootScope`). */
+  var named: NamedProgram | Null = null
+
   /** Scopes of nested module bodies, in elaboration order. */
   val scopes: mutable.LinkedHashMap[ScopeKey, Scope] = mutable.LinkedHashMap.empty
 

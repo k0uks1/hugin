@@ -2,7 +2,8 @@
 
 Today `Compile` runs the whole pipeline per file: every edit, also whitespace, recompiles the program;
 since step 7 the prelude and imported files are named and elaborated once per database revision and
-shared by all compilations. This note records the plan for finer-grained queries. Each
+shared by all compilations, and since step 8 the items of the program are elaborated one by one, so an
+edit elaborates again only the items it affects (the object-level pipeline still runs per edit). This note records the plan for finer-grained queries. Each
 step is one PR that keeps all tests green; `IncrementalSuite` (incremental = from scratch on every golden
 program under edits) is the safety net for all of them.
 
@@ -28,6 +29,12 @@ program under edits) is the safety net for all of them.
 * Fresh names (`_17`, module prefixes, hygiene) come from counters over the whole file; since step 6 the
   typer's counters (anonymous Π-parameter names, local scope keys) are per item, MetaEval's module
   prefixes and hygiene counters are still global (MetaEval stays whole-program).
+* Elaboration order: the typer elaborated meta definitions in item order and object declarations and type
+  definitions on demand, from whichever item used them first; `ElabState` gave E0105 for a use of a later
+  definition. Since step 8 the declarations are elaborated before the other items and an item does not
+  see the meta definitions of later items (a static check by item order). Only the position of E0104 in
+  a cycle of type definitions entered first from a rule, query, directive or edge could differ (no
+  golden test has one).
 
 ## Steps
 
@@ -63,12 +70,50 @@ program under edits) is the safety net for all of them.
    includes their semantic index; the namer and typer phases report the libraries' diagnostics in the
    same order as before. The REPL and the language server keep one database, so the prelude is
    elaborated once per session (`LibraryQueriesSuite`, `IncrementalSuite` with library edits).
-8. **Per-item elaboration**: `ScopeOf`, `DeclSig`, `TypeDefSig`, `MetaDefType`/`MetaDefResult`,
-   `ElabItem` (with its part of the semantic index), `ElabFile`; a static forward-reference check
-   replaces `Sym.state`; the object pipeline stays one query over the elaborated file.
+8. **Per-item elaboration** (done, partly: declarations are elaborated together; `compiler/ProgramElab.scala`,
+   `query/CompilerQueries.scala`). The program's top level is elaborated in parts:
+   * `ScopeOf` names it (a frozen scope); its value is equal, and cut off, as long as the items the namer
+     and the elaboration of declarations read are equal with their positions (declarations and
+     definitions, clauses of formula functions, `%mode`s of formula functions; see `ItemFingerprint`) and
+     the prelude is the same, so a cut-off keeps symbols whose spans are still right. `ScopeNames` (the
+     names, kinds and keys of the top level) is what name resolution in an item depends on.
+   * `Signatures` elaborates all declarations and definitions together, in item order, as the typer did
+     (object declarations and type definitions on demand, meta definitions in order with the dynamic
+     `ElabState` check for E0104/E0105 among them). `DeclSig` projects it per declaration item (the
+     fingerprints of the item and of the clauses of a formula function, and the typing results of all its
+     symbols, compared with positions by `Positional.same`); it stands for the planned `DeclSig`,
+     `TypeDefSig`, `MetaDefType` and `MetaDefResult`, which are one projection here because any edit of an
+     item changes its fingerprint anyway. A `%mode` of a prelude formula function is a part of its own.
+   * `ElabItem` elaborates one other item (rule, query, directive, subtyping edge) with its own typer,
+     whose table is layered over the signatures' table. It depends on the item with its position
+     (`ItemOf`), on `ScopeNames`, on the libraries (`ProgramLibrariesOf`), on the declarations after it
+     (`LaterDecls`) and on the `DeclSig` of every declaration it read: the table's `View` and the scope's
+     `observing` hook record every symbol an item reads from the signatures or finds in the top-level
+     scope. The scope and the signatures themselves are read untracked (`Database.untracked`), since these
+     dependencies cover what the item uses of them. The static forward-reference check replaces
+     `ElabState` for items: the view hides the meta definitions and formula functions of later items (they
+     read as not elaborated, as they were when the body was elaborated in item order), which gives E0105.
+   * `ElabFile` assembles the parts in item order (the body, a merged table, keys, semantic index, scopes,
+     diagnostics); the typer phase reads it. Diagnostics of the parts are also pushed to the
+     `ProgramDiagnostics` accumulator. Compilations without a database run the same parts in sequence
+     (`ProgramElab.direct`), so both agree. The object-level pipeline and MetaEval stay whole-program.
+
+   Editing a rule elaborates that rule again, and the items whose position changed; editing a declaration
+   elaborates the items that use it; adding or removing a declaration (a change of the names) elaborates
+   every item (`ItemQueriesSuite`). Positions: until step 9 an item's results keep spans into the source
+   file it was parsed from, and they are reused only while the item's fingerprint (tree, offsets, first
+   line, text of its lines) is unchanged, so every reused span has the same offset, line, column and line
+   text in the current file; diagnostics are moved to the current source file (`Context.sources`), and the
+   semantic index compares symbols by key. The price is that an edit that changes the length or the lines
+   of an item elaborates every later item again (also their declarations' dependants when declarations
+   move); step 9 removes it. Remaining: declarations and definitions are elaborated together (a change of
+   one elaborates all of them again, though only the items using a changed one follow); a change of the
+   names of the top level elaborates every item; `ElabFile`, the object pipeline and MetaEval run after
+   every edit.
 9. **Item slices**: items parsed from their own text slices with item-relative spans, mapped to file
    positions at the boundary (`ItemOffsets`, generalizing the REPL's former chunk mapping), so that
-   whitespace and comment edits cut off.
+   whitespace and comment edits cut off: the fingerprints of step 8 become item-relative, and an
+   edit no longer elaborates the items after it again.
 10. **Clients**: diagnostics per file from accumulators, the language server publishing per file, REPL
     probes as an extra item, eviction of unused memos.
 

@@ -100,6 +100,12 @@ final class SymKeys:
   /** Adds the keys of a library (they must not be registered again). */
   def inherit(keys: SymKeys): Unit = if !inherited.exists(_ eq keys) then inherited += keys
 
+  /** Adds the keys registered in `keys` (they must be new here) and inherits what it inherited: the
+   *  per-item registries of a program are merged into the registry of the whole program. */
+  def absorb(keys: SymKeys): Unit =
+    for k <- keys.seen do register(k)
+    keys.inherited.foreach(inherit)
+
   /** Whether a key was registered here or in an inherited registry. */
   def contains(key: SymKey): Boolean = seen.contains(key) || inherited.exists(_.contains(key))
 
