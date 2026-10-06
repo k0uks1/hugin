@@ -6,32 +6,39 @@ import hugin.syntax.Trees.*
 import hugin.util.*
 import scala.collection.mutable
 
-/** The text and position of an item, for comparing items with their positions: the tree (whose equality
- *  ignores spans), the file, the item's offsets, its first line and the text of all lines it touches. Two
- *  items with equal fingerprints have the same spans, and every position inside them has the same line,
- *  column and line text, so results computed from one are valid for the other, also where they keep spans
- *  into the source file the first one was parsed from. Until items are parsed from their own slices (step
- *  9 of `docs/INCREMENTALITY.md`), an edit before an item changes its fingerprint. */
-final case class ItemFingerprint(tree: Item, path: String, start: Int, end: Int, line: Int, text: String)
+/** The text and position of an item, for comparing items with their positions.
+ *
+ *  An item parsed from its own slice of the file (see [[hugin.util.SourceFile.slice]]) has item-relative
+ *  spans that resolve through the slice's placement: its fingerprint is the tree, the slice (by identity)
+ *  and the item's offsets in it, so it stays the same when an edit elsewhere moves the item, and results
+ *  computed from it keep showing its current positions. An item that could not be parsed on its own (it
+ *  has parse errors) keeps spans into the file; its fingerprint is then the tree, the file, the item's
+ *  offsets, its first line and the text of all lines it touches: two items with equal fingerprints have
+ *  the same spans, and every position inside them has the same line, column and line text. */
+final case class ItemFingerprint(tree: Item, path: String, start: Int, end: Int, line: Int, text: String, slice: Option[SourceFile])
 
 object ItemFingerprint:
   def of(item: Item): ItemFingerprint =
     val sp = item.span
-    if !sp.exists then ItemFingerprint(item, "", 0, 0, 0, "")
+    if !sp.exists then ItemFingerprint(item, "", 0, 0, 0, "", None)
+    else if sp.origin.isSlice then ItemFingerprint(item, sp.origin.path, sp.from, sp.until, 0, "", Some(sp.origin))
     else
       val src = sp.source
       val first = src.lineOf(sp.start)
       val last = src.lineOf(sp.end)
       val to = if last + 1 < src.lineCount then src.lineStart(last + 1) else src.content.length
-      ItemFingerprint(item, src.path, sp.start, sp.end, first, src.content.substring(src.lineStart(first), to))
+      ItemFingerprint(item, src.path, sp.start, sp.end, first, src.content.substring(src.lineStart(first), to), None)
 
-/** Equality of typing results that also compares positions: spans by file and offsets (not by the
- *  identity of their source file, which is new after every parse), symbols by key, kind and position,
+/** Equality of typing results that also compares positions: spans in a slice by the slice (by identity)
+ *  and their offsets in it (so they are equal wherever the slice is placed), other spans by file and
+ *  offsets (not by the identity of their source file, which is new after every parse), symbols by key, kind and position,
  *  scopes by key, and the spans that object trees keep apart from their fields. Anything else (such as
  *  type parameters, which have an identity) compares with `==`. */
 object Positional:
   def same(a: Any, b: Any): Boolean = (a, b) match
-    case (x: Span, y: Span) => x.start == y.start && x.end == y.end && x.source.path == y.source.path
+    case (x: Span, y: Span) =>
+      if x.origin.isSlice || y.origin.isSlice then (x.origin eq y.origin) && x.from == y.from && x.until == y.until
+      else x.start == y.start && x.end == y.end && x.source.path == y.source.path
     case (x: Sym, y: Sym) => x.key == y.key && x.kind == y.kind && same(x.span, y.span)
     case (x: Scope, y: Scope) => x.key == y.key
     case (x: hugin.obj.Term, y: hugin.obj.Term) => same(x.span, y.span) && fields(x.asInstanceOf[Product], y.asInstanceOf[Product])

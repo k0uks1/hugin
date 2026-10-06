@@ -6,9 +6,10 @@ import hugin.util.*
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
-/** Per-item elaboration (step 8 of `docs/INCREMENTALITY.md`): editing an item elaborates that item again,
- *  and the items whose inputs changed (those that use an edited declaration, and those after an edit that
- *  moved them), not the others; the results equal those of a compilation from scratch. */
+/** Per-item elaboration (step 8 of `docs/INCREMENTALITY.md`) of items parsed from their own slices (step
+ *  9): editing an item elaborates that item again, and the items whose inputs changed (those that use an
+ *  edited declaration), not the others, also not the items the edit moved; the results equal those of a
+ *  compilation from scratch, with the positions of the current text. */
 class ItemQueriesSuite extends munit.FunSuite:
   private val settings = Settings(printAfter = Set("lower"))
   private val path = "items.hgn"
@@ -77,13 +78,52 @@ class ItemQueriesSuite extends munit.FunSuite:
     assertEquals(signatures, 0)
   }
 
-  test("an edit that moves later items elaborates them again (their positions changed), not earlier ones") {
+  test("an edit that changes the length of a rule elaborates only that rule, not the items it moves") {
     given db: Database = setup()
     compile
-    // `s`, `t` and the query move; `p 1.`, `p 2.`, `q 3.` and `r` do not
+    // `t` and the query move; their slices are the same, so they are not elaborated again
     edit("s X :- q X.", "s X :- q X, p X.")
-    assertEquals(elaborated, 3)
+    assertEquals(elaborated, 1)
     assertEquals(signatures, 0)
+  }
+
+  test("blank lines and comments between items elaborate nothing") {
+    given db: Database = setup()
+    compile
+    edit("p 1.\n", "\n\n(* a comment *)\np 1.\n")
+    assertEquals(elaborated, 0)
+    assertEquals(signatures, 0)
+    edit("limit : int = 5.\n", "  (* first *)\n\n   limit : int = 5.\n")
+    assertEquals(elaborated, 0)
+    assertEquals(signatures, 0)
+    edit("?- r X.", "?- r X.   (* the query *)")
+    assertEquals(elaborated, 0)
+    assertEquals(db.stats.computedBy("parseItem"), 0)
+  }
+
+  test("moving items elaborates nothing; positions are those of the current text") {
+    given db: Database = setup(program.replace("t X :- p X.", "t X :- p Z."))
+    compile
+    val text = db.get(SourceText, path)
+    // the items keep their text; every one of them moves (lines, columns and offsets change)
+    val moved = "(* moved *)\n\n" + text.replace("p 1.\np 2.\n", "p 1.  p 2.\n").replace("n2 : type = int.\n", "\n  n2 : type = int.\n\n")
+    db.set(SourceText, path, moved)
+    db.stats.reset()
+    val incremental = observe(moved)
+    assertEquals(elaborated, 0)
+    assertEquals(signatures, 0)
+    assert(incremental._1.nonEmpty)
+    assertEquals(rendered(incremental), rendered(fresh(moved)))
+  }
+
+  test("the items of the golden programs without parse errors are parsed from their slices") {
+    for p <- programs do
+      given db: Database = setup(Files.readString(p))
+      val parsed = db(ParseProgram, path)
+      if parsed.diagnostics.isEmpty then
+        val whole = db(Parse, path).program.items
+        assertEquals(parsed.program.items.count(!_.span.origin.isSlice), 0, p.toString)
+        assert(hugin.syntax.Slices.congruent(parsed.program.items, whole), p.toString)
   }
 
   test("editing a meta definition elaborates the items that use it") {
@@ -102,11 +142,11 @@ class ItemQueriesSuite extends munit.FunSuite:
     assertEquals(elaborated, 2) // `q 3.` and the rule of `s`
   }
 
-  test("an edit that keeps offsets but moves lines elaborates the items on the moved lines again") {
+  test("an edit that moves lines elaborates only the edited item") {
     given db: Database = setup()
     compile
     edit("r X :- p X, X < limit.", "r X :-\np X, X < limit.")
-    assertEquals(elaborated, 4) // `r`, `s`, `t` and the query are on other lines now
+    assertEquals(elaborated, 1) // `r`; `s`, `t` and the query are on other lines now, with the same slices
     val warned = program.replace("t X :- p X.", "t X :- p Z.")
     db.set(SourceText, path, warned)
     compile

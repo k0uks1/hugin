@@ -126,7 +126,7 @@ private[meta] trait ObjectCode extends TyperBase:
    *  ignore them with `..`), in a head as variables named after the labels. */
   private def missingLabelFixes(d: Diagnostic, fields: List[Field], missing: List[String], isHead: Boolean): Diagnostic =
     fields.lastOption.fold(d) { last =>
-      val at = Span(last.value.span.source, last.value.span.end, last.value.span.end)
+      val at = last.value.span.endPoint
       val add = d.withSuggestion(
         "add the missing labels",
         at,
@@ -317,7 +317,7 @@ private[meta] trait ObjectCode extends TyperBase:
                   case SigEntry.FieldDecl(_, tpe) => tpe.span
                   case SigEntry.Complete(_, sp) => sp
                   case SigEntry.ModeReq(_, _, sp) => sp
-                d.withSuggestion(s"add `%complete $l`", Span(end.source, end.end, end.end), s", %complete $l")
+                d.withSuggestion(s"add `%complete $l`", end.endPoint, s", %complete $l")
               }
             ))
         case _ =>

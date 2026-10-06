@@ -47,3 +47,20 @@ class UtilSuite extends munit.FunSuite:
     r.report(Diagnostic.warning("W0001", "y", Span.NoSpan))
     assertEquals((r.errorCount, r.warningCount), (1, 1))
   }
+
+  test("spans in a slice resolve to the file it is placed in; equality ignores the placement") {
+    val slice = SourceFile.slice("f", "q X :- p X.")
+    val sp = Span(slice, 2, 3)
+    assertEquals((sp.source eq slice, sp.start, sp.text), (true, 2, "X"))
+    val v1 = SourceFile.virtual("f", "p 1.\nq X :- p X.\n")
+    slice.place(v1, 5)
+    assertEquals((sp.source eq v1, sp.start, sp.end, sp.show, sp.text), (true, 7, 8, "f:2:3", "X"))
+    val hash = sp.hashCode
+    val v2 = SourceFile.virtual("f", "p 1.\n\n  q X :- p X.\n")
+    slice.place(v2, 8)
+    assertEquals((sp.source eq v2, sp.start, sp.show), (true, 10, "f:3:5"))
+    assertEquals((sp, sp.hashCode), (Span(slice, 2, 3), hash))
+    assertEquals(sp.to(Span(slice, 9, 10)), Span(slice, 2, 10))
+    assertEquals(sp.in(v1), sp) // already in the current text
+    intercept[IllegalArgumentException](slice.place(v2, 0)) // the slice does not lie there
+  }

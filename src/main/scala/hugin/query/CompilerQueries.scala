@@ -15,6 +15,25 @@ object SourceText extends Input[String, String]("sourceText"):
 object Parse extends Query[String, Parsed]("parse"):
   def compute(path: String)(using db: Database): Parsed = Parsed(SourceFile.virtual(path, db.get(SourceText, path)))
 
+/** Parses the slice of one top-level item of a file on its own ([[hugin.syntax.Slices]]), keyed by its
+ *  text: an item whose text did not change is the same tree, with the same item-relative spans, after any
+ *  edit elsewhere in the file. It reads nothing, so it is computed once per key. */
+object ParseItem extends Query[hugin.syntax.Slices.Key, hugin.syntax.Slices.Parsed]("parseItem"):
+  def compute(key: hugin.syntax.Slices.Key)(using db: Database): hugin.syntax.Slices.Parsed = hugin.syntax.Slices.parse(key)
+
+/** A file as the program of a compilation: the whole file parsed (which decides where its items are, and
+ *  reports parse diagnostics) and its top-level items, parsed from their slices where possible. */
+final class SlicedFile(val parsed: Parsed, val items: List[hugin.syntax.Trees.Item])
+
+/** Splits a file into its items' slices ([[hugin.syntax.Slices]]) and places the slices at their offsets
+ *  in the current text of the file: the boundary between item-relative and file positions (`ItemOffsets`
+ *  in `docs/INCREMENTALITY.md`). Recomputed after every edit of the file, before anything reads positions
+ *  of its items (every query on a program's items depends on it through [[ParseProgram]]). */
+object ItemSlices extends Query[String, SlicedFile]("itemSlices"):
+  def compute(path: String)(using db: Database): SlicedFile =
+    val parsed = db(Parse, path)
+    SlicedFile(parsed, hugin.syntax.Slices.items(parsed.source, parsed.program, k => db(ParseItem, k)))
+
 /** The `%import`s of a file with their resolved paths. The parsed source is part of the value so that an
  *  edit of the file is a change even when the imports are equal up to positions (trees compare without
  *  their spans). */
@@ -81,16 +100,19 @@ final case class Part(path: String, queries: Boolean = true)
 object Composite extends Input[String, Vector[Part]]("composite")
 
 /** Parses a program: the file at `path`, or the parts set as its [[Composite]]. The items of a part keep
- *  their own source file, so their diagnostics point into it and their `%import`s resolve relative to it. */
+ *  their own source file, so their diagnostics point into it and their `%import`s resolve relative to it.
+ *  Items are parsed from their slices ([[ItemSlices]]), so their spans are item-relative. */
 object ParseProgram extends Query[String, Parsed]("parseProgram"):
   def compute(path: String)(using db: Database): Parsed =
-    if !db.has(Composite, path) then db(Parse, path)
+    if !db.has(Composite, path) then
+      val sliced = db(ItemSlices, path)
+      sliced.parsed.copy(program = hugin.syntax.Program(sliced.items, sliced.parsed.program.span))
     else
-      val parts = db.get(Composite, path).map(p => (p, db(Parse, p.path)))
-      val items = parts.toList.flatMap((p, parsed) =>
-        if p.queries then parsed.program.items else parsed.program.items.filterNot(_.isInstanceOf[hugin.syntax.Trees.Query])
+      val parts = db.get(Composite, path).map(p => (p, db(ItemSlices, p.path)))
+      val items = parts.toList.flatMap((p, sliced) =>
+        if p.queries then sliced.items else sliced.items.filterNot(_.isInstanceOf[hugin.syntax.Trees.Query])
       )
-      Parsed(SourceFile.virtual(path, ""), hugin.syntax.Program(items, Span.NoSpan), parts.toList.flatMap(_._2.diagnostics))
+      Parsed(SourceFile.virtual(path, ""), hugin.syntax.Program(items, Span.NoSpan), parts.toList.flatMap(_._2.parsed.diagnostics))
 
 // ------------------------------------------------------------------------------ per-item elaboration
 
@@ -115,7 +137,8 @@ object ProgramItemsOf extends Query[ProgramKey, ProgramItems]("programItems"):
     val items = db(ParseProgram, key.path).program.items
     ProgramItems(items.zip(hugin.meta.ItemKey.assign(hugin.meta.ScopeKey.File(key.path), items)).map(_.swap))
 
-/** One item with its position ([[ItemFingerprint]]): cut off unless the item or its position changed. */
+/** One item with its position ([[ItemFingerprint]]): cut off unless the item or its position changed; the
+ *  position of an item parsed from its slice is item-relative, so moving the item does not change it. */
 final class PositionedItem(val item: hugin.syntax.Trees.Item, val fingerprint: ItemFingerprint):
   override def equals(that: Any): Boolean = that match
     case p: PositionedItem => fingerprint == p.fingerprint

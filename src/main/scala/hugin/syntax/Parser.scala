@@ -8,7 +8,7 @@ import scala.collection.mutable
  *  Precedence levels (Section 2.2) are scaled by 10; an operator declared with `%infix assoc p name`
  *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
  */
-final class Parser(src: SourceFile, reporter: Reporter):
+final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String, (Parser.Assoc, Int)]] = None):
   import Parser.*
 
   private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
@@ -88,8 +88,16 @@ final class Parser(src: SourceFile, reporter: Reporter):
 
   // ---------------------------------------------------------------- program and items
 
-  def parseProgram(): Program =
+  /** The operators declared with `%infix` in the source (all of them, wherever they are written). */
+  def infixOperators: Map[String, (Assoc, Int)] =
     prescanInfix()
+    infixOps.toMap
+
+  def parseProgram(): Program =
+    // the operators of the whole file, when this is a slice of it
+    infix match
+      case Some(ops) => infixOps ++= ops
+      case None => prescanInfix()
     val items = mutable.ListBuffer.empty[Item]
     while kind != Tok.EOF do
       if kind == Tok.RBrace then
@@ -585,3 +593,13 @@ object Parser:
   val LvlMul = 70
 
   def parse(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter).parseProgram()
+
+  /** The `%infix` operators of a file, which every part of it is parsed with. */
+  def infixOperators(src: SourceFile): Map[String, (Assoc, Int)] = Parser(src, Reporter()).infixOperators
+
+  /** Parses a slice of a file (its text from the start of a top-level item to its end) with the file's
+   *  `%infix` operators: the items, if it parses without diagnostics. */
+  def parseSlice(src: SourceFile, infix: Map[String, (Assoc, Int)]): Option[List[Trees.Item]] =
+    val reporter = Reporter()
+    val program = Parser(src, reporter, Some(infix)).parseProgram()
+    Option.when(reporter.diagnostics.isEmpty)(program.items)
