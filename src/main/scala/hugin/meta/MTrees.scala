@@ -41,10 +41,10 @@ enum MType:
 
 object MType:
   def show(t: MType): String = t match
-    case Code(o) => s"⇑${showO(o)}"
+    case Code(o) => s"⇑${OType.showArg(o)}"
     case TypeU => "type"
     case RelT(cols, res) =>
-      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + OType.showArg(c.tpe)) :+ res.map(OType.showArg).getOrElse("rel")).mkString(" -> ")})"
     case PropT => "⇑prop"
     case Prim(b) => b.show
     case Pi(x, d, c, imp) =>
@@ -60,9 +60,6 @@ object MType:
   private def showArg(t: MType) = t match
     case _: Pi => s"(${show(t)})"
     case _ => show(t)
-  private def showO(o: OType): String = o match
-    case OType.Union(_) | OType.Con(_, _ :: _) | OType.Fact(_, _ :: _) => s"(${o.show})"
-    case _ => o.show
 
 /** Elaborated meta expressions with explicit quotes and splices (output of `typer`). */
 enum MExpr:

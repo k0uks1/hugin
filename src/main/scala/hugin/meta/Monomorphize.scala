@@ -57,12 +57,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   // ------------------------------------------------------------------ instances
 
   private def instName(base: String, args: List[OType]): String =
-    s"$base[${args.map(showInst).mkString(", ")}]"
-
-  private def showInst(t: OType): String = t match
-    case OType.Con(s, Nil) => s.name
-    case OType.Fact(r, Nil) => r.name
-    case other => other.show
+    s"$base[${args.map(_.show).mkString(", ")}]"
 
   /** Converts a ground generic type into its monomorphic form (family applications become instances). */
   def monoType(t: OType, span: Span, origin: Origin): OType = t match
@@ -348,7 +343,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       "E0205",
       "polymorphic recursion",
       span,
-      s"`${g.name}` used at [${us.map(showInst).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(showInst).mkString(", ")}]"
+      s"`${g.name}` used at [${us.map(_.show).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(_.show).mkString(", ")}]"
     )
       .withNote(
         "within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)"
@@ -396,7 +391,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       val (f, ts, origin) = worklist.dequeue()
       for rule <- ruleFamilies.getOrElse(f, Vector.empty) do
         inferRule(rule, Some((f, ts))).foreach { r =>
-          outRules += r.withParts(name = r.name.map(n => s"$n[${ts.map(showInst).mkString(", ")}]"))
+          outRules += r.withParts(name = r.name.map(n => s"$n[${ts.map(_.show).mkString(", ")}]"))
         }
     // directives on families apply to all instances
     val dirs = p.directives.flatMap { d =>

@@ -152,7 +152,8 @@ object OType:
     case Splice(m) => s"~(${MExpr.show(m)})"
     case Err => "<error>"
 
-  private def showArg(t: OType): String = t match
+  /** As an argument of a type application: compound types in parentheses. */
+  def showArg(t: OType): String = t match
     case Con(_, _ :: _) | Fact(_, _ :: _) | Union(_) => s"(${show(t)})"
     case _ => show(t)
 
