@@ -6,6 +6,12 @@ import hugin.syntax.AggKind
 /** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String) or identities. */
 final case class Id(rel: Int, n: Int)
 
+/** The value of a constructor term in a comparison that was never built. It differs from every
+ *  identity (an existing value would have been found) and equals another absent value of the same
+ *  structure, so a comparison does not depend on which values happen to exist. It occurs only in tests,
+ *  never in a fact. */
+final case class Absent(rel: Int, args: Vector[Any])
+
 /** Which part of a relation a scan reads (Section 9.5). */
 enum Version:
   case Full, Old, Delta
@@ -31,8 +37,9 @@ enum BodyOp:
   case Eval(dst: Int, e: Expr)
   case Test(op: CmpOp, a: Expr, b: Expr)
 
-  /** Look up the identity of an existing fact (no interning). */
-  case Lookup(dst: Int, rel: Int, args: Array[Expr])
+  /** Look up the identity of an existing value (no interning). If it was never built, the operation fails,
+   *  or with `orAbsent` (operands of comparisons) yields an [[Absent]] value. */
+  case Lookup(dst: Int, rel: Int, args: Array[Expr], orAbsent: Boolean = false)
   case NotIn(ops: Array[BodyOp])
   case Agg(dst: Int, kind: AggKind, term: Expr, locals: Array[Int], ops: Array[BodyOp])
 

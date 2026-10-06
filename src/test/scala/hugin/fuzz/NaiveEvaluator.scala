@@ -104,9 +104,10 @@ final class NaiveEvaluator(prog: CoreProgram):
           (eval(a, regs, None), eval(b, regs, None)) match
             case (Some(x), Some(y)) if compare(op, x, y) => LazyList(regs)
             case _ => LazyList.empty
-        case BodyOp.Lookup(dst, rel, as) =>
+        case BodyOp.Lookup(dst, rel, as, orAbsent) =>
+          // words are structural, so a term that was never built is just a word no fact equals
           val vs = as.toVector.map(eval(_, regs, None))
-          if vs.forall(_.isDefined) && exists(rel, vs.map(_.get)) then LazyList(regs + (dst -> Fact(rel, vs.map(_.get))))
+          if vs.forall(_.isDefined) && (orAbsent || exists(rel, vs.map(_.get))) then LazyList(regs + (dst -> Fact(rel, vs.map(_.get))))
           else LazyList.empty
         case BodyOp.NotIn(sub) => if solve(sub.toList, regs).isEmpty then LazyList(regs) else LazyList.empty
         case BodyOp.Agg(dst, kind, term, locals, sub) =>

@@ -192,15 +192,12 @@ object ProgramGen:
           val (v, t) = pick(others)
           val same = boundOf(t).filter(_ != v)
           if same.nonEmpty && chance(0.4) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
-          // `X <> red` is false while `red` was never constructed (the term has no value); demand facts
-          // construct their arguments, so with `%mode` the answer would change (a known issue, see README).
-          // `nil` exists whenever a list does (it ends every list).
+          // a constant that was never built differs from every value, also under `%mode`
           else if t == ListT then
             val c = const(t)
             val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c
-            val op = if c == "nil" then pick(Seq("=", "<>")) else "="
+            val op = pick(Seq("=", "<>"))
             Some(if chance(0.5) then s"$v $op $rhs" else s"$rhs $op $v")
-          else if t == ColorT then Some(s"$v = ${const(t)}")
           else Some(s"$v ${pick(Seq("=", "<>"))} ${const(t)}")
         else None
 

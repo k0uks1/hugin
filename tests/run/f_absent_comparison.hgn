@@ -1,0 +1,26 @@
+(* A constructor term in a comparison that was never built differs from every existing value, so
+   comparisons do not depend on which values exist. Here `red` is only built as a probe, by the demand
+   of the query `?- d red.`, which must not change the answers of `other`, `same` and `notlist`. *)
+color : type. red : color. blue : color.
+p : color -> rel.
+p blue.
+
+other : color -> rel.
+other X :- p X, X <> red.
+%output other.
+
+same : rel.
+same :- p X, X = red.
+%output same.
+
+lists : list color -> rel.
+lists (cons blue nil).
+notlist : list color -> rel.
+notlist L :- lists L, L <> cons red nil.
+%output notlist.
+
+d : (a : color) -> rel.
+%mode d +a.
+d X :- p X.
+?- d red.
+?- d blue.
