@@ -274,10 +274,17 @@ private[meta] trait TypeElaboration extends TyperBase:
     case RelT(cols, res) =>
       s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
     case Pi(x, d, c, imp) =>
-      val dom = if imp then s"{${x.name} : ${showMT(d)}}" else if x.name.startsWith("_") then showMT(d) else s"(${x.name} : ${showMT(d)})"
+      val dom =
+        if imp then s"{${x.name} : ${showMT(d)}}" else if x.name.startsWith("_") then showMTDomain(d) else s"(${x.name} : ${showMT(d)})"
       s"$dom -> ${showMT(c)}"
     case Sig(fs, _) => fs.map((s, ft) => s"${s.name} : ${showMT(ft)}").mkString("{ ", ", ", " }")
     case other => other.show
+
+  /** An anonymous domain of a Π type: the arrow is right-associative, so a Π domain needs parentheses
+   *  (`(A -> B) -> C`, not `A -> B -> C`). */
+  private def showMTDomain(t: MType): String = t match
+    case _: Pi => s"(${showMT(t)})"
+    case _ => showMT(t)
 
   private[meta] def mismatch(expected: MType, found: MType, span: Span, reason: String): Unit =
     var d = Diagnostic.error("E0203", "meta type mismatch", span, s"expected `${showMT(expected)}`")
