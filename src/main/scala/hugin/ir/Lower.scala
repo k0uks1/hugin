@@ -61,19 +61,28 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case other =>
         out += BodyOp.Test(CmpOp.Eq, Expr.Reg(y), expr(other))
 
-    /** Column constraints of an atom: bindings `k := r`, checks `k == e`, and nested patterns. */
+    /** Column constraints of an atom: bindings `k := r`, checks `k == e`, and nested patterns. Checks are
+     *  evaluated before the bindings of the same atom are made, so a column that refers to a variable
+     *  bound by an earlier column of the atom (`p X X`) is bound and matched afterwards, like a nested
+     *  pattern. */
     def columns(args: List[Term]): (Array[(Int, Int)], Array[(Int, Expr)], List[(Term, Int)]) =
       val binds = mutable.ArrayBuffer.empty[(Int, Int)]
       val checks = mutable.ArrayBuffer.empty[(Int, Expr)]
       val nested = mutable.ListBuffer.empty[(Term, Int)]
+      val boundHere = mutable.HashSet.empty[String]
       for (a, k) <- args.zipWithIndex do
         a match
+          case t if Moding.vars(t).exists(boundHere) =>
+            val r = fresh()
+            binds += ((k, r))
+            nested += ((t, r))
           case Term.Var(n) =>
             regOf.get(n) match
               case Some(r) => checks += ((k, Expr.Reg(r)))
               case None =>
                 val r = fresh()
                 regOf(n) = r
+                boundHere += n
                 binds += ((k, r))
           case Term.Lit(l) => checks += ((k, Expr.Const(lit(l))))
           case _: Term.Arith | _: Term.Neg => checks += ((k, expr(a)))

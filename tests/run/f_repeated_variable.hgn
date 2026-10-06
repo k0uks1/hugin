@@ -1,0 +1,15 @@
+(* a variable that occurs twice in one atom joins the columns (found by the fuzzer, issue #7); the
+   check of the second occurrence must see the binding made by the first *)
+e : int -> int -> rel.
+e 1 1. e 1 2. e 3 3.
+diag : int -> rel.
+diag X :- e X X.
+w : type. mk : int -> w.
+h : w -> int -> rel.
+h (mk 1) 1. h (mk 2) 3.
+same : int -> rel.
+same X :- h (mk X) X.
+loop : int -> rel.
+loop X :- e X X, not e X 2.
+?- e X X.
+%output diag. %output same. %output loop.
