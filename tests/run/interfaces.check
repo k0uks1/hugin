@@ -1,0 +1,5 @@
+known 2 4.
+known 3 9.
+?- small X, s.area X A.
+X = shapes.dot, A = 0.
+X = shapes.square 2, A = 4.

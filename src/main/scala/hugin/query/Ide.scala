@@ -244,7 +244,8 @@ object Ide:
       .find(s => s.name == name && (s.kind == SymKind.Rel || s.kind == SymKind.Ctor || s.kind == SymKind.Struct))
       .map { s =>
         db(Compile, key).symbols.mtype(s) match
-          case Some(hugin.meta.MType.RelT(cols)) => cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
+          case Some(hugin.meta.MType.RelT(cols, _)) =>
+            cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
           case _ => Nil
       }
 

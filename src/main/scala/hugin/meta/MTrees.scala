@@ -17,8 +17,9 @@ enum MType:
   /** `type` */
   case TypeU
 
-  /** ⇑(τ̄ → rel) */
-  case RelT(cols: List[Column])
+  /** ⇑(τ̄ → rel): a relation; with a `result` type, ⇑(τ̄ → a): a constructor (its relation of facts, used
+   *  as a relation or to build terms). */
+  case RelT(cols: List[Column], result: Option[OType] = None)
 
   /** ⇑prop */
   case PropT
@@ -42,7 +43,8 @@ object MType:
   def show(t: MType): String = t match
     case Code(o) => s"⇑${showO(o)}"
     case TypeU => "type"
-    case RelT(cols) => s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ "rel").mkString(" -> ")})"
+    case RelT(cols, res) =>
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
     case PropT => "⇑prop"
     case Prim(b) => b.show
     case Pi(x, d, c, imp) =>

@@ -84,7 +84,7 @@ private[meta] trait ObjectCode extends TyperBase:
       classify(head, sc, rc) match
         case Head.Obj(s) =>
           obj.Term.App(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = false, s.span))(t.span)
-        case Head.Meta(m, RelT(cols)) =>
+        case Head.Meta(m, RelT(cols, _)) =>
           obj.Term.App(RelRef.Spliced(m), elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = false, Span.NoSpan))(t.span)
         case Head.Meta(m, mt @ (Code(_) | Prim(_))) =>
           if args.nonEmpty then
@@ -251,7 +251,7 @@ private[meta] trait ObjectCode extends TyperBase:
           List(obj.Formula.Atom(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = false, s.span), None)(
             t.span
           ))
-        case Head.Meta(m, RelT(cols)) =>
+        case Head.Meta(m, RelT(cols, _)) =>
           List(obj.Formula.Atom(
             RelRef.Spliced(m),
             elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = false, Span.NoSpan),
@@ -347,7 +347,7 @@ private[meta] trait ObjectCode extends TyperBase:
     classify(head, sc, rc) match
       case Head.Obj(s) =>
         Some(obj.Term.App(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = true, s.span))(t.span))
-      case Head.Meta(m, RelT(cols)) =>
+      case Head.Meta(m, RelT(cols, _)) =>
         Some(obj.Term.App(RelRef.Spliced(m), elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = true, Span.NoSpan))(t.span))
       case Head.Bad | Head.Meta(_, MType.Err) => None
       case Head.Meta(_, PropT) | Head.Meta(_, _: Pi) =>
