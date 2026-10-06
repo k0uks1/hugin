@@ -12,6 +12,6 @@ error[E0206]: cannot infer type argument `A` of family `size`
 14 | ?- size nil.
    |    ^^^^^^^^ type not determined
    |
-   = help: add a type ascription, e.g. `(size ... : T)`
+   = help: ascribe argument 1 of `size` with its type, e.g. `(nil : list A)`, with `A` replaced by the intended type
 
 2 errors found

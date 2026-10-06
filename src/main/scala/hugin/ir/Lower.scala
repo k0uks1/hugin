@@ -36,6 +36,19 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Term.Ascr(x, _) => expr(x)
       case other => throw IllegalStateException(s"cannot lower term ${ObjPrinter.term(other)}")
 
+    /** The value of a bound term in a body. The value of a constructor term is an existing fact, also
+     *  nested (`cons 1 nil`), so it is looked up rather than built. An ascription of a constructor term
+     *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to
+     *  it), so it is dropped. */
+    def operand(t: Term, out: mutable.ListBuffer[BodyOp]): Expr = t match
+      case Term.App(RelRef.Sym(c), as) =>
+        val args = as.map(operand(_, out)).toArray
+        val y = fresh()
+        out += BodyOp.Lookup(y, c.tag, args)
+        Expr.Reg(y)
+      case Term.Ascr(x: Term.App, _) => operand(x, out)
+      case other => expr(other)
+
     /** Whether a term is fully bound (it can be compared as a value). */
     def isBound(t: Term): Boolean = Moding.vars(t).forall(bound)
 
@@ -116,25 +129,15 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case a: Formula.Atom => atom(a, out, versioned)
       case Formula.Cmp(CmpOp.Eq, l, r) if !(isBound(l) && isBound(r)) =>
         val (pat, value) = if isBound(r) then (l, r) else (r, l)
-        value match
-          case Term.App(RelRef.Sym(c), as) if as.forall(isBound) =>
-            // the value of a constructor term is an existing fact
+        operand(value, out) match
+          case Expr.Reg(y) if !value.isInstanceOf[Term.Var] => matchReg(pat, y, out)
+          case e =>
             val y = fresh()
-            out += BodyOp.Lookup(y, c.tag, as.map(expr).toArray)
-            matchReg(pat, y, out)
-          case _ =>
-            val y = fresh()
-            out += BodyOp.Eval(y, expr(value))
+            out += BodyOp.Eval(y, e)
             matchReg(pat, y, out)
       case Formula.Cmp(op, l, r) =>
-        def operand(t: Term): Expr = t match
-          case Term.App(RelRef.Sym(c), as) =>
-            val y = fresh()
-            out += BodyOp.Lookup(y, c.tag, as.map(expr).toArray)
-            Expr.Reg(y)
-          case other => expr(other)
-        val a = operand(l)
-        val b = operand(r)
+        val a = operand(l, out)
+        val b = operand(r, out)
         out += BodyOp.Test(op, a, b)
       case Formula.Not(a) =>
         val saved = regOf.clone()

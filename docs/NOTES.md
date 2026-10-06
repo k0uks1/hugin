@@ -77,6 +77,22 @@ type itself. Consequently `(P : person)` in a column of type `student | teacher`
 type is not a subtype of a union of fact types even if its members are), while `(P : student)` is
 accepted.
 
+The circularity only concerns variables. A term that is not a variable has its synthesized type and, by
+subsumption, every supertype of it, so `Γ ⊢ t : τ` holds with `τ` the ascribed type itself whenever the
+term's type is a subtype of it: `(nil : list int)` ascribes a constructor term with its declared result
+type, which is accepted (also outside a column, e.g. in a comparison) and always holds, so no test is
+needed (issue #1, F4). The term must still fit the column it occupies.
+
+Type arguments of families are inferred by first-order matching (Section 4.6). In a comparison both
+sides have one type; a constructor fact of a family stands for the constructor's declared result type
+there, as it does when it solves a type parameter, so `L <> nil` with `L : list int` gives `nil[int]`, and
+`cons 1 nil = nil` relates both type arguments. When nothing determines them, E0206 suggests the
+ascription above with the missing parameters left for the user to fill in.
+
+The value of a constructor term in a comparison is an existing fact (it is looked up, not built). Nested
+constructor terms (`L = cons 1 nil`) are now looked up level by level too; before, the inner term was
+built without an identity and the comparison never held.
+
 ### Brace disambiguation (Section 2.2)
 
 "One token of lookahead past the first identifier" does not distinguish a record type from a module

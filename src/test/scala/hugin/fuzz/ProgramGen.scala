@@ -183,10 +183,7 @@ object ProgramGen:
 
       private def comparison(): Option[String] =
         val ints = boundOf(IntT)
-        // lists are compared with lists only: the type argument of `nil` or `cons` is not inferred from the
-        // other side of a comparison, and an ascription `(nil : list int)` is rejected (E0405)
-        val others = Seq(StrT, ColorT).flatMap(t => boundOf(t).map(_ -> t)) ++
-          Some(boundOf(ListT)).filter(_.length > 1).toSeq.flatMap(_.map(_ -> ListT))
+        val others = Seq(StrT, ColorT, ListT).flatMap(t => boundOf(t).map(_ -> t))
         if ints.nonEmpty && (others.isEmpty || chance(0.7)) then
           val op = pick(Seq("<", "<=", ">", ">=", "=", "<>"))
           val rhs = if ints.length > 1 && chance(0.4) then pick(ints) else int()
@@ -194,9 +191,15 @@ object ProgramGen:
         else if others.nonEmpty then
           val (v, t) = pick(others)
           val same = boundOf(t).filter(_ != v)
-          if same.nonEmpty && (t == ListT || chance(0.4)) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
+          if same.nonEmpty && chance(0.4) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
           // `X <> red` is false while `red` was never constructed (the term has no value); demand facts
-          // construct their arguments, so with `%mode` the answer would change (a known issue, see README)
+          // construct their arguments, so with `%mode` the answer would change (a known issue, see README).
+          // `nil` exists whenever a list does (it ends every list).
+          else if t == ListT then
+            val c = const(t)
+            val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c
+            val op = if c == "nil" then pick(Seq("=", "<>")) else "="
+            Some(if chance(0.5) then s"$v $op $rhs" else s"$rhs $op $v")
           else if t == ColorT then Some(s"$v = ${const(t)}")
           else Some(s"$v ${pick(Seq("=", "<>"))} ${const(t)}")
         else None
