@@ -54,4 +54,5 @@ object Compiler:
           out(s"(* ---------------- after ${p.phaseName} ---------------- *)")
           out(p.show)
         if settings.stopAfter.exists(names.contains) then stop = true
+    ctx.unit.explanations.foreach(out)
     ctx

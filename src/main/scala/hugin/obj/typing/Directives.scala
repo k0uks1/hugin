@@ -35,16 +35,21 @@ final class DirectivesPhase extends Phase:
                 if ok then
                   val m = Mode(spec.inputs.map(_._1).toVector)
                   if !r.modes.exists(_._1 == m) then r.modes = r.modes :+ (m, d.span)
-            case DirKind.TerminatesVar(v, args) =>
-              val pos = args.zipWithIndex.collect { case (Term.Var(`v`), i) => i }
+            case DirKind.TerminatesVar(vs, args) =>
+              def pos(v: String) = args.zipWithIndex.collect { case (Term.Var(`v`), i) => i }
               if args.length != r.arity then
                 err(s"`%terminates` pattern has ${args.length} arguments but `${r.name}` has ${r.arity} columns")
-              else if pos.length != 1 then err(s"variable `$v` must occur exactly once in the pattern", "ambiguous position")
-              else r.terminates = Some((pos.head, d.span))
-            case DirKind.TerminatesLabel(l) =>
-              r.labelIndex(l) match
-                case Some(i) => r.terminates = Some((i, d.span))
-                case None => err(s"`${r.name}` has no column labelled `$l`")
+              else
+                (vs.diff(vs.distinct).headOption, vs.find(pos(_).length != 1)) match
+                  case (Some(v), _) => err(s"variable `$v` occurs twice in the measure", "ambiguous position")
+                  case (_, Some(v)) => err(s"variable `$v` must occur exactly once in the pattern", "ambiguous position")
+                  case _ => r.terminates = Some((vs.map(pos(_).head), d.span))
+            case DirKind.TerminatesLabel(ls) =>
+              ls.find(r.labelIndex(_).isEmpty) match
+                case Some(l) => err(s"`${r.name}` has no column labelled `$l`")
+                case None if ls.distinct.length != ls.length =>
+                  err(s"label `${ls.diff(ls.distinct).head}` occurs twice in the measure", "ambiguous position")
+                case None => r.terminates = Some((ls.flatMap(r.labelIndex), d.span))
             case DirKind.Partial => r.isPartial = true
             case DirKind.Open => r.isOpen = true
             case DirKind.Input => r.isInput = true
@@ -66,7 +71,8 @@ final class DirectivesPhase extends Phase:
     val p = ctx.unit.prog.nn
     p.rels.filter(r => r.modes.nonEmpty || r.terminates.isDefined || r.isOpen || r.isPartial || r.isInput || r.isOutput || r.derivations)
       .map { r =>
-        val parts = r.modes.map(m => s"mode ${m._1.show}") ++ r.terminates.map(t => s"terminates ${t._1 + 1}") ++
+        val terminates = r.terminates.map(t => s"terminates ${hugin.syntax.Printer.measure(t._1.map(k => (k + 1).toString))}")
+        val parts = r.modes.map(m => s"mode ${m._1.show}") ++ terminates ++
           (if r.isOpen then List("open") else Nil) ++ (if r.isPartial then List("partial") else Nil) ++
           (if r.isInput then List("input") else Nil) ++ (if r.isOutput then List("output") else Nil) ++
           (if r.derivations then List("derivations") else Nil)

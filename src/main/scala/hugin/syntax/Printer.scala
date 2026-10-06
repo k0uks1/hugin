@@ -58,11 +58,16 @@ object Printer:
     case d @ Directive(k, args) =>
       val a = args match
         case DirArgs.Mode(t, ms) => (show(t) :: ms.map(showMode)).mkString(" ")
-        case DirArgs.TerminatesVar(v, t, as) => s"${v.name} (${(show(t) :: as.map(showArg)).mkString(" ")})"
-        case DirArgs.TerminatesLabel(l, t) => s"${l.name} ${show(t)}"
+        case DirArgs.TerminatesVar(vs, t, as) => s"${measure(vs.map(_.name))} (${(show(t) :: as.map(showArg)).mkString(" ")})"
+        case DirArgs.TerminatesLabel(ls, t) => s"${measure(ls.map(_.name))} ${show(t)}"
         case DirArgs.Target(t) => show(t)
         case DirArgs.Infix(a, p, n) => s"$a $p ${n.name}"
         case DirArgs.NameHint(t, v) => s"${show(t)} ${v.name}"
       s"%$k $a."
+
+  /** A `%terminates` measure: one name, or a parenthesised tuple. */
+  def measure(names: List[String]): String = names match
+    case List(n) => n
+    case ns => ns.mkString("(", ", ", ")")
 
   def showProgram(p: Program): String = p.items.map(showItem).mkString("\n")

@@ -69,8 +69,8 @@ object ObjPrinter:
     val tgt = d.target.map(_.show).orElse(d.rule.map("@" + _)).getOrElse("?")
     d.kind match
       case DirKind.ModeD(spec) => s"%mode $tgt ${spec.inputs.map((b, l, _) => (if b then "+" else "-") + l.getOrElse("")).mkString(" ")}."
-      case DirKind.TerminatesVar(v, args) => s"%terminates $v ($tgt ${args.map(arg).mkString(" ")})."
-      case DirKind.TerminatesLabel(l) => s"%terminates $l $tgt."
+      case DirKind.TerminatesVar(vs, args) => s"%terminates ${hugin.syntax.Printer.measure(vs)} ($tgt ${args.map(arg).mkString(" ")})."
+      case DirKind.TerminatesLabel(ls) => s"%terminates ${hugin.syntax.Printer.measure(ls)} $tgt."
       case DirKind.Partial => s"%partial $tgt."
       case DirKind.Open => s"%open $tgt."
       case DirKind.Input => s"%input $tgt."

@@ -114,8 +114,11 @@ object Trees:
 
   enum DirArgs:
     case Mode(target: Tree, modes: List[ModeItem])
-    case TerminatesVar(v: VarRef, target: Tree, args: List[Tree])
-    case TerminatesLabel(label: Ident, target: Tree)
+    /** `%terminates X (c ...)` or, lexicographically, `%terminates (X, Y) (c ...)`. */
+    case TerminatesVar(vs: List[VarRef], target: Tree, args: List[Tree])
+
+    /** `%terminates l c` or, lexicographically, `%terminates (l, m) c`. */
+    case TerminatesLabel(labels: List[Ident], target: Tree)
     case Target(target: Tree) // %partial %open %input %output %derivations
     case Infix(assoc: String, prec: Int, name: Ident)
     case NameHint(target: Tree, v: VarRef)

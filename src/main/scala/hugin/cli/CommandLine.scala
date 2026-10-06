@@ -125,6 +125,9 @@ object CommandLine:
       opt[Unit]("lint")
         .text("enable advisory checks (W0004)")
         .action((_, o) => o.copy(settings = o.settings.copy(lint = true))),
+      opt[Unit]("explain-termination")
+        .text("print the measure and anchor that justify each growing component (Section 10)")
+        .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),
       checkConfig(o =>
         o.command match
           case Command.Help => failure("no command given")
