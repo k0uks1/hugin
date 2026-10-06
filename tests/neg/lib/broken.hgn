@@ -1,0 +1,5 @@
+thing : type.
+p : thing -> rel.
+p 1.
+q : int -> rel.
+q X :- undefined X.

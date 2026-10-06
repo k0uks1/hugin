@@ -1,0 +1,4 @@
+(* without the prelude, only declared base types exist *)
+int : type = %builtin int.
+p : int -> list int -> rel.
+q : string -> rel.

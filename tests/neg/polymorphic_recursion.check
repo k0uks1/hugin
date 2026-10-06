@@ -2,7 +2,7 @@ error[E0205]: polymorphic recursion
  --> tests/neg/polymorphic_recursion.hgn:6:11
   |
 6 | nest X :- nest (put X).
-  |           ^^^^^^^^^^^^ `nest` used at [put[int]] while instantiating `nest` at [int]
+  |           ^^^^^^^^^^^^ `nest` used at [box[int]] while instantiating `nest` at [int]
   |
   = note: within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)
 

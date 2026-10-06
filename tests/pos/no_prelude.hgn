@@ -1,0 +1,4 @@
+num : type = %builtin int.
+text : type = %builtin string.
+p : num -> text -> rel.
+p 1 "one".

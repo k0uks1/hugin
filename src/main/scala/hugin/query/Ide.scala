@@ -123,7 +123,7 @@ object Ide:
           matching(vars ++ names)
 
   private val directives =
-    List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev")
+    List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "import", "builtin")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 
@@ -133,8 +133,7 @@ object Ide:
   /** The names visible in a scope, innermost first (shadowed names are dropped by `matching`). */
   private def inScope(ix: SemanticIndex, sc: Scope): List[CompletionItem] =
     Iterator.iterate(Option(sc))(_.flatMap(_.parent)).takeWhile(_.isDefined).flatten.toList
-      .flatMap(_.decls.values.toList.filter(_.kind != SymKind.PreludeType).map(item(ix, _))) ++
-      List("int", "float", "string").map(b => CompletionItem(b, "base type", s"base type $b"))
+      .flatMap(_.decls.values.toList.map(item(ix, _)))
 
   /** The exported members of a module-valued symbol, from its meta type. */
   private def members(ix: SemanticIndex, s: Sym): List[CompletionItem] =

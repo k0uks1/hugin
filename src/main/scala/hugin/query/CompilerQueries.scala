@@ -2,23 +2,23 @@ package hugin.query
 
 import hugin.compiler.*
 import hugin.runtime.Evaluation
-import hugin.syntax.{Parser, Program}
 import hugin.util.*
 import scala.collection.mutable
 
-/** The text of a file, by path: the only input of the compiler. Programs and facts files alike. */
-object SourceText extends Input[String, String]("sourceText")
-
-/** The result of parsing one file. */
-final class Parsed(val source: SourceFile, val program: Program, val diagnostics: List[Diagnostic])
+/** The text of a file, by path: the only input of the compiler. Programs, imported files and facts files
+ *  alike. A file that was never set is read on first use: the bundled standard library for `<stdlib>/`
+ *  paths, otherwise the file on disk; clients that track changes (an editor) set the text explicitly. */
+object SourceText extends Input[String, String]("sourceText"):
+  override def default(path: String): Option[String] = SourceLoader.read(path)
 
 /** Parses a file. */
 object Parse extends Query[String, Parsed]("parse"):
-  def compute(path: String)(using db: Database): Parsed =
-    val source = SourceFile.virtual(path, db.get(SourceText, path))
-    val reporter = Reporter()
-    val program = Parser.parse(source, reporter)
-    Parsed(source, program, reporter.sorted)
+  def compute(path: String)(using db: Database): Parsed = Parsed(SourceFile.virtual(path, db.get(SourceText, path)))
+
+/** Loads imported files through the database, so that they are parsed once and their edits invalidate
+ *  the programs importing them. */
+private final class DatabaseLoader(using db: Database) extends SourceLoader:
+  def load(path: String): Option[Parsed] = if db.has(SourceText, path) then Some(db(Parse, path)) else None
 
 final case class CompileKey(path: String, settings: Settings = Settings())
 
@@ -33,9 +33,8 @@ final class Compiled(val context: Context, val printed: List[String]):
 /** Runs the compiler pipeline on a parsed file. */
 object Compile extends Query[CompileKey, Compiled]("compile"):
   def compute(key: CompileKey)(using db: Database): Compiled =
-    val parsed = db(Parse, key.path)
     val printed = mutable.ListBuffer.empty[String]
-    val ctx = Compiler.compileParsed(parsed.source, Some((parsed.program, parsed.diagnostics)), key.settings, printed += _)
+    val ctx = Compiler.compileParsed(db(Parse, key.path), key.settings, DatabaseLoader(), printed += _)
     Compiled(ctx, printed.toList)
 
 final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, budget: Option[Int] = None, allRelations: Boolean = false)

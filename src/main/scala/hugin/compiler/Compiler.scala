@@ -1,12 +1,12 @@
 package hugin.compiler
 
 import hugin.util.*
-import hugin.syntax.Program
 
 /** The phase plan. Inner lists are fused into one traversal (dotty's MegaPhase). */
 object Compiler:
   def phasePlan: List[List[Phase]] = List(
     List(hugin.syntax.ParserPhase()),
+    List(ImportsPhase()),
     List(hugin.meta.NamerPhase()),
     List(hugin.meta.typer.TyperPhase()),
     List(hugin.meta.MetaEvalPhase()),
@@ -31,17 +31,19 @@ object Compiler:
 
   def allPhaseNames: List[String] = phasePlan.flatten.map(_.phaseName)
 
-  /** Runs the pipeline; returns the context. Printing goes to `out`. */
+  /** Runs the pipeline; returns the context. Printing goes to `out`; imports are read from disk. */
   def compile(source: SourceFile, settings: Settings, out: String => Unit): Context =
-    compileParsed(source, None, settings, out)
+    run(Context(CompilationUnit(source), settings, Reporter()), out)
 
-  /** Runs the pipeline; with `parsed`, the given program and its parse diagnostics are used instead of
-   *  running the parser (the query database parses separately so that parsing is memoised on its own). */
-  def compileParsed(source: SourceFile, parsed: Option[(Program, List[Diagnostic])], settings: Settings, out: String => Unit): Context =
-    val ctx = Context(CompilationUnit(source), settings, Reporter())
-    for (program, diags) <- parsed do
-      ctx.unit.untpd = program
-      diags.foreach(ctx.report)
+  /** Runs the pipeline on an already parsed file, loading imports with `loader` (the query database
+   *  parses separately so that parsing is memoised per file). */
+  def compileParsed(parsed: Parsed, settings: Settings, loader: SourceLoader, out: String => Unit): Context =
+    val ctx = Context(CompilationUnit(parsed.source), settings, Reporter(), loader)
+    ctx.unit.untpd = parsed.program
+    parsed.diagnostics.foreach(ctx.report)
+    run(ctx, out)
+
+  private def run(ctx: Context, out: String => Unit): Context =
     given Context = ctx
     var stop = false
     for p <- phases if !stop do
@@ -50,8 +52,8 @@ object Compiler:
         val names = p match
           case m: MegaPhase => m.minis.map(_.phaseName)
           case other => List(other.phaseName)
-        if names.exists(settings.printAfter.contains) || settings.printAfter.contains("all") then
+        if names.exists(ctx.settings.printAfter.contains) || ctx.settings.printAfter.contains("all") then
           out(s"(* ---------------- after ${p.phaseName} ---------------- *)")
           out(p.show)
-        if settings.stopAfter.exists(names.contains) then stop = true
+        if ctx.settings.stopAfter.exists(names.contains) then stop = true
     ctx
