@@ -132,6 +132,22 @@ final case class Directive(kind: DirKind, target: Option[RelRef], rule: Option[S
 /** Edge `τ <: a`. */
 final case class Edge(sub: OType, sup: TypeSym)(val span: Span, val origin: Origin)
 
+/** A requirement of a functor's parameter signature (Section 4.4) on the relation passed for `label`. */
+enum Requirement:
+  /** `%complete label`: the relation is neither open nor partial. */
+  case Complete(label: String, span: Span)
+
+  /** `%mode label m`: the relation has mode `m`. */
+  case HasMode(label: String, mode: Mode, span: Span)
+
+  def label: String
+  def span: Span
+
+/** A requirement to check for a relation passed at the functor application `use`. Requirements are
+ *  recorded by the meta evaluator and checked once directives are attached, because a directive may follow
+ *  the application textually (issue #1, C5). */
+final case class RequirementCheck(requirement: Requirement, rel: RelSym, use: Span, origin: Origin)
+
 /** A monomorphic (after `monomorphize`) object program (Figure 2). */
 final class ObjProgram(
     var types: Vector[TypeSym],
