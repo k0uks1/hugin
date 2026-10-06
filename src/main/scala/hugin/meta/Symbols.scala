@@ -49,7 +49,7 @@ enum SymKind:
     case BaseType => "base type"
 
 /** A declared name (meta-level symbol). */
-final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: Scope):
+final class Sym(val name: String, val kind: SymKind, val span: Span, val owner: Scope):
   val id: Int = Sym.next()
 
   /** Declaring item (if any). */
@@ -57,9 +57,6 @@ final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: 
 
   /** Clauses of a formula function. */
   val clauses: mutable.ListBuffer[Rule] = mutable.ListBuffer.empty
-
-  /** Position in the scope's item order (for the forward-reference check). */
-  var order: Int = 0
 
   /** Meta type, filled by the typer. */
   var mtype: MType | Null = null
@@ -81,9 +78,6 @@ final class Sym(val name: String, var kind: SymKind, val span: Span, val owner: 
   var typeDefRhs: Option[hugin.obj.OType] = None
   var abbrev: Boolean = false
 
-  /** Number of explicit parameters (for formula functions: arity). */
-  var arity: Int = 0
-
   /** The base type of a `BaseType` symbol. */
   var base: Option[BaseType] = None
 
@@ -103,9 +97,6 @@ object Sym:
 /** A lexical scope: program, module body, meta function parameters, lambda. */
 final class Scope(val parent: Option[Scope], val description: String):
   val decls: mutable.LinkedHashMap[String, Sym] = mutable.LinkedHashMap.empty
-
-  /** Ordering index of items processed so far (forward-reference check for meta definitions). */
-  var processed: Int = -1
 
   /** For the scopes of files (the program, the prelude, imported files): the prefix of the names of their
    *  object declarations (`""` for none). Module bodies inside files get a fresh prefix instead. */

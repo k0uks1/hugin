@@ -116,7 +116,6 @@ final class Typer(c: Context)
             val fullT = coll.foldRight(explicitT)((a, acc) => Pi(a, TypeU, acc, isImplicit = true))
             s.mtype = fullT
             if s.kind == SymKind.FormulaFn then
-              s.arity = arity(resT)
               if !endsInProp(resT) then
                 err("E0103", s"formula function `${name.name}` must have a type ending in `prop`", tpe.span)
             defn match
@@ -223,8 +222,7 @@ final class Typer(c: Context)
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
     context.unit.index.scope(span, sc)
     val out = mutable.ListBuffer.empty[EItem]
-    for (item, k) <- items.zipWithIndex do
-      sc.processed = k
+    for item <- items do
       item match
         case d: Decl =>
           sc.lookupLocal(d.name.name).filter(_.decl.contains(d)) match
