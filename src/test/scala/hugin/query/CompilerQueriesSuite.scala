@@ -97,3 +97,45 @@ class CompilerQueriesSuite extends munit.FunSuite:
     val diags = Ide.diagnostics(CompileKey("s.hgn"))
     assertEquals(diags.map(d => (d.code, d.primarySpan.text)), List((Some("W0002"), "Y")))
   }
+
+  test("hover through a module path shows the type instantiated at that path") {
+    given db: Database = setup()
+    assertEquals(Ide.hover(key, at("roads.path") + "roads.".length), Some("relation roads.path : city -> city -> rel"))
+    // at the declaration inside the functor, the type is the generic one
+    assertEquals(Ide.hover(key, at("path :")), Some("relation path : g.node -> g.node -> rel"))
+  }
+
+  test("object variables: definition is the first occurrence in the rule, references stay in the rule") {
+    given db: Database = setup()
+    val secondRule = at("path X Z")
+    val y1 = program.indexOf("Y", secondRule)
+    val y2 = program.indexOf("Y", y1 + 1)
+    assertEquals(Ide.definition(key, y2).map(_.start), Some(y1))
+    assertEquals(Ide.references(key, y2).map(_.start), List(y1, y2))
+    // the `Y` of the first rule is a different variable
+    val firstY = program.indexOf("Y", at("path X Y"))
+    assertEquals(Ide.definition(key, firstY).map(_.start), Some(firstY))
+  }
+
+  test("completions: names in scope, module members, named-pattern labels, directives") {
+    given db: Database = Database()
+    val text =
+      """item : (name : string) -> (price : int) -> rel.
+        |graph : mod = { node : type, edge : node -> node -> rel }.
+        |road : int -> int -> rel.
+        |mk (g : graph) = { reach : g.node -> rel. reach X :- g.edge X _. }.
+        |r = mk { node = int, edge = road }.
+        |q : string -> rel.
+        |q N :- item { na = N, .. }, r.re 1, ro 1 2.
+        |%out
+        |""".stripMargin
+    db.set(SourceText, "c.hgn", text)
+    val k = CompileKey("c.hgn")
+    def labels(needle: String) = Ide.completions(k, text.indexOf(needle) + needle.length).map(_.label)
+    assertEquals(labels("{ na"), List("name"))
+    assertEquals(labels("r.re"), List("reach"))
+    assertEquals(labels(", ro"), List("road"))
+    assertEquals(labels("%out"), List("output"))
+    // inside the functor body: its parameter, its declarations and the program's names are in scope
+    assert(labels("reach X :- g").contains("g"))
+  }

@@ -144,11 +144,15 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           as.zip(bs).foreach((x, y) => unify(x, y, span))
         case _ =>
 
-    /** Records that a value of type `sub` occurs where `sup` is expected. Only family arguments are solved. */
+    /** Records that a value of type `sub` occurs where `sup` is expected. Only family arguments are solved.
+     *  A constructor fact that determines a type argument stands for the constructor's declared result type:
+     *  family arguments are invariant, so `cons here nil` is a `list place`, not a `list here`. */
     def constrain(sub0: OType, sup0: OType, span: Span): Unit =
       val sub = resolve(sub0)
       val sup = resolve(sup0)
       (sub, sup) match
+        case (OType.Fact(c, as), OType.Meta(_)) if c.kind == RelKind.Ctor && c.result.isDefined =>
+          unify(OType.subst(c.result.get, c.tparams.zip(as).toMap), sup, span)
         case (OType.Meta(_), _) | (_, OType.Meta(_)) => unify(sub, sup, span)
         case (OType.Con(s1, as), OType.Con(s2, bs)) if s1 == s2 =>
           as.zip(bs).foreach((x, y) => unify(x, y, span))

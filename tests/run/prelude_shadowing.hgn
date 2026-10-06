@@ -1,0 +1,9 @@
+(* The program may redeclare prelude names; the program's declarations win *)
+list : type.
+nil : list.
+len : list -> int -> rel.
+len nil 42.
+%output len.
+pairs : option (list) -> rel.
+pairs (some nil).
+%output pairs.

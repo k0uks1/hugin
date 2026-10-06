@@ -64,7 +64,7 @@ private[meta] trait TypeElaboration extends TyperBase:
             case Some(s) =>
               def argTypes = args.map(elabOType(_, sc, tv))
               s.kind match
-                case SymKind.PreludeType =>
+                case SymKind.BaseType =>
                   if args.nonEmpty then err("E0207", s"`$n` takes no type arguments", t.span)
                   OType.Base(s.base.get)
                 case SymKind.TypeDef => unfoldTypeDef(s, argTypes, t.span)
@@ -121,7 +121,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case Keyword(Kw.Mod) => ModU
     case Keyword(Kw.Prop) => PropT
     case Keyword(Kw.Rel) => RelT(Nil)
-    case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.PreludeType) => Prim(sc.lookup(n).get.base.get)
+    case Ident(n) if sc.lookup(n).exists(_.kind == SymKind.BaseType) => Prim(sc.lookup(n).get.base.get)
     case Ident(n)
         if sc.lookup(n).exists(s =>
           s.kind == SymKind.MetaDef && s.decl.exists {
@@ -235,7 +235,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case (Pi(x, d1, c1, i1), Pi(y, d2, c2, i2)) if i1 == i2 =>
       subsumes(d2, d1).map("parameter: " + _).orElse(subsumes(substMT(c1, Map(x -> Ref(y))), c2))
     case (Sig(f1, _), Sig(f2, _)) =>
-      val self = Sym("self", SymKind.MetaParam, Span.NoSpan, Namer.prelude)
+      val self = Sym("self", SymKind.MetaParam, Span.NoSpan, Scope(None, "signature"))
       val s1 = f1.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
       val s2 = f2.map((f, _) => f -> Proj(Ref(self), f.name)).toMap
       f2.iterator.map { (g, gt) =>

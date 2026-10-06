@@ -57,6 +57,9 @@ enum RelKind:
   /** Derivation relation @r#i of Section 7.4. */
   case Derivation(rule: String)
 
+  /** Auxiliary relation introduced by the compiler, e.g. for a disjunction inside an aggregate. */
+  case Auxiliary(purpose: String)
+
 /** A mode: `true` = input (+), `false` = output (-). */
 final case class Mode(inputs: Vector[Boolean]):
   def show: String = inputs.map(b => if b then "+" else "-").mkString

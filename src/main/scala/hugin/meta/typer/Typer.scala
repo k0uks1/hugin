@@ -215,6 +215,7 @@ final class Typer(c: Context)
 
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
+    context.unit.index.scope(span, sc)
     val out = mutable.ListBuffer.empty[EItem]
     for (item, k) <- items.zipWithIndex do
       sc.processed = k
@@ -277,7 +278,7 @@ final class Typer(c: Context)
     def tps = if s.tparams.isEmpty then "" else s.tparams.map(_.name).mkString(" ", " ", "")
     def col(c: hugin.obj.Column) = c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))
     s.kind match
-      case SymKind.PreludeType => s"base type ${s.name}"
+      case SymKind.BaseType => s"base type ${s.name}"
       case SymKind.ObjType =>
         info(s).typeKind match
           case Some(TypeKindE.Refinement(b)) => s"type ${s.name}$tps <: ${showO(b)}"
@@ -302,10 +303,20 @@ final class TyperPhase extends Phase:
     val u = ctx.unit
     if u.untpd == null || u.rootScope == null then return
     val typer = Typer(ctx)
+    // files in dependency order: the prelude and every imported file before the files importing it
+    for lib <- u.libraries.values; sc <- Option(lib.scope) do
+      val (body, sig) = typer.elabBody(lib.program.items, sc, lib.program.span)
+      lib.body = body
+      if !lib.isPrelude then
+        val s = Sym(lib.name, SymKind.MetaDef, Span(lib.parsed.source, 0, 0), sc.parent.getOrElse(sc))
+        s.mtype = sig
+        s.state = Sym.State.Done
+        lib.sym = s
     val (body, _) = typer.elabBody(u.untpd.nn.items, u.rootScope.nn, u.untpd.nn.span)
     u.elab = body
     // the semantic index: declarations of all scopes and descriptions of every known symbol
-    val scopes = u.rootScope.nn :: scala.jdk.CollectionConverters.CollectionHasAsScala(u.scopes.values).asScala.toList
+    val scopes = u.rootScope.nn :: u.libraries.values.toList.flatMap(l => Option(l.scope)) :::
+      scala.jdk.CollectionConverters.CollectionHasAsScala(u.scopes.values).asScala.toList
     for sc <- scopes; s <- sc.decls.values do u.index.declare(s)
     for s <- u.index.symbols do u.index.describe(s, typer.describe(s))
     // unused top-level functions and constants; module-valued definitions emit rules even when unreferenced

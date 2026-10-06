@@ -104,8 +104,14 @@ elaboration, no variables local to negations or aggregates).
   level, so operators with `p ≥ 5` may appear in heads.
 * **Layout heuristic.** An argument cannot start a line in column 0. This only matters for error
   recovery: a missing period at the end of an item is reported and the next item is still parsed.
-* **Disjunction inside aggregates** is not supported (E0202); Section 7.2 only splits disjunctions of
-  rule bodies.
+* **Disjunction inside aggregates** (not covered by Section 7.2, which splits disjunctions of rule
+  bodies only) is lifted into an auxiliary relation `aux(ī, ō)` with one rule per alternative. The
+  inputs `ī` are the disjunction's variables bound before it in canonical order; the outputs `ō` are the
+  variables bound by *every* alternative. A variable bound by only some alternatives is existential
+  within its alternative: Definition 8.4 would otherwise range over unconstrained valuations. If there
+  are inputs, `aux` is moded `+…+-…-`, so the demand transformation supplies exactly the input bindings
+  that arise at the call site. The aggregate then counts distinct bindings of its variables as usual.
+  This is the semantics proposed for issue #1, item B4.
 * **Demand relations** are named `c^d[m]`, derivation relations `@r` or `@r#i`. Derivation relations
   are output relations; they cannot be referenced in atoms.
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
@@ -121,5 +127,4 @@ elaboration, no variables local to negations or aggregates).
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
 * Deriving numeric anchors through equations in the termination check.
-* Disjunctions inside aggregates via auxiliary relations.
 * A faster engine (columnar storage, join planning) behind the same core IR.

@@ -93,7 +93,7 @@ object Features:
     roots.map(_.toLsp).toList
 
   private def symbolKind(k: SymKind): SymbolKind = k match
-    case SymKind.ObjType | SymKind.PreludeType => SymbolKind.Class
+    case SymKind.ObjType | SymKind.BaseType => SymbolKind.Class
     case SymKind.Struct => SymbolKind.Struct
     case SymKind.Rel => SymbolKind.Function
     case SymKind.Ctor => SymbolKind.Constructor
@@ -119,7 +119,7 @@ object Features:
 
   private def tokenType(k: SymKind): Int = k match
     case SymKind.MetaDef => 0
-    case SymKind.ObjType | SymKind.TypeDef | SymKind.PreludeType => 1
+    case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => 1
     case SymKind.Struct => 2
     case SymKind.Rel => 3
     case SymKind.Ctor => 4
