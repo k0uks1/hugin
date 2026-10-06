@@ -37,11 +37,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
   /** W0002: object variables that occur only once in a rule or clause. Names starting with `_` are exempt,
    *  as are uppercase names that resolve to meta parameters. */
   private def warnSingletons(r: Rule, sc: Scope): Unit =
-    def vars(x: Any): Iterator[VarRef] = x match
-      case v: VarRef => Iterator(v)
-      case p: Product => p.productIterator.flatMap(vars)
-      case _ => Iterator.empty
-    val occurrences = (r.heads ++ r.body).iterator.flatMap(vars).filterNot(_.name.startsWith("_")).toList
+    val occurrences = hugin.syntax.TreeOps.nodes(r.heads ++ r.body).collect { case v: VarRef => v }.filterNot(_.name.startsWith("_")).toList
     for
       (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start)
       if !sc.lookup(name).exists(s => s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef)

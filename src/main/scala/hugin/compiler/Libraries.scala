@@ -315,11 +315,4 @@ object ImportsPhase:
 
   /** All `%import` expressions of a program, in source order. */
   def importsIn(program: Program): List[Trees.Import] =
-    val out = mutable.ListBuffer.empty[Trees.Import]
-    def go(x: Any): Unit = x match
-      case i: Trees.Import => out += i
-      case p: Product => p.productIterator.foreach(go)
-      case it: Iterable[?] => it.foreach(go)
-      case _ =>
-    program.items.foreach(go)
-    out.toList
+    hugin.syntax.TreeOps.nodes(program.items).collect { case i: Trees.Import => i }.toList
