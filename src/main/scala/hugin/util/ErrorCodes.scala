@@ -119,6 +119,16 @@ object ErrorCodes:
       "invalid %terminates directive",
       "A recursive call does not decrease the measure, the measure is not bounded (an anchor is missing), or a measured relation calls a relation of its component without a measure (Definition 10.3 as generalised in docs/NOTES.md). `--explain-termination` shows the accepted justifications."
     ),
+    (
+      "E0605",
+      "invalid bound column",
+      "A bound column type `min τ` / `max τ` is allowed only as the last column of a relation declaration (not of a constructor, struct or signature field), with an integer type `τ`, and not on a relation with `%mode` (docs/REDESIGN.md §5.2)."
+    ),
+    (
+      "E0606",
+      "type-inconsistent rule",
+      "A rule reads a bound column of a relation of its own recursive component in a way that is not monotone (Kaminski et al. 2017, Berent et al. Def. 4): the value must occur in exactly one atom, linearly (non-zero integer coefficients), only in the bound column of a bound head and in `<`, `<=`, `>`, `>=` comparisons, in the direction in which improving it improves the head or keeps the comparison true: for a `min` head (or the smaller side of a comparison) with a positive coefficient from `min` columns and a negative one from `max` columns, dually for `max`. Values of bound relations of earlier components are constants and can be used freely."
+    ),
     ("E0701", "invalid directive", "A directive refers to a relation of the wrong kind or arity."),
     ("E0801", "invalid input fact", "An input fact is not ground, not well-typed, or not for an input relation."),
     // the new meta level (docs/REDESIGN.md, Phase B; `--new-meta`)

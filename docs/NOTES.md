@@ -821,6 +821,57 @@ dropped and elaboration continues with the next one.
   otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
   has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
 
+## Bound columns (redesign A2)
+
+The rules are in `docs/REDESIGN.md` §5.2 (with the definitions of Kaminski et al. 2017 and Berent et al.
+2022 they come from). Implementation: `obj/check/BoundColumns.scala` (E0605), `TypeConsistency.scala`
+(E0606), `runtime/Store.scala` (one current tuple per key), `runtime/Divergence.scala` (value propagation
+graph), `runtime/Infinity.scala` (`±∞`).
+
+**Decisions.**
+
+* *Best-value reading.* A body atom binds a bound column to the key's best value (the
+  pseudo-interpretation of Kaminski et al.), not to every worse value of the limit-closed reading. For
+  rules of the bound relation's own component the two readings agree by type-consistency (the optimum
+  of a type-consistent rule is attained at the best values). Rules of *later* components read the final
+  values as constants, as Kaminski et al.'s semi-grounding does for ordinary numeric atoms; this is what
+  makes `report V D :- dist V D` useful and finite. Consequently type-consistency is checked only for
+  *limit variables*: variables bound by bound atoms of the head's component.
+* *Coefficients are literals.* Kaminski et al. allow `sᵢ·mᵢ` with `sᵢ` built from ordinary variables
+  (constants after semi-grounding); since type-consistency then depends on the sign of `sᵢ` per
+  instance, Hugin requires integer literals (`2 * D + C` is fine, `N * D` is E0606).
+* *Binding equations* `X = t` over limit variables (with `X` bound nowhere else) are definitions and are
+  substituted before the check; any other `=` / `<>` with a limit variable is E0606, and so is a constant
+  in a recursive bound atom's bound column.
+* *Termination.* The bound column of a bound head is not value invention (`Constructive.keyArgs`) and
+  takes no part in size-change graphs or measures; the key columns are checked as before. *Soundness:* the
+  check of §4 makes the set of keys finite (its arguments are about the facts' key columns; a body that
+  holds for some best values satisfies the size-change arcs, which are derived from the body alone). With
+  finitely many keys, a value improves only finitely often unless the value propagation graph has a
+  positive cycle (Kaminski et al., termination lemma for stable programs), and every node on or after
+  such a cycle becomes `∞` and never changes again; so evaluation terminates.
+* *Divergence check at growing intervals.* Kaminski et al. check after every round. The engine checks
+  after rounds 4, 8, 16, … of a component: building the graph costs a full pass over the component's
+  rules. A positive cycle persists once present (stability: weights only grow), so it is found at the
+  next check, and the number of checks is logarithmic in the number of rounds. Nodes *reachable* from a
+  positive cycle are set to `∞` too (Bellman–Ford reports them together); this is sound, since an edge
+  is a rule instance whose head term grows without bound with its premise (non-zero coefficient in the
+  improving direction, and the instance stays applicable by stability).
+* *`∞` as a value.* `∞` is a word of integer columns, printed `∞` / `-∞` (parenthesised when nested like
+  negative numbers). Arithmetic and comparisons are extended (`runtime/Infinity.scala`); undefined
+  combinations (`∞ - ∞`, `0 · ∞`, `∞ / ∞`) make the rule not fire, as overflow does. Type-consistent
+  rules never meet them; a later component reading `∞` as a constant may. Input facts cannot contain `∞`
+  (no syntax).
+* *Not covered* (Q4): bound columns of constructors, `%mode`d bound relations (E0605), `min`/`max` on
+  floats.
+
+**Testing.** `tests/run/rd_shortest_paths.hgn` (§8.3: a negative cycle gives `-∞`, a positive cycle
+with `max` gives `∞`), `tests/run/b_bound_columns.hgn`, `tests/neg/b_bound_declarations.hgn`,
+`tests/neg/b_type_inconsistent.hgn`. The naive evaluator implements the same semantics by Kaminski et
+al.'s Algorithm 1 literally (every round, Floyd–Warshall, cycle nodes only), so the differential fuzz test
+compares two different divergence procedures; `ProgramGen` emits bound columns over random weighted
+graphs (about one in five such programs diverges).
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

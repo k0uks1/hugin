@@ -299,9 +299,77 @@ dist W (D + C) :- dist V D, edge V W C.
 * Aggregates `min`/`max` over a bound column are the column itself; `count`/`sum` stay stratified
   (non-recursive), as today.
 
-**Task**: before implementing, re-read Kaminski et al. (limit programs, stability) and Berent et al.
-§5.1–5.2 (exact type-consistency conditions and the reasoning algorithm), and write the precise rules
-into this section.
+**The sources, precisely.** Kaminski, Cuenca Grau, Kostylev, Motik & Horrocks (IJCAI 2017, arXiv
+1705.06927, §§3–6) and Berent, Nissl & Sallinger (arXiv 2202.05086, §5.1–5.2, which restates the
+conditions for Warded Bound Datalog_ℤ and defers the reasoning algorithm to Kaminski et al.):
+
+* *Limit predicates* (Kaminski et al., "Limit Programs"): a numeric predicate has only its last position numeric; a
+  *limit* predicate is a `min` or a `max` predicate. A limit fact `B(b̄, k)` says that the value of `B`
+  on `b̄` is at most `k` (`min`) or at least `k` (`max`). Interpretations are *limit-closed*: with
+  `B(b̄, k)` a `min` (`max`) predicate also holds `B(b̄, k')` for every `k' ≥ k` (`k' ≤ k`). A limit rule's
+  head is an object or a limit atom (ordinary numeric atoms are data).
+* *Pseudo-interpretations* ("Fixpoint Characterisation") keep one value per limit predicate and object tuple, from
+  `ℤ ∪ {∞}`, where `∞` means "holds for every integer" (no bound exists). Rule application
+  conjoins the body's comparisons with `ℓ ≤ m` (`min`) or `m ≤ ℓ` (`max`) for each limit body atom
+  `B(b̄, m)` with value `ℓ ≠ ∞`; a limit head takes the *optimum* `opt(r, J)` of its term over all
+  solutions (`∞` if unbounded) and only the best value is kept.
+* *Limit-linear* ("Decidability"): numeric terms are `s₀ + Σ sᵢ·mᵢ` with `mᵢ` distinct variables of limit body
+  atoms and `s₀`, `sᵢ` free of them.
+* *Type-consistency* (Kaminski et al., "Type-Consistent Programs" = Berent et al. Def. 4), for the semi-grounding (variables not in limit
+  atoms replaced by constants) with numeric terms simplified:
+  1. every numeric term is `k₀ + Σ kᵢ·mᵢ` with integer `k₀` and **non-zero integer** coefficients `kᵢ`;
+  2. if the head is a limit atom `A(ā, s)`, every variable of `s` with a positive (negative) coefficient
+     occurs in a **unique** limit body atom of the **same (opposite)** type as the head;
+  3. for every comparison `s₁ < s₂` or `s₁ ≤ s₂`, every variable of `s₁` with a positive (negative)
+     coefficient occurs in a unique `min` (`max`) body atom, and every variable of `s₂` with a positive
+     (negative) coefficient in a unique `max` (`min`) body atom.
+
+  Type-consistent programs are *stable*: if a rule applies, it applies to every
+  pseudo-interpretation with better limit values, and its head improves at least as much.
+* *Divergence* (Kaminski et al., "Tractability of Entailment: Stability"): the *value propagation graph* `G_P^J` has a node
+  per limit fact `B(b̄, ℓ) ∈ J` and an edge `B(b̄) → A(ā)` for every applicable rule with head `A(ā, s)`
+  and limit body atom `B(b̄, m)` where `m` occurs in `s`; its weight `μ` is the maximum over such rules of
+  `δ = opt − ℓ` (`max → max`), `ℓ − opt` (`min → min`), `−opt − ℓ` (`max → min`), `opt + ℓ`
+  (`min → max`), or `opt` if `ℓ = ∞`. For stable programs, every node on a **positive-weight cycle** has
+  value `∞` in the least fixpoint (their soundness lemma). Their Algorithm 1 alternates immediate consequence with
+  replacing the values of nodes on positive-weight cycles by `∞`; it terminates (without a new
+  edge or a new positive cycle the values converge within `O(|P|²)` rounds of the semi-ground program, and edges and cycles are added only polynomially often) and is correct.
+
+**In Hugin.** Rules as above, adapted to relations, stratification and the termination check:
+
+* **Declaration.** `min τ` / `max τ` is allowed only as the type of the **last** column of a **relation**
+  declaration (not a constructor, Q4), with `τ` an integer type (`int` or a refinement of it), and not on
+  a `%mode`d relation. Other uses are E0605.
+* **Reading a bound column.** A body atom of a bound relation binds its bound column to the **best**
+  value of the key (the pseudo-interpretation reading). The bound-column argument of such an atom must be
+  a variable or `_`.
+* **Type-consistency (E0606)** applies to the *limit variables* of a rule: variables bound by the bound
+  column of a positive body atom of a bound relation **of the head's component**. Bound relations of
+  earlier components are complete when the rule runs, so their values are constants of the
+  semi-grounding (they may be used freely, like the result of an aggregate). For limit variables:
+  * each occurs in exactly one positive atom (its bound column); not in other columns, not in another
+    bound atom, not under `not` or in an aggregate;
+  * each occurrence elsewhere is in a *linear* term: `+`, `-`, unary `-` and multiplication by an integer
+    literal; after simplification its coefficient is non-zero; a variable `X` defined by a binding
+    equation `X = t` is replaced by `t`;
+  * in the head: only in the bound column of a bound head relation, with conditions 2 above (`min` head:
+    positive coefficient from `min` atoms, negative from `max` atoms; dually for `max`);
+  * in comparisons: only `<`, `<=`, `>`, `>=` (with `a > b` read as `b < a`), with condition 3 above;
+    never in `=` or `<>` tests.
+* **Evaluation.** A bound relation stores one tuple per key; deriving a better value replaces it (the
+  semi-naive delta contains the improved keys). Each component with bound relations runs Kaminski et al.'s
+  Algorithm 1 with the check spaced out: after rounds 4, 8, 16, …, the value propagation graph is built
+  by one pass over the component's rules (edges from limit atoms whose variable occurs in the head's bound
+  term, weights as above), and every node reachable from a positive-weight cycle (Bellman–Ford with
+  maximisation) gets the value `∞` (`-∞` for `min`, `+∞` for `max`) — nodes reachable from a cycle would
+  become `∞` by propagation anyway. Since a positive cycle, once present, stays (stability), checking at
+  growing intervals preserves termination.
+* **∞** is a value of integer columns: `-∞ < k < +∞`; `∞ ± k = ∞`, `k·∞ = ±∞` for `k ≠ 0`, `∞ / k = ±∞`;
+  `∞ − ∞`, `0·∞` and `∞ / ∞` are undefined (a rule does not fire, as on overflow). Type-consistency
+  ensures that a type-consistent rule never meets an undefined case. It prints as `∞` / `-∞`.
+* **Termination** (§4): the bound column of a bound head is not value invention (its values are kept
+  finite per key by the divergence check); the key columns are checked as usual, so a component whose
+  invention is only through bound columns is accepted.
 
 **Not adopted**: wardedness and labelled nulls (D10). Whether Berent et al.'s complexity results carry
 over to Skolem existentials is open (§11, Q4); our existentials are restricted by §4 instead.

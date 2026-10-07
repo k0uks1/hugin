@@ -27,6 +27,7 @@ object Printer:
     case With(v, fs) => s"(${v.name} with ${fs.map(f => s"${f.label.name} = ${show(f.value)}").mkString("{ ", ", ", " }")})"
     case Not(a) => s"not ${showArg(a)}"
     case Agg(k, t, b) => s"${k.show} { ${show(t)} | ${show(b)} }"
+    case BoundType(k, t) => s"${k.show} ${showArg(t)}"
     case Conj(l, r) => s"${show(l)}, ${show(r)}"
     case Disj(l, r) => s"(${show(l)} ; ${show(r)})"
     case Parens(i) => s"(${show(i)})"

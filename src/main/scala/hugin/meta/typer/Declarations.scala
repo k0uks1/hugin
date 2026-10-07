@@ -53,7 +53,10 @@ private[meta] trait Declarations extends TyperBase:
               ))
             case None => seen(id.name) = id.span
         }
-        Column(l.map(_.name), elabOType(t, sc, tv))
+        t match
+          // a bound column (validated at the object level, `obj/check/BoundColumns.scala`)
+          case BoundType(k, inner) => Column(l.map(_.name), elabOType(inner, sc, tv), Some(k))
+          case _ => Column(l.map(_.name), elabOType(t, sc, tv))
       }
     val (cols, result, typeKind): (List[Column], Option[OType], Option[TypeKindE]) = s.kind match
       case SymKind.ObjType =>

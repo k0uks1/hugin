@@ -1,0 +1,88 @@
+error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign in the head's `min` column
+ --> tests/neg/b_type_inconsistent.hgn:9:7
+  |
+9 | d1 W (C - D) :- d1 V D, edge V W C.
+  |       ^^^^^     ------ bound by this `min` atom
+  |       improving `D` makes this worse
+  |
+  = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+  = help: in the head's `min` column a value from a `min` column needs a positive coefficient
+
+error[E0606]: type-inconsistent rule: `D` from a bound column is used in the test `=`
+  --> tests/neg/b_type_inconsistent.hgn:13:31
+   |
+13 | d2 W D :- d2 V D, edge V W C, D = C.
+   |           ------              ^ used in the test `=`
+   |           bound by this `min` atom
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: compare with `<`, `<=`, `>` or `>=` (a bound value only improves)
+
+error[E0606]: type-inconsistent rule: `D * C` is not linear in a bound value
+  --> tests/neg/b_type_inconsistent.hgn:17:7
+   |
+17 | d3 W (D * C) :- d3 V D, edge V W C.
+   |       ^^^^^ not linear
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: use only `+`, `-` and multiplication by an integer literal on bound values
+
+error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign in the comparison `D > 3`
+  --> tests/neg/b_type_inconsistent.hgn:21:37
+   |
+21 | d4 W (D + 1) :- d4 V D, edge V W _, D > 3.
+   |                 ------              ^^^^^ improving `D` makes this worse
+   |                 bound by this `min` atom
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: in the comparison `D > 3` a value from a `min` column needs a positive coefficient
+
+error[E0606]: type-inconsistent rule: the `min` column of `d5` is not a variable
+  --> tests/neg/b_type_inconsistent.hgn:25:16
+   |
+25 | d5 W 0 :- d5 V 3, edge V W _.
+   |                ^ a recursive atom over a bound column must bind its value to a variable
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: bind a variable and compare it, e.g. `d5 … D, D <= 3`
+
+error[E0606]: type-inconsistent rule: `D` from a bound column is used in the test `=`
+  --> tests/neg/b_type_inconsistent.hgn:29:35
+   |
+29 | d6 W E :- d6 V D, edge V W _, E = D + 1, other W E.
+   |           ------                  ^ used in the test `=`
+   |           bound by this `min` atom
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: compare with `<`, `<=`, `>` or `>=` (a bound value only improves)
+
+error[E0606]: type-inconsistent rule: `D` cancels out in the head's `min` column
+  --> tests/neg/b_type_inconsistent.hgn:34:7
+   |
+34 | d7 W (D - D) :- d7 V D, edge V W _.
+   |       ^^^^^ coefficient 0
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: remove the variable or give it a non-zero coefficient
+
+error[E0606]: type-inconsistent rule: `D` from a `max` column has the wrong sign in the head's `min` column
+  --> tests/neg/b_type_inconsistent.hgn:42:6
+   |
+42 | d8 W D :- d9 V D, edge V W _.
+   |      ^    ------ bound by this `max` atom
+   |      improving `D` makes this worse
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: in the head's `min` column a value from a `max` column needs a negative coefficient
+
+error[E0606]: type-inconsistent rule: `D` from a bound column is used in the head of `reach`, which has no bound column
+  --> tests/neg/b_type_inconsistent.hgn:50:9
+   |
+50 | reach W D :- d10 V D, edge V W _.
+   |         ^    ------- bound by this `min` atom
+   |         used in the head of `reach`, which has no bound column
+   |
+   = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)
+   = help: a recursive bound value can only flow into the bound column of a bound relation; read it from a later component to use it as a plain value
+
+9 errors found
