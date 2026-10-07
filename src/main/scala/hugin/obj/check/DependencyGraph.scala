@@ -79,8 +79,11 @@ object DepGraph:
 
   /** Constructor terms (data and fact) strictly inside the head's arguments that are not matched in the
    *  body: the terms a rule builds (for termination, Definition 10.1). The heads of demand rules are the
-   *  inputs of moded calls, so terms built there count too. */
-  def newHeadConstructors(r: Rule): List[Term.App] =
+   *  inputs of moded calls, so terms built there count too. With `withHead`, the head itself counts too
+   *  if its relation is a fact constructor or fact struct: its fact is a term, so a rule `s (s N) :- s N`
+   *  builds `s (s N)` although its argument is matched (a split rule of Proposition 8.8 has this shape,
+   *  see `StratifyPhase.splitRules`). */
+  def newHeadConstructors(r: Rule, withHead: Boolean = false): List[Term.App] =
     val existing = positiveSubpatterns(r.body)
     def inner(t: Term): List[Term.App] = t match
       case a @ Term.App(_, as) => (if existing(a) then Nil else List(a)) ++ as.flatMap(inner)
@@ -90,9 +93,13 @@ object DepGraph:
       case Term.Neg(x) => inner(x)
       case _ => Nil
     r.heads.flatMap {
+      case a @ Term.App(RelRef.Sym(c), _) if withHead && isFactCtor(c) => inner(a)
       case Term.App(_, as) => as.flatMap(inner)
       case _ => Nil
     }
+
+  /** A fact constructor or fact struct: a relation whose facts are constructor terms. */
+  def isFactCtor(c: RelSym): Boolean = (c.isCtor || c.kind == RelKind.Struct) && !c.isData
 
   /** The input columns of the head of a rule of a moded relation guarded by the demand of mode `m` (by
    *  the demand transformation): they are patterns, matched against the demand, not constructions. Their

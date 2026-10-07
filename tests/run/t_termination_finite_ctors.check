@@ -1,5 +1,6 @@
 termination: {d}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
 termination: {e}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+termination: {f}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
 d 1 green.
 d 1 red.
 d 2 green.
@@ -13,3 +14,6 @@ e 1 (wrap nil).
 e 2 (mk 1).
 e 2 (mk 2).
 e 2 (wrap nil).
+f 0 (wrap (cons 1 nil)).
+f 0 (wrap (cons 2 nil)).
+f 0 (wrap nil).

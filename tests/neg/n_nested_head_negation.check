@@ -1,0 +1,14 @@
+error[E0601]: stratification cycle through negation
+  --> tests/neg/n_nested_head_negation.hgn:12:20
+   |
+10 | r N :- mk N.
+   |        ---- `r` depends on `mk`
+...
+12 | h (mk N) :- src N, not r N.
+   |                    ^^^^^^^ `mk` depends negatively on `r`
+   |
+   = note: cycle: mk -> not r -> mk
+   = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+   = note: a rule of `h` asserts facts of `mk` in its head, so `mk` depends on what the rule reads (Proposition 8.8, see docs/NOTES.md)
+
+1 error found

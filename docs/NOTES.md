@@ -33,24 +33,53 @@ h : w -> rel.       h (mk N) :- src N.
 
 The edges are `r → mk`, `mk → src` (from the nested constructor of `h`'s head) and `h → src`. A
 topological order compatible with the stratification is `src, mk, r, h`. Evaluating by Definition 8.7
-gives `M = {src 1, h (mk 1), mk 1}`, which is not a model: `mk 1 ∈ M` but `r 1 ∉ M`. The
-implementation follows Definition 8.7 exactly (and Theorem 9.2 holds for it), so it reproduces this
-result; `--lint` reports the situation as warning W0004. Since data constructors never assert (see
-"Data and fact constructors"), the gap only concerns fact constructors (`%fact`) built in heads: with
-`mk` a data constructor the example has no fact `mk 1` and `r` is not affected.
+gives `M = {src 1, h (mk 1), mk 1}`, which is not a model: `mk 1 ∈ M` but `r 1 ∉ M`. Since data
+constructors never assert (see "Data and fact constructors"), the gap only concerns fact constructors
+(`%fact`) built in heads: with `mk` a data constructor the example has no fact `mk 1` and `r` is not
+affected.
 
-Two obvious repairs have costs that showed up in the conformance tests:
+**Resolved by split rules** (`StratifyPhase.splitRules`). The rule: *if a rule `h … :- B` asserts a
+fact-constructor term `c t̄` besides its own fact (a new F-term of its head outside the guarded input
+columns, `DepGraph.assertedHeadConstructors`) and `c`'s component comes before `h`'s, the rule
+`c t̄ :- B` is added and evaluated in `c`'s component.* (This is how Slog treats nested facts: every
+nested fact gets a rule of its own.) The dependency graph already lets `c` depend on everything `B`
+reads (Section 6.4 as extended in "Data and fact constructors"), so the split rule has exactly the edges
+of the graph: the components and the stratification are unchanged, and stratification is checked on
+the edges the split rules need. When `c`'s component is complete, so are `B`'s relations (they are
+dependencies of `c`), hence the split rule derives every `c t̄` the original rule asserts later, and the
+later assertions add nothing. So every component is complete after its evaluation, which is the
+property the proof of Proposition 8.8 needs, and evaluation yields the least model
+(`tests/run/n_nested_head_order.hgn` now answers `r 1`). Consequences:
 
-* Adding an edge `c' → h` for every relation `c'` heading a new constructor term in a head of `h`
-  restores the property, but it merges the fact relation of an update with the updating rule
-  (`moved (E with {...}) :- unbound E` reads `var` through the inserted guard `(var Z̄ as E)` and
-  constructs `var` facts), and likewise derivation rules (`@p2 (path X Z) I1 I2` constructs `path`).
-  Those components then contain constructive rules and are rejected by the termination check, although
-  they are finite.
-* Adding edges `reader → h` (every relation reading `c'` depends on the rule constructing it) avoids
-  the merge in the update and derivation cases (the reader is the rule itself) and repairs the
-  counterexample, but makes evaluation order depend on readers and still needs an argument for readers
-  inside `h`'s own component (where newly constructed facts are not part of any delta).
+* A rule that asserts `c` facts and negates or aggregates over a relation depending on `c` is a cycle
+  through negation (E0601, with a note naming the asserting rule; `tests/neg/n_nested_head_negation.hgn`).
+  Such a program has no stratified meaning: `r 1` would hold iff `mk 1` is asserted, which happens iff
+  `r 1` does not hold. This was E0601 before too (the edges `c → B` exist since data constructors
+  stopped asserting). Aggregates over `c` in other rules see all of `c`'s facts
+  (`tests/run/n_nested_head_aggregate.hgn`).
+* The split rule belongs to `c`'s component for the termination check: `d (s (s N)) :- s N` gives
+  `s (s N) :- s N`, which creates `s` facts that it reads again (`tests/neg/t_termination_ctor_source.hgn`).
+  A rule of a fact constructor builds its head fact even if its arguments are matched (Definition 10.1:
+  the head itself is a constructor term); before, `s (s N) :- s N` written in the source was accepted
+  and did not terminate (`tests/neg/t_termination_fact_head.hgn`).
+* Fact constructors of earlier components are finite sources for the termination check (no fact is
+  added to them after their component), see "Termination".
+* Derivation rules are not split (the terms of their heads are facts derived by the rule they describe),
+  nor are terms in guarded input columns (they match the demand and are facts already, E0504).
+* W0004 (and `--lint`, which only enabled it) is removed: a fact term built in a head can no longer be
+  missed by the readers of its constructor. Data terms never assert, so nothing remains for it to report.
+
+On the whole corpus (goldens, examples, fuzz suites) no program becomes newly rejected: the split rules
+add no edge, so there is no new E0601, and the only termination change is the component (`{s}` instead
+of `{d}`) in which `t_termination_ctor_source` is rejected.
+
+The alternatives are worse. Adding an edge `c → h` for every relation `c` heading a new constructor
+term in a head of `h` also restores the property, but makes `c` depend on *all* rules of `h`, not just
+the asserting one: in `tests/run/n_nested_head_strata.hgn` another rule of `h` reads `q`, which negates
+a reader of `mk`, and the edge would make that a cycle through negation; likewise the fact relation of an
+update or derivation would merge with the updating rule's component, which the termination check then
+rejects. Adding edges `reader → h` makes the order depend on readers and needs an argument for readers
+inside `h`'s own component.
 
 ### Moded numeric termination (Definition 10.3)
 
@@ -233,7 +262,9 @@ IC_R(db) = db ∪ ⋃ { subfact_F(Head(R)[v/x]) | db ⊨ Body(R)[v/x] }
 so a rule adds its head fact and the fact-constructor terms nested in it, also inside data terms. **Data
 constructors never assert**: their terms are values only, hash-consed so that equal values have one
 identity. Nested data values of input facts are hash-consed, not asserted. Definition 8.7 is unchanged
-otherwise (components in order, each to its least fixed point).
+otherwise (components in order, each to its least fixed point), with the split rules of Proposition 8.8
+(a fact term asserted in a head of a later component is also derived in its constructor's component, see
+"Nested head constructors and the evaluation order").
 
 * **Patterns** (nested in atoms, or the pattern side of an equation) are structural for D and F: a
   pattern destructures a value and requires no fact; only top-level atoms read facts.
@@ -268,7 +299,8 @@ otherwise (components in order, each to its least fixed point).
 equation, the fact constructors on its value side (existence checks). Comparisons, aggregate terms and
 patterns read nothing. A head depends on what its body reads, and so does every fact constructor it
 asserts (new F-terms outside the guarded input columns); data constructors take no part (they have no
-facts, no component and no evaluation round; `CoreProgram.components` leaves them out).
+facts, no component and no evaluation round; `CoreProgram.components` leaves them out). The rule
+`c t̄ :- body` split off for an asserted `c t̄` has exactly the edges `c → body` (Proposition 8.8).
 
 **Implementation.** `runtime/Store.scala`: one hash-consed table per relation symbol; for F interned
 means asserted, so the semi-naive windows are identity ranges and hash indexes hold identities; for D the
@@ -334,10 +366,11 @@ applies and the justification of every recursive step.
    `c` facts are read → rule fires again" is the non-termination of the chase with existential-free but
    term-building rules, avoided by acyclicity conditions on fact creation. Here such a cycle is a cycle
    of the dependency graph (an asserting head constructor depends on the rule's body, Section 6.4), so it
-   lies inside one component and is checked by discipline 1; across components, a fact constructor is
-   never a finite source (below), because facts can be added to it after its component (issue #1, A1,
-   and the gap of Proposition 8.8). Data constructors have no facts and no closure: they only need
-   discipline 1.
+   lies inside one component and is checked by discipline 1: the split rule `c t̄ :- body` of an
+   asserting head (Proposition 8.8) is a rule of `c`'s component, and a rule of a fact constructor builds
+   its head fact. Across components a fact constructor is a finite source like a plain relation, because
+   the split rules complete it in its own component. Data constructors have no facts and no closure:
+   they only need discipline 1.
 
 **Constructive rules (Definition 10.1, refined; issue #1, F3).** A rule is constructive if it builds a
 constructor term, data or fact, that is not matched in the body, in a head or in a moded input (the head
@@ -350,7 +383,8 @@ evaluation of the component: it is *not* constructive when it is ground (`d X re
 or when each of its variables is bound by a *finite source*: a positive body atom outside the component
 of a relation that is not a fact constructor or fact struct (`e X (mk Y) :- e X _, b Y`); a generated
 guard `(c Z̄ as X)` over a data constructor destructures `X` and binds finite variables if `X` is finite
-(`Termination.finiteVars`). Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
+(`Termination.finiteVars`). If the head's relation is a fact constructor, the head term itself counts
+too (its fact is a term): `s (s N) :- s N` is constructive. Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
 head or computing a head variable) are unchanged.
 
 *Soundness.* The argument for components without constructive rules was: their facts consist of terms
@@ -363,11 +397,12 @@ this component is evaluated (Definition 8.7) and finite by induction over the ev
 components are checked here or `%partial` with a budget; others are finite in their inputs). Plain
 relations only get facts from their own rules, so they do not grow later. So every rule constructs terms
 from a fixed finite set, and the component's facts consist of the existing terms plus that set: still
-finite. Fact constructors and fact structs do not count as finite sources even outside the component
-(discipline 2), because a nested head constructor can create their facts after their component (issue
-#1, A1), including the rule itself: `d (s (s N)) :- s N` makes `s (s N)` and then matches it
-(`tests/neg/t_termination_ctor_source.hgn`); the anchor condition below uses the same finite sources.
-Data constructors have no facts, so this restriction does not concern them. Variables bound only by
+finite. Fact constructors and fact structs count as finite sources outside the component like plain
+relations: their facts come from their own rules and from the split rules of heads asserting them
+(Proposition 8.8), all evaluated in their component; a later assertion only repeats a fact of a split
+rule. (Before the repair they were excluded, since `d (s (s N)) :- s N` created `s` facts after `s`'s
+component; now that rule is split into `s (s N) :- s N` and rejected in `{s}`,
+`tests/neg/t_termination_ctor_source.hgn`.) The anchor condition below uses the same finite sources. Variables bound only by
 equations, arithmetic or aggregates keep the term constructive (conservative). In the measured cases the
 conditions "rules of unmeasured relations are not constructive" use the same notion; there "only copy
 existing terms" becomes "construct terms from a fixed finite set", which the arguments below need in the
@@ -406,7 +441,7 @@ integer term.
 3. Anchor: for slot `i` the head's value lies below a bound (`h_i ≤ B`), and for every later slot `j > i`
    it lies in a finite set (`L ≤ h_j ≤ B`). A slot is bounded if its variables are bound by finite
    sources outside the component (a finite set: those relations are finite by induction over the
-   evaluation order; not fact constructors, see above), or by its interval, or by the call's slot (bounded likewise) plus a bounded
+   evaluation order), or by its interval, or by the call's slot (bounded likewise) plus a bounded
    difference `h_j - s_j`. Structural slots must be bound by relations outside the component.
 
 *Soundness.* In semi-naive evaluation a fact that is new in round `r > 1` is derived by a rule with a

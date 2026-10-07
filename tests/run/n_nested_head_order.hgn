@@ -1,4 +1,6 @@
-(* docs/NOTES.md: nested head constructors of an earlier component (Proposition 8.8); see W0004 *)
+(* docs/NOTES.md: nested head constructors of an earlier component (Proposition 8.8). `h`'s rule asserts
+   `mk 1` (a fact constructor of the earlier component of `mk`); its split rule `mk N :- src N` derives it
+   in `mk`'s component, so `r`, evaluated before `h`, sees it: `r 1` (the least model) *)
 w : type.
 %fact mk : int -> w.
 src : int -> rel.

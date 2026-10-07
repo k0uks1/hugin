@@ -1,0 +1,21 @@
+(* Proposition 8.8 with aggregates: the facts of the fact constructor `mk` come from an input fact and from
+   the head of `h` (whose split rule `mk N :- src N` runs in `mk`'s component); the count over `mk` in
+   `total` and the negation in `lonely` see all of them, although `h`'s own component comes after theirs.
+   `big` aggregates in the asserting rule itself: `mk` depends on the count over `src` (a lower stratum) *)
+w : type.
+%fact mk : int -> w.
+mk 10.
+src : int -> rel.
+src 1. src 2.
+h : w -> rel.
+h (mk N) :- src N.
+total : int -> rel.
+total C :- C = count { N | mk N }.
+lonely : int -> rel.
+lonely N :- src N, not mk N.
+lonely 7 :- src 1.
+big : w -> rel.
+big (mk S) :- S = sum { N | src N }.
+?- total C.
+?- lonely N.
+?- mk N.

@@ -75,7 +75,6 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --all-relations         print the facts of every relation (including fact constructors and demand relations)
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
-  --lint                  enable advisory checks (W0004)
   --explain-termination   print the measure and justification of every recursive component
   --no-prelude            do not include the standard prelude
 ```

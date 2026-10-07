@@ -1,0 +1,11 @@
+error[E0603]: growing component without a valid %terminates directive
+ --> tests/neg/t_termination_fact_head.hgn:6:1
+  |
+6 | s (s N) :- s N.
+  | ^^^^^^^ its head constructs `s (s N)`, which is not matched in the body
+  |
+  = note: the recursive component {s} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `s` -> `s`
+  = help: declare a decreasing argument, e.g. `%terminates X (s ...)`, or mark the relation `%partial s.` to evaluate it with a round budget
+
+1 error found

@@ -2,11 +2,10 @@ package hugin.cli
 
 class CommandLineSuite extends munit.FunSuite:
   test("commands and options are parsed") {
-    val o = CommandLine.parse(List("run", "a.hgn", "--facts", "x.facts", "--facts", "y.facts", "--budget", "3", "--lint")).toOption.get
+    val o = CommandLine.parse(List("run", "a.hgn", "--facts", "x.facts", "--facts", "y.facts", "--budget", "3")).toOption.get
     assertEquals(o.command, Command.Run("a.hgn"))
     assertEquals(o.run.facts, List("x.facts", "y.facts"))
     assertEquals(o.run.budget, Some(3))
-    assert(o.settings.lint)
     assert(!o.settings.explainTermination)
     assert(CommandLine.parse(List("check", "a.hgn", "--explain-termination")).toOption.get.settings.explainTermination)
   }

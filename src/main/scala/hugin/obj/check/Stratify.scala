@@ -29,6 +29,16 @@ final class StratifyPhase extends Phase:
       d = d.withNote(s"cycle: ${e.from.name} -> ${cycle.mkString(" -> ")}")
       for x <- path.take(3) do d = d.withLabel(x.span, s"`${x.from.name}` depends on `${x.to.name}`")
       d = d.withNote("negation and aggregation must not occur in a recursive cycle (Section 6.4)")
+      // an edge from a fact constructor asserted in the head of another relation's rule (Proposition 8.8)
+      (e :: path).find(x => x.rule.heads.headOption.exists { case Term.App(RelRef.Sym(h), _) => h != x.from; case _ => false })
+        .foreach { x =>
+          val h = x.rule.heads.head match
+            case Term.App(RelRef.Sym(h), _) => h.name
+            case _ => "?"
+          d = d.withNote(
+            s"a rule of `$h` asserts facts of `${x.from.name}` in its head, so `${x.from.name}` depends on what the rule reads (Proposition 8.8, see docs/NOTES.md)"
+          )
+        }
       // the demand of a disjunction inside an aggregate reads the caller (see `DemandPhase.auxDemand`)
       (e :: path).map(_.to.kind).collectFirst { case RelKind.Demand(aux, _) if aux.kind.isInstanceOf[RelKind.Auxiliary] => aux }.foreach {
         aux =>
@@ -41,30 +51,31 @@ final class StratifyPhase extends Phase:
       }
       ctx.report(Diag.rule(e.rule)(d))
 
-    // Facts asserted through nested fact-constructor terms in heads in relations of *earlier* components can be missed by
-    // readers evaluated in between (a gap in the ordering argument of Proposition 8.8); warn about it.
-    val readers = p.rules.flatMap(r => DepGraph.occurrences(r.body).map(o => (o._1, r))).groupBy(_._1).view.mapValues(_.map(_._2)).toMap
-    if ctx.settings.lint then
-      for r <- p.rules; h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c } do
-        val hi = compOf(h)
-        for t <- DepGraph.assertedHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
-          val affected = readers.getOrElse(c, Vector.empty).filter(rr =>
-            (rr ne r) && rr.heads.exists {
-              case Term.App(RelRef.Sym(x), _) => compOf(x) >= compOf(c) && compOf(x) <= hi
-              case _ => false
-            }
-          )
-          affected.headOption.foreach { rr =>
-            val reader = rr.heads.collectFirst { case Term.App(RelRef.Sym(x), _) => x.name }.getOrElse("?")
-            ctx.report(Diag.rule(r)(Diagnostic.warning(
-              "W0004",
-              s"facts of `${c.name}` constructed here may be missed by `$reader`",
-              t.span,
-              s"`${c.name}` is evaluated before `${h.name}`"
-            )
-              .withLabel(rr.span, s"`$reader` reads `${c.name}`")
-              .withNote("nested head constructors create facts of an earlier component after it was evaluated (see docs/NOTES.md)")))
-          }
+    // Proposition 8.8: a rule of `h` asserting a fact-constructor term `c t̄` of an earlier component gets a
+    // copy `c t̄ :- body` evaluated in `c`'s component, so `c` is complete before its readers run.
+    val split = StratifyPhase.splitRules(p.rules, compOf)
+    split.foreach(ctx.unit.splitRules.add)
+    p.rules = p.rules ++ split
 
   override def show(using Context): String =
     ctx.unit.components.zipWithIndex.map((c, i) => s"component $i: ${c.map(_.name).mkString(", ")}").mkString("\n")
+
+object StratifyPhase:
+  /** The split rules of Proposition 8.8 (see docs/NOTES.md, "Nested head constructors and the evaluation
+   *  order"). A rule `h … (c t̄) … :- body` asserts the fact `c t̄` besides its own fact (`subfact_F`,
+   *  [[DepGraph.assertedHeadConstructors]]). The dependency graph already lets `c` depend on everything
+   *  `body` reads (Section 6.4, as extended in "Data and fact constructors"), so the rule `c t̄ :- body`
+   *  has exactly the edges of the graph and changes neither the components nor the stratification. If
+   *  `c`'s component comes before `h`'s, that rule is added and evaluated in `c`'s component: when it is
+   *  complete, `body`'s relations are complete too (they are `c`'s dependencies), so the split rule
+   *  derives every `c t̄` the original rule will assert later, and the later assertions add nothing.
+   *  Hence every component is complete after its evaluation and the result is the least model.
+   *  Derivation rules are not split: the terms in their heads are facts derived by the rule they
+   *  describe (and guarded input columns are excluded by `assertedHeadConstructors`). */
+  def splitRules(rules: Vector[Rule], compOf: Map[RelSym, Int]): Vector[Rule] =
+    for
+      r <- rules
+      h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c }.toVector
+      t <- DepGraph.assertedHeadConstructors(r).distinct.toVector
+      if compOf.get(t.rel.sym).exists(ci => compOf.get(h).exists(ci < _))
+    yield Rule(None, List(t), r.body)(r.span, r.origin, r.expansions)
