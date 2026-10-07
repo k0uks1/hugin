@@ -1,4 +1,4 @@
-termination: {fib, fib^d[+-]}: terminates
+termination: {fib, fib^d[+-]}: terminates, measure declared
   measure of `fib`: argument 1 `n` (integer)
   demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
   rule at tests/run/t_termination_explain.hgn:7:1: demand for `fib^d[+-] A` from `fib^d[+-] N`: `N - A` = 1; `A` >= 1
@@ -6,7 +6,7 @@ termination: {fib, fib^d[+-]}: terminates
 termination: {path}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
 termination: {nat}: not checked: `nat` is %partial (evaluated with the round budget)
 termination: {len[string]^d[+-]}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
-termination: {len[string]}: terminates
+termination: {len[string]}: terminates, measure declared
   measure of `len[string]`: argument 1 `l` (structural)
   demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
   rule at <stdlib>/prelude.hgn:20:1: demand for `len[string]^d[+-] L` from `len[string]^d[+-] (cons[string] _ L)`: `L` is a proper subterm of `cons[string] _ L`

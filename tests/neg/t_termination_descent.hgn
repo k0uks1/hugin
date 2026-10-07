@@ -1,0 +1,17 @@
+(* Descent along derivations (A) needs a strict decrease in every cycle, bounded in its direction *)
+
+(* the decrease is not bounded below: `need -1`, `need -2`, … *)
+need : int -> rel.
+need 5.
+need A :- need N, A = N - 1.
+
+(* the arguments are swapped and one grows without a bound *)
+pair : int -> int -> rel.
+pair 1 2.
+pair Y X1 :- pair X Y, X1 = X + 1.
+
+(* the head grows: a structural argument becomes larger *)
+nat : type.   z : nat.   s : nat -> nat.
+grow : nat -> rel.
+grow z.
+grow (s N) :- grow N.

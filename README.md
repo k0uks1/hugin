@@ -80,7 +80,7 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --all-relations         print the facts of every relation (including fact constructors and demand relations)
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
-  --explain-termination   print the measure and justification of every recursive component
+  --explain-termination   print the termination argument of every recursive component
   --no-prelude            do not include the standard prelude
 ```
 
@@ -226,7 +226,7 @@ only on error-free programs.
 | `derivations` | 7.4 | derivation relations `@r` / `@r#i` |
 | `stratify` | 6.4 | dependency graph, strongly connected components in dependency order, negative cycles (reported with the cycle) |
 | `completeness` | 6.5 | incompleteness propagation and Definition 6.6 (also for queries) |
-| `termination` | 10 | constructive rules, growing components, validation of `%terminates` (Def. 10.3, generalised: interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
+| `termination` | 10 | constructive rules, growing components; size-change termination without annotations: descent along derivations (A) and guarded induction (B) with an inferred or `%terminates`-declared measure (interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
 | `lower` | 9.3 | compiles core rules to `Scan / Deref / Tag / Eval / Test / Lookup / NotIn / Agg` and `Make / Insert` over registers |
 
 The runtime (`hugin.runtime`) implements Section 9: words are literals or identities `(c, n)`; every

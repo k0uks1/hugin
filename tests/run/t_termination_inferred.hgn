@@ -1,4 +1,4 @@
-(* issue #2: without a directive, a measure that would be accepted is suggested *)
+(* issue #2, redesign A1: without a directive the termination argument is inferred (formerly a negative test that suggested the measures): `counter` by descent along derivations (A), `fib` and `log2` by guarded induction with an inferred measure *)
 counter : int -> rel.
 counter 0.
 counter M :- counter N, N < 5, M = N + 1.

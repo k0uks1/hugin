@@ -1,0 +1,31 @@
+(* docs/REDESIGN.md §8.1: the type checker with demand written by hand. Every constructor is a fact
+   constructor; contexts are `bind` facts built by `check`. No `%mode`, `%terminates` or `%partial`:
+   `check` terminates by descent along derivations (A): the expression in the head is a proper subterm of
+   the one in the premise; `typed` by guarded induction (B) on `e`, bound by the guard `check`. *)
+name : type = string.
+expr : type.   %fact ref : name -> expr.   %fact lam : name -> typ -> expr -> expr.
+               %fact app : expr -> expr -> expr.
+typ  : type.   %fact base : string -> typ.   %fact arrow : typ -> typ -> typ.
+ctx  : type.   %fact empty : ctx.   %fact bind : ctx -> name -> typ -> ctx.
+
+program : expr -> rel.
+%input program.
+
+check : (e : expr) -> (g : ctx) -> rel.
+check E empty :- program E.
+check B (bind G X T1) :- check (lam X T1 B) G.        (* (A): B ⊏ lam X T1 B *)
+check F G :- check (app F _) G.
+check A G :- check (app _ A) G.
+
+lookup : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+lookup (bind G X T) X T :- bind G X T.                 (* contexts are facts: a scan *)
+lookup (bind G Y U) X T :- bind G Y U, lookup G X T, X <> Y.
+
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+typed (ref X) G T :- check (ref X) G, lookup G X T.
+typed (lam X T1 B) G (arrow T1 T2) :- check (lam X T1 B) G, typed B (bind G X T1) T2.   (* (B) on e *)
+typed (app F A) G T1 :- check (app F A) G, typed F G (arrow T0 T1), typed A G T0.
+
+result : (e : expr) -> (t : typ) -> rel.
+result E T :- program E, typed E empty T.
+%output result.

@@ -1,0 +1,37 @@
+error[E0603]: growing component without a termination argument
+ --> tests/neg/t_termination_descent.hgn:6:19
+  |
+6 | need A :- need N, A = N - 1.
+  |                   ^^^^^^^^^ head variable `A` is computed by `A = N - 1`
+  |
+  = note: the recursive component {need} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `need` -> `need`
+  = note: descent along derivations (A) fails: along `need` -> ... -> `need` (rule at tests/neg/t_termination_descent.hgn:6:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no argument decreases from the head to every recursive call
+  = help: `A` is smaller than `N` but not bounded below: add a guard such as `A >= 0` (or bound `N`)
+
+error[E0603]: growing component without a termination argument
+  --> tests/neg/t_termination_descent.hgn:11:24
+   |
+11 | pair Y X1 :- pair X Y, X1 = X + 1.
+   |                        ^^^^^^^^^^ head variable `X1` is computed by `X1 = X + 1`
+   |
+   = note: the recursive component {pair} contains this constructive rule, so its fixed point may be infinite
+   = note: recursion: `pair` -> `pair`
+   = note: descent along derivations (A) fails: along `pair` -> ... -> `pair` (rule at tests/neg/t_termination_descent.hgn:11:1) no argument of the derived fact is smaller than in the premise
+   = note: guarded induction (B) fails: no argument decreases from the head to every recursive call
+   = help: `X1` is larger than `X` but not bounded above: add a guard such as `X1 < 100` (or bound `X`)
+
+error[E0603]: growing component without a termination argument
+  --> tests/neg/t_termination_descent.hgn:17:7
+   |
+17 | grow (s N) :- grow N.
+   |       ^^^ its head constructs `s N`, which is not matched in the body
+   |
+   = note: the recursive component {grow} contains this constructive rule, so its fixed point may be infinite
+   = note: recursion: `grow` -> `grow`
+   = note: descent along derivations (A) fails: along `grow` -> ... -> `grow` (rule at tests/neg/t_termination_descent.hgn:17:1) no argument of the derived fact is smaller than in the premise
+   = note: guarded induction (B) fails: no anchor: the variables of `s N` are not bound by a relation outside the component (measure: argument 1 (structural))
+   = help: make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`), or name the measure with `%terminates X (grow ...)`
+
+3 errors found

@@ -175,7 +175,7 @@ object CommandLine:
         .text("elaborate with the new meta level (redesign Phase B, in development)")
         .action((_, o) => o.copy(newMeta = true)),
       opt[Unit]("explain-termination")
-        .text("print the measure and justification of every recursive component (Section 10)")
+        .text("print the termination argument of every recursive component (Section 10)")
         .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),
       checkConfig(o =>
         o.command match
