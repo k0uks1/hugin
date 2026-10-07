@@ -271,7 +271,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
         val body = elabFormula(q.body, sc, rc)
         if !rc.failed then out += EItem.QueryItem(obj.Query(body)(q.span, Origin.Source, rc.expansions.toList))
       case d: Directive => elabDirective(d, sc).foreach(x => out += EItem.DirectiveItem(x))
-
+      case _: Clause => // only parsed in the syntax of the new meta level (hugin.core)
   /** Elaborates a module body (rule M-Body); returns the body and its signature of exports. */
   def elabBody(items: List[Item], sc: Scope, span: Span): (MExpr, MType) =
     context.unit.index.scope(span, sc)

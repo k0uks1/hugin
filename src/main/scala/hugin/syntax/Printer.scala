@@ -32,6 +32,10 @@ object Printer:
     case Parens(i) => s"(${show(i)})"
     case Builtin(n) => s"%builtin ${n.name}"
     case Import(path) => s"%import ${Literal.quote(path)}"
+    case SpliceE(a) => s"$$${showArg(a)}"
+    case LiftE(a) => s"⇑${showArg(a)}"
+    case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
+    case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"
@@ -57,6 +61,7 @@ object Printer:
     case Rule(n, hs, b) =>
       s"${n.map(x => "@" + x.name + " ").getOrElse("")}${hs.map(show).mkString(", ")}${b.map(x => " :- " + show(x)).getOrElse("")}."
     case Query(b) => s"?- ${show(b)}."
+    case Clause(l, r) => s"${show(l)} = ${show(r)}."
     case d @ Directive(k, args) =>
       val a = args match
         case DirArgs.Mode(t, ms) => (show(t) :: ms.map(showMode)).mkString(" ")
