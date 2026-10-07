@@ -10,6 +10,11 @@ derivations), the stratification / completeness / termination checks, compilatio
 Section 9.3, and a semi-naive interpreter over an interning store. An efficient Datalog engine is out of
 scope; the interpreter is meant to make programs runnable and results comparable.
 
+> **Redesign in progress.** The language is moving to a Datalog∃! object level (every constructor a
+> fact, termination by size-change, bound arithmetic columns) under a total, dependently typed meta
+> level in clause syntax, where directives such as `%demand`/`%mode` are meta functions. See
+> `docs/REDESIGN.md` for the decisions and the implementation plan.
+
 ```
 $ bin/hugin run examples/typechecker.hgn --facts examples/typechecker.facts
 result (lam "f" (arrow (base "int") (base "bool")) (lam "x" (base "int") (app (ref "f") (ref "x")))) (arrow (arrow (base "int") (base "bool")) (arrow (base "int") (base "bool"))).
