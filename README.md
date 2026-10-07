@@ -47,6 +47,23 @@ if `c` is a data constructor, and checks that `c t̄` is a fact if `c` is a fact
 fact-constructor term in an input of a moded call is E0504, so `%mode` adds facts only to the moded
 relation and its demand relations. See `docs/NOTES.md`, "Data and fact constructors".
 
+### Bound columns
+
+The last column of a relation can be a **bound column** `min τ` or `max τ` (`τ` an integer type, Limit
+Datalog): the relation keeps the best value per key, so recursion through arithmetic terminates where
+nothing decreases. Values that would improve forever become `-∞` (`min`) or `∞` (`max`):
+
+```
+dist : (v : node) -> (d : min int) -> rel.
+dist S 0 :- source S.
+dist W (D + C) :- dist V D, edge V W C.     (* a negative cycle gives `dist v (-∞)` *)
+```
+
+Rules that read a bound column of their own recursive component must be type-consistent (E0606): the
+value occurs linearly, only in the head's bound column and in `<`/`<=`/`>`/`>=` comparisons, in the
+direction in which improving it improves the head. Misplaced bound columns are E0605. See
+`docs/REDESIGN.md` §5.2 and `docs/NOTES.md`, "Bound columns".
+
 ## Building and running
 
 Requirements: JDK 17+ and [sbt](https://www.scala-sbt.org/) 1.10. The implementation is written in Scala 3.
@@ -225,6 +242,7 @@ only on error-free programs.
 | `demand` | 7.3 | guards and propagation rules (`typed^d[++-]`) for moded relations |
 | `derivations` | 7.4 | derivation relations `@r` / `@r#i` |
 | `stratify` | 6.4 | dependency graph, strongly connected components in dependency order, negative cycles (reported with the cycle) |
+| `bound-columns` | — | bound columns are last integer columns of unmoded relations (E0605); rules over bound columns of their own component are type-consistent (E0606) |
 | `completeness` | 6.5 | incompleteness propagation and Definition 6.6 (also for queries) |
 | `termination` | 10 | constructive rules, growing components; size-change termination without annotations: descent along derivations (A) and guarded induction (B) with an inferred or `%terminates`-declared measure (interval reasoning, lexicographic measures, mutual recursion; see `docs/NOTES.md`) |
 | `lower` | 9.3 | compiles core rules to `Scan / Deref / Tag / Eval / Test / Lookup / NotIn / Agg` and `Make / Insert` over registers |
@@ -232,7 +250,11 @@ only on error-free programs.
 The runtime (`hugin.runtime`) implements Section 9: words are literals or identities `(c, n)`; every
 relation is an array of tuples with an interning map and hash indexes on bound columns; components are
 evaluated in order by semi-naive iteration with old/delta/full windows (Section 9.5); components with
-`%partial` relations obey the round budget; queries run over the final store.
+`%partial` relations obey the round budget; queries run over the final store. A relation with a bound
+column keeps one current tuple per key (a better value is appended, the old tuple becomes invisible, so
+the windows stay identity ranges and the delta holds the improved keys); components with bound columns
+check the value propagation graph for positive cycles after rounds 4, 8, 16, … and set the values on and
+after them to `∞` (`runtime/Divergence.scala`).
 
 Source layout:
 
@@ -461,9 +483,10 @@ The fuzz suites are ScalaCheck properties (issue #7); a failing input is shrunk 
   programs over a small vocabulary — base relations with facts (some `%input`, loaded from a facts file),
   derived relations in strata with recursion, negation, aggregates (with disjunctions inside), comparisons,
   disjunctions, arithmetic, a user enumeration, a constructor type, the prelude families `option` and
-  `list`, `len`, and a counter with `%terminates`. Properties: the compiler accepts them; the semi-naive
+  `list`, `len`, a counter with `%terminates`, and bound columns over a weighted graph (with divergence). Properties: the compiler accepts them; the semi-naive
   engine agrees on every relation with a naive reference evaluator of the core program
-  (`NaiveEvaluator`: Definition 8.7 with structural words, no deltas, no indexes); the output does not
+  (`NaiveEvaluator`: Definition 8.7 with structural words, no deltas, no indexes; bound columns by Kaminski
+  et al.'s Algorithm 1 with Floyd–Warshall every round); the output does not
   change when the items are permuted, an unused relation is added or relations are renamed; adding
   `%mode` (the demand transformation) does not change query answers; and the robustness properties above
   hold, with "accepted programs run to completion" in addition. Shrinking removes rules and facts.
