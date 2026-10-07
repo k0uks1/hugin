@@ -45,7 +45,9 @@ final class TypeSym(val name: String, var kind: TypeKind, val span: Span, val or
   def displayName: String = instanceOf.map(_._1.displayName).getOrElse(name)
   override def toString: String = name
 
-final case class Column(label: Option[String], tpe: OType)
+/** A column of a relation or constructor; `bound` marks a bound column (`min τ` / `max τ`, only the last
+ *  column of a relation, checked by [[hugin.obj.check.BoundColumnsPhase]]). */
+final case class Column(label: Option[String], tpe: OType, bound: Option[hugin.syntax.Bound] = None)
 
 enum RelKind:
   case Plain, Ctor, Struct
@@ -83,6 +85,11 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
   var instanceOf: Option[(RelSym, List[OType])] = None
 
   def arity: Int = cols.length
+
+  /** The kind of the relation's bound column (`min τ` / `max τ`, docs/REDESIGN.md §5.2), which is its last
+   *  column; `None` for constructors (bound columns are only allowed on relations, E0605). */
+  def boundColumn: Option[hugin.syntax.Bound] =
+    if kind == RelKind.Ctor || kind == RelKind.Struct then None else cols.lastOption.flatMap(_.bound)
   def isCtor: Boolean = kind == RelKind.Ctor
 
   /** A data constructor or data struct (not `%fact`): its values are data, not facts of a relation. */

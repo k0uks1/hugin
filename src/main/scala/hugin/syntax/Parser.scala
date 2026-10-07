@@ -455,6 +455,11 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
       case Tok.KwMod => advance(); Keyword(Kw.Mod)(t.span)
       case Tok.KwRel => advance(); Keyword(Kw.Rel)(t.span)
       case Tok.KwProp => advance(); Keyword(Kw.Prop)(t.span)
+      case Tok.KwMin | Tok.KwMax if peekTok(1).kind != Tok.LBrace =>
+        // a bound column type `min τ` / `max τ` (an aggregate is followed by `{`)
+        advance()
+        val tpe = parseApp()
+        BoundType(if t.kind == Tok.KwMin then Bound.Min else Bound.Max, tpe)(spanFrom(start))
       case Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax =>
         advance()
         val k = t.kind match

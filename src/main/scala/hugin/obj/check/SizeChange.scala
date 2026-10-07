@@ -96,7 +96,7 @@ object SizeChange:
             val arcs = List.newBuilder[Arc]
             val why = List.newBuilder[String]
             val hints = List.newBuilder[Hint]
-            for (s, i) <- ss.zipWithIndex; (h, j) <- hs.zipWithIndex do
+            for (s, i) <- keys(q, ss); (h, j) <- keys(p, hs) do
               val (sInt, hInt) =
                 (q.cols.lift(i).exists(c => Termination.isInt(c.tpe)), p.cols.lift(j).exists(c => Termination.isInt(c.tpe)))
               if sInt && hInt then
@@ -115,6 +115,12 @@ object SizeChange:
           }
         case _ => Nil
     }
+
+  /** The arguments with their positions, without a bound column: its values are not invented (they are
+   *  kept finite per key by evaluation, docs/REDESIGN.md §5.2), so they take no part in size change. */
+  private def keys(r: RelSym, args: List[Term]): List[(Term, Int)] =
+    val all = args.zipWithIndex
+    if r.boundColumn.isDefined then all.init else all
 
   private def unwrap(t: Term): Term = t match
     case Term.As(x, _) => unwrap(x)
@@ -157,7 +163,8 @@ object SizeChange:
   def check(comp: List[RelSym], rules: Vector[Rule]): Either[Failure, List[String]] =
     val base = steps(comp, rules)
     val byFrom = base.groupBy(_.from)
-    val seen = mutable.HashMap.empty[(RelSym, RelSym, Graph), Chain]
+    // insertion-ordered: the reported cycle must not depend on identity hash codes
+    val seen = mutable.LinkedHashMap.empty[(RelSym, RelSym, Graph), Chain]
     val work = mutable.Queue.from(base.map(s => Chain(s.from, s.to, s.graph, List(s))))
     while work.nonEmpty && seen.size <= MaxGraphs do
       val c = work.dequeue()

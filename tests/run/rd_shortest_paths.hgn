@@ -1,0 +1,21 @@
+(* docs/REDESIGN.md §8.3: recursion through arithmetic without descent, with bound columns (§5.2).
+   `dist` keeps the least distance per node; a negative cycle makes it improve forever, so its nodes and
+   everything reachable from them get -∞. `longest` keeps the greatest distance over positive edges; a
+   cycle of positive edges gives +∞. No %partial and no %terminates. *)
+node : type = string.
+edge : node -> node -> int -> rel.
+source : node -> rel.
+%input edge.  %input source.
+
+dist : (v : node) -> (d : min int) -> rel.
+dist S 0 :- source S.
+dist W (D + C) :- dist V D, edge V W C.
+%output dist.
+
+longest : (v : node) -> (d : max int) -> rel.
+longest S 0 :- source S.
+longest W (D + C) :- longest V D, edge V W C, C > 0.
+%output longest.
+
+?- dist "d" D.
+?- dist V D, D < 2.

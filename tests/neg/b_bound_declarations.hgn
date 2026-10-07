@@ -1,0 +1,9 @@
+(* E0605: a bound column is the last column of a relation, of an integer type, and not moded *)
+node : type.
+first : (d : min int) -> (v : node) -> rel.
+k : type.
+mk : (x : min int) -> k.
+label : (v : node) -> (s : max string) -> rel.
+dist : (v : node) -> (d : min int) -> rel.
+%mode dist +v -d.
+score : type = max int.

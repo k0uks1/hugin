@@ -1,0 +1,34 @@
+(* Bound columns (docs/REDESIGN.md §5.2): best values per key, linear arithmetic, comparisons in the
+   improving direction, `min` and `max` relations feeding each other, and bound relations of earlier
+   components read as plain values. *)
+item : type = string.
+cost : item -> int -> rel.
+part : item -> item -> int -> rel.
+cost "bolt" 2.  cost "nut" 1.  cost "plate" 10.
+part "frame" "plate" 2.  part "frame" "bolt" 8.  part "frame" "nut" 8.
+part "bike" "frame" 1.  part "bike" "wheel" 2.
+part "wheel" "nut" 4.  part "wheel" "plate" 1.
+
+(* the cheapest way to obtain one unit: buy it, or assemble it from one of its parts, paying the part
+   plus `N` for assembly (`N` is a plain value: a constant of each instance) *)
+cheapest : (i : item) -> (c : min int) -> rel.
+cheapest I C :- cost I C.
+cheapest I (C + N) :- part I P N, cheapest P C.
+
+(* a budget: `max` decreases through a negative coefficient of a `min` value *)
+budget : (i : item) -> (b : max int) -> rel.
+budget I (100 - C) :- cheapest I C.
+budget I (B - 1) :- part I P _, budget P B, B >= 50.
+
+(* comparisons in the improving direction: a `min` value on the smaller side *)
+affordable : item -> rel.
+affordable I :- cheapest I C, C <= 20.
+
+(* a later component reads final values as plain integers (here into a key column) *)
+priced : (i : item) -> (c : int) -> rel.
+priced I C :- cheapest I C.
+dearest : (c : int) -> rel.
+dearest M :- M = max { C | priced _ C }.
+
+%output cheapest.  %output budget.  %output affordable.  %output priced.  %output dearest.
+?- cheapest "bike" C.

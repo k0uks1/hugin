@@ -43,11 +43,16 @@ object ObjPrinter:
 
   def query(q: Query): String = s"?- ${body(q.body)}."
 
-  def column(c: Column): String = c.label match
-    case Some(l) => s"($l : ${c.tpe.show})"
-    case None => c.tpe match
-        case OType.Union(_) => s"(${c.tpe.show})"
-        case _ => c.tpe.show
+  def column(c: Column): String =
+    val tpe = c.bound match
+      case Some(k) => s"${k.show} ${OType.showArg(c.tpe)}"
+      case None => c.tpe.show
+    c.label match
+      case Some(l) => s"($l : $tpe)"
+      case None if c.bound.isDefined => s"($tpe)"
+      case None => c.tpe match
+          case OType.Union(_) => s"($tpe)"
+          case _ => tpe
 
   def relDecl(r: RelSym): String =
     val res = r.result.map(_.show).getOrElse("rel")
