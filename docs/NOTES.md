@@ -11,7 +11,7 @@ while implementing it. Section numbers refer to the definition.
 | 2. Object types and records: declarations, inference, unions and open types, tag tests, named patterns, projection, update | done |
 | 3. Arithmetic, aggregates, queries | done |
 | 4. Modes and provenance: demand transformation, derivations | done |
-| 5. Checks: completeness discipline, termination, `%partial` budgets, `%open` | done |
+| 5. Checks: completeness discipline, termination, `%open` (`%partial` budgets were removed in the redesign, A3) | done |
 | 6. Meta level: stage inference, meta evaluator, modules and functors, formula functions, families, monomorphization | done |
 
 All twelve conformance tests of Appendix A.2 are in `tests/` (see the README).
@@ -358,7 +358,7 @@ demand reads the first call of `len`, and the second call's demand reads the agg
 has a cycle through negation, every call site of a plain moded relation `c` from a rule of another
 relation whose demand rule `c^d[m] … :- prefix` lies in such a component and reads it (the edge of the
 cycle that the sharing creates) gets its own copy `c#k` of `c`: the rules of `c` with `c` renamed (also its
-recursive calls), the directives of `c` (modes, `%terminates`, `%partial`, `%open`), and the call renamed;
+recursive calls), the directives of `c` (modes, `%terminates`, `%open`), and the call renamed;
 the transformation is repeated (a few rounds, copies are not copied again). The copy has its own demand
 relation `c#k^d[m]`, which only that call site and the copy's own recursion feed. If cycles through
 negation remain, they are not caused by the sharing and the shared transformation is kept, so the error
@@ -398,9 +398,9 @@ and finite sources, `SizeChange.scala` direction (A), `GuardedInduction.scala` d
 inference, `DemandDriven.scala` its case for `%mode`, `Decrease.scala` and `Intervals.scala` the decrease
 reasoning, `TerminationFailures.scala` the diagnostics) decides statically
 that every recursive component reaches a finite fixed point (docs/REDESIGN.md §4). A recursive component
-(Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below);
-a component with a `%partial` relation is evaluated with the round budget and not checked. Otherwise the
-check tries, in this order:
+(Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below).
+There is no escape hatch: `%partial` and round budgets were removed (redesign A3, REDESIGN §4.6); a program
+that cannot be shown to terminate is rejected. The check tries, in this order:
 
 1. If a relation of the component (or the relation its demand relations belong to) carries a measure
    `%terminates X (c … X …)`, `%terminates l c`, or lexicographically `%terminates (X, Y) (c … X … Y …)` /
@@ -545,7 +545,7 @@ ground term has one instance. A term whose variables are bound by finite sources
 valuation of those variables, and each such variable is a subterm of a fact of such a relation (or the
 fact itself, for `as` variables). Those relations belong to earlier components, which are complete when
 this component is evaluated (Definition 8.7) and finite by induction over the evaluation order (recursive
-components are checked here or `%partial` with a budget; others are finite in their inputs). Plain
+components are checked here; others are finite in their inputs). Plain
 relations only get facts from their own rules, so they do not grow later. So every rule constructs terms
 from a fixed finite set, and the component's facts consist of the existing terms plus that set: still
 finite. Fact constructors and fact structs count as finite sources outside the component like plain
@@ -662,9 +662,9 @@ copy existing terms or construct terms from a fixed finite set (condition 1).
 
 **Diagnostics.** E0603 names the constructive rule, the cycle through the component, and a measure that
 would be accepted (single positions per relation, or a lexicographic pair for a single relation, found by
-running the check) or `%partial`. E0604 points at the call (or the demanded call) that fails, labels the
+running the check). E0604 points at the call (or the demanded call) that fails, labels the
 head's or caller's measure, says which slot of the measure fails and whether the decrease or the anchor
-is missing, and suggests the missing comparison or `%partial`. Components with a cycle through negation
+is missing, and suggests the missing comparison. Components with a cycle through negation
 are skipped (E0601 is reported).
 
 **Not covered.** Measures through non-linear arithmetic other than division by a literal, multiset

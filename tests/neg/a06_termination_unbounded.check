@@ -10,7 +10,6 @@ error[E0604]: invalid `%terminates` directive for `counter`
   |
   = note: bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop
   = help: add an upper bound, e.g. `N < 100`
-  = help: if the recursion terminates for another reason, mark the relation `%partial counter.` to evaluate it with a round budget
 
 error[E0603]: growing component without a termination argument
  --> tests/neg/a06_termination_unbounded.hgn:9:17

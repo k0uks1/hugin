@@ -7,7 +7,6 @@ final case class RelDirectives(
     /** Declared modes, in declaration order, with the directive's span. */
     modes: List[(Mode, Span)] = Nil,
     open: Boolean = false,
-    partial: Boolean = false,
     input: Boolean = false,
     output: Boolean = false,
     /** `%terminates`: the measured argument positions (lexicographic if several) and the directive. */

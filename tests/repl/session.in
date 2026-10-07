@@ -44,8 +44,6 @@ edge c a.
 :stats on
 ?- path a c.
 :stats off
-:budget 1
-:budget off
 :explain W0005
 :lod x
 :reset

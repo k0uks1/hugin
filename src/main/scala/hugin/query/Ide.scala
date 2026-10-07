@@ -188,7 +188,7 @@ object Ide:
           matching((vars ++ typed).filterNot(_.label == "_") ++ names)
 
   private val directives =
-    List("mode", "terminates", "partial", "open", "derivations", "input", "output", "infix", "name", "abbrev", "fact", "import", "builtin")
+    List("mode", "terminates", "open", "derivations", "input", "output", "infix", "name", "abbrev", "fact", "import", "builtin")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 
