@@ -1,7 +1,5 @@
 package hugin.util.diagnostics
 
-import hugin.util.ErrorCodes
-
 /** The registry `Code`: unique ids, numbering by phase, lint names. */
 class CodeRegistrySuite extends munit.FunSuite:
   private val codes = Code.values.toList
@@ -39,6 +37,7 @@ class CodeRegistrySuite extends munit.FunSuite:
     assertEquals(Code.parse("E9999"), None)
   }
 
-  test("every active code is explained") {
-    for c <- codes if c.isActive do assert(ErrorCodes.explain(c.id).exists(_.contains(c.title)), s"${c.id} has no explanation")
+  test("every active code is explained, and the inventory lists every code") {
+    for c <- codes if c.isActive do assert(Explanations.explain(c.id).exists(_.startsWith(s"# ${c.id}: ${c.title}")), c.id)
+    for c <- codes do assert(Explanations.inventory.contains(s"${c.id}  ${c.title}"), c.id)
   }

@@ -273,7 +273,7 @@ class SessionSuite extends munit.FunSuite:
     assert(s.execute("?- path a c.").output.exists(_.startsWith("(* {path}")))
     assertEquals(s.execute(":budget 2").output, List("round budget: 2"))
     assert(s.execute(":budget lots").hasErrors)
-    assertEquals(s.execute(":explain e0101").output.head, "E0101: unresolved name")
+    assertEquals(s.execute(":explain e0101").output.head, "# E0101: unresolved name")
     assert(s.execute(":help").output.exists(_.contains(":print <phase> [<name>]")))
     assert(s.execute(":quit").quit)
   }

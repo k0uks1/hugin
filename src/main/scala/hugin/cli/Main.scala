@@ -1,6 +1,7 @@
 package hugin.cli
 
 import hugin.util.*
+import hugin.util.diagnostics.Explanations
 import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
@@ -48,8 +49,11 @@ object Main:
             out(s"  (fused: ${group.map(_.phaseName).mkString(" + ")})")
             group.foreach(m => out(f"    ${m.phaseName}%-12s ${m.description}"))
       ExitCode.Ok
-    case Command.Explain(code) =>
-      ErrorCodes.explain(code) match
+    case Command.Explain(_, true) =>
+      out(Explanations.inventory)
+      ExitCode.Ok
+    case Command.Explain(code, false) =>
+      Explanations.explain(code) match
         case Some(text) =>
           out(text)
           ExitCode.Ok

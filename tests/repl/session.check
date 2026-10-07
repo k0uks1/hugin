@@ -129,9 +129,35 @@ round budget: 1
 hugin> :budget off
 round budget: unbounded
 hugin> :explain W0005
-W0005: formula function without clauses
+# W0005: formula function without clauses
 
-A formula function is declared without clauses or definition; it is always false.
+A formula function is declared without clauses or definition.
+
+## Example
+
+```hugin
+never : int -> prop.
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, never X.
+```
+
+## Why this is reported
+
+A formula function without clauses is always false, so every rule using it never fires. Lint name:
+`empty_formula_functions`.
+
+## How to fix it
+
+```hugin
+small : int -> prop.
+small X :- X < 10.
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, small X.
+```
 hugin> :lod x
 error: unknown command `:lod`
   = help: did you mean `:load`?

@@ -8,7 +8,9 @@ enum Command:
   case Run(file: String)
   case Check(file: String)
   case Phases
-  case Explain(code: String)
+
+  /** The explanation of a code, or with `list` the inventory of all codes. */
+  case Explain(code: String, list: Boolean = false)
 
   /** A position query (`hover`, `definition`, `references`) or a file query (`symbols`, `diagnostics`);
    *  positions are 1-based `line:column`. */
@@ -64,9 +66,20 @@ object CommandLine:
         .text("list the compiler phases")
         .action((_, o) => o.copy(command = Command.Phases)),
       cmd("explain")
-        .text("explain a diagnostic code (e.g. E0401)")
+        .text("explain a diagnostic code (e.g. E0401); --list lists all codes by phase")
         .action((_, o) => o.copy(command = Command.Explain("")))
-        .children(arg[String]("<code>").action((c, o) => o.copy(command = Command.Explain(c)))),
+        .children(
+          opt[Unit]("list")
+            .text("list every diagnostic code by phase")
+            .action((_, o) => o.copy(command = Command.Explain("", list = true))),
+          arg[String]("<code>")
+            .optional()
+            .action((c, o) =>
+              o.command match
+                case e: Command.Explain => o.copy(command = e.copy(code = c))
+                case _ => o
+            )
+        ),
       cmd("query")
         .text("ask the compiler about a file: hover, definition, references, completions (at <line>:<col>), symbols, diagnostics")
         .action((_, o) => o.copy(command = Command.Query("", "", None)))
@@ -168,6 +181,7 @@ object CommandLine:
       checkConfig(o =>
         o.command match
           case Command.Help => failure("no command given")
+          case Command.Explain("", false) => failure("`explain` needs a code, or --list")
           case Command.Query(_, r, None) if positional(r) => failure(s"`$r` needs a position `line:column`")
           case _ => success
       )
