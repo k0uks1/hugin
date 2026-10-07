@@ -168,10 +168,36 @@ object ErrorCodes:
       "After evaluating the meta code of an object item, what remains is not object code: meta code spliced into it is stuck (it applies a postulated meta function or a variable), or a compile-time primitive value is undefined (overflow, division by zero)."
     ),
     ("E0910", "invalid rule head", "A rule head must be an atom (a relation applied to all of its columns) or a constructor term."),
+    (
+      "E0911",
+      "non-covering clauses",
+      "Meta functions are total: their clauses must cover every combination of constructors of the matched arguments. Cases that are impossible by the indices of the types (`head : vec A (suc N) -> A` applied to `vnil`) need no clause. The diagnostic shows a missing case."
+    ),
+    (
+      "E0912",
+      "possibly non-terminating meta function",
+      "Meta functions must terminate: along every cycle of calls between functions, some argument must get structurally smaller (a proper constructor subterm of the clause's pattern). The check uses the size-change principle (Lee, Jones & Ben-Amram), so lexicographic orders, mutual recursion and permuted arguments are recognised."
+    ),
+    (
+      "E0913",
+      "non-positive occurrence",
+      "An inductive family occurs in a non-positive position in the type of one of its constructors (to the left of an arrow, or inside an argument of another type). Such types make the meta level inconsistent and non-terminating, so they are rejected (strict positivity)."
+    ),
+    (
+      "E0914",
+      "invalid inductive declaration",
+      "A constructor must return its family applied to all of its arguments, and its arguments must live in the family's universe (predicativity); clauses can only define meta functions, not constructors, families or object relations."
+    ),
+    (
+      "E0915",
+      "invalid pattern",
+      "A clause's patterns must be uppercase variables (each bound once), `_`, constructors applied to their explicit arguments, or natural-number literals of a nat-like type, and every clause of a function has the same number of patterns. Matching must be decidable: a constructor pattern must be against an inductive type whose indices unify with the constructor's, or clearly do not."
+    ),
     ("W0001", "undefined constant expression", "An object-level expression over literals is undefined, so the rule can never fire."),
     ("W0002", "singleton variable", "A variable occurs only once in a rule; use `_` if this is intended."),
     ("W0003", "unused definition", "A top-level meta function, formula function or constant is never referenced."),
-    ("W0005", "formula function without clauses", "A formula function is declared without clauses or definition; it is always false.")
+    ("W0005", "formula function without clauses", "A formula function is declared without clauses or definition; it is always false."),
+    ("W0006", "unreachable clause", "A clause of a meta function is never used: the clauses before it cover every case it matches.")
   )
 
   def lookup(code: String): Option[(String, String, String)] = all.find(_._1 == code)

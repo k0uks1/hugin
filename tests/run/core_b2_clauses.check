@@ -1,0 +1,37 @@
+// warning[W0006]: unreachable clause of `isZero`
+//   --> tests/run/core_b2_clauses.hgn:44:1
+//    |
+// 44 | isZero (suc N) = 0.
+//    | ^^^^^^^^^^^^^^^^^^^ this clause is never used
+//    |
+//    = note: the clauses before it cover all the cases it matches
+// 
+// 1 warning found
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+plus : nat -> nat -> nat.
+  plus zero N = N.
+  plus (suc M) N = suc (plus M N).
+vec : Type -> nat -> Type₁.
+vnil : {A : Type} -> vec A zero.
+vcons : {A : Type} -> {N : nat} -> A -> vec A N -> vec A (suc N).
+head : {A : Type} -> {N : nat} -> vec A (suc N) -> A.
+  head (vcons X _) = X.
+append : {A : Type} -> {N : nat} -> {M : nat} -> vec A N -> vec A M -> vec A (plus N M).
+  append vnil YS = YS.
+  append (vcons X XS) YS = vcons X (append XS YS).
+fibm : nat -> int.
+  fibm zero = 0.
+  fibm (suc zero) = 1.
+  fibm (suc (suc N)) = fibm N + fibm (suc N).
+fib : int -> int -> rel.
+fib 90 2880067194370816120.
+sumAll : {N : nat} -> vec int N -> int.
+  sumAll vnil = 0.
+  sumAll (vcons X XS) = X + sumAll {_} XS.
+total : int -> rel.
+total 42.
+isZero : nat -> int.
+  isZero zero = 1.
+  isZero (suc _) = 0.

@@ -1,0 +1,11 @@
+error[E0914]: `edge` cannot be defined by clauses
+ --> tests/neg/core_e0914_clauses.hgn:3:1
+  |
+2 | edge : int -> int -> rel.
+  | ---- `edge` is declared here as an object constant
+3 | edge X Y = X.
+  | ^^^^^^^^^^^^^ clause
+  |
+  = note: clauses define meta functions; object relations are defined by rules (`:-`)
+
+1 error found

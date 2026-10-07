@@ -1,0 +1,7 @@
+(* new meta level: a recursive call on an argument that does not get smaller *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+grow : nat -> nat.
+grow zero = zero.
+grow (suc N) = grow (suc (suc N)).

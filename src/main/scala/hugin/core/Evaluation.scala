@@ -64,8 +64,10 @@ trait Evaluation:
     case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
     case other => throw Impossible(s"application of a non-function value $other")
 
-  /** A neutral value; a global function applied to enough arguments may reduce (B2 hook). */
-  protected def rigid(h: Head, sp: Spine): Val = Rigid(h, sp)
+  /** A neutral value; a function applied to enough arguments reduces ([[Matching]]). */
+  private def rigid(h: Head, sp: Spine): Val = h match
+    case Head.Glob(id) => reduceFunction(id, sp).getOrElse(Rigid(h, sp))
+    case _ => Rigid(h, sp)
 
   def vQuote(v: Val): Val = v match
     case Rigid(h, Elim.ESplice :: sp) => Rigid(h, sp)
@@ -104,16 +106,15 @@ trait Evaluation:
 
   def appSp(v: Val, sp: Spine): Val = sp.reverse.foldLeft(v)(elim)
 
-  /** Unfolds solved metas at the head (and re-tries stuck reductions, B2). */
+  /** Unfolds solved metas at the head, and re-tries stuck function applications (an argument may have
+   *  become a constructor application since, through a meta solution or a newly elaborated function). */
   def force(v: Val): Val = v match
     case Flex(m, sp) =>
       metas(m).solution match
         case Some(s) => force(appSp(s, sp))
         case None => v
-    case Rigid(Head.Glob(_), _) => forceRigid(v)
+    case Rigid(Head.Glob(id), sp) => reduceFunction(id, sp).map(force).getOrElse(v)
     case other => other
-
-  protected def forceRigid(v: Val): Val = v
 
   // ------------------------------------------------------------------ records
 

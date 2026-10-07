@@ -1,0 +1,9 @@
+error[E0915]: cannot decide whether `vnil` applies here
+  --> tests/neg/core_e0915_stuck.hgn:12:3
+   |
+12 | f vnil = zero.
+   |   ^^^^ in this pattern
+   |
+   = note: unifying the indices of its type requires `zero = plus N M`, which is neither solvable nor impossible
+
+1 error found

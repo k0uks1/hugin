@@ -19,6 +19,9 @@ final class ElabState:
    *  [[Declarations.declType]]). */
   var unknownTypesAre: Stage = Stage.S1
 
+  /** The names defined by clauses in the module: their declarations declare functions. */
+  var functionNames: Set[Name] = Set.empty
+
 /** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
  *  elaboration-zoo and his staged elaborator. The concerns are split into traits:
  *
@@ -32,6 +35,9 @@ final class ElabState:
  *  - [[Universes]]: `type` (object types) and `Type` (meta types, levels inferred and cumulative);
  *  - [[Records]]: dependent records and projections; [[Operators]]: arithmetic and formulas;
  *  - [[Items]], [[Declarations]], [[ObjectItems]]: items, declarations and definitions, rules and queries;
+ *  - [[Inductives]]: inductive families, constructors, positivity, nat literals; [[Patterns]],
+ *    [[Clauses]], [[IndexUnifier]]: functions defined by clauses, elaborated into case trees with
+ *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
  */
 class Elaborator(val core: Core, val reporter: Reporter)
@@ -47,6 +53,11 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with Operators
     with Items
     with Declarations
+    with Inductives
+    with Patterns
+    with IndexUnifier
+    with Clauses
+    with SizeChange
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

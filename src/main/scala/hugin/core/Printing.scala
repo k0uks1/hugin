@@ -15,6 +15,15 @@ trait Printing:
 
   def showTm(names: List[Name], t: Tm): String = go(names, t, 0)
 
+  /** A term without its implicit applications (patterns, as written by users). */
+  def explicitOnly(t: Tm): Tm = t match
+    case Tm.App(f, _, Icit.Impl) => explicitOnly(f)
+    case Tm.App(f, a, i) => Tm.App(explicitOnly(f), explicitOnly(a), i)
+    case other => other
+
+  /** As an argument of an application (parenthesised unless atomic). */
+  def showArg(names: List[Name], t: Tm): String = go(names, t, 5)
+
   /** Whether the variable with index `ix` occurs in `t`. */
   def occurs(ix: Int, t: Tm): Boolean = t match
     case Tm.Var(i) => i == ix

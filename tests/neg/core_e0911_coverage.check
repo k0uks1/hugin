@@ -1,0 +1,10 @@
+error[E0911]: the clauses of `pred` do not cover all cases
+ --> tests/neg/core_e0911_coverage.hgn:5:1
+  |
+5 | pred : nat -> nat.
+  | ^^^^ missing: `pred zero`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `pred zero = ….`
+
+1 error found

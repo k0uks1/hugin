@@ -93,5 +93,14 @@ trait Universes:
     case Val.Rigid(_, Elim.ESplice :: _) | Val.Flex(_, Elim.ESplice :: _) => true
     case _ => false
 
+  /** In a meta type, every lifted object arrow `⇑(A -> B)` is the type of a relation or constructor
+   *  (the object level has no other functions). */
+  def objectPartsValid(v: Val): Boolean = force(v) match
+    case Val.Lift(a) => force(a) match
+        case p: Val.Pi => isObjectConstantType(p)
+        case _ => true
+    case Val.Pi(_, _, d, cl) => objectPartsValid(d) && objectPartsValid(inst(cl, Val.Wild))
+    case _ => true
+
   /** Whether a global is a declared object type (`expr : type.`). */
   def isObjectType(id: Int): Boolean = globals(id).stage == Stage.S0 && force(globals(id).ty) == Val.U0

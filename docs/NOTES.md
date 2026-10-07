@@ -698,7 +698,8 @@ elaborator for two-level type theory (*Staged Compilation with Two-Level Type Th
 | `core/Core.scala` | the state: globals, metas, levels; `undoOnFailure` |
 | `core/Printing.scala` | printing in surface notation |
 | `core/Staging.scala`, `NewMeta.scala` | staging of object items, the driver |
-| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors` |
+| `core/CaseTree.scala`, `Matching.scala` | case trees of functions defined by clauses, their reduction with memoisation |
+| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
 
 Every elaboration error is a diagnostic (`E09xx`, plus `E0101`/`E0102`/`E0307`); an item with an error is
 dropped and elaboration continues with the next one.
@@ -757,6 +758,50 @@ dropped and elaboration continues with the next one.
 * **Not yet (B3):** module bodies, imports, signatures with requirements (`%complete`, `%mode`),
   aggregates, `as`, record updates, unions, subtyping edges, hygiene of object variables in formula
   functions, generativity and memoised families (E0907 where the syntax is accepted).
+
+### Decisions (B2)
+
+* **Clauses.** `f p̄ = e.` (and `f X̄ = e.` after a declaration `f : A.`) are clauses of the declared
+  function `f`; the parser produces `Clause` items in the new syntax when a definition head is not just
+  variables. A declaration with clauses declares a function; clauses are elaborated after all
+  declarations, so functions may be (mutually) recursive and may use every declaration of the module.
+  Patterns are uppercase variables (bound once), `_`, constructors applied to their explicit arguments,
+  and natural-number literals of a nat-like type. Implicit arguments are not written in patterns; the
+  names of the function's implicit binders (`A`, `N` in `head : vec A (suc N) -> A`) are in scope in the
+  right-hand side unless a pattern variable shadows them. The arguments up to the last explicit pattern
+  are matched; the right-hand side is checked against the rest of the type.
+* **Inductive families.** A meta declaration without definition or clauses is classified by its type:
+  `T : Δ -> Type.` is an inductive family, `c : Δ -> T ū.` (with `T` a family of the module, fully
+  applied) one of its constructors, anything else a postulate (kept for now: postulates are stuck at
+  compile time, and E0909 reports them when object code depends on them). All arguments of a family are
+  indices: there is no separate notion of parameters, dependent matching unifies them. Constructors are
+  checked for strict positivity (E0913) and predicativity: their argument types must live in the
+  family's universe, which levels inference turns into constraints (`small : Type. mk : Type -> small.`
+  is accepted with `small : Type₁`, but `mk small` is then a universe inconsistency).
+* **Case trees** follow Cockx & Abel (ICFP 2018), without copatterns and without the restrictions of
+  `--without-K`: a split context whose variables may be *solved* by index unification (deletion,
+  solution, injectivity, conflict, cycle), equations `term / pattern` per clause, splitting on the first
+  constructor pattern of the first applicable clause. Constructors whose indices conflict get no branch
+  (impossible cases need no clause); a branch without clauses is accepted only if some variable has no
+  applicable constructor (an empty split, as `lookup vnil i` with `i : fin zero`), otherwise it is a
+  missing case (E0911, which prints the missing pattern). Unification problems that are neither
+  solvable nor impossible (an index `plus N M` against `zero`) are reported (E0915) rather than
+  postponed. A clause that never reaches a leaf is unreachable (W0006).
+* **Evaluation.** A function applied to its arity of arguments runs its case tree; a split on a neutral
+  leaves the application neutral, and `force` retries it later. Applications to closed arguments are
+  memoised by their normal forms (sound, since meta functions are total and pure); this makes
+  `fibm (suc (suc N)) = fibm N + fibm (suc N)` linear, so `fib 90 (fibm 90).` stages to
+  `fib 90 2880067194370816120.` (REDESIGN §8.2).
+* **Termination** uses the size-change principle (Lee, Jones & Ben-Amram) over the constructor-subterm
+  order, implemented on its own in `core/elab/SizeChange.scala` (a call graph with size-change matrices,
+  closed under composition; every idempotent self-loop needs a strict decrease). It accepts structural,
+  lexicographic (Ackermann), mutual and permuted recursion. The object level's checker
+  (`obj/check/Termination.scala`, reworked in Phase A) solves a different problem (derivations of
+  facts); sharing the closure computation is possible later.
+* **Literals (Q2).** A literal checked against a nat-like family (exactly a constant constructor and one
+  with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
+  otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
+  has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
 
 ## Possible next steps
 

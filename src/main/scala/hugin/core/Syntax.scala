@@ -105,6 +105,32 @@ enum Tm:
 object Tm:
   def apps(f: Tm, args: List[(Tm, Icit)]): Tm = args.foldLeft(f)((acc, a) => App(acc, a._1, a._2))
 
+  /** The immediate subterms (those under binders included). */
+  def children(t: Tm): List[Tm] = t match
+    case AppPruning(f, _) => List(f)
+    case Lam(_, _, b) => List(b)
+    case App(f, a, _) => List(f, a)
+    case Pi(_, _, a, b) => List(a, b)
+    case Let(_, a, d, b) => List(a, d, b)
+    case Lift(a) => List(a)
+    case Quote(a) => List(a)
+    case Splice(a) => List(a)
+    case RecTy(fs) => fs.map(_._2)
+    case Rec(fs) => fs.map(_._2)
+    case Proj(a, _) => List(a)
+    case Arith(_, a, b, _) => List(a, b)
+    case Negate(a, _) => List(a)
+    case Compare(_, a, b) => List(a, b)
+    case And(a, b) => List(a, b)
+    case Or(a, b) => List(a, b)
+    case Not(a) => List(a)
+    case Persist(a) => List(a)
+    case FactTy(a) => List(a)
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Wild => Nil
+
+  /** Whether some subterm (`t` included) satisfies `p`. */
+  def exists(t: Tm)(p: Tm => Boolean): Boolean = p(t) || children(t).exists(exists(_)(p))
+
   /** Shifts the free variables of `t` (indices `≥ cutoff`) by `by`. */
   def shift(t: Tm, by: Int, cutoff: Int = 0): Tm =
     def go(t: Tm, k: Int): Tm = t match

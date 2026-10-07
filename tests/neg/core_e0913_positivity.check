@@ -1,0 +1,10 @@
+error[E0913]: `bad` occurs in a non-positive position
+ --> tests/neg/core_e0913_positivity.hgn:3:6
+  |
+3 | mk : (bad -> int) -> bad.
+  |      ^^^^^^^^^^^^^^^^^^^ in the type of the constructor's argument 1
+  |
+  = note: the argument has type `bad -> int`
+  = note: a family may only occur strictly positively in the arguments of its constructors: not to the left of an arrow, nor inside the arguments of another type
+
+1 error found

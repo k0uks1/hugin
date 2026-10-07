@@ -82,7 +82,7 @@ trait Bidirectional:
     case (RecordType(entries), Val.U1(l)) => checkRecordType(c, entries, l)
     case (RecordLit(fields, false), rt: Val.RecTy) => checkRecord(c, t, fields, rt)
     case (Lit(l), Val.Base(b, s)) if b == BaseType.of(l) => Tm.Lit(l, s)
-    case (Lit(l), other) if checkLiteral.isDefinedAt((c, l, other, t.span)) => checkLiteral((c, l, other, t.span))
+    case (Lit(l @ Literal.IntL(_)), other) if natType(other).isDefined => natLiteral(c, l, other, t.span).get
     case (Wildcard(), _) => if st == Stage.S0 then Tm.Wild else freshMeta(c, a, Stage.S1, t.span, "`_`")
     case (Infix(op, l, r), ty) if arithOps.contains(op) && !ty.isInstanceOf[Val.Flex] => checkArith(c, op, l, r, ty, st, t.span)
     case (_, Val.Flex(_, _)) =>
@@ -92,6 +92,3 @@ trait Bidirectional:
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
       coe(c, t.span, tm, ty, s, a, st)
-
-  /** Literals of types other than the primitive ones (overridden for nat literals, Q2). */
-  def checkLiteral: PartialFunction[(Cxt, Literal, Val, Span), Tm] = PartialFunction.empty

@@ -13,7 +13,9 @@ import hugin.util.*
  *    of the type are implicit binders (`nil : list A.` is `nil : {A : ⇑type} -> ⇑$(list A)`); head
  *    parameters `list A : type.` are explicit binders over object types.
  *  - `x : A = e.`, `x = e.` and `f params = e.` are meta-level definitions (with an inferred type in the
- *    last two forms); `f params = e.` after `f : A.` defines the declared constant.
+ *    last two forms); after `f : A.`, `f params = e.` is a clause of the function `f` ([[Clauses]]).
+ *  - a meta declaration without definition is an inductive family, a constructor, a function (if it has
+ *    clauses) or a postulate ([[Inductives.classifyMetaConstant]]).
  */
 trait Declarations:
   self: Elaborator =>
@@ -105,7 +107,7 @@ trait Declarations:
       val (body, st) =
         if inferred then
           val (b, s, _) = inferU(c2, d.tpe)
-          if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) then
+          if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b)) then
             error("E0901", "not the type of an object constant", d.tpe.span)
           (b, s)
         else (checkType(c2, d.tpe, Stage.S1), Stage.S1)
@@ -120,7 +122,12 @@ trait Declarations:
     d.defn match
       case None =>
         val (ty, st) = declType(d)
-        declare(d.name, zonk(Nil, 0, ty), st, GlobalKind.Postulate)
+        val zty = zonk(Nil, 0, ty)
+        val kind = if st == Stage.S1 then classifyMetaConstant(d, eval(Nil, zty)) else GlobalKind.Postulate
+        val id = declare(d.name, zty, st, kind)
+        kind match
+          case GlobalKind.Constructor(fam) => addConstructor(fam, id)
+          case _ =>
       case Some(e) =>
         // `x params : A = e.`: a meta definition; checking `e` against the full type introduces the
         // implicit lambdas
@@ -132,20 +139,12 @@ trait Declarations:
     val ztm = zonk(Nil, 0, tm)
     declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)))
 
-  /** `f params = e.`: the definition of a declared meta constant, or a definition with an inferred type. */
+  /** `f params = e.` without a declaration of `f`: a definition with an inferred type. (After a
+   *  declaration, it is a clause of the declared function.) */
   def elabDef(name: Ident, params: List[Param], rhs: Tree, span: Span): Unit =
-    declaredMetaConstant(name.name) match
-      case Some(g) =>
-        val tm = zonk(Nil, 0, check(Cxt.empty, asLambda(params, rhs), g.ty, Stage.S1))
-        g.kind = GlobalKind.Definition(tm, eval(Nil, tm))
-      case None =>
-        val (c, ps) = bindParams(Cxt.empty, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
-        val (body, bty) = inferS(c, rhs, Stage.S1)
-        define(name, pis(ps, Icit.Expl, quote(c.lvl, bty)), lams(ps, body))
-
-  /** A declared meta constant without definition yet. */
-  def declaredMetaConstant(n: Name): Option[GlobalEntry] =
-    scope.get(n).map(globals(_)).filter(g => g.kind == GlobalKind.Postulate && g.stage == Stage.S1)
+    val (c, ps) = bindParams(Cxt.empty, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
+    val (body, bty) = inferS(c, rhs, Stage.S1)
+    define(name, pis(ps, Icit.Expl, quote(c.lvl, bty)), lams(ps, body))
 
   private def asLambda(params: List[Param], rhs: Tree): Tree = params.foldRight(rhs) { (p, acc) =>
     p match

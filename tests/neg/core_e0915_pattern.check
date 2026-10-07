@@ -1,0 +1,7 @@
+error[E0915]: the variable `N` is bound twice in this clause
+ --> tests/neg/core_e0915_pattern.hgn:6:8
+  |
+6 | same N N = N.
+  |        ^ bound again here
+
+1 error found

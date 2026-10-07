@@ -52,6 +52,15 @@ final class Staging(core: Core, reporter: Reporter):
     go(t)
     ok
 
+  /** The leaves of a case tree as clauses, with their bodies normalised. */
+  private def clauses(f: Name, tree: CaseTree): List[String] = tree match
+    case CaseTree.Split(_, branches) => branches.flatMap(b => clauses(f, b.tree))
+    case CaseTree.Leaf(body, _, order, names, patterns) =>
+      val ns = names.toList.reverse
+      val env = order.indices.reverse.map(Val.local).toList
+      val pats = patterns.map(p => showArg(ns, explicitOnly(p)))
+      List(s"  ${(f :: pats).mkString(" ")} = ${showTm(ns, explicitOnly(nf(env, body)))}.")
+
   /** Items are printed in source order (elaboration may have deferred some). */
   private def position(item: CoreItem): Int = item match
     case CoreItem.GlobalItem(id) => globals(id).span.start
@@ -66,6 +75,7 @@ final class Staging(core: Core, reporter: Reporter):
       val ty = showTm(Nil, zonk(Nil, 0, g.tyTm))
       g.kind match
         case GlobalKind.Definition(tm, _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.")
+        case GlobalKind.Function(_, Some(tree)) => s"${g.name} : $ty." :: clauses(g.name, tree)
         case _ => List(s"${g.name} : $ty.")
     case CoreItem.RuleItem(name, vars, heads, body, span) =>
       val env = vars.indices.reverse.map(Val.local).toList

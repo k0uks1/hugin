@@ -22,9 +22,24 @@ trait Contexts:
   /** A binder that source names cannot refer to (an inserted implicit lambda). */
   def newBinder(c: Cxt, x: Name, a: Val, st: Stage): Cxt = bind(c, x, a, st).copy(scope = c.scope)
 
-  /** A fresh meta of type `a` in context `c`, applied to the context's variables. */
+  /** A variable defined as `v` (a pattern variable bound to a term), in scope by `x`. */
+  def define(c: Cxt, x: Name, a: Val, v: Val): Cxt =
+    Cxt(
+      v :: c.env,
+      c.lvl + 1,
+      Binder(x, a, quote(c.lvl, a), Stage.S1, Some(quote(c.lvl, v))) :: c.binders,
+      c.scope + (x -> c.lvl),
+      None :: c.pruning
+    )
+
+  /** A fresh meta of type `a` in context `c`, applied to the context's bound (not defined) variables;
+   *  its type abstracts over the bound variables and let-binds the defined ones (elaboration-zoo). */
   def freshMeta(c: Cxt, a: Val, st: Stage, span: Span, what: String, allowUnsolved: Boolean = false): Tm =
-    val closed = c.binders.foldLeft(quote(c.lvl, a))((acc, b) => Tm.Pi(b.name, Icit.Expl, b.tyTm, acc))
+    val closed = c.binders.foldLeft(quote(c.lvl, a)) { (acc, b) =>
+      b.defn match
+        case Some(d) => Tm.Let(b.name, b.tyTm, d, acc)
+        case None => Tm.Pi(b.name, Icit.Expl, b.tyTm, acc)
+    }
     val m = newMeta(eval(Nil, closed), st, span, what, allowUnsolved)
     Tm.AppPruning(Tm.Meta(m), c.pruning)
 

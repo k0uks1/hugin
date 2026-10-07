@@ -1,9 +1,9 @@
 package hugin.core
 package elab
 
-/** One bound variable of an elaboration context. `tyTm` is its type quoted at its own level (used to
- *  close the types of fresh metas, as elaboration-zoo's `Path`). */
-final case class Binder(name: Name, ty: Val, tyTm: Tm, stage: Stage)
+/** One variable of an elaboration context. `tyTm` is its type quoted at its own level (used to close
+ *  the types of fresh metas, as elaboration-zoo's `Path`); `defn` the definition of a let-bound one. */
+final case class Binder(name: Name, ty: Val, tyTm: Tm, stage: Stage, defn: Option[Tm] = None)
 
 /** An elaboration context: the environment for evaluation (innermost first), the bound variables with
  *  their types and stages, the source names in scope (name → level) and the pruning that applies fresh
