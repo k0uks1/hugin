@@ -59,6 +59,9 @@
     "diagnostics": [
       {
         "code": "W0002",
+        "codeDescription": {
+          "href": "docs/errors/W0002.md"
+        },
         "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
         "range": {
           "end": {
@@ -78,6 +81,9 @@
       },
       {
         "code": "E0301",
+        "codeDescription": {
+          "href": "docs/errors/E0301.md"
+        },
         "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
         "range": {
           "end": {
@@ -94,6 +100,9 @@
       },
       {
         "code": "E0101",
+        "codeDescription": {
+          "href": "docs/errors/E0101.md"
+        },
         "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
         "range": {
           "end": {
@@ -120,6 +129,9 @@
       "diagnostics": [
         {
           "code": "W0002",
+          "codeDescription": {
+            "href": "docs/errors/W0002.md"
+          },
           "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
           "range": {
             "end": {
@@ -165,6 +177,9 @@
       "diagnostics": [
         {
           "code": "W0002",
+          "codeDescription": {
+            "href": "docs/errors/W0002.md"
+          },
           "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
           "range": {
             "end": {
@@ -217,6 +232,9 @@
       "diagnostics": [
         {
           "code": "E0301",
+          "codeDescription": {
+            "href": "docs/errors/E0301.md"
+          },
           "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
           "range": {
             "end": {
@@ -259,6 +277,9 @@
       "diagnostics": [
         {
           "code": "E0301",
+          "codeDescription": {
+            "href": "docs/errors/E0301.md"
+          },
           "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
           "range": {
             "end": {
@@ -308,6 +329,9 @@
       "diagnostics": [
         {
           "code": "E0101",
+          "codeDescription": {
+            "href": "docs/errors/E0101.md"
+          },
           "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
           "range": {
             "end": {
@@ -342,7 +366,7 @@
           ]
         }
       },
-      "isPreferred": true,
+      "isPreferred": false,
       "kind": "quickfix",
       "title": "Replace with `road`"
     }
