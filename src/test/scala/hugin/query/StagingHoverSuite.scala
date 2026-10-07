@@ -89,7 +89,7 @@ class StagingHoverSuite extends munit.FunSuite:
     assertEquals(hover(at("nil))")).notes, List("instance: `nil[int]`"))
     assertEquals(hover(at("cons \"a\"")).notes, List("instance: `cons[string]`"))
     val len = hover(at("len L N", n = 1))
-    assertEquals(len.signature, Some("relation len A : list A -> int -> rel"))
+    assertEquals(len.signature, Some("relation len A : (l : list A) -> (n : int) -> rel"))
     assertEquals(len.notes, List("instance: `len[string]`"))
     // the argument of a family use is not itself the family
     assertEquals(Ide.hoverInfo(key, at("cons 1", "cons ".length)), None)

@@ -24,7 +24,7 @@ final class MetaPrinter(syms: TypingResults):
     case EItem.TypeDecl(s, TypeKindE.Open, _) => s"${s.name}${tps(s)} : type."
     case EItem.TypeDecl(s, TypeKindE.Refinement(b), _) => s"${s.name}${tps(s)} : type <: ${b.show}."
     case EItem.RelDecl(s, cols, res, isStruct, _) =>
-      s"${s.name}${tps(s)} : ${(cols.map(ObjPrinter.column) :+ res.map(_.show).getOrElse("rel"))
+      s"${if s.fact then "%fact " else ""}${s.name}${tps(s)} : ${(cols.map(ObjPrinter.column) :+ res.map(_.show).getOrElse("rel"))
           .mkString(" -> ")}.${if isStruct then "  (* struct *)" else ""}"
     case EItem.EdgeDecl(sub, sup, _) => s"${sub.show} <: ${MExpr.show(sup)}."
     case EItem.MetaDef(s, rhs, _) => s"${s.name} : ${syms.mtype(s).fold("?")(_.show)} = ${show(rhs, indent)}."

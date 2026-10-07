@@ -1,33 +1,41 @@
 error[E0101]: `a` has no member `internal`
- --> tests/neg/interfaces.hgn:5:10
+ --> tests/neg/interfaces.hgn:6:10
   |
-5 | x X :- a.internal X.
+6 | x X :- a.internal X.
   |          ^^^^^^^^ unknown member
   |
   = note: available members: shape, dot
 
 error[E0204]: signature mismatch
- --> tests/neg/interfaces.hgn:8:16
+ --> tests/neg/interfaces.hgn:9:16
   |
-8 | b : more_sig = %import "lib/shapes".
+9 | b : more_sig = %import "lib/shapes".
   |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, circle : ⇑shape }`
   |
   = note: missing field `circle`
 
 error[E0204]: signature mismatch
-  --> tests/neg/interfaces.hgn:11:17
+  --> tests/neg/interfaces.hgn:12:17
    |
-11 | c : arity_sig = %import "lib/shapes".
+12 | c : arity_sig = %import "lib/shapes".
    |                 ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, square : ⇑(int -> int -> shape) }`
    |
-   = note: field `square`: relation with 1 columns where 2 are expected
+   = note: field `square`: constructor with 1 columns where 2 are expected
 
 error[E0204]: signature mismatch
-  --> tests/neg/interfaces.hgn:14:16
+  --> tests/neg/interfaces.hgn:15:16
    |
-14 | d : kind_sig = %import "lib/shapes".
+15 | d : kind_sig = %import "lib/shapes".
    |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, area : ⇑(shape -> int -> shape) }`
    |
    = note: field `area`: a relation where a constructor is expected
 
-4 errors found
+error[E0204]: signature mismatch
+  --> tests/neg/interfaces.hgn:18:16
+   |
+18 | e : fact_sig = %import "lib/shapes".
+   |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, square : %fact ⇑(int -> shape) }`
+   |
+   = note: field `square`: a data constructor where a fact constructor is expected (declare the constructor with `%fact`)
+
+5 errors found

@@ -84,6 +84,11 @@ object ErrorCodes:
     ("E0402", "type mismatch", "A term does not have a subtype of the expected type."),
     ("E0404", "ill-formed declaration", "Declarations must satisfy Section 5.4."),
     ("E0405", "invalid ascription", "An ascription (t : T) must select members of the type of t."),
+    (
+      "E0406",
+      "data constructor used as a relation",
+      "A constructor or struct declared without `%fact` is a data constructor: it builds values, which are not facts of a relation. It cannot be read by an atom (in a body, a negation, an aggregate or a query), derived by a rule head, named by a directive, or passed where a relation is expected; terms built with it are allowed everywhere. Declare it `%fact c : τ1 -> ... -> a.` to read its facts, and require `%fact c : ...` in a signature to read a constructor field inside a functor."
+    ),
     // moding
     (
       "E0501",

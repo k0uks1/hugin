@@ -35,7 +35,7 @@ private[meta] trait TypeElaboration extends TyperBase:
               noteUse(t.span, s)
               syms.mtype(s) match
                 case Some(TypeU) => OType.Splice(Ref(s))
-                case Some(RelT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
+                case Some(RelT(_, _) | CtorT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                 case None => OType.Err
                 case Some(other) =>
                   err("E0202", s"`$n` is not a type", t.span, s"has meta type ${other.show}")
@@ -92,7 +92,7 @@ private[meta] trait TypeElaboration extends TyperBase:
                   else
                     syms.mtype(s) match
                       case Some(TypeU) => OType.Splice(Ref(s))
-                      case Some(RelT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
+                      case Some(RelT(_, _) | CtorT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                       case other =>
                         err("E0202", s"`$n` is not a type", id.span, s"has meta type ${other.fold("?")(_.show)}")
                         OType.Err
@@ -105,7 +105,7 @@ private[meta] trait TypeElaboration extends TyperBase:
           else
             mt match
               case TypeU => OType.Splice(m)
-              case RelT(_, _) => OType.Splice(FactTypeOf(m))
+              case RelT(_, _) | CtorT(_, _) => OType.Splice(FactTypeOf(m))
               case MType.Err => OType.Err
               case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); OType.Err
         case other =>
@@ -126,7 +126,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case Ident(n)
         if sc.lookup(n).exists(s =>
           s.kind == SymKind.MetaDef && s.decl.exists {
-            case Decl(_, _, Keyword(Kw.Mod), _, _, _) => true
+            case Decl(_, _, Keyword(Kw.Mod), _, _, _, _) => true
             case Def(_, _, _: RecordType) => true
             case _ => false
           }
@@ -141,7 +141,7 @@ private[meta] trait TypeElaboration extends TyperBase:
             case SigV(sig) => sig
             case _ => err("E0202", "signature paths must be statically known", sel.span); MType.Err
         case TypeU => Code(OType.Splice(m))
-        case RelT(_, _) => Code(OType.Splice(FactTypeOf(m)))
+        case RelT(_, _) | CtorT(_, _) => Code(OType.Splice(FactTypeOf(m)))
         case MType.Err => MType.Err
         case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); MType.Err
     case rt: RecordType => elabSig(rt, sc, tv)
@@ -181,19 +181,23 @@ private[meta] trait TypeElaboration extends TyperBase:
       sc.lookup(n) match
         case Some(s) if s.kind == SymKind.MetaDef && syms.sigValue(s).isDefined => false
         case Some(s) if s.kind == SymKind.MetaDef || s.kind == SymKind.MetaParam =>
-          syms.mtype(s).exists(t => t == TypeU || t.isInstanceOf[RelT])
+          syms.mtype(s).exists(t => t == TypeU || t.isInstanceOf[RelT] || t.isInstanceOf[CtorT])
         case _ => true
     case _ => true
 
   /** A signature field `c : τ̄ -> a` with an object type `a` declares a constructor, as the same declaration
-   *  does in a module body (Section 2.5): ⇑(τ̄ → a). A field `x : a` stays a value of code type ⇑a. */
-  private def constructorField(t: Tree, sc: Scope, tv: TVars): Option[MType] = t match
+   *  does in a module body (Section 2.5): a data constructor ⇑(τ̄ → a), matched by data and fact
+   *  constructors, or with `%fact` a fact constructor `%fact ⇑(τ̄ → a)`, matched by fact constructors only.
+   *  A field `x : a` stays a value of code type ⇑a. */
+  private def constructorField(t: Tree, sc: Scope, tv: TVars, fact: Boolean): Option[MType] = t match
     case _: Arrow =>
       val (doms, cod) = flattenArrow(t)
       cod match
         case Keyword(_) => None
         case _ if isObjectTypeTree(cod, sc) && doms.forall((_, d) => isObjectTypeTree(d, sc)) =>
-          Some(RelT(doms.map((l, d) => Column(l.map(_.name), elabOType(d, sc, tv))), Some(elabOType(cod, sc, tv))))
+          val cols = doms.map((l, d) => Column(l.map(_.name), elabOType(d, sc, tv)))
+          val res = elabOType(cod, sc, tv)
+          Some(if fact then RelT(cols, Some(res)) else CtorT(cols, res))
         case _ => None
     case _ => None
 
@@ -203,11 +207,17 @@ private[meta] trait TypeElaboration extends TyperBase:
     val reqs = mutable.ListBuffer.empty[Req]
     for e <- rt.entries do
       e match
-        case SigEntry.FieldDecl(l, ft) =>
+        case SigEntry.FieldDecl(l, ft, fact) =>
           if ssc.lookupLocal(l.name).isDefined then
             err("E0307", s"duplicate field `${l.name}` in signature", l.span)
           else
-            val fty = constructorField(ft, ssc, tv).getOrElse(elabMType(ft, ssc, tv))
+            val ctor = constructorField(ft, ssc, tv, fact)
+            if fact && ctor.isEmpty then
+              ctx.report(
+                Diagnostic.error("E0004", s"`%fact` only applies to constructor fields", l.span, "not a constructor field")
+                  .withNote("a constructor field has the form `%fact c : τ1 -> ... -> τn -> a` with an object type `a`")
+              )
+            val fty = ctor.getOrElse(elabMType(ft, ssc, tv))
             val f = newParam(l.name, l.span, ssc)
             syms.define(f, fty)
             ssc.enter(f)
@@ -237,15 +247,14 @@ private[meta] trait TypeElaboration extends TyperBase:
     case (Prim(x), Prim(y)) if x == y => None
     case (RelT(_, r1), RelT(_, r2)) if r1.isDefined != r2.isDefined =>
       Some(if r1.isDefined then "a constructor where a relation is expected" else "a relation where a constructor is expected")
-    case (RelT(c1, _), RelT(c2, _)) =>
-      // constructor results are checked at the object level after elaboration, like code types
-      if c1.length != c2.length then Some(s"relation with ${c1.length} columns where ${c2.length} are expected")
-      else
-        c1.zip(c2).zipWithIndex.collectFirst {
-          case ((x, y), i)
-              if !typesEqual(x.tpe, y.tpe) && !OType.exists(normO(x.tpe))(_ == OType.Err) && !OType.exists(normO(y.tpe))(_ == OType.Err) =>
-            s"column ${i + 1} has type `${showO(x.tpe)}` but `${showO(y.tpe)}` is expected (relation types are invariant)"
-        }
+    case (RelT(c1, _), RelT(c2, _)) => columnsMatch(c1, c2, "relation")
+    // a fact constructor is also a data constructor; a data constructor is not a relation
+    case (RelT(c1, Some(_)), CtorT(c2, _)) => columnsMatch(c1, c2, "constructor")
+    case (CtorT(c1, _), CtorT(c2, _)) => columnsMatch(c1, c2, "constructor")
+    case (CtorT(_, _), RelT(_, Some(_))) =>
+      Some("a data constructor where a fact constructor is expected (declare the constructor with `%fact`)")
+    case (CtorT(_, _), RelT(_, None)) => Some("a data constructor where a relation is expected (data constructors are not relations)")
+    case (RelT(_, None), CtorT(_, _)) => Some("a relation where a constructor is expected")
     case (Pi(x, d1, c1, i1), Pi(y, d2, c2, i2)) if i1 == i2 =>
       subsumes(d2, d1).map("parameter: " + _).orElse(subsumes(substMT(c1, Map(x -> Ref(y))), c2))
     case (Sig(f1, _), Sig(f2, _)) =>
@@ -258,6 +267,17 @@ private[meta] trait TypeElaboration extends TyperBase:
           case Some((_, ft)) => subsumes(substMT(ft, s1), substMT(gt, s2)).map(r => s"field `${g.name}`: $r")
       }.collectFirst { case Some(r) => r }
     case _ => Some(s"expected `${showMT(b)}`, found `${showMT(a)}`")
+
+  /** Relation and constructor types are invariant in their columns; constructor results are checked at the
+   *  object level after elaboration, like code types. */
+  private def columnsMatch(c1: List[Column], c2: List[Column], what: String): Option[String] =
+    if c1.length != c2.length then Some(s"$what with ${c1.length} columns where ${c2.length} are expected")
+    else
+      c1.zip(c2).zipWithIndex.collectFirst {
+        case ((x, y), i)
+            if !typesEqual(x.tpe, y.tpe) && !OType.exists(normO(x.tpe))(_ == OType.Err) && !OType.exists(normO(y.tpe))(_ == OType.Err) =>
+          s"column ${i + 1} has type `${showO(x.tpe)}` but `${showO(y.tpe)}` is expected (relation types are invariant)"
+      }
 
   /** An object type in a diagnostic: a splice of a path as the path (`g.node`), nested in parentheses. */
   def showO(t: OType): String = normO(t) match
@@ -273,7 +293,10 @@ private[meta] trait TypeElaboration extends TyperBase:
   def showMT(t: MType): String = t match
     case Code(o) => s"⇑${showO(o)}"
     case RelT(cols, res) =>
-      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
+      val fact = if res.isDefined then "%fact " else ""
+      s"$fact⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")})"
+    case CtorT(cols, res) =>
+      s"⇑(${(cols.map(c => c.label.map(l => s"$l : ").getOrElse("") + showO(c.tpe)) :+ showO(res)).mkString(" -> ")})"
     case Pi(x, d, c, imp) =>
       val dom =
         if imp then s"{${x.name} : ${showMT(d)}}" else if x.name.startsWith("_") then showMTDomain(d) else s"(${x.name} : ${showMT(d)})"

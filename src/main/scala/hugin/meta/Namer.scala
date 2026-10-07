@@ -16,9 +16,17 @@ object Namer:
    *  then the clauses of formula functions; the symbols are created last, with all of the namer's output. */
   def enter(items: List[Item], scope: Scope)(using Context): Unit =
     /** An accepted declaration. */
-    final case class Entry(name: Ident, kind: SymKind, item: Item, key: ItemKey, abbrev: Boolean, base: Option[BaseType])
+    final case class Entry(name: Ident, kind: SymKind, item: Item, key: ItemKey, abbrev: Boolean, base: Option[BaseType], fact: Boolean)
     val entries = mutable.LinkedHashMap.empty[String, Entry]
-    def declare(name: Ident, kind: SymKind, item: Item, key: ItemKey, abbrev: Boolean = false, base: Option[BaseType] = None): Boolean =
+    def declare(
+        name: Ident,
+        kind: SymKind,
+        item: Item,
+        key: ItemKey,
+        abbrev: Boolean = false,
+        base: Option[BaseType] = None,
+        fact: Boolean = false
+    ): Boolean =
       entries.get(name.name) match
         case Some(prev) =>
           ctx.report(
@@ -27,19 +35,25 @@ object Namer:
           )
           false
         case None =>
-          entries(name.name) = Entry(name, kind, item, key, abbrev, base)
+          entries(name.name) = Entry(name, kind, item, key, abbrev, base, fact)
           true
 
     for (item, key) <- items.zip(ItemKey.assign(scope.key, items)) do
       item match
-        case d @ Decl(name, params, _, _, defn, abbrev) =>
+        case d @ Decl(name, params, _, _, defn, abbrev, fact) =>
           val kind = classify(d)
           if abbrev && !kind.contains(SymKind.TypeDef) then
             ctx.error("E0103", "`%abbrev` only applies to type definitions", d.span)
+          if fact && kind.exists(k => k != SymKind.Ctor && k != SymKind.Struct) then
+            ctx.report(
+              Diagnostic.error("E0103", "`%fact` only applies to constructor and struct declarations", d.span)
+                .withNote(s"`${name.name}` declares a ${kind.get.describe}")
+            )
           kind.foreach { kd =>
             val base = if kd == SymKind.BaseType then defn.collect { case Builtin(b) => builtins(b.name) }
             else None
-            if declare(name, kd, d, key, abbrev, base) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
+            val isFact = fact && (kd == SymKind.Ctor || kd == SymKind.Struct)
+            if declare(name, kd, d, key, abbrev, base, isFact) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
               ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
                 .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
           }
@@ -64,11 +78,11 @@ object Namer:
       val name = e.name.name
       if !scope.claim(name) then throw IllegalStateException(s"`$name` entered twice into ${scope.key}")
       val key = SymKey(scope.key, name)
-      scope.enter(Sym(name, e.kind, e.name.span, scope, key, ctx.unit.symKeys, Some(e.key), Some(e.item), cls, e.abbrev, e.base))
+      scope.enter(Sym(name, e.kind, e.name.span, scope, key, ctx.unit.symKeys, Some(e.key), Some(e.item), cls, e.abbrev, e.base, e.fact))
 
   /** The kind of symbol a declaration declares (Section 2.5), or none if it cannot be classified (reported). */
   private def classify(d: Decl)(using Context): Option[SymKind] =
-    val Decl(name, params, tpe, sup, defn, abbrev) = d
+    val Decl(name, params, tpe, sup, defn, abbrev, _) = d
     tpe match
       case Keyword(Kw.Type) =>
         defn match

@@ -3,7 +3,7 @@
    never adds facts to relations other than the moded relation and its demand relations. *)
 shape : type.
 circle : shape.
-square : int -> shape.
+%fact square : int -> shape.
 
 area : (s : shape) -> (a : int) -> rel.
 %mode area +s -a.

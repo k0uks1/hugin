@@ -38,7 +38,7 @@ object Printer:
     case _ => show(t)
 
   def showSig(e: SigEntry): String = e match
-    case SigEntry.FieldDecl(l, t) => s"${l.name} : ${show(t)}"
+    case SigEntry.FieldDecl(l, t, fact) => s"${if fact then "%fact " else ""}${l.name} : ${show(t)}"
     case SigEntry.Complete(l, _) => s"%complete ${l.name}"
     case SigEntry.ModeReq(l, ms, _) => s"%mode ${l.name} ${ms.map(showMode).mkString(" ")}"
 
@@ -49,8 +49,8 @@ object Printer:
     case Param.Typed(n, t, _) => s"(${show(n)} : ${show(t)})"
 
   def showItem(i: Item): String = i match
-    case Decl(n, ps, t, sup, d, ab) =>
-      val pre = if ab then "%abbrev " else ""
+    case Decl(n, ps, t, sup, d, ab, fact) =>
+      val pre = (if ab then "%abbrev " else "") + (if fact then "%fact " else "")
       s"$pre${(n.name :: ps.map(showParam)).mkString(" ")} : ${show(t)}${sup.map(s => " <: " + show(s)).getOrElse("")}${d.map(x => " = " + show(x)).getOrElse("")}."
     case Def(n, ps, r) => s"${(n.name :: ps.map(showParam)).mkString(" ")} = ${show(r)}."
     case SubEdge(a, b) => s"${show(a)} <: ${show(b)}."

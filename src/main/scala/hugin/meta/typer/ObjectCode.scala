@@ -87,6 +87,8 @@ private[meta] trait ObjectCode extends TyperBase:
           obj.Term.App(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = false, s.span))(t.span)
         case Head.Meta(m, RelT(cols, _)) =>
           obj.Term.App(RelRef.Spliced(m), elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = false, Span.NoSpan))(t.span)
+        case Head.Meta(m, CtorT(cols, _)) =>
+          obj.Term.App(RelRef.Spliced(m), elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = false, Span.NoSpan))(t.span)
         case Head.Meta(m, mt @ (Code(_) | Prim(_))) =>
           if args.nonEmpty then
             err("E0207", s"`${Printer.show(head)}` is not a function", args.head.span, s"has meta type `${showMT(mt)}`")
@@ -249,9 +251,18 @@ private[meta] trait ObjectCode extends TyperBase:
       val (head, args) = flattenApp(t)
       classify(head, sc, rc) match
         case Head.Obj(s) =>
-          List(obj.Formula.Atom(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = false, s.span), None)(
-            t.span
-          ))
+          val atom =
+            obj.Formula.Atom(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = false, s.span), None)(
+              t.span
+            )
+          if s.isData then
+            dataUsedAsRelation(s, head, rc, "not a relation: it has no facts to read")
+            Nil
+          else List(atom)
+        case Head.Meta(m, CtorT(cols, _)) =>
+          elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = false, Span.NoSpan)
+          dataFieldUsedAsRelation(m, head, rc, "not a relation: it has no facts to read")
+          Nil
         case Head.Meta(m, RelT(cols, _)) =>
           List(obj.Formula.Atom(
             RelRef.Spliced(m),
@@ -315,7 +326,7 @@ private[meta] trait ObjectCode extends TyperBase:
             .pipe(d =>
               signatureOf(p).flatMap(_.entries.lastOption).fold(d) { last =>
                 val end = last match
-                  case SigEntry.FieldDecl(_, tpe) => tpe.span
+                  case SigEntry.FieldDecl(_, tpe, _) => tpe.span
                   case SigEntry.Complete(_, sp) => sp
                   case SigEntry.ModeReq(_, _, sp) => sp
                 d.withSuggestion(s"add `%complete $l`", end.endPoint, s", %complete $l")
@@ -339,15 +350,72 @@ private[meta] trait ObjectCode extends TyperBase:
   private def signatureOf(p: Sym): Option[RecordType] =
     syms.paramType(p).flatMap {
       case rt: RecordType => Some(rt)
-      case Ident(n) => p.owner.lookup(n).flatMap(_.decl).collect { case Decl(_, _, _, _, Some(rt: RecordType), _) => rt }
+      case Ident(n) => p.owner.lookup(n).flatMap(_.decl).collect { case Decl(_, _, _, _, Some(rt: RecordType), _, _) => rt }
       case _ => None
     }
+
+  // ---------------------------------------------------------------- data constructors (E0406)
+
+  /** E0406: the data constructor (or data struct) `s`, named by `head`, used as a relation. */
+  private[meta] def dataUsedAsRelation(s: Sym, head: Tree, rc: RuleCtx | Null, label: String): Unit =
+    if rc != null then rc.failed = true
+    reportDataAsRelation(s.name, Some(s), head.span, label, if s.kind == SymKind.Struct then "data struct" else "data constructor")
+
+  /** E0406: a data constructor that is a meta value (a signature field `c : τ̄ -> a`, a parameter or a
+   *  definition), named by `head`, used as a relation. */
+  private[meta] def dataFieldUsedAsRelation(m: MExpr, head: Tree, rc: RuleCtx | Null, label: String): Unit =
+    if rc != null then rc.failed = true
+    m match
+      case Proj(Ref(p), l) if p.kind == SymKind.MetaParam =>
+        ctx.report(
+          Diagnostic.error("E0406", s"data constructor `${Printer.show(head)}` used as a relation", head.span, label)
+            .withLabel(p.span, s"parameter `${p.name}` declared here")
+            .withNote(s"the field `$l` is a data constructor: its values are data, not facts of a relation")
+            .withHelp(s"to read its facts, require a fact constructor in the signature: `%fact $l : ...`")
+        )
+      case Ref(x) => reportDataAsRelation(x.name, Some(x).filter(_.span.exists), head.span, label)
+      case _ => reportDataAsRelation(Printer.show(head), None, head.span, label)
+
+  /** Reports E0406 for the data constructor `name` (declared by `declared`, if known) used as a relation at `span`. */
+  private[meta] def reportDataAsRelation(
+      name: String,
+      declared: Option[Sym],
+      span: Span,
+      label: String,
+      what: String = "data constructor"
+  ): Unit =
+    var d = Diagnostic.error("E0406", s"$what `$name` used as a relation", span, label)
+      .withNote(s"`$name` is a $what: it builds values, which are not facts of a relation")
+    declared.filter(s => s.isData && s.span.exists) match
+      case Some(s) =>
+        d = d.withLabel(s.span, s"declared here as a $what")
+        s.decl match
+          case Some(decl: Decl) if decl.span.exists && decl.span.source.path == span.source.path =>
+            val text = decl.span.text
+            val shown = if text.contains('\n') then s"%fact $name : ..." else s"%fact $text"
+            d = d.withHelp(s"declare `$name` as a ${what.replace("data", "fact")} to read its facts: `$shown`")
+              .withSuggestion("declare it with `%fact`", decl.span.startPoint, "%fact ")
+          case Some(_: Decl) =>
+            d = d.withHelp(
+              s"`$name` is declared in another file; declare a fact constructor of your own with `%fact` to read its facts"
+            )
+          case _ => d = d.withHelp(s"declare `$name` with `%fact` to read its facts")
+      case None => d = d.withHelp("pass a relation or a fact constructor (declared with `%fact`)")
+    ctx.report(d)
 
   def elabHead(t: Tree, sc: Scope, rc: RuleCtx): Option[obj.Term] =
     val (head, args) = flattenApp(t)
     classify(head, sc, rc) match
       case Head.Obj(s) =>
-        Some(obj.Term.App(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = true, s.span))(t.span))
+        val h = obj.Term.App(RelRef.Spliced(Ref(s)), elabArgs(s.name, relCols(s), args, sc, rc, t.span, isHead = true, s.span))(t.span)
+        if s.isData then
+          dataUsedAsRelation(s, head, rc, "a rule head derives facts of a relation")
+          None
+        else Some(h)
+      case Head.Meta(m, CtorT(cols, _)) =>
+        elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = true, Span.NoSpan)
+        dataFieldUsedAsRelation(m, head, rc, "a rule head derives facts of a relation")
+        None
       case Head.Meta(m, RelT(cols, _)) =>
         Some(obj.Term.App(RelRef.Spliced(m), elabArgs(Printer.show(head), cols, args, sc, rc, t.span, isHead = true, Span.NoSpan))(t.span))
       case Head.Bad | Head.Meta(_, MType.Err) => None

@@ -16,6 +16,25 @@ result (lam "f" (arrow (base "int") (base "bool")) (lam "x" (base "int") (app (r
 result (lam "x" (base "int") (ref "x")) (arrow (base "int") (base "int")).
 ```
 
+### Data and fact constructors
+
+A declaration `c : τ1 -> ... -> τn -> a.` with an open type `a` declares a **data constructor**: `c t̄`
+builds a value of type `a`, usable everywhere a term is (rule heads' arguments, nested patterns,
+comparisons, aggregate terms, inputs of moded calls), but `c` is not a relation. The modifier `%fact`
+declares a **fact constructor**, whose facts can also be read and derived like a relation's:
+
+```
+shape : type.
+circle : shape.                 (* data *)
+%fact square : int -> shape.    (* facts: `seen N :- square N.` reads them *)
+```
+
+Reading a data constructor (in a body, `not`, an aggregate or a query), deriving it in a rule head,
+naming it in a directive or passing it where a relation is expected is E0406. `%fact` also applies to
+structs and to signature fields (`{ t : type, %fact c : int -> t }`, matched by fact constructors only;
+a plain constructor field `c : int -> t` is matched by both kinds). The prelude's `nil` and `cons` are
+data constructors. See `docs/NOTES.md`, "Data and fact constructors".
+
 ## Building and running
 
 Requirements: JDK 17+ and [sbt](https://www.scala-sbt.org/) 1.10. The implementation is written in Scala 3.
@@ -46,7 +65,7 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --print-after <phase>,… print the program after these phases (`all` for every phase)
   --stop-after <phase>    stop compilation after this phase
   --stats                 print compiler phase timings and evaluation statistics
-  --all-relations         print the facts of every relation (including constructors and demand relations)
+  --all-relations         print the facts of every relation (including fact constructors and demand relations)
   --color / --no-color    colour diagnostics
   --no-warnings           suppress warnings
   --lint                  enable advisory checks (W0004)

@@ -61,7 +61,7 @@ private[meta] trait MetaExpressions extends TyperBase:
 
   /** Inside object code, an uppercase meta variable is spliced/persisted only if it denotes code or a primitive. */
   private[meta] def capturesVar(s: Sym): Boolean = syms.mtype(s) match
-    case Some(Code(_) | Prim(_) | PropT | RelT(_, _)) => true
+    case Some(Code(_) | Prim(_) | PropT | RelT(_, _) | CtorT(_, _)) => true
     case Some(Pi(_, _, _, _)) => true
     case _ => false
 
@@ -96,7 +96,7 @@ private[meta] trait MetaExpressions extends TyperBase:
             case Head.ObjVar(_) => (MExpr.Err, MType.Err)
             case Head.TypeLike(s) => (QuoteType(elabOType(t, sc, TVars.NoTVars)), TypeU)
             case Head.Obj(s) =>
-              if args.isEmpty then (Ref(s), syms.mtype(s).collect { case r: RelT => r }.getOrElse(RelT(relCols(s))))
+              if args.isEmpty then (Ref(s), syms.mtype(s).collect { case r: RelT => r; case c: CtorT => c }.getOrElse(RelT(relCols(s))))
               else
                 // constructor application at the meta level: object code
                 val rc = RuleCtx(allowVars = false)
@@ -168,8 +168,11 @@ private[meta] trait MetaExpressions extends TyperBase:
   private[meta] def describeAt(s: Sym, path: String, t: MType): String =
     val what = if s.kind == SymKind.MetaParam then "field" else s.kind.describe
     t match
-      case RelT(cols, _) =>
-        s"$what $path : ${(cols.map(c => c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))) :+ "rel").mkString(" -> ")}"
+      case RelT(cols, res) =>
+        val fact = if res.isDefined then "%fact " else ""
+        s"$fact$what $path : ${(cols.map(c => c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))) :+ res.map(showO).getOrElse("rel")).mkString(" -> ")}"
+      case CtorT(cols, res) =>
+        s"$what $path : ${(cols.map(c => c.label.map(l => s"($l : ${showO(c.tpe)})").getOrElse(showO(c.tpe))) :+ showO(res)).mkString(" -> ")}"
       case other => s"$what $path : ${showMT(other)}"
 
   private[meta] def inferSelect(sel: Select, sc: Scope): (MExpr, MType) =
@@ -245,7 +248,7 @@ private[meta] trait MetaExpressions extends TyperBase:
                   val (am0, at) = argInfer(a, sc, rc)
                   matchM(domS, at, solved)
                   val domS2 = subst(domS)
-                  subsumes(at, domS2).foreach(r => mismatch(domS2, at, a.span, r))
+                  subsumes(at, domS2).foreach(r => if !dataAsRelation(am0, at, domS2, a.span) then mismatch(domS2, at, a.span, r))
                   am0
             else
               domS match
@@ -319,6 +322,7 @@ private[meta] trait MetaExpressions extends TyperBase:
     t match
       case Code(x) => o(x)
       case RelT(cols, _) => cols.exists(c => o(c.tpe))
+      case CtorT(cols, res) => cols.exists(c => o(c.tpe)) || o(res)
       case Pi(_, d, c, _) => mentions(d, s) || mentions(c, s)
       case Sig(fs, _) => fs.exists(f => mentions(f._2, s))
       case _ => false
@@ -327,6 +331,8 @@ private[meta] trait MetaExpressions extends TyperBase:
   private[meta] def matchM(p: MType, a: MType, solved: mutable.LinkedHashMap[Sym, Option[OType]]): Unit = (p, a) match
     case (Code(x), Code(y)) => matchO(x, y, solved)
     case (RelT(xs, _), RelT(ys, _)) if xs.length == ys.length => xs.zip(ys).foreach((x, y) => matchO(x.tpe, y.tpe, solved))
+    case (CtorT(xs, _), RelT(ys, Some(_))) if xs.length == ys.length => xs.zip(ys).foreach((x, y) => matchO(x.tpe, y.tpe, solved))
+    case (CtorT(xs, _), CtorT(ys, _)) if xs.length == ys.length => xs.zip(ys).foreach((x, y) => matchO(x.tpe, y.tpe, solved))
     case (Pi(_, d1, c1, _), Pi(_, d2, c2, _)) => matchM(d1, d2, solved); matchM(c1, c2, solved)
     case (Sig(f1, _), Sig(f2, _)) =>
       for (g, gt) <- f1; (h, ht) <- f2.find(_._1.name == g.name) do matchM(gt, ht, solved)
@@ -387,7 +393,9 @@ private[meta] trait MetaExpressions extends TyperBase:
       (mt, expected) match
         case (have: Sig, want: Sig) => return ascribe(m, have, want, t.span)
         case _ =>
-      subsumes(mt, expected).foreach { r =>
+      val reason = subsumes(mt, expected)
+      if reason.isDefined && dataAsRelation(m, mt, expected, t.span) then return MExpr.Err
+      reason.foreach { r =>
         if expected.isInstanceOf[Sig] || mt.isInstanceOf[Sig] then
           var d = Diagnostic.error("E0204", "signature mismatch", t.span, s"expected `${showMT(expected)}`")
             .withNote(s"found `${showMT(mt)}`")
@@ -415,8 +423,12 @@ private[meta] trait MetaExpressions extends TyperBase:
         case None => Left(s"missing field `${g.name}`")
         case Some((f, ft)) =>
           val proj = Proj(m, g.name)
-          if f.kind == SymKind.Ctor && !gt.isInstanceOf[RelT] then
-            constructorAs(proj, relCols(f).length, substMT(gt, wantSubst))
+          val ctorArity = ft match
+            case CtorT(cols, _) => Some(cols.length)
+            case RelT(cols, Some(_)) => Some(cols.length)
+            case _ => None
+          if ctorArity.isDefined && !gt.isInstanceOf[RelT] && !gt.isInstanceOf[CtorT] then
+            constructorAs(proj, ctorArity.get, substMT(gt, wantSubst))
               .map(g.name -> _).left.map(why => s"field `${g.name}`: $why")
           else
             subsumes(substMT(ft, haveSubst), substMT(gt, wantSubst))
@@ -426,6 +438,19 @@ private[meta] trait MetaExpressions extends TyperBase:
     } match
       case Right(fs) => Rec(fs.reverse)
       case Left(why) => mismatch(why)
+
+  /** E0406 for a data constructor (or data struct) passed where a relation is expected; whether reported. */
+  private[meta] def dataAsRelation(m: MExpr, have: MType, want: MType, span: Span): Boolean = (have, want) match
+    case (CtorT(_, _), RelT(_, None)) =>
+      val name = m match
+        case Ref(s) => s.name
+        case other => MExpr.show(other)
+      val declared = m match
+        case Ref(s) if s.span.exists => Some(s)
+        case _ => None
+      reportDataAsRelation(name, declared, span, s"expected a relation `${showMT(want)}`")
+      true
+    case _ => false
 
   /** A constructor (the relation `c` with `arity` columns) as a value of meta type `t`: code of its result
    *  type for a constant, a function from its arguments for a constructor with arguments. */

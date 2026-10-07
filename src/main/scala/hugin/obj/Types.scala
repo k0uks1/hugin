@@ -69,8 +69,11 @@ object Mode:
 /** An object relation (plain relation, constructor or struct). The fact type has the same name. Its
  *  declaration (`tparams`, `cols`, `result`, `instanceOf`) is filled in when the symbol is created, by the
  *  meta evaluator, monomorphization or the phase that introduces it; what later phases learn about it is in
- *  [[ProgramFacts]] (directives) and the core IR (runtime tags). */
-final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin):
+ *  [[ProgramFacts]] (directives) and the core IR (runtime tags).
+ *
+ *  @param fact whether a constructor or struct is declared `%fact` (a fact constructor); otherwise it is a
+ *              data constructor, which is not read as a relation */
+final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin, val fact: Boolean = false):
   val id: Int = SymIds.next()
   var tparams: List[TParam] = Nil
   var cols: Vector[Column] = Vector.empty
@@ -81,6 +84,9 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
 
   def arity: Int = cols.length
   def isCtor: Boolean = kind == RelKind.Ctor
+
+  /** A data constructor or data struct (not `%fact`): its values are data, not facts of a relation. */
+  def isData: Boolean = (kind == RelKind.Ctor || kind == RelKind.Struct) && !fact
   def isDemand: Boolean = kind match { case RelKind.Demand(_, _) => true; case _ => false }
   def isDerivation: Boolean = kind match { case RelKind.Derivation(_) => true; case _ => false }
 

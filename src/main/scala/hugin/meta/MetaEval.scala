@@ -346,7 +346,7 @@ final class MetaEval(using Context):
           env += s -> VType(OType.Con(ts, Nil))
         case EItem.RelDecl(s, _, _, isStruct, sp) =>
           val kind = if isStruct then RelKind.Struct else if s.kind == SymKind.Ctor then RelKind.Ctor else RelKind.Plain
-          val rs = RelSym(objName(s.name), kind, sp, fr.origin)
+          val rs = RelSym(objName(s.name), kind, sp, fr.origin, fact = s.fact)
           rs.tparams = ctx.unit.symbols.tparams(s)
           relSyms(s) = rs
           env += s -> VRel(rs)

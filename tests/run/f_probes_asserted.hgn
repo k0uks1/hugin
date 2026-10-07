@@ -1,6 +1,6 @@
 (* A probe that an ordinary head builds later becomes a fact (and enters the delta like any new fact) *)
 shape : type.
-square : int -> shape.
+%fact square : int -> shape.
 
 area : (s : shape) -> (a : int) -> rel.
 %mode area +s -a.

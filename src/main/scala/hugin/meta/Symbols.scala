@@ -60,6 +60,8 @@ enum SymKind:
  *  @param clauses the clauses of a formula function, in source order
  *  @param abbrev  whether a type definition is marked `%abbrev` (always expanded)
  *  @param base    the base type of a `BaseType` symbol
+ *  @param fact    whether a constructor or struct is declared `%fact` (a fact constructor, whose facts can
+ *                 be read as a relation); without it, it is a data constructor
  */
 final class Sym private (
     val name: String,
@@ -71,13 +73,17 @@ final class Sym private (
     val decl: Option[Item],
     val clauses: List[Rule],
     val abbrev: Boolean,
-    val base: Option[BaseType]
+    val base: Option[BaseType],
+    val fact: Boolean
 ):
   override def equals(that: Any): Boolean = that match
     case s: Sym => (this eq s) || key == s.key
     case _ => false
   override val hashCode: Int = key.hashCode
   override def toString: String = name
+
+  /** A data constructor or struct (not declared `%fact`): its values are data, not facts of a relation. */
+  def isData: Boolean = (kind == SymKind.Ctor || kind == SymKind.Struct) && !fact
 
 object Sym:
   /** Creates a symbol with a key that no other symbol of the compilation has (registered in `keys`). */
@@ -92,10 +98,11 @@ object Sym:
       decl: Option[Item] = None,
       clauses: List[Rule] = Nil,
       abbrev: Boolean = false,
-      base: Option[BaseType] = None
+      base: Option[BaseType] = None,
+      fact: Boolean = false
   ): Sym =
     keys.register(key)
-    new Sym(name, kind, span, owner, key, item, decl, clauses, abbrev, base)
+    new Sym(name, kind, span, owner, key, item, decl, clauses, abbrev, base, fact)
 
 /** A lexical scope: program, module body, meta function parameters, lambda.
  *

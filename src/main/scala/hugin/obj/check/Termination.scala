@@ -283,11 +283,14 @@ final class Termination(
     def directive(c: RelSym): Option[Span] = facts(c).terminates.map(_._2)
 
   /** Rules of relations without a measure (other than demand relations of measured ones) must not be
-   *  constructive: their facts consist of existing terms. */
-  private def unmeasuredConstructive(ctx: Ctx, allowed: RelSym => Boolean): Option[TerminationFailure] =
+   *  constructive: their facts consist of existing terms. With `answers`, in a demand-driven component, the
+   *  answers of measured relations count as finite sources (there are finitely many demands, see
+   *  [[moded]]), so `d0 (some N) :- e L, len L N` constructs terms from a finite set. */
+  private def unmeasuredConstructive(ctx: Ctx, allowed: RelSym => Boolean, answers: Boolean = false): Option[TerminationFailure] =
+    val grows: RelSym => Boolean = x => inC(x) && !(answers && ctx.measuredAnywhere(x))
     rules.iterator.collectFirst(Function.unlift { r =>
       headRel(r).filterNot(allowed).flatMap(h =>
-        phase.constructive(r, inC).map((why, sp) =>
+        phase.constructive(r, grows).map((why, sp) =>
           TerminationFailure(
             s"constructive rule for `${h.name}`, which has no measure",
             sp,
@@ -300,6 +303,54 @@ final class Termination(
         )
       )
     })
+
+  /** Variables of `body` with finitely many values whatever the facts of the component: bound by positive
+   *  atoms of plain relations outside the component (complete and finite when the component is evaluated;
+   *  not constructor relations, see [[Termination.constructive]]), occurring in a column of `finite` of an
+   *  atom of the component, or equal to a term over such variables. */
+  private def finiteSources(body: List[Formula], finite: Set[(RelSym, Int)]): Set[String] =
+    var vars = body.collect {
+      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !x.isCtor && x.kind != RelKind.Struct => as.flatMap(Moding.vars).toSet ++ v
+      case Formula.Atom(RelRef.Sym(x), as, _) if inC(x) =>
+        as.zipWithIndex.collect { case (a, k) if finite((x, k)) => Moding.vars(a) }.flatten.toSet
+    }.flatten.toSet
+    var changed = true
+    while changed do
+      changed = false
+      body.foreach {
+        case Formula.Cmp(CmpOp.Eq, l, r) =>
+          for (a, b) <- List((l, r), (r, l)) do
+            a match
+              case Term.Var(x) if !vars(x) && Moding.vars(b).subsetOf(vars) =>
+                vars += x
+                changed = true
+              case _ =>
+        case _ =>
+      }
+    vars
+
+  /** The columns of unmeasured plain relations of the component whose values come from a finite set over
+   *  the whole evaluation (a least fixed point): every rule of the relation puts into the column a term
+   *  over variables of [[finiteSources]] (given the columns found so far). A column value is a function
+   *  of the valuation of those variables, each of which ranges over a finite set. */
+  private def finiteColumns(measured: RelSym => Boolean): Set[(RelSym, Int)] =
+    val byHead = rules.groupBy(headRel).collect {
+      case (Some(u), rs) if inC(u) && u.kind == RelKind.Plain && !measured(u) => u -> rs
+    }
+    var finite = Set.empty[(RelSym, Int)]
+    var changed = true
+    while changed do
+      changed = false
+      for (u, rs) <- byHead; k <- 0 until u.arity if !finite((u, k)) do
+        val ok = rs.forall { r =>
+          r.heads match
+            case List(Term.App(_, hs)) => hs.lift(k).exists(h => Moding.vars(h).subsetOf(finiteSources(r.body, finite)))
+            case _ => false
+        }
+        if ok then
+          finite += ((u, k))
+          changed = true
+    finite
 
   /** Positive atoms of relations outside the component bind their variables to finitely many values. */
   private def boundOutside(body: List[Formula]): Set[String] =
@@ -398,7 +449,9 @@ final class Termination(
         notes = List("in a moded component the measure is checked on the demands, which consist of the input arguments")
       )
     }
-    unmoded.orElse(notInput).orElse(unmeasuredConstructive(ctx, h => ctx.has(h) || demandOf(h).isDefined || otherGroup(h))).toLeft(()).flatMap {
+    unmoded.orElse(notInput).orElse(
+      unmeasuredConstructive(ctx, h => ctx.has(h) || demandOf(h).isDefined || otherGroup(h), answers = true)
+    ).toLeft(()).flatMap {
       _ =>
         val lines = List.newBuilder[String]
         lines += "  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below"
@@ -424,11 +477,36 @@ final class Termination(
             case _ => false
           }
         ) ++ allRules.filter(r => isDemandRule(r) && guardOf(r).exists(g => demandOf(g).isDefined))).distinct
+        // A seed of the component: a demand rule without guard, or guarded by a demand of a relation
+        // outside the component, that reads the component. The moded relation is then called from a rule
+        // whose prefix reads relations depending on its answers (`d0 X :- e L X, len L N` and
+        // `d2 N :- d0 X, f L X, len L N`). Its demands are finitely many if every input comes from a
+        // finite set, independently of the component's facts.
+        lazy val finiteCols = finiteColumns(ctx.measuredAnywhere)
+        def seed(r: Rule, us: List[Term], e: RelSym): Option[TerminationFailure] =
+          val finite = finiteSources(r.body, finiteCols)
+          us.find(u => !Moding.vars(u).subsetOf(finite)) match
+            case None =>
+              lines += s"  ${where(r)}: demand `${ObjPrinter.term(r.heads.head)}` from outside the component: its inputs take finitely many values"
+              None
+            case Some(u) =>
+              Some(TerminationFailure(
+                s"invalid `%terminates` directive for `${e.name}`",
+                u.span,
+                s"the demanded `${ObjPrinter.term(u)}` may take infinitely many values",
+                Some(r),
+                ctx.directive(e),
+                notes = List(
+                  s"this call demands `${e.name}` with values read from relations that depend on the answers of `${e.name}`, so the demands could grow without bound"
+                ),
+                helps = List(s"bind the argument by a relation that does not depend on the answers of `${e.name}`", partialHelp(e))
+              ))
         val demands = demandRules.iterator.flatMap { r =>
           val Term.App(RelRef.Sym(dh), us) = r.heads.head: @unchecked
           val e = demandOf(dh).get
           val guard = r.body.collectFirst { case g @ Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => g }
           guard match
+            case Some(Formula.Atom(RelRef.Sym(dg), _, _)) if !inC(dg) && demandOf(dg).isEmpty && !otherGroup(dg) => seed(r, us, e)
             case Some(g @ Formula.Atom(RelRef.Sym(dg), ws, _)) =>
               demandOf(dg) match
                 case None if otherGroup(dg) => None // a call between groups: ordered by the demand graph
@@ -458,8 +536,7 @@ final class Termination(
                           lines += s"  ${where(r)}: demand for `${ObjPrinter.term(r.heads.head)}` from `${ObjPrinter.formula(g)}`: $why$l"
                           None
                         case None => Some(lowerBoundFailure(ctx, r, e, r.heads.head.span, i, u))
-            case _ =>
-              Some(TerminationFailure("a demand rule without guard", r.span, "", Some(r), None))
+            case _ => seed(r, us, e)
         }.nextOption()
         calls.orElse(demands).toLeft(lines.result())
     }

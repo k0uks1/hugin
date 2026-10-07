@@ -65,12 +65,15 @@ private[meta] trait Declarations extends TyperBase:
       case SymKind.Struct =>
         val rt = d.defn.get.asInstanceOf[RecordType]
         val doms = rt.entries.flatMap {
-          case SigEntry.FieldDecl(l, t) => Some((Some(l), t))
+          case SigEntry.FieldDecl(l, t, fact) =>
+            if fact then err("E0004", "`%fact` is not allowed on the fields of a struct", l.span, "struct field")
+            Some((Some(l), t))
           case SigEntry.Complete(_, sp) => err("E0004", "requirements are not allowed in struct declarations", sp); None
           case SigEntry.ModeReq(_, _, sp) => err("E0004", "requirements are not allowed in struct declarations", sp); None
         }
         val cols = columns(doms)
-        syms(s).mtype = Some(RelT(cols))
+        // a data struct only builds values; a `%fact` struct is also the relation of its facts
+        syms(s).mtype = Some(if s.fact then RelT(cols) else CtorT(cols, OType.Splice(FactTypeOf(Ref(s)))))
         (cols, None, None)
       case SymKind.Rel =>
         val (doms, _) = flattenArrow(d.tpe)
@@ -91,7 +94,7 @@ private[meta] trait Declarations extends TyperBase:
               .withHelp(if doms.isEmpty then s"to define a compile-time constant, write `${s.name} : ${Printer.show(d.tpe)} = ...`."
               else "end the type in `rel` to declare a relation")
           )
-        syms(s).mtype = Some(RelT(cols, Some(res)))
+        syms(s).mtype = Some(if s.fact then RelT(cols, Some(res)) else CtorT(cols, res))
         (cols, Some(res), None)
       case _ => (Nil, None, None)
     syms(s).declInfo = Some(DeclInfo(explicit.map(_._2) ++ implicits.values, cols, result, typeKind))

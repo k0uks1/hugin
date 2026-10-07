@@ -132,7 +132,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nrelation len A : list A -> int -> rel\n```\n\ninstance: `len[int]`"
+      "value": "```hugin\nrelation len A : (l : list A) -> (n : int) -> rel\n```\n\ninstance: `len[int]`"
     }
   }
 }
