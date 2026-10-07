@@ -1,0 +1,190 @@
+package hugin.obj
+package check
+
+import hugin.util.*
+
+import hugin.obj.typing.Moding
+
+/** The measures of one group of a component (see [[GuardedInduction.check]]): `slots` says which slots
+ *  are integers, `all` are the measures of the whole component. */
+final case class MeasureCtx(
+    measures: Map[RelSym, List[Int]],
+    slots: List[Boolean],
+    all: Map[RelSym, List[Int]],
+    facts: ProgramFacts,
+    comp: List[RelSym]
+):
+  def of(c: RelSym): List[Int] = measures(c)
+  def has(c: RelSym): Boolean = measures.contains(c)
+
+  /** Measured in the component, possibly in another group (see [[GuardedInduction.check]]). */
+  def measuredAnywhere(c: RelSym): Boolean = all.contains(c)
+  def directive(c: RelSym): Option[Span] = facts(c).terminates.map(_._2)
+
+/** Guarded induction (B): measures, declared or inferred, that decrease from the head to every recursive
+ *  call and are anchored in a finite set. */
+final class GuardedInduction(rc: RecursiveComponent):
+  import Termination.*
+  import Decrease.*
+  import Failures.*
+
+  private val (comp, rules, allRules, facts) = (rc.comp, rc.rules, rc.allRules, rc.facts)
+  private val inC = rc.inC
+
+  /** The candidate measures of the inference for guarded induction (B): one integer or structural argument
+   *  per relation, or a lexicographic pair for a single relation. */
+  private def candidates: Iterator[Map[RelSym, List[Int]]] =
+    val rels = comp.map(base).distinct.filter(c => c.kind == RelKind.Plain && c.arity > 0)
+    def positions(c: RelSym) = (0 until c.arity).toList
+    val singles: Iterator[Map[RelSym, List[Int]]] =
+      if rels.isEmpty || rels.length > 4 then Iterator.empty
+      else
+        rels.foldLeft(Iterator(Map.empty[RelSym, List[Int]]))((acc, c) =>
+          acc.flatMap(m => positions(c).iterator.map(k => m.updated(c, List(k))))
+        ).take(256)
+    val pairs: Iterator[Map[RelSym, List[Int]]] = rels match
+      case List(c) => for i <- positions(c).iterator; j <- positions(c).iterator if i != j yield Map(c -> List(i, j))
+      case _ => Iterator.empty
+    singles ++ pairs
+
+  /** Guarded induction (B) with an inferred measure: the first candidate that passes [[check]]. */
+  def infer: Option[(Map[RelSym, List[Int]], List[String])] =
+    candidates.map(m => (m, check(m))).collectFirst { case (m, Right(lines)) =>
+      val shown = m.toList.sortBy(_._1.name).map((c, ks) => directive(c, ks)).mkString(" ")
+      (m, s"  inferred measure: $shown" :: lines)
+    }
+
+  /** Why guarded induction (B) fails, for E0603: the first candidate measure that decreases along every
+   *  recursive call but is not anchored, or that no argument decreases. */
+  def inductionFailure: String =
+    candidates.map(check).collectFirst { case Left(f) if f.kind == FailKind.Anchor => f }
+      .map(f => s"${f.label} (measure: ${f.measure})")
+      .getOrElse("no argument decreases from the head to every recursive call")
+
+  /** Checks the component with the given measures; the explanation, or the first violation.
+   *
+   *  A moded component is checked per strongly connected component of its *demand* graph (an edge `c → e`
+   *  for every demand rule `e^d … :- c^d …`): demands only flow along that graph, so a call from one group
+   *  into another (`typed` calling `lookup`, which never calls back) needs no decrease; the pair (rank of
+   *  the group in the acyclic demand graph, measure) decreases lexicographically along every demand. The
+   *  dependency graph may still join such groups into one component through answers (`typed` reads
+   *  `lookup`, whose demands come from `typed`'s). Measures are compared, and need the same shape, only
+   *  within a group. */
+  def check(measures: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
+    val groups =
+      if !measures.keys.exists(facts.hasModes) then List(measures.keys.toList)
+      else
+        val measured = measures.keys.toList.sortBy(_.name)
+        def demandBase(x: RelSym) = x.kind match
+          case RelKind.Demand(of, _) if measures.contains(of) => Some(of)
+          case _ => None
+        val edges = allRules.flatMap { r =>
+          for
+            e <- headRel(r).flatMap(demandBase)
+            c <- r.body.collectFirst { case Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => x }.flatMap(demandBase)
+          yield c -> e
+        }
+        hugin.util.Graphs.components(measured, c => edges.collect { case (`c`, e) => e }.distinct)
+    groups.foldLeft[Either[TerminationFailure, List[String]]](Right(Nil)) { (acc, g) =>
+      acc.flatMap(lines => checkGroup(measures.filter((c, _) => g.contains(c)), measures).map(lines ++ _))
+    }
+
+  /** Checks one group of relations whose measures are compared with each other (see [[check]]); `all` are
+   *  the measures of the whole component. */
+  def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
+    val measured = measures.keys.toList.sortBy(_.name)
+    def declared(c: RelSym) = facts(c).terminates.map(_._2)
+    val first = measured.head
+    val n = measures(first).length
+    def slotNumeric(c: RelSym, k: Int) = c.cols.lift(k).exists(col => isInt(col.tpe))
+    val shapeError = measured.collectFirst {
+      case c if measures(c).length != n =>
+        TerminationFailure(
+          s"measures of different lengths in the component ${showComponent(comp)}",
+          declared(c).getOrElse(c.span),
+          s"`${c.name}` is measured by ${plural(measures(c).length)}",
+          None,
+          None,
+          declared(first).toList.map(_ -> s"`${first.name}` is measured by ${plural(n)}"),
+          notes = List("measures of mutually recursive relations are compared with each other, so they need the same shape")
+        )
+      case c if (0 until n).exists(i => slotNumeric(c, measures(c)(i)) != slotNumeric(first, measures(first)(i))) =>
+        val i = (0 until n).find(i => slotNumeric(c, measures(c)(i)) != slotNumeric(first, measures(first)(i))).get
+        TerminationFailure(
+          s"measures of different types in the component ${showComponent(comp)}",
+          declared(c).getOrElse(c.span),
+          s"component ${i + 1} of `${c.name}`'s measure is ${kind(slotNumeric(c, measures(c)(i)))}",
+          None,
+          None,
+          declared(first).toList.map(
+            _ -> s"component ${i + 1} of `${first.name}`'s measure is ${kind(slotNumeric(first, measures(first)(i)))}"
+          )
+        )
+    }
+    val slots = (0 until n).toList.map(i => slotNumeric(first, measures(first)(i)))
+    val ctx = MeasureCtx(measures, slots, all, facts, comp)
+    shapeError.toLeft(()).flatMap { _ =>
+      if measured.exists(facts.hasModes) then DemandDriven(rc).check(ctx) else bottomUp(ctx)
+    }.map { lines =>
+      val ms = measured.map(c =>
+        s"  measure of `${c.name}`: ${showPositions(c, measures(c))}${if n > 1 then " (lexicographic)" else ""}"
+      )
+      ms ++ lines
+    }
+
+  /** Bottom-up evaluation: every recursive call is smaller than the head and anchored. */
+  def bottomUp(ctx: MeasureCtx): Either[TerminationFailure, List[String]] =
+    rc.unmeasuredConstructive(ctx, ctx.has).toLeft(()).flatMap { _ =>
+      val lines = List.newBuilder[String]
+      lines += "  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set"
+      val failure = rules.iterator.filter(r => headRel(r).exists(ctx.has)).flatMap { r =>
+        val c = headRel(r).get
+        val Term.App(_, hs) = r.heads.head: @unchecked
+        val arith = Arithmetic(r.body)
+        val outside = rc.boundOutside(r.body)
+        r.body.iterator.collect { case a @ Formula.Atom(RelRef.Sym(d), _, _) if inC(d) => (a, d) }.map { (a, d) =>
+          if !ctx.has(d) then Some(unmeasuredCall(ctx, r, c, a, d))
+          else
+            val big = ctx.of(c).map(hs)
+            val small = ctx.of(d).map(a.args)
+            compare(ctx.slots, big, small, arith, r.body) match
+              case Left(f) => Some(decreaseFailure(ctx, r, c, d, a.span, big, small, f, "the call", "the head"))
+              case Right((i, why)) =>
+                val anchors = (i until ctx.slots.length).toList.map { j =>
+                  anchor(ctx.slots(j), j == i, big(j), small(j), arith, outside).toRight(j)
+                }
+                anchors.collectFirst { case Left(j) => j } match
+                  case Some(j) => Some(anchorFailure(ctx, r, c, a.span, j, i, big(j), small(j)))
+                  case None =>
+                    val as = anchors.collect { case Right(s) => s }.mkString("; ")
+                    lines += s"  ${where(r)}: call `${ObjPrinter.formula(a)}`: $why; anchored: $as"
+                    None
+        }
+      }.collectFirst { case Some(f) => f }
+      failure.toLeft(lines.result())
+    }
+
+  /** Whether the head's slot `h` (of call slot `s`) lies in a finite set (bottom-up anchor). The slot that
+   *  increases only needs an upper bound: since the slots before it are unchanged, it does not decrease
+   *  from the start of the chain. Later slots may be reset, so they need both bounds. */
+  def anchor(numeric: Boolean, increasing: Boolean, h: Term, s: Term, arith: Arithmetic, outside: Set[String]): Option[String] =
+    def sh(t: Term) = ObjPrinter.term(t)
+    def finiteVars(t: Term) = Moding.vars(t).subsetOf(outside)
+    def bounded(iv: Interval) = iv.hi.isDefined && (increasing || iv.lo.isDefined)
+    def outsideWhy(t: Term) =
+      if Moding.vars(t).isEmpty then s"`${sh(t)}` is constant" else s"`${sh(t)}` is bound by relations outside the component"
+    if finiteVars(h) then Some(outsideWhy(h))
+    else if !numeric then None
+    else
+      val ih = arith(h)
+      val shown = if increasing then Interval(None, ih.hi) else ih
+      if bounded(ih) then Some(s"`${sh(h)}` ${shown.show}")
+      else
+        // the head is the call plus a bounded offset, and the call is bounded
+        val d = arith.difference(h, s)
+        val is = arith(s)
+        if !bounded(d) then None
+        else if finiteVars(s) then Some(s"${outsideWhy(s)} and `${sh(h)} - ${ObjPrinter.arg(s)}` ${d.show}")
+        else if bounded(is) then
+          Some(s"`${sh(s)}` ${(if increasing then Interval(None, is.hi) else is).show} and `${sh(h)} - ${ObjPrinter.arg(s)}` ${d.show}")
+        else None

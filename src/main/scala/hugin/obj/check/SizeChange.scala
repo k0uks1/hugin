@@ -91,7 +91,7 @@ object SizeChange:
       r.heads.headOption match
         case Some(Term.App(RelRef.Sym(p), hs)) if inC(p) =>
           lazy val arith = Arithmetic(r.body)
-          lazy val outside = Termination.finiteVars(r.body, inC)
+          lazy val outside = Constructive.finiteVars(r.body, inC)
           r.body.collect { case a @ Formula.Atom(RelRef.Sym(q), ss, _) if inC(q) => (a, q, ss) }.map { (a, q, ss) =>
             val arcs = List.newBuilder[Arc]
             val why = List.newBuilder[String]
@@ -107,7 +107,7 @@ object SizeChange:
               else if !sInt && !hInt then
                 if unwrap(s) == unwrap(h) || equated(r.body, s, h) then arcs += Arc(i, j, Eq)
                 else
-                  Termination.structurallySmaller(s, h, r.body).foreach { w =>
+                  Decrease.structurallySmaller(s, h, r.body).foreach { w =>
                     arcs += Arc(i, j, DownStrict)
                     why += w
                   }
@@ -140,7 +140,7 @@ object SizeChange:
       else ih.hi.map(b => s"`${sh(h)}` <= $b")
     if unwrap(s) == unwrap(h) || (d.lo.contains(0) && d.hi.contains(0)) then (Eq, None, None)
     else
-      val smaller = Termination.numericSmaller(s, h, arith)
+      val smaller = Decrease.numericSmaller(s, h, arith)
       if smaller.isDefined then
         bound(lo = true) match
           case Some(b) => (DownStrict, Some(s"`${sh(h)}` < `${sh(s)}` (${smaller.get}; $b)"), None)
