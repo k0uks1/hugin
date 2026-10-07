@@ -9,8 +9,6 @@ final case class Settings(
     printAfter: Set[String] = Set.empty,
     /** Phase after which compilation stops. */
     stopAfter: Option[String] = None,
-    /** Extra advisory checks (W0004). */
-    lint: Boolean = false,
     /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
     prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */

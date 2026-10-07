@@ -1,0 +1,13 @@
+(* Proposition 8.8: `h`'s rule asserts facts of the fact constructor `mk` (split into `mk N :- src N, not r N`,
+   evaluated in `mk`'s component), so `mk` depends on what the rule reads, negatively on `r`; `r` reads `mk`.
+   The cycle `mk -> not r -> mk` is a stratification error: `r 1` would hold iff `mk 1` is asserted, which
+   happens iff `r 1` does not hold *)
+w : type.
+%fact mk : int -> w.
+src : int -> rel.
+src 1.
+r : int -> rel.
+r N :- mk N.
+h : w -> rel.
+h (mk N) :- src N, not r N.
+?- r N.

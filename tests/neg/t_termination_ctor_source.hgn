@@ -1,7 +1,7 @@
-(* issue #1, F3: a head constructor term counts as constructive unless its variables are bound by plain
-   relations outside the component. `N` is bound by the constructor relation `s`, which lies outside
-   `{d}` but whose facts this very rule creates (`s (s N)` makes new `s` facts match), so it is no
-   finite source *)
+(* issue #1, F3, and Proposition 8.8: the rule asserts `s (s N)`, a fact of the fact constructor `s`
+   whose component comes before `d`'s, so it is split into `s (s N) :- s N`, evaluated in `s`'s component
+   (see docs/NOTES.md). That rule makes new `s` facts that it matches again: `{s}` is a recursive
+   component with a constructive rule *)
 t : type. z : t. %fact s : t -> t.
 b : t -> rel. b z.
 d : t -> rel.

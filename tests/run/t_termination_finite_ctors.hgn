@@ -1,6 +1,8 @@
 (* head constructor terms that take finitely many values are not constructive (issue #1, F3): a ground
    term (`red`, `wrap nil`) is one fixed term, and `mk Y` with `Y` bound by the plain relation `b` outside
-   the component ranges over the facts of `b`; no `%terminates` is needed *)
+   the component ranges over the facts of `b`; no `%terminates` is needed. A fact constructor of an
+   earlier component is a finite source too: `pt`'s facts, also those asserted by the head of `g`, are
+   complete after `pt`'s component (Proposition 8.8, split rules) *)
 color : type. red : color. green : color.
 box : type. mk : int -> box. wrap : list int -> box.
 b : int -> rel. b 1. b 2.
@@ -11,4 +13,9 @@ e : int -> box -> rel.
 e 0 (wrap nil).
 e X (mk Y) :- e X _, b Y.
 e Y B :- e _ B, b Y.
-%output d. %output e.
+%fact pt : int -> box.
+g : box -> rel. g (pt N) :- b N.
+f : int -> box -> rel.
+f 0 (wrap nil).
+f X (wrap (cons N nil)) :- f X _, pt N.
+%output d. %output e. %output f.

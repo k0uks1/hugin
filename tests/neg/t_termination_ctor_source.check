@@ -4,8 +4,9 @@ error[E0603]: growing component without a valid %terminates directive
 10 | d (s (s N)) :- s N.
    |    ^^^^^^^ its head constructs `s (s N)`, which is not matched in the body
    |
-   = note: the recursive component {d} contains this constructive rule, so its fixed point may be infinite
-   = note: recursion: `d` -> `d`
-   = help: declare a decreasing argument, e.g. `%terminates X (d ...)`, or mark the relation `%partial d.` to evaluate it with a round budget
+   = note: the recursive component {s} contains this constructive rule, so its fixed point may be infinite
+   = note: recursion: `s` -> `s`
+   = note: the rule asserts the fact `s (s N)` of `s`, so it is also evaluated in `s`'s component (Proposition 8.8, see docs/NOTES.md)
+   = help: declare a decreasing argument, e.g. `%terminates X (s ...)`, or mark the relation `%partial s.` to evaluate it with a round budget
 
 1 error found

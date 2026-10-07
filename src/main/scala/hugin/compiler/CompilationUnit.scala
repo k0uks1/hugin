@@ -51,6 +51,9 @@ final class CompilationUnit(val source: SourceFile):
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
 
+  /** The split rules of Proposition 8.8 added by `stratify` (by identity; see `StratifyPhase.splitRules`). */
+  val splitRules: java.util.Set[AnyRef] = java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
+
   /** Positions → symbols and types, for tooling. */
   val index: SemanticIndex = SemanticIndex()
 

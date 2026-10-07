@@ -46,7 +46,7 @@ final class TerminationPhase extends Phase:
       case Term.As(x, _) => builds(x)
       case Term.Ascr(x, _) => builds(x)
       case _ => false
-    DepGraph.newHeadConstructors(r).find(t => !Moding.vars(t).subsetOf(finite)).map(t =>
+    DepGraph.newHeadConstructors(r, withHead = true).find(t => !Moding.vars(t).subsetOf(finite)).map(t =>
       (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span)
     )
       .orElse {
@@ -126,18 +126,24 @@ final class TerminationPhase extends Phase:
                 ctx.report(f.diagnostic)
 
   /** E0603: a growing component without a measure, with a measure suggestion when one can be found. */
-  private def noMeasure(a: Termination, r: Rule, why: String, sp: Span): Diagnostic =
+  private def noMeasure(a: Termination, r: Rule, why: String, sp: Span)(using Context): Diagnostic =
     val comp = a.comp
     var d = Diagnostic.error("E0603", "growing component without a valid %terminates directive", sp, why)
       .withNote(
         s"the recursive component ${Termination.showComponent(comp)} contains this constructive rule, so its fixed point may be infinite"
       )
     Termination.headRel(r).flatMap(a.cycle).foreach(c => d = d.withNote(s"recursion: ${c.map(x => s"`${x.name}`").mkString(" -> ")}"))
+    if ctx.unit.splitRules.contains(r) then
+      Termination.headRel(r).foreach(c =>
+        d = d.withNote(
+          s"the rule asserts the fact `${ObjPrinter.term(r.heads.head)}` of `${c.name}`, so it is also evaluated in `${c.name}`'s component (Proposition 8.8, see docs/NOTES.md)"
+        )
+      )
     a.suggest match
       case Some(directives) =>
         d.withHelp(s"this measure is accepted: ${directives.mkString(" ")}")
       case None =>
-        val names = comp.map(Termination.base).filter(_.kind == RelKind.Plain).distinct.map(_.name)
+        val names = comp.map(Termination.base).filter(c => c.kind == RelKind.Plain || DepGraph.isFactCtor(c)).distinct.map(_.name)
         d.withHelp(names.headOption.map(n =>
           s"declare a decreasing argument, e.g. `%terminates X ($n ...)`, or mark the relation `%partial $n.` to evaluate it with a round budget"
         ).getOrElse("mark a relation of the component %partial"))
@@ -366,7 +372,7 @@ final class Termination(
     finite
 
   /** Positive atoms of finite sources outside the component bind their variables to finitely many values
-   *  (see [[Termination.finiteVars]]: not fact constructors). */
+   *  (see [[Termination.finiteVars]]). */
   private def boundOutside(body: List[Formula]): Set[String] = finiteVars(body, inC)
 
   /** Bottom-up evaluation: every recursive call is smaller than the head and anchored. */
@@ -780,15 +786,15 @@ object Termination:
 
   /** Variables of `body` bound by positive atoms of relations outside the component `inC` that are finite
    *  sources: complete and finite when the component is evaluated (induction over the evaluation order).
-   *  Fact constructors and fact structs are not finite sources, because a nested head constructor can
-   *  create their facts after their component (issue #1, A1), including the rule itself:
-   *  `d (s (s N)) :- s N` makes `s (s N)` and then matches it. A data constructor has no facts; an atom
-   *  over it is a generated guard `(c Z̄ as X)` destructuring the value of `X`, so its variables are
-   *  finite if `X` is. */
+   *  Fact constructors and fact structs are finite sources too: a nested head term `c t̄` asserted by a
+   *  rule of a later component is also derived by its split rule in `c`'s component (Proposition 8.8,
+   *  `StratifyPhase.splitRules`), so no fact is added to `c` after its component (`d (s (s N)) :- s N`
+   *  is split into `s (s N) :- s N`, which is checked in `s`'s component). A data constructor has no
+   *  facts; an atom over it is a generated guard `(c Z̄ as X)` destructuring the value of `X`, so its
+   *  variables are finite if `X` is. */
   def finiteVars(body: List[Formula], inC: RelSym => Boolean): Set[String] =
-    def factCtor(x: RelSym) = (x.isCtor || x.kind == RelKind.Struct) && !x.isData
     var vars = body.collect {
-      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !factCtor(x) && !x.isData => as.flatMap(Moding.vars).toSet ++ v
+      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !x.isData => as.flatMap(Moding.vars).toSet ++ v
     }.flatten.toSet
     val guards = body.collect { case Formula.Atom(RelRef.Sym(x), as, Some(v)) if x.isData => (v, as.flatMap(Moding.vars).toSet) }
     var changed = true
