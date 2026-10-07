@@ -163,7 +163,8 @@ object SizeChange:
   def check(comp: List[RelSym], rules: Vector[Rule]): Either[Failure, List[String]] =
     val base = steps(comp, rules)
     val byFrom = base.groupBy(_.from)
-    val seen = mutable.HashMap.empty[(RelSym, RelSym, Graph), Chain]
+    // insertion-ordered: the reported cycle must not depend on identity hash codes
+    val seen = mutable.LinkedHashMap.empty[(RelSym, RelSym, Graph), Chain]
     val work = mutable.Queue.from(base.map(s => Chain(s.from, s.to, s.graph, List(s))))
     while work.nonEmpty && seen.size <= MaxGraphs do
       val c = work.dequeue()
