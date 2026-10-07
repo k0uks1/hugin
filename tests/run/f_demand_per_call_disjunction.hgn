@@ -1,0 +1,12 @@
+(* Demand per call site (docs/NOTES.md): a rule calls `len` twice with a disjunction inside an aggregate
+   between the calls. The auxiliary relation of the disjunction is moded (its outer variable `N` is an
+   input), and its demand reads the first call; the second call's demand reads the aggregate. With one
+   shared demand relation of `len` this is a cycle through the aggregate (E0601); the second call gets its
+   own copy of `len` *)
+e : list int -> rel.
+e nil. e (cons 1 nil). e (cons 2 (cons 1 nil)).
+f : int -> rel. f 0. f 5.
+g : int -> int -> rel. g 7 1. g 8 2. g 9 2.
+s : list int -> int -> int -> rel.
+s L N M :- e L, len L N, C = count { X | f X ; g X N }, V = cons C L, len V M.
+?- s L N M.

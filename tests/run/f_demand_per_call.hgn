@@ -1,0 +1,15 @@
+(* Demand per call site (docs/NOTES.md): `b`'s call of the moded `len` has the prefix `e L, not a L 1`, and
+   `a` calls `len`; with one shared demand relation `len^d` would depend negatively on `a`, which depends on
+   `len` and so on `len^d` (E0601), although the program is stratified. Likewise `c`'s call demands a
+   list computed by an aggregate over `a`. Both calls get their own copy of `len` (`len[int]#1`,
+   `len[int]#2`); `a`'s call keeps the shared one *)
+e : list int -> rel.
+e nil. e (cons 1 nil). e (cons 2 (cons 1 nil)).
+a : list int -> int -> rel.
+a L N :- e L, len L N.
+b : list int -> int -> rel.
+b L N :- e L, not a L 1, len L N.
+c : int -> int -> rel.
+c M K :- M = count { L | a L _ }, len (cons M (cons M nil)) K.
+?- b L N.
+?- c M K.

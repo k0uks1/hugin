@@ -333,14 +333,63 @@ calling rule, so a relation in that prefix that depends on answers of `len` join
 connected component (`pick L :- e L, len L N, N < 3.` and `long N :- pick L, len L N.` give the
 component `{pick, len, len^d}`). Two refinements of the demand-driven termination check (see
 "Termination" below, conditions 1 and 5) accept such components when they are finite
-(`tests/run/t_termination_len_callers.hgn`). One limitation remains: if the prefix negates or
-aggregates over a relation that calls `len`, the program is no longer stratified after the demand
-transformation (E0601), although it is in the source, since all calls share one demand relation. The
-same happens within one rule that calls `len` twice with a disjunction inside an aggregate between the
-calls (the auxiliary relation's demand reads the first call, the second call's demand reads the
-aggregate). The remedy would be demand relations per call site (or a generalisation of the pruning of
-demand prefixes of "Disjunction inside aggregates"); the fuzz generator (`ProgramGen`) avoids such
-programs: a rule that calls `len` calls it once and reads only base relations.
+(`tests/run/t_termination_len_callers.hgn`). If the prefix negates or aggregates over a relation that
+calls `len`, the shared demand relation would close a cycle through negation; such call sites get their
+own demand relation (see "Demand per call site" below).
+
+### Demand per call site
+
+All calls of a moded relation `c` share its demand relation `c^d[m]` (Section 7.3), so the demand rule of
+every call depends on its prefix, and `c`'s guarded rules depend on all of them. If a prefix negates or
+aggregates over a relation that depends on `c`'s answers, the transformed program has a cycle
+`c^d → not x → … → c → c^d` and is rejected (E0601) although the source is stratified:
+
+```
+a L N :- e L, len L N.
+b L N :- e L, not a L 1, len L N.               (* len^d L :- e L, not a L 1. *)
+c M K :- M = count { L | a L _ }, len (cons M nil) K.     (* input from an aggregate over a *)
+s L N M :- e L, len L N, C = count { X | f X ; g X N }, V = cons C L, len V M.
+```
+
+In the last rule the disjunction's auxiliary relation is moded (its outer variable `N` is an input); its
+demand reads the first call of `len`, and the second call's demand reads the aggregate.
+
+**Decision.** `DemandPhase` first transforms with shared demand relations. If a component of the result
+has a cycle through negation, every call site of a plain moded relation `c` from a rule of another
+relation whose demand rule `c^d[m] … :- prefix` lies in such a component and reads it (the edge of the
+cycle that the sharing creates) gets its own copy `c#k` of `c`: the rules of `c` with `c` renamed (also its
+recursive calls), the directives of `c` (modes, `%terminates`, `%partial`, `%open`), and the call renamed;
+the transformation is repeated (a few rounds, copies are not copied again). The copy has its own demand
+relation `c#k^d[m]`, which only that call site and the copy's own recursion feed. If cycles through
+negation remain, they are not caused by the sharing and the shared transformation is kept, so the error
+(E0601) is reported as before, without copies. Other programs are unaffected: the transformation and
+every component are exactly as before (no golden output changed). Pruning the prefix (as for disjunctions
+inside aggregates) does not suffice when the call's input is computed by the negated or aggregated part
+(`c` and `s` above).
+
+* *Answers.* A copy has the rules of `c`, so for every demand it derives exactly the answers `c` would;
+  the call site reads them for its own demands, so its answers are unchanged (the generated fuzz property
+  "the demand transformation preserves query answers" and the differential test cover such programs).
+* *Stratification.* The copy's demand reads the call's prefix; `c`'s demand, read by the relations the
+  prefix negates, no longer depends on it. Copies are created only for call sites on a cycle through
+  negation, so programs accepted before keep their components.
+* *Termination.* A copy is an ordinary moded relation and is checked by the same conditions (Definition
+  10.3 as generalised in "Termination": demand groups, seeds with finite variables): its measure is the
+  measure of `c`, its demand group consists of the copy's own propagation rules, and its seed is the call
+  site's demand rule, whose inputs must again be terms over finite variables if it reads the copy's
+  component. The argument of "Demand-driven components" applies to each copy separately; there are
+  finitely many copies.
+* `--explain-termination` and `--print-after demand` show the copies (`len[int]#1`); their rules have
+  no name, so `%derivations` covers the original relation only.
+
+The fuzz generator (`ProgramGen`) no longer restricts calls of `len` to one per rule and to rules reading
+base relations: negations and aggregates in a rule calling `len` may read relations that call `len` (it
+favours them, so copies occur in many generated programs). One restriction remains, for termination, not
+stratification: such a rule reads *positively* only relations that do not depend on `len`, since a
+positive prefix relation joins `len`'s component, where arithmetic or term construction needs a measure
+(copies are made only for cycles through negation; making them for every such call would change the
+components, and outputs, of accepted programs, e.g. the type checker's `lookup`).
+`tests/run/f_demand_per_call.hgn`, `tests/run/f_demand_per_call_disjunction.hgn`.
 
 ## Termination (issue #2)
 

@@ -77,6 +77,9 @@ object ProgramGen:
   val programs: Gen[Generated] = Gen.long.map(seed => Builder(Random(seed)).build())
 
   private final class Builder(rnd: Random):
+    /** The derived relations that depend on `len` (call it, or read a relation that does). */
+    private val lenDependent = mutable.Set.empty[String]
+
     private def chance(p: Double) = rnd.nextDouble() < p
     private def pick[A](xs: Seq[A]): A = xs(rnd.nextInt(xs.length))
     private def between(lo: Int, hi: Int) = lo + rnd.nextInt(hi - lo + 1)
@@ -144,7 +147,10 @@ object ProgramGen:
         val calls =
           for k <- 0 until between(1, 3) yield
             val self = recursive && k > 0 && chance(0.7)
-            rules += RuleBuilder(r, lower, recursive, self).build()
+            val rb = RuleBuilder(r, lower, recursive, self)
+            val rule = rb.build()
+            if rb.dependsOnLen(rule) then lenDependent += r.name
+            rules += rule
             self
         derived += r
         demand = Option.when(!calls.contains(true))(r)
@@ -163,6 +169,10 @@ object ProgramGen:
      *  nothing and construct terms only over variables bound by atoms of `lower` (the termination check
      *  rejects growing components without `%terminates`). */
     private final class RuleBuilder(head: Rel, lower: Vector[Rel], inRecursion: Boolean, recursive: Boolean):
+      /** Whether the rule depends on `len`: it calls it, or mentions a relation that does. */
+      def dependsOnLen(rule: String): Boolean =
+        rule.contains(" len ") || raw"\b(d\d+)\b".r.findAllIn(rule).exists(lenDependent)
+
       private val bound = mutable.LinkedHashMap.empty[String, Ty]
       private var fresh = 0
       private def newVar(): String = { fresh += 1; s"V$fresh" }
@@ -191,19 +201,15 @@ object ProgramGen:
       /** Variables that occur in positive atoms of `lower` relations (bound without the recursion). */
       private val lowerVars = mutable.HashSet.empty[String]
 
-      /** `len` is moded (`+l -n`), so the demand rule of a call is built from the rule's body: a derived
-       *  relation read there joins `len`'s component, which can make the program unstratified (a negation
-       *  or an aggregate over a relation that calls `len`, E0601) or its termination unprovable (a term
-       *  built over a relation of the component). A rule that calls `len` therefore reads base relations
-       *  only, which never belong to a recursive component, and calls it once: a second call's demand
-       *  could read an aggregate whose auxiliary relation's demand reads the first (see docs/NOTES.md,
-       *  "Data and fact constructors"). */
-      private val callsLen =
-        !recursive && chance(0.4) && lower.exists(r => isBase(r) && r.cols.contains(ListT)) &&
-          head.cols.forall(t => !read(t) || t == IntT || t == StrT || lower.exists(r => isBase(r) && r.cols.contains(t)))
-      private def isBase(r: Rel) = r.name.startsWith("e") // base relations `e0`, `e1`, ... have facts only
-      private val readable: Vector[Rel] = if callsLen then lower.filter(isBase) else lower
-      private var lenCalled = false
+      /** `len` is moded (`+l -n`), so the demand rule of a call is built from the rule's body: a relation
+       *  read positively there that depends on `len` joins `len`'s component, which can make its
+       *  termination unprovable (arithmetic or a term built over a relation of the component). A rule that
+       *  calls `len` therefore reads positively only relations that do not depend on `len`. Negations and
+       *  aggregates may read any earlier relation, and `len` may be called several times: a demand that
+       *  would close a cycle through negation gets its own copy of `len` (see docs/NOTES.md, "Demand per
+       *  call site"). */
+      private val callsLen = !recursive && chance(0.4) && lower.exists(r => !lenDependent(r.name) && r.cols.contains(ListT))
+      private val readable: Vector[Rel] = if callsLen then lower.filterNot(r => lenDependent(r.name)) else lower
 
       private def positive(): String =
         val r = if recursive && chance(0.5) then head else pick(readable)
@@ -231,16 +237,22 @@ object ProgramGen:
           else Some(s"$v ${pick(Seq("=", "<>"))} ${const(t)}")
         else None
 
+      /** A relation to negate or aggregate over: in a rule calling `len`, often one that depends on `len`
+       *  (its demand then reads `len`'s answers through the negation or aggregate). */
+      private def negated(rs: Vector[Rel]): Rel =
+        val deps = rs.filter(r => lenDependent(r.name))
+        if callsLen && deps.nonEmpty && chance(0.6) then pick(deps) else pick(rs)
+
       private def negation(): String =
-        val r = pick(readable)
+        val r = negated(lower)
         "not " + atom(r, r.cols.map(closedArg))
 
       /** `N = agg { V | alternatives }`: each alternative binds `V` in an atom over `lower`, the others
        *  columns are outer variables (grouping), `_`, constants or local variables. */
       private def aggregate(): String =
-        val withInt = readable.filter(_.cols.contains(IntT))
+        val withInt = lower.filter(_.cols.contains(IntT))
         val numeric = withInt.nonEmpty && chance(0.6)
-        val vt = if numeric then IntT else pick(readable).cols.head
+        val vt = if numeric then IntT else negated(lower).cols.head
         val kind = if numeric then pick(Seq("count", "sum", "min", "max")) else if vt == StrT && chance(0.5) then "min" else "count"
         val v = newVar()
         // A disjunction with inputs (outer variables) becomes a moded auxiliary relation; its demand is
@@ -250,7 +262,7 @@ object ProgramGen:
         val n = if chance(0.3) then 2 else 1
         def outer(v: String) = !(recursive && n > 1) || lowerVars(v)
         def alternative(): String =
-          val r = pick(readable.filter(_.cols.contains(vt)))
+          val r = negated(lower.filter(_.cols.contains(vt)))
           val at = between(0, r.cols.length - 1)
           val col = r.cols.indexOf(vt, at) match
             case -1 => r.cols.indexOf(vt)
@@ -303,8 +315,7 @@ object ProgramGen:
 
       private def length(): Option[String] =
         val lists = boundOf(ListT)
-        Option.when(callsLen && !lenCalled && lists.nonEmpty) {
-          lenCalled = true
+        Option.when(callsLen && lists.nonEmpty) {
           s"len ${pick(lists)} ${bind(IntT)}"
         }
 
@@ -322,6 +333,11 @@ object ProgramGen:
             case 5 => body ++= length()
             case 6 => body ++= equation()
             case _ => body ++= comparison()
+        // a rule that may call `len` often calls it after a negation or an aggregate (over a relation that
+        // may depend on `len`), whose demand then reads the negation or the aggregate
+        if callsLen && chance(0.6) then
+          if chance(0.6) then body += (if chance(0.5) then negation() else aggregate())
+          body ++= length()
         // values of read types in the head come from the body
         for t <- head.cols.distinct if read(t) && t != IntT && t != StrT && boundOf(t).isEmpty do
           val r = pick(readable.filter(_.cols.contains(t)))
