@@ -163,7 +163,7 @@ object CommandLine:
         .text("do not include the standard prelude (base types must then be declared with %builtin)")
         .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
       opt[Unit]("explain-termination")
-        .text("print the measure and justification of every recursive component (Section 10)")
+        .text("print the termination argument of every recursive component (Section 10)")
         .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),
       checkConfig(o =>
         o.command match

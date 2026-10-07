@@ -6,25 +6,24 @@ import hugin.compiler.*
 
 import hugin.obj.typing.Moding
 
-/** Phase: termination check (Section 10).
+/** Phase: termination check (Section 10; docs/REDESIGN.md §4; docs/NOTES.md, "Termination").
  *
- *  A recursive component with a constructive rule (Definition 10.1) needs a `%partial` relation or a
- *  measure that every recursive step decreases (Definition 10.3, generalised as described in
- *  `docs/NOTES.md`, "Termination"):
+ *  A recursive component with a constructive rule (Definition 10.1) needs a `%partial` relation or one of
+ *  the two directions of the size-change criterion:
  *
- *  - a measure is a tuple of argument positions per relation, compared lexicographically; slots hold
- *    integers (ordered by `<`) or terms (ordered by the proper-subterm relation);
- *  - every relation of the component that is called recursively by a measured relation has a measure of
- *    the same shape, so mutual recursion is accepted when the measures decrease along every call;
- *  - decreases and bounds are derived by interval reasoning over the linear (in)equalities of the body
- *    (see [[Arithmetic]]), not only syntactically.
+ *  - (A) descent along derivations ([[SizeChange]]): every cycle of derivation steps makes an argument
+ *    strictly smaller from premise to conclusion (or strictly larger below a bound);
+ *  - (B) guarded induction: a measure — a tuple of argument positions per relation, compared
+ *    lexicographically, integers by `<` and terms by the proper-subterm relation — decreases from the
+ *    head to every recursive call, and the head's measure lies in a finite set (bound by a guard atom
+ *    outside the component, or by intervals). Moded components are checked on their demands instead.
  *
- *  Unmoded (bottom-up) components: the call is smaller than the head and the call's measure lies in a
- *  finite set (anchor). Moded (demand-driven) components: each demand is smaller than the demand that
- *  guards it, and integer slots are bounded below where they decrease. */
+ *  `%terminates` names the measure of (B) as a checked hint; without it (A) is tried first, then (B) with
+ *  an inferred measure. Decreases and bounds are derived by interval reasoning over the linear
+ *  (in)equalities of the body (see [[Arithmetic]]). */
 final class TerminationPhase extends Phase:
   def phaseName = "termination"
-  def description = "every growing component has a valid %terminates directive or is %partial (Section 10)"
+  def description = "every growing component terminates by descent along derivations or guarded induction, or is %partial (Section 10)"
 
   /** Why a rule of the component `inC` is constructive (Definition 10.1, refined), if it is.
    *
@@ -112,23 +111,32 @@ final class TerminationPhase extends Phase:
           explain(s"termination: $names: not checked: $partial is %partial (evaluated with the round budget)")
         else
           // a component of demand relations only is measured by the relations they are demands of
-          val measures = comp.map(Termination.base).flatMap(c => ctx.unit.facts(c).terminates.map(t => c -> t._1)).toMap
+          val declared = comp.map(Termination.base).flatMap(c => ctx.unit.facts(c).terminates.map(t => c -> t._1)).toMap
           val analysis = Termination(this, ctx.unit.facts, comp, rules, p.rules, es)
-          if measures.isEmpty then
-            val (r, (why, sp)) = constructiveRules.head
-            explain(s"termination: $names: rejected: no %terminates directive (E0603)")
-            ctx.report(Diag.rule(r)(noMeasure(analysis, r, why, sp)))
-          else
-            analysis.check(measures) match
-              case Right(lines) => explain((s"termination: $names: terminates" :: lines).mkString("\n"))
+          if declared.nonEmpty then
+            // `%terminates` is a hint for guarded induction (B): checked, never trusted
+            analysis.check(declared) match
+              case Right(lines) => explain((s"termination: $names: terminates, measure declared" :: lines).mkString("\n"))
               case Left(f) =>
                 explain(s"termination: $names: rejected: ${f.message} (E0604)")
                 ctx.report(f.diagnostic)
+          else
+            SizeChange.check(comp, rules) match
+              case Right(lines) => explain((s"termination: $names: terminates by descent along derivations (A)" :: lines).mkString("\n"))
+              case Left(descent) =>
+                analysis.infer match
+                  case Some((_, lines)) =>
+                    explain((s"termination: $names: terminates, measure inferred" :: lines).mkString("\n"))
+                  case None =>
+                    val (r, (why, sp)) = constructiveRules.head
+                    explain(s"termination: $names: rejected: no termination argument (E0603)")
+                    ctx.report(Diag.rule(r)(noMeasure(analysis, descent, r, why, sp)))
 
-  /** E0603: a growing component without a measure, with a measure suggestion when one can be found. */
-  private def noMeasure(a: Termination, r: Rule, why: String, sp: Span)(using Context): Diagnostic =
+  /** E0603: a growing component for which neither direction of the size-change criterion holds
+   *  (docs/REDESIGN.md §4.4): the invention site, the cycle, why each direction fails, and a help. */
+  private def noMeasure(a: Termination, descent: SizeChange.Failure, r: Rule, why: String, sp: Span)(using Context): Diagnostic =
     val comp = a.comp
-    var d = Diagnostic.error("E0603", "growing component without a valid %terminates directive", sp, why)
+    var d = Diagnostic.error("E0603", "growing component without a termination argument", sp, why)
       .withNote(
         s"the recursive component ${Termination.showComponent(comp)} contains this constructive rule, so its fixed point may be infinite"
       )
@@ -139,14 +147,32 @@ final class TerminationPhase extends Phase:
           s"the rule asserts the fact `${ObjPrinter.term(r.heads.head)}` of `${c.name}`, so it is also evaluated in `${c.name}`'s component (Proposition 8.8, see docs/NOTES.md)"
         )
       )
-    a.suggest match
-      case Some(directives) =>
-        d.withHelp(s"this measure is accepted: ${directives.mkString(" ")}")
+    descent.chain match
+      case Some(c) =>
+        val via = c.steps.map(s => s"rule at ${s.rule.span.show}").distinct.mkString(", ")
+        d = d.withNote(
+          s"descent along derivations (A) fails: along `${c.from.name}` -> ... -> `${c.to.name}` ($via) no argument of the derived fact is smaller than in the premise"
+        )
+      case None =>
+        d = d.withNote("descent along derivations (A) fails: the size-change graphs of the component are too many to check")
+    d = d.withNote(s"guarded induction (B) fails: ${a.inductionFailure}")
+    val hints = descent.chain.toList.flatMap(_.steps.flatMap(_.hints)).distinct
+    hints.headOption match
+      case Some(SizeChange.Hint(_, h, s, up)) =>
+        val (hs, ss) = (ObjPrinter.term(h), ObjPrinter.term(s))
+        val guard = if up then s"`$hs < 100`" else s"`$hs >= 0`"
+        d.withHelp(
+          s"`$hs` is ${if up then "larger" else "smaller"} than `$ss` but not bounded ${if up then "above" else "below"}: add a guard such as $guard (or bound `$ss`)"
+        )
       case None =>
         val names = comp.map(Termination.base).filter(c => c.kind == RelKind.Plain || DepGraph.isFactCtor(c)).distinct.map(_.name)
         d.withHelp(names.headOption.map(n =>
-          s"declare a decreasing argument, e.g. `%terminates X ($n ...)`, or mark the relation `%partial $n.` to evaluate it with a round budget"
-        ).getOrElse("mark a relation of the component %partial"))
+          s"make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`), or name the measure with `%terminates X ($n ...)`"
+        ).getOrElse("make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`)"))
+
+/** What a [[TerminationFailure]] is about: a missing decrease, a missing bound, or anything else. */
+enum FailKind:
+  case Decrease, Anchor, Other
 
 /** A violation of the termination conditions, with everything the diagnostic shows. */
 final case class TerminationFailure(
@@ -157,7 +183,9 @@ final case class TerminationFailure(
     directive: Option[Span],
     secondary: List[(Span, String)] = Nil,
     notes: List[String] = Nil,
-    helps: List[String] = Nil
+    helps: List[String] = Nil,
+    kind: FailKind = FailKind.Other,
+    measure: String = ""
 ):
   def diagnostic: Diagnostic =
     var d = Diagnostic.error("E0604", message, span, label)
@@ -208,21 +236,35 @@ final class Termination(
         x = prev(x)
       Some(c :: path)
 
-  /** A measure that would be accepted: one integer or structural argument per relation, or a
-   *  lexicographic pair for a single relation. Rendered as directives. */
-  def suggest: Option[List[String]] =
+  /** The candidate measures of the inference for guarded induction (B): one integer or structural argument
+   *  per relation, or a lexicographic pair for a single relation. */
+  private def candidates: Iterator[Map[RelSym, List[Int]]] =
     val rels = comp.map(base).distinct.filter(c => c.kind == RelKind.Plain && c.arity > 0)
     def positions(c: RelSym) = (0 until c.arity).toList
     val singles: Iterator[Map[RelSym, List[Int]]] =
-      if rels.isEmpty || rels.length > 3 then Iterator.empty
+      if rels.isEmpty || rels.length > 4 then Iterator.empty
       else
         rels.foldLeft(Iterator(Map.empty[RelSym, List[Int]]))((acc, c) =>
           acc.flatMap(m => positions(c).iterator.map(k => m.updated(c, List(k))))
-        ).take(64)
+        ).take(256)
     val pairs: Iterator[Map[RelSym, List[Int]]] = rels match
       case List(c) => for i <- positions(c).iterator; j <- positions(c).iterator if i != j yield Map(c -> List(i, j))
       case _ => Iterator.empty
-    (singles ++ pairs).find(m => check(m).isRight).map(m => rels.map(c => directive(c, m(c))))
+    singles ++ pairs
+
+  /** Guarded induction (B) with an inferred measure: the first candidate that passes [[check]]. */
+  def infer: Option[(Map[RelSym, List[Int]], List[String])] =
+    candidates.map(m => (m, check(m))).collectFirst { case (m, Right(lines)) =>
+      val shown = m.toList.sortBy(_._1.name).map((c, ks) => directive(c, ks)).mkString(" ")
+      (m, s"  inferred measure: $shown" :: lines)
+    }
+
+  /** Why guarded induction (B) fails, for E0603: the first candidate measure that decreases along every
+   *  recursive call but is not anchored, or that no argument decreases. */
+  def inductionFailure: String =
+    candidates.map(check).collectFirst { case Left(f) if f.kind == FailKind.Anchor => f }
+      .map(f => s"${f.label} (measure: ${f.measure})")
+      .getOrElse("no argument decreases from the head to every recursive call")
 
   /** Checks the component with the given measures; the explanation, or the first violation.
    *
@@ -379,7 +421,7 @@ final class Termination(
   private def bottomUp(ctx: Ctx): Either[TerminationFailure, List[String]] =
     unmeasuredConstructive(ctx, ctx.has).toLeft(()).flatMap { _ =>
       val lines = List.newBuilder[String]
-      lines += "  bottom-up: each recursive call is smaller than the head; the call's measure lies in a finite set"
+      lines += "  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set"
       val failure = rules.iterator.filter(r => headRel(r).exists(ctx.has)).flatMap { r =>
         val c = headRel(r).get
         val Term.App(_, hs) = r.heads.head: @unchecked
@@ -602,47 +644,6 @@ final class Termination(
               case None => Left(Some(i))
     go(0, Nil)
 
-  /** `s < b` for integers: the body implies `b - s >= 1`, or `s = x / l` with `l >= 2`, `x <= b`, `x >= 1`. */
-  private def numericSmaller(b: Term, s: Term, arith: Arithmetic): Option[String] =
-    val d = arith.difference(b, s)
-    def sh(t: Term) = ObjPrinter.term(t)
-    if d.lo.exists(_ >= 1) then Some(s"`${sh(b)} - ${ObjPrinter.arg(s)}` ${d.show}")
-    else
-      (s :: arith.definitions(s)).collectFirst(Function.unlift {
-        case q @ Term.Arith(ArithOp.Div, x, IntLit(l))
-            if l >= 2 && arith.difference(b, x).lo.exists(_ >= 0) && arith(x).lo.exists(_ >= 1) =>
-          Some(s"`${sh(s)}` = `${sh(q)}` < `${sh(b)}` (`${sh(x)}` >= 1)")
-        case _ => None
-      })
-
-  /** `s` is a proper subterm of `b`; variables of `b` bound to patterns (`P as V`, `V = c ...`) are unfolded. */
-  private def structurallySmaller(b: Term, s: Term, body: List[Formula]): Option[String] =
-    def defs(v: String): List[Term] =
-      def inTerm(t: Term): List[Term] = t match
-        case Term.As(x, `v`) => List(x)
-        case Term.As(x, _) => inTerm(x)
-        case Term.App(_, as) => as.flatMap(inTerm)
-        case Term.Ascr(x, _) => inTerm(x)
-        case _ => Nil
-      body.flatMap {
-        case Formula.Atom(r, as, Some(`v`)) => Term.App(r, as)(Span.NoSpan) :: as.flatMap(inTerm)
-        case Formula.Atom(_, as, _) => as.flatMap(inTerm)
-        case Formula.Cmp(CmpOp.Eq, Term.Var(`v`), a: Term.App) => List(a)
-        case Formula.Cmp(CmpOp.Eq, a: Term.App, Term.Var(`v`)) => List(a)
-        case _ => Nil
-      }
-    def inside(t: Term, depth: Int): Boolean = t match
-      case Term.App(_, as) => as.exists(a => a == s || inside(a, depth))
-      case Term.As(x, _) => inside(x, depth)
-      case Term.Ascr(x, _) => inside(x, depth)
-      case Term.Var(v) if depth > 0 => defs(v).exists(inside(_, depth - 1))
-      case _ => false
-    def unwrap(t: Term): Term = t match
-      case Term.As(x, _) => unwrap(x)
-      case Term.Ascr(x, _) => unwrap(x)
-      case _ => t
-    if inside(unwrap(b), 3) then Some(s"`${ObjPrinter.term(s)}` is a proper subterm of `${ObjPrinter.term(b)}`") else None
-
   /** A measured relation that `d` depends on inside the component, not counting dependencies through
    *  demand relations, with the path. */
   private def readsAnswers(d: RelSym, measured: RelSym => Boolean, demand: RelSym => Boolean): Option[List[RelSym]] =
@@ -728,7 +729,9 @@ final class Termination(
       notes = List(
         s"$measure of `${d.name}` is ${showPositions(d, ctx.of(d))}; for $smallWhat it must be smaller than for $bigWhat"
       ),
-      helps = help :+ partialHelp(d)
+      helps = help :+ partialHelp(d),
+      kind = FailKind.Decrease,
+      measure = showPositions(d, ctx.of(d))
     )
 
   private def anchorFailure(ctx: Ctx, r: Rule, c: RelSym, span: Span, j: Int, i: Int, h: Term, s: Term): TerminationFailure =
@@ -755,7 +758,9 @@ final class Termination(
       ctx.directive(c),
       secondary = List(h.span -> s"the head has `$hs`"),
       notes = List("bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop"),
-      helps = List(help, partialHelp(c))
+      helps = List(help, partialHelp(c)),
+      kind = FailKind.Anchor,
+      measure = showPositions(c, ctx.of(c))
     )
 
   private def lowerBoundFailure(ctx: Ctx, r: Rule, e: RelSym, span: Span, i: Int, u: Term): TerminationFailure =
@@ -768,7 +773,9 @@ final class Termination(
       Some(r),
       ctx.directive(e),
       notes = List("demands decrease from caller to callee; integers must stay bounded below for the recursion to stop"),
-      helps = List(s"add a lower bound, e.g. `$sh >= 0`, or bound the caller's argument (`N > 0` with `$sh = N - 1`)", partialHelp(e))
+      helps = List(s"add a lower bound, e.g. `$sh >= 0`, or bound the caller's argument (`N > 0` with `$sh = N - 1`)", partialHelp(e)),
+      kind = FailKind.Anchor,
+      measure = showPositions(e, ctx.of(e))
     )
 
   private def partialHelp(c: RelSym): String =
@@ -804,6 +811,47 @@ object Termination:
         vars ++= inner
         changed = true
     vars
+
+  /** `s < b` for integers: the body implies `b - s >= 1`, or `s = x / l` with `l >= 2`, `x <= b`, `x >= 1`. */
+  def numericSmaller(b: Term, s: Term, arith: Arithmetic): Option[String] =
+    val d = arith.difference(b, s)
+    def sh(t: Term) = ObjPrinter.term(t)
+    if d.lo.exists(_ >= 1) then Some(s"`${sh(b)} - ${ObjPrinter.arg(s)}` ${d.show}")
+    else
+      (s :: arith.definitions(s)).collectFirst(Function.unlift {
+        case q @ Term.Arith(ArithOp.Div, x, IntLit(l))
+            if l >= 2 && arith.difference(b, x).lo.exists(_ >= 0) && arith(x).lo.exists(_ >= 1) =>
+          Some(s"`${sh(s)}` = `${sh(q)}` < `${sh(b)}` (`${sh(x)}` >= 1)")
+        case _ => None
+      })
+
+  /** `s` is a proper subterm of `b`; variables of `b` bound to patterns (`P as V`, `V = c ...`) are unfolded. */
+  def structurallySmaller(b: Term, s: Term, body: List[Formula]): Option[String] =
+    def defs(v: String): List[Term] =
+      def inTerm(t: Term): List[Term] = t match
+        case Term.As(x, `v`) => List(x)
+        case Term.As(x, _) => inTerm(x)
+        case Term.App(_, as) => as.flatMap(inTerm)
+        case Term.Ascr(x, _) => inTerm(x)
+        case _ => Nil
+      body.flatMap {
+        case Formula.Atom(r, as, Some(`v`)) => Term.App(r, as)(Span.NoSpan) :: as.flatMap(inTerm)
+        case Formula.Atom(_, as, _) => as.flatMap(inTerm)
+        case Formula.Cmp(CmpOp.Eq, Term.Var(`v`), a: Term.App) => List(a)
+        case Formula.Cmp(CmpOp.Eq, a: Term.App, Term.Var(`v`)) => List(a)
+        case _ => Nil
+      }
+    def inside(t: Term, depth: Int): Boolean = t match
+      case Term.App(_, as) => as.exists(a => a == s || inside(a, depth))
+      case Term.As(x, _) => inside(x, depth)
+      case Term.Ascr(x, _) => inside(x, depth)
+      case Term.Var(v) if depth > 0 => defs(v).exists(inside(_, depth - 1))
+      case _ => false
+    def unwrap(t: Term): Term = t match
+      case Term.As(x, _) => unwrap(x)
+      case Term.Ascr(x, _) => unwrap(x)
+      case _ => t
+    if inside(unwrap(b), 3) then Some(s"`${ObjPrinter.term(s)}` is a proper subterm of `${ObjPrinter.term(b)}`") else None
 
   def showComponent(comp: List[RelSym]): String = comp.map(_.name).mkString("{", ", ", "}")
 

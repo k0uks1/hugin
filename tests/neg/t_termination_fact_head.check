@@ -1,4 +1,4 @@
-error[E0603]: growing component without a valid %terminates directive
+error[E0603]: growing component without a termination argument
  --> tests/neg/t_termination_fact_head.hgn:6:1
   |
 6 | s (s N) :- s N.
@@ -6,6 +6,8 @@ error[E0603]: growing component without a valid %terminates directive
   |
   = note: the recursive component {s} contains this constructive rule, so its fixed point may be infinite
   = note: recursion: `s` -> `s`
-  = help: declare a decreasing argument, e.g. `%terminates X (s ...)`, or mark the relation `%partial s.` to evaluate it with a round budget
+  = note: descent along derivations (A) fails: along `s` -> ... -> `s` (rule at tests/neg/t_termination_fact_head.hgn:6:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no argument decreases from the head to every recursive call
+  = help: make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`), or name the measure with `%terminates X (s ...)`
 
 1 error found
