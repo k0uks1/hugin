@@ -1,0 +1,10 @@
+error[E0904]: universe inconsistency
+ --> tests/neg/core_e0904_type_in_type.hgn:3:11
+  |
+3 | bad : u = u.
+  |           ^ expected `Type`, found `Type₁`
+  |
+  = note: universe levels are inferred: `Type₀ : Type₁ : …`, and a type in `Typeᵢ` is also in `Typeⱼ` for i ≤ j
+  = note: `Type : Type` is excluded: it would make the meta level inconsistent and non-terminating
+
+1 error found

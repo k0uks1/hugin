@@ -1,0 +1,42 @@
+(* The new meta level (redesign Phase B1, `--new-meta`): README and example programs that use only
+   object declarations, rules, meta definitions, records and formula functions. The output is the
+   elaborated program (meta definitions with the inserted quotes ⟨⟩, splices $ and implicit arguments)
+   followed by the staged object items. *)
+
+(* README: data and fact constructors (every constructor is a fact constructor in the redesign) *)
+shape : type.
+circle : shape.
+%fact square : int -> shape.
+seen : int -> rel.
+seen N :- square N.
+
+(* examples/typechecker.hgn: declarations *)
+name : type = string.
+expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.
+               app : expr -> expr -> expr.
+typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
+
+(* examples/formula_functions.hgn: a formula function over the facts of a relation *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : item -> prop = [I] I.price < 10.
+bargain : item -> rel.
+bargain I :- listed I, cheap I.
+
+(* the prelude's graph signature (REDESIGN §8.4) as a record type, a module as a record value *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+city : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+roads : graph = { node = city, edge = road }.
+linked : (g : graph) -> g.node -> g.node -> prop = [g] [x] [y] g.edge x y ; g.edge y x.
+near : city -> city -> rel.
+near X Y :- linked roads X Y.
+
+(* compile-time values persist into object code *)
+limit : int = 2 * 21.
+small : int -> rel.
+small limit.
+small N :- small M, N = M - 1, N > 0.

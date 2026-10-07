@@ -337,6 +337,11 @@ Universe levels: the meta level needs `Type`-valued signatures (modules containi
 live one level up. Start with a predicative hierarchy `Type₀ : Type₁ : …` whose levels are inferred and
 never written (§11, Q1). `Type : Type` is excluded: it breaks totality.
 
+*Implementation note (Phase B1):* `⇑A : Type₀` for every object type `A`, including `type` itself, so a
+signature whose components are object types and relations is in `Type₀`; only signatures with meta-type
+components (`{ t : Type }`) live one level up. Levels are inferred, cumulative and global to a program
+(no universe polymorphism). See `docs/NOTES.md`, "New meta level (redesign Phase B)".
+
 ### 6.3 Core calculus
 
 * Π types `(x : A) -> B`, implicit `{x : A} -> B` (inferred by higher-order pattern unification).
@@ -697,7 +702,8 @@ tc (g : graph) = {
 }.
 ```
 
-New: the same text. `graph` is a record type in `Type₁` (`mod` disappears as a separate universe), `tc`
+New: the same text. `graph` is a record type in `Type₀` (its components are object types and relations,
+and `⇑type : Type₀`; see §6.2) (`mod` disappears as a separate universe), `tc`
 a function returning a module (record) value; the body is generative.
 
 ### 8.5 A user-defined directive

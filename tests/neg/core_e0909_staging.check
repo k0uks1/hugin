@@ -1,0 +1,9 @@
+error[E0909]: cannot compute a primitive value at compile time
+ --> tests/neg/core_e0909_staging.hgn:4:1
+  |
+4 | q (f 1).
+  | ^^^^^^^^ `f 1` does not evaluate to a literal
+  |
+  = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+
+1 error found

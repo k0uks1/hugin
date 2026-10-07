@@ -1,0 +1,2 @@
+(* new meta level: self-application needs an infinite type (occurs check) *)
+self = [x] x x.

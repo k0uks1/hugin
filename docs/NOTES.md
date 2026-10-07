@@ -570,6 +570,91 @@ size-change termination with permuted arguments (Lee, Jones, Ben-Amram), declare
 anchors through finite (non-recursive) types, and bottom-up structural recursion whose head is not
 matched against existing facts.
 
+## New meta level (redesign Phase B)
+
+The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one and is
+not part of the compiler pipeline yet: `hugin check --new-meta f.hgn` elaborates a file, `hugin run
+--new-meta f.hgn` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`, splices
+`$` and implicit arguments) followed by the staged object items. The flag is hidden. Golden tests use it
+through `.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files
+out of its corpus, since the compiler pipeline does not accept the new syntax.
+
+### Architecture
+
+The design follows Kovács's elaboration-zoo (normalisation by evaluation, bidirectional elaboration,
+metavariables with higher-order pattern unification and pruning, implicit arguments) and his staged
+elaborator for two-level type theory (*Staged Compilation with Two-Level Type Theory*, ICFP 2022).
+
+| file | contents |
+|---|---|
+| `core/Syntax.scala` | core terms `Tm` (de Bruijn indices), stages `S0` (object) / `S1` (meta), universe levels |
+| `core/Value.scala` | values: closures, neutrals (`Rigid`/`Flex` with spines of applications, splices, projections) |
+| `core/Evaluation.scala`, `Readback.scala` | `eval`, `force`, `quote`, `nf`, `zonk` |
+| `core/Renaming.scala`, `Unification.scala` | partial renamings, pruning, eta-expansion of metas; pattern unification, conversion |
+| `core/Levels.scala` | universe level constraints (difference constraints, least solution) |
+| `core/Core.scala` | the state: globals, metas, levels; `undoOnFailure` |
+| `core/Printing.scala` | printing in surface notation |
+| `core/Staging.scala`, `NewMeta.scala` | staging of object items, the driver |
+| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors` |
+
+Every elaboration error is a diagnostic (`E09xx`, plus `E0101`/`E0102`/`E0307`); an item with an error is
+dropped and elaboration continues with the next one.
+
+### Decisions (B1)
+
+* **Universes.** `type` is the universe of object types (2LTT's U₀). It is classified by itself; this is
+  harmless because the object level is simply typed: there are no object lambdas (E0908) and object
+  arrows cannot range over `type` (a binder over object types is always a meta binder, `(A : type) -> …`
+  is `(A : ⇑type) -> …`). `Type` is the meta hierarchy: every occurrence gets a fresh level variable; the
+  constraints (`Type l : Type (l+1)`, Π and record formation, cumulativity) are difference constraints
+  kept satisfiable incrementally, with their least solution (`Levels`). Cumulativity is a coercion
+  (contravariant in Π domains), as in Kovács's subtyping coercions; unification of universes equates
+  levels. A meta whose type is a universe `Type l` gets the constraint that its solution lives in `Type l`
+  (unification alone would not check it under cumulativity). Level variables are global to a program: no
+  universe polymorphism (a definition is used at one level, which cumulativity makes rarely restrictive).
+  `Type : Type` is rejected (E0904).
+* **`⇑type` is small.** `⇑A : Type₀` for every object type `A`, also for `A = type`: object types carry no
+  meta-level computation, so a signature whose components are object types and relations
+  (`{ node : type, edge : node -> node -> rel }`) is in `Type₀`, and only signatures with meta-type
+  components (`{ t : Type }`) are in `Type₁`. REDESIGN §8.4 said `Type₁`; this is a refinement.
+* **Stage inference.** As Kovács: every term has the stage of its type's universe; checking against `⇑A`
+  checks object code under a quote; `coe` adjusts stages (quote, splice, `⇑` on types), coerces functions
+  by eta-expansion (so a relation `⇑(A -> rel)` can be passed where a formula function `⇑A -> ⇑prop` is
+  expected) and falls back to unification. Explicit forms: `$t` (splice, REDESIGN §6.9) and `⇑A`.
+* **Base types and literals (Q2).** A base type written where a meta type is expected is the meta
+  primitive (`int -> int` checked as a meta type is a function on compile-time integers, as the current
+  `Prim` types); `⇑int` is object code of type `int`. A meta primitive value used as object code is
+  persisted as a literal (`k : int = 6 * 7.  q k.` stages to `q 42.`); `$k` does the same explicitly.
+  Literals take the type and stage expected; inferred literals are meta values. Compile-time arithmetic
+  uses the shared primitives (`obj/Prims`); an undefined result (overflow, division by zero) that reaches
+  object code is E0909.
+* **Arrows.** An arrow ending in `rel` is an object relation type wherever it is written (in a signature,
+  `edge : node -> node -> rel` is `⇑($node -> $node -> rel)`). An arrow checked against `Type` is a meta
+  function type: `item -> prop` is the formula-function type `⇑item -> ⇑prop`. A relation used as a type
+  is its fact type (`listed : item -> rel`).
+* **Declarations** are classified by inferring their type (REDESIGN §6.2): an object constant (object
+  type, constructor, relation) if the type is one, otherwise the type is checked as a meta type (so
+  `f : int -> int.` is a meta function, not an object constructor into `int`). Free uppercase variables of
+  a declaration are implicit binders; when the type of such a binder is not determined before it is used
+  as a type, it is tried as a meta type first and then as an object type (`vcons : A -> vec A N -> …` vs.
+  `cons : A -> list A -> list A` with `list : type -> type`); the failed alternative is undone
+  (`Core.undoOnFailure`). Head parameters `list A : type.` range over object types. A declaration with
+  parameters or implicit binders is a meta-level constant (`list : ⇑type -> ⇑type`, `nil : {A : ⇑type}
+  -> ⇑$(list A)`): families are meta functions, memoised in B3.
+* **Order.** Meta and object declarations may be written in any order: an item that refers to a name
+  declared by a later item is retried after it (`Items.elabInDependencyOrder`). Rules and queries are
+  elaborated after all declarations.
+* **The object level in the core** is typed by unification, without subtyping, unions or refinements:
+  enough for staging and implicit arguments. Object typing proper stays with `obj/typing/ObjTyper` (B3
+  hands it the staged items). The variables of rules are bound implicitly at stage 0 with unknown object
+  types, which may stay unsolved. A constructor application used as a formula is an atom of the
+  constructor's relation (REDESIGN §3.2).
+* **Staging** of an object item is its normalisation (`$⟨t⟩ = t`); what remains must be object code, or
+  E0909 reports the stuck meta code (a postulated meta function, an undefined primitive).
+* **Not yet (B3):** module bodies, imports, signatures with requirements (`%complete`, `%mode`),
+  aggregates, `as`, record updates, unions, subtyping edges, hygiene of object variables in formula
+  functions, generativity and memoised families (E0907 where the syntax is accepted).
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

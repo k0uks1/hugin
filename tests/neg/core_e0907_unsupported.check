@@ -1,0 +1,9 @@
+error[E0907]: module bodies are not supported by the new meta level yet
+ --> tests/neg/core_e0907_unsupported.hgn:2:5
+  |
+2 | m = { p : int -> rel. }.
+  |     ^^^^^^^^^^^^^^^^^^^ not supported yet
+  |
+  = note: the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md §10; the rest is ported in B3
+
+1 error found

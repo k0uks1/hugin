@@ -121,6 +121,53 @@ object ErrorCodes:
     ),
     ("E0701", "invalid directive", "A directive refers to a relation of the wrong kind or arity."),
     ("E0801", "invalid input fact", "An input fact is not ground, not well-typed, or not for an input relation."),
+    // the new meta level (docs/REDESIGN.md, Phase B; `--new-meta`)
+    (
+      "E0901",
+      "mismatched types",
+      "A term does not have the type expected by its context in the new meta level, and no coercion (stage adjustment, lift, record coercion) applies. Notes say why unification failed: an unknown that would contain itself (occurs check), that would mention a variable out of its scope, or that is applied to arguments that are not distinct variables (outside the pattern fragment)."
+    ),
+    (
+      "E0902",
+      "stage error",
+      "Object code (rule variables, constructor terms, formulas) is used where a compile-time value is needed, or a compile-time value that is not object code (`⇑A`) or a primitive value is used as object code. Object code exists only at run time; the meta level computes at compile time and can only take object code as data of type `⇑A`."
+    ),
+    (
+      "E0903",
+      "cannot infer",
+      "An implicit argument, the type of a variable or another unknown is not determined by elaboration. Add a type annotation or pass the argument."
+    ),
+    (
+      "E0904",
+      "universe inconsistency",
+      "The universe levels required by the program have no solution. Levels are inferred and cumulative (`Type₀ : Type₁ : …`, and a type in `Typeᵢ` is in `Typeⱼ` for i ≤ j); `Type : Type` is excluded because it makes the meta level inconsistent and non-terminating."
+    ),
+    (
+      "E0905",
+      "not a function",
+      "A term is applied to an argument but its type is not a function type (or a relation is applied to too many arguments)."
+    ),
+    (
+      "E0906",
+      "unknown or missing field",
+      "A projection names a field the record type (or relation) does not have, or a record value lacks a field of its expected type."
+    ),
+    (
+      "E0907",
+      "not supported by the new meta level yet",
+      "The construct is part of the language but not yet supported by the new meta level (`--new-meta`), which is developed in steps (docs/REDESIGN.md §10, Phase B)."
+    ),
+    (
+      "E0908",
+      "object-level function",
+      "The object level is first order: object functions (lambdas at the object level) and relations or constructors over object types cannot be defined. Functions on object code are meta functions (formula functions, functors); families of relations are meta functions returning relations."
+    ),
+    (
+      "E0909",
+      "staging failure",
+      "After evaluating the meta code of an object item, what remains is not object code: meta code spliced into it is stuck (it applies a postulated meta function or a variable), or a compile-time primitive value is undefined (overflow, division by zero)."
+    ),
+    ("E0910", "invalid rule head", "A rule head must be an atom (a relation applied to all of its columns) or a constructor term."),
     ("W0001", "undefined constant expression", "An object-level expression over literals is undefined, so the rule can never fire."),
     ("W0002", "singleton variable", "A variable occurs only once in a rule; use `_` if this is intended."),
     ("W0003", "unused definition", "A top-level meta function, formula function or constant is never referenced."),
