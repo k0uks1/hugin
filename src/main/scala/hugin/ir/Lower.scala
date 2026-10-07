@@ -39,18 +39,21 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Term.Ascr(x, _) => expr(x)
       case other => throw IllegalStateException(s"cannot lower term ${ObjPrinter.term(other)}")
 
-    /** The value of a bound term in a body. The value of a constructor term, also nested (`cons 1 nil`),
-     *  is looked up rather than built. In a binding equation it must exist (the variable denotes it); in a
-     *  comparison (`orAbsent`) a term that was never built is [[Absent]]: different from every existing
-     *  value. An ascription of a constructor term accepted by the typer always holds (the fact type is a
-     *  subtype of the ascribed type, or equal to it), so it is dropped. */
-    def operand(t: Term, out: mutable.ListBuffer[BodyOp], orAbsent: Boolean = false): Expr = t match
+    /** The value side of a binding equation `X = t` (Section "Data and fact constructors" of
+     *  docs/NOTES.md). A data term is built (hash-consed) and denotes its value; a fact-constructor term
+     *  is an existence check, read as `(c t̄ as X)`: [[BodyOp.Lookup]] fails if `c t̄` is not a fact. So
+     *  every fact-constructor subterm of a bound value is a fact. An ascription of a constructor term
+     *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to
+     *  it), so it is dropped. */
+    def bindingValue(t: Term, out: mutable.ListBuffer[BodyOp]): Expr = t match
       case Term.App(RelRef.Sym(c), as) =>
-        val args = as.map(operand(_, out, orAbsent)).toArray
-        val y = fresh()
-        out += BodyOp.Lookup(y, c.tag, args, orAbsent)
-        Expr.Reg(y)
-      case Term.Ascr(x: Term.App, _) => operand(x, out, orAbsent)
+        val args = as.map(bindingValue(_, out)).toArray
+        if c.isData then Expr.Make(c.tag, args)
+        else
+          val y = fresh()
+          out += BodyOp.Lookup(y, c.tag, args)
+          Expr.Reg(y)
+      case Term.Ascr(x: Term.App, _) => bindingValue(x, out)
       case other => expr(other)
 
     /** Whether a term is fully bound (it can be compared as a value). */
@@ -133,16 +136,15 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case a: Formula.Atom => atom(a, out, versioned)
       case Formula.Cmp(CmpOp.Eq, l, r) if !(isBound(l) && isBound(r)) =>
         val (pat, value) = if isBound(r) then (l, r) else (r, l)
-        operand(value, out) match
+        bindingValue(value, out) match
           case Expr.Reg(y) if !value.isInstanceOf[Term.Var] => matchReg(pat, y, out)
           case e =>
             val y = fresh()
             out += BodyOp.Eval(y, e)
             matchReg(pat, y, out)
       case Formula.Cmp(op, l, r) =>
-        val a = operand(l, out, orAbsent = true)
-        val b = operand(r, out, orAbsent = true)
-        out += BodyOp.Test(op, a, b)
+        // structural: constructor terms are evaluated by `Expr.Make` in a body (see there)
+        out += BodyOp.Test(op, expr(l), expr(r))
       case Formula.Not(a) =>
         val saved = regOf.clone()
         val inner = mutable.ListBuffer.empty[BodyOp]
@@ -179,7 +181,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
     val rc = RuleCompiler(compOf.get(h))
     val body = rc.body(r.body, versioned = true)
     val head = hargs.map(rc.expr).toArray
-    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms, Probes.columns(r))
+    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms)
 
   def lowerQuery(q: Query): CompiledQuery =
     val alts = q.body match
@@ -248,6 +250,7 @@ final class LowerPhase extends Phase:
     val low = Lowering(p, ops)
     val rules = p.rules.map(low.lowerRule)
     val queries = p.queries.map(low.lowerQuery)
-    val comps = ctx.unit.components.map(_.map(low.tagOf).toVector).toVector
+    // data constructors have no facts, so they take no part in evaluation (only their hash-cons tables)
+    val comps = ctx.unit.components.map(_.filterNot(_.isData)).filter(_.nonEmpty).map(_.map(low.tagOf).toVector).toVector
     ctx.unit.core = CoreProgram(p.rels, p.rels.map(ctx.unit.facts(_)), comps, rules, queries, low.indexes.view.mapValues(_.toSet).toMap)
   override def show(using Context): String = IRPrinter.show(ctx.unit.core.nn)

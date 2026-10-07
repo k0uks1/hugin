@@ -1,0 +1,10 @@
+(* A binding equation with a data constructor builds a new value (docs/NOTES.md, "Data and fact
+   constructors"), so a head variable bound by one is a constructed term (Definition 10.1, refined):
+   `nat` grows forever and needs a measure or %partial. *)
+nat : type.
+z : nat.
+s : nat -> nat.
+
+num : nat -> rel.
+num z.
+num X :- num Y, X = s Y.

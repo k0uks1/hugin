@@ -51,13 +51,15 @@ final class DemandPhase extends ObjProgramPhase:
     // from the part of the prefix that does not depend on the calling rule's head (see `auxDemand`).
     final case class AuxCall(head: Term, binds: Set[String], prefix: List[Formula], caller: Option[RelSym], rule: Rule)
     val auxCalls = mutable.ArrayBuffer.empty[AuxCall]
+    val reported = mutable.HashSet.empty[Span] // E0504, once per term (a rule is guarded once per mode)
     def propagate(
         body: List[Formula],
         rule: Option[Rule],
         span: Span,
         origin: Origin,
         expansions: List[Expansion],
-        name: Option[String]
+        name: Option[String],
+        inItem: Diagnostic => Diagnostic
     ): Unit =
       val caller = rule.flatMap(_.heads.collectFirst { case Term.App(RelRef.Sym(c), _) => c })
       Moding.canonical(body, Set.empty) match
@@ -70,6 +72,8 @@ final class DemandPhase extends ObjProgramPhase:
                 val c = a.rel.sym
                 if facts.hasModes(c) then
                   Moding.firstApplicable(c, a.args, b).foreach { m =>
+                    for t <- inputs(a.args, m).flatMap(DepGraph.factTerms).headOption if reported.add(t.span) do
+                      ctx.report(inItem(factInInput(c, m, t)))
                     val head = Term.App(RelRef.Sym(demand(c, m)), inputs(a.args, m))(a.span)
                     c.kind match
                       case RelKind.Auxiliary(_) if rule.isDefined =>
@@ -87,11 +91,11 @@ final class DemandPhase extends ObjProgramPhase:
               val b2 = Moding.step(f, b).getOrElse(b)
               walk(prefix :+ f, rest, b2)
           walk(Nil, ordered, Set.empty)
-    for r <- guarded do propagate(r.body, Some(r), r.span, r.origin, r.expansions, r.name)
+    for r <- guarded do propagate(r.body, Some(r), r.span, r.origin, r.expansions, r.name, Diag.rule(r))
     for q <- p.queries do
       q.body match
-        case List(Formula.Disj(alts)) => alts.foreach(a => propagate(a, None, q.span, q.origin, q.expansions, None))
-        case b => propagate(b, None, q.span, q.origin, q.expansions, None)
+        case List(Formula.Disj(alts)) => alts.foreach(a => propagate(a, None, q.span, q.origin, q.expansions, None, Diag.query(q)))
+        case b => propagate(b, None, q.span, q.origin, q.expansions, None, Diag.query(q))
     if auxCalls.nonEmpty then
       // The relations that depend on a caller, in the dependency graph without the demand of auxiliary
       // relations. Demand built only from other relations cannot close a cycle through the aggregate.
@@ -112,6 +116,28 @@ final class DemandPhase extends ObjProgramPhase:
     p.rules = guarded ++ propagation
     p.rels = p.rels ++ demandRels.values
 
+  /** E0504: a fact-constructor term `t` in an input of a call of `c` with mode `m`. The demand rule would
+   *  build `t` as a fact, so `%mode` would change the database; inputs may contain data terms and
+   *  variables (bound values, whose fact-constructor subterms are facts already). This keeps the
+   *  guarantee that `%mode` adds facts only to the moded relation and its demand relations. */
+  private def factInInput(c: RelSym, m: Mode, t: Term.App)(using facts: ProgramFacts): Diagnostic =
+    val f = t.rel.sym
+    val name = c.displayName
+    var d = Diagnostic.error(
+      "E0504",
+      "fact constructor built in a moded input",
+      t.span,
+      s"`${ObjPrinter.term(t)}` would be built as an input of `$name`"
+    )
+    facts.modes(c).find(_._1 == m).map(_._2).filter(_.exists).foreach(sp =>
+      d = d.withLabel(sp, s"the call uses mode `${m.show}` of `$name`")
+    )
+    d.withNote(
+      s"`${f.displayName}` is a fact constructor (`%fact`): building `${ObjPrinter.term(t)}` makes it a fact of `${f.displayName}`, and a moded call builds its inputs as demands, so `%mode` would change the database"
+    )
+      .withHelp(s"if `${f.displayName}` is only used as a value, remove `%fact` from its declaration")
+      .withHelp(s"otherwise bind an existing fact first and pass the variable, e.g. `S = ${ObjPrinter.term(t)}` before the call")
+
   /** The demand of an auxiliary relation for a disjunction inside an aggregate (see `Disjunctions`):
    *  the formulas of `prefix` (in canonical order) that do not mention a relation of `excluded` (the
    *  relations that depend on the calling rule's head) and are well-moded without the others, provided
@@ -122,7 +148,7 @@ final class DemandPhase extends ObjProgramPhase:
    */
   private def auxDemand(prefix: List[Formula], binds: Set[String], excluded: Set[RelSym])(using ProgramFacts): List[Formula] =
     val (kept, bound) = prefix.foldLeft((Vector.empty[Formula], Set.empty[String])) { case ((ks, b), f) =>
-      if DepGraph.occurrences(List(f)).exists(o => excluded(o._1)) then (ks, b)
+      if DepGraph.occurrences(List(f), bound = b).exists(o => excluded(o._1)) then (ks, b)
       else
         Moding.step(f, b) match
           case Right(b2) => (ks :+ f, b2)

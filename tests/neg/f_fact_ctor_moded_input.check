@@ -1,0 +1,66 @@
+error[E0504]: fact constructor built in a moded input
+  --> tests/neg/f_fact_ctor_moded_input.hgn:18:14
+   |
+11 | %mode area +s -a.
+   | ----------------- the call uses mode `+-` of `area`
+...
+18 | q A :- area (square 4) A.
+   |              ^^^^^^^^ `square 4` would be built as an input of `area`
+   |
+   = note: `square` is a fact constructor (`%fact`): building `square 4` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
+   = help: if `square` is only used as a value, remove `%fact` from its declaration
+   = help: otherwise bind an existing fact first and pass the variable, e.g. `S = square 4` before the call
+
+error[E0504]: fact constructor built in a moded input
+  --> tests/neg/f_fact_ctor_moded_input.hgn:21:24
+   |
+11 | %mode area +s -a.
+   | ----------------- the call uses mode `+-` of `area`
+...
+21 | nested A :- area (box (square 2)) A.
+   |                        ^^^^^^^^ `square 2` would be built as an input of `area`
+   |
+   = note: `square` is a fact constructor (`%fact`): building `square 2` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
+   = help: if `square` is only used as a value, remove `%fact` from its declaration
+   = help: otherwise bind an existing fact first and pass the variable, e.g. `S = square 2` before the call
+
+error[E0504]: fact constructor built in a moded input
+  --> tests/neg/f_fact_ctor_moded_input.hgn:24:22
+   |
+11 | %mode area +s -a.
+   | ----------------- the call uses mode `+-` of `area`
+...
+24 | negated :- not area (square 3) 9.
+   |                      ^^^^^^^^ `square 3` would be built as an input of `area`
+   |
+   = note: `square` is a fact constructor (`%fact`): building `square 3` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
+   = help: if `square` is only used as a value, remove `%fact` from its declaration
+   = help: otherwise bind an existing fact first and pass the variable, e.g. `S = square 3` before the call
+
+error[E0504]: fact constructor built in a moded input
+  --> tests/neg/f_fact_ctor_moded_input.hgn:27:36
+   |
+11 | %mode area +s -a.
+   | ----------------- the call uses mode `+-` of `area`
+...
+27 | counted C :- C = count { A | area (square 5) A }.
+   |                                    ^^^^^^^^ `square 5` would be built as an input of `area`
+   |
+   = note: `square` is a fact constructor (`%fact`): building `square 5` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
+   = help: if `square` is only used as a value, remove `%fact` from its declaration
+   = help: otherwise bind an existing fact first and pass the variable, e.g. `S = square 5` before the call
+
+error[E0504]: fact constructor built in a moded input
+  --> tests/neg/f_fact_ctor_moded_input.hgn:36:10
+   |
+11 | %mode area +s -a.
+   | ----------------- the call uses mode `+-` of `area`
+...
+36 | ?- area (square 7) A.
+   |          ^^^^^^^^ `square 7` would be built as an input of `area`
+   |
+   = note: `square` is a fact constructor (`%fact`): building `square 7` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
+   = help: if `square` is only used as a value, remove `%fact` from its declaration
+   = help: otherwise bind an existing fact first and pass the variable, e.g. `S = square 7` before the call
+
+5 errors found

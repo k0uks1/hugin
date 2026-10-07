@@ -33,7 +33,14 @@ Reading a data constructor (in a body, `not`, an aggregate or a query), deriving
 naming it in a directive or passing it where a relation is expected is E0406. `%fact` also applies to
 structs and to signature fields (`{ t : type, %fact c : int -> t }`, matched by fact constructors only;
 a plain constructor field `c : int -> t` is matched by both kinds). The prelude's `nil` and `cons` are
-data constructors. See `docs/NOTES.md`, "Data and fact constructors".
+data constructors.
+
+Evaluation: data constructors never assert. A rule adds its head fact and the fact-constructor terms
+nested in it (also inside data terms); data values are only hash-consed. Patterns and comparisons are
+structural (a term never built compares like any other). A binding equation `X = c t̄` builds the value
+if `c` is a data constructor, and checks that `c t̄` is a fact if `c` is a fact constructor. A
+fact-constructor term in an input of a moded call is E0504, so `%mode` adds facts only to the moded
+relation and its demand relations. See `docs/NOTES.md`, "Data and fact constructors".
 
 ## Building and running
 
@@ -243,7 +250,7 @@ src/main/scala/hugin/
                      meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
                      application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
   obj/             object-level AST: types and symbols, directives of relations (ProgramFacts), terms and
-                   formulas, primitives, probes, printer
+                   formulas, primitives, printer
   obj/typing/      type operations, directives, constant folding, object typer, moding
   obj/transform/   records, disjunctions, demand transformation, derivations (Section 7)
   obj/check/       dependency graph, stratification, completeness, termination (with interval reasoning)

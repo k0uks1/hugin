@@ -5,8 +5,8 @@ expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.
 typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
 ctx  : type.   empty : ctx.   bind : ctx -> name -> typ -> ctx.
 
-(* contexts are arguments, not data: `bind` values built by the demand of `typed` are probes, so `lookup`
-   looks a name up in the context it is given *)
+(* contexts are data values, not facts: the demand of `typed` builds `bind` values, so `lookup` looks a
+   name up in the context it is given *)
 lookup : (g : ctx) -> (x : name) -> (t : typ) -> rel.
 %mode lookup +g +x -t.
 %terminates g lookup.

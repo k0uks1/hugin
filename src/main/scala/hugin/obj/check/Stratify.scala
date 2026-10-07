@@ -41,13 +41,13 @@ final class StratifyPhase extends Phase:
       }
       ctx.report(Diag.rule(e.rule)(d))
 
-    // Facts constructed through nested heads in relations of *earlier* components can be missed by
+    // Facts asserted through nested fact-constructor terms in heads in relations of *earlier* components can be missed by
     // readers evaluated in between (a gap in the ordering argument of Proposition 8.8); warn about it.
     val readers = p.rules.flatMap(r => DepGraph.occurrences(r.body).map(o => (o._1, r))).groupBy(_._1).view.mapValues(_.map(_._2)).toMap
     if ctx.settings.lint then
       for r <- p.rules; h <- r.heads.collectFirst { case Term.App(RelRef.Sym(c), _) if !c.isDerivation => c } do
         val hi = compOf(h)
-        for t <- DepGraph.newHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
+        for t <- DepGraph.assertedHeadConstructors(r); c = t.rel.sym if compOf(c) < hi do
           val affected = readers.getOrElse(c, Vector.empty).filter(rr =>
             (rr ne r) && rr.heads.exists {
               case Term.App(RelRef.Sym(x), _) => compOf(x) >= compOf(c) && compOf(x) <= hi

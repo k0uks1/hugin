@@ -1,0 +1,44 @@
+(* Binding equations and comparisons with constructor terms (docs/NOTES.md, "Data and fact
+   constructors"). `X = c t̄` with a data constructor builds the value and binds `X`, whether or not it
+   was built before; with a fact constructor it is an existence check, read as `(c t̄ as X)`.
+   Comparisons are structural: a fact-constructor term that is not a fact differs from every value and
+   equals a term of the same structure, without becoming a fact. *)
+n : int -> rel.
+n 1. n 2.
+
+(* data: `some N` was never built before; the equation builds it *)
+opt : option int -> rel.
+opt X :- n N, X = some N.
+%output opt.
+wrapped : list (option int) -> rel.
+wrapped L :- n N, L = cons (some N) nil.
+%output wrapped.
+
+(* fact constructor: only existing facts bind *)
+point : type.
+%fact pt : int -> point.
+pt 1.
+found : int -> point -> rel.
+found N X :- n N, X = pt N.
+%output found.
+(* nested in a data term: the fact-constructor subterm must be a fact, the data term is built *)
+listed : list point -> rel.
+listed L :- n N, L = cons (pt N) nil.
+%output listed.
+
+(* structural comparisons with the never-built `pt 9`: no fact `pt 9` is created *)
+same : rel.
+same :- pt 9 = pt 9.
+%output same.
+differs : point -> rel.
+differs X :- found _ X, X <> pt 9.
+%output differs.
+equal : point -> rel.
+equal X :- found _ X, X = pt 9.
+%output equal.
+nested : rel.
+nested :- listed L, L <> cons (pt 9) nil.
+%output nested.
+points : int -> rel.
+points N :- pt N.
+%output points.

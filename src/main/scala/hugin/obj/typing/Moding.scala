@@ -49,6 +49,10 @@ object Moding:
 
   /** B ⊢ φ ⇒ B' (Definition 6.3). */
   def step(f: Formula, b: Set[String])(using facts: ProgramFacts): Either[Stuck, Set[String]] = f match
+    case Formula.Atom(RelRef.Sym(c), _, Some(v)) if c.isData =>
+      // a generated guard `(c Z̄ as X)` over a data constructor destructures the bound value of `X`
+      // (a data constructor has no facts to enumerate)
+      if b(v) then Right(b ++ formulaVars(f)) else Left(Stuck.Unbound(f, Set(v)))
     case a @ Formula.Atom(RelRef.Sym(c), args, v) =>
       if firstApplicable(c, args, b).isDefined then Right(b ++ formulaVars(f))
       else Left(Stuck.NoMode(a, b))
