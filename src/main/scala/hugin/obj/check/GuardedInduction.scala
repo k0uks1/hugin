@@ -35,7 +35,7 @@ final class GuardedInduction(rc: RecursiveComponent):
    *  per relation, or a lexicographic pair for a single relation. */
   private def candidates: Iterator[Map[RelSym, List[Int]]] =
     val rels = comp.map(base).distinct.filter(c => c.kind == RelKind.Plain && c.arity > 0)
-    def positions(c: RelSym) = (0 until c.arity).toList
+    def positions(c: RelSym) = (0 until c.arity - (if c.boundColumn.isDefined then 1 else 0)).toList
     val singles: Iterator[Map[RelSym, List[Int]]] =
       if rels.isEmpty || rels.length > 4 then Iterator.empty
       else

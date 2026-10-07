@@ -38,6 +38,12 @@ enum AggKind:
   case Count, Sum, Min, Max
   def show: String = toString.toLowerCase
 
+/** The kind of a bound column (`min τ` / `max τ`, docs/REDESIGN.md §5.2): it keeps the least (greatest)
+ *  value per key. */
+enum Bound:
+  case Min, Max
+  def show: String = toString.toLowerCase
+
 /** Surface syntax (untyped). Types, expressions, terms and formulas share one tree language (Figure 1). */
 sealed trait Tree:
   def span: Span
@@ -70,6 +76,9 @@ object Trees:
   final case class With(v: VarRef, fields: List[Field])(val span: Span) extends Tree
   final case class Not(arg: Tree)(val span: Span) extends Tree
   final case class Agg(kind: AggKind, term: Tree, body: Tree)(val span: Span) extends Tree
+
+  /** The column type `min τ` / `max τ` of a bound column. */
+  final case class BoundType(kind: Bound, tpe: Tree)(val span: Span) extends Tree
   final case class Conj(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   final case class Disj(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   final case class Parens(inner: Tree)(val span: Span) extends Tree

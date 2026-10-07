@@ -22,8 +22,12 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
   def tags(t: OType): Set[Int] = ops.members(t).map(_.tag)
 
   /** Per-rule compilation state. */
-  private final class RuleCompiler(currentComp: Option[Int]):
+  private final class RuleCompiler(currentComp: Option[Int], propagating: Set[Formula.Atom] = Set.empty):
     val regOf = mutable.HashMap.empty[String, Int]
+
+    /** The registers holding the matched tuples of the [[propagating]] atoms (for the value propagation
+     *  graph of bound columns, `runtime/Divergence.scala`). */
+    val limitRegs = mutable.ArrayBuffer.empty[Int]
     var nregs = 0
     var recAtoms = 0
     def fresh(): Int = { nregs += 1; nregs - 1 }
@@ -123,7 +127,8 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
         case None =>
           val asReg = a.as.map { v =>
             val r = fresh(); regOf(v) = r; r
-          }.getOrElse(-1)
+          }.getOrElse(if versioned && propagating(a) then fresh() else -1)
+          if versioned && propagating(a) then limitRegs += asReg
           val (binds, checks, nested) = columns(a.args)
           val recIdx =
             if versioned && currentComp.isDefined && compOf.get(c) == currentComp then { recAtoms += 1; recAtoms - 1 }
@@ -178,10 +183,11 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
 
   def lowerRule(r: Rule): CompiledRule =
     val Term.App(RelRef.Sym(h), hargs) = r.heads.head: @unchecked
-    val rc = RuleCompiler(compOf.get(h))
+    val comp = compOf.get(h)
+    val rc = RuleCompiler(comp, hugin.obj.check.TypeConsistency.propagating(r, x => comp.isDefined && compOf.get(x) == comp).toSet)
     val body = rc.body(r.body, versioned = true)
     val head = hargs.map(rc.expr).toArray
-    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms)
+    CompiledRule(r, rc.nregs, body, h.tag, head, rc.recAtoms, rc.limitRegs.toArray)
 
   def lowerQuery(q: Query): CompiledQuery =
     val alts = q.body match

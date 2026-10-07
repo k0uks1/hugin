@@ -1,0 +1,27 @@
+affordable "bike".
+affordable "bolt".
+affordable "frame".
+affordable "nut".
+affordable "plate".
+affordable "wheel".
+budget "bike" 97.
+budget "bolt" 98.
+budget "frame" 98.
+budget "nut" 99.
+budget "plate" 90.
+budget "wheel" 98.
+cheapest "bike" 7.
+cheapest "bolt" 2.
+cheapest "frame" 9.
+cheapest "nut" 1.
+cheapest "plate" 10.
+cheapest "wheel" 5.
+dearest 10.
+priced "bike" 7.
+priced "bolt" 2.
+priced "frame" 9.
+priced "nut" 1.
+priced "plate" 10.
+priced "wheel" 5.
+?- cheapest "bike" C.
+C = 7.

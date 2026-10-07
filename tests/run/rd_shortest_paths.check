@@ -1,0 +1,26 @@
+termination: {dist}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+termination: {longest}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+dist "a" 0.
+dist "b" 3.
+dist "c" 1.
+dist "d" 8.
+dist "e" (-∞).
+dist "f" (-∞).
+dist "g" (-∞).
+dist "p" 2.
+dist "q" 3.
+longest "a" 0.
+longest "b" 4.
+longest "c" 1.
+longest "d" 9.
+longest "e" 10.
+longest "p" ∞.
+longest "q" ∞.
+?- dist "d" D.
+D = 8.
+?- dist V D, D < 2.
+V = "a", D = 0.
+V = "c", D = 1.
+V = "e", D = -∞.
+V = "f", D = -∞.
+V = "g", D = -∞.
