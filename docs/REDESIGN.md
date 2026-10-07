@@ -100,8 +100,8 @@ system avoids the triangle by giving up one corner:
 | D4 | **Arithmetic**: exact arithmetic is allowed but recursion through it needs a size-change argument; **bound columns** (`min`/`max`, linear arithmetic, type-consistency) allow recursion through arithmetic with guaranteed termination (divergence becomes ±∞). | `%partial` round budgets for such programs |
 | D5 | The meta level is a **total, dependently typed** two-level type theory (2LTT) with an MLTT-style meta level: Π, records/Σ, inductive families, structural recursion, no `Type : Type`. | the 1ML-style meta level (staging inference over Fω-like types, `mod`, applicative/generative module machinery, monomorphization as a separate phase) |
 | D6 | The meta level is written in **clause syntax**: `f p̄ = e.` equational clauses, `x : A.` declarations. | `[x] e` lambdas as the main way to define functions (still allowed) |
-| D7 | **Stage inference**: quotes and splices are inferred (Kovács-style bidirectional elaboration); users never write `⟨⟩` or `~`. | explicit splices in the few places they are needed today |
-| D8 | A **reflective embedding** of object syntax (`Term`, `Formula`, `Rule`, `Item`, `Module` as meta inductive types), with reify/reflect coercions inferred from expected types. | nothing (new capability); the opaque `⇑` stays for staging |
+| D7 | **Stage inference**: quotes and splices are inferred (Kovács-style bidirectional elaboration); users never need `⟨⟩`; `$X` is the explicit splice where wanted (§6.9). | explicit splices in the few places they are needed today |
+| D8 | A **reflective embedding** of object syntax (`Term`, `Formula`, `Rule`, `Item`, `Module` as meta inductive types), with reify/reflect coercions inferred from expected types, and **quoted patterns** with `$` holes for matching on object code (§6.9). | nothing (new capability); the opaque `⇑` stays for staging |
 | D9 | **Directives are meta functions**: `%d a₁ … aₙ.` applies the meta function `d`. Core directives (`%input`, `%output`, bound columns, `%import`) are primitives of the same kind; `%demand`, `%derivations`, … are prelude code; users can write their own. The directive's type determines its footprint (local `Decl → Decl` vs module-wide `Module → Module`). | the fixed set of built-in directives |
 | D10 | Existentials use **Skolem identity**, not labelled nulls; we do **not** adopt wardedness or certain-answer semantics. | — |
 
@@ -439,6 +439,62 @@ so reflected programs cannot refer to undeclared names. Object variables are rep
 * The opaque `⇑` staging (§6.3) remains for ordinary code generation; reflection is only needed by
   programs that inspect object syntax.
 
+### 6.9 Quoted patterns and holes
+
+Meta functions can **pattern-match on object code** by writing the pattern in object syntax, as with
+Scala 3's quoted patterns (`case '{ $x + $y } =>`) or Lean's `` `($a + $b) `` patterns. (MetaOCaml is
+deliberately generate-only: its code values are opaque, like our `⇑`.) Quoted patterns are syntax over
+the reflective embedding of §6.8; the opaque `⇑` can still only be spliced, never matched.
+
+Notation (decided): **`$`** marks holes, Scala-style.
+
+* In a **pattern** whose expected type is reflective (`Term`, `Formula`, `Rule`, `Item`, `Module`),
+  object syntax is reified by expected type (no quote marker); `$X` binds the meta variable `X` to the
+  subterm at that position; `$..Xs` binds a sequence (body formulas, arguments, list items).
+* In an **expression**, `$X` / `$..Xs` splice a meta value (or sequence) into object syntax. Splices are
+  normally inferred (§6.6); `$` is the explicit form, needed only where inference is ambiguous or for
+  readability, and it is the same notation as in patterns.
+* A plain uppercase `X` inside a quoted pattern matches an **object variable**; `$X` in a variable
+  position binds that variable's name (a meta value of type `Var`).
+* Names of relations, constructors and types in patterns **resolve to symbols** in scope: `typed $E $G $T`
+  matches atoms of the relation `typed` in scope, not the text `typed`. Matching is therefore hygienic and
+  stable under renaming and shadowing.
+* **Binders** (aggregates `count { V | … }`, formula functions) use higher-order holes as in Scala 3:
+  `$F[V]` matches a formula that may mention the locally bound `V`; with locally nameless
+  representation (Q5) this is well defined.
+
+Examples:
+
+```
+(* swap the arguments of a binary atom *)
+flip : Formula -> Formula.
+flip ($R $X $Y) = ($R $Y $X).
+
+(* the core step of %demand for one relation: guard its rules, propagate demand to recursive calls *)
+guard : Rule -> List Rule.
+guard (typed $E $G $T :- $..Body) =
+  (typed $E $G $T :- typed.check $E $G, $..Body)
+  :: propagate (typed.check $E $G) Body.
+guard R = [R].                                   (* all other rules unchanged; coverage needs it *)
+
+propagate : Formula -> List Formula -> List Rule.
+propagate Pre [] = [].
+propagate Pre (typed $E2 $G2 $_ :: Rest) = (typed.check $E2 $G2 :- $Pre) :: propagate Pre Rest.
+propagate Pre (F :: Rest) = propagate ($Pre, $F) Rest.
+```
+
+Elaboration and checking:
+
+* Quoted patterns elaborate to ordinary **constructor patterns** over the reflective inductive types, so
+  coverage checking (§6.5: `guard R = [R].` is required), structural termination (recursion on `Rest`)
+  and stage inference apply unchanged.
+* **Typing, first version**: holes have untyped reflective types (`$E : Term`, `$Body : List Formula`);
+  reflected results are re-checked at the object level (§6.8).
+* **Typing, later** (Q5): with typed reflection (`Term τ` indexed by object types), `typed $E $G $T` gives
+  `E : Term expr`, `G : Term ctx`, `T : Term typ`, and generators are well-typed by construction, as in
+  Scala 3. The surface syntax does not change.
+* Diagnostics for generated rules keep pointing at the source items (provenance, §6.8).
+
 ---
 
 ## 7. Directives are meta functions
@@ -726,8 +782,11 @@ meta level (`meta/typer`, `MetaEval`, `Monomorphize`) is deleted.
 ### Phase C — reflection and directives
 
 **C1. Reflective embedding.** Prelude types of §6.8, reify/reflect coercions, re-elaboration of
-reflected items with provenance spans. *Accept*: round-trip tests (reify ∘ reflect = id up to renaming);
-diagnostics in generated code point to source items.
+reflected items with provenance spans, quoted patterns and `$`/`$..` holes (§6.9), elaborated to
+constructor patterns. *Accept*: round-trip tests (reify ∘ reflect = id up to renaming); `flip`, `guard`
+and `propagate` of §6.9 elaborate and pass coverage and termination; matching resolves names to symbols
+(a shadowed `typed` does not match); higher-order holes for aggregates; diagnostics in generated code
+point to source items.
 
 **C2. Directives as meta functions.** Resolution, argument elaboration, footprints, source-order
 expansion; primitive directives re-expressed. *Accept*: `%symmetric` (§8.5) as a user directive;
@@ -761,7 +820,8 @@ Each has a recommendation; decisions belong to the language designer.
   (not constructor result positions) in the first version.
 * **Q5 Reflection representation.** Names vs. locally nameless; how much of the object type system is
   visible in `Term`/`Formula` (typed reflection via indices vs untyped data + re-checking).
-  *Recommendation*: untyped data + re-checking first.
+  *Recommendation*: untyped data + re-checking first; typed reflection later, keeping the quoted-pattern
+  syntax of §6.9.
 * **Q6 Directive footprints.** Are `Decl -> Decl` and `Module -> Module` enough (e.g. for directives
   that add declarations to other modules)? *Recommendation*: yes for the first version.
 * **Q7 Meta-level `case` and `if`.** Only clauses at first; add `case` when needed.
@@ -800,6 +860,8 @@ References (as cited during the discussion; verify details before relying on the
   Facts.* arXiv 2411.14330 (2024/2025). DL∃!, subfact closure (§2.3), Slog (§4).
 * L. Berent, M. Nissl, E. Sallinger. *Complexity of Arithmetic in Warded Datalog±.* arXiv 2202.05086
   (2022). Bound Datalog_ℤ, type-consistency (Def. 4), Algorithm 1.
+* N. Stucki, A. Biboudis, M. Odersky. *A Practical Unification of Multi-stage Programming and
+  Macros.* GPCE 2018 (Scala 3 quotes, splices and quoted patterns).
 * M. Kaminski, B. Cuenca Grau, E. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data
   Analysis Using Limit Datalog Programs.* IJCAI 2017 (and JAIR version).
 * A. Kovács. *Staged Compilation with Two-Level Type Theory.* ICFP 2022; elaboration-zoo (GitHub).
@@ -820,4 +882,6 @@ Glossary
 * **Descent / guarded induction**: the two size-change directions of §4.2.
 * **Bound column**: a `min`/`max` last column of a relation that keeps only the best value per key.
 * **Reify / reflect**: turning object syntax into meta data and back (§6.8).
+* **Quoted pattern / hole**: a pattern in object syntax over reflective types; `$X` binds or splices
+  (§6.9).
 * **Footprint**: what part of a module a directive may change, read from its type (§7.1).
