@@ -35,7 +35,9 @@ The edges are `r → mk`, `mk → src` (from the nested constructor of `h`'s hea
 topological order compatible with the stratification is `src, mk, r, h`. Evaluating by Definition 8.7
 gives `M = {src 1, h (mk 1), mk 1}`, which is not a model: `mk 1 ∈ M` but `r 1 ∉ M`. The
 implementation follows Definition 8.7 exactly (and Theorem 9.2 holds for it), so it reproduces this
-result; `--lint` reports the situation as warning W0004.
+result; `--lint` reports the situation as warning W0004. Since data constructors never assert (see
+"Data and fact constructors"), the gap only concerns fact constructors (`%fact`) built in heads: with
+`mk` a data constructor the example has no fact `mk 1` and `r` is not affected.
 
 Two obvious repairs have costs that showed up in the conformance tests:
 
@@ -89,9 +91,8 @@ there, as it does when it solves a type parameter, so `L <> nil` with `L : list 
 `cons 1 nil = nil` relates both type arguments. When nothing determines them, E0206 suggests the
 ascription above with the missing parameters left for the user to fill in.
 
-The value of a constructor term in a comparison is an existing fact (it is looked up, not built). Nested
-constructor terms (`L = cons 1 nil`) are now looked up level by level too; before, the inner term was
-built without an identity and the comparison never held.
+Comparisons with constructor terms are structural, nested terms included (`L = cons 1 nil`); see
+"Data and fact constructors".
 
 ### Brace disambiguation (Section 2.2)
 
@@ -177,65 +178,16 @@ elaboration, no variables local to negations or aggregates).
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
   compare by code point. NaN is never produced by the primitive operations.
 * **Input facts** are accepted for relations declared `%input` or `%open`.
-* **Dependency graph.** Exactly Section 6.4 (see the observation above).
+* **Dependency graph.** Section 6.4, with the reads and assertions of "Data and fact constructors"
+  (see also the observation above).
 * **Engine.** Identities are `(relation, n)` pairs; relations store tuples in insertion order, so
   old/delta/full windows are id ranges. Hash indexes are created for every set of bound columns that
   occurs in a `Scan`. Bodies are executed by backtracking over the IR; aggregates collect one value per
   distinct binding of the aggregate's local variables (Definition 8.4).
 
-## Values and facts: probe semantics (issue #1, F2)
-
-Constructing a value asserts a fact (subfact closure), which is what lets created facts trigger rules. The
-demand transformation also constructs values, the input arguments of moded calls, so without a
-distinction `%mode`, which should only choose an evaluation strategy, added facts to the constructor
-relations (`d B (bind G X T1) :- d (lam X T1 B) G` made `bind` facts appear) and changed answers of
-queries, negations, aggregates and patterns over them. The implementation separates two notions that
-the definition identifies:
-
-* **values** are interned terms with identities; every constructed term is one;
-* **facts** are values that belong to the database (asserted).
-
-1. Construction in ordinary rule heads asserts, as before, with the values nested in it (subfact
-   closure); created facts trigger rules.
-2. Construction in the input columns of demand rules, and in the input columns (of the guarding mode) of
-   a moded relation's own rules, only interns: such a value is a **probe**. The demand fact itself, and
-   the moded relation's answer, are facts.
-3. Nested patterns destructure values structurally; only top-level atoms require facts. For values built
-   by ordinary heads the subvalues are facts anyway, so this changes nothing for programs without modes.
-
-Guarantee: `%mode` never adds facts to relations other than the moded relation and its demand relations.
-The definition needs four changes: structural matching of nested patterns (no existence condition); the
-store invariant "every identity refers to an interned value, and values built by ordinary heads are
-facts" instead of "every identity in a fact refers to a fact"; demand rules intern their input terms
-without asserting them; probe construction counts as constructive for termination (it invents values).
-
-**Implementation.** `runtime/Store.scala`: each relation keeps all values by identity and, separately,
-the identities of its facts in assertion order; scans and their indexes read facts only, and the
-old/delta/full windows of semi-naive evaluation are positions in the assertion order, so a probe that an
-ordinary head asserts later enters the delta like any new fact. `Deref` and `Lookup` see all values.
-`obj/Probes.scala` decides the probe columns of a rule (used by lowering and by the dependency graph).
-**Dependency graph (Section 6.4)**: a body depends on the relations of its atoms only, not on constructor
-patterns nested in them (structural matching reads no facts); a head constructor adds an edge only if it
-is built outside the probe columns (a probe adds no facts). Constructor terms compared with `=` / `<>`
-still count, because such a comparison requires the value to exist.
-
-**Consequence for the type checker example (Section 13.4).** Contexts are arguments, not data, so `lookup`
-can no longer enumerate `bind` facts; it is moded and terminates structurally on the context:
-`%mode lookup +g +x -t. %terminates g lookup.` The termination check now groups a moded component by the
-strongly connected components of its demand graph (see "Termination (issue #2)"), because `typed` calls
-`lookup` (one way) while the dependency graph joins them through answers.
-
-**Comparisons with terms that were never built.** A comparison with a constructor term (`X <> red`)
-looks up the value of `red`. If `red` was never built, it is *absent*: different from every existing
-value (`=` is false, `<>` is true) and equal only to an absent value of the same structure (decision on
-issue #1, F2). Before, the comparison failed, so whether it could succeed depended on which values
-existed — after probes, on whether some demand had built the value, which the evaluation order does not
-track. Comparisons are now independent of existence, which amounts to structural comparison. A binding
-equation (`X = cons 1 nil` with `X` unbound) still requires the value to exist, since `X` then denotes
-it. Implementation: `BodyOp.Lookup(…, orAbsent = true)` for comparison operands yields an `Absent` word,
-which occurs only in tests, never in facts.
-
 ## Data and fact constructors
+
+### Declarations and typing
 
 **Decision.** Constructors are data by default; facts are opt-in. A declaration `c : τ̄ -> a.` with an
 open type `a` declares a *data constructor*: `c t̄` builds a value, but `c` is not a relation. The
@@ -266,14 +218,71 @@ code the compiler generates later (the guards `(c Z̄ as X)` of the records phas
 and never to `Scan`; demand rules; derivation rules) is not checked and not affected. `--all-relations`
 prints facts only: data constructors are not relations, so their values are not listed.
 
-**PR A versus PR B.** This change (PR A) is typing only: evaluation is unchanged, so data constructors
-still intern their values and assert them internally (subfact closure, probes, `Absent`, the two-tier
-store of "Values and facts" above), but nothing can read them as a relation any more, so the change is
-unobservable except through the programs and outputs that had to change. A follow-up (PR B) changes
-evaluation: data constructors never assert; probes, `Absent` and the two-tier store go away; a binding
-equation with a fact-constructor term checks that the fact exists; E0504 is planned there.
+### Semantics
 
-**The prelude.** `nil` and `cons` are data constructors, so `len` can no longer match existing `cons`
+Let F be the plain relations together with the fact constructors and fact structs (and the relations the
+compiler introduces: demand, auxiliary and derivation relations), and D the data constructors and data
+structs. For a term `t`, `subfact_F(t) = { s ⊑ t | head(s) ∈ F }`: its subterms headed by a member of F,
+found by descending through data and fact constructors alike. The immediate consequence operator of a
+rule `R` is
+
+```
+IC_R(db) = db ∪ ⋃ { subfact_F(Head(R)[v/x]) | db ⊨ Body(R)[v/x] }
+```
+
+so a rule adds its head fact and the fact-constructor terms nested in it, also inside data terms. **Data
+constructors never assert**: their terms are values only, hash-consed so that equal values have one
+identity. Nested data values of input facts are hash-consed, not asserted. Definition 8.7 is unchanged
+otherwise (components in order, each to its least fixed point).
+
+* **Patterns** (nested in atoms, or the pattern side of an equation) are structural for D and F: a
+  pattern destructures a value and requires no fact; only top-level atoms read facts.
+* **Comparisons** (`=` / `<>` tests, ordering) are structural, and no term is absent: `X <> red` holds
+  for every `X` but `red`, whether or not `red` was ever built. A data term in a comparison is simply
+  built (hash-consed, which has no observable effect). A fact-constructor term that is not a fact is not
+  asserted: it evaluates to a `NonFact` word (`ir/IR.scala`), different from every identity and equal to
+  a `NonFact` of the same structure; a data term with such a subterm is a `NonFact` too. This is correct
+  by the invariant below: a bound value has only facts as fact-constructor subterms, so it is never
+  structurally equal to such a term. (A side table of interned non-facts would also work, but an
+  identity issued there would differ from the identity the term gets if it becomes a fact later.)
+* **Binding equations** `X = c t̄` (`X` unbound, decided by the canonical order): for `c ∈ D` the value
+  is built and bound to `X`, so the equation no longer depends on whether the value existed. For
+  `c ∈ F` the equation is an existence check, read as `(c t̄ as X)`: it fails if `c t̄` is not a fact
+  (`BodyOp.Lookup`). Nested terms combine both: `L = cons (pt N) nil` checks `pt N` and builds the list.
+* **Invariant.** Every F-subterm of every value bound in a satisfying valuation is in db. Atoms bind
+  facts and their columns, whose F-subterms are facts by `subfact_F`; patterns bind subterms of bound
+  values; binding equations check their F-subterms; aggregates bind numbers.
+* **E0504, fact constructor built in a moded input.** For every call `p t̄` (positive, under `not`, in an
+  aggregate, in a query) with the mode it uses (`Moding.firstApplicable`, as in the demand
+  transformation), no input column may contain a fact-constructor term at any depth; variables and data
+  terms are fine. The demand rule of the call would build the term as an input, i.e. assert it, so
+  `%mode` would change the database. The input columns of a moded relation's own guarded heads are
+  patterns (matched against the demand), not constructions: their F-subterms are facts already, so they
+  are not checked and asserting them adds nothing. The help suggests removing `%fact` if the constructor
+  is only used as a value, or binding an existing fact first (`S = square 4, area S A`).
+* **Guarantee.** `%mode` adds facts only to the moded relation and its demand relations: the demand
+  rules assert their head (a demand fact), whose inputs contain no F-term construction (E0504), and the
+  guarded rules assert what the unmoded rules would, restricted to demanded inputs.
+
+**Dependency graph (Section 6.4).** A body reads the relations of its atoms and, for every binding
+equation, the fact constructors on its value side (existence checks). Comparisons, aggregate terms and
+patterns read nothing. A head depends on what its body reads, and so does every fact constructor it
+asserts (new F-terms outside the guarded input columns); data constructors take no part (they have no
+facts, no component and no evaluation round; `CoreProgram.components` leaves them out).
+
+**Implementation.** `runtime/Store.scala`: one hash-consed table per relation symbol; for F interned
+means asserted, so the semi-naive windows are identity ranges and hash indexes hold identities; for D the
+table is never scanned and has no indexes. `Engine.eval` has three modes: a dry run (heads check their
+arithmetic before interning anything; aggregate terms), body (data terms hash-consed, fact terms looked
+up or `NonFact`) and head (every constructor term interned, which asserts the fact ones). The probe
+semantics of issue #1, F2 (values versus facts in every relation, probe columns, `Absent`) is gone: its
+purpose, `%mode` not adding facts, now follows from data constructors never asserting and E0504. The
+type checker example (Section 13.4) keeps its moded `lookup` (`%mode lookup +g +x -t. %terminates g
+lookup.`): contexts are data values passed as arguments, not facts to enumerate.
+
+### The prelude
+
+`nil` and `cons` are data constructors, so `len` can no longer match existing `cons`
 facts (`len (cons X L) M :- cons X L, ...`). It is moded instead:
 
 ```
@@ -311,33 +320,59 @@ relation of the component, or the relation its demand relations belong to, may c
 `%terminates (l, m) c`. `--explain-termination` prints, for every recursive component, which case
 applies and the justification of every recursive step.
 
-**Constructive rules (Definition 10.1, refined; issue #1, F3).** Clause (a) of Definition 10.1 counts
-every constructor term of a head that is not matched in the body (issue #1, B9: the arguments themselves
+**Two disciplines.** Growth has two sources, and each existing check belongs to one of them:
+
+1. *Data terms built in recursion or in moded inputs* (structural or measured decrease). A rule that
+   builds new values, in its head or as the input of a moded call (the head of a demand rule), can make a
+   recursive component infinite. This is the termination problem of logic programs, treated as in
+   Twelf's `%terminates` and with level mappings (Apt, Pedreschi; Lee, Jones, Ben-Amram for size
+   change): a measure on the arguments, decreasing structurally or numerically along every recursive
+   step (bottom-up components, conditions 2 and 3) or along every demand (demand-driven components,
+   conditions 3 to 5).
+2. *Fact constructors creating facts through closure* (acyclicity of fact creation). A `%fact` term in a
+   head asserts a fact of its constructor, which other rules may read; a cycle "rule asserts `c` facts →
+   `c` facts are read → rule fires again" is the non-termination of the chase with existential-free but
+   term-building rules, avoided by acyclicity conditions on fact creation. Here such a cycle is a cycle
+   of the dependency graph (an asserting head constructor depends on the rule's body, Section 6.4), so it
+   lies inside one component and is checked by discipline 1; across components, a fact constructor is
+   never a finite source (below), because facts can be added to it after its component (issue #1, A1,
+   and the gap of Proposition 8.8). Data constructors have no facts and no closure: they only need
+   discipline 1.
+
+**Constructive rules (Definition 10.1, refined; issue #1, F3).** A rule is constructive if it builds a
+constructor term, data or fact, that is not matched in the body, in a head or in a moded input (the head
+of a demand rule); also through a head variable bound by a binding equation with a data term
+(`num X :- num Y, X = s Y` builds `s Y`, `tests/neg/t_termination_equation_ctor.hgn`; an equation with a
+fact constructor only checks a fact and builds nothing). Clause (a) of Definition 10.1 counts every
+constructor term of a head that is not matched in the body (issue #1, B9: the arguments themselves
 included). The implementation counts such a term only if it can take infinitely many values over the
 evaluation of the component: it is *not* constructive when it is ground (`d X red :- d X _`, `e (mk 1)`)
-or when each of its variables occurs in a positive body atom of a *plain* relation outside the component
-(`e X (mk Y) :- e X _, b Y`). Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
+or when each of its variables is bound by a *finite source*: a positive body atom outside the component
+of a relation that is not a fact constructor or fact struct (`e X (mk Y) :- e X _, b Y`); a generated
+guard `(c Z̄ as X)` over a data constructor destructures `X` and binds finite variables if `X` is finite
+(`Termination.finiteVars`). Clauses (b) (a matched fact lifted into the head) and (c) (arithmetic in the
 head or computing a head variable) are unchanged.
 
 *Soundness.* The argument for components without constructive rules was: their facts consist of terms
 that exist before the component is evaluated, a finite set, so the fixed point is finite. With the
 refinement, the terms a rule can construct are the instances of its non-constructive head terms. A
-ground term has one instance. A term whose variables occur in positive atoms of plain relations outside
-the component has one instance per valuation of those variables, and each such variable is a subterm of a
-fact of such a relation (or the fact itself, for `as` variables). Those relations belong to earlier
-components, which are complete when this component is evaluated (Definition 8.7) and finite by induction
-over the evaluation order (recursive components are checked here or `%partial` with a budget; others are
-finite in their inputs). Plain relations only get facts from their own rules, so they do not grow later.
-So every rule constructs terms from a fixed finite set, and the component's facts consist of the existing
-terms plus that set: still finite. Constructor and struct relations do not count as finite sources even
-outside the component, because a nested head constructor can create their facts after their component
-(issue #1, A1), including the rule itself: `d (s (s N)) :- s N` makes `s (s N)` and then matches it
-(`tests/neg/t_termination_ctor_source.hgn`); the anchor condition below still counts every relation
-outside the component as finite, constructor relations included, which deserves the same caution. Variables bound only by equations, arithmetic or aggregates
-keep the term constructive (conservative). In the measured cases the conditions "rules of unmeasured
-relations are not constructive" use the same notion; there "only copy existing terms" becomes "construct
-terms from a fixed finite set", which the arguments below need in the same way (finitely many facts per
-round, finitely many terms overall). `tests/run/t_termination_finite_ctors.hgn` shows the accepted cases.
+ground term has one instance. A term whose variables are bound by finite sources has one instance per
+valuation of those variables, and each such variable is a subterm of a fact of such a relation (or the
+fact itself, for `as` variables). Those relations belong to earlier components, which are complete when
+this component is evaluated (Definition 8.7) and finite by induction over the evaluation order (recursive
+components are checked here or `%partial` with a budget; others are finite in their inputs). Plain
+relations only get facts from their own rules, so they do not grow later. So every rule constructs terms
+from a fixed finite set, and the component's facts consist of the existing terms plus that set: still
+finite. Fact constructors and fact structs do not count as finite sources even outside the component
+(discipline 2), because a nested head constructor can create their facts after their component (issue
+#1, A1), including the rule itself: `d (s (s N)) :- s N` makes `s (s N)` and then matches it
+(`tests/neg/t_termination_ctor_source.hgn`); the anchor condition below uses the same finite sources.
+Data constructors have no facts, so this restriction does not concern them. Variables bound only by
+equations, arithmetic or aggregates keep the term constructive (conservative). In the measured cases the
+conditions "rules of unmeasured relations are not constructive" use the same notion; there "only copy
+existing terms" becomes "construct terms from a fixed finite set", which the arguments below need in the
+same way (finitely many facts per round, finitely many terms overall).
+`tests/run/t_termination_finite_ctors.hgn` shows the accepted cases.
 
 **Measures.** A measure is a tuple of argument positions; all measured relations of a component have
 tuples of the same length, and slot `i` is of the same kind for all of them: *integer* slots (`int` or a
@@ -369,9 +404,9 @@ integer term.
    relation, and the measure decreases from the call to the head: `μ_d(s̄)` is lexicographically below
    `μ_c(h̄)`, decreasing at slot `i`.
 3. Anchor: for slot `i` the head's value lies below a bound (`h_i ≤ B`), and for every later slot `j > i`
-   it lies in a finite set (`L ≤ h_j ≤ B`). A slot is bounded if its variables are bound by positive
-   atoms of relations outside the component (a finite set: those relations are finite by induction over
-   the evaluation order), or by its interval, or by the call's slot (bounded likewise) plus a bounded
+   it lies in a finite set (`L ≤ h_j ≤ B`). A slot is bounded if its variables are bound by finite
+   sources outside the component (a finite set: those relations are finite by induction over the
+   evaluation order; not fact constructors, see above), or by its interval, or by the call's slot (bounded likewise) plus a bounded
    difference `h_j - s_j`. Structural slots must be bound by relations outside the component.
 
 *Soundness.* In semi-naive evaluation a fact that is new in round `r > 1` is derived by a rule with a
@@ -418,7 +453,7 @@ and every measured position is an input of every mode). Conditions:
    outside the component, that reads the component (the prefix of a call reads relations that depend
    on the callee's answers, see "Data and fact constructors") — demands only values from a finite set:
    every input of its head is a term over *finite variables*. A variable is finite if a positive atom
-   of a plain relation outside the component binds it, if it occurs in a *finite column* of an atom of
+   of a finite source outside the component binds it, if it occurs in a *finite column* of an atom of
    the component, or if an equation `X = t` relates it to a term over finite variables. The finite
    columns are a least fixed point: a column of an unmeasured plain relation of the component is finite
    if every rule of the relation puts a term over finite variables (given the columns found so far)

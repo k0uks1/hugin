@@ -45,6 +45,11 @@ object ProgramGen:
     case BoxT extends Ty("box")
     case ListT extends Ty("list int")
 
+    /** Values of the fact constructor `pt` (`%fact pt : int -> point.`), whose facts are base facts only.
+     *  Not a column type: variables of this type are bound by binding equations `V = pt X` (existence
+     *  checks) and compared structurally. */
+    case PointT extends Ty("point")
+
   import Ty.*
 
   final case class Rel(name: String, cols: Vector[Ty])
@@ -59,7 +64,7 @@ object ProgramGen:
     case StrT => Vector("\"a\"", "\"b\"", "\"\"")
     case ColorT => Vector("red", "green", "blue")
     case ListT => Vector("nil", "(cons 0 nil)")
-    case OptT | BoxT => Vector.empty
+    case OptT | BoxT | PointT => Vector.empty
 
   /** Constructor facts of a type are either read or built by derived relations, never both: a rule that
    *  constructs `c` in its head is a dependency of every rule that matches `c` (Section 6.4), which would
@@ -90,12 +95,23 @@ object ProgramGen:
       case OptT => if chance(0.3) then "none" else s"(some ${int()})"
       case BoxT => s"(mk ${int()})"
       case ListT => list(between(0, 3))
+      case PointT => s"(pt ${int()})"
 
     private def atom(r: Rel, args: Seq[String]) = (r.name +: args).mkString(" ")
 
     def build(): Generated =
-      val decls = mutable.ArrayBuffer("color : type.", "red : color.", "green : color.", "blue : color.", "box : type.", "mk : int -> box.")
+      val decls = mutable.ArrayBuffer(
+        "color : type.",
+        "red : color.",
+        "green : color.",
+        "blue : color.",
+        "box : type.",
+        "mk : int -> box.",
+        "point : type.",
+        "%fact pt : int -> point."
+      )
       val facts = mutable.ArrayBuffer.empty[String]
+      for _ <- 0 until between(0, 3) do facts += s"pt ${int()}."
       val inputs = mutable.ArrayBuffer.empty[String]
       val rules = mutable.ArrayBuffer.empty[String]
       def declare(r: Rel, named: Boolean) =
@@ -197,7 +213,7 @@ object ProgramGen:
 
       private def comparison(): Option[String] =
         val ints = boundOf(IntT)
-        val others = Seq(StrT, ColorT, ListT).flatMap(t => boundOf(t).map(_ -> t))
+        val others = Seq(StrT, ColorT, ListT, PointT).flatMap(t => boundOf(t).map(_ -> t))
         if ints.nonEmpty && (others.isEmpty || chance(0.7)) then
           val op = pick(Seq("<", "<=", ">", ">=", "=", "<>"))
           val rhs = if ints.length > 1 && chance(0.4) then pick(ints) else int()
@@ -262,6 +278,20 @@ object ProgramGen:
           s"${bind(IntT)} = $e"
         }
 
+      /** A binding equation: with a data constructor it builds the value (`V = some X`, `V = cons X nil`),
+       *  with the fact constructor `pt` it checks that the fact exists (`V = pt X`). In a recursive
+       *  relation the built term's variables come from atoms of `lower` (otherwise the rule is
+       *  constructive). */
+      private def equation(): Option[String] =
+        val ints = boundOf(IntT).filter(v => !inRecursion || lowerVars(v))
+        Option.when(ints.nonEmpty) {
+          val x = pick(ints)
+          rnd.nextInt(3) match
+            case 0 => s"${bind(OptT)} = some $x"
+            case 1 => s"${bind(ListT)} = cons $x nil"
+            case _ => s"${bind(PointT)} = pt $x"
+        }
+
       private def disjunction(): Option[String] =
         val ints = boundOf(IntT)
         val colors = boundOf(ColorT)
@@ -283,13 +313,14 @@ object ProgramGen:
         for _ <- 0 until between(1, 3) do body += positive()
         if recursive && !body.exists(_.startsWith(head.name + " ")) then body += atom(head, head.cols.map(arg))
         for _ <- 0 until between(0, 3) do
-          rnd.nextInt(7) match
+          rnd.nextInt(8) match
             case 0 => body ++= comparison()
             case 1 => body += negation()
             case 2 => body += aggregate()
             case 3 => if !inRecursion then body ++= arithmetic()
             case 4 => body ++= disjunction()
             case 5 => body ++= length()
+            case 6 => body ++= equation()
             case _ => body ++= comparison()
         // values of read types in the head come from the body
         for t <- head.cols.distinct if read(t) && t != IntT && t != StrT && boundOf(t).isEmpty do
