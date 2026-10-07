@@ -90,7 +90,7 @@ enum ObjTypeError extends Problem:
     case _ => Nil
 
   override def notes: List[Msg] = this match
-    case _: UnionMemberNotFacts => List(msg"every type in a union must be a subtype of `rel` (Section 5.4)")
+    case _: UnionMemberNotFacts => List(msg"every type in a union must be a subtype of `rel`")
     case NoMeet(v, _, _, expected) =>
       val each = expected.map((t, w) => msg"$t (${Msg.text(w)})")
       List(msg"$v is expected to have type ${Msg.join(each, ", ")}")

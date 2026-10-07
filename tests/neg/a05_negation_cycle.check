@@ -7,6 +7,6 @@ error[E0601]: stratification cycle through negation
   |                ------- `q` depends on `p`
   |
   = note: cycle: p -> not q -> not p
-  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+  = note: negation and aggregation must not occur in a recursive cycle
 
 1 error found

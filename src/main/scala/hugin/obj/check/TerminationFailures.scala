@@ -50,7 +50,7 @@ object Failures:
     if ctx.unit.splitRules.contains(r) then
       Termination.headRel(r).foreach(c =>
         d = d.withNote(
-          s"the rule asserts the fact `${ObjPrinter.term(r.heads.head)}` of `${c.name}`, so it is also evaluated in `${c.name}`'s component (Proposition 8.8, see docs/NOTES.md)"
+          s"the rule asserts the fact `${ObjPrinter.term(r.heads.head)}` of `${c.name}`, so it is also evaluated in `${c.name}`'s component"
         )
       )
     descent.chain match

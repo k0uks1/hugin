@@ -61,7 +61,7 @@ error[E0601]: stratification cycle through negation
  ::> <input 18>:1:24: `p` depends on `q`
   |
   = note: cycle: q -> not p -> q
-  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+  = note: negation and aggregation must not occur in a recursive cycle
 
 hugin> :type path
 relation path : node -> node -> rel

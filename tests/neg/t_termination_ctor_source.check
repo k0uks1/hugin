@@ -6,7 +6,7 @@ error[E0603]: growing component without a termination argument
    |
    = note: the recursive component {s} contains this constructive rule, so its fixed point may be infinite
    = note: recursion: `s` -> `s`
-   = note: the rule asserts the fact `s (s N)` of `s`, so it is also evaluated in `s`'s component (Proposition 8.8, see docs/NOTES.md)
+   = note: the rule asserts the fact `s (s N)` of `s`, so it is also evaluated in `s`'s component
    = note: descent along derivations (A) fails: along `s` -> ... -> `s` (rule at tests/neg/t_termination_ctor_source.hgn:10:1) no argument of the derived fact is smaller than in the premise
    = note: guarded induction (B) fails: no argument decreases from the head to every recursive call
    = help: make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`), or name the measure with `%terminates X (s ...)`

@@ -88,7 +88,7 @@ final class MetaEval(using Context):
                 s"`${a.show} ${op.show} ${b.show}` is undefined"
               )
                 .withNote(if op == ArithOp.Div then "division by zero" else "64-bit integer overflow")
-                .withNote("at the meta level an undefined primitive operation is a compile-time error (Section 3.3)")
+                .withNote("at the meta level an undefined primitive operation is a compile-time error")
                 .withOrigin(fr.origin))
               VErr
         case _ => VErr

@@ -5,6 +5,6 @@ error[E0602]: query negates or aggregates over the incomplete relation `n`
   |                    ^^^ used negatively
   |
   = note: `n` is declared %partial
-  = note: queries may mention incomplete relations only positively (Section 8.5)
+  = note: queries may mention incomplete relations only positively
 
 1 error found

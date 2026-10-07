@@ -135,7 +135,7 @@ private[meta] trait TyperBase:
   private[meta] def noteReference(span: Span, s: Sym, detail: Option[String] = None): Unit =
     context.unit.index.reference(span, s, detail, isUse = false)
 
-  /** Forward-reference check for meta definitions (Section 2.3). */
+  /** Forward-reference check for meta definitions. */
   private[meta] def visible(s: Sym, span: Span): Boolean =
     if s.kind == SymKind.MetaDef || s.kind == SymKind.FormulaFn then
       syms.state(s) match
@@ -148,6 +148,6 @@ private[meta] trait TyperBase:
         case ElabState.Pending =>
           ctx.report(Legacy.error(Code.E0105, s"`${s.name}` is used before its definition", span, "used here")
             .withLabel(s.span, "defined later here")
-            .withNote("meta definitions may only refer to earlier definitions (Section 2.3)"))
+            .withNote("meta definitions may only refer to earlier definitions"))
           false
     else true
