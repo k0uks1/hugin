@@ -2,6 +2,7 @@ package hugin.obj
 package transform
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 import scala.collection.mutable
 
@@ -243,8 +244,8 @@ final class DemandPhase extends ObjProgramPhase:
   private def factInInput(c: RelSym, m: Mode, t: Term.App)(using facts: ProgramFacts): Diagnostic =
     val f = t.rel.sym
     val name = c.displayName
-    var d = Diagnostic.error(
-      "E0504",
+    var d = Legacy.error(
+      Code.E0504,
       "fact constructor built in a moded input",
       t.span,
       s"`${ObjPrinter.term(t)}` would be built as an input of `$name`"

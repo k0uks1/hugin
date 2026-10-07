@@ -2,6 +2,7 @@ package hugin.obj
 package check
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 
 import hugin.obj.typing.Moding
@@ -128,7 +129,7 @@ final class TerminationPhase extends Phase:
   /** E0603: a growing component without a measure, with a measure suggestion when one can be found. */
   private def noMeasure(a: Termination, r: Rule, why: String, sp: Span)(using Context): Diagnostic =
     val comp = a.comp
-    var d = Diagnostic.error("E0603", "growing component without a valid %terminates directive", sp, why)
+    var d = Legacy.error(Code.E0603, "growing component without a valid %terminates directive", sp, why)
       .withNote(
         s"the recursive component ${Termination.showComponent(comp)} contains this constructive rule, so its fixed point may be infinite"
       )
@@ -160,7 +161,7 @@ final case class TerminationFailure(
     helps: List[String] = Nil
 ):
   def diagnostic: Diagnostic =
-    var d = Diagnostic.error("E0604", message, span, label)
+    var d = Legacy.error(Code.E0604, message, span, label)
     for (s, l) <- secondary if s.exists do d = d.withLabel(s, l)
     for s <- directive if s.exists do d = d.withLabel(s, "measure declared here")
     notes.foreach(n => d = d.withNote(n))

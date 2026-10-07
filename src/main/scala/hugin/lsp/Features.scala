@@ -3,6 +3,7 @@ package hugin.lsp
 import hugin.meta.SymKind
 import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
+import hugin.util.diagnostics.Suggestion
 import org.eclipse.lsp4j.*
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
@@ -94,8 +95,8 @@ final class Features(using db: Database):
       d.notes.map("note: " + _) ++ d.helps.map("help: " + _)
     val range = primary.map(l => Positions.range(l.span)).getOrElse(Range(Position(0, 0), Position(0, 0)))
     val out = Diagnostic(range, text.mkString("\n"), severity(d.severity), "hugin")
-    d.code.foreach(out.setCode)
-    if d.code.exists(unnecessary) then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
+    d.code.foreach(c => out.setCode(c.id))
+    if d.code.exists(_.unnecessary) then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
     val secondary =
       for
         l <- d.labels if !l.primary
@@ -109,9 +110,6 @@ final class Features(using db: Database):
     case Severity.Error => DiagnosticSeverity.Error
     case Severity.Warning => DiagnosticSeverity.Warning
     case Severity.Note => DiagnosticSeverity.Information
-
-  /** Singleton variables and unused definitions are shown faded. */
-  private val unnecessary = Set("W0002", "W0003")
 
   // ----------------------------------------------------------------------------------- position queries
 
@@ -256,9 +254,9 @@ final class Features(using db: Database):
 
   // --------------------------------------------------------------------------------------- code actions
 
-  /** Quick fixes for the diagnostics overlapping a range: their suggested edits (see [[hugin.util.Suggestion]]),
-   *  the first one of each diagnostic preferred. An edit may lie in another file (a signature); edits in
-   *  the bundled standard library are not offered. */
+  /** Quick fixes for the diagnostics overlapping a range: their suggestions (see
+   *  [[hugin.util.diagnostics.Suggestion]]), the first one of each diagnostic preferred. An edit may lie in
+   *  another file (a signature); suggestions with edits in the bundled standard library are not offered. */
   def codeActions(uri: String, range: Range): List[CodeAction] =
     val path = Uris.path(uri)
     if isFacts(path) then return Nil
@@ -269,12 +267,17 @@ final class Features(using db: Database):
       sp = d.primarySpan
       if inFile(sp, path) && sp.start <= to && from <= sp.end
       (s, i) <- d.suggestions.zipWithIndex
-      target <- uriOf(s.span.source.path).toList
+      edits <- workspaceEdit(s).toList
     yield
       val action = CodeAction(s.message.capitalize)
       action.setKind(CodeActionKind.QuickFix)
       action.setDiagnostics(List(toLsp(d)).asJava)
-      val edit = TextEdit(Positions.range(s.span), s.replacement)
-      action.setEdit(WorkspaceEdit(Map(target -> List(edit).asJava).asJava))
+      action.setEdit(edits)
       action.setIsPreferred(i == 0)
       action
+
+  /** The edits of a suggestion by document, or `None` if one of them lies in a file without a URI. */
+  private def workspaceEdit(s: Suggestion): Option[WorkspaceEdit] =
+    val byFile = s.edits.groupBy(_.span.source.path).toList
+    val targets = byFile.map((path, es) => uriOf(path).map(_ -> es.map(e => TextEdit(Positions.range(e.span), e.replacement)).asJava))
+    Option.when(targets.forall(_.isDefined))(WorkspaceEdit(targets.flatten.toMap.asJava))

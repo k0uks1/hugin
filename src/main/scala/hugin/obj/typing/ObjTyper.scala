@@ -2,6 +2,7 @@ package hugin.obj
 package typing
 
 import hugin.util.*
+import hugin.util.diagnostics.Problem
 import hugin.compiler.*
 import hugin.syntax.{AggKind, Literal}
 import scala.collection.mutable
@@ -83,36 +84,24 @@ final class ObjTyperPhase extends Phase:
                 case TypeKind.Refinement(x) => x
                 case _ => OType.Err
           if cyc then
-            ctx.report(Diagnostic.error("E0404", s"cyclic refinement `${t.name}`", t.span).withOrigin(t.origin))
+            ctx.report(ObjTypeError.CyclicRefinement(t))
           else if !ops.isBaseLike(b) && b != OType.Err then
-            ctx.report(Diagnostic.error("E0404", s"`${t.name}` refines `${b.show}`, which is not a base type or refinement", t.span)
-              .withOrigin(t.origin))
+            ctx.report(ObjTypeError.RefinesNonBase(t, b))
         case _ =>
     for e <- p.edges do
       e.sub match
         case OType.Fact(_, _) | OType.Err => ()
         case OType.Con(s, _) if s.isOpen => ()
         case other =>
-          ctx.report(Diagnostic.error(
-            "E0404",
-            s"`${other.show}` cannot be a member of the open type `${e.sup.name}`",
-            e.span,
-            "expected a fact type or an open type"
-          ).withOrigin(e.origin))
+          ctx.report(ObjTypeError.NotOpenMember(other, e.sup, e.span, e.origin))
     def checkType(t: OType, span: Span, origin: Origin): Unit = t match
       case OType.Union(ms) =>
         for m <- ms if !ops.isRelLike(m) do
-          ctx.report(Diagnostic.error("E0404", s"union member `${m.show}` is not a type of facts", span)
-            .withNote("every type in a union must be a subtype of `rel` (Section 5.4)").withOrigin(origin))
+          ctx.report(ObjTypeError.UnionMemberNotFacts(m, span, origin))
         for i <- ms.indices; j <- ms.indices if i < j do
           val common = ops.members(ms(i)).intersect(ops.members(ms(j)))
           if common.nonEmpty then
-            ctx.report(Diagnostic.error(
-              "E0404",
-              s"union members `${ms(i).show}` and `${ms(j).show}` overlap",
-              span,
-              s"both contain `${common.head.name}`"
-            ).withOrigin(origin))
+            ctx.report(ObjTypeError.UnionOverlap(ms(i), ms(j), common.head, span, origin))
       case _ =>
     for r <- p.rels; c <- r.cols do checkType(c.tpe, r.span, r.origin)
 
@@ -122,7 +111,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
   private val gamma = mutable.LinkedHashMap.empty[String, OType]
   private val errorsBefore = ctx.reporter.errorCount
 
-  private def report(d: Diagnostic): Unit = ctx.report(wrap(d))
+  private def report(p: Problem): Unit = ctx.report(wrap(p.toDiagnostic))
 
   private def expect(v: String, t: OType, span: Span, where: String): Unit =
     expected.getOrElseUpdate(v, mutable.ListBuffer.empty) += ((t, span, where))
@@ -187,19 +176,10 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       cur match
         case Some(t) => gamma(v) = t
         case None =>
-          val distinct = occs.distinctBy(_._1)
-          var d = Diagnostic.error(
-            "E0401",
-            s"no value can occur in all these positions",
-            occs(failedAt)._2,
-            s"`${Var.display(v)}` has type `${occs(failedAt)._1.show}` here"
-          )
-          for (t, sp, where) <- distinct if sp != occs(failedAt)._2 do
-            d = d.withLabel(sp, s"`${Var.display(v)}` has type `${t.show}` here")
-          d = d.withNote(
-            s"`${Var.display(v)}` is expected to have type ${occs.map((t, _, w) => s"`${t.show}` ($w)").distinct.mkString(", ")}"
-          )
-          report(d)
+          val (failedType, failedSpan, _) = occs(failedAt)
+          val others = occs.distinctBy(_._1).collect { case (t, sp, _) if sp != failedSpan => (t, sp) }
+          val expectations = occs.map((t, _, w) => (t, w)).distinctBy((t, w) => (t.show, w))
+          report(ObjTypeError.NoMeet(VarName(v), (failedType, failedSpan), others.toList, expectations.toList))
           gamma(v) = OType.Err
     // equations and aggregates
     var changed = true
@@ -240,7 +220,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
     for h <- heads do
       h match
         case Term.App(RelRef.Sym(c), args) => checkArgs(c, args, inHead = true)
-        case other => report(Diagnostic.error("E0402", "the head of a rule must be a relation atom", other.span))
+        case other => report(ObjTypeError.HeadNotAtom(other.span))
     body.foreach(checkFormula)
     if ctx.reporter.errorCount > errorsBefore then None else Some(gamma.toMap)
 
@@ -252,8 +232,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
     for ((a, col), i) <- args.zip(c.cols).zipWithIndex do checkTerm(a, Some(col.tpe), inHead, s"column ${i + 1} of `${c.name}`")
 
   private def mismatch(t: Term, found: OType, expected: OType, where: String): Unit =
-    report(Diagnostic.error("E0402", "type mismatch", t.span, s"expected `${expected.show}`, found `${found.show}`")
-      .withNote(s"in $where"))
+    report(ObjTypeError.Mismatch(found, expected, where, t.span))
 
   private def checkTerm(t: Term, col: Option[OType], inHead: Boolean, where: String): Unit = t match
     case Term.Var(n) =>
@@ -268,8 +247,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
         if !ops.isSub(OType.Fact(c, Nil), ct) then
           if inHead then mismatch(t, OType.Fact(c, Nil), ct, where)
           else
-            report(Diagnostic.error("E0402", s"pattern can never match", t.span, s"`${c.name}` facts are not of type `${ct.show}`")
-              .withNote(s"in $where"))
+            report(ObjTypeError.PatternNeverMatches(c, ct, where, t.span))
       }
       checkArgs(c, args, inHead)
     case Term.As(x, _) => checkTerm(x, col, inHead, where)
@@ -284,14 +262,14 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       checkTerm(x, None, inHead, where)
       synth(x).foreach(tx =>
         if !ops.baseOf(tx).exists(b => b != BaseType.StringT) && tx != OType.Err then
-          report(Diagnostic.error("E0402", s"unary minus cannot be applied to `${tx.show}`", t.span))
+          report(ObjTypeError.UnaryMinus(tx, t.span))
       )
     case Term.Proj(Term.Var(x), l) => checkProj(t, x, l, col, inHead, where)
     case Term.Proj(other, _) =>
-      report(Diagnostic.error("E0303", "projection applies only to variables", other.span, "bind this term to a variable first"))
+      report(RecordError.ProjectionOfNonVariable(other.span))
     case Term.With(Term.Var(x), fields) => checkWith(t, x, fields, col, inHead, where)
     case Term.With(other, _) =>
-      report(Diagnostic.error("E0303", "update applies only to variables", other.span))
+      report(RecordError.UpdateOfNonVariable(other.span))
     case _ =>
 
   /** An ascription `(x : tp)` whose term does not already have a subtype of `tp`: a checked downcast. */
@@ -300,10 +278,9 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
     val inner = col.orElse(synth(x)).getOrElse(OType.Err)
     if synth(x).contains(OType.Err) then () // already reported (no meet)
     else if !(ops.isSub(tp, inner) && ops.members(tp).subsetOf(ops.members(inner))) && inner != OType.Err then
-      report(Diagnostic.error("E0405", "invalid ascription", t.span, s"`${tp.show}` does not select members of `${inner.show}`")
-        .withNote("an ascription (t : T) is a checked downcast; T must be a subtype of the type of t"))
+      report(ObjTypeError.AscriptionNotSelecting(tp, inner, t.span))
     else if !ops.isRelLike(tp) && tp != inner then
-      report(Diagnostic.error("E0405", "invalid ascription", t.span, "only types of facts can be tested at run time"))
+      report(ObjTypeError.AscriptionNotTestable(t.span))
     checkTerm(x, None, inHead, where)
 
   private def checkArith(t: Term, op: ArithOp, l: Term, r: Term, col: Option[OType], inHead: Boolean, where: String): Unit =
@@ -319,8 +296,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
           case _ => !bl.contains(BaseType.StringT)
         )
         if !ok && a != OType.Err && b != OType.Err then
-          report(Diagnostic.error("E0402", s"operator `${op.show}` cannot be applied to `${a.show}` and `${b.show}`", t.span)
-            .withNote("`+ - * /` apply to two ints or two floats, `^` to two strings; ints and floats are never converted"))
+          report(ObjTypeError.ArithOperands(op, a, b, t.span))
         else
           col.foreach(ct =>
             bl.foreach(b => if !ops.isSub(OType.Base(b), ct) && !ops.baseOf(ct).contains(b) then mismatch(t, OType.Base(b), ct, where))
@@ -334,33 +310,15 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       case Some(OType.Err) =>
       case Some(tx) =>
         if !ops.isClosed(tx) then
-          report(Diagnostic.error(
-            "E0303",
-            s"projection on a type that is not closed",
-            t.span,
-            s"`${Var.display(x)}` has type `${tx.show}`"
-          )
-            .withNote("projection and update require a fact type or a union of fact types; open types may gain constructors"))
+          report(RecordError.ProjectionNotClosed(VarName(x), tx, t.span))
         else
           ops.commonLabel(tx, l) match
             case Left(missing) =>
-              report(Diagnostic.error(
-                "E0304",
-                s"no common label `$l`",
-                t.span,
-                s"not a column of ${missing.map(m => s"`${m.name}`").mkString(", ")}"
-              )
-                .withNote(s"`${Var.display(x)}` has type `${tx.show}`; every member must have the label"))
+              report(RecordError.NoCommonLabel(l, missing, Some((VarName(x), tx)), t.span))
             case Right(cs) =>
               ops.join(cs.map(_._3)) match
                 case None =>
-                  report(Diagnostic.error(
-                    "E0305",
-                    s"undefined join for label `$l`",
-                    t.span,
-                    cs.map((c, _, ct) => s"`${ct.show}` in `${c.name}`").mkString(", ")
-                  )
-                    .withNote("the join of different base types is undefined"))
+                  report(RecordError.UndefinedJoin(l, cs.map((c, _, ct) => (c, ct)), t.span))
                 case Some(j) =>
                   col.foreach(ct => if inHead && !ops.isSub(j, ct) then mismatch(t, j, ct, where))
 
@@ -370,17 +328,12 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
       case None | Some(OType.Err) =>
       case Some(tx) =>
         if !ops.isClosed(tx) then
-          report(Diagnostic.error("E0303", s"update on a type that is not closed", t.span, s"`${Var.display(x)}` has type `${tx.show}`"))
+          report(RecordError.UpdateNotClosed(VarName(x), tx, t.span))
         else
           for (l, h, sp) <- fields do
             ops.commonLabel(tx, l) match
               case Left(missing) =>
-                report(Diagnostic.error(
-                  "E0304",
-                  s"no common label `$l`",
-                  sp,
-                  s"not a column of ${missing.map(m => s"`${m.name}`").mkString(", ")}"
-                ))
+                report(RecordError.NoCommonLabel(l, missing, None, sp))
               case Right(cs) =>
                 for (c, _, ct) <- cs do checkTerm(h, Some(ct), inHead = true, s"update of `$l` in `${c.name}`")
         col.foreach(ct => if inHead && !ops.isSub(tx, ct) then mismatch(t, tx, ct, where))
@@ -398,9 +351,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
               (ops.baseOf(a).isDefined && ops.baseOf(a) == ops.baseOf(b)) || (ops.isRelLike(a) && ops.isRelLike(b))
             case _ => ops.baseOf(a).isDefined && ops.baseOf(a) == ops.baseOf(b)
           if !ok then
-            report(Diagnostic.error("E0402", s"cannot compare `${a.show}` with `${b.show}`", f.span, s"`${op.show}` on incompatible types")
-              .withNote(if op == CmpOp.Eq || op == CmpOp.Ne then "both sides must have the same base type, or both be facts"
-              else "ordering comparisons apply to two values of the same base type"))
+            report(ObjTypeError.Incomparable(op, a, b, f.span))
         case _ =>
     case Formula.Agg(res, k, t, b) =>
       b.foreach(checkFormula)
@@ -412,8 +363,7 @@ final class RuleTyper(ops: TypeOps, heads: List[Term], body: List[Formula], wrap
             case AggKind.Sum => bt.contains(BaseType.IntT) || bt.contains(BaseType.FloatT)
             case _ => bt.isDefined
           if !ok && tt != OType.Err then
-            report(Diagnostic.error("E0402", s"`${k.show}` cannot aggregate values of type `${tt.show}`", t.span)
-              .withNote(if k == AggKind.Sum then "sum applies to int or float" else s"${k.show} applies to base types"))
+            report(ObjTypeError.AggregateOperand(k, tt, t.span))
         }
     case Formula.Disj(alts) => alts.flatten.foreach(checkFormula)
     case _ =>

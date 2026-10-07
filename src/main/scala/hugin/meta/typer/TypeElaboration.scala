@@ -3,6 +3,7 @@ package typer
 
 import hugin.syntax.TreeOps.{flattenApp, flattenArrow}
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
@@ -22,7 +23,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case Parens(i) => elabOType(i, sc, tv)
     case Keyword(Kw.Rel) => OType.RelTop
     case Keyword(k) =>
-      err("E0202", s"`${k.toString.toLowerCase}` is not an object type", t.span, "expected an object type")
+      err(DiagCode.E0202, s"`${k.toString.toLowerCase}` is not an object type", t.span, "expected an object type")
       OType.Err
     case Trees.Union(l, r) => OType.union(List(elabOType(l, sc, tv), elabOType(r, sc, tv)))
     case VarRef(n) =>
@@ -38,7 +39,7 @@ private[meta] trait TypeElaboration extends TyperBase:
                 case Some(RelT(_, _) | CtorT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                 case None => OType.Err
                 case Some(other) =>
-                  err("E0202", s"`$n` is not a type", t.span, s"has meta type ${other.show}")
+                  err(DiagCode.E0202, s"`$n` is not a type", t.span, s"has meta type ${other.show}")
                   OType.Err
             case _ =>
               tv match
@@ -65,7 +66,7 @@ private[meta] trait TypeElaboration extends TyperBase:
               def argTypes = args.map(elabOType(_, sc, tv))
               s.kind match
                 case SymKind.BaseType =>
-                  if args.nonEmpty then err("E0207", s"`$n` takes no type arguments", t.span)
+                  if args.nonEmpty then err(DiagCode.E0207, s"`$n` takes no type arguments", t.span)
                   OType.Base(s.base.get)
                 case SymKind.TypeDef => unfoldTypeDef(s, argTypes, t.span)
                 case SymKind.ObjType | SymKind.Struct | SymKind.Rel | SymKind.Ctor =>
@@ -75,12 +76,12 @@ private[meta] trait TypeElaboration extends TyperBase:
                   if syms.state(s) == ElabState.Done && as.length != tparams.length then
                     if tparams.nonEmpty && as.isEmpty then
                       err(
-                        "E0207",
+                        DiagCode.E0207,
                         s"family `$n` needs ${tparams.length} type argument(s)",
                         t.span,
                         s"expected `$n ${tparams.map(_.name).mkString(" ")}`"
                       )
-                    else err("E0207", s"`$n` expects ${tparams.length} type argument(s), found ${as.length}", t.span)
+                    else err(DiagCode.E0207, s"`$n` expects ${tparams.length} type argument(s), found ${as.length}", t.span)
                     OType.Err
                   else
                     val m = if as.isEmpty then Ref(s) else TApp(Ref(s), as)
@@ -88,30 +89,31 @@ private[meta] trait TypeElaboration extends TyperBase:
                 case SymKind.MetaDef | SymKind.MetaParam =>
                   if !visible(s, id.span) then OType.Err
                   else if args.nonEmpty then
-                    err("E0202", s"`$n` cannot be applied to type arguments", t.span); OType.Err
+                    err(DiagCode.E0202, s"`$n` cannot be applied to type arguments", t.span); OType.Err
                   else
                     syms.mtype(s) match
                       case Some(TypeU) => OType.Splice(Ref(s))
                       case Some(RelT(_, _) | CtorT(_, _)) => OType.Splice(FactTypeOf(Ref(s)))
                       case other =>
-                        err("E0202", s"`$n` is not a type", id.span, s"has meta type ${other.fold("?")(_.show)}")
+                        err(DiagCode.E0202, s"`$n` is not a type", id.span, s"has meta type ${other.fold("?")(_.show)}")
                         OType.Err
                 case SymKind.FormulaFn =>
-                  err("E0202", s"formula function `$n` is not a type", id.span); OType.Err
+                  err(DiagCode.E0202, s"formula function `$n` is not a type", id.span); OType.Err
         case sel: Select =>
           val (m, mt) = inferM(sel, sc)
           if args.nonEmpty then
-            err("E0202", "type application through a module path is not supported", t.span); OType.Err
+            err(DiagCode.E0202, "type application through a module path is not supported", t.span); OType.Err
           else
             mt match
               case TypeU => OType.Splice(m)
               case RelT(_, _) | CtorT(_, _) => OType.Splice(FactTypeOf(m))
               case MType.Err => OType.Err
-              case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); OType.Err
+              case other =>
+                err(DiagCode.E0202, s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); OType.Err
         case other =>
-          err("E0202", "expected an object type", other.span); OType.Err
+          err(DiagCode.E0202, "expected an object type", other.span); OType.Err
     case other =>
-      err("E0202", "expected an object type", other.span, "not a type")
+      err(DiagCode.E0202, "expected an object type", other.span, "not a type")
       OType.Err
 
   // ======================================================================= meta types
@@ -139,11 +141,11 @@ private[meta] trait TypeElaboration extends TyperBase:
       mt match
         case ModU => normM(m) match
             case SigV(sig) => sig
-            case _ => err("E0202", "signature paths must be statically known", sel.span); MType.Err
+            case _ => err(DiagCode.E0202, "signature paths must be statically known", sel.span); MType.Err
         case TypeU => Code(OType.Splice(m))
         case RelT(_, _) | CtorT(_, _) => Code(OType.Splice(FactTypeOf(m)))
         case MType.Err => MType.Err
-        case other => err("E0202", s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); MType.Err
+        case other => err(DiagCode.E0202, s"`${Printer.show(sel)}` is not a type", sel.span, s"has meta type ${other.show}"); MType.Err
     case rt: RecordType => elabSig(rt, sc, tv)
     case _: Arrow =>
       val (doms, cod) = flattenArrow(t)
@@ -209,12 +211,12 @@ private[meta] trait TypeElaboration extends TyperBase:
       e match
         case SigEntry.FieldDecl(l, ft, fact) =>
           if ssc.lookupLocal(l.name).isDefined then
-            err("E0307", s"duplicate field `${l.name}` in signature", l.span)
+            err(DiagCode.E0307, s"duplicate field `${l.name}` in signature", l.span)
           else
             val ctor = constructorField(ft, ssc, tv, fact)
             if fact && ctor.isEmpty then
               ctx.report(
-                Diagnostic.error("E0004", s"`%fact` only applies to constructor fields", l.span, "not a constructor field")
+                Legacy.error(DiagCode.E0004, s"`%fact` only applies to constructor fields", l.span, "not a constructor field")
                   .withNote("a constructor field has the form `%fact c : τ1 -> ... -> τn -> a` with an object type `a`")
               )
             val fty = ctor.getOrElse(elabMType(ft, ssc, tv))
@@ -225,15 +227,15 @@ private[meta] trait TypeElaboration extends TyperBase:
         case SigEntry.Complete(l, sp) =>
           fields.find(_._1.name == l.name) match
             case Some((_, RelT(_, _))) => reqs += Req.Complete(l.name, sp)
-            case Some(_) => err("E0208", s"`%complete` requires a relation field, but `${l.name}` is not one", l.span)
+            case Some(_) => err(DiagCode.E0208, s"`%complete` requires a relation field, but `${l.name}` is not one", l.span)
             case None => unresolved(l.name, l.span, ssc, "field")
         case SigEntry.ModeReq(l, ms, sp) =>
           fields.find(_._1.name == l.name) match
             case Some((_, RelT(cols, _))) =>
               if ms.length != cols.length then
-                err("E0207", s"mode for `${l.name}` has ${ms.length} items but the relation has ${cols.length} columns", sp)
+                err(DiagCode.E0207, s"mode for `${l.name}` has ${ms.length} items but the relation has ${cols.length} columns", sp)
               else reqs += Req.HasMode(l.name, Mode(ms.map(_.input).toVector), sp)
-            case Some(_) => err("E0208", s"`%mode` requires a relation field, but `${l.name}` is not one", l.span)
+            case Some(_) => err(DiagCode.E0208, s"`%mode` requires a relation field, but `${l.name}` is not one", l.span)
             case None => unresolved(l.name, l.span, ssc, "field")
     Sig(fields.toList, reqs.toList)
 
@@ -311,7 +313,7 @@ private[meta] trait TypeElaboration extends TyperBase:
     case _ => showMT(t)
 
   private[meta] def mismatch(expected: MType, found: MType, span: Span, reason: String): Unit =
-    var d = Diagnostic.error("E0203", "meta type mismatch", span, s"expected `${showMT(expected)}`")
+    var d = Legacy.error(DiagCode.E0203, "meta type mismatch", span, s"expected `${showMT(expected)}`")
       .withNote(s"found `${showMT(found)}`")
     if !reason.startsWith("expected") then d = d.withNote(reason)
     ctx.report(d)

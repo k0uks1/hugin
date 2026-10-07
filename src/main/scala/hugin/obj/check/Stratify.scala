@@ -23,39 +23,29 @@ final class StratifyPhase extends Phase:
       // find a path back from `e.to` to `e.from` inside the component
       val inComp = es.filter(x => compOf(x.from) == compOf(e.from) && compOf(x.to) == compOf(e.from))
       val path = Graphs.shortestPath(inComp, (x: DepEdge) => x.from, (x: DepEdge) => x.to, e.to, e.from)
-      val cycle = (e :: path).map(x => (if x.negative then "not " else "") + x.to.name)
-      var d =
-        Diagnostic.error("E0601", "stratification cycle through negation", e.span, s"`${e.from.name}` depends negatively on `${e.to.name}`")
-      d = d.withNote(s"cycle: ${e.from.name} -> ${cycle.mkString(" -> ")}")
-      for x <- path.take(3) do d = d.withLabel(x.span, s"`${x.from.name}` depends on `${x.to.name}`")
-      d = d.withNote("negation and aggregation must not occur in a recursive cycle (Section 6.4)")
-      // an edge from a fact constructor asserted in the head of another relation's rule (Proposition 8.8)
-      (e :: path).find(x => x.rule.heads.headOption.exists { case Term.App(RelRef.Sym(h), _) => h != x.from; case _ => false })
-        .foreach { x =>
-          val h = x.rule.heads.head match
-            case Term.App(RelRef.Sym(h), _) => h.name
-            case _ => "?"
-          d = d.withNote(
-            s"a rule of `$h` asserts facts of `${x.from.name}` in its head, so `${x.from.name}` depends on what the rule reads (Proposition 8.8, see docs/NOTES.md)"
-          )
-        }
-      // the demand of a disjunction inside an aggregate reads the caller (see `DemandPhase.auxDemand`)
-      (e :: path).map(_.to.kind).collectFirst { case RelKind.Demand(aux, _) if aux.kind.isInstanceOf[RelKind.Auxiliary] => aux }.foreach {
-        aux =>
-          d = d.withNote(
-            s"`${aux.name}` stands for a disjunction inside an aggregate; its demand needs the disjunction's outer variables, which are bound only by relations that depend on `${e.from.name}`"
-          )
-          d = d.withHelp(
-            s"bind the disjunction's outer variables with relations evaluated before `${e.from.name}`, or define the disjunction as a relation with one rule per alternative"
-          )
-      }
-      ctx.report(Diag.rule(e.rule)(d))
+      def dep(x: DepEdge) = Dependency(x.from, x.to, x.negative, x.span)
+      val problem = CheckError.NegativeCycle(dep(e), path.map(dep), cycleReasons(e :: path))
+      ctx.report(Diag.rule(e.rule)(problem.toDiagnostic))
 
     // Proposition 8.8: a rule of `h` asserting a fact-constructor term `c t̄` of an earlier component gets a
     // copy `c t̄ :- body` evaluated in `c`'s component, so `c` is complete before its readers run.
     val split = StratifyPhase.splitRules(p.rules, compOf)
     split.foreach(ctx.unit.splitRules.add)
     p.rules = p.rules ++ split
+
+  /** Why a cycle exists that the rules do not show directly. */
+  private def cycleReasons(cycle: List[DepEdge]): List[CycleReason] =
+    // an edge from a fact constructor asserted in the head of another relation's rule (Proposition 8.8)
+    val asserted = cycle.find(x => x.rule.heads.headOption.exists { case Term.App(RelRef.Sym(h), _) => h != x.from; case _ => false })
+      .map { x =>
+        val h = x.rule.heads.head match
+          case Term.App(RelRef.Sym(h), _) => Some(h)
+          case _ => None
+        CycleReason.HeadAssertion(h, x.from)
+      }
+    // the demand of a disjunction inside an aggregate reads the caller (see `DemandPhase.auxDemand`)
+    val aux = cycle.map(_.to.kind).collectFirst { case RelKind.Demand(aux, _) if aux.kind.isInstanceOf[RelKind.Auxiliary] => aux }
+    asserted.toList ++ aux.map(CycleReason.AggregateDisjunction(_))
 
   override def show(using Context): String =
     ctx.unit.components.zipWithIndex.map((c, i) => s"component $i: ${c.map(_.name).mkString(", ")}").mkString("\n")

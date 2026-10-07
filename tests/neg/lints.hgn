@@ -1,0 +1,10 @@
+(* The lints, next to an error so that the file fails to compile: each warning is reported once. *)
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, X = 1 / 0.
+never : int -> prop.
+r : int -> rel.
+r X :- p X, never X.
+s : int -> rel.
+s Y :- p X.

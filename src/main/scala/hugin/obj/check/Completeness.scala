@@ -15,36 +15,22 @@ final class CompletenessPhase extends Phase:
     if p == null then return
     val es = DepGraph.edges(p)
     // reason for incompleteness, propagated backwards along positive edges
-    val why = mutable.LinkedHashMap.empty[RelSym, String]
+    val why = mutable.LinkedHashMap.empty[RelSym, Incompleteness]
     val facts = ctx.unit.facts
     for r <- p.rels do
-      if facts(r).open then why(r) = s"`${r.name}` is declared %open"
-      else if facts(r).partial then why(r) = s"`${r.name}` is declared %partial"
+      if facts(r).open then why(r) = Incompleteness.Open(r)
+      else if facts(r).partial then why(r) = Incompleteness.Partial(r)
     var changed = true
     while changed do
       changed = false
       for e <- es if !e.negative && why.contains(e.to) && !why.contains(e.from) do
-        why(e.from) = s"`${e.from.name}` depends positively on `${e.to.name}`; ${why(e.to)}"
+        why(e.from) = Incompleteness.Via(e.from, e.to, e.span, why(e.to))
         changed = true
     ctx.unit.incomplete = why.keySet.toSet
     for e <- es if e.negative && why.contains(e.to) do
-      ctx.report(Diag.rule(e.rule)(Diagnostic.error(
-        "E0602",
-        s"negation or aggregation over the incomplete relation `${e.to.name}`",
-        e.span,
-        "incomplete relation used negatively"
-      )
-        .withNote(why(e.to))
-        .withNote("the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)")))
+      ctx.report(Diag.rule(e.rule)(CheckError.NegatedIncomplete(e.to, e.span, NegSite.InRule, why(e.to)).toDiagnostic))
     for q <- p.queries; (r, neg, sp) <- DepGraph.occurrences(q.body) if neg && why.contains(r) do
-      ctx.report(Diag.query(q)(Diagnostic.error(
-        "E0602",
-        s"query negates or aggregates over the incomplete relation `${r.name}`",
-        sp,
-        "used negatively"
-      )
-        .withNote(why(r))
-        .withNote("queries may mention incomplete relations only positively (Section 8.5)")))
+      ctx.report(Diag.query(q)(CheckError.NegatedIncomplete(r, sp, NegSite.InQuery, why(r)).toDiagnostic))
 
   override def show(using Context): String =
     s"incomplete: ${ctx.unit.incomplete.map(_.name).toList.sorted.mkString(", ")}"

@@ -14,10 +14,8 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
 
   final class Bad extends Exception(null, null, false, false)
 
-  private def err(msg: String, span: Span, label: String = "", help: Option[String] = None): Nothing =
-    var d = Diagnostic.error("E0801", msg, span, label)
-    help.foreach(h => d = d.withHelp(h))
-    reporter.report(d)
+  private def err(p: InputError): Nothing =
+    reporter.report(p)
     throw Bad()
 
   private def path(t: Tree): Option[String] = t match
@@ -36,25 +34,20 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
     case Lit(l) =>
       val bt = BaseType.of(l)
       if !(ops.isSub(OType.Base(bt), expected) || ops.baseOf(expected).contains(bt)) then
-        err("type mismatch in input fact", t.span, s"expected `${expected.show}`, found `${bt.show}`")
+        err(InputError.LiteralMismatch(expected, bt, t.span))
       engine.fromLit(l)
-    case VarRef(_) | Wildcard() => err("input facts must be ground", t.span, "variable in input fact")
+    case VarRef(_) | Wildcard() => err(InputError.NotGround(t.span))
     case _ =>
       val (h, args) = flatten(t)
-      val name = path(h).getOrElse(err("expected a constructor term", t.span))
+      val name = path(h).getOrElse(err(InputError.ExpectedConstructorTerm(t.span)))
       val cands = byName.getOrElse(name, Vector.empty).filter(c => c.arity == args.length && ops.isSub(OType.Fact(c, Nil), expected))
       cands match
         case Vector(c) => Id(prog.tag(c), build(c, args))
         case Vector() =>
           if byName.contains(name) then
-            err(
-              s"`$name` cannot occur here",
-              h.span,
-              s"expected a value of type `${expected.show}`",
-              Some(s"`$name` takes ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)")
-            )
-          else err(s"unknown constructor `$name`", h.span, "not declared in the program")
-        case _ => err(s"ambiguous constructor `$name`", h.span, s"several instances fit `${expected.show}`")
+            err(InputError.ConstructorMisplaced(name, expected, byName(name).map(_.arity).distinct.toList, h.span))
+          else err(InputError.UnknownConstructor(name, h.span))
+        case _ => err(InputError.AmbiguousConstructor(name, expected, h.span))
 
   private def build(c: RelSym, args: List[Tree]): Int =
     val vs = args.zip(c.cols).map((a, col) => value(a, col.tpe)).toArray[Any]
@@ -68,25 +61,20 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
         item match
           case Rule(_, List(head), None) =>
             val (h, args) = flatten(head)
-            val name = path(h).getOrElse(err("expected a fact `rel arg ...`", head.span))
+            val name = path(h).getOrElse(err(InputError.ExpectedFact(head.span)))
             val rels = byName.getOrElse(name, Vector.empty).filter(r => !r.isCtor && r.arity == args.length)
             rels match
               case Vector(r) =>
                 val dirs = prog.directives(prog.tag(r))
                 if !dirs.input && !dirs.open then
-                  err(
-                    s"`${r.displayName}` is not an input relation",
-                    h.span,
-                    "facts can only be loaded into input relations",
-                    Some(s"declare `%input ${r.displayName}.` in the program")
-                  )
+                  err(InputError.NotInputRelation(r.displayName, h.span))
                 build(r, args)
                 count += 1
               case Vector() =>
                 if byName.contains(name) then
-                  err(s"`$name` expects ${byName(name).map(_.arity).distinct.mkString(" or ")} argument(s)", head.span)
-                else err(s"unknown relation `$name`", h.span, "not declared in the program")
-              case _ => err(s"ambiguous relation `$name`", h.span)
-          case other => err("input files contain only ground facts", other.span, "not a fact")
+                  err(InputError.RelationArity(name, byName(name).map(_.arity).distinct.toList, head.span))
+                else err(InputError.UnknownRelation(name, h.span))
+              case _ => err(InputError.AmbiguousRelation(name, h.span))
+          case other => err(InputError.NotAFact(other.span))
       catch case _: Bad => ()
     count

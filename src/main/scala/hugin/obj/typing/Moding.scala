@@ -104,7 +104,10 @@ object Moding:
     case Term.App(_, args) => args.zip(m.inputs).filter(_._2).flatMap((a, _) => vars(a)).toSet
     case _ => Set.empty
 
-  def describe(s: Stuck)(using facts: ProgramFacts): Diagnostic = s match
+  def describe(s: Stuck)(using ProgramFacts): Diagnostic = problem(s).toDiagnostic
+
+  /** Why the canonical order got stuck. */
+  def problem(s: Stuck)(using facts: ProgramFacts): ModingError = s match
     case Stuck.NoMode(a, b) =>
       val c = a.rel.sym
       val modes = facts.modesOf(c)
@@ -114,33 +117,16 @@ object Moding:
         }
       )
       val best = unboundInputs.minBy(_.length)
-      var d = Diagnostic.error(
-        "E0502",
-        s"call to `${c.name}` without an applicable mode",
-        a.span,
-        best.map((i, vs) => s"argument ${i + 1} is not bound").mkString(", ")
-      )
-      d = d.withNote(s"declared mode${if modes.length > 1 then "s" else ""} of `${c.name}`: ${modes.map(_.show).mkString(", ")}")
-      if best.nonEmpty then
-        d = d.withNote(
-          s"unbound variable${if best.flatMap(_._2).size > 1 then "s" else ""}: ${best.flatMap(_._2).distinct.map(v => s"`${Var.display(v)}`").mkString(", ")}"
-        )
-      d.withHelp("bind the input arguments with earlier formulas in the body")
+      ModingError.NoApplicableMode(c, a.span, modes, best.map(_._1), best.flatMap(_._2).distinct.map(VarName(_)))
     case Stuck.Unbound(f, missing) =>
-      Diagnostic.error(
-        "E0501",
-        s"unbound variable${if missing.size > 1 then "s" else ""} ${missing.toList.sorted.map(v => s"`${Var.display(v)}`").mkString(", ")}",
-        f.span,
-        "cannot be evaluated: not all variables are bound"
-      )
-        .withNote(f match
-          case Formula.Cmp(CmpOp.Eq, _, _) => "an equation binds a variable or pattern on one side only when the other side is fully bound"
-          case Formula.Cmp(_, _, _) => "comparisons require both sides to be bound"
-          case Formula.Agg(_, _, _, _) => "the aggregated term must be bound by the aggregate's body"
-          case Formula.Not(_) => "arithmetic and projections under `not` must be bound before the negation"
-          case _ => "variables must be bound by a relation atom or an equation"
-        )
-    case Stuck.Inner(_, inner) => describe(inner)
+      val site = f match
+        case Formula.Cmp(CmpOp.Eq, _, _) => UnboundSite.Equation
+        case Formula.Cmp(_, _, _) => UnboundSite.Comparison
+        case Formula.Agg(_, _, _, _) => UnboundSite.Aggregate
+        case Formula.Not(_) => UnboundSite.Negation
+        case _ => UnboundSite.Other
+      ModingError.UnboundInFormula(missing.toList.sorted.map(VarName(_)), site, f.span)
+    case Stuck.Inner(_, inner) => problem(inner)
 
 /** Phase: range restriction and moding of every rule and query (Definitions 6.3–6.5). */
 final class ModingPhase extends Phase:
@@ -162,38 +148,25 @@ final class ModingPhase extends Phase:
           case Term.App(RelRef.Sym(c), args) =>
             for (m, _) <- facts.modes(c); case ((a, true), i) <- args.zip(m.inputs).zipWithIndex if !isPattern(a) && ok do
               ok = false
-              ctx.report(Diag.rule(r)(Diagnostic.error(
-                "E0503",
-                s"input position ${i + 1} of `${c.name}` is not a pattern",
-                a.span,
-                "arithmetic, projections and updates are not allowed here"
-              )
-                .withNote(s"`${c.name}` has mode ${m.show}; its inputs must appear in the demand guard")))
+              ctx.report(Diag.rule(r)(ModingError.HeadInputNotPattern(c, i, m, a.span).toDiagnostic))
             if ok then
               for m <- facts.modesOf(c) if ok do
                 val b0 = Moding.headInputVars(h, m)
                 Moding.canonical(r.body, b0) match
                   case Left(stuck) =>
                     ok = false
-                    var d = Moding.describe(stuck)
-                    if facts.hasModes(c) then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
-                    ctx.report(Diag.rule(r)(d))
+                    val p = Moding.problem(stuck)
+                    ctx.report(Diag.rule(r)((if facts.hasModes(c) then p.checking(m, c) else p).toDiagnostic))
                   case Right((_, b)) =>
                     val headVars = r.heads.flatMap(Moding.vars).toSet
                     val missing = headVars -- b
                     if missing.nonEmpty then
                       ok = false
                       val spans = r.heads.flatMap(collectVarSpans(_, missing))
-                      var d = Diagnostic.error(
-                        "E0501",
-                        s"rule is not range-restricted",
-                        spans.headOption.getOrElse(h.span),
-                        s"${missing.toList.sorted.map(v => s"`${Var.display(v)}`").mkString(", ")} not bound by the body"
-                      )
-                      for s <- spans.drop(1) do d = d.withLabel(s, "")
-                      d = d.withNote("every variable of the head must be bound by a positive atom or an equation in the body")
-                      if facts.hasModes(c) then d = d.withNote(s"while checking mode ${m.show} of `${c.name}`")
-                      ctx.report(Diag.rule(r)(d))
+                      val checking = Option.when(facts.hasModes(c))((m, c))
+                      val vs = missing.toList.sorted.map(VarName(_))
+                      val p = ModingError.NotRangeRestricted(vs, spans.headOption.getOrElse(h.span), spans.drop(1), checking)
+                      ctx.report(Diag.rule(r)(p.toDiagnostic))
           case _ => ok = false
       ok
     }

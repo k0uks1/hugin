@@ -3,6 +3,7 @@ package typer
 
 import hugin.syntax.TreeOps.flattenArrow
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy, Applicability}
 import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
@@ -35,7 +36,7 @@ private[meta] trait Declarations extends TyperBase:
     val explicit = d.params.flatMap {
       case Param.VarParam(v) => Some(v.name -> TParam(v.name))
       case p =>
-        err("E0004", "object declarations take only type parameters", p.span, "expected an uppercase type parameter")
+        err(DiagCode.E0004, "object declarations take only type parameters", p.span, "expected an uppercase type parameter")
         None
     }
     val implicits = mutable.LinkedHashMap.empty[String, TParam]
@@ -47,7 +48,7 @@ private[meta] trait Declarations extends TyperBase:
         l.foreach { id =>
           seen.get(id.name) match
             case Some(prev) =>
-              ctx.report(Diagnostic.error("E0307", s"duplicate label `${id.name}`", id.span, "duplicate").withLabel(
+              ctx.report(Legacy.error(DiagCode.E0307, s"duplicate label `${id.name}`", id.span, "duplicate").withLabel(
                 prev,
                 "first used here"
               ))
@@ -66,10 +67,10 @@ private[meta] trait Declarations extends TyperBase:
         val rt = d.defn.get.asInstanceOf[RecordType]
         val doms = rt.entries.flatMap {
           case SigEntry.FieldDecl(l, t, fact) =>
-            if fact then err("E0004", "`%fact` is not allowed on the fields of a struct", l.span, "struct field")
+            if fact then err(DiagCode.E0004, "`%fact` is not allowed on the fields of a struct", l.span, "struct field")
             Some((Some(l), t))
-          case SigEntry.Complete(_, sp) => err("E0004", "requirements are not allowed in struct declarations", sp); None
-          case SigEntry.ModeReq(_, _, sp) => err("E0004", "requirements are not allowed in struct declarations", sp); None
+          case SigEntry.Complete(_, sp) => err(DiagCode.E0004, "requirements are not allowed in struct declarations", sp); None
+          case SigEntry.ModeReq(_, _, sp) => err(DiagCode.E0004, "requirements are not allowed in struct declarations", sp); None
         }
         val cols = columns(doms)
         // a data struct only builds values; a `%fact` struct is also the relation of its facts
@@ -89,7 +90,7 @@ private[meta] trait Declarations extends TyperBase:
             case OType.Base(b) => s"the base type `${b.show}`"
             case _ => s"`${showO(res)}`, which is not an open type"
           ctx.report(
-            Diagnostic.error("E0103", s"cannot classify the declaration of `${s.name}`", cod.span, s"result is $what")
+            Legacy.error(DiagCode.E0103, s"cannot classify the declaration of `${s.name}`", cod.span, s"result is $what")
               .withNote("a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
               .withHelp(if doms.isEmpty then s"to define a compile-time constant, write `${s.name} : ${Printer.show(d.tpe)} = ...`."
               else "end the type in `rel` to declare a relation")
@@ -113,7 +114,7 @@ private[meta] trait Declarations extends TyperBase:
     syms.state(s) match
       case ElabState.Done => true
       case ElabState.InProgress =>
-        ctx.report(Diagnostic.error("E0104", s"cyclic type definition `${s.name}`", useSpan, "refers back to the definition")
+        ctx.report(Legacy.error(DiagCode.E0104, s"cyclic type definition `${s.name}`", useSpan, "refers back to the definition")
           .withLabel(s.span, "type definition declared here")
           .withNote("type definitions are unfolded and must not form a cycle; declare an open type or struct instead"))
         false
@@ -129,7 +130,7 @@ private[meta] trait Declarations extends TyperBase:
         syms.define(p, TypeU)
         psc.enter(p)
         Some(p)
-      case p => err("E0004", "type definitions take only type parameters", p.span); None
+      case p => err(DiagCode.E0004, "type definitions take only type parameters", p.span); None
     }
     val rhs = elabOType(d.defn.get, psc, TVars.NoTVars)
     // strictness: each parameter occurs on the right-hand side
@@ -148,14 +149,14 @@ private[meta] trait Declarations extends TyperBase:
     collectO(rhs)
     val missing = ps.filterNot(occurring)
     if missing.nonEmpty && !s.abbrev then
-      ctx.report(Diagnostic.error(
-        "E0106",
+      ctx.report(Legacy.error(
+        DiagCode.E0106,
         s"type definition `${s.name}` is not strict",
         d.span,
         s"parameter${if missing.length > 1 then "s" else ""} ${missing.map(p => s"`${p.name}`").mkString(", ")} not used"
       )
         .withHelp(s"mark it `%abbrev ${Printer.showItem(d).stripSuffix(".")}.` to have it always expanded")
-        .withSuggestion("mark it `%abbrev`", d.span.startPoint, "%abbrev "))
+        .withSuggestion("mark it `%abbrev`", d.span.startPoint, "%abbrev ", Applicability.MachineApplicable))
     syms(s).typeDef = Some(TypeDefInfo(ps, rhs))
     syms(s).mtype = Some(TypeU)
     syms(s).state = ElabState.Done
@@ -165,6 +166,6 @@ private[meta] trait Declarations extends TyperBase:
     if !ensureTypeDef(s, span) then return OType.Err
     val td = syms.typeDef(s).get
     if args.length != td.params.length then
-      err("E0207", s"type definition `${s.name}` expects ${td.params.length} type argument(s), found ${args.length}", span)
+      err(DiagCode.E0207, s"type definition `${s.name}` expects ${td.params.length} type argument(s), found ${args.length}", span)
       return OType.Err
     normO(substO(td.rhs, td.params.zip(args.map(QuoteType(_))).toMap))

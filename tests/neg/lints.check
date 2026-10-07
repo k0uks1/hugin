@@ -1,0 +1,39 @@
+warning[W0001]: undefined constant expression
+ --> tests/neg/lints.hgn:5:17
+  |
+5 | q X :- p X, X = 1 / 0.
+  |                 ^^^^^ `1 / 0` is undefined
+  |
+  = note: the formula containing it never holds, so this rule instance never fires
+
+warning[W0005]: formula function `never` has no clauses
+ --> tests/neg/lints.hgn:6:1
+  |
+6 | never : int -> prop.
+  | ^^^^^ always false
+
+warning[W0002]: variable `Y` occurs only once in this rule
+  --> tests/neg/lints.hgn:10:3
+   |
+10 | s Y :- p X.
+   |   ^ singleton variable
+   |
+   = help: use `_` or `_Y` if this is intended
+
+error[E0501]: rule is not range-restricted
+  --> tests/neg/lints.hgn:10:3
+   |
+10 | s Y :- p X.
+   |   ^ `Y` not bound by the body
+   |
+   = note: every variable of the head must be bound by a positive atom or an equation in the body
+
+warning[W0002]: variable `X` occurs only once in this rule
+  --> tests/neg/lints.hgn:10:10
+   |
+10 | s Y :- p X.
+   |          ^ singleton variable
+   |
+   = help: use `_` or `_X` if this is intended
+
+1 error, 4 warnings found

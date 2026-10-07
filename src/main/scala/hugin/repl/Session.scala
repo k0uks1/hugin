@@ -5,6 +5,7 @@ import hugin.query.*
 import hugin.syntax.{Lexer, Tok}
 import hugin.syntax.Trees.Query as QueryItem
 import hugin.util.*
+import hugin.util.diagnostics.Code
 import java.nio.file.{Files, Path}
 import org.apache.commons.text.similarity.LevenshteinDistance
 
@@ -378,7 +379,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       commandCompletions(s":${commandNamed(command.drop(1)).get.name}" :: args)
     case List(":print") => Compiler.allPhaseNames :+ "all"
     case List(":print", _) | List(":type") | List(":kind") => names
-    case List(":explain") => ErrorCodes.all.map(_._1)
+    case List(":explain") => Code.values.toList.map(_.id)
     case List(":budget") => List("off")
     case List(":stats") => List("on", "off")
     case _ => Nil
@@ -399,7 +400,7 @@ object Session:
 
   /** What identifies a diagnostic across compilations: the source files of a session are parsed again
    *  when their text is set again, so spans are compared by path and offsets. */
-  private type Identity = (Severity, Option[String], String, List[(String, Int, Int)])
+  private type Identity = (Severity, Option[Code], String, List[(String, Int, Int)])
   private def identity(d: Diagnostic): Identity =
     (d.severity, d.code, d.message, d.labels.map(l => (l.span.source.path, l.span.start, l.span.end)))
 
@@ -408,7 +409,7 @@ object Session:
   private val probeVar = "It'repl"
 
   /** Diagnostics that the session does not report: W0003 (unused definition). */
-  private def silenced(d: Diagnostic): Boolean = d.code.contains("W0003")
+  private def silenced(d: Diagnostic): Boolean = d.code.contains(Code.W0003)
 
   /** Whether a text is a name or a module path `a.b.c`. */
   private def isPath(text: String): Boolean = text.split('.').forall(_.matches("[A-Za-z_][A-Za-z0-9_']*"))
