@@ -52,7 +52,7 @@ object ErrorCodes:
     // checks
     Code.E0601 -> "A cycle of the dependency graph contains a negative edge (Section 6.4).",
     Code.E0602 -> "The completeness discipline forbids negative edges to possibly incomplete relations (Definition 6.6).",
-    Code.E0603 -> "A recursive component with a constructive rule needs a valid %terminates directive or a %partial relation (Section 10).",
+    Code.E0603 -> "A recursive component with a constructive rule must terminate by descent along derivations (an argument decreases from premise to conclusion in every cycle) or by guarded induction (a measure decreases along every recursive call and is bound by a guard), or have a %partial relation (Section 10, docs/NOTES.md).",
     Code.E0604 -> "A recursive call does not decrease the measure, the measure is not bounded (an anchor is missing), or a measured relation calls a relation of its component without a measure (Definition 10.3 as generalised in docs/NOTES.md). `--explain-termination` shows the accepted justifications.",
     Code.E0701 -> "A directive refers to a relation of the wrong kind or arity.",
     Code.E0801 -> "An input fact is not ground, not well-typed, or not for an input relation.",

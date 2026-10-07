@@ -1,0 +1,46 @@
+(* Descent along derivations (A, docs/REDESIGN.md §4.2): size-change graphs from a premise to the derived
+   fact, without annotations *)
+
+(* data terms: every derived numeral is a proper subterm of its premise *)
+nat : type.   z : nat.   s : nat -> nat.
+start : nat -> rel.
+start (s (s (s z))).
+below : nat -> rel.
+below N :- start N.
+below N :- below (s N).
+(* data terms built in the head: the list grows, the counter shrinks *)
+lst : type.   lnil : lst.   lcons : nat -> lst -> lst.
+acc : nat -> lst -> rel.
+acc N lnil :- start N.
+acc N (lcons N L) :- acc (s N) L.
+
+(* fact constructors (Skolem terms) alike *)
+tree : type.   %fact leaf : int -> tree.   %fact node : tree -> tree -> tree.
+root : tree -> rel.
+root (node (node (leaf 1) (leaf 2)) (leaf 3)).
+sub : tree -> int -> rel.
+sub T 0 :- root T.
+sub L (D + 1) :- sub (node L _) D, D < 10.
+sub R (D + 1) :- sub (node _ R) D, D < 10.
+
+(* integers decreasing above a guard, and increasing below a bound *)
+down : int -> rel.
+down 20.
+down M :- down N, N >= 2, M = N / 2.
+up : int -> rel.
+up 0.
+up M :- up N, M = N + 3, M <= 10.
+
+(* permuted arguments: neither argument decreases in every step, but every cycle of two steps does *)
+swap : int -> int -> rel.
+swap 5 7.
+swap Y X1 :- swap X Y, X > 0, X1 = X - 1.
+
+(* mutual recursion through two relations *)
+ev : int -> rel.
+od : int -> rel.
+ev 10.
+od M :- ev N, N > 0, M = N - 1.
+ev M :- od N, N > 0, M = N - 1.
+
+%output below.  %output acc.  %output sub.  %output down.  %output up.  %output swap.  %output ev.  %output od.

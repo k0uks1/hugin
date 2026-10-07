@@ -98,7 +98,7 @@ enum Code(
   // checks
   case E0601 extends Code(601, Phase.Checks, "stratification cycle through negation")
   case E0602 extends Code(602, Phase.Checks, "negation or aggregation over an incomplete relation")
-  case E0603 extends Code(603, Phase.Checks, "growing component without valid %terminates")
+  case E0603 extends Code(603, Phase.Checks, "growing component without a termination argument")
   case E0604 extends Code(604, Phase.Checks, "invalid %terminates directive")
   // directives
   case E0701 extends Code(701, Phase.Directives, "invalid directive")

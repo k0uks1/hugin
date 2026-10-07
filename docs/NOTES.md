@@ -391,15 +391,117 @@ positive prefix relation joins `len`'s component, where arithmetic or term const
 components, and outputs, of accepted programs, e.g. the type checker's `lookup`).
 `tests/run/f_demand_per_call.hgn`, `tests/run/f_demand_per_call_disjunction.hgn`.
 
-## Termination (issue #2)
+## Termination (issue #2, redesign A1)
 
-The termination check (`obj/check/Termination.scala`) generalises Definition 10.3. A recursive
-component (Section 6.4) needs a justification only if one of its rules is constructive (Definition 10.1);
-a component with a `%partial` relation is evaluated with the round budget and not checked. Otherwise every
-relation of the component, or the relation its demand relations belong to, may carry a measure
-`%terminates X (c … X …)`, `%terminates l c`, or lexicographically `%terminates (X, Y) (c … X … Y …)` /
-`%terminates (l, m) c`. `--explain-termination` prints, for every recursive component, which case
-applies and the justification of every recursive step.
+The termination check (`obj/check/`: `Termination.scala` the phase, `Constructive.scala` constructive rules
+and finite sources, `SizeChange.scala` direction (A), `GuardedInduction.scala` direction (B) with measure
+inference, `DemandDriven.scala` its case for `%mode`, `Decrease.scala` and `Intervals.scala` the decrease
+reasoning, `TerminationFailures.scala` the diagnostics) decides statically
+that every recursive component reaches a finite fixed point (docs/REDESIGN.md §4). A recursive component
+(Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below);
+a component with a `%partial` relation is evaluated with the round budget and not checked. Otherwise the
+check tries, in this order:
+
+1. If a relation of the component (or the relation its demand relations belong to) carries a measure
+   `%terminates X (c … X …)`, `%terminates l c`, or lexicographically `%terminates (X, Y) (c … X … Y …)` /
+   `%terminates (l, m) c`: guarded induction (B) with the declared measures. The directive is a *hint*:
+   it is checked, never trusted, and a failure is E0604 (no fallback to the other direction, so the
+   diagnostic speaks about the measure the programmer named).
+2. Without a directive: **descent along derivations (A)**, the size-change principle on derivation
+   chains (below).
+3. Then **guarded induction (B)** with an *inferred* measure: the measures tried are one argument per
+   relation (up to four relations of the component, at most 256 combinations) and, for a component with
+   a single relation, every lexicographic pair of arguments. The first measure that passes the
+   conditions below is used; `--explain-termination` prints it as a directive.
+4. Otherwise E0603 (below).
+
+`--explain-termination` prints, for every recursive component, which case applies and the justification
+of every recursive step.
+
+### Descent along derivations (A)
+
+**Size-change graphs.** For a rule `H :- …, B, …` of the component and a body atom `B` of the component (a
+*premise*), the graph `G(B, H)` has an arc `i → j` from argument `i` of `B` to argument `j` of `H` labelled
+
+* `=` if `h_j` and `b_i` are syntactically equal (up to `as`/ascription), equated by the body, or (integers)
+  `b_i - h_j ∈ [0, 0]` by the interval reasoning below;
+* `>` (strict decrease) for structural arguments if `h_j` is a proper subterm of `b_i` (unfolding
+  variables of `b_i` bound to patterns, as for measures); for integer arguments if `b_i - h_j ≥ 1` (or
+  `h_j = x / l`, `l ≥ 2`, `1 ≤ x ≤ b_i`) **and** `h_j` is bounded below: its interval has a lower bound,
+  or its variables are bound by finite sources outside the component;
+* `≥` (weak decrease) for integers if `b_i - h_j ≥ 0`, or the decrease above holds without a bound;
+* `<` (strict increase) for integers if `h_j - b_i ≥ 1` and `h_j` is bounded above (interval or finite
+  sources); `≤` (weak increase) if `h_j - b_i ≥ 0` or without the bound.
+
+Arcs only connect two integer or two non-integer arguments. Composition follows the paths
+`i → j → k`: `=` is neutral, two decreases give a decrease (strict if one is), two increases an increase,
+and a decrease followed by an increase gives nothing (they are measured in opposite directions, so they
+never form one thread). The closure of the graphs under composition (at most 4000 graphs, otherwise the
+direction fails) is checked: **every idempotent graph `G : p → p` (`G ; G = G`) has a strict arc `i → i`,
+or the arc `i =→ i` for every argument `i` of `p`.**
+
+*Soundness.* Let C be the component, evaluated after the components it depends on, which are finite by
+induction over the evaluation order (Definition 8.7; their check is this argument or the finiteness of
+non-recursive components). The facts of C are derived by its rules from facts of C and finitely many
+facts of earlier components. Define the *depth* of a fact of C as 0 if a rule derives it without a premise
+in C, and otherwise as 1 + the least possible maximum depth of the C-premises of a derivation of it.
+There are finitely many facts of each depth: by induction, a fact of depth `k + 1` is derived by a rule
+whose body valuation is determined by its positive atoms (range restriction) — premises of depth `≤ k`
+(finitely many) and facts of earlier components (finitely many) — and arithmetic, equations and
+aggregates are functions of that valuation. Suppose C is infinite. Then facts of unbounded depth exist.
+Link every fact of depth `k + 1` to a C-premise of depth `k` of a derivation of minimal depth: this is a
+forest with finitely many roots (depth 0) and finite branching (finitely many facts of each depth) and
+infinitely many nodes, so by König's lemma it has an infinite path `f_0, f_1, …`; its facts are distinct
+(their depths are `0, 1, 2, …`), and each `f_{n+1}` is derived from the premise `f_n` by some rule, so
+the arguments of consecutive facts are related as the graph `G_n` of that rule and premise says. By
+Ramsey's theorem (as in Lee, Jones and Ben-Amram, *The Size-Change Principle for Program Termination*,
+POPL 2001, Theorem 4) there are indices `n_0 < n_1 < …` and an idempotent graph `G : p → p` of the closure
+such that the composition of `G_{n_k}, …, G_{n_{k+1} - 1}` is `G` for every `k`. If `G` has `i =→ i` for
+every argument, `f_{n_0} = f_{n_1}`: a contradiction to distinctness. If `G` has a strict arc `i → i`,
+argument `i` of `f_{n_0}, f_{n_1}, …` forms an infinite thread that decreases strictly (or increases
+strictly) at every segment and never moves in the other direction. Structurally this is an infinite
+descending chain of proper subterms of a finite term: impossible. For integers, every strict step lands
+on a value `≥ L` (for decreases; `L` the least lower bound over the finitely many rules, or the least
+value of the finite sources), the thread is non-increasing, so it can decrease strictly only finitely
+often: a contradiction; increases dually with upper bounds. Hence C is finite. A component whose cycles
+are all trivial (`q X Y :- q Y X`: its idempotent graph is the identity) is accepted by the second
+alternative.
+
+The integer bound is checked on the *derived* value, which is what the argument needs: the strict steps
+land above the bound. `need A :- need N, N > 1, A = N - 1` derives `A ≥ 1`; `need A :- need N, A = N - 1`
+is rejected with a help naming the missing guard. The direction is new: before the redesign the
+checker rejected these rules (they needed `%partial`), e.g. `check B (bind G X T1) :- check (lam X T1 B) G`
+of the hand-written type checker (`tests/run/rd_typechecker.hgn`) and `need` of the hand-written `fib`
+(`tests/run/rd_fib.hgn`). It works for data and fact-constructor terms alike: both are finite trees, so
+the proper-subterm order is well founded independently of the input. Increases bounded by finite sources
+also accept `fib N F :- need N, …, fib A FA, fib B FB, …` read upwards (the head's `N` is larger than the
+premises' and lies in the finite set of `need` facts). `tests/run/t_termination_descent.hgn`,
+`tests/neg/t_termination_descent.hgn`; `SizeChangeSuite` runs random integer recursions accepted by the
+check and asserts that they reach their fixed point.
+
+### Guarded induction (B)
+
+Measures and the conditions of the bottom-up case below are the direction (B) of the redesign: along
+every recursive call the call's measure is smaller than the head's, and the head's measure lies in a
+finite set (the anchor) — bound by atoms of relations outside the component (relations of earlier
+components, constructor facts), by a bounded interval, or by the call's bound plus a bounded difference.
+The guard is an ordinary body atom; nothing requires modes. With measure inference, `typed (lam X T1 B) G
+(arrow T1 T2) :- check (lam X T1 B) G, typed B (bind G X T1) T2` is accepted with the inferred measure `e`
+(the guard `check` binds the head's `lam X T1 B`). The demand-driven case below (moded components)
+remains for `%mode` until the demand transformation becomes a library (REDESIGN §7.4, phase C), with
+the same measure inference. *Soundness* is the argument of the bottom-up case below (well-founded
+induction on the measure, which ranges over a finite set).
+
+### Diagnostics
+
+E0603 (no argument found) names the constructive rule (the invention site), the cycle, why (A) fails (a
+cycle of steps, with its rules, whose idempotent graph has no strict self-arc) and why (B) fails (the
+first candidate measure that decreases but is not anchored, or that no argument decreases), and a help:
+the missing guard when an integer decreases (or increases) without a bound (`` `A` is smaller than `N`
+but not bounded below: add a guard such as `A >= 0` ``), otherwise how to make an argument decrease or to
+name the measure with `%terminates`. E0604 (a declared measure fails) is unchanged.
+
+### Constructive rules and measures
 
 **Two disciplines.** Growth has two sources, and each existing check belongs to one of them:
 
@@ -565,13 +667,13 @@ head's or caller's measure, says which slot of the measure fails and whether the
 is missing, and suggests the missing comparison or `%partial`. Components with a cycle through negation
 are skipped (E0601 is reported).
 
-**Not covered.** Measures through non-linear arithmetic other than division by a literal, multiset or
-size-change termination with permuted arguments (Lee, Jones, Ben-Amram), declared measure functions,
-anchors through finite (non-recursive) types, and bottom-up structural recursion whose head is not
-matched against existing facts.
+**Not covered.** Measures through non-linear arithmetic other than division by a literal, multiset
+orders, declared measure functions, anchors through finite (non-recursive) types, and components that
+need (A) for some relations and (B) for others at once (a hand-written demand relation in the same
+component as its answer relation, which happens when demand depends on answers; the generated demand of
+`%mode` is covered by the demand-driven case). Argument permutations are covered by (A).
 
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
-* Size-change termination (Lee, Jones, Ben-Amram) for argument permutations in the termination check.
 * A faster engine (columnar storage, join planning) behind the same core IR.

@@ -1,0 +1,65 @@
+termination: {below}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+termination: {acc}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:15:1: premise `acc (s N) L`: `N` is a proper subterm of `s N`
+termination: {sub}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:23:1: premise `sub (node L _) D`: `L` is a proper subterm of `node L _`; `D + 1` > `D` (`D + 1 - D` = 1; `D + 1` <= 10)
+  rule at tests/run/t_termination_descent.hgn:24:1: premise `sub (node _ R) D`: `R` is a proper subterm of `node _ R`; `D + 1` > `D` (`D + 1 - D` = 1; `D + 1` <= 10)
+termination: {down}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:29:1: premise `down N`: `M` < `N` (`M` = `N / 2` < `N` (`N` >= 1); `M` >= 1)
+termination: {up}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:32:1: premise `up N`: `M` > `N` (`M - N` = 3; `M` <= 10)
+termination: {swap}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:37:1: premise `swap X Y`: `X1` < `X` (`X - X1` = 1; `X1` >= 0)
+termination: {ev, od}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_descent.hgn:43:1: premise `ev N`: `M` < `N` (`N - M` = 1; `M` >= 0)
+  rule at tests/run/t_termination_descent.hgn:44:1: premise `od N`: `M` < `N` (`N - M` = 1; `M` >= 0)
+acc (s (s (s z))) lnil.
+acc (s (s z)) (lcons (s (s z)) lnil).
+acc (s z) (lcons (s z) (lcons (s (s z)) lnil)).
+acc z (lcons z (lcons (s z) (lcons (s (s z)) lnil))).
+below (s (s (s z))).
+below (s (s z)).
+below (s z).
+below z.
+down 1.
+down 10.
+down 2.
+down 20.
+down 5.
+ev 0.
+ev 10.
+ev 2.
+ev 4.
+ev 6.
+ev 8.
+od 1.
+od 3.
+od 5.
+od 7.
+od 9.
+sub (leaf 1) 2.
+sub (leaf 2) 2.
+sub (leaf 3) 1.
+sub (node (leaf 1) (leaf 2)) 1.
+sub (node (node (leaf 1) (leaf 2)) (leaf 3)) 0.
+swap 0 2.
+swap 1 3.
+swap 2 4.
+swap 3 0.
+swap 3 5.
+swap 4 1.
+swap 4 6.
+swap 5 2.
+swap 5 7.
+swap 6 3.
+swap 7 4.
+up 0.
+up 3.
+up 6.
+up 9.

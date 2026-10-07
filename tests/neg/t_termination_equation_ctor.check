@@ -1,4 +1,4 @@
-error[E0603]: growing component without a valid %terminates directive
+error[E0603]: growing component without a termination argument
   --> tests/neg/t_termination_equation_ctor.hgn:10:17
    |
 10 | num X :- num Y, X = s Y.
@@ -6,6 +6,8 @@ error[E0603]: growing component without a valid %terminates directive
    |
    = note: the recursive component {num} contains this constructive rule, so its fixed point may be infinite
    = note: recursion: `num` -> `num`
-   = help: declare a decreasing argument, e.g. `%terminates X (num ...)`, or mark the relation `%partial num.` to evaluate it with a round budget
+   = note: descent along derivations (A) fails: along `num` -> ... -> `num` (rule at tests/neg/t_termination_equation_ctor.hgn:10:1) no argument of the derived fact is smaller than in the premise
+   = note: guarded induction (B) fails: no anchor: the variables of `X` are not bound by a relation outside the component (measure: argument 1 (structural))
+   = help: make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`), or name the measure with `%terminates X (num ...)`
 
 1 error found

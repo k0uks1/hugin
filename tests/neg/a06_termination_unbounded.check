@@ -12,7 +12,7 @@ error[E0604]: invalid `%terminates` directive for `counter`
   = help: add an upper bound, e.g. `N < 100`
   = help: if the recursion terminates for another reason, mark the relation `%partial counter.` to evaluate it with a round budget
 
-error[E0603]: growing component without a valid %terminates directive
+error[E0603]: growing component without a termination argument
  --> tests/neg/a06_termination_unbounded.hgn:9:17
   |
 9 | nat M :- nat N, M = N + 1.
@@ -20,6 +20,8 @@ error[E0603]: growing component without a valid %terminates directive
   |
   = note: the recursive component {nat} contains this constructive rule, so its fixed point may be infinite
   = note: recursion: `nat` -> `nat`
-  = help: declare a decreasing argument, e.g. `%terminates X (nat ...)`, or mark the relation `%partial nat.` to evaluate it with a round budget
+  = note: descent along derivations (A) fails: along `nat` -> ... -> `nat` (rule at tests/neg/a06_termination_unbounded.hgn:9:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no anchor: the body bounds neither `M` nor `N` from above (measure: argument 1 (integer))
+  = help: `M` is larger than `N` but not bounded above: add a guard such as `M < 100` (or bound `N`)
 
 2 errors found
