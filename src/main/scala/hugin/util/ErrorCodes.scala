@@ -112,7 +112,7 @@ object ErrorCodes:
     (
       "E0603",
       "growing component without a termination argument",
-      "A recursive component with a constructive rule must terminate by descent along derivations (an argument decreases from premise to conclusion in every cycle) or by guarded induction (a measure decreases along every recursive call and is bound by a guard), or have a %partial relation (Section 10, docs/NOTES.md)."
+      "A recursive component with a constructive rule must terminate by descent along derivations (an argument decreases from premise to conclusion in every cycle) or by guarded induction (a measure decreases along every recursive call and is bound by a guard) (Section 10, docs/NOTES.md). There are no round budgets: a program that cannot be shown to terminate is rejected."
     ),
     (
       "E0604",

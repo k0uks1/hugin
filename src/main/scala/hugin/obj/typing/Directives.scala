@@ -53,7 +53,6 @@ final class DirectivesPhase extends Phase:
                 case None if ls.distinct.length != ls.length =>
                   err(s"label `${ls.diff(ls.distinct).head}` occurs twice in the measure", "ambiguous position")
                 case None => set(r)(_.copy(terminates = Some((ls.flatMap(r.labelIndex), d.span))))
-            case DirKind.Partial => set(r)(_.copy(partial = true))
             case DirKind.Open => set(r)(_.copy(open = true))
             case DirKind.Input => set(r)(_.copy(input = true))
             case DirKind.Output => set(r)(_.copy(output = true))
@@ -77,12 +76,12 @@ final class DirectivesPhase extends Phase:
     val dirs = ctx.unit.facts(rel)
     val failure = c.requirement match
       case Requirement.Complete(label, _) =>
-        Option.when(dirs.open || dirs.partial)(
+        Option.when(dirs.open)(
           Diagnostic.error(
             "E0208",
             s"relation `${rel.name}` does not satisfy `%complete $label`",
             c.use,
-            s"`${rel.name}` is ${if dirs.open then "open" else "partial"}"
+            s"`${rel.name}` is open"
           ).withNote("the functor negates or aggregates over this relation, which needs complete knowledge")
         )
       case Requirement.HasMode(label, mode, _) =>
@@ -116,7 +115,7 @@ final class DirectivesPhase extends Phase:
       .map { (r, d) =>
         val terminates = d.terminates.map(t => s"terminates ${hugin.syntax.Printer.measure(t._1.map(k => (k + 1).toString))}")
         val parts = d.modes.map(m => s"mode ${m._1.show}") ++ terminates ++
-          (if d.open then List("open") else Nil) ++ (if d.partial then List("partial") else Nil) ++
+          (if d.open then List("open") else Nil) ++
           (if d.input then List("input") else Nil) ++ (if d.output then List("output") else Nil) ++
           (if d.derivations then List("derivations") else Nil)
         s"${r.name}: ${parts.mkString(", ")}"

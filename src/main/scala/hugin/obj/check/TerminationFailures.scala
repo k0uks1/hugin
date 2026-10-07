@@ -137,7 +137,7 @@ object Failures:
       notes = List(
         s"$measure of `${d.name}` is ${showPositions(d, ctx.of(d))}; for $smallWhat it must be smaller than for $bigWhat"
       ),
-      helps = help :+ partialHelp(d),
+      helps = help,
       kind = FailKind.Decrease,
       measure = showPositions(d, ctx.of(d))
     )
@@ -166,7 +166,7 @@ object Failures:
       ctx.directive(c),
       secondary = List(h.span -> s"the head has `$hs`"),
       notes = List("bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop"),
-      helps = List(help, partialHelp(c)),
+      helps = List(help),
       kind = FailKind.Anchor,
       measure = showPositions(c, ctx.of(c))
     )
@@ -181,12 +181,9 @@ object Failures:
       Some(r),
       ctx.directive(e),
       notes = List("demands decrease from caller to callee; integers must stay bounded below for the recursion to stop"),
-      helps = List(s"add a lower bound, e.g. `$sh >= 0`, or bound the caller's argument (`N > 0` with `$sh = N - 1`)", partialHelp(e)),
+      helps = List(s"add a lower bound, e.g. `$sh >= 0`, or bound the caller's argument (`N > 0` with `$sh = N - 1`)"),
       kind = FailKind.Anchor,
       measure = showPositions(e, ctx.of(e))
     )
-
-  def partialHelp(c: RelSym): String =
-    s"if the recursion terminates for another reason, mark the relation `%partial ${c.name}.` to evaluate it with a round budget"
 
   def where(r: Rule): String = s"rule at ${r.span.show}"

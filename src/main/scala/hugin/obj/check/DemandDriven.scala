@@ -100,7 +100,7 @@ final class DemandDriven(rc: RecursiveComponent):
                 notes = List(
                   s"this call demands `${e.name}` with values read from relations that depend on the answers of `${e.name}`, so the demands could grow without bound"
                 ),
-                helps = List(s"bind the argument by a relation that does not depend on the answers of `${e.name}`", partialHelp(e))
+                helps = List(s"bind the argument by a relation that does not depend on the answers of `${e.name}`")
               ))
         val demands = demandRules.iterator.flatMap { r =>
           val Term.App(RelRef.Sym(dh), us) = r.heads.head: @unchecked

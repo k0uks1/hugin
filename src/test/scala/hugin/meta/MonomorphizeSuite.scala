@@ -49,7 +49,7 @@ class MonomorphizeSuite extends munit.FunSuite:
       firsts : list A -> A -> rel.
       @first firsts (cons X L) X :- xs (cons X L).
       %derivations firsts.
-      %partial firsts.
+      %open firsts.
       xs : list int -> rel.
       xs (cons 1 nil).
       ys : int -> rel.
@@ -59,7 +59,7 @@ class MonomorphizeSuite extends munit.FunSuite:
     assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message))
     val p = c.unit.prog.nn
     val inst = rel(p, "firsts[int]")
-    assert(c.unit.facts(inst).derivations && c.unit.facts(inst).partial)
+    assert(c.unit.facts(inst).derivations && c.unit.facts(inst).open)
     val family = inst.instanceOf.get._1
     assert(!p.rels.contains(family))
     assertEquals(c.unit.facts(family), RelDirectives.none)

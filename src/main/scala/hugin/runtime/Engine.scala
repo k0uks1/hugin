@@ -6,13 +6,12 @@ import hugin.syntax.{AggKind, Literal}
 import scala.collection.mutable
 
 /** Status of one component's evaluation. */
-final case class ComponentStats(rels: Vector[String], rounds: Int, truncated: Boolean)
+final case class ComponentStats(rels: Vector[String], rounds: Int)
 
 /** Semi-naive evaluator over an interning store (Sections 9.1–9.7). */
-final class Engine(prog: CoreProgram, budget: Option[Int]):
+final class Engine(prog: CoreProgram):
   val store: Vector[Relation] = prog.rels.zipWithIndex.map((r, i) => Relation(i, r, r.arity, prog.indexes.getOrElse(i, Set.empty)))
   val stats: mutable.ArrayBuffer[ComponentStats] = mutable.ArrayBuffer.empty
-  var truncated = false
 
   // visibility windows per relation for the current round: old = [0, oldEnd), delta = [oldEnd, deltaEnd)
   private val oldEnd = Array.fill(store.length)(Int.MaxValue)
@@ -263,13 +262,11 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
   private lazy val divergence = Divergence(store)
 
   /** Evaluates all components. Cancellable: an interrupt of the evaluating thread ends evaluation with
-   *  an `InterruptedException` at the next round (a non-terminating `%partial` component without budget). */
+   *  an `InterruptedException` at the next round (an editor that no longer needs the result). */
   def run(): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for (comp, ci) <- prog.components.zipWithIndex do
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
-      val partial = comp.exists(t => prog.directives(t).partial)
-      val limit = if partial then budget else None
       // Init: every rule once, all atoms read the full relations
       comp.foreach { t =>
         oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size
@@ -283,29 +280,25 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       var rounds = 0
       var nextCheck = FirstDivergenceCheck
       val bounded = comp.exists(store(_).isBound)
-      var cut = false
       def deltaNonEmpty = comp.exists(t => deltaEnd(t) > oldEnd(t))
       val recursive = rules.filter(_.recursiveAtoms > 0)
-      while deltaNonEmpty && recursive.nonEmpty && !cut do
+      while deltaNonEmpty && recursive.nonEmpty do
         if Thread.interrupted() then throw InterruptedException("evaluation cancelled")
-        if limit.exists(rounds >= _) then cut = true
-        else
-          rounds += 1
-          for r <- recursive; j <- 0 until r.recursiveAtoms do
-            versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
-            fire(r)
-          comp.foreach { t =>
-            oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
-          }
-          if bounded && rounds >= nextCheck then
-            checkDivergence(comp, rules)
-            nextCheck *= 2
-      if cut then truncated = true
+        rounds += 1
+        for r <- recursive; j <- 0 until r.recursiveAtoms do
+          versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
+          fire(r)
+        comp.foreach { t =>
+          oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
+        }
+        if bounded && rounds >= nextCheck then
+          checkDivergence(comp, rules)
+          nextCheck *= 2
       comp.foreach { t =>
         oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue
       }
       versionOf = _ => Version.Full
-      stats += ComponentStats(comp.map(prog.rels(_).name), rounds, cut)
+      stats += ComponentStats(comp.map(prog.rels(_).name), rounds)
 
   /** Answers of a query: distinct tuples of the user's variables. */
   def answers(q: CompiledQuery): List[Array[Any]] =

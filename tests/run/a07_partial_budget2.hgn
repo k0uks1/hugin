@@ -1,8 +1,0 @@
-(* A.2 (7): a %partial relation with a budget; truncated results are subsets *)
-nat : int -> rel.
-%partial nat.
-nat 0.
-nat M :- nat N, M = N + 1.
-small : int -> rel.
-small N :- nat N, N < 4.
-%output small.

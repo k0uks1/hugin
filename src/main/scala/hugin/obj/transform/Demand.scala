@@ -193,7 +193,7 @@ final class DemandPhase extends ObjProgramPhase:
     out
 
   /** Gives every call site in `sites` its own copy `c#k` of the callee `c`: the rules of `c` with `c`
-   *  renamed (also in its recursive calls), the directives of `c` (modes, measure, `%partial`, `%open`),
+   *  renamed (also in its recursive calls), the directives of `c` (modes, measure, `%open`),
    *  and the call atom renamed. A copy derives exactly the answers of `c` for the demands of its call
    *  site, so the answers at every call site are unchanged. */
   private def specialize(rules: Vector[Rule], sites: java.util.IdentityHashMap[Formula.Atom, RelSym], copies: mutable.ArrayBuffer[RelSym])(

@@ -141,11 +141,11 @@ object Fuzz:
 
   /** Robustness properties of `check` and `run` (issue #7); the returned list of problems is empty if
    *  they hold. `check` must finish in time with exit code 0 or 1, deterministically, and say why it
-   *  failed; diagnostics must have spans inside their file and render. `run --budget n` must not crash
+   *  failed; diagnostics must have spans inside their file and render. `run` must not crash
    *  or exit with another code; with `mustRun`, a program accepted by `check` must also run to completion
    *  (a timeout is a problem), otherwise a run that exceeds the time limit is tolerated (a mutation may
    *  legitimately raise a bound to 2^63). */
-  def robustness(program: Program, budget: Int, mustRun: Boolean): List[String] =
+  def robustness(program: Program, mustRun: Boolean): List[String] =
     def exitCode(what: String, i: Invocation) =
       Option.when(i.exit != 0 && i.exit != 1)(s"$what: exit code ${i.exit}\n${i.err}")
     val inProcess = diagnosticProblems(program)
@@ -160,9 +160,9 @@ object Fuzz:
               case Right(second) =>
                 Option.when(second != first)(s"check is not deterministic:\n--- first\n${first.err}\n--- second\n${second.err}")
             val silent = Option.when(first.exit == 1 && first.err.isBlank)("check failed without a diagnostic")
-            val run = cli("run", program, List("--budget", budget.toString)) match
+            val run = cli("run", program) match
               case Left(Failure.TimedOut) if !mustRun || first.exit != 0 => None
-              case Left(f) => Some(s"run --budget $budget: ${f.describe}")
+              case Left(f) => Some(s"run: ${f.describe}")
               case Right(r) =>
                 exitCode("run", r).orElse(
                   Option.when(mustRun && first.exit == 0 && r.exit != 0)(s"accepted by check, but run failed:\n${r.err}")

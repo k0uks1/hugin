@@ -51,11 +51,10 @@ class EngineSuite extends munit.ScalaCheckSuite:
     assertEquals(out, Right(List("n 1.")))
   }
 
-  test("budgets truncate partial components to subsets (Theorem 9.4)") {
-    val prog = "nat : int -> rel. %partial nat. nat 0. nat M :- nat N, M = N + 1. %output nat."
-    val results = (0 to 4).map(b => TestSupport.run(prog, budget = Some(b)).toOption.get.filterNot(_.startsWith("(*")).toSet)
-    for i <- 0 until 4 do assert(results(i).subsetOf(results(i + 1)))
-    assertEquals(results(2), Set("nat 0.", "nat 1.", "nat 2."))
+  test("%partial is removed: a program that cannot be shown to terminate is rejected") {
+    val prog = "nat : int -> rel. nat 0. nat M :- nat N, M = N + 1. %output nat."
+    assertEquals(TestSupport.run(prog), Left(List("E0603")))
+    assertEquals(TestSupport.run("nat : int -> rel. %partial nat."), Left(List("E0001")))
   }
 
   test("aggregates count distinct bindings and sum of nothing is 0 (Definition 8.4)") {

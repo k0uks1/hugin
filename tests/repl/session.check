@@ -124,10 +124,6 @@ yes.
 (* {path}: 3 round(s) *)
 hugin> :stats off
 statistics: off
-hugin> :budget 1
-round budget: 1
-hugin> :budget off
-round budget: unbounded
 hugin> :explain W0005
 W0005: formula function without clauses
 
@@ -135,7 +131,7 @@ A formula function is declared without clauses or definition; it is always false
 hugin> :lod x
 error: unknown command `:lod`
   = help: did you mean `:load`?
-  = help: the commands are :load :reload :facts :reset :type :kind :list :imports :print :explain :budget :stats :help :quit (see :help)
+  = help: the commands are :load :reload :facts :reset :type :kind :list :imports :print :explain :stats :help :quit (see :help)
 
 hugin> :reset
 session cleared
