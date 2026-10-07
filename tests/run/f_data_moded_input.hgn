@@ -1,0 +1,36 @@
+(* Data constructors in moded inputs never create facts: a call builds its inputs as values (the
+   demand), and a data value is never a fact. `%mode` adds facts only to the moded relation and its
+   demand relations. A fact constructor can still be passed through a variable bound to an existing
+   fact, and occur as a pattern in the input column of the moded relation's own head (no new fact). *)
+shape : type.
+circle : shape.
+square : int -> shape.
+%fact named : string -> shape.
+named "unit".
+
+area : (s : shape) -> (a : int) -> rel.
+%mode area +s -a.
+area circle 3.
+area (square N) A :- A = N * N.
+area (named _) 1.
+
+(* the demand of `area` builds the data value `square 4`; no fact is created *)
+q : int -> rel.
+q A :- area (square 4) A.
+%output q.
+
+(* an existing fact of `named`, bound first, is passed through a variable *)
+r : string -> int -> rel.
+r N A :- named N, S = named N, area S A.
+%output r.
+
+(* the facts of the fact constructor are only those asserted: the moded calls added none *)
+seen : string -> rel.
+seen N :- named N.
+%output seen.
+counted : int -> rel.
+counted C :- C = count { S | named S }.
+%output counted.
+
+?- area (square 3) A.
+?- area circle A.

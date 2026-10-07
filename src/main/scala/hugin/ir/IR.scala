@@ -6,11 +6,12 @@ import hugin.syntax.AggKind
 /** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String) or identities. */
 final case class Id(rel: Int, n: Int)
 
-/** The value of a constructor term in a comparison that was never built. It differs from every
- *  identity (an existing value would have been found) and equals another absent value of the same
- *  structure, so a comparison does not depend on which values happen to exist. It occurs only in tests,
- *  never in a fact. */
-final case class Absent(rel: Int, args: Vector[Any])
+/** The value, in a comparison, of a term with a fact-constructor subterm that is not a fact (`c t̄` with
+ *  `c` declared `%fact`, or a data term containing one). Every value bound in a satisfying valuation has
+ *  only facts as fact-constructor subterms, so such a term differs from every bound value; two of them are
+ *  equal if they have the same structure. Comparisons are therefore structural without asserting or
+ *  interning the term. It occurs only as an operand of a test, never in a register binding or a fact. */
+final case class NonFact(rel: Int, args: Vector[Any])
 
 /** Which part of a relation a scan reads (Section 9.5). */
 enum Version:
@@ -23,7 +24,10 @@ enum Expr:
   case Arith(op: ArithOp, l: Expr, r: Expr)
   case Neg(e: Expr)
 
-  /** Head construction of a nested fact (Make), possibly nested. */
+  /** A constructor term `c t̄`. In a head it is built: a data constructor's value is hash-consed, a fact
+   *  constructor's is asserted (the fact-constructor subterms of a head are facts, `subfact_F`). In a body
+   *  (comparison operands, binding equations) a data term is hash-consed too, which is unobservable, and a
+   *  fact-constructor term is looked up: its identity if it is a fact, otherwise a [[NonFact]]. */
   case Make(rel: Int, args: Array[Expr])
 
 /** Body operations of the core IR (Section 9.3). Registers are slots of a per-rule register file. */
@@ -37,9 +41,9 @@ enum BodyOp:
   case Eval(dst: Int, e: Expr)
   case Test(op: CmpOp, a: Expr, b: Expr)
 
-  /** Look up the identity of an existing value (no interning). If it was never built, the operation fails,
-   *  or with `orAbsent` (operands of comparisons) yields an [[Absent]] value. */
-  case Lookup(dst: Int, rel: Int, args: Array[Expr], orAbsent: Boolean = false)
+  /** The existence check of a fact-constructor term in a binding equation (`X = c t̄`, read as
+   *  `(c t̄ as X)`): the identity of the fact, or failure if `c t̄` is not a fact. */
+  case Lookup(dst: Int, rel: Int, args: Array[Expr])
   case NotIn(ops: Array[BodyOp])
   case Agg(dst: Int, kind: AggKind, term: Expr, locals: Array[Int], ops: Array[BodyOp])
 
@@ -50,11 +54,7 @@ final class CompiledRule(
     val body: Array[BodyOp],
     val headRel: Int,
     val headArgs: Array[Expr],
-    val recursiveAtoms: Int,
-    /** Head columns whose constructed values are probes: interned, not asserted. These are the input
-     *  columns of demand relations and, in a rule of a moded relation guarded by the demand of mode `m`,
-     *  the inputs of `m`. Values built in other columns are facts, with the values nested in them. */
-    val probeCols: Set[Int] = Set.empty
+    val recursiveAtoms: Int
 )
 
 final class CompiledQuery(
@@ -72,7 +72,8 @@ final class CoreProgram(
     val rels: Vector[RelSym],
     /** The directives of each relation, by tag. */
     val directives: Vector[RelDirectives],
-    /** Components in evaluation order, as relation tags. */
+    /** Components in evaluation order, as relation tags. Data constructors and data structs are in no
+     *  component: they have no rules and no facts, only a hash-cons table of values. */
     val components: Vector[Vector[Int]],
     val rules: Vector[CompiledRule],
     val queries: Vector[CompiledQuery],

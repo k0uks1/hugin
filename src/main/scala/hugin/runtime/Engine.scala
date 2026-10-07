@@ -19,6 +19,11 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
   private val deltaEnd = Array.fill(store.length)(Int.MaxValue)
   private var versionOf: Int => Version = _ => Version.Full
 
+  // modes of `eval`
+  private final val Dry = 0
+  private final val InBody = 1
+  private final val InHead = 2
+
   // ------------------------------------------------------------------ words and expressions
 
   private def arith(op: ArithOp, a: Any, b: Any): Option[Any] =
@@ -37,23 +42,37 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case Literal.FloatL(v) => java.lang.Double.valueOf(v)
     case Literal.StrL(v) => v
 
-  /** Evaluates an expression. Make is only allowed in heads: with `build` it interns the value and, if
-   *  `assert`, makes it (and the values nested in it) facts. */
-  private def eval(e: Expr, regs: Array[Any], build: Boolean, assert: Boolean = true): Option[Any] = e match
+  /** Evaluates an expression in one of three modes (see [[Expr.Make]]): [[Dry]] builds nothing (a
+   *  constructor term is a placeholder; used to check that a head's arithmetic is defined before anything
+   *  is interned, and for aggregate terms, which are of base type or only counted); [[InBody]] hash-conses
+   *  data terms and looks up fact-constructor terms ([[NonFact]] if absent); [[InHead]] interns every
+   *  constructor term, which asserts the fact-constructor ones (`subfact_F`). */
+  private def eval(e: Expr, regs: Array[Any], mode: Int): Option[Any] = e match
     case Expr.Reg(r) => Some(regs(r))
     case Expr.Const(w) => Some(w)
     case Expr.Arith(op, l, r) =>
-      for a <- eval(l, regs, build, assert); b <- eval(r, regs, build, assert); v <- arith(op, a, b) yield v
-    case Expr.Neg(x) => eval(x, regs, build, assert).flatMap(toLit).flatMap(Prims.neg).map(fromLit)
+      for a <- eval(l, regs, mode); b <- eval(r, regs, mode); v <- arith(op, a, b) yield v
+    case Expr.Neg(x) => eval(x, regs, mode).flatMap(toLit).flatMap(Prims.neg).map(fromLit)
     case Expr.Make(rel, as) =>
       val vs = new Array[Any](as.length)
+      var nonFact = false
       var i = 0
       while i < as.length do
-        eval(as(i), regs, build, assert) match
-          case Some(v) => vs(i) = v
+        eval(as(i), regs, mode) match
+          case Some(v) =>
+            vs(i) = v
+            if v.isInstanceOf[NonFact] then nonFact = true
           case None => return None
         i += 1
-      if build then Some(Id(rel, store(rel).intern(vs, assert))) else Some(Id(rel, -1))
+      if mode == Dry then Some(Id(rel, -1))
+      else
+        val r = store(rel)
+        if mode == InHead then Some(Id(rel, r.intern(vs)))
+        else if nonFact then Some(NonFact(rel, vs.toVector))
+        else if r.isData then Some(Id(rel, r.intern(vs)))
+        else
+          val n = r.lookup(vs)
+          Some(if n >= 0 then Id(rel, n) else NonFact(rel, vs.toVector))
 
   private def compare(op: CmpOp, a: Any, b: Any): Boolean = op match
     case CmpOp.Eq => a == b
@@ -81,15 +100,14 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         val r = store(rel)
         val (lo, hi0) = range(rel, recIdx)
         val hi = hi0.min(r.size)
-        // positions in the relation's assertion order (see [[Relation]])
-        def visit(pos: Int): Boolean =
-          val n = r.facts(pos)
+        // identities are in assertion order (see [[Relation]])
+        def visit(n: Int): Boolean =
           val t = r.tuples(n)
           var ok = true
           var j = 0
           while ok && j < checks.length do
             val (col, e) = checks(j)
-            eval(e, regs, build = false) match
+            eval(e, regs, InBody) match
               case Some(v) => if t(col) != v then ok = false
               case None => ok = false
             j += 1
@@ -105,14 +123,14 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           val key = new Array[Any](checks.length)
           var j = 0
           while j < checks.length do
-            eval(checks(j)._2, regs, build = false) match
+            eval(checks(j)._2, regs, InBody) match
               case Some(v) => key(j) = v
               case None => return true
             j += 1
           r.index(checks.map(_._1).toVector).get(Key(key)) match
             case None => true
             case Some(ids) =>
-              // positions are ascending: restrict to the version window
+              // identities are ascending: restrict to the version window
               val snapshot = ids.length
               var from = 0
               if lo > 0 then
@@ -142,7 +160,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
             var j = 0
             while ok && j < checks.length do
               val (col, e) = checks(j)
-              if !eval(e, regs, build = false).contains(t(col)) then ok = false
+              if !eval(e, regs, InBody).contains(t(col)) then ok = false
               j += 1
             if ok then
               binds.foreach((col, r) => regs(r) = t(col))
@@ -154,20 +172,19 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           case Id(rel, _) if tags(rel) => exec(ops, i + 1, regs, k)
           case _ => true
       case BodyOp.Eval(dst, e) =>
-        eval(e, regs, build = false) match
-          case Some(v) => regs(dst) = v; exec(ops, i + 1, regs, k)
-          case None => true
+        eval(e, regs, InBody) match
+          case Some(v) if !v.isInstanceOf[NonFact] => regs(dst) = v; exec(ops, i + 1, regs, k)
+          case _ => true
       case BodyOp.Test(op, a, b) =>
-        (eval(a, regs, build = false), eval(b, regs, build = false)) match
+        (eval(a, regs, InBody), eval(b, regs, InBody)) match
           case (Some(x), Some(y)) if compare(op, x, y) => exec(ops, i + 1, regs, k)
           case _ => true
-      case BodyOp.Lookup(dst, rel, as, orAbsent) =>
-        val vs = as.map(eval(_, regs, build = false))
+      case BodyOp.Lookup(dst, rel, as) =>
+        val vs = as.map(eval(_, regs, InBody))
         if vs.exists(_.isEmpty) then true
         else
           val n = store(rel).lookup(vs.map(_.get))
           if n >= 0 then { regs(dst) = Id(rel, n); exec(ops, i + 1, regs, k) }
-          else if orAbsent then { regs(dst) = Absent(rel, vs.map(_.get).toVector); exec(ops, i + 1, regs, k) }
           else true
       case BodyOp.NotIn(sub) =>
         var found = false
@@ -180,7 +197,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           0,
           regs,
           rs => {
-            seen.getOrElseUpdate(Key(locals.map(rs(_))), eval(term, rs, build = false))
+            seen.getOrElseUpdate(Key(locals.map(rs(_))), eval(term, rs, Dry))
             true
           }
         )
@@ -216,10 +233,10 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
       0,
       regs,
       rs => {
-        // arithmetic in the head is evaluated before any nested fact is interned
-        if r.headArgs.forall(e => eval(e, rs, build = false).isDefined) then
-          val vs = r.headArgs.indices.map(i => eval(r.headArgs(i), rs, build = true, assert = !r.probeCols(i)).get).toArray
-          store(r.headRel).intern(vs, assert = true)
+        // arithmetic in the head is evaluated before any nested value is interned
+        if r.headArgs.forall(e => eval(e, rs, Dry).isDefined) then
+          val vs = r.headArgs.map(eval(_, rs, InHead).get)
+          store(r.headRel).intern(vs)
         true
       }
     )
@@ -286,6 +303,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case d: java.lang.Double => val s = Literal.showDouble(d); if nested && d < 0 then s"($s)" else s
     case other => other.toString
 
+  /** The facts of a relation, printed and sorted; none for a data constructor (its values are not facts). */
   def facts(rel: Int): List[String] =
     val r = store(rel)
-    r.facts.map(n => show(Id(rel, n)) + ".").toList.sorted
+    if r.isData then Nil else r.tuples.indices.map(n => show(Id(rel, n)) + ".").toList.sorted

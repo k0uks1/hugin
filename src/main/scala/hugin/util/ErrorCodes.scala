@@ -97,6 +97,11 @@ object ErrorCodes:
     ),
     ("E0502", "call without applicable mode", "A moded relation or primitive is called without any applicable mode."),
     ("E0503", "input position is not a pattern", "Input positions of the heads of moded relations must be patterns (Section 7.3)."),
+    (
+      "E0504",
+      "fact constructor built in a moded input",
+      "An input argument of a call of a moded relation (in a body, under `not`, in an aggregate or in a query) contains a term of a `%fact` constructor. The demand transformation builds the inputs of a call, which would make that term a fact, so `%mode` would change the database. Remove `%fact` if the constructor is only used as a value, or bind an existing fact to a variable first (`S = c t`, an existence check) and pass the variable. Input columns of the moded relation's own rule heads are patterns and are not affected."
+    ),
     // checks
     ("E0601", "stratification cycle through negation", "A cycle of the dependency graph contains a negative edge (Section 6.4)."),
     (

@@ -1,0 +1,8 @@
+counted 1.
+q 16.
+r "unit" 1.
+seen "unit".
+?- area (square 3) A.
+A = 9.
+?- area circle A.
+A = 3.

@@ -28,24 +28,40 @@ final class TerminationPhase extends Phase:
 
   /** Why a rule of the component `inC` is constructive (Definition 10.1, refined), if it is.
    *
-   *  A new constructor term in the head counts only if it can take infinitely many values: a ground term
-   *  (`red`, `mk 1`) is one fixed term, and a term whose variables are all bound by positive atoms of
-   *  plain relations outside the component ranges over finitely many valuations, since those relations
-   *  are complete and finite when the component is evaluated (induction over the evaluation order).
-   *  Constructor and struct relations do not count: their facts can be created by nested heads of later
-   *  components, including this one (issue #1, A1), so `d (s (s N)) :- s N` keeps growing. See
-   *  docs/NOTES.md, "Termination" (issue #1, F3).
+   *  A rule is constructive if it builds a constructor term, data or fact, that is not matched in the body,
+   *  in a head (also through a head variable bound by a binding equation `X = c t̄` with a data term, which
+   *  builds the value) or in a moded input (the head of a demand rule). Such a term counts only if it can
+   *  take infinitely many values: a ground term (`red`, `mk 1`) is one fixed term, and a term whose
+   *  variables are all [[Termination.finiteVars]] ranges over finitely many valuations, since the relations
+   *  binding them are complete and finite when the component is evaluated (induction over the evaluation
+   *  order). See docs/NOTES.md, "Termination" (issue #1, F3).
    */
   def constructive(r: Rule, inC: RelSym => Boolean): Option[(String, Span)] =
-    val finite = r.body.collect {
-      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !x.isCtor && x.kind != RelKind.Struct => as.flatMap(Moding.vars).toSet ++ v
-    }.flatten.toSet
+    val finite = Termination.finiteVars(r.body, inC)
+    val headVars = r.heads.flatMap(Moding.vars).toSet
+    val atomVars = r.body.collect { case Formula.Atom(_, as, v) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
+    val existing = DepGraph.positiveSubpatterns(r.body)
+    def builds(t: Term): Boolean = t match
+      case a @ Term.App(RelRef.Sym(c), as) => (c.isData && !existing(a)) || as.exists(builds)
+      case Term.As(x, _) => builds(x)
+      case Term.Ascr(x, _) => builds(x)
+      case _ => false
     DepGraph.newHeadConstructors(r).find(t => !Moding.vars(t).subsetOf(finite)).map(t =>
       (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span)
     )
       .orElse {
+        // `X = c t̄` with a data term binds `X` to a new value unless `X` is bound by an atom (a test)
+        r.body.collectFirst(Function.unlift {
+          case c @ Formula.Cmp(CmpOp.Eq, l, rr) =>
+            List((l, rr), (rr, l)).collectFirst {
+              case (Term.Var(x), e) if headVars(x) && !atomVars(x) && builds(e) && !Moding.vars(e).subsetOf(finite) =>
+                (s"head variable `${Var.display(x)}` is built by `${ObjPrinter.formula(c)}`", c.span)
+            }
+          case _ => None
+        })
+      }
+      .orElse {
         val asVars = r.body.collect { case Formula.Atom(_, _, Some(v)) => v }.toSet
-        val headVars = r.heads.flatMap(Moding.vars).toSet
         asVars.intersect(headVars).headOption.map(v => (s"the matched fact `${Var.display(v)}` is lifted into the head", r.span))
       }
       .orElse {
@@ -59,7 +75,6 @@ final class TerminationPhase extends Phase:
         r.heads.flatMap(arith).headOption.map(t => (s"its head computes `${ObjPrinter.term(t)}`", t.span))
       }
       .orElse {
-        val headVars = r.heads.flatMap(Moding.vars).toSet
         r.body.collectFirst {
           case c @ Formula.Cmp(CmpOp.Eq, Term.Var(x), e) if headVars(x) && hasOp(e) =>
             (s"head variable `${Var.display(x)}` is computed by `${ObjPrinter.formula(c)}`", c.span)
@@ -305,12 +320,10 @@ final class Termination(
     })
 
   /** Variables of `body` with finitely many values whatever the facts of the component: bound by positive
-   *  atoms of plain relations outside the component (complete and finite when the component is evaluated;
-   *  not constructor relations, see [[Termination.constructive]]), occurring in a column of `finite` of an
+   *  atoms of finite sources outside the component ([[Termination.finiteVars]]), occurring in a column of `finite` of an
    *  atom of the component, or equal to a term over such variables. */
   private def finiteSources(body: List[Formula], finite: Set[(RelSym, Int)]): Set[String] =
-    var vars = body.collect {
-      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !x.isCtor && x.kind != RelKind.Struct => as.flatMap(Moding.vars).toSet ++ v
+    var vars = finiteVars(body, inC) ++ body.collect {
       case Formula.Atom(RelRef.Sym(x), as, _) if inC(x) =>
         as.zipWithIndex.collect { case (a, k) if finite((x, k)) => Moding.vars(a) }.flatten.toSet
     }.flatten.toSet
@@ -352,9 +365,9 @@ final class Termination(
           changed = true
     finite
 
-  /** Positive atoms of relations outside the component bind their variables to finitely many values. */
-  private def boundOutside(body: List[Formula]): Set[String] =
-    body.collect { case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
+  /** Positive atoms of finite sources outside the component bind their variables to finitely many values
+   *  (see [[Termination.finiteVars]]: not fact constructors). */
+  private def boundOutside(body: List[Formula]): Set[String] = finiteVars(body, inC)
 
   /** Bottom-up evaluation: every recursive call is smaller than the head and anchored. */
   private def bottomUp(ctx: Ctx): Either[TerminationFailure, List[String]] =
@@ -764,6 +777,27 @@ object Termination:
   def base(c: RelSym): RelSym = c.kind match
     case RelKind.Demand(of, _) => of
     case _ => c
+
+  /** Variables of `body` bound by positive atoms of relations outside the component `inC` that are finite
+   *  sources: complete and finite when the component is evaluated (induction over the evaluation order).
+   *  Fact constructors and fact structs are not finite sources, because a nested head constructor can
+   *  create their facts after their component (issue #1, A1), including the rule itself:
+   *  `d (s (s N)) :- s N` makes `s (s N)` and then matches it. A data constructor has no facts; an atom
+   *  over it is a generated guard `(c Z̄ as X)` destructuring the value of `X`, so its variables are
+   *  finite if `X` is. */
+  def finiteVars(body: List[Formula], inC: RelSym => Boolean): Set[String] =
+    def factCtor(x: RelSym) = (x.isCtor || x.kind == RelKind.Struct) && !x.isData
+    var vars = body.collect {
+      case Formula.Atom(RelRef.Sym(x), as, v) if !inC(x) && !factCtor(x) && !x.isData => as.flatMap(Moding.vars).toSet ++ v
+    }.flatten.toSet
+    val guards = body.collect { case Formula.Atom(RelRef.Sym(x), as, Some(v)) if x.isData => (v, as.flatMap(Moding.vars).toSet) }
+    var changed = true
+    while changed do
+      changed = false
+      for (v, inner) <- guards if vars(v) && !inner.subsetOf(vars) do
+        vars ++= inner
+        changed = true
+    vars
 
   def showComponent(comp: List[RelSym]): String = comp.map(_.name).mkString("{", ", ", "}")
 

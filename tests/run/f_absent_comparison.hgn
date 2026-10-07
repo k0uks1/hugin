@@ -1,6 +1,6 @@
-(* A constructor term in a comparison that was never built differs from every existing value, so
-   comparisons do not depend on which values exist. Here `red` is only built as a probe, by the demand
-   of the query `?- d red.`, which must not change the answers of `other`, `same` and `notlist`. *)
+(* Comparisons are structural: they do not depend on which values were built. Here `red` and
+   `cons red nil` are data terms that are only built by the comparisons themselves and by the demand of
+   the query `?- d red.`, which must not change the answers of `other`, `same` and `notlist`. *)
 color : type. red : color. blue : color.
 p : color -> rel.
 p blue.
