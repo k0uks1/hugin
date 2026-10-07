@@ -1,0 +1,15 @@
+(* docs/REDESIGN.md §8.2: `fib` with demand written by hand. No `%mode`, `%terminates` or `%partial`:
+   `need` terminates by descent along derivations (A): `A = N - 1` is smaller than `N` and bounded below
+   by the guard `N > 1`; `fib` by descent too, read upwards: the head's `N` is larger than the premises'
+   `A` and `B` and lies in the finite set of `need` facts. *)
+need : (n : int) -> rel.
+need 90.
+need A :- need N, N > 1, A = N - 1.                    (* (A): A < N, N > 1 *)
+need B :- need N, N > 1, B = N - 2.
+
+fib : (n : int) -> (f : int) -> rel.
+fib 0 0.
+fib 1 1.
+fib N F :- need N, N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.   (* (B) on n *)
+?- fib 90 F.
+?- fib 10 F.

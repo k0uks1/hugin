@@ -1,0 +1,80 @@
+termination: {check}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/rd_typechecker.hgn:16:1: premise `check (lam X T1 B) G`: `B` is a proper subterm of `lam X T1 B`
+  rule at tests/run/rd_typechecker.hgn:17:1: premise `check (app F _) G`: `F` is a proper subterm of `app F _`
+  rule at tests/run/rd_typechecker.hgn:18:1: premise `check (app _ A) G`: `A` is a proper subterm of `app _ A`
+termination: {lookup}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+termination: {typed}: terminates, measure inferred
+  inferred measure: `%terminates e typed.`
+  measure of `typed`: argument 1 `e` (structural)
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at tests/run/rd_typechecker.hgn:26:1: call `typed B (bind G X T1) T2`: `B` is a proper subterm of `lam X T1 B`; anchored: `lam X T1 B` is bound by relations outside the component
+  rule at tests/run/rd_typechecker.hgn:27:1: call `typed F G (arrow T0 T1)`: `F` is a proper subterm of `app F A`; anchored: `app F A` is bound by relations outside the component
+  rule at tests/run/rd_typechecker.hgn:27:1: call `typed A G T0`: `A` is a proper subterm of `app F A`; anchored: `app F A` is bound by relations outside the component
+app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z")).
+app (lam "x" (base "int") (ref "x")) (ref "y").
+app (ref "f") (ref "x").
+arrow (arrow (base "int") (base "int")) (arrow (base "int") (base "int")).
+arrow (base "bool") (base "int").
+arrow (base "int") (arrow (base "bool") (base "int")).
+arrow (base "int") (base "int").
+base "bool".
+base "int".
+bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int").
+bind (bind empty "x" (base "int")) "y" (base "bool").
+bind empty "f" (arrow (base "int") (base "int")).
+bind empty "x" (base "int").
+bind empty "z" (base "int").
+check (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))) empty.
+check (app (lam "x" (base "int") (ref "x")) (ref "y")) empty.
+check (app (ref "f") (ref "x")) (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")).
+check (lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x")))) empty.
+check (lam "x" (base "int") (app (ref "f") (ref "x"))) (bind empty "f" (arrow (base "int") (base "int"))).
+check (lam "x" (base "int") (lam "y" (base "bool") (ref "x"))) empty.
+check (lam "x" (base "int") (ref "x")) empty.
+check (lam "y" (base "bool") (ref "x")) (bind empty "x" (base "int")).
+check (lam "z" (base "int") (ref "z")) empty.
+check (ref "f") (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")).
+check (ref "x") (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")).
+check (ref "x") (bind (bind empty "x" (base "int")) "y" (base "bool")).
+check (ref "x") (bind empty "x" (base "int")).
+check (ref "y") empty.
+check (ref "z") (bind empty "z" (base "int")).
+empty.
+lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x"))).
+lam "x" (base "int") (app (ref "f") (ref "x")).
+lam "x" (base "int") (lam "y" (base "bool") (ref "x")).
+lam "x" (base "int") (ref "x").
+lam "y" (base "bool") (ref "x").
+lam "z" (base "int") (ref "z").
+lookup (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")) "f" (arrow (base "int") (base "int")).
+lookup (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")) "x" (base "int").
+lookup (bind (bind empty "x" (base "int")) "y" (base "bool")) "x" (base "int").
+lookup (bind (bind empty "x" (base "int")) "y" (base "bool")) "y" (base "bool").
+lookup (bind empty "f" (arrow (base "int") (base "int"))) "f" (arrow (base "int") (base "int")).
+lookup (bind empty "x" (base "int")) "x" (base "int").
+lookup (bind empty "z" (base "int")) "z" (base "int").
+program (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))).
+program (app (lam "x" (base "int") (ref "x")) (ref "y")).
+program (lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x")))).
+program (lam "x" (base "int") (lam "y" (base "bool") (ref "x"))).
+program (lam "x" (base "int") (ref "x")).
+ref "f".
+ref "x".
+ref "y".
+ref "z".
+result (lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x")))) (arrow (arrow (base "int") (base "int")) (arrow (base "int") (base "int"))).
+result (lam "x" (base "int") (lam "y" (base "bool") (ref "x"))) (arrow (base "int") (arrow (base "bool") (base "int"))).
+result (lam "x" (base "int") (ref "x")) (arrow (base "int") (base "int")).
+typed (app (ref "f") (ref "x")) (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")) (base "int").
+typed (lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x")))) empty (arrow (arrow (base "int") (base "int")) (arrow (base "int") (base "int"))).
+typed (lam "x" (base "int") (app (ref "f") (ref "x"))) (bind empty "f" (arrow (base "int") (base "int"))) (arrow (base "int") (base "int")).
+typed (lam "x" (base "int") (lam "y" (base "bool") (ref "x"))) empty (arrow (base "int") (arrow (base "bool") (base "int"))).
+typed (lam "x" (base "int") (ref "x")) empty (arrow (base "int") (base "int")).
+typed (lam "y" (base "bool") (ref "x")) (bind empty "x" (base "int")) (arrow (base "bool") (base "int")).
+typed (lam "z" (base "int") (ref "z")) empty (arrow (base "int") (base "int")).
+typed (ref "f") (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")) (arrow (base "int") (base "int")).
+typed (ref "x") (bind (bind empty "f" (arrow (base "int") (base "int"))) "x" (base "int")) (base "int").
+typed (ref "x") (bind (bind empty "x" (base "int")) "y" (base "bool")) (base "int").
+typed (ref "x") (bind empty "x" (base "int")) (base "int").
+typed (ref "z") (bind empty "z" (base "int")) (base "int").

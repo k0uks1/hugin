@@ -1,0 +1,5 @@
+program (lam "x" (base "int") (ref "x")).
+program (app (lam "x" (base "int") (ref "x")) (ref "y")).
+program (app (lam "x" (base "int") (ref "x")) (lam "z" (base "int") (ref "z"))).
+program (lam "f" (arrow (base "int") (base "int")) (lam "x" (base "int") (app (ref "f") (ref "x")))).
+program (lam "x" (base "int") (lam "y" (base "bool") (ref "x"))).

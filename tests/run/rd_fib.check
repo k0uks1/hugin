@@ -1,0 +1,12 @@
+termination: {need}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/rd_fib.hgn:7:1: premise `need N`: `A` < `N` (`N - A` = 1; `A` >= 1)
+  rule at tests/run/rd_fib.hgn:8:1: premise `need N`: `B` < `N` (`N - B` = 2; `B` >= 0)
+termination: {fib}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/rd_fib.hgn:13:1: premise `fib A FA`: `N` > `A` (`N - A` = 1; `N` is bound by relations outside the component)
+  rule at tests/run/rd_fib.hgn:13:1: premise `fib B FB`: `N` > `B` (`N - B` = 2; `N` is bound by relations outside the component)
+?- fib 90 F.
+F = 2880067194370816120.
+?- fib 10 F.
+F = 55.

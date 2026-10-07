@@ -111,8 +111,8 @@ object ErrorCodes:
     ),
     (
       "E0603",
-      "growing component without valid %terminates",
-      "A recursive component with a constructive rule needs a valid %terminates directive or a %partial relation (Section 10)."
+      "growing component without a termination argument",
+      "A recursive component with a constructive rule must terminate by descent along derivations (an argument decreases from premise to conclusion in every cycle) or by guarded induction (a measure decreases along every recursive call and is bound by a guard), or have a %partial relation (Section 10, docs/NOTES.md)."
     ),
     (
       "E0604",
