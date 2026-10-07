@@ -9,6 +9,6 @@ class MutationFuzzSuite extends FuzzSuite:
 
   property("mutated corpus programs are handled robustly") {
     Prop.forAll(Mutations.mutants) { m =>
-      verdict("mutants", m.program, Fuzz.robustness(m.program, budget = 3, mustRun = false))
+      verdict("mutants", m.program, Fuzz.robustness(m.program, mustRun = false))
     }
   }

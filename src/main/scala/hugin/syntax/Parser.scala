@@ -296,7 +296,12 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
           expect(Tok.RParen)
           DirArgs.TerminatesVar(measure.map(v => VarRef(v.text)(v.span)), p, args.toList)
         else DirArgs.TerminatesLabel(measure.map(l => Ident(l.text)(l.span)), parsePath())
-      case "partial" | "open" | "input" | "output" => DirArgs.Target(parsePath())
+      case "open" | "input" | "output" => DirArgs.Target(parsePath())
+      case "partial" =>
+        reporter.report(Diagnostic.error("E0001", "`%partial` has been removed", d.span, "removed directive")
+          .withNote("every accepted program terminates; there are no round budgets (docs/REDESIGN.md §4.6)")
+          .withHelp("let an argument decrease along the recursion, bound it by a guard, or use a bound column (`min int` / `max int`)"))
+        throw new ParseError
       case "derivations" =>
         if kind == Tok.RuleName then
           val r = advance()
@@ -319,7 +324,7 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         throw new ParseError
       case other =>
         reporter.report(Diagnostic.error("E0001", s"unknown directive `%$other`", d.span, "unknown directive")
-          .withNote("directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev %fact"))
+          .withNote("directives are %mode %terminates %open %derivations %input %output %infix %name %abbrev %fact"))
         throw new ParseError
     expect(Tok.Period, "`.` after directive")
     Directive(kindName, args)(spanFrom(start), d.span)

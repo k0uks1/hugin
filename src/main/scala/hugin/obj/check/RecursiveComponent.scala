@@ -134,7 +134,7 @@ final class RecursiveComponent(
             Some(r),
             ctx.measures.keys.headOption.flatMap(ctx.directive),
             notes = List(s"`${h.name}` is in the recursive component ${showComponent(comp)}"),
-            helps = List(s"give `${h.name}` a `%terminates` measure with the same shape, or mark it `%partial ${h.name}.`")
+            helps = List(s"give `${h.name}` a `%terminates` measure with the same shape")
           )
         )
       )

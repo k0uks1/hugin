@@ -144,7 +144,7 @@ object Trees:
 
     /** `%terminates l c` or, lexicographically, `%terminates (l, m) c`. */
     case TerminatesLabel(labels: List[Ident], target: Tree)
-    case Target(target: Tree) // %partial %open %input %output %derivations
+    case Target(target: Tree) // %open %input %output %derivations
     case Infix(assoc: String, prec: Int, name: Ident)
     case NameHint(target: Tree, v: VarRef)
 

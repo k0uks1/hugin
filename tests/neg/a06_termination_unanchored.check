@@ -10,6 +10,5 @@ error[E0604]: invalid `%terminates` directive for `grow`
   |
   = note: bottom-up, the measure grows from the call to the head; it must stay in a finite set for the recursion to stop
   = help: match the head's argument against existing facts, e.g. `len (cons X L) M :- cons X L, len L N, ...`
-  = help: if the recursion terminates for another reason, mark the relation `%partial grow.` to evaluate it with a round budget
 
 1 error found

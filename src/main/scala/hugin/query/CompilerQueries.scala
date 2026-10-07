@@ -276,7 +276,7 @@ object Compile extends Query[CompileKey, Compiled]("compile"):
     val ctx = Compiler.compileWith(db(ParseProgram, key.path), key.settings, DatabaseLibraries(), printed += _)
     Compiled(ctx, printed.toList)
 
-final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, budget: Option[Int] = None, allRelations: Boolean = false)
+final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, allRelations: Boolean = false)
 
 /** Evaluates a compiled program over input facts. Changing only a facts file re-evaluates without
  *  recompiling; an evaluation with an unchanged outcome does not invalidate its dependents. */
@@ -284,4 +284,4 @@ object Evaluate extends Query[EvaluateKey, Evaluation.Outcome]("evaluate"):
   def compute(key: EvaluateKey)(using db: Database): Evaluation.Outcome =
     val compiled = db(Compile, key.compile)
     val facts = key.facts.map(f => SourceFile.virtual(f, db.get(SourceText, f)))
-    Evaluation.run(compiled.context, facts, key.budget, key.allRelations)
+    Evaluation.run(compiled.context, facts, key.allRelations)

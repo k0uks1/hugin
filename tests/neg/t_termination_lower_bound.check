@@ -9,6 +9,5 @@ error[E0604]: invalid `%terminates` directive for `fib`
   |
   = note: demands decrease from caller to callee; integers must stay bounded below for the recursion to stop
   = help: add a lower bound, e.g. `A >= 0`, or bound the caller's argument (`N > 0` with `A = N - 1`)
-  = help: if the recursion terminates for another reason, mark the relation `%partial fib.` to evaluate it with a round budget
 
 1 error found

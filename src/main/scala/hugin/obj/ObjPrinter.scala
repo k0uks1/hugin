@@ -77,7 +77,6 @@ object ObjPrinter:
       case DirKind.ModeD(spec) => s"%mode $tgt ${spec.inputs.map((b, l, _) => (if b then "+" else "-") + l.getOrElse("")).mkString(" ")}."
       case DirKind.TerminatesVar(vs, args) => s"%terminates ${hugin.syntax.Printer.measure(vs)} ($tgt ${args.map(arg).mkString(" ")})."
       case DirKind.TerminatesLabel(ls) => s"%terminates ${hugin.syntax.Printer.measure(ls)} $tgt."
-      case DirKind.Partial => s"%partial $tgt."
       case DirKind.Open => s"%open $tgt."
       case DirKind.Input => s"%input $tgt."
       case DirKind.Output => s"%output $tgt."

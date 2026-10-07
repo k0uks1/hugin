@@ -90,7 +90,6 @@ hugin repl [<file.hgn> ...]
 hugin lsp                 run the language server (LSP over stdin/stdout) for editors
 
   --facts <file>          load ground facts for input relations (repeatable)
-  --budget <n>            round budget for components with %partial relations (default: unbounded)
   --print-after <phase>,… print the program after these phases (`all` for every phase)
   --stop-after <phase>    stop compilation after this phase
   --stats                 print compiler phase timings and evaluation statistics
@@ -128,7 +127,7 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   | `:imports` | the files the session imports (transitively), in dependency order |
   | `:print <phase> [<name>]` (`:print-after`) | the session after a phase (as `--print-after`), optionally only the items mentioning a name |
   | `:explain <code>` | explain a diagnostic code |
-  | `:budget <n>\|off`, `:stats on\|off` | round budget and evaluation statistics |
+  | `:stats on\|off` | evaluation statistics |
   | `:reset`, `:help`, `:quit` | start an empty session, list the commands, end the session |
 
 - **Loaded files** keep their identity: a file added with `:load` (or on the command line) is a part of
@@ -213,8 +212,9 @@ Kept hand-written, deliberately:
 
 Output follows Section 9.6: facts of output relations in input-fact syntax, sorted lexicographically,
 followed by the answers of each query. Without `%output` directives, only query answers are printed; a
-program without queries and outputs prints all plain, non-input relations. A run that used the `Cut` rule
-(Section 9.7) starts with a `(* truncated ... *)` line.
+program without queries and outputs prints all plain, non-input relations. There are no round budgets
+(the `Cut` rule of Section 9.7 and `%partial` were removed): every accepted program terminates
+(docs/REDESIGN.md §4.6).
 
 ## Architecture: mini phases
 
@@ -233,7 +233,7 @@ only on error-free programs.
 | `typer` | 3, 4.2–4.4, 4.7, 4.8 | bidirectional stage inference and meta typing: inserts quotes `⟨·⟩` and splices `~(·)`, signature matching, implicit type parameters, named patterns → positional, type definitions (unfolded), arity and label checks |
 | `metaEval` | 4.5 | call-by-value evaluation of the meta level; module bodies with fresh prefixes (`roads.path`), hygienic expansion of formula functions, cross-stage persistence, deferred checks of `%complete`/`%mode` requirements |
 | `monomorphize` | 4.6 | infers family type arguments by first-order matching, instantiates families and rule families by worklist (`len[int]`), rejects polymorphic recursion |
-| `directives` | Fig. 2 | attaches `%mode %terminates %partial %open %input %output %derivations %name` to relations |
+| `directives` | Fig. 2 | attaches `%mode %terminates %open %input %output %derivations %name` to relations |
 | `constFold` | 3.3 | folds literal arithmetic (Prop. 3.1); undefined folds are warnings (the rule never fires) |
 | `objTyper` | 5, 6.1, 6.2 | well-formed declarations, subtyping/members, best typing contexts by meets, subsumption checks, projections/updates/joins, ascriptions as checked downcasts |
 | `moding` | 6.3 | binding steps, canonical (greedy) order, range restriction for every mode, applicable modes of calls |
@@ -250,7 +250,7 @@ only on error-free programs.
 The runtime (`hugin.runtime`) implements Section 9: words are literals or identities `(c, n)`; every
 relation is an array of tuples with an interning map and hash indexes on bound columns; components are
 evaluated in order by semi-naive iteration with old/delta/full windows (Section 9.5); components with
-`%partial` relations obey the round budget; queries run over the final store. A relation with a bound
+queries run over the final store. A relation with a bound
 column keeps one current tuple per key (a better value is appended, the old tuple becomes invisible, so
 the windows stay identity ranges and the delta holds the improved keys); components with bound columns
 check the value propagation graph for positive cycles after rounds 4, 8, 16, … and set the values on and
@@ -448,12 +448,12 @@ Three kinds of tests, all run by `sbt test`:
   monomorphization, shared primitive semantics, type operations (subtyping, members, meets), moding,
   stratification, completeness, interval reasoning, lowering, the command-line parser and exit codes,
   rendering of diagnostics,
-  differential tests of the engine (random graphs against a naive fixpoint, budget monotonicity,
+  differential tests of the engine (random graphs against a naive fixpoint,
   interning, aggregates), the query layer, and the language server (position conversion, the
   request handlers on in-memory documents, and one session over piped streams).
 - **Golden tests** in `tests/`, in the style of dotty's test suite:
   - `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
-    `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--budget 1`).
+    `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--explain-termination`).
   - `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
     failure may come from loading the input).
   - `tests/pos/X.hgn` — must compile without errors.
@@ -476,7 +476,7 @@ The fuzz suites are ScalaCheck properties (issue #7); a failing input is shrunk 
   invalid escapes, …); lines deleted, duplicated, swapped, moved or the file truncated. Shrinking removes
   tokens. Properties: no uncaught exception, `check` finishes within the time limit with exit code 0 or 1
   and the same diagnostics twice, a failing `check` says why, every diagnostic span lies inside its
-  file, diagnostics render (with and without colours), `run --budget 3` exits with 0 or 1. A mutant is
+  file, diagnostics render (with and without colours), `run` exits with 0 or 1. A mutant is
   compiled as if it were in the directory of its original (so relative `%import`s find the same
   libraries) inside a scratch copy of the corpus; imports that resolve outside it are never read.
 - **Generated programs** (`ProgramGen`, `GeneratedFuzzSuite`): well-typed, stratified, terminating
