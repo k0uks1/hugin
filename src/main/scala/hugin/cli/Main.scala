@@ -1,7 +1,7 @@
 package hugin.cli
 
 import hugin.util.*
-import hugin.util.diagnostics.Explanations
+import hugin.util.diagnostics.{Explanations, JsonDiagnostics}
 import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
@@ -89,14 +89,19 @@ object Main:
       err(s"error: no such file `$file`")
       ExitCode.Usage
 
+  /** Prints diagnostics: rendered with a summary line, or as JSON lines (`--error-format=json`). */
   private def render(all: List[Diagnostic], display: Display, err: String => Unit): Unit =
     val diags = display.shown(all)
-    val renderer = DiagnosticRenderer(display.color)
-    diags.foreach(d => err(renderer.render(d)))
-    val r = Reporter()
-    diags.foreach(r.report)
-    val summary = renderer.summary(r)
-    if summary.nonEmpty then err(summary)
+    if display.json then
+      val plain = DiagnosticRenderer(color = false)
+      diags.foreach(d => err(JsonDiagnostics.encode(d, plain.render(d)).render))
+    else
+      val renderer = DiagnosticRenderer(display.color)
+      diags.foreach(d => err(renderer.render(d)))
+      val r = Reporter()
+      diags.foreach(r.report)
+      val summary = renderer.summary(r)
+      if summary.nonEmpty then err(summary)
 
   private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
     withProgram(file, err) {

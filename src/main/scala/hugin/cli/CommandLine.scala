@@ -169,6 +169,11 @@ object CommandLine:
       opt[Unit]("no-color")
         .text("do not colour diagnostics")
         .action((_, o) => o.copy(display = o.display.copy(color = false))),
+      opt[String]("error-format")
+        .valueName("human|json")
+        .text("how to print diagnostics: rendered for people (default) or as JSON lines")
+        .validate(f => if f == "human" || f == "json" then success else failure(s"unknown error format `$f`; expected human or json"))
+        .action((f, o) => o.copy(display = o.display.copy(json = f == "json"))),
       opt[Unit]("no-warnings")
         .text("suppress warnings")
         .action((_, o) => o.copy(display = o.display.copy(warnings = false))),
