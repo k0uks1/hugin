@@ -61,7 +61,8 @@ object Printer:
     case Rule(n, hs, b) =>
       s"${n.map(x => "@" + x.name + " ").getOrElse("")}${hs.map(show).mkString(", ")}${b.map(x => " :- " + show(x)).getOrElse("")}."
     case Query(b) => s"?- ${show(b)}."
-    case Clause(l, r) => s"${show(l)} = ${show(r)}."
+    case Clause(l, r, Nil) => s"${show(l)} = ${show(r)}."
+    case Clause(l, r, wh) => s"${show(l)} = ${show(r)}\n  where ${wh.map(showItem).mkString("\n        ")}"
     case d @ Directive(k, args) =>
       val a = args match
         case DirArgs.Mode(t, ms) => (show(t) :: ms.map(showMode)).mkString(" ")

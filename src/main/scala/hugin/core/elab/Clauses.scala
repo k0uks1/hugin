@@ -27,10 +27,18 @@ trait Clauses:
   final case class ClauseState(index: Int, eqns: List[Eqn], binds: List[(Pat.PVar, Val, Val)], source: SurfaceClause)
 
   /** What the function being elaborated needs during splitting. */
-  final case class FunctionInfo(id: Int, name: Name, arity: Int, explicit: List[Int], used: mutable.Set[Int])
+  final case class FunctionInfo(
+      id: Int,
+      name: Name,
+      arity: Int,
+      explicit: List[Int],
+      used: mutable.Set[Int],
+      prelude: Vector[Val] => List[(Name, Val, Val)]
+  )
 
-  /** Elaborates the clauses of a declared function into its case tree. */
-  def elabFunction(id: Int, clauses: List[SurfaceClause]): Unit =
+  /** Elaborates the clauses of a declared function into its case tree. `prelude` gives the names a
+   *  lifted local function sees (from the arguments at a leaf): name, type, value. */
+  def elabFunction(id: Int, clauses: List[SurfaceClause], prelude: Vector[Val] => List[(Name, Val, Val)] = _ => Nil): Unit =
     val g = globals(id)
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
@@ -47,10 +55,11 @@ trait Clauses:
       )
     val arity = if n == 0 then 0 else explicitPositions(n - 1) + 1
     val (problem, target) = initialProblem(g.ty, arity)
-    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty)
+    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude)
     val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i))
     val tree = buildTree(info, problem, target, states)
     g.kind = GlobalKind.Function(arity, Some(tree))
+    checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) do
       reporter.report(
         Diagnostic.warning("W0006", s"unreachable clause of `${g.name}`", cl.span, "this clause is never used")
@@ -242,11 +251,13 @@ trait Clauses:
       newBinder(cc, if names(k) == "_" then p.names(l) else names(k), ren(p.types(l)), Stage.S1)
     }
     val base = c.lvl
+    val args = p.values.take(f.arity).map(ren)
+    for (n, ty, v) <- f.prelude(args) do c = define(c, n, ty, v)
     for (v, value, ty) <- binds do
       value match
         case Val.Rigid(Head.Local(l), Nil) => c = c.copy(scope = c.scope + (v.name -> l))
         case other => c = define(c, v.name, ty, other)
-    val args = p.values.take(f.arity).map(ren)
+    c = elabWhere(c, f.name, cl.source.where)
     val body = check(c, cl.source.rhs, ren(target), Stage.S1)
     recordCalls(f, args, c, body, cl.source)
     val patterns = f.explicit.map(l => quote(order.length, args(l)))

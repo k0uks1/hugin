@@ -38,3 +38,28 @@ class Meta2ParserSuite extends munit.FunSuite:
     assert(parse("p X :- q $X.", meta2 = false)._2.nonEmpty)
     assert(parse("plus (suc M) N = N.", meta2 = false)._2.exists(_.code.contains("E0004")))
   }
+
+  test("where blocks: layout by column") {
+    val (items, diags) = parse("""f (c X) = y
+                                 |  where y = z.
+                                 |        z = X.
+                                 |g = 1.
+                                 |""".stripMargin)
+    assert(diags.isEmpty, diags.map(_.message).mkString)
+    assertEquals(items.length, 2)
+    items.head match
+      case Clause(_, _, where) => assertEquals(where.length, 2)
+      case other => fail(s"expected a clause, got $other")
+  }
+
+  test("nested where blocks are relative to their binding's column") {
+    val (items, diags) = parse("""f X = a
+                                 |  where a = b
+                                 |          where b = X.
+                                 |        c = a.
+                                 |""".stripMargin)
+    assert(diags.isEmpty, diags.map(_.message).mkString)
+    items.head match
+      case Clause(_, _, List(Clause(_, _, inner), _)) => assertEquals(inner.length, 1)
+      case other => fail(s"unexpected $other")
+  }

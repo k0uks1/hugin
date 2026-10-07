@@ -148,6 +148,7 @@ final class Parser(
 
   private def parseItem(): Item =
     val start = tok.span.start
+    val startCol = tok.span.startCol
     kind match
       case Tok.Directive => parseDirective()
       case Tok.Query =>
@@ -163,11 +164,15 @@ final class Parser(
         val lhs = parseExpr(LvlHead)
         kind match
           case Tok.Colon => parseDeclRest(lhs, start, fact = false)
-          case Tok.Eq if meta2 && !isDeclHead(lhs) =>
+          case Tok.Eq if meta2 =>
             advance()
             val rhs = parseExpr(LvlSemi)
-            expect(Tok.Period, "`.` after clause")
-            Clause(lhs, rhs)(spanFrom(start))
+            val where = if kind == Tok.KwWhere then parseWhere(startCol) else Nil
+            if where.isEmpty then expect(Tok.Period, "`.` after clause")
+            if where.isEmpty && isDeclHead(lhs) then
+              val (name, params) = declHead(lhs)
+              Def(name, params, rhs)(spanFrom(start))
+            else Clause(lhs, rhs, where)(spanFrom(start))
           case Tok.Eq =>
             advance()
             val (name, params) = declHead(lhs)
@@ -211,6 +216,19 @@ final class Parser(
       expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
     else advance()
     Rule(name, heads.toList, body)(spanFrom(start))
+
+  /** `where b₁. … bₙ.` after the right-hand side of a clause starting at column `col`. Layout: the block
+   *  consists of the items that follow and start at a column greater than `col`; it ends before the first
+   *  item at column `col` or less (so a top-level clause's block ends at the next item at column 0), at a
+   *  `}`, or at the end of the file. The last binding's period ends the clause. */
+  private def parseWhere(col: Int): List[Item] =
+    val w = advance()
+    val items = mutable.ListBuffer.empty[Item]
+    while kind != Tok.EOF && kind != Tok.RBrace && (items.isEmpty || tok.span.startCol > col) do
+      parseItemRecovering().foreach(items += _)
+    if items.isEmpty then
+      reporter.report(Diagnostic.error("E0001", "empty `where` block", w.span, "expected local definitions"))
+    items.toList
 
   /** Whether `lhs` has the shape of a definition head `name param*` (see [[declHead]]). */
   private def isDeclHead(lhs: Tree): Boolean =

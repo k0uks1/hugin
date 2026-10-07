@@ -114,6 +114,10 @@ trait Evaluation:
         case Some(s) => force(appSp(s, sp))
         case None => v
     case Rigid(Head.Glob(id), sp) => reduceFunction(id, sp).map(force).getOrElse(v)
+    // compile-time arithmetic stuck on an application that may reduce now
+    case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
+    case Negate(a, Stage.S1) => negate(force(a), Stage.S1)
+    case Persist(t) => persist(force(t))
     case other => other
 
   // ------------------------------------------------------------------ records

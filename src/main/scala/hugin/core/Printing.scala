@@ -1,5 +1,7 @@
 package hugin.core
 
+import hugin.obj.ArithOp
+
 /** Printing of core terms in Hugin's surface notation: `[x] e` lambdas, `(x : A) -> B` and `{x : A} -> B`
  *  Π types, `⇑A`, quotes `⟨t⟩` and splices `$t` (REDESIGN §6.9). Unsolved metas print as `?n`. */
 trait Printing:
@@ -22,7 +24,7 @@ trait Printing:
     case other => other
 
   /** As an argument of an application (parenthesised unless atomic). */
-  def showArg(names: List[Name], t: Tm): String = go(names, t, 5)
+  def showArg(names: List[Name], t: Tm): String = go(names, t, 6)
 
   /** Whether the variable with index `ix` occurs in `t`. */
   def occurs(ix: Int, t: Tm): Boolean = t match
@@ -55,8 +57,8 @@ trait Printing:
       while names.contains(n) do n = n + "'"
       n
 
-  // precedence: 0 binders and arrows, 1 formulas, 2 comparisons, 3 arithmetic, 4 application,
-  // 5 projections, 6 atoms (the operands of `$` and `⇑`)
+  // precedence: 0 binders and arrows, 1 formulas, 2 comparisons, 3 additive and 4 multiplicative
+  // arithmetic, 5 application, 6 projections, 7 atoms (the operands of `$` and `⇑`)
   private def par(p: Int, q: Int, s: String) = if p > q then s"($s)" else s
 
   private def go(ns: List[Name], t: Tm, p: Int): String = t match
@@ -65,14 +67,14 @@ trait Printing:
     case Tm.Meta(m) => s"?$m"
     case Tm.AppPruning(f, pr) =>
       val args = ns.zip(pr).reverse.collect { case (n, Some(i)) => if i == Icit.Impl then s"{$n}" else n }
-      if args.isEmpty then go(ns, f, p) else par(p, 4, (go(ns, f, 4) :: args).mkString(" "))
+      if args.isEmpty then go(ns, f, p) else par(p, 5, (go(ns, f, 5) :: args).mkString(" "))
     case Tm.Lam(x, i, b) =>
       val y = fresh(ns, x)
       val bind = if i == Icit.Impl then s"{$y}" else y
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
     case Tm.App(f, a, i) =>
-      val arg = if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 5)
-      par(p, 4, s"${go(ns, f, 4)} $arg")
+      val arg = if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6)
+      par(p, 5, s"${go(ns, f, 5)} $arg")
     case Tm.Pi(x, i, a, b) =>
       val y = fresh(ns, x)
       val dom =
@@ -85,9 +87,9 @@ trait Printing:
       par(p, 0, s"let $y : ${go(ns, a, 0)} = ${go(ns, d, 0)} in ${go(y :: ns, b, 0)}")
     case Tm.U0 => "type"
     case Tm.U1(l) => showLevel(l)
-    case Tm.Lift(a) => s"⇑${go(ns, a, 6)}"
+    case Tm.Lift(a) => s"⇑${go(ns, a, 7)}"
     case Tm.Quote(a) => s"⟨${go(ns, a, 0)}⟩"
-    case Tm.Splice(a) => s"$$${go(ns, a, 6)}"
+    case Tm.Splice(a) => s"$$${go(ns, a, 7)}"
     case Tm.RecTy(fs) =>
       var names = ns
       fs.map { (l, ty) =>
@@ -96,17 +98,21 @@ trait Printing:
         s
       }.mkString("{ ", ", ", " }")
     case Tm.Rec(fs) => if fs.isEmpty then "{ }" else fs.map((l, x) => s"$l = ${go(ns, x, 0)}").mkString("{ ", ", ", " }")
-    case Tm.Proj(a, l) => par(p, 5, s"${go(ns, a, 6)}.$l")
+    case Tm.Proj(a, l) => par(p, 6, s"${go(ns, a, 7)}.$l")
     case Tm.Lit(l, _) => l.show
     case Tm.Base(b, _) => b.show
     case Tm.RelT => "rel"
     case Tm.PropT => "prop"
-    case Tm.Arith(op, a, b, _) => par(p, 3, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 4)}")
-    case Tm.Negate(a, _) => s"-${go(ns, a, 5)}"
+    case Tm.Arith(op, a, b, _) =>
+      val q = op match
+        case ArithOp.Mul | ArithOp.Div => 4
+        case _ => 3
+      par(p, q, s"${go(ns, a, q)} ${op.show} ${go(ns, b, q + 1)}")
+    case Tm.Negate(a, _) => s"-${go(ns, a, 6)}"
     case Tm.Compare(op, a, b) => par(p, 2, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 3)}")
     case Tm.And(a, b) => par(p, 1, s"${go(ns, a, 1)}, ${go(ns, b, 2)}")
     case Tm.Or(a, b) => par(p, 0, s"${go(ns, a, 0)} ; ${go(ns, b, 1)}")
-    case Tm.Not(a) => par(p, 4, s"not ${go(ns, a, 5)}")
+    case Tm.Not(a) => par(p, 5, s"not ${go(ns, a, 6)}")
     case Tm.Wild => "_"
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)

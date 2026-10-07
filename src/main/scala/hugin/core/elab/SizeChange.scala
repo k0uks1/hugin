@@ -32,11 +32,10 @@ trait SizeChange:
   def recordCalls(f: Clauses#FunctionInfo, callerArgs: Vector[Val], c: Cxt, body: Tm, source: SurfaceClause): Unit =
     def visit(t: Tm, env: List[Val], lvl: Int): Unit =
       val (head, args) = spine(t)
-      head match
-        case Tm.Global(g) if isFunction(g) =>
-          val argVals = args.map(a => eval(env, a))
-          calls += Call(f.id, g, matrix(callerArgs, argVals, lvl, arity(g)), source.span, showTm(c.names, t))
-        case _ =>
+      calleeOf(head, env).foreach { (g, applied) =>
+        val argVals = applied ++ args.map(a => eval(env, a))
+        calls += Call(f.id, g, matrix(callerArgs, argVals, lvl, arity(g)), source.span, showTm(c.names, t))
+      }
       args.foreach(visit(_, env, lvl))
       head match
         case Tm.Lam(_, _, b) => visit(b, Val.local(lvl) :: env, lvl + 1)
@@ -45,6 +44,16 @@ trait SizeChange:
         case Tm.App(_, _, _) | Tm.Global(_) | Tm.Var(_) => ()
         case other => Tm.children(other).foreach(visit(_, env, lvl))
     visit(body, c.env, c.lvl)
+
+  /** The function a call head denotes, with the arguments it is already applied to: a function, or a
+   *  variable bound to a partially applied one (a lifted local function of a `where` block). */
+  private def calleeOf(head: Tm, env: List[Val]): Option[(Int, List[Val])] = head match
+    case Tm.Global(g) if isFunction(g) => Some((g, Nil))
+    case Tm.Var(ix) =>
+      env(ix) match
+        case Val.Rigid(Head.Glob(g), sp) if isFunction(g) => Some((g, sp.reverse.collect { case Elim.EApp(a, _) => a }))
+        case _ => None
+    case _ => None
 
   private def isFunction(g: Int): Boolean = globals(g).kind.isInstanceOf[GlobalKind.Function]
 
@@ -92,7 +101,12 @@ trait SizeChange:
       }.toVector
     }
 
-  /** Checks the recorded calls; reports E0912 for each function that may not terminate. */
+  private val rejected = mutable.Set.empty[Int]
+
+  /** Checks the calls recorded so far; reports E0912 for each function that may not terminate (once) and
+   *  removes its case tree, so that it never reduces. Run after each function's case tree is installed,
+   *  before anything can evaluate it: a function only reduces once its call cycles are known to
+   *  terminate (cycles through functions elaborated later are stuck until those are checked). */
   def checkTermination(): Unit =
     val base = calls.toList
     val closure = mutable.LinkedHashSet.from(base.map(c => (c.caller, c.callee, c.m): Graph))
@@ -110,7 +124,8 @@ trait SizeChange:
     val bad = closure.toList.collect {
       case (f, g, m) if f == g && compose(m, m) == m && !m.indices.exists(i => m(i)(i).contains(Rel.Lt)) => f
     }.distinct
-    for f <- bad do
+    for f <- bad if rejected.add(f) do
+      globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = base.find(c => c.caller == f && c.callee == f).orElse(base.find(_.caller == f))
       var d = Diagnostic.error("E0912", s"cannot show that `${globals(f).name}` terminates", globals(f).span, "possibly non-terminating")
         .withNote(

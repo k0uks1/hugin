@@ -11,7 +11,7 @@ enum Tok:
   case Turnstile, Query, Arrow, SubT, Neq, Le, Ge, DotDot, Period, Select, Comma, Semi, Colon,
     Bar, Eq, Lt, Gt, Plus, Minus, Star, Slash, Caret, LParen, RParen, LBrace, RBrace, LBrack, RBrack
   // only in the syntax of the new meta level (`meta2`): `$` (splice, REDESIGN §6.9) and `⇑` (lift)
-  case Dollar, Up
+  case Dollar, Up, KwWhere
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -77,6 +77,7 @@ object Lexer:
     Tok.RBrack -> "]",
     Tok.Dollar -> "$",
     Tok.Up -> "⇑",
+    Tok.KwWhere -> "where",
     Tok.KwType -> "type",
     Tok.KwMod -> "mod",
     Tok.KwRel -> "rel",
@@ -159,6 +160,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
       while isIdent(peek()) do pos += 1
       val text = s.substring(start, pos)
       if c.isUpper || c == '_' then mk(Tok.Var, start, space)
+      else if meta2 && text == "where" then mk(Tok.KwWhere, start, space)
       else
         Lexer.keywords.get(text) match
           case Some(kw) => mk(kw, start, space)

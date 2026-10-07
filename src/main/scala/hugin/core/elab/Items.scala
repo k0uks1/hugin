@@ -58,11 +58,11 @@ trait Items:
     catch case e: ElabError => Some(e)
 
   /** Called after all items: checks across items. */
-  def finish(): Unit = checkTermination()
+  def finish(): Unit = ()
 
   /** The function an item is a clause of: `f p̄ = e.`, or `f X̄ = e.` after a declaration `f : A.`. */
   private def clauseName(item: Item, declared: Set[Name]): Option[Name] = item match
-    case Clause(lhs, _) => hugin.syntax.TreeOps.headName(lhs).map(_.name)
+    case Clause(lhs, _, _) => hugin.syntax.TreeOps.headName(lhs).map(_.name)
     case d: Def if declared(d.name.name) => Some(d.name.name)
     case _ => None
 

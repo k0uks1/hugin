@@ -58,6 +58,7 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with IndexUnifier
     with Clauses
     with SizeChange
+    with Where
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

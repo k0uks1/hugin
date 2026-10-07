@@ -798,6 +798,24 @@ dropped and elaboration continues with the next one.
   lexicographic (Ackermann), mutual and permuted recursion. The object level's checker
   (`obj/check/Termination.scala`, reworked in Phase A) solves a different problem (derivations of
   facts); sharing the closure computation is possible later.
+* **`where` blocks** (designer addition to §6.4). Parsing: in the new syntax `where` is a keyword. After
+  the right-hand side of a clause starting at column `c`, `where` opens a block of items (definitions,
+  signatures, clauses); the block takes every following item that starts at a column greater than `c`
+  and ends before the first item starting at column `c` or less, at a `}` or at the end of the file. The
+  first binding may follow `where` on the same line. Each binding ends with its own period; the last
+  one ends the clause (no period before `where`). Nested blocks follow the same rule relative to their
+  binding's column. A definition head `f X̄ = e where …` with only variables is a clause as well.
+  Elaboration (`core/elab/Where.scala`), at each leaf of the clause, in order: `x = e.` and `x : A = e.`
+  are let-bound (`Let` in the leaf's body); a local function (`f : A.` and the clauses after it) is
+  lambda-lifted to a hidden global whose type abstracts over the bound variables of the leaf's context
+  (defined ones are let-bound in its type, and every name in scope is re-defined in its clauses from
+  its arguments), elaborated by the clause compiler, and its name is let-bound to the global applied
+  to the context; an irrefutable pattern binding `c x̄ = e.` becomes one lifted selector function
+  `sel (c x̄) = xᵢ` per name, so that coverage rejects refutable patterns (E0911), and fields whose
+  types depend on other fields are not supported (E0915). Termination: calls through the let-bound
+  names of local functions are calls of the lifted functions. Every function's termination is checked
+  as soon as its case tree exists, and a rejected function's case tree is removed, so that no
+  possibly non-terminating function is ever evaluated during elaboration.
 * **Literals (Q2).** A literal checked against a nat-like family (exactly a constant constructor and one
   with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
   otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`

@@ -384,6 +384,28 @@ head (vcons X _) = X.
 * `[x] e` lambdas remain for inline functions.
 * Definitions without clauses: `x : A = e.` as today; `x = e.` with inferred type.
 * Pattern matching is by clauses only (no `case` expression in the first version; §11, Q7).
+* **Local definitions** (Haskell-style `where`): a clause's right-hand side may be followed by a `where`
+  block of bindings, each ending in `.` (the last one ends the clause). The bindings scope over the
+  right-hand side and over each other in source order, and see the clause's pattern variables. They are
+  simple definitions (`x = e.`, `x : A = e.`), local functions (`f : A.` followed by its clauses, checked
+  for coverage and termination like top-level functions; no general recursion), or irrefutable pattern
+  bindings (`c x̄ = e.`, a constructor pattern binding the names `x̄`; a refutable pattern is a coverage
+  error). A `where` block is elaborated to `let` bindings and lambda-lifted local functions, not to new
+  core syntax. Layout: the block consists of the items after `where` that start at a column greater
+  than the clause's first column; it ends before the next item at that column or less (for top-level
+  clauses: the next item at column 0), at `}` or at the end of the file.
+
+```
+area : shape -> int.
+area (rect W H) = w * h
+  where w = abs W.
+        h = abs H.
+
+fibPair : nat -> pair int int.
+fibPair zero = mkPair 0 1.
+fibPair (suc N) = mkPair b (a + b)
+  where mkPair a b = fibPair N.          (* irrefutable pattern binding *)
+```
 
 ### 6.5 Totality
 

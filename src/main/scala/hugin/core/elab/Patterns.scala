@@ -14,8 +14,8 @@ enum Pat:
   case PCon(ctor: Int, args: List[Pat], span: Span)
   case PLit(n: Long, span: Span)
 
-/** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function). */
-final case class SurfaceClause(name: Ident, pats: List[Tree], rhs: Tree, span: Span)
+/** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function), with its `where` block. */
+final case class SurfaceClause(name: Ident, pats: List[Tree], rhs: Tree, span: Span, where: List[Item] = Nil)
 
 trait Patterns:
   self: Elaborator =>
@@ -23,9 +23,9 @@ trait Patterns:
 
   /** The clause of an item, if it is one: `f p̄ = e.`, or `f X̄ = e.` for a declared meta constant. */
   def surfaceClause(item: Item): Option[SurfaceClause] = item match
-    case Clause(lhs, rhs) =>
+    case Clause(lhs, rhs, where) =>
       TreeOps.flattenApp(lhs) match
-        case (f: Ident, args) => Some(SurfaceClause(f, args, rhs, item.span))
+        case (f: Ident, args) => Some(SurfaceClause(f, args, rhs, item.span, where))
         case (other, _) => error("E0915", "a clause must start with the name of a function", other.span, "expected a name")
     case d: Def if state.functionNames(d.name.name) =>
       val pats = d.params.map {
