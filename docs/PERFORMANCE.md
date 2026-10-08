@@ -136,7 +136,7 @@ Prover and Programming Language*, CADE 2021); Agda interface serialisation
 | **Persistent / trail-based meta context**: backtracking restores state in O(changes), forks share the parent's state | Lean 4 `MetavarContext` (persistent maps, `saveState`/`restore`); Agda `TCState` | `Core.undoOnFailure`/`tentatively` copy *every* meta solution and the whole level graph (`Levels.snapshot`) on entry; `Core.fork` copies every `MetaEntry`, family memo, module tables | no | **high on large programs**: O(#metas) per item, per declaration attempt and per coercion attempt (`coeObjectData`), i.e. quadratic in program size (15–20 % of gen_large and of ItemQueriesSuite). Cost: medium (an undo log in `Core` and `Levels`). Correctness: restoring from a log of the assignments made since the checkpoint gives exactly the state the full copy restored. |
 | **Caches with O(1) keys**: Lean caches `whnf`, `inferType`, `isDefEq`, `instantiateMVars`; `Expr` nodes carry their hash, so cache lookups do not rehash terms; `ShareCommon` hash-conses | Lean 4 | `Matching.reduceFunction` memoises closed applications by `closedKey` = the *read-back normal forms* of all arguments, recomputed and rehashed on every reduction (also `Families.familyInstance`) | partly (memo exists, keys are O(size)) | **very high on meta-heavy code**: a recursive meta function over a list of *n* items reads back the rest of the list at every step, O(n²) time and memory (meta_scaled: 9 s; 30 copies run out of memory). Fix: compute keys for *data* values (constructor applications, literals, quoted constants) once per value object (identity cache) and intern them into hash-consed ids (O(1) hash and equality). Same memo hits and misses as before, so evaluation results and fresh-name counters are unchanged. Cost: medium. |
 | Hash-consing in general | smalltt (rejected: beta-reduction defeats it), Lean `ShareCommon` | none | no | only for memo keys (above); smalltt's argument applies to terms in general. |
-| **Serialised elaborated interfaces** loaded instead of re-elaborating; Lean maps `.olean` files as compacted regions (no deserialisation pass); Agda hash-conses `.agdai`; keys are content hashes plus compiler version | Lean `.olean`, Agda `.agdai`, Idris 2 `.ttc`, Scala TASTy | `StdlibCache` (in-JVM memo of the parsed and elaborated prelude, done); no on-disk form | in-JVM: yes | in-JVM: warm one-line compile 156 → 5 ms. On disk: removes the ~1 s of elaborating the prelude in a cold JVM, but needs a serialiser for `Core` (globals with `Val`s and closures, metas, levels, family/module tables, case trees, the semantic index with spans): large cost and a new invariant (format version, compiler build hash). Decide after the cheaper cold-path work (below) is measured. |
+| **Serialised elaborated interfaces** loaded instead of re-elaborating; Lean maps `.olean` files as compacted regions (no deserialisation pass); Agda hash-conses `.agdai`; keys are content hashes plus compiler version | Lean `.olean`, Agda `.agdai`, Idris 2 `.ttc`, Scala TASTy | `StdlibCache` (in-JVM memo of the parsed and elaborated prelude, done); no on-disk form | in-JVM: yes | in-JVM: warm one-line compile 156 → 5 ms. On disk: removes the ~1 s of elaborating the prelude in a cold JVM, but needs a serialiser for `Core` (globals with `Val`s and closures, metas, levels, family/module tables, case trees, the semantic index with spans): large cost and a new invariant (format version, compiler build hash). Estimated after milestone 1 (cold one-line ~1.65 → ~1.0 s) and **rejected by the designer**. |
 
 ### b) Termination checkers
 
@@ -237,9 +237,9 @@ and outputs identical; each cites its source in the code.
    with program size). Cost: medium. Risk: low-medium; differential: the incremental suites compare
    item-wise with whole-program elaboration already.*
 4. **Cold path of the compiler**: measure what runs once per process (static initialisers, `CommandLine`,
-   explanations, first use of the parser and elaborator) and remove avoidable work; then decide on the
-   on-disk elaborated prelude (`.olean`-style) with numbers. *Gain: metric 1 cold, all of metric 2 cold.
-   Cost: small (first part) / large (on-disk core).*
+   explanations, first use of the parser and elaborator) and remove avoidable work. (An on-disk
+   elaborated prelude, `.olean`-style, was estimated after milestone 1 and rejected by the designer.) *Gain: metric 1 cold, all of metric 2 cold.
+   Cost: small.*
 5. **Clause compilation**: normalise only what a split changed (`SplitProblem.norm`), cache the
    telescope order. *Gain: prelude and meta-heavy elaboration ~10 %. Cost/risk: medium/low.*
 6. **Evaluator** (scope note): allocation-free inner loop, skip delta variants with an empty delta,
@@ -372,5 +372,7 @@ while iterating: ItemQueriesSuite 267 → ~85 s, IncrementalSuite 77 → ~8 s, o
 thread's ~1.1 s, elaborating the prelude is ~57 % (it runs once per process, in the interpreter and
 the JIT's first tiers; warm it takes ~50 ms), parsing it ~6 %, class initialisation ~18 % (Scala
 library, `CommandLine`, the elaborator's traits). Making the elaborator faster helps the cold run only a
-little; removing the prelude's elaboration from the cold path (an on-disk elaborated prelude, ranked plan
-step 4) is what would change it: estimated cold one-line ~1.65 → ~1.0 s (minus floor ~1.1 → ~0.45 s).
+little; removing the prelude's elaboration from the cold path would need an on-disk elaborated prelude
+(an `.olean`-style serialised core, ranked plan step 4; estimated cold one-line ~1.65 → ~1.0 s, minus
+the floor ~1.1 → ~0.45 s, for a serialiser of the core state of ~800 lines). **The designer rejected
+this option; it is not considered.** The estimate is kept here for the record.
