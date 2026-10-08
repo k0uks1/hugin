@@ -1,6 +1,5 @@
 package hugin.meta
 
-import hugin.util.*
 import hugin.syntax.*
 import hugin.syntax.TreeOps.{codomain, headName}
 import hugin.compiler.*
@@ -29,10 +28,7 @@ object Namer:
     ): Boolean =
       entries.get(name.name) match
         case Some(prev) =>
-          ctx.report(
-            Diagnostic.error("E0102", s"`${name.name}` is declared twice in this scope", name.span, "redeclared here")
-              .withLabel(prev.name.span, "first declared here")
-          )
+          ctx.report(NameError.Duplicate(name.name, name.span, prev.name.span))
           false
         case None =>
           entries(name.name) = Entry(name, kind, item, key, abbrev, base, fact)
@@ -43,19 +39,15 @@ object Namer:
         case d @ Decl(name, params, _, _, defn, abbrev, fact) =>
           val kind = classify(d)
           if abbrev && !kind.contains(SymKind.TypeDef) then
-            ctx.error("E0103", "`%abbrev` only applies to type definitions", d.span)
+            ctx.report(NameError.AbbrevNotTypeDefinition(d.span))
           if fact && kind.exists(k => k != SymKind.Ctor && k != SymKind.Struct) then
-            ctx.report(
-              Diagnostic.error("E0103", "`%fact` only applies to constructor and struct declarations", d.span)
-                .withNote(s"`${name.name}` declares a ${kind.get.describe}")
-            )
+            ctx.report(NameError.FactNotConstructor(name.name, kind.get, d.span))
           kind.foreach { kd =>
             val base = if kd == SymKind.BaseType then defn.collect { case Builtin(b) => builtins(b.name) }
             else None
             val isFact = fact && (kd == SymKind.Ctor || kd == SymKind.Struct)
             if declare(name, kd, d, key, abbrev, base, isFact) && (kd == SymKind.Rel || kd == SymKind.Ctor) && params.nonEmpty then
-              ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot have parameters", params.head.span)
-                .withHelp("type parameters of relation families are implicit: write uppercase type variables in the column types"))
+              ctx.report(NameError.RelationWithParameters(name.name, params.head.span))
           }
         case d @ Def(name, _, _) => declare(name, SymKind.MetaDef, d, key)
         case _ =>
@@ -69,7 +61,7 @@ object Namer:
             heads.flatMap(h => headName(h).flatMap(n => entries.get(n.name)).filter(_.kind == SymKind.FormulaFn).map(h -> _))
           if fnHeads.nonEmpty then
             if heads.length > 1 then
-              ctx.error("E0004", "a clause of a formula function must have exactly one head", r.span)
+              ctx.report(NameError.ClauseWithSeveralHeads(r.span))
             else clauses.getOrElseUpdate(fnHeads.head._2.name.name, mutable.ListBuffer.empty) += r
         case _ =>
 
@@ -89,46 +81,33 @@ object Namer:
           case None => Some(SymKind.ObjType)
           case Some(Builtin(b)) =>
             if params.nonEmpty || sup.isDefined then
-              ctx.error("E0103", "a base type has no parameters or supertype", d.span)
+              ctx.report(NameError.BaseTypeWithParameters(d.span))
             if builtins.contains(b.name) then Some(SymKind.BaseType)
             else
-              ctx.report(Diagnostic.error("E0103", s"unknown base type `${b.name}`", b.span, "not a builtin")
-                .withNote(s"the builtin base types are ${builtins.keys.toList.sorted.mkString(", ")}"))
+              ctx.report(NameError.UnknownBaseType(b.name, b.span, builtins.keys.toList.sorted))
               None
           case Some(_: RecordType) if !abbrev =>
             if sup.isDefined then
-              ctx.error("E0103", "a struct declaration cannot have a supertype", sup.get.span)
+              ctx.report(NameError.StructWithSupertype(sup.get.span))
             Some(SymKind.Struct)
           case Some(_) =>
             if sup.isDefined then
-              ctx.error(
-                "E0103",
-                "a type definition cannot have a supertype",
-                sup.get.span,
-                "remove this, or declare a refinement `a : type <: b.`"
-              )
+              ctx.report(NameError.TypeDefinitionWithSupertype(sup.get.span))
             Some(SymKind.TypeDef)
       case Keyword(Kw.Mod) =>
         if defn.isEmpty then
-          ctx.report(Diagnostic.error("E0103", s"signature `${name.name}` has no definition", d.span)
-            .withHelp(s"write `${name.name} : mod = { ... }.`"))
+          ctx.report(NameError.SignatureWithoutDefinition(name.name, d.span))
           None
         else Some(SymKind.MetaDef)
       case _ =>
         codomain(tpe) match
           case Keyword(Kw.Rel) =>
             if defn.isDefined then
-              ctx.report(Diagnostic.error("E0103", s"relation `${name.name}` cannot be defined by `=`", defn.get.span, "not allowed")
-                .withHelp("relations are defined by rules: `c X :- body.`"))
+              ctx.report(NameError.RelationDefinedByEquation(name.name, defn.get.span))
             Some(SymKind.Rel)
           case Keyword(Kw.Prop) => Some(SymKind.FormulaFn)
           case Keyword(Kw.Type) =>
-            ctx.report(Diagnostic.error(
-              "E0103",
-              s"cannot classify the declaration of `${name.name}`",
-              tpe.span,
-              "a function returning `type`"
-            ).withHelp("declare a family with type parameters instead: `f A : type.`"))
+            ctx.report(NameError.TypeFunction(name.name, tpe.span))
             None
           case _ =>
             if defn.isDefined then Some(SymKind.MetaDef) else Some(SymKind.Ctor)

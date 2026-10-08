@@ -31,16 +31,6 @@ trait DataConstructors:
     val what = g.kind match
       case GlobalKind.Object(ObjDecl.Struct(_)) => "data struct"
       case _ => "data constructor"
-    var d = Diagnostic.error("E0406", s"$what `${g.name}` used as a relation", span, label)
-      .withNote(s"`${g.name}` is a $what: it builds values, which are not facts of a relation")
-    if g.span.exists then d = d.withLabel(g.span, s"declared here as a $what")
-    val factWhat = what.replace("data", "fact")
-    if g.declSpan.exists && g.declSpan.source.path == span.source.path then
-      val text = g.declSpan.text
-      val shown = if text.contains('\n') then s"%fact ${g.name} : ..." else s"%fact $text"
-      d = d.withHelp(s"declare `${g.name}` as a $factWhat to read its facts: `$shown`")
-        .withSuggestion("declare it with `%fact`", g.declSpan.startPoint, "%fact ")
-    else if g.declSpan.exists then
-      d = d.withHelp(s"`${g.name}` is declared in another file; declare a fact constructor of your own with `%fact` to read its facts")
-    else d = d.withHelp(s"declare `${g.name}` with `%fact` to read its facts")
-    fail(d)
+    val decl = Option.when(g.declSpan.exists)((g.declSpan, g.declSpan.text))
+    val local = g.declSpan.exists && g.declSpan.source.path == span.source.path
+    fail(ObjectProblem.DataAsRelation(g.name, what, label, span, g.span, decl, local))

@@ -1,5 +1,7 @@
 package hugin.util
 
+import hugin.util.diagnostics.{Code, Legacy}
+
 class UtilSuite extends munit.FunSuite:
   test("strongly connected components come in dependency order, ties in input order") {
     val succ = Map(1 -> List(2), 2 -> List(3), 3 -> List(2), 4 -> List(1), 5 -> List(5))
@@ -22,7 +24,7 @@ class UtilSuite extends munit.FunSuite:
 
   test("diagnostics render rustc-style with labels on one row") {
     val src = SourceFile.virtual("f.hgn", "p X Y :- q X.\n")
-    val d = Diagnostic.error("E0501", "rule is not range-restricted", Span(src, 4, 5), "`Y` not bound")
+    val d = Legacy.error(Code.E0501, "rule is not range-restricted", Span(src, 4, 5), "`Y` not bound")
       .withLabel(Span(src, 0, 1), "head")
       .withHelp("bind it")
     val text = DiagnosticRenderer(color = false).render(d)
@@ -42,9 +44,9 @@ class UtilSuite extends munit.FunSuite:
 
   test("the reporter deduplicates identical diagnostics and counts severities") {
     val r = Reporter()
-    val d = Diagnostic.error("E0001", "x", Span.NoSpan)
+    val d = Legacy.error(Code.E0001, "x", Span.NoSpan)
     r.report(d); r.report(d)
-    r.report(Diagnostic.warning("W0001", "y", Span.NoSpan))
+    r.report(Legacy.warning(Code.W0001, "y", Span.NoSpan))
     assertEquals((r.errorCount, r.warningCount), (1, 1))
   }
 

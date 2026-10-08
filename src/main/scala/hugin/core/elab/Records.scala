@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Records: record types with dependent fields (a telescope: later fields may mention earlier labels),
  *  record values, projections — also of object facts by column label (`I.price` for `I : item` where
@@ -14,9 +15,11 @@ trait Records:
   import core.*
 
   def dupLabels(ls: List[Ident]): Unit =
-    ls.groupBy(_.name).collectFirst { case (_, xs) if xs.length > 1 => xs(1) }.foreach { l =>
-      error("E0307", s"duplicate label `${l.name}`", l.span, "label used twice")
-    }
+    val seen = scala.collection.mutable.HashMap.empty[Name, Span]
+    for l <- ls do
+      seen.get(l.name) match
+        case Some(first) => fail(ObjectProblem.DuplicateLabel(l.name, l.span, first))
+        case None => seen(l.name) = l.span
 
   /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. */
   def checkRecordType(c: Cxt, entries: List[SigEntry], l: Level): Tm =
@@ -48,12 +51,12 @@ trait Records:
     val byLabel = fields.map(f => f.label.name -> f).toMap
     fields.find(f => !rt.labels.contains(f.label.name)).foreach { f =>
       fail(
-        Diagnostic.error("E0906", s"no field `${f.label.name}` in the expected record type", f.label.span, "unknown field")
+        Legacy.error(DiagCode.E0906, s"no field `${f.label.name}` in the expected record type", f.label.span, "unknown field")
           .withNote(s"the expected record type has the fields ${showLabels(rt.labels)}")
       )
     }
     rt.labels.find(l => !byLabel.contains(l)).foreach { l =>
-      error("E0906", s"missing field `$l`", t.span, s"the field `$l` is missing")
+      error(DiagCode.E0906, s"missing field `$l`", t.span, s"the field `$l` is missing")
     }
     var e = rt.env
     Tm.Rec(rt.labels.zip(rt.tys).map { (lb, ty) =>
@@ -73,7 +76,7 @@ trait Records:
       case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
       case other =>
         fail(
-          Diagnostic.error("E0906", s"no field `${sel.name}`", sel.nameSpan, "unknown field")
+          Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")
             .withLabel(sel.qual.span, s"this has type `${show(c, other)}`, which is not a record type")
         )
 
@@ -86,7 +89,7 @@ trait Records:
 
   private def noField(c: Cxt, sel: Select, ty: Val, labels: List[Name]): Nothing =
     fail(
-      Diagnostic.error("E0906", s"no field `${sel.name}`", sel.nameSpan, "unknown field")
+      Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")
         .withNote(s"`${show(c, ty)}` has the fields ${showLabels(labels)}")
     )
 

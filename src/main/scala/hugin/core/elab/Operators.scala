@@ -5,6 +5,7 @@ import hugin.obj.{ArithOp, BaseType, CmpOp}
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode}
 
 /** Operators: arithmetic (object code at stage 0, computed at compile time at stage 1), comparisons and
  *  the connectives of object formulas (`,` `;` `not`). A literal operand takes the type (and stage) of the
@@ -32,7 +33,7 @@ trait Operators:
     (arithOps.get(op), cmpOps.get(op)) match
       case (Some(aop), _) => inferArith(c, aop, l, r, st)
       case (_, Some(cop)) => inferComparison(c, cop, l, r)
-      case _ => error("E0001", s"unknown operator `$op`", span)
+      case _ => error(DiagCode.E0001, s"unknown operator `$op`", span)
 
   private def inferArith(c: Cxt, op: ArithOp, l: Tree, r: Tree, st: Option[Stage]): (Tm, Val, Stage) =
     val (first, second, swapped) = order(l, r)
@@ -50,7 +51,7 @@ trait Operators:
   private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match
     case (v: VarRef, agg: Agg) if op == CmpOp.Eq => inferAggregate(c, v, agg)
     case _ if isAggregate(l) || isAggregate(r) =>
-      error("E0202", "an aggregate must be bound to a variable, `X = count { ... }`", l.span.to(r.span))
+      fail(ObjectProblem.UnboundAggregate(l.span.to(r.span)))
     case _ => inferPlainComparison(c, op, l, r)
 
   private def inferPlainComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) =
@@ -81,11 +82,11 @@ trait Operators:
 
   private def numeric(c: Cxt, ty: Val, span: Span): Unit = force(ty) match
     case Val.Base(BaseType.IntT | BaseType.FloatT, _) | Val.Flex(_, _) =>
-    case other => error("E0901", "mismatched types", span, s"expected a number, found `${show(c, other)}`")
+    case other => error(DiagCode.E0901, "mismatched types", span, s"expected a number, found `${show(c, other)}`")
 
   private def operandType(c: Cxt, op: ArithOp, ty: Val, span: Span): Unit = op match
     case ArithOp.Concat =>
       force(ty) match
         case Val.Base(BaseType.StringT, _) | Val.Flex(_, _) =>
-        case other => error("E0901", "mismatched types", span, s"expected a string, found `${show(c, other)}`")
+        case other => error(DiagCode.E0901, "mismatched types", span, s"expected a string, found `${show(c, other)}`")
     case _ => numeric(c, ty, span)

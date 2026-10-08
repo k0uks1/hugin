@@ -103,8 +103,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
   def unterminatedComment: Boolean = openComment
 
   private def span(a: Int, b: Int) = Span(src, a, b)
-  private def err(code: String, msg: String, a: Int, b: Int, label: String = "") =
-    reporter.report(Diagnostic.error(code, msg, span(a, b), label))
+  private def err(p: Span => SyntaxError, a: Int, b: Int) = reporter.report(p(span(a, b)))
 
   private def peek(k: Int = 0): Char = if pos + k < s.length then s.charAt(pos + k) else '\u0000'
   private def isIdent(c: Char) = c.isLetterOrDigit && c < 128 || c == '_' || c == '\''
@@ -141,7 +140,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
     var done = false
     while !done do
       if pos >= s.length then
-        err("E0002", "unterminated comment", start, start + 2, "comment starts here")
+        err(SyntaxError.UnterminatedComment(_), start, start + 2)
         openComment = true
         done = true
       else if peek() == '(' && peek(1) == '*' then { depth += 1; pos += 2 }
@@ -173,7 +172,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
         while isIdent(peek()) do pos += 1
         mk(if c == '@' then Tok.RuleName else Tok.Directive, start, space)
       else
-        err("E0001", s"expected a lowercase name after `$c`", start, pos)
+        err(SyntaxError.NameExpectedAfter(c, _), start, pos)
         null
     else
       def sym(k: Tok, n: Int): Token = { pos += n; mk(k, start, space) }
@@ -215,7 +214,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
         case _ =>
           val cp = s.codePointAt(pos)
           pos += Character.charCount(cp)
-          err("E0001", s"unexpected character `${new String(Character.toChars(cp))}`", start, pos)
+          err(SyntaxError.UnexpectedCharacter(new String(Character.toChars(cp)), _), start, pos)
           null
 
   private def lexNumber(start: Int, space: Boolean): Token =
@@ -250,7 +249,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
     var bad = false
     while !done do
       if pos >= s.length || peek() == '\n' then
-        err("E0002", "unterminated string literal", start, pos, "string starts here")
+        err(SyntaxError.UnterminatedString(_), start, pos)
         done = true
         bad = true
       else
@@ -276,10 +275,10 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
                 sb.appendAll(Character.toChars(cp))
               catch
                 case _: NumberFormatException =>
-                  err("E0003", s"invalid unicode escape `\\u{$hex}`", escStart, pos, "not a Unicode scalar value")
+                  err(SyntaxError.InvalidUnicodeEscape(hex, _), escStart, pos)
             case _ =>
               pos += 1
-              err("E0003", "invalid escape sequence", escStart, pos, "valid escapes are \\\" \\\\ \\n \\t \\u{...}")
+              err(SyntaxError.InvalidEscape(_), escStart, pos)
         else
           sb += c; pos += 1
     if bad then return mk(Tok.Error, start, space)

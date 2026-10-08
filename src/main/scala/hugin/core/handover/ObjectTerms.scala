@@ -3,7 +3,9 @@ package handover
 
 import hugin.obj
 import hugin.obj.{Formula, RelRef, Term}
+import hugin.core.elab.ObjectProblem
 import hugin.util.*
+import hugin.util.diagnostics.Problem
 
 /** Thrown when staged object code does not have the shape of an object item; the item is dropped. */
 final class NotObjectCode(val diagnostic: Diagnostic) extends Exception(diagnostic.message, null, false, false)
@@ -20,18 +22,19 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     wild += 1
     s"${obj.Var.WildPrefix}$wild"
 
-  private def bad(span: Span, msg: String, label: String): Nothing =
-    throw NotObjectCode(Diagnostic.error("E0202", msg, span, label))
+  private def bad(problem: Problem): Nothing = throw NotObjectCode(problem.toDiagnostic)
+
+  private def expected(what: String, t: Tm, span: Span): Nothing = bad(ObjectProblem.NotObjectShape(what, showTm(names, t), span))
 
   private def variable(t: Tm, span: Span): String = Tm.unloc(t) match
     case Tm.Var(ix) => names(ix)
     case Tm.Obj(ObjForm.Wild, Nil) => freshWild()
-    case other => bad(span, "expected a variable", s"`${showTm(names, other)}` is not a variable")
+    case other => expected("a variable", other, span)
 
   /** The relation, constructor or struct `t` refers to. */
   private def relation(t: Tm, span: Span): obj.RelSym = Tm.unloc(t) match
-    case Tm.Global(id) => symbols.relSym(id).getOrElse(bad(span, "expected a relation", s"`${globals(id).name}` is not a relation"))
-    case other => bad(span, "expected a relation", s"`${showTm(names, other)}` is not a relation")
+    case Tm.Global(id) => symbols.relSym(id).getOrElse(expected("a relation", t, span))
+    case other => expected("a relation", other, span)
 
   private def spine(t: Tm, args: List[Tm]): (Tm, List[Tm]) = Tm.unloc(t) match
     case Tm.App(f, a, _) => spine(f, a :: args)
@@ -57,7 +60,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     case Tm.App(_, _, _) | Tm.Global(_) =>
       val (head, args) = spine(t, Nil)
       Term.App(RelRef.Sym(relation(head, span)), args.map(term(_, span)))(span)
-    case other => bad(span, "expected an object term", s"`${showTm(names, other)}` is not a term")
+    case other => expected("an object term", other, span)
 
   def formulas(t: Tm, span: Span = itemSpan): List[Formula] = t match
     case Tm.Obj(ObjForm.Loc(sp), List(u)) => formulas(u, sp)
@@ -66,7 +69,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     case Tm.Obj(ObjForm.Not, List(a)) =>
       formulas(a, span) match
         case List(atom: Formula.Atom) => List(Formula.Not(atom)(span))
-        case _ => bad(spanOf(a, span), "`not` applies only to relation atoms", "not a relation atom")
+        case _ => bad(ObjectProblem.NotAnAtom("not", spanOf(a, span)))
     case Tm.Obj(ObjForm.Compare(op), List(a, b)) => List(Formula.Cmp(op, term(a, span), term(b, span))(span))
     case Tm.Obj(ObjForm.Agg(kind), List(x, a, b)) =>
       val res = variable(x, span)
@@ -75,11 +78,11 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     case Tm.Obj(ObjForm.As, List(a, x)) =>
       formulas(a, span) match
         case List(atom: Formula.Atom) if atom.as.isEmpty => List(Formula.Atom(atom.rel, atom.args, Some(variable(x, span)))(span))
-        case _ => bad(span, "`as` in a body applies to a relation atom", "not a relation atom")
+        case _ => bad(ObjectProblem.NotAnAtom("as", span))
     case Tm.App(_, _, _) | Tm.Global(_) =>
       val (head, args) = spine(t, Nil)
       List(Formula.Atom(RelRef.Sym(relation(head, span)), args.map(term(_, span)), None)(span))
-    case other => bad(span, "expected a formula", s"`${showTm(names, other)}` is not a formula")
+    case other => expected("a formula", other, span)
 
   /** The alternatives of nested disjunctions (`a ; (b ; c)` has three). */
   private def alternatives(t: Tm): List[Tm] = Tm.unloc(t) match

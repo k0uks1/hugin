@@ -9,7 +9,7 @@ class LexerSuite extends munit.FunSuite:
   private def errors(s: String): List[String] =
     val r = Reporter()
     Lexer(SourceFile.virtual("t", s), r).tokenize()
-    r.diagnostics.flatMap(_.code)
+    r.diagnostics.flatMap(_.code).map(_.id)
 
   test("a period after an identifier followed by a lowercase name is a selector") {
     assertEquals(kinds("g.edge"), List(Tok.Name, Tok.Select, Tok.Name))

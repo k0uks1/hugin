@@ -3,6 +3,7 @@ package elab
 
 import hugin.syntax.Tree
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Stage inference and subtyping by coercion (Kovács, ICFP 2022, §4): `coe` inserts quotes, splices,
  *  lifts, persistence of primitives and record coercions, and falls back to unification. */
@@ -122,7 +123,7 @@ trait Coercions:
     val (at, aty, s) = infer(c, a)
     if s == Stage.S0 then
       fail(
-        Diagnostic.error("E0902", "splice of object code", a.span, "this is already object code")
+        Legacy.error(DiagCode.E0902, "splice of object code", a.span, "this is already object code")
           .withNote("`$t` splices meta code of type `⇑A` into object code")
       )
     force(aty) match

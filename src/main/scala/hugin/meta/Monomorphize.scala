@@ -1,6 +1,7 @@
 package hugin.meta
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 import hugin.obj.*
 import hugin.obj.check.DepGraph
@@ -164,7 +165,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
               OType.isGround(resolve(x))
             )
           then
-            report(Diagnostic.error("E0402", "type mismatch", span, s"`${resolve(sub).show}` is not `${resolve(sup).show}`")
+            report(Legacy.error(Code.E0402, "type mismatch", span, s"`${resolve(sub).show}` is not `${resolve(sup).show}`")
               .withNote("type arguments of families are invariant"))
         case (OType.Fact(r1, as), OType.Fact(r2, bs)) if r1 == r2 => as.zip(bs).foreach((x, y) => unify(x, y, span))
         case (OType.Fact(c, as), OType.Con(t, bs)) if c.tparams.nonEmpty || t.tparams.nonEmpty =>
@@ -276,8 +277,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           if recursive then rel
           else if relMemo.size > MaxInstances then
             if ok then
-              inf.report(Diagnostic.error(
-                "E0205",
+              inf.report(Legacy.error(
+                Code.E0205,
                 s"too many family instances (more than $MaxInstances)",
                 span,
                 s"while instantiating `${rel.name}`"
@@ -313,8 +314,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
   private def cannotInfer(rel: RelSym, node: AnyRef, args: List[OType], missing: List[String], span: Span): Diagnostic =
     val known = rel.tparams.zip(args).map((p, a) => p -> (if OType.isGround(a) then a else OType.Param(p))).toMap
     val plural = missing.length > 1
-    val d = Diagnostic.error(
-      "E0206",
+    val d = Legacy.error(
+      Code.E0206,
       s"cannot infer type argument${if plural then "s" else ""} ${missing.map(m => s"`$m`").mkString(", ")} of family `${rel.name}`",
       span,
       "type not determined"
@@ -339,8 +340,8 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       case None => d.withHelp("add a type ascription to an argument, e.g. `(X : T)`")
 
   private def polyRec(g: RelSym, f: RelSym, us: List[OType], ts: List[OType], span: Span, origin: Origin): Unit =
-    ctx.report(Diagnostic.error(
-      "E0205",
+    ctx.report(Legacy.error(
+      Code.E0205,
       "polymorphic recursion",
       span,
       s"`${g.name}` used at [${us.map(_.show).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(_.show).mkString(", ")}]"

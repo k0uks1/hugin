@@ -73,8 +73,5 @@ final class ObjectSymbols(core: Core, reporter: Reporter):
     case other => notAnObjectType(other, span)
 
   private def notAnObjectType(t: Tm, span: Span): OType =
-    reporter.report(
-      Diagnostic.error("E0909", "cannot compute an object type at compile time", span, s"`${showTm(Nil, t)}` is not an object type")
-        .withNote("the meta code that computes this type is stuck, so no object type results")
-    )
+    reporter.report(elab.ObjectProblem.StuckObjectType(showTm(Nil, t), span).toDiagnostic)
     OType.Err

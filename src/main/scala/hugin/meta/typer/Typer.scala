@@ -3,6 +3,7 @@ package typer
 
 import hugin.syntax.TreeOps.flattenApp
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy, Applicability}
 import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
@@ -43,10 +44,10 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
       (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start)
       if !sc.lookup(name).exists(s => s.kind == SymKind.MetaParam || s.kind == SymKind.MetaDef)
     do
-      ctx.report(Diagnostic.warning("W0002", s"variable `$name` occurs only once in this rule", v.span, "singleton variable")
+      ctx.report(Legacy.warning(DiagCode.W0002, s"variable `$name` occurs only once in this rule", v.span, "singleton variable")
         .withHelp(s"use `_` or `_$name` if this is intended")
-        .withSuggestion(s"replace `$name` with `_`", v.span, "_")
-        .withSuggestion(s"rename `$name` to `_$name`", v.span, s"_$name"))
+        .withSuggestion(s"replace `$name` with `_`", v.span, "_", Applicability.MachineApplicable)
+        .withSuggestion(s"rename `$name` to `_$name`", v.span, s"_$name", Applicability.MaybeIncorrect))
 
   private[meta] def relTarget(t: Tree, sc: Scope, what: String): Option[RelRef] =
     classify(t, sc, null) match
@@ -60,7 +61,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
         None
       case Head.Bad | Head.Meta(_, MType.Err) => None
       case _ =>
-        err("E0701", s"$what expects a relation", t.span, "not a relation")
+        err(DiagCode.E0701, s"$what expects a relation", t.span, "not a relation")
         None
 
   private[meta] def elabDirective(d: Directive, sc: Scope): Option[obj.Directive] =
@@ -118,12 +119,12 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
             si.mtype = Some(fullT)
             if s.kind == SymKind.FormulaFn then
               if !endsInProp(resT) then
-                err("E0103", s"formula function `${name.name}` must have a type ending in `prop`", tpe.span)
+                err(DiagCode.E0103, s"formula function `${name.name}` must have a type ending in `prop`", tpe.span)
             defn match
               case Some(rhs) =>
                 if s.clauses.nonEmpty then
-                  ctx.report(Diagnostic.error(
-                    "E0102",
+                  ctx.report(Legacy.error(
+                    DiagCode.E0102,
                     s"formula function `${name.name}` has both a definition and clauses",
                     s.clauses.head.span,
                     "clause"
@@ -133,7 +134,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
                 Some(coll.foldRight(ps.foldRight(body)((p, acc) => Lam(p, acc)))((a, acc) => Lam(a, acc)))
               case None if s.kind == SymKind.FormulaFn =>
                 if s.clauses.isEmpty then
-                  ctx.report(Diagnostic.warning("W0005", s"formula function `${name.name}` has no clauses", name.span, "always false"))
+                  ctx.report(Legacy.warning(DiagCode.W0005, s"formula function `${name.name}` has no clauses", name.span, "always false"))
                 Some(coll.foldRight(elabClauses(s, resT, psc))((a, acc) => Lam(a, acc)))
               case None => None
       case Def(name, params, rhs) =>
@@ -173,7 +174,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
           case VarRef(x) => x
           case _ => "_"
         if psc.lookupLocal(nm).isDefined then
-          err("E0102", s"duplicate parameter `$nm`", n.span); None
+          err(DiagCode.E0102, s"duplicate parameter `$nm`", n.span); None
         else
           val p = newParam(nm, n.span, psc)
           syms.setParamType(p, tp)
@@ -181,7 +182,7 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
           psc.enter(p)
           Some(p)
       case Param.VarParam(v) =>
-        ctx.report(Diagnostic.error("E0206", s"cannot infer the type of parameter `${v.name}`", v.span, "type needed")
+        ctx.report(Legacy.error(DiagCode.E0206, s"cannot infer the type of parameter `${v.name}`", v.span, "type needed")
           .withHelp(s"write `(${v.name} : T)` or declare the type of the definition"))
         None
     }
@@ -202,7 +203,11 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
       val rc = RuleCtx(allowVars = true)
       val (_, args) = flattenApp(cl.heads.head)
       if args.length != params.length then
-        err("E0207", s"clause of `${s.name}` has ${args.length} arguments, but the function takes ${params.length}", cl.heads.head.span)
+        err(
+          DiagCode.E0207,
+          s"clause of `${s.name}` has ${args.length} arguments, but the function takes ${params.length}",
+          cl.heads.head.span
+        )
         None
       else
         val eqs = params.toList.zip(args).map((p, a) =>
@@ -252,12 +257,12 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
         classify(sup, sc, null) match
           case Head.TypeLike(s) if s.kind == SymKind.ObjType =>
             if !info(s).typeKind.contains(TypeKindE.Open) then
-              ctx.report(Diagnostic.error("E0404", s"`${s.name}` is not an open type", sup.span, "edge target must be open")
+              ctx.report(Legacy.error(DiagCode.E0404, s"`${s.name}` is not an open type", sup.span, "edge target must be open")
                 .withLabel(s.span, "declared here"))
             else out += EItem.EdgeDecl(st, Ref(s), item.span)
           case Head.Meta(m, TypeU) => out += EItem.EdgeDecl(st, m, item.span)
           case Head.Bad =>
-          case _ => err("E0404", "the target of a subtyping edge must be an open type", sup.span)
+          case _ => err(DiagCode.E0404, "the target of a subtyping edge must be an open type", sup.span)
       case r: Rule =>
         val isClause = r.heads.headOption.exists { h =>
           flattenApp(h)._1 match
@@ -384,5 +389,5 @@ final class TyperPhase extends Phase:
         case Some(MType.Sig(_, _) | MType.ModU | MType.Err) | None => true
         case _ => false
       if !isModuleValued then
-        ctx.report(Diagnostic.warning("W0003", s"unused definition `${s.name}`", s.span, "never referenced"))
+        ctx.report(Legacy.warning(DiagCode.W0003, s"unused definition `${s.name}`", s.span, "never referenced"))
   override def show(using Context): String = MetaPrinter(ctx.unit.symbols).showBody(ctx.unit.elab.nn)

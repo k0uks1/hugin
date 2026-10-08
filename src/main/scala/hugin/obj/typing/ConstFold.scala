@@ -2,6 +2,7 @@ package hugin.obj
 package typing
 
 import hugin.util.*
+import hugin.util.diagnostics.Lint
 import hugin.compiler.*
 import hugin.syntax.Literal
 
@@ -18,8 +19,7 @@ final class ConstFold extends MiniPhase:
           Prims.arith(op, x, y) match
             case Some(v) => Term.Lit(v)(a.span)
             case None =>
-              warn(Diagnostic.warning("W0001", "undefined constant expression", a.span, s"`${x.show} ${op.show} ${y.show}` is undefined")
-                .withNote("the formula containing it never holds, so this rule instance never fires"))
+              warn(Lint.UndefinedConstant(s"${x.show} ${op.show} ${y.show}", a.span).toDiagnostic)
               Term.Arith(op, Term.Lit(x)(l.span), Term.Lit(y)(r.span))(a.span)
         case (fl, fr) => Term.Arith(op, fl, fr)(a.span)
     case n @ Term.Neg(x) =>

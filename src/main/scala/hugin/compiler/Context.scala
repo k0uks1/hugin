@@ -1,6 +1,7 @@
 package hugin.compiler
 
 import hugin.util.*
+import hugin.util.diagnostics.Problem
 
 /** The state threaded through all phases: the unit, the settings, the diagnostics reporter, and where
  *  imported files and their elaborations come from. */
@@ -37,8 +38,9 @@ final class Context(
   def reportPart(part: DiagnosticPart, diagnostics: List[Diagnostic]): Unit =
     reported += Reported.Part(part)
     diagnostics.foreach(d => reporter.report(placed(d)))
-  def error(code: String, msg: String, span: Span, label: String = ""): Unit =
-    report(Diagnostic.error(code, msg, span, label))
+
+  /** Reports a problem (see [[Problem.toDiagnostic]]). */
+  def report(p: Problem): Unit = report(p.toDiagnostic)
 
 def ctx(using c: Context): Context = c
 

@@ -5,11 +5,12 @@ import hugin.meta.MExpr
 import hugin.obj.*
 import hugin.syntax.Literal
 import hugin.util.{Diagnostic, Origin, Span}
+import hugin.util.diagnostics.Code
 
 /** How meta and object types are shown in the typer's diagnostics. */
 class TypeElaborationSuite extends munit.FunSuite:
   private def mismatch(code: String): Diagnostic =
-    TestSupport.compile(code).reporter.diagnostics.find(_.code.contains("E0203")).getOrElse(fail("no E0203"))
+    TestSupport.compile(code).reporter.diagnostics.find(_.code.contains(Code.E0203)).getOrElse(fail("no E0203"))
 
   test("a Π domain is parenthesized: the arrow is right-associative") {
     val d = mismatch("""

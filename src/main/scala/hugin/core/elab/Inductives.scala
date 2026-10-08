@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.Literal
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Inductive families (REDESIGN §6.2–6.3). A meta declaration without clauses is classified by its
  *  type: `T : Δ -> Type.` declares an inductive family, `c : Δ -> T ū.` (for a family `T` of the module)
@@ -54,8 +55,8 @@ trait Inductives:
     val famTy = telescope(globals(fam).ty)
     if resultSp.length != famTy._1.length then
       fail(
-        Diagnostic.error(
-          "E0914",
+        Legacy.error(
+          DiagCode.E0914,
           s"a constructor of `${globals(fam).name}` must return it applied to all its arguments",
           d.tpe.span,
           "partially applied family"
@@ -64,8 +65,8 @@ trait Inductives:
     binders.zipWithIndex.foreach { case ((x, _, a), l) =>
       if !strictlyPositive(fam, l, a) then
         fail(
-          Diagnostic.error(
-            "E0913",
+          Legacy.error(
+            DiagCode.E0913,
             s"`${globals(fam).name}` occurs in a non-positive position",
             d.tpe.span,
             s"in the type of the constructor's argument ${l + 1}"
@@ -84,8 +85,8 @@ trait Inductives:
       typeLevels(types.take(l), l, a).foreach { k =>
         if !levels.le(k, famLevel) then
           fail(
-            Diagnostic.error(
-              "E0914",
+            Legacy.error(
+              DiagCode.E0914,
               s"the argument `$x` is too large for `${globals(fam).name}`",
               d.tpe.span,
               "argument in a larger universe"
@@ -149,7 +150,7 @@ trait Inductives:
   /** A literal checked against a nat-like type. */
   def natLiteral(c: Cxt, l: Literal, ty: Val, span: Span): Option[Tm] = (l, natType(ty)) match
     case (Literal.IntL(n), Some((z, s))) =>
-      if n < 0 then error("E0901", "mismatched types", span, s"a negative number is not a `${show(c, ty)}`")
-      if n > 100000 then error("E0901", "nat literal too large", span, "at most 100000 (nats are unary)")
+      if n < 0 then error(DiagCode.E0901, "mismatched types", span, s"a negative number is not a `${show(c, ty)}`")
+      if n > 100000 then error(DiagCode.E0901, "nat literal too large", span, "at most 100000 (nats are unary)")
       Some(natTerm(z, s, n))
     case _ => None

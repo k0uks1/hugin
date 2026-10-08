@@ -2,6 +2,7 @@ package hugin.obj
 package check
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 
 import hugin.obj.typing.Moding
@@ -24,7 +25,7 @@ final case class TerminationFailure(
     measure: String = ""
 ):
   def diagnostic: Diagnostic =
-    var d = Diagnostic.error("E0604", message, span, label)
+    var d = Legacy.error(Code.E0604, message, span, label)
     for (s, l) <- secondary if s.exists do d = d.withLabel(s, l)
     for s <- directive if s.exists do d = d.withLabel(s, "measure declared here")
     notes.foreach(n => d = d.withNote(n))
@@ -41,7 +42,7 @@ object Failures:
       using Context
   ): Diagnostic =
     val comp = rc.comp
-    var d = Diagnostic.error("E0603", "growing component without a termination argument", sp, why)
+    var d = Legacy.error(Code.E0603, "growing component without a termination argument", sp, why)
       .withNote(
         s"the recursive component ${Termination.showComponent(comp)} contains this constructive rule, so its fixed point may be infinite"
       )

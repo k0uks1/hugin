@@ -110,16 +110,13 @@ object ImportGraph:
       for (imp, path) <- imports do
         if stack.contains(path) then
           val cycle = (path :: stack.takeWhile(_ != path).reverse) :+ path
-          diagnostics += Diagnostic.error("E0108", s"cyclic import of `${imp.path}`", imp.pathSpan, "imported here")
-            .withNote(s"import cycle: ${cycle.mkString(" -> ")}")
-            .withHelp("a file is a module body; move what both files need into a third file")
+          diagnostics += ImportError.Cycle(imp.path, imp.pathSpan, cycle).toDiagnostic
           cut(from) = cut.getOrElse(from, Set.empty) + path
         else if !included(path) && !missing(path) then
           libs.load(path) match
             case None =>
               missing += path
-              diagnostics += Diagnostic.error("E0108", s"cannot find `${imp.path}`", imp.pathSpan, "no such file")
-                .withNote(s"resolved to `$path`")
+              diagnostics += ImportError.Missing(imp.path, imp.pathSpan, path).toDiagnostic
             case Some(p) =>
               diagnostics ++= p.diagnostics
               visit(path, libs.imports(path), path :: stack)
@@ -132,7 +129,7 @@ object ImportGraph:
           visit(SourceLoader.PreludePath, libs.imports(SourceLoader.PreludePath), List(SourceLoader.PreludePath))
           if included.add(SourceLoader.PreludePath) then files += SourceLoader.PreludePath
         case None =>
-          diagnostics += Diagnostic.error("E0108", "the prelude is missing from this installation", Span.NoSpan)
+          diagnostics += ImportError.PreludeMissing.toDiagnostic
     // a program made of several files (a REPL session) is being loaded as a whole: all its files
     val rootFiles = root :: program.items.map(_.span).filter(_.exists).map(_.source.path)
     val rootImports = ImportsPhase.importsIn(program).map(i => (i, ImportsPhase.resolve(i, root)))

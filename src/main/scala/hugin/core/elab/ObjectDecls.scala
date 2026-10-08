@@ -27,10 +27,10 @@ trait ObjectDecls:
     val entries = d.defn.get.asInstanceOf[RecordType].entries
     val fields = entries.map {
       case SigEntry.FieldDecl(l, t, fact) =>
-        if fact then error("E0004", "`%fact` is not allowed on the fields of a struct", l.span, "struct field")
+        if fact then fail(ObjectProblem.StructFieldFact(l.span))
         (l, t)
-      case SigEntry.Complete(_, sp) => error("E0004", "requirements are not allowed in struct declarations", sp)
-      case SigEntry.ModeReq(_, _, sp) => error("E0004", "requirements are not allowed in struct declarations", sp)
+      case SigEntry.Complete(_, sp) => fail(ObjectProblem.StructRequirement(sp))
+      case SigEntry.ModeReq(_, _, sp) => fail(ObjectProblem.StructRequirement(sp))
     }
     dupLabels(fields.map(_._1))
     val ty = columnsType(Cxt.empty, fields.map((l, t) => (l.name, t)), Tm.RelT)
@@ -58,7 +58,7 @@ trait ObjectDecls:
         val base = check(Cxt.empty, d.sup.get, Val.U0, Stage.S0)
         declare(d.name, Tm.U0, Stage.S0, GlobalKind.Object(ObjDecl.Refinement(zonk(Nil, 0, base))), d.span)
       case _ =>
-        error("E0404", "only object types can be declared as refinements", d.sup.get.span, "`<:` after a type that is not `type`")
+        fail(ObjectProblem.RefinementOfNonType(d.sup.get.span))
 
   /** `τ <: a.`: the object type `τ` (an object type, a relation's or constructor's fact type) becomes a
    *  subtype of the open type `a`. */
@@ -68,11 +68,8 @@ trait ObjectDecls:
     force(eval(Nil, sup)) match
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind == GlobalKind.Object(ObjDecl.OpenType) =>
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).stage == Stage.S0 =>
-        fail(
-          Diagnostic.error("E0404", s"`${globals(id).name}` is not an open type", e.sup.span, "edge target must be open")
-            .withLabel(globals(id).span, "declared here")
-        )
-      case _ => error("E0404", "the target of a subtyping edge must be an open type", e.sup.span)
+        fail(ObjectProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
+      case _ => fail(ObjectProblem.EdgeTarget(e.sup.span))
     items += CoreItem.EdgeItem(zonk(Nil, 0, sub), zonk(Nil, 0, sup), e.span)
 
   // ------------------------------------------------------------------ cycles between object declarations
@@ -84,7 +81,8 @@ trait ObjectDecls:
     val objectTypes = items.collect { case d: Decl if d.tpe == Keyword(Kw.Type) && d.defn.isEmpty => d.name.name }.toSet
     for d <- items.collect { case d: Decl => d } if !scope.contains(d.name.name) && d.params.isEmpty do
       shapeOf(d, objectTypes).foreach { kind =>
-        val id = addGlobal(GlobalEntry(d.name.name, Val.RelT, Tm.RelT, Stage.S0, GlobalKind.Object(kind), d.name.span, d.span, pending = true))
+        val id =
+          addGlobal(GlobalEntry(d.name.name, Val.RelT, Tm.RelT, Stage.S0, GlobalKind.Object(kind), d.name.span, d.span, pending = true))
         scope(d.name.name) = id
       }
 
@@ -119,6 +117,5 @@ trait ObjectDecls:
       case other => other
     head(t) match
       case Tm.Global(id) if globals(id).pending =>
-        throw ElabError(Diagnostic.error("E0101", s"`${globals(id).name}` is used before its declaration", globals(id).span), Some(globals(id).name))
+        throw ElabError(ObjectProblem.UsedBeforeDeclaration(globals(id).name, globals(id).span).toDiagnostic, Some(globals(id).name))
       case _ =>
-

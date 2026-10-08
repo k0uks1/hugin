@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Patterns of clauses: uppercase variables, `_`, constructors applied to patterns, nat literals. */
 enum Pat:
@@ -26,11 +27,11 @@ trait Patterns:
     case Clause(lhs, rhs, where) =>
       TreeOps.flattenApp(lhs) match
         case (f: Ident, args) => Some(SurfaceClause(f, args, rhs, item.span, where))
-        case (other, _) => error("E0915", "a clause must start with the name of a function", other.span, "expected a name")
+        case (other, _) => error(DiagCode.E0915, "a clause must start with the name of a function", other.span, "expected a name")
     case d: Def if state.functionNames(d.name.name) =>
       val pats = d.params.map {
         case Param.VarParam(v) => v
-        case Param.Typed(_, _, sp) => error("E0915", "patterns cannot have type annotations", sp, "type annotation")
+        case Param.Typed(_, _, sp) => error(DiagCode.E0915, "patterns cannot have type annotations", sp, "type annotation")
       }
       Some(SurfaceClause(d.name, pats, d.rhs, d.span))
     case _ => None
@@ -47,11 +48,16 @@ trait Patterns:
           val c = constructorNamed(n, id.span)
           val explicit = telescope(globals(c).ty)._1.count(_._2 == Icit.Expl)
           if explicit != args.length then
-            error("E0915", s"`$n` expects $explicit argument(s) in a pattern, found ${args.length}", t.span, "wrong number of arguments")
+            error(
+              DiagCode.E0915,
+              s"`$n` expects $explicit argument(s) in a pattern, found ${args.length}",
+              t.span,
+              "wrong number of arguments"
+            )
           Pat.PCon(c, args.map(pattern), t.span)
         case _ =>
           fail(
-            Diagnostic.error("E0915", "invalid pattern", t.span, "not a pattern")
+            Legacy.error(DiagCode.E0915, "invalid pattern", t.span, "not a pattern")
               .withNote("patterns are uppercase variables, `_`, constructors applied to patterns and natural-number literals")
           )
 
@@ -61,6 +67,6 @@ trait Patterns:
       case None =>
         val what = scope.get(n).map(id => s"`$n` is not a constructor").getOrElse(s"unresolved name `$n`")
         fail(
-          Diagnostic.error("E0915", s"$what in a pattern", span, "expected a constructor")
+          Legacy.error(DiagCode.E0915, s"$what in a pattern", span, "expected a constructor")
             .withNote("pattern variables are uppercase; lowercase names in patterns are constructors")
         )

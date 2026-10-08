@@ -3,6 +3,7 @@ package hugin.meta
 import hugin.TestSupport
 import hugin.compiler.Context
 import hugin.obj.*
+import hugin.util.diagnostics.Code
 
 /** Family instantiation (Section 4.6): inferred instances, rule families, polymorphic recursion, and a
  *  generic program that is left as it was. */
@@ -85,6 +86,6 @@ class MonomorphizeSuite extends munit.FunSuite:
       e : rel.
       e :- len nil 0.
     """)
-    val d = c.reporter.diagnostics.find(_.code.contains("E0206"))
+    val d = c.reporter.diagnostics.find(_.code.contains(Code.E0206))
     assert(d.exists(_.helps.exists(_.contains("ascribe"))), c.reporter.diagnostics)
   }

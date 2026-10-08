@@ -1,6 +1,7 @@
 package hugin.meta
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.syntax.Literal
 import hugin.compiler.*
 import hugin.compiler.SemanticIndex.Stage
@@ -51,8 +52,8 @@ final class MetaEval(using Context):
   private var hygCounter = 0
   private var anon = 0
 
-  private def err(code: String, msg: String, span: Span, fr: Frame, label: String = ""): Unit =
-    ctx.report(Diagnostic.error(code, msg, span, label).withOrigin(fr.origin))
+  private def err(code: Code, msg: String, span: Span, fr: Frame, label: String = ""): Unit =
+    ctx.report(Legacy.error(code, msg, span, label).withOrigin(fr.origin))
 
   /** Records for tooling how object code crossed between the levels (see [[SemanticIndex.Stage]]). */
   private def staged(span: Span, stage: Stage, value: String): Unit = ctx.unit.index.staged(span, stage, value)
@@ -80,8 +81,8 @@ final class MetaEval(using Context):
           Prims.arith(op, a, b) match
             case Some(x) => VLit(x)
             case None =>
-              ctx.report(Diagnostic.error(
-                "E0209",
+              ctx.report(Legacy.error(
+                Code.E0209,
                 "compile-time arithmetic failure",
                 span,
                 s"`${a.show} ${op.show} ${b.show}` is undefined"
@@ -97,7 +98,7 @@ final class MetaEval(using Context):
           Prims.neg(a) match
             case Some(v) => VLit(v)
             case None =>
-              err("E0209", "compile-time arithmetic failure", span, fr, "negation overflows")
+              err(Code.E0209, "compile-time arithmetic failure", span, fr, "negation overflows")
               VErr
         case _ => VErr
     case MExpr.Proj(x, l) =>
@@ -167,8 +168,8 @@ final class MetaEval(using Context):
       case VFormula(body) =>
         for (mode, span) <- ctx.unit.symbols.fnModes(s) do
           if mode.length != params.length then
-            ctx.report(Diagnostic.error(
-              "E0701",
+            ctx.report(Legacy.error(
+              Code.E0701,
               s"mode for `${s.name}` has ${mode.length} items but the function takes ${params.length} arguments",
               span
             ))
@@ -185,8 +186,8 @@ final class MetaEval(using Context):
               case Right((_, b)) =>
                 val outs = params.zip(mode).collect { case (p, false) => p }.filterNot(b)
                 if outs.nonEmpty then
-                  ctx.report(Diagnostic.error(
-                    "E0501",
+                  ctx.report(Legacy.error(
+                    Code.E0501,
                     s"formula function `${s.name}` does not bind its output argument${if outs.length > 1 then "s" else ""}",
                     span,
                     s"mode ${mode.map(b => if b then "+" else "-").mkString}"
@@ -235,7 +236,7 @@ final class MetaEval(using Context):
         case VRel(r) => OType.Fact(r, Nil)
         case VErr => OType.Err
         case other =>
-          err("E0202", s"splice of a non-type value", Span.NoSpan, fr, other.describe)
+          err(Code.E0202, s"splice of a non-type value", Span.NoSpan, fr, other.describe)
           OType.Err
   }
 
@@ -246,7 +247,7 @@ final class MetaEval(using Context):
         case VRel(s) => Some(s)
         case VErr => None
         case other =>
-          err("E0202", "splice of a non-relation value in relation position", span, fr, other.describe)
+          err(Code.E0202, "splice of a non-relation value in relation position", span, fr, other.describe)
           None
 
   final class Abort extends Exception(null, null, false, false)
@@ -274,7 +275,7 @@ final class MetaEval(using Context):
           Term.Lit(l)(s.span) // cross-stage persistence (rule Persist)
         case VErr => throw Abort()
         case other =>
-          err("E0202", "splice of a value that is not code", s.span, fr, s"evaluates to ${other.describe}")
+          err(Code.E0202, "splice of a value that is not code", s.span, fr, s"evaluates to ${other.describe}")
           throw Abort()
 
   def reifyFormula(f: Formula, env: Map[Sym, Value], fr: Frame, rn: String => String): List[Formula] = f match
@@ -296,7 +297,7 @@ final class MetaEval(using Context):
           b
         case VErr => throw Abort()
         case other =>
-          err("E0202", "splice of a value that is not a formula", s.span, fr, s"evaluates to ${other.describe}")
+          err(Code.E0202, "splice of a value that is not a formula", s.span, fr, s"evaluates to ${other.describe}")
           throw Abort()
 
   def reifyBody(b: List[Formula], env: Map[Sym, Value], fr: Frame, rn: String => String): List[Formula] =

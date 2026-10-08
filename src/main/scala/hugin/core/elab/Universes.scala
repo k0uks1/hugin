@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Universes and sorts: `type` (object types, U₀), `Type` (meta types, levels inferred and cumulative,
  *  REDESIGN §11 Q1), the object sorts `rel` and `prop`, builtin base types; elaborating types and the
@@ -23,13 +24,13 @@ trait Universes:
     case Kw.Prop => (Tm.PropT, Val.U0, Stage.S0)
     case Kw.Mod =>
       fail(
-        Diagnostic.error("E0907", "`mod` is not part of the new meta level", k.span, "not supported")
+        Legacy.error(DiagCode.E0907, "`mod` is not part of the new meta level", k.span, "not supported")
           .withNote("signatures are record types: they live in a meta universe `Type`, which is inferred")
       )
 
   def inferBuiltin(n: Ident): (Tm, Val, Stage) = builtinTypes.get(n.name) match
     case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
-    case None => error("E0101", s"unknown builtin type `${n.name}`", n.span, "expected int, float or string")
+    case None => error(DiagCode.E0101, s"unknown builtin type `${n.name}`", n.span, "expected int, float or string")
 
   /** The universe of a stage (at a fresh level for the meta stage). */
   def universe(st: Stage): Val = st match
@@ -53,7 +54,7 @@ trait Universes:
         unifyAt(c, t.span, u, ty)
         (tm, s, u)
       case other =>
-        fail(Diagnostic.error("E0901", "expected a type", t.span, s"this is a term of type `${show(c, other)}`"))
+        fail(Legacy.error(DiagCode.E0901, "expected a type", t.span, s"this is a term of type `${show(c, other)}`"))
 
   /** Checks a type at a stage (at any level, for the meta stage). */
   def checkType(c: Cxt, t: Tree, st: Stage): Tm = check(c, t, universe(st), st)

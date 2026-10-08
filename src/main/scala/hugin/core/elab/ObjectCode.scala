@@ -48,14 +48,8 @@ trait ObjectCode:
       val es = fields.map(f => inferS(c, f.value, Stage.S0)._1)
       Some((Tm.Obj(ObjForm.With(fields.map(f => (f.label.name, f.label.span))), vt :: es), vty, Stage.S0))
     case Union(_, _) => Some((checkUnion(c, t), Val.U0, Stage.S0))
-    case BoundType(k, _) =>
-      error(
-        "E0605",
-        s"`${k.show}` column type outside a relation declaration",
-        t.span,
-        "a bound column is only allowed as the last column of a relation declaration"
-      )
-    case _: Agg => error("E0202", "an aggregate must be bound to a variable, `X = count { ... }`", t.span)
+    case BoundType(k, _) => fail(ObjectProblem.BoundOutsideRelation(k.show, t.span))
+    case _: Agg => fail(ObjectProblem.UnboundAggregate(t.span))
     case _ => None
 
   /** `A₁ | … | Aₙ`: an object union type. */
