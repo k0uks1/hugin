@@ -299,4 +299,3 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
 object ParserBase:
   /** Looks at the current token without consuming one before the parser counts as stuck. */
   val Fuel = 1024
-
