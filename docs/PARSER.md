@@ -23,7 +23,7 @@ Contents: [1. Review](#1-review-of-the-parser-before-53) · [2. Established desi
 | `RecordSyntax.scala` | 41 | record types and values |
 | `DirectiveSyntax.scala` | 108 | directives, mode items, attached declarations |
 | `Trees.scala` | 191 | surface trees |
-| `SyntaxProblems.scala` | 148 | E0001–E0004 |
+| `SyntaxProblems.scala` | 148 | E0001–E0004 (now also E0005, unclosed delimiter) |
 | `Slices.scala` | 82 | item slices for the query database |
 
 The grammar is hand-written recursive descent with a precedence-climbing loop for the binary operators,
@@ -142,17 +142,38 @@ quotes `'{ … }` holding ordinary items (issue #76) can reuse the item loop and
 
 ## 4. The resilient parser
 
-### 4.1 Error nodes and missing pieces
+### 4.1 Error nodes, repairs and damaged items
 
-- `Trees.ErrorTree(span)` stands for an expression that is missing (zero-width span where it should be) or
-  that could not be parsed (the span of the skipped tokens). It is reported when it is created; the tree
-  around it is complete.
+- `Trees.ErrorTree(parts)` stands for syntax with an error: something missing (no parts, an empty span
+  where it should be: `p X :- q X, .`) or a construct that is *damaged* — unclosed, or followed by tokens
+  that were skipped — with the trees that parsed in it (`ErrorTree(List(Parens(…)))`). It is reported
+  when it is created; the tree around it is complete.
 - `Param.Malformed(tree)` is a declaration parameter that is neither `X` nor `(x : τ)`; the declaration
   keeps its name, its other parameters, its type and its definition.
-- A missing delimiter or period is *inserted*: the construct is built as if it were there.
-- Items are never discarded for an error inside them. A malformed declaration head that has a name
-  (`(p) : rel.`) keeps the name; a head without one (`1 : rel.`) cannot declare anything and only that
-  item is dropped. Tokens that cannot start an item are skipped up to the next item start, with one error.
+- Items are never discarded for an error inside them: an error at the end of an item damages its last
+  part (`ParserBase.endItem`, `ItemSyntax.damagedItem`). A malformed declaration head without a name
+  (`1 : rel.`) cannot declare anything; only that declaration is dropped. Tokens that cannot start an item
+  are skipped with the rest of their item, with one error; if they follow an item on the same line, that
+  item's period may have been the mistake (`go : nat . -> int.`), and it is damaged too (not for a second
+  period, which is harmless). Junk skipped in a module body or a `where` block damages the body or the
+  clause (a member may have been lost).
+
+A *repair* is a recovery that is certain about the intended text. The item is then complete, reported,
+and elaborated as usual (with a machine-applicable suggestion where there is an edit):
+
+| repair | example |
+|---|---|
+| a missing `.` before the next item, in an item that starts its line | `edge : int -> rel` ⏎ `path : …` |
+| `::` for `:` in a declaration | `f :: int -> int.` |
+| `:=` (adjacent) for `=` | `x := 5.` |
+| a declaration head in parentheses | `(p) : rel.` |
+| a rule name on a declaration (the name is ignored) | `@r p : rel.` |
+| an empty `where` (ignored) | `f X = X where.` |
+
+Everything else (an inserted `)`, a missing operand, skipped tokens) is a guess about the intended text,
+so the item is damaged: the fix suggestion is still offered (`hugin fix` inserts a missing delimiter), but
+the item is not elaborated (§5). The example of E0005 shows why: `edge (X Y.` with `)` inserted at the end
+is `edge (X Y)`, an application of `X`; elaborating it would report an error the programmer did not make.
 
 ### 4.2 Recovery points and regions
 
@@ -160,92 +181,138 @@ Recovery happens at the innermost construct that can continue:
 
 | construct | separator / end | on an unexpected token |
 |---|---|---|
-| file, module body, `where` block | items | skip to the next token that can start an item at the start of a line, or a period |
-| item | `.` | insert `.` if the next token starts a line (a new item), otherwise report and skip to the period, a column-0 token, or the closing `}` of the body |
+| file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period or the next token in column 0 |
+| item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token, or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
-| `( … )`, `[ … ]`, `{ … }`, aggregate `{ t | b }` | closing delimiter | see 4.3 |
-| record type / value, list, higher-order hole | `,` | an entry that fails to parse is an error node; `,` resynchronises |
-| declaration | `:` type `<:` `=` | each part is parsed on its own; a broken definition leaves the name and the type |
+| `( … )`, `[ … ]`, `{ … }`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
+| record type / value, list, higher-order hole | `,` | an entry without a label ends the entries, and the closing brace recovers |
+| declaration | `:` type `<:` `=` | each part is parsed on its own; a broken definition leaves the name and the type in the tree |
 
 At most one error is reported per *region*: after an error, further errors are suppressed until the
-parser has resynchronised — consumed a separator of an enclosing list (`,` `;` `.`) or a closing
-delimiter it was waiting for, or started a new item. This is Scala 3's `lastErrorOffset` rule extended
-from positions to regions, and the "one error per mistake" principle of all four designs.
+parser has resynchronised (`ParserBase.resync`): it starts a new item, consumes a separator of a rule body
+or a list (`,` `;`), or skips to a closing delimiter it was waiting for. This is Scala 3's
+`lastErrorOffset` rule extended from positions to regions, and the "one error per mistake" principle of
+all four designs. Errors that are not about recovery (an integer out of range, `..` in an update) are
+always reported. A token of the lexer's errors (an unterminated string) silences its region: the lexer
+reported it.
 
 ### 4.3 Delimiters
 
 When the parser expects a closing delimiter and finds something else, it looks for the delimiter ahead,
-within the current item (over balanced brackets, stopping at a period at depth 0, a token in column 0, or
-the end of the file):
+within the current item: over balanced brackets, ignoring closing delimiters of other kinds, stopping at a
+token in column 0, the end of the file, or a period at depth 0 (unless the delimiter follows the period on
+its line: `count { X . | p X }`).
 
-- found: the tokens before it are junk; one error (`expected `)`, found …`) and they are skipped;
+- found: the tokens before it are junk; one error (``expected `)`, found …``) and they are skipped;
 - not found: the delimiter is missing. One error, *unclosed delimiter* (E0005), at the insertion point (the
   end of the last token), with a secondary label on the opening delimiter and a machine-applicable
-  suggestion inserting it, so `hugin fix` repairs it. Parsing continues as if it were there.
+  suggestion inserting it. Parsing continues as if it were there; the construct is damaged.
 
-A module body `{ … }` whose items are indented ends, if it is not closed, before the first item in
-column 0 (the indentation shows the intended extent), which keeps the rest of the file outside it.
+A `(` or `[` at the end of a line that is never closed, before a token in column 0, is a stray: it is
+reported as unclosed at once and does not take the next item into its contents.
+
+A module body `{ … }` that is not closed ends at the end of the file if its first member is in column 0
+of a line of its own (the layout of the file then gives no hint), and otherwise before the first item in
+column 0. The body is damaged.
 
 ### 4.4 Line heuristic
 
 An argument cannot start in column 0 (reference: lexical-structure, items). The parser uses the same
-fact for recovery: a token in column 0 at the start of a line that can start an item ends the item being
-parsed, *without discarding what parsed*: a missing period is inserted (E0001 with a machine-applicable
-fix and a label "next item starts here"), and an unclosed bracket is reported on its opener. Valid
-programs are not affected: the heuristic only applies where the parser would otherwise report an error.
+fact for recovery: a token in column 0 at the start of a line ends the item being parsed *without
+discarding what parsed*: a missing period is inserted (E0001 with a machine-applicable fix and a label
+"next item starts here"), an unclosed bracket is reported on its opener, and skipping stops there. The
+operand of `$` and `⇑` cannot start in column 0 either (the one change to the accepted language besides
+`(e).l`: no program wrote one there; `$` at the end of a line is a stray). Otherwise valid programs are not
+affected: the heuristic only applies where the parser would otherwise report an error.
+
+An item whose period was inserted is trusted (a repair) only if it starts its line: an item that starts
+after other text on its line (`a : rel. b` ⏎) is likely a stray piece of text and is damaged.
 
 ### 4.5 Fuel
 
-Each look at a token costs fuel and consuming one restores it. A loop that does not make progress runs
-out of fuel and throws an internal error, which the fuzz tests would find. This turns the classic
-recovery bug (an infinite loop on malformed input) into a loud failure.
+Each look at the current token's kind costs fuel and consuming a token restores it (1024 looks). A loop
+that does not make progress runs out of fuel and throws an internal error, which the fuzz tests and the
+"every prefix parses" unit test would find. This turns the classic recovery bug (an infinite loop on
+malformed input) into a loud failure. No such failure occurred in the fuzz runs.
 
 ## 5. Error nodes in later phases
 
-The elaborator does not elaborate an item that contains an error node (or a malformed parameter). The
-item is dropped *silently* — its syntax error is the one diagnostic — and the names it declares are
-*erroneous*: uses of them in other items are not reported (no E0101), and the items using them are dropped
-silently as well, as for items dropped for an elaboration error. Members of a module body are handled one
-by one, so a broken member does not take the module with it. The fact loader skips facts with error
-nodes. The tree still has the parts that parsed, so document symbols, folding, and completion of the
-item's variables work for it.
+The elaborator does not elaborate an item that contains an error node or a malformed parameter
+(`TreeOps.hasSyntaxErrors`, checked in `Items.elabItem` and for module members): the item is dropped
+*silently* — its syntax error is the one diagnostic — and the names it might declare are *erroneous*: the
+name of a declaration or definition, and the head names of a rule or clause (a declaration whose `:` is
+missing is a rule). Uses of erroneous names are not reported (no E0101); the items using them are dropped
+silently, as for items dropped for an elaboration error. In detail:
+
+- items with syntax errors go with the declarations (`splitItems`), which record their names first;
+- a function with a clause with a syntax error is declared but not defined (*unelaborated*): its uses
+  are dropped silently; so is a function whose clauses fail silently for an erroneous name;
+- a module body with a broken member makes the whole item erroneous: its type would lack the member,
+  and selections of it elsewhere would fail (E0906);
+- erroneous names are silent in quoted syntax (instead of E0917), as directives (instead of an unknown
+  directive) and as the declarations of clauses;
+- the fact loader skips facts with syntax errors.
+
+The tree still has the parts that parsed, so document symbols list the item, and completion of the
+item's variables (which works on tokens) is unaffected. Hover and navigation need elaboration and are not
+available inside the broken item; they are in every other item (LSP test in `LanguageServerSuite`).
 
 Considered and rejected: elaborating partially (an error node as a term of unknown type, the item kept).
 The elaborator's unit of error recovery is the item (an item with an error is undone as a transaction),
 and an item with a hole in it is not meaningful to stage, type at the object level or evaluate; every
 later phase would need to know about holes. Keeping the item boundary as the unit, with erroneous names,
-gives "no cascading errors" with a change in one place.
+gives "no cascading errors" with changes in a few places.
+
+Not covered: the object-level phases report errors about items that depend on a *dropped* item in ways
+other than by name — a rule that is not range-restricted because the `%demand` directive that would have
+transformed it was dropped, `%derivations @r` for a rule that was dropped. They are the same for an item
+dropped for any elaboration error, and predate #53.
 
 ## 6. Messages
 
 Every syntax error says what was expected, rendered as a short list of *descriptions*, not a token
-dump ("expected `.`, `,` or `:-`", "expected a type", "expected a label"), and what was found. Errors
-inside an item carry a secondary label at the start of the construct ("this rule starts here") when the
-construct starts on an earlier line. Unclosed delimiters carry a label on the opener. Specific messages
-replace the generic one for common mistakes:
+dump (``expected `.`, `,` or `:-` ``, "expected a type", "expected a label", "expected an integer"), and
+what was found. Errors inside an item carry a secondary label at the start of the construct ("this rule
+starts here") when the construct starts on an earlier line. A missing period names the construct
+("expected `.` after the declaration"; a rule without body is a "fact"). Unclosed delimiters carry a
+label on the opener. Specific messages replace the generic one for common mistakes:
 
 | mistake | message | suggestion |
 |---|---|---|
-| missing `.` before the next item | expected `.`, found `…` + "next item starts here" | insert `.` (machine-applicable) |
-| missing `)` `]` `}` | unclosed `(` (E0005) + label on the opener | insert the delimiter (machine-applicable) |
+| missing `.` before the next item | ``expected `.` after the rule, found `p` `` + "next item starts here" | insert `.` (machine-applicable) |
+| missing `)` `]` `}` | ``unclosed `(` `` (E0005) + label on the opener | insert the delimiter (machine-applicable) |
 | lowercase parameter `q x : …` | malformed parameter (E0004): a parameter is a variable | `X` (maybe incorrect) |
-| lowercase variable after `as` / before `with` | expected a variable, found name `v` | `V` (maybe incorrect) |
-| `::` (Haskell) or `:=` in a declaration header | declarations are written `name : type.`, definitions `name = e.` | `:` / `=` (machine-applicable) |
-| `=` in a record type, `:` in a record value | record types use `:`, record values `=` | replace (maybe incorrect) |
-| `$` not followed by an expression | expected an expression after `$` | — |
+| lowercase variable after `as` / before `with` | ``expected a variable, found `v` `` | `V` (maybe incorrect) |
+| `::` in a declaration header | ``expected `:` in a declaration, found `::` ``; `::` is the list constructor | `:` (machine-applicable) |
+| `:=` in a definition header | expected a type, found `=`; a definition without a type is `name = expr.` | remove `:` (machine-applicable) |
+| `=` in a record type, `:` in a record value | ``expected `:`, found `=` ``: record types use `:`, record values `=` | replace (maybe incorrect) |
+| `$` not followed by an expression | expected an expression; how holes and splices are written | — |
 | `}` without an open module body | unmatched `}` | — |
+| `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
 
 Holes outside quoted syntax are a matter of elaboration (E0917), not of syntax: `$x` is also an explicit
-splice, valid wherever the meta level allows one.
+splice, valid wherever the meta level allows one. A lowercase variable at the meta level is in general a
+name (a constructor pattern `f x = …` is a clause), so it is detected only where the grammar requires a
+variable.
 
 ## 7. Testing
 
-- `tests/recovery/*.hgn`: programs with syntax errors and inline `(*~ E0001 *)` annotations. The runner
-  checks the diagnostics (exactly the annotated ones: no cascading errors) and that the items around the
-  errors are elaborated, by printing the program after `elaborate` into the `.check` file.
-- `RecoveryFuzzSuite`: deleting or inserting one token of a valid corpus program yields at most *k* = 3
-  diagnostics, does not crash, and every item that does not contain the damaged token still elaborates
-  (its names are in scope after elaboration).
-- `tests/fix`: the inserted-delimiter and missing-period suggestions repair programs.
-- LSP: hover and completion in the healthy items of a file with a syntax error.
+- `tests/recovery/*.hgn` (15 programs): syntax errors with inline `(*~ E0001 *)` annotations. The runner
+  in `GoldenTests` requires the annotations to account for exactly the diagnostics reported (an error that
+  follows from a syntax error fails it) and records the diagnostics and the program after `elaborate` in
+  the `.check` file, which shows the items around the errors elaborated (and other errors in them, such
+  as an unresolved name, still reported).
+- `RecoveryFuzzSuite`: deleting or inserting one token of a valid corpus program (`tests/run`,
+  `tests/pos`, `examples`), where that gives a syntax error: no crash; at most *k* = 2 syntax errors; no
+  unresolved name outside the damaged line (except the uses of a declaration whose name the mutation
+  destroyed); the items from the first one in column 0 after the damaged line parsed unchanged (unless a
+  comment or module body was opened and never closed). A damaged `%infix` is excluded (its operator is
+  unknown, which changes how the whole file is parsed). 12 seeds × 300 mutants pass; the property found
+  the heuristics of §4.1–4.4 that concern stray tokens.
+- `ParserSuite`: error nodes, kept declarations, unclosed and skipped delimiters, inserted periods,
+  expected sets and construct labels, the specific messages, regions, module body layout, `(e).l`, and
+  every prefix of a program parses (no fuel exhaustion).
+- `tests/fix`: inserted delimiters and the `::` / `:=` repairs.
+- LSP (`LanguageServerSuite`): one diagnostic per mistake, the quick fix of a missing period, hover,
+  definition, completion and document symbols in a file with three syntax errors.

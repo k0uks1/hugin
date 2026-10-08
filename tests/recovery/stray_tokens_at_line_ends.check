@@ -1,0 +1,42 @@
+error[E0005]: unclosed `(`
+ --> tests/recovery/stray_tokens_at_line_ends.hgn:8:7
+  |
+8 | p 1. ( (*~ E0005 *)
+  |      -^ expected `)` here
+  |      this `(` is never closed
+
+error[E0001]: expected an expression, found `q`
+  --> tests/recovery/stray_tokens_at_line_ends.hgn:11:14
+   |
+11 | q X :- p X. $ (*~ E0001 *)
+   |              ^ expected an expression
+   |
+   = help: a hole or splice is written `$x`, `$(f x)`, `$..xs` or `$f[V]`
+
+error[E0001]: expected an item, found `->`
+  --> tests/recovery/stray_tokens_at_line_ends.hgn:15:32
+   |
+15 | count2 (suc N) = count2 N + 1. -> int. (*~ E0001 *)
+   |                                ^^ expected an item
+
+error[E0001]: expected an item, found `.`
+  --> tests/recovery/stray_tokens_at_line_ends.hgn:17:6
+   |
+17 | r 1. . (*~ E0001 *)
+   |      ^ expected an item
+
+4 errors found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+p : int -> rel.
+p 1.
+p 2.
+q : int -> rel.
+q X :- p X.
+q 3.
+count2 : nat -> int.
+r : int -> rel.
+r 1.
+?- p X, q X, r X.

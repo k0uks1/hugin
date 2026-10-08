@@ -18,7 +18,8 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     if seq then advance()
     // the expression of a hole does not start in column 0 (it would be the next item)
     if !startsExpression(kind) || atColumn0(position) then
-      error(SyntaxError.Expected(List(Expect.expression), found, tok.span, None, Some(SyntaxHelp.DollarWithoutExpression)))
+      val at = if atColumn0(position) then insertionPoint else tok.span
+      error(SyntaxError.Expected(List(Expect.expression), found, at, None, Some(SyntaxHelp.DollarWithoutExpression)))
       ErrorTree(Nil)(spanFrom(start))
     else if seq then
       val arg = parsePostfix()

@@ -1131,6 +1131,64 @@ al.'s Algorithm 1 literally (every round, Floyd–Warshall, cycle nodes only), s
 compares two different divergence procedures; `ProgramGen` emits bound columns over random weighted
 graphs (about one in five such programs diverges).
 
+## Parser (#53)
+
+The review of the parser and the design are in `docs/PARSER.md`; this section records the decisions
+taken while the designer was unavailable.
+
+**Decisions.**
+
+* *Rewrite the error handling, keep the grammar.* The recursive-descent grammar (precedence climbing,
+  brace disambiguation, `where` layout) stays; the exception-based panic mode is replaced throughout by
+  resilient LL parsing (matklad): no exceptions, error nodes, `expect` without consuming, recovery by
+  construct, fuel. Parser.scala (553 lines) is split into six parts, each under 330 lines.
+* *No lossless CST.* No consumer needs trivia (no formatter, no syntax-preserving refactorings); error
+  nodes in the typed trees give the resilience; a CST can be added below them later.
+* *Error nodes:* `Trees.ErrorTree(parts)` (missing or damaged syntax, with what parsed in it) and
+  `Param.Malformed(tree)`. Items are kept with what parsed.
+* *Repairs vs. damage.* Only recoveries that are certain about the intended text are repairs (the item
+  is elaborated): an inserted `.` before the next item in an item that starts its line, `::` → `:`,
+  adjacent `:=` → `=`, a parenthesised declaration head, a rule name on a declaration, an empty `where`.
+  An inserted `)` `]` `}` is a guess: the suggestion is machine-applicable (so `hugin fix` repairs the
+  common case), but the item is damaged and not elaborated (E0005's explanation shows why).
+* *No cascading errors by construction.* The elaborator does not elaborate an item with a syntax error;
+  it drops it silently and makes the names it might declare erroneous (also the head names of a broken
+  rule: a declaration whose `:` is missing is a rule). Functions with a broken clause are declared but
+  unelaborated; a module body with a broken member makes its whole item erroneous (its type would lack
+  the member); erroneous names are silent in quotes, as directives and as clause declarations.
+  Considered: partial elaboration with an error term of unknown type (rejected: the item is the
+  elaborator's unit of recovery, and every later phase would need to know about holes).
+* *One error per recovery region*: regions end at a new item, a body separator `,`/`;`, a list
+  separator, or a closing delimiter reached by skipping.
+* *Line heuristic.* A token in column 0 at the start of a line ends the current item in recovery. Two
+  small changes to the accepted language follow from the same rule and are recorded in the reference:
+  the operand of `$` and `⇑` and the arguments of a directive cannot start in column 0 (no program in the
+  corpus wrote one there; a directive followed by a declaration in column 0 is still the prefix form).
+* *`(e).l` is a projection*: `.` after `)` without space and before a lowercase letter is a selector
+  (lexer); the reference says so. `.` after `]` or `}` is unchanged.
+* *New code E0005* (unclosed delimiter), in the syntax block, with an explanation. `UnclosedModuleBody`
+  (E0001) is replaced by it. The other syntax errors keep their codes; specific messages are cases or
+  helps of `SyntaxError.Expected` (`SyntaxHelp`).
+* *Messages:* expected sets are explicit per error site and rendered as phrases ("`.`, `,` or `:-`", "a
+  type", "a label"), not as the set of tokens the parser happened to test; the start of a multi-line
+  construct is labelled ("this rule starts here"; omitted for single-line items, where the snippet shows
+  it). A missing period names the construct ("after the declaration"; a rule without body is a "fact").
+* *Holes outside quotes* are not detected by the parser: `$x` is also an explicit splice, valid wherever
+  the meta level allows one, and misplaced holes are E0917 (elaboration). Lowercase variables are
+  detected where the grammar requires a variable (declaration parameters, `as`, `with`).
+* *Fuzz property, k = 2.* `RecoveryFuzzSuite`: one deleted or inserted token, where it gives a syntax
+  error, yields at most 2 syntax errors, no unresolved name outside the damaged line (except for a
+  declaration whose name was destroyed), and leaves the following items parsed unchanged. k = 2 because
+  one token can be two mistakes for the parser: a stray period inside an item (`x : int . -> rel.`)
+  ends the item with a part missing, and the rest of the line is an item of its own that starts with
+  junk. With k = 1 the property fails on exactly these; in 3600 mutants (12 seeds × 300) no case needed
+  more than 2. Not covered (recorded in `docs/PARSER.md` §5):
+  object-level errors about items that depend on a dropped item other than by name (a rule not
+  range-restricted because its `%demand` was dropped), which predate #53 and apply to any dropped item.
+* *Changed goldens:* `tests/neg/syntax_recovery.check` and `tests/neg/facts_errors.check` (wording of
+  the missing-period message: "expected `.` after the declaration" / "after the fact" instead of
+  "expected `.` after declaration" / "expected `.`, `,` or `:-`"). No other golden changed.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

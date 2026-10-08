@@ -134,9 +134,10 @@ The productions of the items are given in the chapters that define them:
 [rules](object/rules.md), [queries](object/io.md#queries), [definitions and clauses](meta/clauses.md)
 and [directives](directives.md). Several items may share a line.
 
-An argument of an application cannot start in column 0 of a line. So a missing period at the end of a
-line is reported where the next item starts, and that item is still parsed. It is an error
-([E0001](errors/E0001.md)) if an item does not end with a period.
+An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
+of `$` or `⇑`. So
+a missing period at the end of a line is reported where the next item starts, and that item is still
+parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
 
 The following program declares a relation and gives it two facts on one line.
 

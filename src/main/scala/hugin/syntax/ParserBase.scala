@@ -33,7 +33,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
 
   /** Looks at the current token costs fuel, consuming one restores it: a loop that makes no progress
    *  runs out of fuel, which is a bug of the parser (matklad's resilient LL parsing). */
-  private var fuel = Fuel
+  private var fuel = ParserBase.Fuel
 
   protected def tok: Token = toks(i)
   protected def kind: Tok =
@@ -43,7 +43,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   protected def at(k: Tok): Boolean = kind == k
   protected def peekTok(k: Int): Token = toks((i + k).min(toks.length - 1))
   protected def advance(): Token =
-    fuel = Fuel
+    fuel = ParserBase.Fuel
     val t = tok
     if i < toks.length - 1 then i += 1
     t
@@ -297,6 +297,6 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     (items.toList, clean)
 
 object ParserBase:
+  /** Looks at the current token without consuming one before the parser counts as stuck. */
   val Fuel = 1024
 
-export ParserBase.Fuel

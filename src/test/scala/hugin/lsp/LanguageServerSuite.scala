@@ -151,6 +151,34 @@ class LanguageServerSuite extends munit.FunSuite:
     assertEquals(complete(", ro").map(_.getLabel), List("road", "roads"))
   }
 
+  test("a file with syntax errors: one diagnostic each; hover, definition, completion and symbols work elsewhere") {
+    val (s, c) = server()
+    // a broken rule body, an unclosed parenthesis in a module member, a missing period
+    val text = program.replace("paris : city.", "paris : city") +
+      "far : city -> rel.\nfar X :- roads.path berlin X, .\nnear : city -> rel.\nnear X :- road (berlin X.\n" +
+      "q : city -> rel.\nq X :- roads.pa X X, ro X X.\n"
+    open(s, uri, text)
+    val diagnostics = c.published(uri).map(d => (d.getCode.getLeft, d.getRange.getStart.getLine))
+    // (and the field `pa` that the completion below is asked for)
+    assertEquals(diagnostics, List(("E0001", 6), ("E0001", 13), ("E0005", 15), ("E0906", 17)))
+    // the missing period comes with its fix
+    val fix = s.getTextDocumentService
+      .codeAction(CodeActionParams(doc(uri), c.published(uri).head.getRange, CodeActionContext(c.published(uri).take(1).asJava)))
+      .get().asScala.map(_.getRight).loneElement
+    assertEquals(fix.getEdit.getChanges.get(uri).asScala.map(_.getNewText).toList, List("."))
+    val hover = s.getTextDocumentService.hover(HoverParams(doc(uri), pos("roads.path", "roads.".length, text = text))).get()
+    assertEquals(hover.getContents.getRight.getValue, "```hugin\nrelation roads.path : city -> city -> rel\n```")
+    // (not in the broken items, which are not elaborated)
+    val defs = s.getTextDocumentService.definition(DefinitionParams(doc(uri), pos("road }", 0, text = text))).get().getLeft.asScala
+    assertEquals(defs.map(_.getRange.getStart).toList, List(pos("road :", text = text)))
+    def complete(needle: String) =
+      s.getTextDocumentService.completion(CompletionParams(doc(uri), pos(needle, needle.length, text = text))).get().getLeft.asScala.toList
+    assertEquals(complete("roads.pa").map(_.getLabel), List("path"))
+    assertEquals(complete(", ro").map(_.getLabel), List("road", "roads"))
+    val symbols = s.getTextDocumentService.documentSymbol(DocumentSymbolParams(doc(uri))).get().asScala.map(_.getRight.getName).toList
+    assert(Set("tc", "roads", "far", "near", "q").subsetOf(symbols.toSet), symbols)
+  }
+
   test("a facts file gets syntax diagnostics only") {
     val (s, c) = server()
     open(s, "untitled:f.facts", "road berlin")
