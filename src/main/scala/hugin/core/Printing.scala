@@ -42,10 +42,7 @@ trait Printing:
     case Tm.Proj(a, _) => occurs(ix, a)
     case Tm.Arith(_, a, b, _) => occurs(ix, a) || occurs(ix, b)
     case Tm.Negate(a, _) => occurs(ix, a)
-    case Tm.Compare(_, a, b) => occurs(ix, a) || occurs(ix, b)
-    case Tm.And(a, b) => occurs(ix, a) || occurs(ix, b)
-    case Tm.Or(a, b) => occurs(ix, a) || occurs(ix, b)
-    case Tm.Not(a) => occurs(ix, a)
+    case Tm.Obj(_, as) => as.exists(occurs(ix, _))
     case Tm.Persist(a) => occurs(ix, a)
     case Tm.FactTy(a) => occurs(ix, a)
     case _ => false
@@ -109,10 +106,24 @@ trait Printing:
         case _ => 3
       par(p, q, s"${go(ns, a, q)} ${op.show} ${go(ns, b, q + 1)}")
     case Tm.Negate(a, _) => s"-${go(ns, a, 6)}"
-    case Tm.Compare(op, a, b) => par(p, 2, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 3)}")
-    case Tm.And(a, b) => par(p, 1, s"${go(ns, a, 1)}, ${go(ns, b, 2)}")
-    case Tm.Or(a, b) => par(p, 0, s"${go(ns, a, 0)} ; ${go(ns, b, 1)}")
-    case Tm.Not(a) => par(p, 5, s"not ${go(ns, a, 6)}")
-    case Tm.Wild => "_"
+    case Tm.Obj(f, as) => goObj(ns, f, as, p)
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)
+
+  private def goObj(ns: List[Name], f: ObjForm, as: List[Tm], p: Int): String = (f, as) match
+    case (ObjForm.Loc(_), List(a)) => go(ns, a, p)
+    case (ObjForm.Compare(op), List(a, b)) => par(p, 2, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 3)}")
+    case (ObjForm.And, List(a, b)) => par(p, 1, s"${go(ns, a, 1)}, ${go(ns, b, 2)}")
+    case (ObjForm.Or, List(a, b)) => par(p, 0, s"${go(ns, a, 0)} ; ${go(ns, b, 1)}")
+    case (ObjForm.Not, List(a)) => par(p, 5, s"not ${go(ns, a, 6)}")
+    case (ObjForm.Wild, Nil) => "_"
+    case (ObjForm.As, List(a, x)) => par(p, 5, s"${go(ns, a, 6)} as ${go(ns, x, 6)}")
+    case (ObjForm.Ascribe, List(a, t)) => s"(${go(ns, a, 0)} : ${go(ns, t, 0)})"
+    case (ObjForm.Proj(l), List(a)) => par(p, 6, s"${go(ns, a, 7)}.$l")
+    case (ObjForm.With(ls), a :: es) =>
+      val fields = ls.map(_._1).zip(es).map((l, e) => s"$l = ${go(ns, e, 0)}").mkString(", ")
+      par(p, 5, s"${go(ns, a, 6)} with { $fields }")
+    case (ObjForm.Agg(k), List(x, t, b)) => par(p, 2, s"${go(ns, x, 3)} = ${k.show} { ${go(ns, t, 0)} | ${go(ns, b, 0)} }")
+    case (ObjForm.Union, ms) => par(p, 1, ms.map(go(ns, _, 2)).mkString(" | "))
+    case (ObjForm.BoundCol(k), List(a)) => par(p, 5, s"${k.show} ${go(ns, a, 6)}")
+    case _ => s"<malformed ${f.toString}>"

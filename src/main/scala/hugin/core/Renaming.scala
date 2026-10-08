@@ -185,10 +185,6 @@ trait Renaming:
     case PropT => Tm.PropT
     case Arith(op, a, b, st) => Tm.Arith(op, psubst(psub, a), psubst(psub, b), st)
     case Negate(a, st) => Tm.Negate(psubst(psub, a), st)
-    case Compare(op, a, b) => Tm.Compare(op, psubst(psub, a), psubst(psub, b))
-    case And(a, b) => Tm.And(psubst(psub, a), psubst(psub, b))
-    case Or(a, b) => Tm.Or(psubst(psub, a), psubst(psub, b))
-    case Not(a) => Tm.Not(psubst(psub, a))
-    case Wild => Tm.Wild
+    case Obj(f, as) => Tm.Obj(f, as.map(psubst(psub, _)))
     case Persist(t) => Tm.Persist(psubst(psub, t))
     case FactTy(r) => Tm.FactTy(psubst(psub, r))

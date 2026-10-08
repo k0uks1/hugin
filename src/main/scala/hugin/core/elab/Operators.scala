@@ -52,7 +52,7 @@ trait Operators:
     val (ft, fty) = inferS(c, first, Stage.S0)
     val st2 = check(c, second, fty, Stage.S0)
     val (a, b) = if swapped then (st2, ft) else (ft, st2)
-    (Tm.Compare(op, a, b), Val.PropT, Stage.S0)
+    (Tm.Obj(ObjForm.Compare(op), List(a, b)), Val.PropT, Stage.S0)
 
   /** Arithmetic checked against a known type: both operands are checked against it. */
   def checkArith(c: Cxt, op: String, l: Tree, r: Tree, ty: Val, st: Stage, span: Span): Tm =
@@ -68,9 +68,9 @@ trait Operators:
         val (at, aty, s) = infer(c, a)
         numeric(c, aty, a.span)
         (Tm.Negate(at, s), aty, s)
-      case Not(a) => (Tm.Not(formula(a)), Val.PropT, Stage.S0)
-      case Conj(a, b) => (Tm.And(formula(a), formula(b)), Val.PropT, Stage.S0)
-      case Disj(a, b) => (Tm.Or(formula(a), formula(b)), Val.PropT, Stage.S0)
+      case Not(a) => (Tm.Obj(ObjForm.Not, List(formula(a))), Val.PropT, Stage.S0)
+      case Conj(a, b) => (Tm.Obj(ObjForm.And, List(formula(a), formula(b))), Val.PropT, Stage.S0)
+      case Disj(a, b) => (Tm.Obj(ObjForm.Or, List(formula(a), formula(b))), Val.PropT, Stage.S0)
       case other => unsupported(other)
 
   private def numeric(c: Cxt, ty: Val, span: Span): Unit = force(ty) match

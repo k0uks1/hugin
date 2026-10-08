@@ -35,11 +35,7 @@ trait Evaluation:
     case Tm.PropT => PropT
     case Tm.Arith(op, a, b, st) => arith(op, eval(env, a), eval(env, b), st)
     case Tm.Negate(a, st) => negate(eval(env, a), st)
-    case Tm.Compare(op, a, b) => Compare(op, eval(env, a), eval(env, b))
-    case Tm.And(a, b) => And(eval(env, a), eval(env, b))
-    case Tm.Or(a, b) => Or(eval(env, a), eval(env, b))
-    case Tm.Not(a) => Not(eval(env, a))
-    case Tm.Wild => Wild
+    case Tm.Obj(f, as) => Obj(f, as.map(eval(env, _)))
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
 
@@ -69,10 +65,11 @@ trait Evaluation:
     case Head.Glob(id) => reduceFunction(id, sp).getOrElse(Rigid(h, sp))
     case _ => Rigid(h, sp)
 
-  def vQuote(v: Val): Val = v match
+  /** `⟨$t⟩ = t`, also for a splice at a position (the code spliced has positions of its own). */
+  def vQuote(v: Val): Val = Val.unloc(v) match
     case Rigid(h, Elim.ESplice :: sp) => Rigid(h, sp)
     case Flex(m, Elim.ESplice :: sp) => Flex(m, sp)
-    case t => Quote(t)
+    case _ => Quote(v)
 
   def vSplice(v: Val): Val = v match
     case Quote(t) => t

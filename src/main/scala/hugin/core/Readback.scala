@@ -32,11 +32,7 @@ trait Readback:
     case PropT => Tm.PropT
     case Arith(op, a, b, st) => Tm.Arith(op, quote(l, a), quote(l, b), st)
     case Negate(a, st) => Tm.Negate(quote(l, a), st)
-    case Compare(op, a, b) => Tm.Compare(op, quote(l, a), quote(l, b))
-    case And(a, b) => Tm.And(quote(l, a), quote(l, b))
-    case Or(a, b) => Tm.Or(quote(l, a), quote(l, b))
-    case Not(a) => Tm.Not(quote(l, a))
-    case Wild => Tm.Wild
+    case Obj(f, as) => Tm.Obj(f, as.map(quote(l, _)))
     case Persist(t) => Tm.Persist(quote(l, t))
     case FactTy(r) => Tm.FactTy(quote(l, r))
 
@@ -83,10 +79,7 @@ trait Readback:
           case Tm.Proj(a, lb) => Tm.Proj(zonk(env, l, a), lb)
           case Tm.Arith(op, a, b, st) => Tm.Arith(op, zonk(env, l, a), zonk(env, l, b), st)
           case Tm.Negate(a, st) => Tm.Negate(zonk(env, l, a), st)
-          case Tm.Compare(op, a, b) => Tm.Compare(op, zonk(env, l, a), zonk(env, l, b))
-          case Tm.And(a, b) => Tm.And(zonk(env, l, a), zonk(env, l, b))
-          case Tm.Or(a, b) => Tm.Or(zonk(env, l, a), zonk(env, l, b))
-          case Tm.Not(a) => Tm.Not(zonk(env, l, a))
+          case Tm.Obj(f, as) => Tm.Obj(f, as.map(zonk(env, l, _)))
           case Tm.Persist(a) => Tm.Persist(zonk(env, l, a))
           case Tm.FactTy(a) => Tm.FactTy(zonk(env, l, a))
           case other => other

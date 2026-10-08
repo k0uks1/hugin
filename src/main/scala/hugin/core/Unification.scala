@@ -174,15 +174,13 @@ trait Unification:
       fs.zip(fs2).foreach((a, b) => unify(l, a._2, b._2))
     case (Lit(a, s), Lit(b, s2)) if a == b && s == s2 =>
     case (Base(a, s), Base(b, s2)) if a == b && s == s2 =>
-    case (RelT, RelT) | (PropT, PropT) | (Wild, Wild) =>
+    case (RelT, RelT) | (PropT, PropT) =>
     case (Arith(op, a, b, s), Arith(op2, a2, b2, s2)) if op == op2 && s == s2 =>
       unify(l, a, a2); unify(l, b, b2)
     case (Negate(a, s), Negate(b, s2)) if s == s2 => unify(l, a, b)
-    case (Compare(op, a, b), Compare(op2, a2, b2)) if op == op2 =>
-      unify(l, a, a2); unify(l, b, b2)
-    case (And(a, b), And(a2, b2)) => unify(l, a, a2); unify(l, b, b2)
-    case (Or(a, b), Or(a2, b2)) => unify(l, a, a2); unify(l, b, b2)
-    case (Not(a), Not(b)) => unify(l, a, b)
+    case (Obj(ObjForm.Loc(_), List(a)), u1) => unify(l, a, u1)
+    case (t1, Obj(ObjForm.Loc(_), List(b))) => unify(l, t1, b)
+    case (Obj(f, as), Obj(f2, bs)) if f == f2 && as.length == bs.length => as.zip(bs).foreach((a, b) => unify(l, a, b))
     case (Persist(a), Persist(b)) => unify(l, a, b)
     case (FactTy(a), FactTy(b)) => unify(l, a, b)
     case (Lam(_, _, c), Lam(_, _, c2)) => unify(l + 1, inst(c, Val.local(l)), inst(c2, Val.local(l)))

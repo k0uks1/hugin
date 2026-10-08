@@ -1,6 +1,6 @@
 package hugin.core
 
-import hugin.obj.{ArithOp, BaseType, CmpOp}
+import hugin.obj.{ArithOp, BaseType}
 import hugin.syntax.Literal
 
 /** A closure: a term under one binder, with the environment of its free variables (innermost first). */
@@ -43,13 +43,17 @@ enum Val:
   /** Object arithmetic, or meta arithmetic stuck on a neutral operand. */
   case Arith(op: ArithOp, a: Val, b: Val, st: Stage)
   case Negate(a: Val, st: Stage)
-  case Compare(op: CmpOp, a: Val, b: Val)
-  case And(a: Val, b: Val)
-  case Or(a: Val, b: Val)
-  case Not(a: Val)
-  case Wild
+  case Obj(form: ObjForm, args: List[Val])
   case Persist(t: Val)
   case FactTy(r: Val)
 
 object Val:
   def local(l: Int): Val = Rigid(Head.Local(l), Nil)
+
+  /** `_` in object code; also a placeholder for the (irrelevant) column variables of object arrows. */
+  val Wild: Val = Obj(ObjForm.Wild, Nil)
+
+  /** `v` without the positions around it. */
+  def unloc(v: Val): Val = v match
+    case Obj(ObjForm.Loc(_), List(u)) => unloc(u)
+    case u => u

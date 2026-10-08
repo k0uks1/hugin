@@ -49,7 +49,7 @@ trait Matching:
     Option.when(tms.forall(closed))(tms)
 
   private def closed(t: Tm): Boolean = t match
-    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT | Tm.Wild => true
+    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
     case Tm.App(f, a, _) => closed(f) && closed(a)
     case Tm.Rec(fs) => fs.forall(f => closed(f._2))
     case Tm.Quote(a) => closedObject(a)
@@ -61,10 +61,7 @@ trait Matching:
     case Tm.Var(_) | Tm.Meta(_) | Tm.AppPruning(_, _) | Tm.Lam(_, _, _) | Tm.Splice(_) => false
     case Tm.App(f, a, _) => closedObject(f) && closedObject(a)
     case Tm.Arith(_, a, b, _) => closedObject(a) && closedObject(b)
-    case Tm.Compare(_, a, b) => closedObject(a) && closedObject(b)
-    case Tm.And(a, b) => closedObject(a) && closedObject(b)
-    case Tm.Or(a, b) => closedObject(a) && closedObject(b)
-    case Tm.Not(a) => closedObject(a)
+    case Tm.Obj(_, as) => as.forall(closedObject)
     case Tm.Negate(a, _) => closedObject(a)
     case Tm.Proj(a, _) => closedObject(a)
     case _ => true

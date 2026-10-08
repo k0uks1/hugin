@@ -1,6 +1,6 @@
 package hugin.core
 
-import hugin.obj.{ArithOp, BaseType, CmpOp}
+import hugin.obj.{ArithOp, BaseType}
 import hugin.syntax.Literal
 
 /** Core syntax of the new meta level (docs/REDESIGN.md §6): a two-level type theory in the style of
@@ -87,14 +87,8 @@ enum Tm:
   case Arith(op: ArithOp, a: Tm, b: Tm, st: Stage)
   case Negate(a: Tm, st: Stage)
 
-  /** Object formulas (stage 0). */
-  case Compare(op: CmpOp, a: Tm, b: Tm)
-  case And(a: Tm, b: Tm)
-  case Or(a: Tm, b: Tm)
-  case Not(a: Tm)
-
-  /** `_` in object code. */
-  case Wild
+  /** Object syntax (stage 0 only): formulas, patterns, object types beyond constants, positions. */
+  case Obj(form: ObjForm, args: List[Tm])
 
   /** Cross-stage persistence of a meta primitive value (a literal) into object code. */
   case Persist(t: Tm)
@@ -103,6 +97,17 @@ enum Tm:
   case FactTy(r: Tm)
 
 object Tm:
+  /** `_` in object code. */
+  val Wild: Tm = Obj(ObjForm.Wild, Nil)
+
+  /** `t` at a source position (only object terms and formulas carry positions). */
+  def loc(span: hugin.util.Span, t: Tm): Tm = if span.exists then Obj(ObjForm.Loc(span), List(t)) else t
+
+  /** `t` without the positions around it. */
+  def unloc(t: Tm): Tm = t match
+    case Obj(ObjForm.Loc(_), List(u)) => unloc(u)
+    case u => u
+
   def apps(f: Tm, args: List[(Tm, Icit)]): Tm = args.foldLeft(f)((acc, a) => App(acc, a._1, a._2))
 
   /** The immediate subterms (those under binders included). */
@@ -120,13 +125,10 @@ object Tm:
     case Proj(a, _) => List(a)
     case Arith(_, a, b, _) => List(a, b)
     case Negate(a, _) => List(a)
-    case Compare(_, a, b) => List(a, b)
-    case And(a, b) => List(a, b)
-    case Or(a, b) => List(a, b)
-    case Not(a) => List(a)
+    case Obj(_, as) => as
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
-    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Wild => Nil
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => Nil
 
   /** Whether some subterm (`t` included) satisfies `p`. */
   def exists(t: Tm)(p: Tm => Boolean): Boolean = p(t) || children(t).exists(exists(_)(p))
@@ -150,10 +152,7 @@ object Tm:
       case Proj(a, l) => Proj(go(a, k), l)
       case Arith(op, a, b, st) => Arith(op, go(a, k), go(b, k), st)
       case Negate(a, st) => Negate(go(a, k), st)
-      case Compare(op, a, b) => Compare(op, go(a, k), go(b, k))
-      case And(a, b) => And(go(a, k), go(b, k))
-      case Or(a, b) => Or(go(a, k), go(b, k))
-      case Not(a) => Not(go(a, k))
+      case Obj(f, as) => Obj(f, as.map(go(_, k)))
       case Persist(a) => Persist(go(a, k))
       case FactTy(a) => FactTy(go(a, k))
       case other => other
