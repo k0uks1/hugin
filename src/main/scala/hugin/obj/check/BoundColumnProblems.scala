@@ -19,7 +19,6 @@ enum BoundColumnError extends Problem:
   /** The bound column of `rel` has the non-integer type `tpe`. */
   case NotInteger(rel: RelSym, bound: Bound, tpe: OType)
 
-
   /** E0606: a rule violates type-consistency at `at`; `boundBy` is the atom binding the offending limit
    *  variable, with the kind of its bound column, if one is known. */
   case Inconsistent(at: Span, reason: Inconsistency, boundBy: Option[(Span, Bound)] = None)

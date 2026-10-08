@@ -50,7 +50,8 @@ trait Primitives:
   def reducePrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
     (op, args.map(forceData)) match
       case (PrimOp.Same, List(a, b)) =>
-        for x <- atomKey(a); y <- atomKey(b) yield Rigid(Head.Glob(if stripPositions(x) == stripPositions(y) then ctors(0) else ctors(1)), Nil)
+        for x <- atomKey(a); y <- atomKey(b)
+        yield Rigid(Head.Glob(if stripPositions(x) == stripPositions(y) then ctors(0) else ctors(1)), Nil)
       case (PrimOp.Derived, List(a)) =>
         symbolId(a).map(id => Rigid(Head.Glob(if derivedFrom(id).isDefined then ctors(0) else ctors(1)), Nil))
       case (PrimOp.Labels, List(a)) =>
@@ -88,7 +89,10 @@ trait Primitives:
     val (snil, scons) = (ctors(0), ctors(1))
     val str = Base(hugin.obj.BaseType.StringT, Stage.S1)
     xs.foldRight(Rigid(Head.Glob(snil), List(Elim.EApp(str, Icit.Impl))): Val) { (x, acc) =>
-      Rigid(Head.Glob(scons), List(Elim.EApp(acc, Icit.Expl), Elim.EApp(Lit(Literal.StrL(x), Stage.S1), Icit.Expl), Elim.EApp(str, Icit.Impl)))
+      Rigid(
+        Head.Glob(scons),
+        List(Elim.EApp(acc, Icit.Expl), Elim.EApp(Lit(Literal.StrL(x), Stage.S1), Icit.Expl), Elim.EApp(str, Icit.Impl))
+      )
     }
 
   /** The derived constant `r.l`, created (pending) on first use. */

@@ -64,8 +64,6 @@ enum TerminationError extends Problem:
   /** A demand of `rel` from outside the component reads values that depend on `rel`'s answers. */
   case InfiniteDemand(rel: RelSym, demanded: Term, directive: Option[Span])
 
-
-
   /** The measures of `rel` (declared at `at`) and `first` (at `firstAt`) have different lengths. */
   case MeasureLengths(comp: List[RelSym], rel: RelSym, length: Int, at: Span, first: RelSym, firstLength: Int, firstAt: Option[Span])
 

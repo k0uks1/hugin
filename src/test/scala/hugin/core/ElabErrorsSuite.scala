@@ -85,4 +85,3 @@ class ElabErrorsSuite extends munit.FunSuite:
   test("E0105 a definition referring to itself") {
     assertError("E0105", "self : int = self + 1.\n", "`self` refers to itself", "while elaborating this definition")
   }
-

@@ -12,7 +12,6 @@ enum Invention:
   /** The head builds a constructor term that the body does not match. */
   case HeadConstructs(term: Term)
 
-
   /** A fact matched with `as` is put into the head (at the whole rule). */
   case LiftedFact(variable: VarName, rule: Span)
 
