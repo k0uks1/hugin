@@ -53,8 +53,9 @@ Entry   ::= RuleName? Expr (":-" Formula)? | "?-" Formula
 ```
 
 A *quote* `'{ … }` holds object syntax as data, written as in a file: its content is a sequence of
-entries (rules, facts and queries) separated by periods, the last period optional. The `'` must be
-directly followed by `{`; a prime inside or after a name is part of the name (`x'`). Which data a quote
+entries (rules, facts and queries) separated by periods, the last period optional. Like the items of a
+module body, an entry does not start in column 0: a quote over several lines indents its entries. The
+`'` must be directly followed by `{`; a prime inside or after a name is part of the name (`x'`). Which data a quote
 denotes depends on the reflective type expected where it stands, which gives the *category* of its
 content:
 

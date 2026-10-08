@@ -14,21 +14,23 @@ import scala.collection.mutable
  */
 private[syntax] trait QuoteSyntax extends ParserBase:
   /** `'{ … }`, at `'`. An unclosed quote is E0005 (the `'{` never closed); the entries are recovery
-   *  regions, like the items of a module body. */
+   *  regions, like the items of a module body, and like them they do not start in column 0 (a quote over
+   *  several lines indents its entries), so that an unclosed quote ends before the next item. */
   protected def parseQuote(): Tree =
     val q = advance()
     val brace = advance()
     val open = Token(Tok.LBrace, "'{", q.span.to(brace.span), q.spaceBefore)
     val entries = mutable.ListBuffer.empty[Trees.Item]
     var terminated = false
-    var more = !at(Tok.RBrace) && startsEntry
+    var more = !at(Tok.RBrace) && startsEntry && !atColumn0(position)
     while more do
       entries += parseEntry()
       terminated = at(Tok.Period)
       if terminated then
         advance()
         resync()
-      more = terminated && !at(Tok.RBrace) && startsEntry
+      // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
+      more = terminated && !at(Tok.RBrace) && startsEntry && !atColumn0(position)
     val closed = close(open, Tok.RBrace)
     checked(Trees.Quote(entries.toList, terminated)(spanFrom(q.span.start)), closed)
 

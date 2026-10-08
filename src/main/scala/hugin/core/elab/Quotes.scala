@@ -132,6 +132,9 @@ trait Quotes:
       case (RKind.Term, Neg(a)) => Q.Con("tneg", List(q(a, k)), true, sp)
       case (RKind.Term, Infix(op, l, r)) if quotedArith.contains(op) =>
         Q.Con("tarith", List(Q.Con(arithCtor(quotedArith(op)), Nil, false, sp), q(l, k), q(r, k)), true, sp)
+      // a rule of the file reified for a module-wide directive: an ascription has no representation, the
+      // term is reflected without it (its type is checked again where the rule is elaborated)
+      case (RKind.Term, Ascribe(e, _)) if reifyingRules => q(e, k)
       case (RKind.Term, _) if metaValueAt(c, t) => metaValue(c, t, k)
       case (RKind.Term, _) => application(c, t, "tapp", bound)
       case (RKind.Sym, _) => symbol(c, t, "a reference to an object constant")

@@ -101,6 +101,8 @@ trait QuoteTerms:
    *  are evaluated, and their values become data ([[metaValue]]). */
   private var reifyingSource = false
 
+  def reifyingRules: Boolean = reifyingSource
+
   def reifyingFile[A](f: => A): A =
     val saved = reifyingSource
     reifyingSource = true

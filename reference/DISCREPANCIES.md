@@ -50,9 +50,9 @@ describes the implementation. Each entry says what the reference says now.
 
 7. **Named patterns in quoted syntax.** `docs/errors/E0917.md` says that named patterns have no
    reflective representation (E0917). Since C3 they are quoted as positional atoms
-   (`(p X :- item { name = X, .. })` reifies to `p X :- item X _`, and runs). The reference
-   (Reflection, "Reification") describes the implementation; the explanation of E0917 should drop
-   "named patterns" from its list.
+   (`(p X :- item { name = X, .. })` reifies to `p X :- item X _`, and runs; since #76 written
+   `'{ p X :- item { name = X, .. } }`). The reference (Reflection, "Quotes") describes the
+   implementation; the explanation of E0917 should drop "named patterns" from its list.
 
    *Resolved:* E0917's explanation no longer lists named patterns.
 
@@ -111,3 +111,12 @@ describes the implementation. Each entry says what the reference says now.
 
     *Resolved:* a constructor into the fact type of a struct or relation is E0103, like a refinement
     (Object declarations, "Constructors").
+
+15. **Reflection by expected type (#76).** REDESIGN §6.9 reifies unmarked object syntax wherever a
+    reflective type is expected, and writes rules as data `(h :- b)` (`(h :-)` without body). This made
+    syntactic categories ambiguous and collided with staging (`$[$(flip (edge a b))].` was elaborated as
+    a staged list). Reflection now has explicit quotes `'{ … }` whose category is the expected type's;
+    holes exist only inside them, and `(h :- b)` is a syntax error.
+
+    *Decided (#76):* REDESIGN §6.9 is annotated; the reference (Reflection, "Quotes") defines the quotes,
+    and the arguments of directives are quoted implicitly (Directives, "Resolution and arguments").

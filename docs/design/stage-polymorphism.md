@@ -380,8 +380,9 @@ T.reify ḡ (cᵢ x₁ … xₖ) = '{ cᵢ $(R[σᵢ₁] x₁) … $(R[σᵢₖ]
 where `L[σ]` and `R[σ]` are the liftings of §5.4 with the parameters `aⱼ` mapped to `fⱼ` (resp. `gⱼ`).
 The names `T.lift` and `T.reify` are derived names in the way `r.check` is a derived constant; they are
 ordinary meta functions, checked for coverage and termination like hand-written ones. In the clause of
-`T.reify`, the quote of #76 contains object syntax, so `cᵢ` is the object constructor; today the clause
-is written without the quote (`cons $(F X) $(reify F Xs)`, see `examples/lists.hgn`).
+`T.reify`, the quote of #76 contains object syntax, so `cᵢ` is the object constructor; before #76 the clause
+was written without the quote (`cons $(F X) $(reify F Xs)`); since #76 it is
+`'{ cons $(F X) $(reify F Xs) }` (see `docs/design/examples/lists.hgn`).
 
 The two families have the same name and the same constructor names. They are distinct constants. A use
 is resolved by the stage of its position (§5.6).
@@ -455,9 +456,9 @@ type, as every term is (reference: The meta level, Stages):
 - in a position whose expected type is `⇑A`, an object constant is used directly; `lift` is inserted only
   for a meta *value*.
 
-The explicit quotes of #76 matter here. Today, object syntax in a position of a reflective type is
-reified by expected type, so `cons X Xs` in such a position could be read as a meta constructor applied
-to meta values or as quoted object syntax. With `'{ … }` the content of a quote is always object syntax
+The explicit quotes of #76 matter here. Before #76, object syntax in a position of a reflective type
+was reified by expected type, so `cons X Xs` in such a position could be read as a meta constructor applied
+to meta values or as quoted object syntax. With `'{ … }` (implemented) the content of a quote is always object syntax
 and everything outside is not, so the stage of a shared name is never ambiguous.
 
 `[a, b]` and `x :: xs` denote `cons`/`nil` of `list` at the stage of the position. In a rule head,
