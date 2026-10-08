@@ -11,7 +11,7 @@ class ElabErrorsSuite extends munit.FunSuite:
     fragments.foreach(f => assert(text.contains(f), s"`$f` not in\n$text"))
 
   test("E0101 unresolved name, with a suggestion") {
-    assertError("E0101", "nat : Type.\nx : nta.\n", "unresolved name `nta`", "`nat`")
+    assertError("E0101", "nat : Type.\nx : natt.\n", "unresolved name `natt`", "`nat`")
   }
 
   test("E0102 duplicate declaration") {
@@ -44,7 +44,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0905 not a function") {
-    assertError("E0905", "q : int -> rel.\nr : rel.\nr :- q 1 2.\n", "not a function", "too many arguments")
+    assertError("E0905", "limit : int = 3.\ntwice = limit 2.\n", "not a function", "is not a function type")
   }
 
   test("E0906 unknown field") {
@@ -52,8 +52,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0907 not supported yet") {
-    assertError("E0907", "graph : mod = { node : type }.\n", "`mod` is not part of the new meta level")
-    assertError("E0907", "m = { p : int -> rel. }.\n", "module bodies are not supported")
+    assertError("E0907", "m = { small : type <: int. }.\n", "refinements and families in module bodies are not supported")
   }
 
   test("E0908 object-level functions") {

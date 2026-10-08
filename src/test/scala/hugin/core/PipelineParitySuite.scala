@@ -5,10 +5,9 @@ import hugin.cli.Main
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
-/** Acceptance test of redesign step B3a (docs/REDESIGN.md §10): every golden test program that the new
- *  meta level can take over without modules, functors, families, formula functions or imports produces
- *  the same output (results, diagnostics, exit code) with `--new-meta` as with the old pipeline. The
- *  programs that are left out are listed in [[PipelineParitySuite.excluded]], each with its reason.
+/** Acceptance test of redesign step B3 (docs/REDESIGN.md §10): every golden test program produces the
+ *  same output (results, diagnostics, exit code) with `--new-meta` as with the old pipeline, except the
+ *  programs listed in [[PipelineParitySuite.excluded]], each with the reason of the difference.
  *
  *  With `HUGIN_PARITY_REPORT=1`, the suite prints the differences of all programs (also the excluded
  *  ones) instead of failing. */
@@ -60,54 +59,25 @@ class PipelineParitySuite extends munit.FunSuite:
       test(name)(assertNoDiff(run(command(p, dir) :+ "--new-meta"), run(command(p, dir))))
 
 object PipelineParitySuite:
-  /** Programs outside the scope of B3a, with the reason. */
+  /** Programs whose output differs, with the reason (REDESIGN §10, B3: diagnostics in the new meta
+   *  level's words and concepts that changed). */
   val excluded: Map[String, String] = Map(
-    "neg/a06_termination_nondecreasing.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "neg/a06_termination_unanchored.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
     "neg/a11_stage_overflow.hgn" -> "meta definitions are values: an overflow is reported where it reaches object code (E0909), not at the definition (E0209)",
-    "neg/builtin.hgn" -> "diagnostics of the old meta typer, which the new meta level reports in its own words (updated in B3c)",
-    "neg/classification.hgn" -> "`limit : int.` is a meta postulate and `f : int -> type` a meta function in the new meta level (REDESIGN §6.2), not misclassified object declarations",
-    "neg/f_data_ctor_relation.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "neg/f_nil_ascription_help.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "neg/formula_modes.hgn" -> "formula functions: step B3b",
-    "neg/import_paths.hgn" -> "imports: step B3b",
-    "neg/imports.hgn" -> "imports: step B3b",
-    "neg/interfaces.hgn" -> "modules, signatures or functors: step B3b",
-    "neg/labels.hgn" -> "modules, signatures or functors: step B3b",
-    "neg/lints.hgn" -> "formula functions: step B3b",
-    "neg/meta_types.hgn" -> "modules, signatures or functors: step B3b",
-    "neg/names.hgn" -> "diagnostics of the old meta typer, which the new meta level reports in its own words (updated in B3c); meta definitions may refer to later ones (no E0105)",
-    "neg/negation_parameter.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/builtin.hgn" -> "base types are built into the new meta level: an unknown one is E0101, and `%builtin int` is a value",
+    "neg/classification.hgn" -> "`limit : int.` and `f : int -> type.` are meta-level postulates (REDESIGN §6.2); a relation defined by `=` is a type mismatch (E0901)",
+    "neg/f_data_ctor_relation.hgn" -> "a data constructor passed for a relation field is a type mismatch (E0901); the label at the parameter's declaration is missing",
+    "neg/f_nil_ascription_help.hgn" -> "E0206 (a family's type argument not determined) has a generic help",
+    "neg/interfaces.hgn" -> "signature mismatches in the new meta level's words (E0204 with the field, E0906 for a missing member)",
+    "neg/meta_types.hgn" -> "meta type errors in the new meta level's words (E0204, E0901, E0905)",
+    "neg/names.hgn" -> "meta definitions are elaborated in dependency order: a forward reference is fine, a self-reference is an unresolved name (E0101, not E0105)",
     "neg/no_prelude.hgn" -> "base types are built into the new meta level (REDESIGN Q2), so they exist without the prelude",
-    "neg/not_a_module.hgn" -> "modules, signatures or functors: step B3b",
-    "neg/polymorphic_recursion.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "neg/refinements.hgn" -> "a cycle of refinements is reported as unresolved names (the new meta level elaborates declarations in dependency order)",
-    "neg/requirements.hgn" -> "modules, signatures or functors: step B3b",
-    "neg/stage.hgn" -> "formula functions: step B3b",
-    "neg/typedefs.hgn" -> "a cycle of type definitions is reported as unresolved names; non-strict type definitions are families (B3b)",
-    "run/a06_termination_len.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/a10_meta_applicative.hgn" -> "modules, signatures or functors: step B3b",
-    "run/ex_formula_functions.hgn" -> "formula functions: step B3b",
-    "run/ex_graphs.hgn" -> "modules, signatures or functors: step B3b",
-    "run/ex_lists.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_absent_comparison.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_aggregate_disjunction.hgn" -> "formula functions: step B3b",
-    "run/f_ctor_equations.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_demand_per_call.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_demand_per_call_disjunction.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_disjunction.hgn" -> "formula functions: step B3b",
-    "run/f_fact_ctors.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_family_ctor_args.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_modules.hgn" -> "modules, signatures or functors: step B3b",
-    "run/f_nil_comparison.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/f_struct_family.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/imports.hgn" -> "imports: step B3b",
-    "run/interfaces.hgn" -> "modules, signatures or functors: step B3b",
-    "run/n_repeated_vars.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/prelude_shadowing.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/t_termination_explain.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/t_termination_finite_ctors.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
-    "run/t_termination_len_callers.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b"
+    "neg/polymorphic_recursion.hgn" -> "E0206 (a family's type argument not determined) has a generic help",
+    "neg/stage.hgn" -> "stage errors of the new meta level (E0902); `not` over a formula function's expansion is E0202 `not a relation atom`",
+    "neg/typedefs.hgn" -> "type definitions with parameters are meta functions, so they need not be strict (E0106 is retired)",
+    "run/a10_meta_applicative.hgn" -> "the phase `monomorphize` is gone: the same object program is printed after `stage`",
+    "run/f_demand_per_call.hgn" -> "the prelude of the new meta level is `<stdlib>/prelude-core.hgn` until B3c makes it the prelude (positions in it are the same)",
+    "run/t_termination_explain.hgn" -> "the prelude of the new meta level is `<stdlib>/prelude-core.hgn` until B3c makes it the prelude (positions in it are the same)",
+    "run/t_termination_len_callers.hgn" -> "the prelude of the new meta level is `<stdlib>/prelude-core.hgn` until B3c makes it the prelude (positions in it are the same)"
   )
 
 /** A minimal line diff for the report. */

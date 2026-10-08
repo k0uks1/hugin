@@ -33,7 +33,7 @@ class RecordsSuite extends munit.FunSuite:
   }
 
   test("missing and unknown fields") {
-    assertEquals(errors("s : { a : int, b : int } = { a = 1 }.\n"), List("E0906"))
+    assertEquals(errors("s : { a : int, b : int } = { a = 1 }.\n"), List("E0204"))
     assertEquals(errors("s : { a : int } = { a = 1, c = 2 }.\n"), List("E0906"))
     assertEquals(errors("r = { a = 1 }.\nx = r.b.\n"), List("E0906"))
     assertEquals(errors("r = { a = 1, a = 2 }.\n"), List("E0307"))

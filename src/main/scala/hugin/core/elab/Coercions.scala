@@ -14,10 +14,16 @@ trait Coercions:
   /** Coerces `t : a` (stage `s`) to `a2` (stage `s2`), inserting quotes, splices, lifts and record
    *  coercions; falls back to unification. */
   def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
-    if s == Stage.S0 && s2 == Stage.S0 && isObjectData(a) && isObjectData(a2) then coeObjectData(c, t, a, a2)
-    else
-      try coeOpt(c, t, a, s, a2, s2).getOrElse(t)
-      catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
+    try
+      if s2 == Stage.S0 && isObjectData(a2) then
+        // object data is coerced softly (the object typer decides), also a persisted meta primitive
+        val moved = if s == Stage.S1 && isMetaPrim(a).isDefined then adjustStage(c, t, a, s, s2) else None
+        moved match
+          case Some((t1, a1)) => coeObjectData(c, t1, a1, a2)
+          case None if s == Stage.S0 && isObjectData(a) => coeObjectData(c, t, a, a2)
+          case None => coeOpt(c, t, a, s, a2, s2).getOrElse(t)
+      else coeOpt(c, t, a, s, a2, s2).getOrElse(t)
+    catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
 
   /** Object data between object types: unified if possible (which solves implicit arguments and the
    *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */

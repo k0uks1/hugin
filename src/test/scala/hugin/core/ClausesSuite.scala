@@ -92,5 +92,5 @@ class ClausesSuite extends munit.FunSuite:
                        |near : node -> node -> rel.
                        |near X Y :- path 2 X Y.
                        |""".stripMargin)
-    assert(e.output.contains("near X Y :- edge X Y ; (edge X Y ; edge X Y)."), e.output.mkString("\n"))
+    assert(e.output.contains("near X Y :- edge X Y ; edge X Y ; edge X Y."), e.output.mkString("\n"))
   }
