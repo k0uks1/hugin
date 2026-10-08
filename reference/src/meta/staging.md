@@ -30,7 +30,9 @@ Every term is elaborated at the stage of its expected type ([The meta level](ind
 expected type is object code and the term is a meta value, or the reverse, the compiler inserts the
 conversion (Kovács 2022):
 
-- a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A`;
+- a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A` (it is inserted, never written;
+  the quotes `'{ … }` of [reflection](../reflection.md#quotes) are another construct: they make data of
+  the reflective types, not object code);
 - a *splice* `$e` turns a meta value `e : ⇑A` into object code of type `A`;
 - `⇑` is inserted where an object type is used as a meta type.
 
@@ -48,8 +50,8 @@ q zero.
 ```
 
 The explicit splice `$e` states a conversion that stage inference would insert. It is needed where the
-stage of a term is not determined by its context, and it is the notation of
-[holes](../reflection.md#holes) in quoted syntax. The explicit lift `⇑A` writes the type of object code.
+stage of a term is not determined by its context. Inside a reflection quote `'{ … }`, `$` marks a
+[hole](../reflection.md#holes) instead; outside a quote it is always the splice. The explicit lift `⇑A` writes the type of object code.
 
 ## Persistence
 

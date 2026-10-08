@@ -84,7 +84,7 @@ section that defines it.
 | functor | a meta function that returns a module | [Modules](modules.md#functors) |
 | guarded induction (B) | the termination argument by which a measure decreases along every recursive call and stays in a finite set | [Termination](object/termination.md#guarded-induction-b) |
 | head | an atom before `:-` of a rule; the fact the rule derives | [Rules](object/rules.md) |
-| hole | `$X`, `$..Xs` or `$F[V]` in quoted syntax: a place for a meta value | [Reflection](reflection.md#holes) |
+| hole | `$X`, `$..Xs` or `$F[V]` inside a quote: a place for a meta value | [Reflection](reflection.md#holes) |
 | identity | the value that stands for a fact; two facts with the same relation and arguments have the same identity | [Facts and identity](object/facts.md#identity) |
 | implicit argument | an argument the elaborator infers, for a binder `{x : A}` | [Functions](meta/functions.md#implicit-arguments) |
 | inductive family | a meta type `T : Δ -> Type` defined by its meta constructors | [Inductive families](meta/families.md) |
@@ -108,11 +108,12 @@ section that defines it.
 | open type | an object type `a : type.` whose members are the constructors and relations declared into it | [Object types](object/types.md#open-types) |
 | pattern | the left side of a clause, matched against arguments | [Clauses](meta/clauses.md#patterns) |
 | prelude | the library included in every program | [The prelude](prelude.md) |
-| quoted pattern | object syntax used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
+| quote | `'{ … }`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
+| quoted pattern | a quote used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |
 | reflect | turn reflective data into object items of the program | [Reflection](reflection.md#reflecting-data-into-the-program) |
-| reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` that represent object syntax as data | [Reflection](reflection.md) |
-| reify | turn object syntax into reflective data | [Reflection](reflection.md#reification) |
+| reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data | [Reflection](reflection.md) |
+| reify | turn object syntax into reflective data, by a quote | [Reflection](reflection.md#quotes) |
 | relation | an object constant `r : τ̄ -> rel`; a set of facts | [Declarations](object/declarations.md) |
 | rule | an item `h̄ :- φ.` that derives the heads `h̄` for every valuation that satisfies `φ` | [Rules](object/rules.md) |
 | signature | a record type used as the type of modules | [Modules](modules.md#signatures) |

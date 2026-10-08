@@ -37,11 +37,17 @@ an error ([E0001](errors/E0001.md)).
 `%d` resolves the name `d` like any name: in the file, its imports and the prelude. It is an error
 ([E0101](errors/E0101.md)) if no `d` is in scope; the diagnostic suggests a directive with a similar
 name. The compiler elaborates the application `d a₁ … aₙ` with the arguments checked against `d`'s
-parameter types, with stage inference and [reification](reflection.md#reification). In addition:
+parameter types, with stage inference. The arguments of a directive are object syntax, like the item they
+stand in: an argument at a parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`,
+`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes) `'{ … }`
+(which may also be written explicitly). In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
-  module body) is quoted as its declaration `dconst ⟨r⟩ []`, and a rule name `@r` as `drule "r" []`;
+  module body) is its declaration `dconst ⟨r⟩ []`, and a rule name `@r` is `drule "r" []`;
+- where a `sym` is expected, the name of an object constant is its symbol;
 - where a `measure` is expected, the measure syntax of `%terminates` is quoted;
+- a meta value is passed in a hole, `%d $x.`; at a `decl` or `sym` parameter, an argument that is not a
+  name (or a hole) is elaborated as meta code;
 - a run of mode items is elaborated to the prelude's `modes` data.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).
@@ -110,10 +116,10 @@ edge : node -> node -> rel.
 edge a b.
 mirror : module -> module.
 mirror [] = [].
-mirror ((edge $X $Y :- $..B) :: Rest) = (edge $X $Y :- $..B) :: (edge $Y $X :- $..B) :: mirror Rest.
+mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
 mirror (I :: Rest) = I :: mirror Rest.
 loop : term -> seq item.
-loop N = [edge $N d].
+loop N = '{ edge $N d. }.
 %loop c.
 %mirror.
 %loop a.
@@ -141,7 +147,7 @@ The prelude defines the directives whose attributes the compiler implements.
 | `%terminates m p.` | `measure -> formula -> decl` | a termination measure ([Termination](object/termination.md#declared-measures)) |
 | `%demand r m.` | `(r : sym) -> modes (labels r) -> module -> module` | demand-driven evaluation of `r` (below) |
 
-`%input r.` is the application `input r` with `r` quoted as a `decl`; `input`, `output`, `open` and
+`%input r.` is the application `input '{ r }`, with `r` quoted implicitly as a `decl`; `input`, `output`, `open` and
 `derivations` have the type `decl -> decl`, so they are also used in the prefix form, and they compose
 like functions.
 
@@ -174,7 +180,7 @@ A directive is any meta function whose application has a directive type. The fol
 ```hugin,run
 person : type. ann : person. bob : person. cid : person.
 symmetric : (r : ⇑(A -> A -> rel)) -> seq item.
-symmetric R = [ R Y X :- R X Y ].
+symmetric R = '{ R Y X :- R X Y. }.
 friend : person -> person -> rel.
 %symmetric friend.
 friend ann bob.

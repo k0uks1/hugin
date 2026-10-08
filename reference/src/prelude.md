@@ -87,7 +87,7 @@ The reflective types and their helpers are described in [Reflection](reflection.
 | `arith_op` (`oadd`, `osub`, `omul`, `odiv`, `ocat`) | arithmetic operators |
 | `cmp_op` (`ceq`, `cne`, `clt`, `cle`, `cgt`, `cge`) | comparison operators |
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
-| `term`, `formula`, `rule`, `item`, `module` | object syntax as data |
+| `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'{ … }` ([Reflection](reflection.md#quotes)) |
 | `column`, `colof` | the column of an object constant at an index |
 | `pick`, `openT`, `openTs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
 
