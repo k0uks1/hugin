@@ -14,13 +14,11 @@ final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None,
 final case class ImportedModule(value: Tm, ty: Tm, dropped: Set[Name] = Set.empty)
 
 /** Where the items of a file are elaborated: its path, the qualifier of its object constants' names
- *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names
- *  qualified with `prelude` instead (the prelude's declarations the program redeclares), the names of
+ *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names of
  *  the enclosing scope (the prelude's), and the module values of the files it may import. */
 final case class FileEnv(
     path: String = "",
     qualifier: String = "",
-    shadowed: Set[Name] = Set.empty,
     parent: Map[Name, Int] = Map.empty,
     imports: Map[String, ImportedModule] = Map.empty,
     /** Whether unused definitions are reported (W0003, in the program, not in libraries). */
@@ -31,8 +29,7 @@ final case class FileEnv(
 ):
   /** The name of an object constant declared as `n`. */
   def objectName(n: Name): Name =
-    val q = if shadowed(n) then "prelude" else qualifier
-    if q.isEmpty then n else s"$q.$n"
+    if qualifier.isEmpty then n else s"$qualifier.$n"
 
 /** What an elaboration has produced so far: the top-level names in scope and the elaborated items. */
 final class ElabState:
@@ -64,6 +61,17 @@ final class ElabState:
   /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
   var objectHead: Boolean = false
 
+  /** A copy for the elaboration of one item against the declarations elaborated so far (its own items
+   *  start empty). */
+  def fork(): ElabState =
+    val s = ElabState()
+    s.scope ++= scope
+    s.functionNames = functionNames
+    s.signatures = signatures
+    s.erroneous ++= erroneous
+    s.used ++= used
+    s
+
 /** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
  *  elaboration-zoo and his staged elaborator. The concerns are split into traits:
  *
@@ -86,7 +94,8 @@ class Elaborator(
     val core: Core,
     val reporter: Reporter,
     val file: FileEnv = FileEnv(),
-    val index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()
+    val index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex(),
+    val state: ElabState = ElabState()
 ) extends Contexts
     with ElabErrors
     with Names
@@ -115,6 +124,8 @@ class Elaborator(
     with CompleteParameters
     with ObjectItems
     with Tooling:
-  val state: ElabState = ElabState()
+  /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
+  def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =
+    Elaborator(core, reporter, file, index, state.fork())
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope
   def items: mutable.ListBuffer[CoreItem] = state.items

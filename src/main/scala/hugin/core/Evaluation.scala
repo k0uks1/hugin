@@ -74,6 +74,8 @@ trait Evaluation:
 
   private var hygiene = 0
 
+  protected def copyEvaluation(from: Evaluation): Unit = hygiene = from.hygiene
+
   /** A fresh object variable named after `x` (`X#k`). */
   def freshObjectVariable(x: Name): Val =
     hygiene += 1

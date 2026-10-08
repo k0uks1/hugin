@@ -170,6 +170,37 @@ object Tm:
     case FactTy(a) => List(a)
     case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => Nil
 
+  /** `t` with `f` applied to its immediate subterms (those under binders included); a module body's own
+   *  terms are not subterms (its environment is). */
+  def mapChildren(t: Tm)(f: Tm => Tm): Tm = t match
+    case AppPruning(g, pr) => AppPruning(f(g), pr)
+    case Lam(x, i, b) => Lam(x, i, f(b))
+    case App(g, a, i) => App(f(g), f(a), i)
+    case Pi(x, i, a, b) => Pi(x, i, f(a), f(b))
+    case Let(x, a, d, b) => Let(x, f(a), f(d), f(b))
+    case Lift(a) => Lift(f(a))
+    case Quote(a) => Quote(f(a))
+    case Splice(a) => Splice(f(a))
+    case RecTy(fs, rs, ds) => RecTy(fs.map((l, a) => (l, f(a))), rs, ds)
+    case Require(rs, u, a) => Require(rs, u, f(a))
+    case Trace(fr, a) => Trace(fr, f(a))
+    case Rec(fs) => Rec(fs.map((l, a) => (l, f(a))))
+    case Proj(a, l) => Proj(f(a), l)
+    case Arith(op, a, b, st) => Arith(op, f(a), f(b), st)
+    case Negate(a, st) => Negate(f(a), st)
+    case Obj(form, as) => Obj(form, as.map(f))
+    case Fresh(ns, b) => Fresh(ns, f(b))
+    case Module(b, env) => Module(b, env.map(f))
+    case Persist(a) => Persist(f(a))
+    case FactTy(a) => FactTy(f(a))
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => t
+
+  /** `t` with its globals and metas renamed by `g` and `m`. */
+  def rename(t: Tm, g: Int => Int, m: Int => Int): Tm = t match
+    case Global(id) => Global(g(id))
+    case Meta(x) => Meta(m(x))
+    case other => mapChildren(other)(rename(_, g, m))
+
   /** Whether some subterm (`t` included) satisfies `p`. */
   def exists(t: Tm)(p: Tm => Boolean): Boolean = p(t) || children(t).exists(exists(_)(p))
 

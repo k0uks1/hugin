@@ -7,31 +7,45 @@ import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** The items of a program: elaborated one by one, each with error recovery (an item with an error is
  *  reported and dropped), in three phases: declarations and definitions; the clauses of functions (which
- *  may refer to every declaration, also recursively); object items (rules, queries, directives). Finally
- *  the termination of the functions is checked. */
+ *  may refer to every declaration, also recursively); object items (rules, queries, directives). The
+ *  first two are the program's *declarations*, which the object items are elaborated against, each on its
+ *  own ([[hugin.core.ProgramElab]]). Finally the termination of the functions is checked. */
 trait Items:
   self: Elaborator =>
   import core.*
 
   def elabProgram(prog: List[Item]): Unit =
+    val (declarations, objectItems) = splitItems(prog)
+    elabDeclarations(declarations)
+    objectItems.foreach(elabItemReporting)
+    finish()
+
+  /** A program's declarations (declarations, definitions, clauses of functions and formula functions,
+   *  subtyping edges) and its object items (rules, queries, directives), each in source order. */
+  def splitItems(prog: List[Item]): (List[Item], List[Item]) =
+    val declared = prog.collect { case d: Decl => d.name.name }.toSet
+    val (_, rest) = prog.partition(clauseName(_, declared).isDefined)
+    val formulaFunctions = formulaFunctionNames(rest)
+    prog.partition {
+      case r: Rule => clauseName(r, declared).isDefined || clauseOf(formulaFunctions)(r).isDefined
+      case _: Query | _: Directive => false
+      case _ => true
+    }
+
+  /** Elaborates a program's declarations ([[splitItems]]). */
+  def elabDeclarations(prog: List[Item]): Unit =
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _, _) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
-    val (formulaClauses, rest1) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
-    val (obj, meta) = rest1.partition {
-      case _: Rule | _: Query | _: Directive => true
-      case _ => false
-    }
+    val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
     predeclare(meta)
     elabInDependencyOrder(meta)
     dropPending()
     elabClauseGroups(clauses)
     for f <- formulaFunctions do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
-    obj.foreach(elabItemReporting)
-    finish()
 
   /** The name an item declares. */
   private def declares(item: Item): Option[Name] = declaresIdent(item).map(_.name)
@@ -173,7 +187,7 @@ trait Items:
     case q: Query => elabQuery(q)
     case d: Directive => elabDirective(d)
     case e: SubEdge => elabEdge(e)
-    case cl: Clause => throw Impossible(s"clause outside of its group: ${cl.span}")
+    case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))
 
   def elabItemReporting(item: Item): Unit =
     val start = metas.length

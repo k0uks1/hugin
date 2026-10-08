@@ -19,7 +19,7 @@ final case class ModuleBody(id: Int, span: Span, members: List[Member], items: L
 
 /** An instance of a module body: its environment, with the members' values innermost, and the prefix of
  *  the names of its object constants. */
-final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String, position: Int, origin: hugin.util.Origin)
+final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String, placedAt: Span, origin: hugin.util.Origin)
 
 /** Module bodies are **generative** (REDESIGN §6.7): evaluating a body creates fresh object constants for
  *  its object members, and its object items are staged for them ([[handover.Handover]]). To give each
@@ -39,10 +39,10 @@ trait Modules:
     bodyIds += 1
     bodyIds
 
-  /** The item whose elaboration or staging evaluates terms now (see above), and its position: an
-   *  instance's object constants and items are placed there in the object program. */
+  /** The item whose elaboration or staging evaluates terms now (see above), and its span: an instance's
+   *  object constants and items are placed there in the object program. */
   var site: Int = 0
-  var position: Int = 0
+  var placement: Span = Span.NoSpan
 
   /** The name of the definition being elaborated or staged, the prefix of the instances it creates. */
   var hint: String = ""
@@ -85,7 +85,7 @@ trait Modules:
       e = v :: e
       (m.name, v)
     }
-    moduleInstances += ModuleInstance(body, e, prefix, position, origin)
+    moduleInstances += ModuleInstance(body, e, prefix, placement, origin)
     Val.Rec(fields)
 
   private def objectMember(m: Member, decl: ObjDecl, env: List[Val], prefix: String): Val =
@@ -94,7 +94,8 @@ trait Modules:
       case other => throw Impossible(s"object member of type $other")
     val tyTm = quote(0, ty)
     val name = if prefix.isEmpty then m.name else s"$prefix.${m.name}"
-    val id = addGlobal(GlobalEntry(name, eval(Nil, tyTm), tyTm, Stage.S0, GlobalKind.Object(decl), m.span, m.declSpan, order = position))
+    val id =
+      addGlobal(GlobalEntry(name, eval(Nil, tyTm), tyTm, Stage.S0, GlobalKind.Object(decl), m.span, m.declSpan, placedAt = placement))
     Val.Quote(Val.Rigid(Head.Glob(id), Nil))
 
   private def freshPrefix(): String =
@@ -118,20 +119,31 @@ trait Modules:
 
   private val fileRanks = mutable.LinkedHashMap.empty[String, Int]
 
-  /** The position of a span in the program: the files in the order they are elaborated (the prelude, the
-   *  imported files, the program), then the offset. */
+  /** Ranks a file after the files ranked before (the prelude, the imported files, the program's files). */
+  def rankFile(path: String): Unit = fileRanks.getOrElseUpdate(path, fileRanks.size)
+
+  /** The position of a span in the program: the files in the order they are ranked (as elaborated: the
+   *  prelude, the imported files, the program), then the offset. */
   def positionOf(span: Span): Int =
     val rank = fileRanks.getOrElseUpdate(span.source.path, fileRanks.size)
     rank * 10_000_000 + span.start
 
+  protected def copyModules(from: Modules): Unit =
+    bodyIds = from.bodyIds
+    memo ++= from.memo
+    prefixes ++= from.prefixes
+    anonymous = from.anonymous
+    moduleInstances ++= from.moduleInstances
+    fileRanks ++= from.fileRanks
+
   /** Runs `f` as part of the item at `span`, a definition named `newHint` (or ""). */
   def at[A](span: Span, newHint: String)(f: => A): A =
-    val (s, p, h) = (site, position, hint)
+    val (s, p, h) = (site, placement, hint)
     site = (span.source.path, span.start).hashCode
-    position = positionOf(span)
+    placement = span
     hint = newHint
     try f
     finally
       site = s
-      position = p
+      placement = p
       hint = h

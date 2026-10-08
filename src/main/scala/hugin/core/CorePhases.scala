@@ -12,30 +12,16 @@ final class ElaboratePhase extends Phase:
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null then return
-    val reporter = Reporter()
     val root = u.source.path
     val program = u.untpd.nn
     val graph = ctx.libraries.graph(root, program, ctx.settings.prelude)
     graph.diagnostics.foreach(ctx.report)
     u.missingImports ++= graph.missing
     graph.files.foreach(p => u.libraries(p) = Library(p))
-    val (preludes, imported) = graph.files.partition(_ == SourceLoader.PreludePath)
-    val prelude = preludes.headOption.map(p => SourceItems(p, "", items(p)))
-    val libraries = qualified(imported).map((path, q) => SourceItems(path, q, items(path)))
-    val builtinNames = ctx.settings.prelude
-    u.elaborated = MetaLevel.elaborate(SourceItems(root, "", program.items), prelude, libraries, reporter, builtinNames, u.index)
-    reporter.diagnostics.foreach(ctx.report)
-
-  /** The files with the qualifiers of their object constants: their names, numbered where they clash. */
-  private def qualified(files: List[String]): List[(String, String)] =
-    val taken = scala.collection.mutable.HashSet("", "prelude")
-    files.map { path =>
-      val base = Library.moduleName(path)
-      path -> Iterator.from(1).map(k => if k == 1 then base else s"$base$k").find(taken.add).get
-    }
-
-  private def items(path: String)(using Context): List[hugin.syntax.Trees.Item] =
-    ctx.libraries.load(path).fold(Nil)(_.program.items)
+    val result = ctx.libraries.elaborate(root, program, graph, ctx.settings.prelude)
+    u.elaborated = result.elaborated
+    u.index.include(result.index)
+    result.diagnostics.foreach(ctx.report)
 
   override def show(using Context): String =
     Option(ctx.unit.elaborated).fold("")(_.nn.render(Reporter()).mkString("\n"))

@@ -69,7 +69,7 @@ final class GlobalEntry(
     val instanceOf: Option[(Int, List[Tm])] = None,
     /** Where the constant is placed in the object program (the object level orders the members of a
      *  closed type by symbol id): its declaration, or the item that created a module instance. */
-    val order: Int = -1
+    val placedAt: Span = Span.NoSpan
 )
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).
@@ -80,11 +80,30 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
-final class Core extends Evaluation with Matching with Families with Modules with Requirements with Readback with Renaming with Unification
-    with Printing:
-  val levels: Levels = Levels()
+final class Core private (val levels: Levels) extends Evaluation with Matching with Families with Modules with Requirements
+    with Readback with Renaming with Unification with Printing:
+  def this() = this(Levels())
+
   val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty
   val metas: mutable.ArrayBuffer[MetaEntry] = mutable.ArrayBuffer.empty
+
+  /** A copy of this core that can be extended independently (the elaboration of one item against the
+   *  declarations of its program, [[ProgramElab]]). The globals are shared: an elaboration only changes
+   *  the globals it declares (a fork's own), so the entries of this core stay as they are. Metas are
+   *  copied, since an elaboration may solve them. */
+  def fork(): Core =
+    val c = Core(levels.copy())
+    c.globals ++= globals
+    c.metas ++= metas.map(m =>
+      val e = MetaEntry(m.ty, m.stage, m.span, m.what, m.allowUnsolved)
+      e.solution = m.solution
+      e
+    )
+    c.copyFamilies(this)
+    c.copyModules(this)
+    c.copyRequirements(this)
+    c.copyEvaluation(this)
+    c
 
   def addGlobal(e: GlobalEntry): Int =
     globals += e

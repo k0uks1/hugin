@@ -61,7 +61,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
   private def objectConstants: List[Int] =
     globals.indices.toList
       .filter(id => globals(id).kind.isInstanceOf[GlobalKind.Object] && globals(id).instanceOf.isEmpty && !globals(id).pending)
-      .sortBy(id => if globals(id).order >= 0 then globals(id).order else positionOf(globals(id).declSpan))
+      .sortBy(id => positionOf(if globals(id).placedAt.exists then globals(id).placedAt else globals(id).declSpan))
 
   private type Staged = obj.Rule | obj.Query | obj.Edge | obj.Directive
 
@@ -80,7 +80,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
     var k = 0
     while k < moduleInstances.length do
       val i = moduleInstances(k)
-      out ++= i.body.items.flatMap(stage(_, i.env, i.prefix, i.origin)).map(i.position -> _)
+      out ++= i.body.items.flatMap(stage(_, i.env, i.prefix, i.origin)).map(positionOf(i.placedAt) -> _)
       k += 1
     out.toList
 

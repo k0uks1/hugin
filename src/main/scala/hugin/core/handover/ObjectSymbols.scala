@@ -50,18 +50,18 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
     val g = globals(id)
     d match
       case ObjDecl.OpenType | ObjDecl.Refinement(_) =>
-        val t = TypeSym(g.name, TypeKind.Open, g.declSpan, Origin.Source)
+        val t = TypeSym(objectName(id), TypeKind.Open, g.declSpan, Origin.Source)
         types(id) = t
         for (fam, args) <- g.instanceOf do
-          t.instanceOf = Some((familyTypes.getOrElseUpdate(fam, TypeSym(globals(fam).name, TypeKind.Open, t.span, Origin.Source)), Nil))
+          t.instanceOf = Some((familyTypes.getOrElseUpdate(fam, TypeSym(objectName(fam), TypeKind.Open, t.span, Origin.Source)), Nil))
         fillType(id, t)
         for (fam, args) <- g.instanceOf if d == ObjDecl.OpenType do closeInstance(fam, args)
         t
       case _ =>
-        val r = RelSym(g.name, relKind(d), g.declSpan, Origin.Source, fact(d))
+        val r = RelSym(objectName(id), relKind(d), g.declSpan, Origin.Source, fact(d))
         rels(id) = r
         for (fam, _) <- g.instanceOf do
-          r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(globals(fam).name, r.kind, r.span, Origin.Source, r.fact)), Nil))
+          r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(objectName(fam), r.kind, r.span, Origin.Source, r.fact)), Nil))
         fillRelation(id, r)
         r
 
@@ -103,6 +103,22 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
               params.map(Val.local)
           case _ => false
       case _ => false
+
+  /** The names of the object constants declared outside the prelude. */
+  private lazy val ownNames: Set[Name] =
+    globals.filter(g => !fromPrelude(g) && g.instanceOf.isEmpty && isObjectLike(g.kind)).map(_.name).toSet
+
+  private def isObjectLike(k: GlobalKind): Boolean = k.isInstanceOf[GlobalKind.Object] || k.isInstanceOf[GlobalKind.Family]
+
+  private def fromPrelude(g: GlobalEntry): Boolean = g.declSpan.exists && g.declSpan.source.path == hugin.compiler.SourceLoader.PreludePath
+
+  /** The object-level name of an object constant: a prelude constant that the program redeclares is
+   *  qualified with `prelude` (`prelude.pair`), also in the names of its instances. */
+  def objectName(id: Int): Name =
+    val g = globals(id)
+    g.instanceOf match
+      case Some((fam, _)) => objectName(fam) + g.name.drop(globals(fam).name.length)
+      case None => if fromPrelude(g) && ownNames(g.name) then s"prelude.${g.name}" else g.name
 
   private def relKind(d: ObjDecl): RelKind = d match
     case ObjDecl.Constructor(_) => RelKind.Ctor

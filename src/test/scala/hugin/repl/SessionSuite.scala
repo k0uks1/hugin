@@ -313,7 +313,7 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(c.text, "p.\n     \nq.")
   }
 
-  test("queries and probes are elaborated as extra items: the session's items are not elaborated again") {
+  test("queries and object probes are elaborated as extra items: the session's items are not elaborated again") {
     val s = session(graph*)
     val db = s.database
     def elaborated = db.stats.computedBy("elabItem")
@@ -323,18 +323,18 @@ class SessionSuite extends munit.FunSuite:
     assertEquals((elaborated, signatures), (1, 0)) // the query
     db.stats.reset()
     assertEquals(s.execute(":type path").output, List("relation path : node -> node -> rel"))
-    assertEquals(elaborated, 0) // the probe is a definition, elaborated with the declarations
+    // the probe is a definition: the declarations are elaborated again with it, and the object items
+    assertEquals(signatures, 1)
     db.stats.reset()
     assertEquals(s.execute(":type cons a nil").output, List("cons a nil : cons[node]"))
-    assertEquals(elaborated, 1) // the object probe `?- It'repl = cons a nil.`
-    db.stats.reset()
     assertEquals(s.complete("?- pat", 6), List("path"))
-    assertEquals(elaborated, 1)
-    // probes leave the session as it was: a new input elaborates its own items only
+    // probes leave the session as it was: a new input of object items elaborates its own items only
     db.stats.reset()
-    assertEquals(s.execute("r : node -> rel. r X :- path a X."), Reply())
-    assertEquals(elaborated, 1)
-    assertEquals(s.execute("?- r X.").output, List("X = b.", "X = c."))
+    assertEquals(s.execute("p2 : node -> rel."), Reply())
+    db.stats.reset()
+    assertEquals(s.execute("p2 X :- path a X."), Reply())
+    assertEquals((elaborated, signatures), (1, 0))
+    assertEquals(s.execute("?- p2 X.").output, List("X = b.", "X = c."))
     assertEquals(db.stats.computedBy("elabLibrary"), 0)
   }
 

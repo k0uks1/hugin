@@ -59,8 +59,13 @@ private final class DatabaseLibraries(using db: Database) extends Libraries:
   def imports(path: String): List[(hugin.syntax.Trees.Import, String)] = db(Imports, path).imports
   def graph(root: String, program: hugin.syntax.Program, prelude: Boolean): ImportGraph =
     // the graph of the program being compiled is memoised; another program (not from `ParseProgram`) is walked
-    if db(ParseProgram, root).program eq program then db(LibraryGraph, GraphKey(root, prelude))
+    if isProgram(root, program) then db(LibraryGraph, GraphKey(root, prelude))
     else ImportGraph.compute(root, program, prelude, this)
+
+  // the program being compiled is elaborated in memoised parts; another program directly
+  private def isProgram(root: String, program: hugin.syntax.Program): Boolean = db(ParseProgram, root).program eq program
+  override def elaborate(root: String, program: hugin.syntax.Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
+    if isProgram(root, program) then db(ElabProgram, ProgramKey(root, prelude)) else super.elaborate(root, program, graph, prelude)
 
 /** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
 final case class Part(path: String, queries: Boolean = true)

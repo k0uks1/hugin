@@ -16,6 +16,8 @@ trait Requirements:
 
   val requirementUses: mutable.LinkedHashSet[RequirementUse] = mutable.LinkedHashSet.empty
 
+  protected def copyRequirements(from: Requirements): Unit = requirementUses ++= from.requirementUses
+
   def required(reqs: List[SigReq], use: Span, v: Val): Val =
     for r <- reqs do
       Val.unloc(force(proj(v, r.label))) match

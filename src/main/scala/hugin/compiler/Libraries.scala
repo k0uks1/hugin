@@ -123,6 +123,18 @@ trait Libraries:
   /** The import graph of a program (see [[ImportGraph.compute]]). */
   def graph(root: String, program: Program, prelude: Boolean): ImportGraph
 
+  /** Elaborates the program `program` (the file `root`) with the files of its import graph (the prelude
+   *  first, if included). The query database computes it in memoised parts. */
+  def elaborate(root: String, program: Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
+    hugin.core.MetaLevel.elaborateProgram(root, program, graph, prelude, path => load(path).fold(Nil)(_.program.items))
+
+/** A program elaborated by the meta level: the result, its diagnostics and what it recorded for tooling. */
+final class ProgramElaboration(
+    val elaborated: hugin.core.Elaborated,
+    val diagnostics: List[Diagnostic],
+    val index: SemanticIndex
+)
+
 object Libraries:
   /** Loads everything from `loader`, each file once (per instance). */
   def direct(loader: SourceLoader): Libraries = new Libraries:
@@ -140,6 +152,15 @@ final class Library(val path: String):
 
 object Library:
   def moduleName(path: String): String = Path.of(path).getFileName.toString.takeWhile(_ != '.')
+
+  /** The imported files (not the prelude) with the qualifiers of their object constants: their module
+   *  names, numbered where they clash. */
+  def qualified(files: List[String]): List[(String, String)] =
+    val taken = mutable.HashSet("", "prelude")
+    files.filterNot(_ == SourceLoader.PreludePath).map { path =>
+      val base = moduleName(path)
+      path -> Iterator.from(1).map(k => if k == 1 then base else s"$base$k").find(taken.add).get
+    }
 
   /** The imports of the file `path` with their resolved paths. */
   def importsOf(path: String, program: Program): List[(Trees.Import, String)] =

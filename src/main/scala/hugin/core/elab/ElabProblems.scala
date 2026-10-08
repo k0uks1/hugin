@@ -41,6 +41,9 @@ enum ElabProblem extends Problem:
   case StructRequirement(at: Span)
   case UsedBeforeDeclaration(name: String, at: Span)
 
+  /** `e = e'.` where `e` is not a name applied to patterns: neither a definition nor a clause. */
+  case MalformedClause(at: Span)
+
   /** `x : A = … x ….`: a definition referring to itself (only functions defined by clauses recurse). */
   case SelfReference(name: String, at: Span, defined: Span)
   case StuckObjectType(shown: String, at: Span)
@@ -103,6 +106,7 @@ enum ElabProblem extends Problem:
     case _: NotOpenType | _: EdgeTarget | _: RefinementOfNonType => Code.E0404
     case _: StructFieldFact | _: StructRequirement => Code.E0004
     case _: UsedBeforeDeclaration => Code.E0101
+    case _: MalformedClause => Code.E0004
     case _: SelfReference => Code.E0105
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
@@ -146,6 +150,7 @@ enum ElabProblem extends Problem:
     case StructFieldFact(s) => s
     case StructRequirement(s) => s
     case UsedBeforeDeclaration(_, s) => s
+    case MalformedClause(s) => s
     case SelfReference(_, s, _) => s
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
@@ -194,6 +199,7 @@ enum ElabProblem extends Problem:
     case _: StructFieldFact => msg"`%fact` is not allowed on the fields of a struct"
     case _: StructRequirement => msg"requirements are not allowed in struct declarations"
     case UsedBeforeDeclaration(n, _) => msg"${Src(n)} is used before its declaration"
+    case _: MalformedClause => msg"malformed definition"
     case SelfReference(n, _, _) => msg"${Src(n)} refers to itself"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
@@ -240,6 +246,7 @@ enum ElabProblem extends Problem:
     case _: TypeFunction => msg"a function returning `type`"
     case _: UnknownBaseType => msg"not a builtin"
     case _: SelfReference => msg"recursive reference"
+    case _: MalformedClause => msg"expected a name applied to parameters before `=`"
     case _: MisplacedBuiltin => msg"not a type declaration"
     case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
     case _: UndeterminedTypeArgument => msg"type not determined"

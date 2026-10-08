@@ -14,8 +14,8 @@ final class Elaborated(val core: Core, val items: List[CoreItem], val programIte
 final case class SourceItems(path: String, qualifier: String, items: List[Item])
 
 /** Entry point of the meta level: elaborates the files of a program into one core, in dependency
- *  order. The prelude's names are in scope in every other file; an imported file is the module value of
- *  its `%import`s ([[elab.Imports]]). */
+ *  order, in the parts of [[ProgramElab]]. The prelude's names are in scope in every other file; an
+ *  imported file is the module value of its `%import`s ([[elab.Imports]]). */
 object MetaLevel:
   def elaborate(
       program: SourceItems,
@@ -25,30 +25,30 @@ object MetaLevel:
       builtinNames: Boolean = true,
       index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()
   ): Elaborated =
-    val core = Core()
-    (prelude.toList ++ libraries).map(_.qualifier).foreach(core.reservePrefix)
-    val shadowed = program.items.flatMap(declared).toSet
-    def elabFile(file: SourceItems, env: elab.FileEnv): elab.Elaborator =
-      val e = elab.Elaborator(core, reporter, env, index)
-      e.elabProgram(file.items)
-      e
-    val preludeElab = prelude.map(p => elabFile(p, elab.FileEnv(p.path, p.qualifier, shadowed)))
-    val parent = preludeElab.fold(Map.empty[Name, Int])(_.scope.toMap)
-    var imports = Map.empty[String, elab.ImportedModule]
-    val libElabs = libraries.map { lib =>
-      val e = elabFile(lib, elab.FileEnv(lib.path, lib.qualifier, Set.empty, parent, imports, builtinNames = builtinNames))
-      imports += lib.path -> e.moduleValue
-      e
-    }
-    val main =
-      elabFile(program, elab.FileEnv(program.path, program.qualifier, Set.empty, parent, imports, true, builtinNames))
-    val all = (preludeElab.toList ++ libElabs :+ main).flatMap(_.items.toList)
-    Elaborated(core, all, main.items.toList)
+    val base0 = prelude.fold(ProgramElab.empty(builtinNames))(ProgramElab.prelude(_, builtinNames))
+    val base = libraries.foldLeft(base0)(ProgramElab.library)
+    val (decls, objectItems) = ProgramElab.split(program.items)
+    val declarations = ProgramElab.declarations(base, program.path, ProgramElab.files(program.path, decls), decls)
+    val (elaborated, diagnostics, idx) = ProgramElab.assemble(declarations, objectItems.map(ProgramElab.item(declarations, _)))
+    diagnostics.foreach(reporter.report)
+    index.include(idx)
+    elaborated
 
-  private def declared(item: Item): Option[Name] = item match
-    case d: Decl => Some(d.name.name)
-    case d: Def => Some(d.name.name)
-    case _ => None
+  /** Elaborates the program `program` (the file `root`) with the files of its import graph, read with
+   *  `items`. */
+  def elaborateProgram(
+      root: String,
+      program: hugin.syntax.Program,
+      graph: hugin.compiler.ImportGraph,
+      prelude: Boolean,
+      items: String => List[Item]
+  ): hugin.compiler.ProgramElaboration =
+    val reporter = Reporter()
+    val index = hugin.compiler.SemanticIndex()
+    val preludeFile = graph.files.find(_ == hugin.compiler.SourceLoader.PreludePath).map(p => SourceItems(p, "", items(p)))
+    val libraries = hugin.compiler.Library.qualified(graph.files).map((p, q) => SourceItems(p, q, items(p)))
+    val e = elaborate(SourceItems(root, "", program.items), preludeFile, libraries, reporter, prelude, index)
+    hugin.compiler.ProgramElaboration(e, reporter.diagnostics, index)
 
   /** Elaborates a single file without prelude and imports. */
   def elaborateFile(path: String, items: List[Item], reporter: Reporter): Elaborated =
