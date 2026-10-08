@@ -36,6 +36,7 @@ trait Patterns:
       val pats = d.params.map {
         case Param.VarParam(v) => v
         case Param.Typed(_, _, sp) => fail(ClauseProblem.TypedPattern(sp))
+        case Param.Malformed(t) => syntaxError(t.span)
       }
       Some(SurfaceClause(d.name, pats, d.rhs, d.span))
     case _ => None

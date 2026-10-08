@@ -191,9 +191,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case '>' => sym(Tok.Gt, 1)
         case '.' if peek(1) == '.' => sym(Tok.DotDot, 2)
         case '.' =>
-          // selector iff immediately preceded by an identifier/variable and followed by a lowercase identifier
-          val prevIdent = start > 0 && isIdent(s.charAt(start - 1)) && !space &&
-            out.nonEmpty && (out.last.kind == Tok.Var || out.last.kind == Tok.Name) && out.last.span.end == start
+          // selector iff immediately preceded by an identifier, a variable or `)` and followed by a lowercase
+          // identifier: `g.edge`, `(r).a`
+          val prevIdent = !space && out.nonEmpty && out.last.span.end == start &&
+            (out.last.kind == Tok.Var || out.last.kind == Tok.Name || out.last.kind == Tok.RParen)
           val nextLower = peek(1).isLetter && peek(1).isLower && peek(1) < 128
           if prevIdent && nextLower then sym(Tok.Select, 1) else sym(Tok.Period, 1)
         case ',' => sym(Tok.Comma, 1)

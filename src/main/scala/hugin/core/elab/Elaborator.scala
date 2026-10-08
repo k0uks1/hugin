@@ -54,6 +54,10 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  drop the items using them without further errors. */
   var erroneous: Set[Name] = Set.empty
 
+  /** Functions of the file whose clauses have a syntax error: declared, but not defined; their uses drop
+   *  the items using them without further errors. */
+  var unelaborated: Set[Name] = Set.empty
+
   /** What the object items elaborated so far contribute to the module (for module-wide directives). */
   val parts: mutable.ListBuffer[ModulePart] = mutable.ListBuffer.empty
 
@@ -75,6 +79,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     s.declaredHere = declaredHere
     s.signatures = signatures
     s.erroneous = erroneous
+    s.unelaborated = unelaborated
     s.used = used
     s
 

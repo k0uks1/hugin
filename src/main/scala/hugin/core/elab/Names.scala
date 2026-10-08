@@ -26,6 +26,10 @@ trait Names:
         (Tm.Var(c.lvl - l - 1), b.ty, b.stage)
       case None =>
         lookupGlobal(n) match
+          case Some(id) if state.unelaborated(n) && scope.get(n).contains(id) =>
+            // a function whose clauses have a syntax error: its uses are not elaborated
+            state.used += id
+            throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
           case Some(id) =>
             state.used += id
             recordUse(span, id)

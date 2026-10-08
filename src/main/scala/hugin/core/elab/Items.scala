@@ -2,6 +2,7 @@ package hugin.core
 package elab
 
 import hugin.syntax.Trees.*
+import hugin.syntax.TreeOps.hasSyntaxErrors
 
 /** The items of a program: elaborated one by one, each with error recovery (an item with an error is
  *  reported and dropped), in three phases: declarations and definitions; the clauses of functions (which
@@ -46,11 +47,14 @@ trait Items:
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    // a function with a clause with a syntax error is not defined, and its uses are not elaborated
+    state.unelaborated = clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)).toSet ++
+      formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
     predeclare(meta)
     elabInDependencyOrder(meta)
     dropPending()
     elabClauseGroups(clauses)
-    for f <- formulaFunctions do
+    for f <- formulaFunctions if !state.unelaborated(f) do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
 
   /** The name an item declares. */
@@ -151,7 +155,7 @@ trait Items:
   private def elabClauseGroups(items: List[Item]): Unit =
     val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
     for item <- items; n <- clauseName(item, state.functionNames) do groups(n) = groups.getOrElse(n, Nil) :+ item
-    for (n, group) <- groups do
+    for (n, group) <- groups if !state.unelaborated(n) do
       val start = metas.length
       try
         undoOnFailure {
@@ -179,6 +183,9 @@ trait Items:
   /** Elaborates an item; module bodies it evaluates are instances of this item's site, named after the
    *  definition ([[Modules]]). */
   def elabItem(item: Item): Unit =
+    // an item with a syntax error (reported by the parser) is not elaborated: it is dropped silently and
+    // the names it declares are erroneous (`docs/PARSER.md`, §5)
+    if hasSyntaxErrors(item) then syntaxError(item.span)
     at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
     declares(item).flatMap(scope.get).foreach(recordDeclaration(_, item))
 

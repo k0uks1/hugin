@@ -14,20 +14,25 @@ import scala.collection.mutable
 private[syntax] trait QuoteSyntax extends ParserBase:
   /** After `$` (at `start`): a hole, a sequence hole or a higher-order hole. */
   protected def parseDollar(start: Int): Tree =
-    if kind == Tok.DotDot then
-      advance()
+    val seq = at(Tok.DotDot)
+    if seq then advance()
+    if !startsExpression(kind) then
+      error(SyntaxError.Expected(List(Expect.expression), found, tok.span, None, Some(SyntaxHelp.DollarWithoutExpression)))
+      ErrorTree(Nil)(spanFrom(start))
+    else if seq then
       val arg = parsePostfix()
       SpliceSeq(arg)(spanFrom(start))
     else
       val arg = parsePostfix()
-      if kind == Tok.LBrack && !tok.spaceBefore then
-        advance()
+      if at(Tok.LBrack) && !tok.spaceBefore then
+        val open = advance()
         val args = mutable.ListBuffer(parseExpr(Parser.LvlComma + 1))
-        while kind == Tok.Comma do
+        while at(Tok.Comma) do
           advance()
+          resync()
           args += parseExpr(Parser.LvlComma + 1)
-        expectTok(Tok.RBrack, "`]` after the arguments of a higher-order hole")
-        SpliceHO(arg, args.toList)(spanFrom(start))
+        val closed = close(open, Tok.RBrack)
+        checked(SpliceHO(arg, args.toList)(spanFrom(start)), closed)
       else SpliceE(arg)(spanFrom(start))
 
   /** At `[`: whether it starts a list rather than a lambda `[x] e` / `[x : A] e`. */
@@ -45,44 +50,41 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     val close = k
     val lambdaShape = close >= 2 && (peekTok(1).kind == Tok.Var || peekTok(1).kind == Tok.Name) &&
       (close == 2 || peekTok(2).kind == Tok.Colon)
-    comma || !lambdaShape || !startsExpression(peekTok(close + 1))
+    comma || !lambdaShape || !startsLambdaBody(peekTok(close + 1).kind)
 
-  private def startsExpression(t: Token): Boolean = t.kind match
-    case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar |
-        Tok.Up | Tok.KwNot | Tok.Minus | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel |
-        Tok.KwProp | Tok.Directive =>
-      true
-    case _ => false
+  private def startsLambdaBody(t: Tok): Boolean = t != Tok.RuleName && t != Tok.Error && startsExpression(t)
 
   /** `[e₁, …, eₙ]`, at `[`. */
   protected def parseList(): Tree =
-    val start = tok.span.start
-    advance()
+    val open = advance()
     val elems = mutable.ListBuffer.empty[Tree]
-    if kind != Tok.RBrack then
+    if !at(Tok.RBrack) then
       var more = true
       while more do
         elems += listElement()
-        if kind == Tok.Comma then advance() else more = false
-    expectTok(Tok.RBrack, "`,` or `]` in a list")
-    ListLit(elems.toList)(spanFrom(start))
+        if at(Tok.Comma) then
+          advance()
+          resync()
+        else more = false
+    val closed = close(open, Tok.RBrack)
+    checked(ListLit(elems.toList)(spanFrom(open.span.start)), closed)
 
   private def listElement(): Tree =
     val start = tok.span.start
     val e = parseExpr(Parser.LvlComma + 1)
-    if kind == Tok.Turnstile then
+    if at(Tok.Turnstile) then
       advance()
       val body = parseExpr(Parser.LvlSemi)
       RuleQuote(List(e), Some(body))(spanFrom(start))
     else e
 
-  /** The rest of `(h̄ :- b)` at `:-`, after the heads `inner` (a conjunction for several heads); the
-   *  closing parenthesis is consumed. */
-  protected def ruleQuoteRest(start: Int, inner: Tree): Tree =
+  /** The rest of `(h̄ :- b)` at `:-`, after the heads `inner` (a conjunction for several heads); `open` is
+   *  the opening parenthesis, closed here. */
+  protected def ruleQuoteRest(open: Token, inner: Tree): Tree =
     advance()
-    val body = if kind == Tok.RParen then None else Some(parseExpr(Parser.LvlSemi))
-    expectTok(Tok.RParen, "`)` after a rule")
-    RuleQuote(conjuncts(inner), body)(spanFrom(start))
+    val body = if at(Tok.RParen) then None else Some(parseExpr(Parser.LvlSemi))
+    val closed = close(open, Tok.RParen)
+    checked(RuleQuote(conjuncts(inner), body)(spanFrom(open.span.start)), closed)
 
   private def conjuncts(t: Tree): List[Tree] = t match
     case Conj(a, b) => conjuncts(a) ++ conjuncts(b)

@@ -20,6 +20,15 @@ object TreeOps:
       pending ++= children.reverseIterator
       y
 
+  /** Whether an item or tree has a syntax error in it ([[ErrorTree]], [[Param.Malformed]]). The members of
+   *  a module body are not looked at: they are elaborated (or dropped) one by one. */
+  def hasSyntaxErrors(x: Any): Boolean = x match
+    case _: ErrorTree | _: Param.Malformed => true
+    case _: ModuleBody => false
+    case p: Product => p.productIterator.exists(hasSyntaxErrors)
+    case it: Iterable[?] => it.exists(hasSyntaxErrors)
+    case _ => false
+
   /** The head and the arguments of an application `f a1 ... an`; parentheses around the whole
    *  application are dropped. */
   def flattenApp(t: Tree): (Tree, List[Tree]) =

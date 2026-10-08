@@ -14,38 +14,42 @@ import scala.collection.mutable
  *  - `%partial` (removed) and `%complete` (only in signatures, [[RecordSyntax]]).
  */
 private[syntax] trait DirectiveSyntax extends ParserBase:
-  /** Items parsed along with the current one (the declaration after a prefix directive). */
-  protected val followingItems: mutable.ListBuffer[Trees.Item] = mutable.ListBuffer.empty
-
-  protected def parseDirective(): Trees.Item =
-    val start = tok.span.start
+  /** A directive, and the declaration it is attached to in the prefix form. */
+  protected def parseDirective(): List[Trees.Item] =
+    val first = tok
+    val start = first.span.start
     val d = advance()
     val name = d.text.drop(1)
+    val context = Context("directive", first.span)
     def directive(args: DirArgs) = Directive(name, args)(spanFrom(start), d.span)
     name match
       case "infix" =>
-        val a = expectTok(Tok.Name, "`left`, `right` or `none`")
-        if !Set("left", "right", "none")(a.text) then report(SyntaxError.UnknownAssociativity(a.text, a.span))
-        val p = expectTok(Tok.IntLit, "a precedence")
-        val n = expectTok(Tok.Name, "an operator name")
-        expectPeriod("`.` after directive")
-        directive(DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span)))
-      case "partial" => fail(SyntaxError.RemovedPartial(d.span))
-      case "complete" => fail(SyntaxError.CompleteOutsideSignature(d.span))
+        val a = expect(Tok.Name)
+        for a <- a if !Set("left", "right", "none")(a.text) do error(SyntaxError.UnknownAssociativity(a.text, a.span))
+        val p = a.flatMap(_ => expect(Tok.IntLit))
+        val n = p.flatMap(_ => expect(Tok.Name))
+        val ok = endItem(context, List(Expect.period))
+        (a, p, n) match
+          case (Some(a), Some(p), Some(n)) if ok =>
+            List(directive(DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span))))
+          case _ => Nil
+      case "partial" | "complete" =>
+        error(if name == "partial" then SyntaxError.RemovedPartial(d.span) else SyntaxError.CompleteOutsideSignature(d.span))
+        if !at(Tok.Period) then skipItem() else advance()
+        Nil
       case _ =>
         val declAt = attachedDeclaration()
         val args = mutable.ListBuffer.empty[Tree]
-        while kind != Tok.Period && kind != Tok.EOF && kind != Tok.RBrace && !declAt.contains(position) do
-          args += (if kind == Tok.Plus || kind == Tok.Minus then parseModeArgs() else parsePostfix())
+        // arguments, as those of an application, do not start in column 0
+        while (at(Tok.Plus) || at(Tok.Minus) || startsPrimary) && !declAt.contains(position) && !atColumn0(position) do
+          args += (if at(Tok.Plus) || at(Tok.Minus) then parseModeArgs() else parsePostfix())
         declAt match
-          case Some(_) =>
-            val decl = Ident(tok.text)(tok.span)
-            val dir = directive(DirArgs.Apply(args.toList, Some(decl)))
-            followingItems += parseItem()
-            dir
-          case None =>
-            expectPeriod("`.` after directive")
-            directive(DirArgs.Apply(args.toList, None))
+          case Some(k) if k == position =>
+            directive(DirArgs.Apply(args.toList, Some(Ident(tok.text)(tok.span)))) :: parseItem()
+          case _ =>
+            val ok = endItem(context, List(Expect.period, Expect.Thing("an argument")))
+            val args1 = if ok then args.toList else if args.isEmpty then List(ErrorTree(Nil)(insertionPoint)) else args.toList.init :+ damaged(args.last)
+            List(directive(DirArgs.Apply(args1, None)))
 
   /** Mode items `+e -t +`: `+` an input, `-` an output, each optionally naming the column's label. */
   private def parseModeArgs(): Tree =

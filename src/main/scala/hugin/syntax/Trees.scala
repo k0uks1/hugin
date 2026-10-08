@@ -129,6 +129,12 @@ object Trees:
    *  enclosing item with that name. */
   final case class NamedVar(name: String)(val span: Span) extends Tree
 
+  /** A piece of syntax with a syntax error (reported by the parser): something missing (no parts, an empty
+   *  span where it should be), or a construct that is damaged (unclosed, followed by skipped tokens), with
+   *  the trees that parsed in it. Later phases do not elaborate an item that contains one; they drop it
+   *  without further diagnostics ([[TreeOps.hasSyntaxErrors]], `docs/PARSER.md` §5). */
+  final case class ErrorTree(parts: List[Tree])(val span: Span) extends Tree
+
   /** `+e -t +`: mode items as a directive argument (`%demand typed +e +g -t.`), elaborated to the prelude's
    *  `modes` data (reference: directives). */
   final case class ModeArgs(items: List[ModeItem])(val span: Span) extends Tree
@@ -146,14 +152,18 @@ object Trees:
   enum Param:
     case VarParam(v: VarRef)
     case Typed(name: Tree, tpe: Tree, sp: Span)
+
+    /** A parameter that is neither (a syntax error, reported by the parser). */
+    case Malformed(tree: Tree)
     def span: Span = this match
       case VarParam(v) => v.span
       case Typed(_, _, s) => s
+      case Malformed(t) => t.span
     def nameString: String = this match
       case VarParam(v) => v.name
       case Typed(n: Ident, _, _) => n.name
       case Typed(n: VarRef, _, _) => n.name
-      case Typed(_, _, _) => "?"
+      case Typed(_, _, _) | Malformed(_) => "?"
 
   sealed trait Item:
     def span: Span

@@ -15,6 +15,12 @@ trait ElabErrors:
 
   def fail(p: Problem): Nothing = throw ElabError(p.toDiagnostic)
 
+  /** Syntax with a syntax error ([[hugin.syntax.Trees.ErrorTree]]): the parser reported it, so the item
+   *  is dropped without a further diagnostic (items with syntax errors are not elaborated at all, see
+   *  [[Items]]; this is the guard for code that reaches one nevertheless). */
+  def syntaxError(span: Span): Nothing =
+    throw ElabError(TypeProblem.Unsupported("syntax with an error", span).toDiagnostic, silent = true)
+
   /** Reports the error of an item (unless it follows from an error reported already). */
   def report(e: ElabError): Unit = if !e.silent then reporter.report(e.diag)
 
@@ -72,6 +78,7 @@ trait ElabErrors:
     case _ => false
 
   def unsupported(t: Tree): Nothing =
+    if t.isInstanceOf[ErrorTree] then syntaxError(t.span)
     val what = t match
       case _: ModuleBody => "module bodies"
       case _: Agg => "aggregates"

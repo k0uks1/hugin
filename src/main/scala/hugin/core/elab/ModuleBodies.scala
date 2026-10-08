@@ -75,7 +75,14 @@ trait ModuleBodies:
     case _ => None
 
   /** One member, and the context extended with it. */
-  private def member(c: Cxt, item: Item): (Cxt, Member) = item match
+  private def member(c: Cxt, item: Item): (Cxt, Member) =
+    if hugin.syntax.TreeOps.hasSyntaxErrors(item) then
+      // dropped silently; uses of its name are not reported (`docs/PARSER.md`, §5)
+      memberName(item).foreach(state.erroneous += _)
+      syntaxError(item.span)
+    memberOf(c, item)
+
+  private def memberOf(c: Cxt, item: Item): (Cxt, Member) = item match
     case d: Decl if d.defn.isDefined && !isStructDecl(d) =>
       val (ty, tm) = declDefinition(c, d, d.defn.get)
       defined(c, d.name, ty, tm, d.span)
@@ -106,7 +113,11 @@ trait ModuleBodies:
       Member(d.name.name, MemberKind.Object(decl), lifted, d.name.span, d.span)
     )
 
-  private def objectItem(c: Cxt, item: Item): List[CoreItem] = item match
+  private def objectItem(c: Cxt, item: Item): List[CoreItem] =
+    if hugin.syntax.TreeOps.hasSyntaxErrors(item) then syntaxError(item.span)
+    objectItemOf(c, item)
+
+  private def objectItemOf(c: Cxt, item: Item): List[CoreItem] = item match
     case r: Rule if isSpliceItem(r) => unsupportedAt(r.span, "reflected items (`$e.`) in module bodies")
     case r: Rule => List(ruleItem(c, r))
     case q: Query => List(queryItem(c, q))

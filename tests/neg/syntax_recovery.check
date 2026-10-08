@@ -1,4 +1,4 @@
-error[E0001]: expected `.` after declaration, found `path`
+error[E0001]: expected `.` after the declaration, found `path`
  --> tests/neg/syntax_recovery.hgn:2:25
   |
 2 | edge : int -> int -> rel

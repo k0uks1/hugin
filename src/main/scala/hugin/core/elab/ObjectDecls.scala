@@ -116,7 +116,7 @@ trait ObjectDecls:
    *  are recognised by a result type declared `x : type.` in the module. */
   def predeclare(items: List[Item]): Unit =
     val objectTypes = items.collect { case d: Decl if d.tpe == Keyword(Kw.Type) && d.defn.isEmpty => d.name.name }.toSet
-    for d <- items.collect { case d: Decl => d } if !scope.contains(d.name.name) && d.params.isEmpty do
+    for d <- items.collect { case d: Decl => d } if !scope.contains(d.name.name) && d.params.isEmpty && !hugin.syntax.TreeOps.hasSyntaxErrors(d) do
       shapeOf(d, objectTypes).foreach { kind =>
         val id =
           addGlobal(GlobalEntry(

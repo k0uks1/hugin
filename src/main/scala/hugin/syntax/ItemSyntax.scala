@@ -1,154 +1,179 @@
 package hugin.syntax
 
+import hugin.util.Span
 import scala.collection.mutable
 
 /** Programs and items (reference: lexical-structure, items), mixed into [[Parser]]: declarations,
  *  definitions, clauses with `where` blocks, subtyping edges, rules and queries; directives are in
- *  [[DirectiveSyntax]]. */
+ *  [[DirectiveSyntax]]. Every item is a recovery region and is kept with what parsed
+ *  (`docs/PARSER.md`, §4). */
 private[syntax] trait ItemSyntax extends ParserBase:
   self: DirectiveSyntax =>
   import Parser.*
 
   def parseProgram(): Program =
-    val items = mutable.ListBuffer.empty[Item]
-    while kind != Tok.EOF do
-      if kind == Tok.RBrace then
-        reporter.report(SyntaxError.UnmatchedBrace(tok.span))
-        advance()
-      else parseItemRecovering().foreach(items += _)
-    Program(items.toList, hugin.util.Span(src, 0, src.content.length))
+    val items = parseItems(!at(Tok.EOF), unexpectedAtTop)
+    Program(items, Span(src, 0, src.content.length))
 
-  /** An item (and the declaration a prefix directive is attached to), or none after an error. */
-  protected def parseItemRecovering(): List[Item] =
-    val start = i
-    followingItems.clear()
-    try parseItem() :: followingItems.toList
-    catch
-      case _: ParseError =>
-        sync(start)
-        Nil
+  private def unexpectedAtTop(t: Token): SyntaxError =
+    if t.kind == Tok.RBrace then SyntaxError.UnmatchedBrace(t.span)
+    else SyntaxError.Expected(List(Expect.item), found, t.span, None)
 
-  /** Skip to the end of the current item: a period at nesting depth 0, or a `}` closing the enclosing body. */
-  private def sync(start: Int): Unit =
-    var depth = 0
-    // count nesting opened since the item start but before the error point
-    var k = start
-    while k < i do
-      toks(k).kind match
-        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1
-        case Tok.RBrace | Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0)
-        case _ =>
-      k += 1
-    var done = false
-    if i == start && kind != Tok.EOF then advance()
-    while !done && kind != Tok.EOF do
-      if depth == 0 && atLineStart(tok) && kind != Tok.Period then return
-      kind match
-        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
-        case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
-        case Tok.RBrace =>
-          if depth == 0 then done = true else { depth -= 1; advance() }
-        case Tok.Period if depth == 0 => advance(); done = true
-        case _ => advance()
-
-  protected def parseItem(): Item =
-    val start = tok.span.start
-    val startCol = tok.span.startCol
+  protected def parseItem(): List[Item] =
+    val first = tok
+    val start = first.span.start
     kind match
       case Tok.Directive => parseDirective()
       case Tok.Query =>
         advance()
         val body = parseExpr(LvlSemi)
-        expectTok(Tok.Period)
-        Query(body)(spanFrom(start))
+        val ok = endItem(Context("query", first.span), List(Expect.period))
+        List(Query(checked(body, ok))(spanFrom(start)))
       case Tok.RuleName =>
         val rn = advance()
         val name = Ident(rn.text.drop(1))(rn.span)
-        parseRuleRest(Some(name), start, parseExpr(LvlHead))
+        parseRuleRest(Some(name), first, parseExpr(LvlHead))
       case _ =>
         val lhs = parseExpr(LvlHead)
         kind match
-          case Tok.Colon => parseDeclRest(lhs, start)
-          case Tok.Eq =>
-            advance()
-            val rhs = parseExpr(LvlSemi)
-            val where = if kind == Tok.KwWhere then parseWhere(startCol) else Nil
-            if where.isEmpty then expectTok(Tok.Period, "`.` after clause")
-            if where.isEmpty && isDeclHead(lhs) then
-              val (name, params) = declHead(lhs)
-              Def(name, params, rhs)(spanFrom(start))
-            else Clause(lhs, rhs, where)(spanFrom(start))
+          case Tok.Colon => parseDeclRest(lhs, first)
+          case Tok.ColonColon =>
+            // `f :: int -> int.`: a type signature as in Haskell
+            error(SyntaxError.Expected(List(Expect.Token(Tok.Colon)), found, tok.span, None, Some(SyntaxHelp.DoubleColon(tok.span))))
+            parseDeclRest(lhs, first)
+          case Tok.Eq => List(parseDefRest(lhs, first))
           case Tok.SubT =>
             advance()
             val sup = parseExpr(LvlBar)
-            expectTok(Tok.Period, "`.` after subtyping edge")
-            SubEdge(lhs, sup)(spanFrom(start))
-          case _ => parseRuleRest(None, start, lhs)
+            val ok = endItem(Context("subtyping edge", first.span), List(Expect.period))
+            List(SubEdge(lhs, checked(sup, ok))(spanFrom(start)))
+          case _ => parseRuleRest(None, first, lhs)
 
-  /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:`. */
-  protected def parseDeclRest(lhs: Tree, start: Int): Item =
-    expectTok(Tok.Colon)
-    val (name, params) = declHead(lhs)
+  /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:` (or a `::` reported already).
+   *  A head without a name declares nothing: the item is parsed and dropped. */
+  private def parseDeclRest(lhs: Tree, first: Token): List[Item] =
+    val colon = advance()
+    val head = declHead(lhs)
+    if at(Tok.Eq) && colon.kind == Tok.Colon then
+      // `x := e`: a definition with a `:` too many
+      error(SyntaxError.Expected(List(Expect.tpe), found, tok.span, None, Some(SyntaxHelp.ColonEquals(colon.span))))
+      return List(parseDefRest(lhs, first))
     val tpe = parseType()
-    val sup = if kind == Tok.SubT then { advance(); Some(parseType(LvlBar)) }
+    val sup = if at(Tok.SubT) then { advance(); Some(parseType(LvlBar)) }
     else None
-    val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
+    val defn = if at(Tok.Eq) then { advance(); Some(parseNonType(LvlSemi)) }
     else None
-    expectTok(Tok.Period, "`.` after declaration")
-    Decl(name, params, tpe, sup, defn)(spanFrom(start))
+    val expectations = if defn.isEmpty then List(Expect.period, Expect.Token(Tok.Eq)) else List(Expect.period)
+    val ok = endItem(Context("declaration", first.span), expectations)
+    // the part an error after the item damages
+    val (tpe1, sup1, defn1) =
+      if ok then (tpe, sup, defn)
+      else if defn.isDefined then (tpe, sup, defn.map(damaged))
+      else if sup.isDefined then (tpe, sup.map(damaged), defn)
+      else (damaged(tpe), sup, defn)
+    head.toList.map((name, params) => Decl(name, params, tpe1, sup1, defn1)(spanFrom(first.span.start)))
 
-  private def parseRuleRest(name: Option[Ident], start: Int, first: Tree): Item =
-    val heads = mutable.ListBuffer(first)
-    while kind == Tok.Comma do
+  /** The rest of a definition `f params = e.` or a clause `f p̄ = e [where …].`, at the `=`. */
+  private def parseDefRest(lhs: Tree, first: Token): Item =
+    val start = first.span.start
+    advance()
+    val rhs = parseExpr(LvlSemi)
+    val where = if at(Tok.KwWhere) then parseWhere(first) else Nil
+    if where.nonEmpty then Clause(lhs, rhs, where)(spanFrom(start))
+    else
+      val head = defHead(lhs)
+      // `(f X) = e.`
+      if head.isDefined && lhs.isInstanceOf[Parens] then error(SyntaxError.MalformedDeclarationHead(lhs.span))
+      val construct = if head.isDefined then "definition" else "clause"
+      val ok = endItem(Context(construct, first.span), List(Expect.period, Expect.Token(Tok.KwWhere)))
+      head match
+        case Some((name, params)) => Def(name, params, checked(rhs, ok))(spanFrom(start))
+        case None => Clause(lhs, checked(rhs, ok), Nil)(spanFrom(start))
+
+  private def parseRuleRest(name: Option[Ident], first: Token, firstHead: Tree): List[Item] =
+    val start = first.span.start
+    val heads = mutable.ListBuffer(firstHead)
+    while at(Tok.Comma) do
       advance()
+      resync()
       heads += parseExpr(LvlHead)
+    if at(Tok.Colon) && name.isDefined && heads.length == 1 && kind != Tok.Turnstile then
+      // `@r name : type.`: the rule name is ignored
+      error(SyntaxError.RuleNameOnDeclaration(tok.span))
+      return parseDeclRest(firstHead, first)
     val body =
-      if kind == Tok.Turnstile then { advance(); Some(parseExpr(LvlSemi)) }
+      if at(Tok.Turnstile) then
+        advance()
+        resync()
+        Some(parseExpr(LvlSemi))
       else None
-    if kind != Tok.Period then
-      if kind == Tok.Colon && name.isDefined then
-        fail(SyntaxError.RuleNameOnDeclaration(tok.span))
-      expectTok(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
-    else advance()
-    Rule(name, heads.toList, body)(spanFrom(start))
+    val expectations =
+      if body.isEmpty then List(Expect.period, Expect.Token(Tok.Comma), Expect.Token(Tok.Turnstile)) else List(Expect.period)
+    val construct = if body.isEmpty && heads.length == 1 && name.isEmpty then "fact" else "rule"
+    val ok = endItem(Context(construct, first.span), expectations)
+    val (heads1, body1) =
+      if ok then (heads.toList, body)
+      else if body.isDefined then (heads.toList, body.map(damaged))
+      else (heads.toList.init :+ damaged(heads.last), body)
+    List(Rule(name, heads1, body1)(spanFrom(start)))
 
-  /** `where b₁. … bₙ.` after the right-hand side of a clause starting at column `col`. Layout: the block
-   *  consists of the items that follow and start at a column greater than `col`; it ends before the first
-   *  item at column `col` or less (so a top-level clause's block ends at the next item at column 0), at a
-   *  `}`, or at the end of the file. The last binding's period ends the clause. */
-  private def parseWhere(col: Int): List[Item] =
+  /** `where b₁. … bₙ.` after the right-hand side of a clause starting with `first`. Layout: the block
+   *  consists of the items that follow and start at a column greater than the clause's; it ends before
+   *  the first item at that column or less (so a top-level clause's block ends at the next item at column
+   *  0), at a `}`, or at the end of the file. The last binding's period ends the clause; if there is no
+   *  binding, the clause ends as usual. */
+  private def parseWhere(first: Token): List[Item] =
     val w = advance()
-    val items = mutable.ListBuffer.empty[Item]
-    while kind != Tok.EOF && kind != Tok.RBrace && (items.isEmpty || tok.span.startCol > col) do
-      parseItemRecovering().foreach(items += _)
-    if items.isEmpty then
-      reporter.report(SyntaxError.EmptyWhere(w.span))
-    items.toList
+    val col = first.span.startCol
+    if !startsItem(kind) then
+      error(SyntaxError.EmptyWhere(w.span))
+      Nil
+    else
+      val firstBinding = position
+      parseItems(
+        !at(Tok.EOF) && !at(Tok.RBrace) && (position == firstBinding || tok.span.startCol > col),
+        t => SyntaxError.Expected(List(Expect.Thing("a local definition")), found, t.span, Some(Context("clause", first.span)))
+      )
 
-  /** Whether `lhs` has the shape of a definition head `name param*` (see [[declHead]]). */
-  private def isDeclHead(lhs: Tree): Boolean =
+  /** The name and parameters of a definition head `name param*`, if `lhs` has that shape (otherwise the
+   *  item is a clause with patterns). */
+  private def defHead(lhs: Tree): Option[(Ident, List[Param])] =
     val (hd, args) = TreeOps.flattenApp(lhs)
-    hd.isInstanceOf[Ident] && args.forall {
-      case _: VarRef => true
-      case Ascribe(_: Ident | _: VarRef, _) => true
-      case _ => false
+    val params = args.map {
+      case v: VarRef => Some(Param.VarParam(v))
+      case a @ Ascribe(n @ (_: Ident | _: VarRef), t) => Some(Param.Typed(n, t, a.span))
+      case _ => None
     }
+    hd match
+      case id: Ident if params.forall(_.isDefined) => Some((id, params.flatten))
+      case _ => None
 
-  private def declHead(lhs: Tree): (Ident, List[Param]) =
+  /** The name and parameters of a declaration head. A malformed parameter is reported and kept
+   *  ([[Param.Malformed]]); a head in parentheses is reported and taken without them; a head without a
+   *  name is reported, and the declaration is dropped. */
+  private def declHead(lhs: Tree): Option[(Ident, List[Param])] =
     def flatten(t: Tree, acc: List[Tree]): (Tree, List[Tree]) = t match
       case Apply(f, a) => flatten(f, a :: acc)
       case other => (other, acc)
+    def unparenthesised(t: Tree): Tree = t match
+      case Parens(inner) => unparenthesised(inner)
+      case other => other
     val (hd, args) = flatten(lhs, Nil)
     val name = hd match
-      case id: Ident => id
+      case id: Ident => Some(id)
       case other =>
-        reporter.report(SyntaxError.MalformedDeclarationHead(other.span))
-        throw new ParseError
+        error(SyntaxError.MalformedDeclarationHead(other.span))
+        unparenthesised(other) match
+          case id: Ident => Some(id)
+          case _ => None
     val params = args.map {
       case v: VarRef => Param.VarParam(v)
       case a @ Ascribe(n @ (_: Ident | _: VarRef), t) => Param.Typed(n, t, a.span)
+      case id: Ident =>
+        error(SyntaxError.MalformedParameter(id.span, Some(id.name)))
+        Param.Malformed(id)
       case other =>
-        reporter.report(SyntaxError.MalformedParameter(other.span))
-        throw new ParseError
+        error(SyntaxError.MalformedParameter(other.span))
+        Param.Malformed(other)
     }
-    (name, params)
+    name.map((_, params))
