@@ -65,25 +65,25 @@ final case class DirectiveInsertion(at: Span, indent: String)
 /** A relation passed to a functor does not satisfy a requirement of the parameter's signature (E0208).
  *  `use` is the argument, `required` the requirement in the signature, `from` the functor application. */
 enum RequirementError extends Problem:
-  case NotComplete(rel: RelSym, label: String, open: Boolean, use: Span, required: Span, from: Origin)
+  case NotComplete(rel: RelSym, label: String, use: Span, required: Span, from: Origin)
   case MissingMode(rel: RelSym, label: String, mode: Mode, use: Span, required: Span, from: Origin, insert: Option[DirectiveInsertion])
 
   def code: Code = Code.E0208
 
   def primary: Span = this match
-    case NotComplete(_, _, _, s, _, _) => s
+    case NotComplete(_, _, s, _, _) => s
     case MissingMode(_, _, _, s, _, _, _) => s
 
   def message: Msg = this match
-    case NotComplete(r, l, _, _, _, _) => msg"relation $r does not satisfy ${Src(s"%complete $l")}"
+    case NotComplete(r, l, _, _, _) => msg"relation $r does not satisfy ${Src(s"%complete $l")}"
     case MissingMode(r, _, m, _, _, _, _) => msg"relation $r does not have mode $m"
 
   override def primaryLabel: Msg = this match
-    case NotComplete(r, _, open, _, _, _) => msg"$r is ${Lit(if open then "open" else "partial")}"
+    case NotComplete(r, _, _, _, _) => msg"$r is open"
     case MissingMode(_, l, _, _, _, _, _) => msg"required for field ${Src(l)}"
 
   override def labels: List[(Span, Msg)] = this match
-    case NotComplete(_, _, _, _, req, _) => List(req -> msg"required here")
+    case NotComplete(_, _, _, req, _) => List(req -> msg"required here")
     case MissingMode(_, _, _, _, req, _, _) => List(req -> msg"required here")
 
   override def notes: List[Msg] = this match
@@ -101,7 +101,7 @@ enum RequirementError extends Problem:
     case _ => Nil
 
   override def origin: Origin = this match
-    case NotComplete(_, _, _, _, _, o) => o
+    case NotComplete(_, _, _, _, o) => o
     case MissingMode(_, _, _, _, _, o, _) => o
 
   private def directive(r: RelSym, m: Mode): String = s"%mode ${r.name} ${m.inputs.map(b => if b then "+" else "-").mkString(" ")}."

@@ -6,13 +6,12 @@ import hugin.syntax.{AggKind, Literal}
 import scala.collection.mutable
 
 /** Status of one component's evaluation. */
-final case class ComponentStats(rels: Vector[String], rounds: Int, truncated: Boolean)
+final case class ComponentStats(rels: Vector[String], rounds: Int)
 
 /** Semi-naive evaluator over an interning store (Sections 9.1–9.7). */
-final class Engine(prog: CoreProgram, budget: Option[Int]):
+final class Engine(prog: CoreProgram):
   val store: Vector[Relation] = prog.rels.zipWithIndex.map((r, i) => Relation(i, r, r.arity, prog.indexes.getOrElse(i, Set.empty)))
   val stats: mutable.ArrayBuffer[ComponentStats] = mutable.ArrayBuffer.empty
-  var truncated = false
 
   // visibility windows per relation for the current round: old = [0, oldEnd), delta = [oldEnd, deltaEnd)
   private val oldEnd = Array.fill(store.length)(Int.MaxValue)
@@ -29,7 +28,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
   private def arith(op: ArithOp, a: Any, b: Any): Option[Any] =
     (toLit(a), toLit(b)) match
       case (Some(x), Some(y)) => Prims.arith(op, x, y).map(fromLit)
-      case _ => None
+      case _ => ExtendedInt.arith(op, a, b)
 
   def toLit(w: Any): Option[Literal] = w match
     case l: java.lang.Long => Some(Literal.IntL(l))
@@ -52,7 +51,8 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case Expr.Const(w) => Some(w)
     case Expr.Arith(op, l, r) =>
       for a <- eval(l, regs, mode); b <- eval(r, regs, mode); v <- arith(op, a, b) yield v
-    case Expr.Neg(x) => eval(x, regs, mode).flatMap(toLit).flatMap(Prims.neg).map(fromLit)
+    case Expr.Neg(x) =>
+      eval(x, regs, mode).flatMap(v => toLit(v).fold(ExtendedInt.negate(v))(l => Prims.neg(l).map(fromLit)))
     case Expr.Make(rel, as) =>
       val vs = new Array[Any](as.length)
       var nonFact = false
@@ -80,7 +80,14 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case _ =>
       (toLit(a), toLit(b)) match
         case (Some(x), Some(y)) => Prims.cmp(op, x, y)
-        case _ => false
+        case _ =>
+          ExtendedInt.compare(a, b).exists(c =>
+            op match
+              case CmpOp.Lt => c < 0
+              case CmpOp.Le => c <= 0
+              case CmpOp.Gt => c > 0
+              case _ => c >= 0
+          )
 
   // ------------------------------------------------------------------ body execution
 
@@ -103,7 +110,7 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         // identities are in assertion order (see [[Relation]])
         def visit(n: Int): Boolean =
           val t = r.tuples(n)
-          var ok = true
+          var ok = r.visible(n, hi)
           var j = 0
           while ok && j < checks.length do
             val (col, e) = checks(j)
@@ -221,34 +228,45 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
           val ord: Ordering[Any] = (a: Any, b: Any) =>
             (toLit(a), toLit(b)) match
               case (Some(x), Some(y)) => Prims.compare(x, y).getOrElse(0)
-              case _ => 0
+              case _ => ExtendedInt.compare(a, b).getOrElse(0)
           Some(if kind == AggKind.Min then xs.min(ord) else xs.max(ord))
 
   // ------------------------------------------------------------------ rules and components
 
-  private def fire(r: CompiledRule): Unit =
+  private def fire(r: CompiledRule): Unit = derive(r, (vs, _) => store(r.headRel).intern(vs))
+
+  /** Calls `k` with the head tuple and the register file of every derivation of `r` in the current
+   *  windows. Arithmetic in the head is evaluated before any nested value is interned. */
+  private def derive(r: CompiledRule, k: (Array[Any], Array[Any]) => Unit): Unit =
     val regs = new Array[Any](r.nregs.max(1))
     exec(
       r.body,
       0,
       regs,
       rs => {
-        // arithmetic in the head is evaluated before any nested value is interned
-        if r.headArgs.forall(e => eval(e, rs, Dry).isDefined) then
-          val vs = r.headArgs.map(eval(_, rs, InHead).get)
-          store(r.headRel).intern(vs)
+        if r.headArgs.forall(e => eval(e, rs, Dry).isDefined) then k(r.headArgs.map(eval(_, rs, InHead).get), rs)
         true
       }
     )
 
+  /** Rounds after which a component with bound columns checks for divergence: 4, 8, 16, … A positive cycle
+   *  of value propagation persists once it exists (stability), so checking at growing intervals keeps
+   *  evaluation finite and costs a logarithmic number of passes. */
+  private val FirstDivergenceCheck = 4
+
+  /** Replaces the values that improve forever by `∞` ([[Divergence]]); the replacements join the delta. */
+  private def checkDivergence(comp: Vector[Int], rules: Vector[CompiledRule]): Unit =
+    versionOf = _ => Version.Full
+    if divergence.check(rules, derive) > 0 then comp.foreach(t => deltaEnd(t) = store(t).size)
+
+  private lazy val divergence = Divergence(store)
+
   /** Evaluates all components. Cancellable: an interrupt of the evaluating thread ends evaluation with
-   *  an `InterruptedException` at the next round (a non-terminating `%partial` component without budget). */
+   *  an `InterruptedException` at the next round (an editor that no longer needs the result). */
   def run(): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for (comp, ci) <- prog.components.zipWithIndex do
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
-      val partial = comp.exists(t => prog.directives(t).partial)
-      val limit = if partial then budget else None
       // Init: every rule once, all atoms read the full relations
       comp.foreach { t =>
         oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size
@@ -260,26 +278,27 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
         oldEnd(t) = before(comp.indexOf(t)); deltaEnd(t) = store(t).size
       }
       var rounds = 0
-      var cut = false
+      var nextCheck = FirstDivergenceCheck
+      val bounded = comp.exists(store(_).isBound)
       def deltaNonEmpty = comp.exists(t => deltaEnd(t) > oldEnd(t))
       val recursive = rules.filter(_.recursiveAtoms > 0)
-      while deltaNonEmpty && recursive.nonEmpty && !cut do
+      while deltaNonEmpty && recursive.nonEmpty do
         if Thread.interrupted() then throw InterruptedException("evaluation cancelled")
-        if limit.exists(rounds >= _) then cut = true
-        else
-          rounds += 1
-          for r <- recursive; j <- 0 until r.recursiveAtoms do
-            versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
-            fire(r)
-          comp.foreach { t =>
-            oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
-          }
-      if cut then truncated = true
+        rounds += 1
+        for r <- recursive; j <- 0 until r.recursiveAtoms do
+          versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
+          fire(r)
+        comp.foreach { t =>
+          oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
+        }
+        if bounded && rounds >= nextCheck then
+          checkDivergence(comp, rules)
+          nextCheck *= 2
       comp.foreach { t =>
         oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue
       }
       versionOf = _ => Version.Full
-      stats += ComponentStats(comp.map(prog.rels(_).name), rounds, cut)
+      stats += ComponentStats(comp.map(prog.rels(_).name), rounds)
 
   /** Answers of a query: distinct tuples of the user's variables. */
   def answers(q: CompiledQuery): List[Array[Any]] =
@@ -301,9 +320,11 @@ final class Engine(prog: CoreProgram, budget: Option[Int]):
     case s: String => Literal.quote(s)
     case l: java.lang.Long => if nested && l < 0 then s"($l)" else l.toString
     case d: java.lang.Double => val s = Literal.showDouble(d); if nested && d < 0 then s"($s)" else s
+    case i: Infinity => if nested && i == Infinity.Neg then s"(${i.show})" else i.show
     case other => other.toString
 
-  /** The facts of a relation, printed and sorted; none for a data constructor (its values are not facts). */
+  /** The facts of a relation, printed and sorted; none for a data constructor (its values are not facts).
+   *  For a relation with a bound column, the current (best) tuple of each key. */
   def facts(rel: Int): List[String] =
     val r = store(rel)
-    if r.isData then Nil else r.tuples.indices.map(n => show(Id(rel, n)) + ".").toList.sorted
+    if r.isData then Nil else r.tuples.indices.filter(r.current).map(n => show(Id(rel, n)) + ".").toList.sorted

@@ -13,30 +13,23 @@ object Evaluation:
   final case class Answers(query: String, lines: List[String])
 
   /** `facts` are the printed facts of the shown relations; `answers` follow the queries in program order. */
-  final case class Result(facts: List[String], answers: List[Answers], truncated: Boolean, stats: List[ComponentStats]):
-    /** The note that the round budget cut evaluation short (Section 9.7). */
-    def notice: Option[String] =
-      if !truncated then None
-      else
-        val cut = stats.filter(_.truncated).map(s => s"{${s.rels.mkString(", ")}}").mkString(", ")
-        Some(s"(* truncated: the round budget was exhausted in $cut; results are a subset *)")
-
-    /** The output of Section 9.6: the notice, the facts, then each query followed by its answers. */
-    def output: List[String] = notice.toList ++ facts ++ answers.flatMap(a => a.query :: a.lines)
+  final case class Result(facts: List[String], answers: List[Answers], stats: List[ComponentStats]):
+    /** The output of Section 9.6: the facts, then each query followed by its answers. */
+    def output: List[String] = facts ++ answers.flatMap(a => a.query :: a.lines)
 
     /** One line per component that ran at least one round, for `--stats`. */
     def statistics: List[String] =
-      for s <- stats if s.rounds > 0 || s.truncated
-      yield s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s)${if s.truncated then ", truncated" else ""} *)"
+      for s <- stats if s.rounds > 0
+      yield s"(* {${s.rels.mkString(", ")}}: ${s.rounds} round(s) *)"
 
   /** `result` is empty if the program could not be evaluated (compile errors or invalid input facts). */
   final case class Outcome(result: Option[Result], diagnostics: List[Diagnostic])
 
-  def run(c: Context, factFiles: List[SourceFile], budget: Option[Int], allRelations: Boolean = false): Outcome =
+  def run(c: Context, factFiles: List[SourceFile], allRelations: Boolean = false): Outcome =
     val core = c.unit.core
     if core == null || c.reporter.hasErrors then return Outcome(None, Nil)
     val prog = core.nn
-    val engine = Engine(prog, budget)
+    val engine = Engine(prog)
     val reporter = Reporter()
     val loader = FactLoader(engine, prog, TypeOps(c.unit.prog.nn), reporter)
     factFiles.foreach(loader.load)
@@ -59,4 +52,4 @@ object Evaluation:
       Answers(text, lines)
     }
     val facts = shown.flatMap(r => engine.facts(prog.tag(r))).sorted.toList
-    Outcome(Some(Result(facts, answers, engine.truncated, engine.stats.toList)), reporter.sorted)
+    Outcome(Some(Result(facts, answers, engine.stats.toList)), reporter.sorted)

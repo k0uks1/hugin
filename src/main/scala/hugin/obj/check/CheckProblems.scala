@@ -9,14 +9,12 @@ import scala.language.implicitConversions
 /** Why a relation is incomplete: a chain of positive dependencies ending at a declaration. */
 enum Incompleteness:
   case Open(rel: RelSym)
-  case Partial(rel: RelSym)
 
   /** `rel` depends positively on `dep` (at `edge`), which is incomplete because of `next`. */
   case Via(rel: RelSym, dep: RelSym, edge: Span, next: Incompleteness)
 
   def explain: Msg = this match
     case Open(r) => msg"$r is declared %open"
-    case Partial(r) => msg"$r is declared %partial"
     case Via(r, d, _, next) => msg"$r depends positively on $d; " ++ next.explain
 
 /** Where an incomplete relation is negated or aggregated over. */

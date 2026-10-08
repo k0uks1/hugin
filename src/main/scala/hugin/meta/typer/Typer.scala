@@ -83,7 +83,6 @@ final class Typer(c: Context, parents: List[SymTable] = Nil, view: SymTable.View
         Some(obj.Directive(DirKind.Derivations, None, Some(rn))(d.span, Origin.Source))
       case DirArgs.Target(tgt) =>
         d.kind match
-          case "partial" => mk(DirKind.Partial, tgt)
           case "open" => mk(DirKind.Open, tgt)
           case "input" => mk(DirKind.Input, tgt)
           case "output" => mk(DirKind.Output, tgt)

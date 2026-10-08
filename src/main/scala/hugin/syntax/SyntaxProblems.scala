@@ -46,6 +46,9 @@ enum SyntaxError extends Problem:
   case MalformedParameter(at: Span)
   case CompleteOutsideSignature(at: Span)
 
+  /** `%partial`, which the redesign removed (every accepted program terminates). */
+  case RemovedPartial(at: Span)
+
   def code: Code = this match
     case _: UnterminatedComment | _: UnterminatedString => Code.E0002
     case _: InvalidUnicodeEscape | _: InvalidEscape | _: IntegerOutOfRange => Code.E0003
@@ -73,6 +76,7 @@ enum SyntaxError extends Problem:
     case MalformedDeclarationHead(s) => s
     case MalformedParameter(s) => s
     case CompleteOutsideSignature(s) => s
+    case RemovedPartial(s) => s
 
   def message: Msg = this match
     case _: UnterminatedComment => msg"unterminated comment"
@@ -95,6 +99,7 @@ enum SyntaxError extends Problem:
     case _: MalformedDeclarationHead => msg"malformed declaration head"
     case _: MalformedParameter => msg"malformed parameter"
     case _: CompleteOutsideSignature => msg"`%complete` may only occur in a signature"
+    case _: RemovedPartial => msg"`%partial` has been removed"
 
   override def primaryLabel: Msg = this match
     case _: UnterminatedComment => msg"comment starts here"
@@ -113,6 +118,7 @@ enum SyntaxError extends Problem:
     case _: MalformedDeclarationHead => msg"expected a lowercase name"
     case _: MalformedParameter => msg"expected `X` or `(name : type)`"
     case _: CompleteOutsideSignature => msg"not allowed here"
+    case _: RemovedPartial => msg"removed directive"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -123,7 +129,8 @@ enum SyntaxError extends Problem:
     case _: MalformedDeclarationHead =>
       List(msg"declarations have the form `name param* : type.` and definitions `name param* = expr.`")
     case _: UnknownDirective =>
-      List(msg"directives are %mode %terminates %partial %open %derivations %input %output %infix %name %abbrev %fact")
+      List(msg"directives are %mode %terminates %open %derivations %input %output %infix %name %abbrev %fact")
+    case _: RemovedPartial => List(msg"every accepted program terminates; there are no round budgets (docs/REDESIGN.md §4.6)")
     case _ => Nil
 
   override def helps: List[Msg] = this match
@@ -131,6 +138,8 @@ enum SyntaxError extends Problem:
     case _: MissingPeriod => List(msg"every item ends with a period")
     case _: RuleNameOnDeclaration => List(msg"rule names are written `@name head :- body.`; declarations have no `@`")
     case _: NonAssociativeChain => List(msg"add parentheses")
+    case _: RemovedPartial =>
+      List(msg"let an argument decrease along the recursion, bound it by a guard, or use a bound column (`min int` / `max int`)")
     case _: CompleteOutsideSignature => List(msg"write it inside a record type, e.g. `{ edge : node -> node -> rel, %complete edge }`")
     case _ => Nil
 

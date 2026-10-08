@@ -6,7 +6,7 @@ import hugin.compiler.*
 
 /** Phase: termination check (Section 10; docs/REDESIGN.md §4; docs/NOTES.md, "Termination").
  *
- *  A recursive component with a constructive rule (Definition 10.1) needs a `%partial` relation or one of
+ *  A recursive component with a constructive rule (Definition 10.1) needs one of
  *  the two directions of the size-change criterion:
  *
  *  - (A) descent along derivations ([[SizeChange]]): every cycle of derivation steps makes an argument
@@ -22,7 +22,7 @@ import hugin.compiler.*
 final class TerminationPhase extends Phase:
   def phaseName = "termination"
 
-  def description = "every growing component terminates by descent along derivations or guarded induction, or is %partial (Section 10)"
+  def description = "every growing component terminates by descent along derivations or guarded induction (Section 10)"
 
   def run(using Context): Unit =
     val p = ctx.unit.prog
@@ -39,23 +39,18 @@ final class TerminationPhase extends Phase:
       if recursive && stratified then
         checkComponent(RecursiveComponent(ctx.unit.facts, comp, rulesByComp.getOrElse(ci, Vector.empty), p.rules, es))
 
-  /** Checks one recursive component: finite without constructive rules; otherwise `%partial`, a declared
+  /** Checks one recursive component: finite without constructive rules; otherwise a declared
    *  measure (a hint for guarded induction, checked), descent along derivations, or an inferred measure. */
   private def checkComponent(rc: RecursiveComponent)(using Context): Unit =
     val names = Termination.showComponent(rc.comp)
     def explain(s: String): Unit = if ctx.settings.explainTermination then ctx.unit.explanations += s
     def accept(how: String, lines: List[String]): Unit = explain((s"termination: $names: $how" :: lines).mkString("\n"))
     val constructiveRules = rc.rules.flatMap(r => Constructive.constructive(r, rc.inC).map(r -> _))
-    val partial = rc.comp.filter(ctx.unit.facts(_).partial)
     // a component of demand relations only is measured by the relations they are demands of
     lazy val declared = rc.comp.map(Termination.base).flatMap(c => ctx.unit.facts(c).terminates.map(t => c -> t._1)).toMap
     lazy val induction = GuardedInduction(rc)
     if constructiveRules.isEmpty then
       explain(s"termination: $names: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)")
-    else if partial.nonEmpty then
-      explain(
-        s"termination: $names: not checked: ${partial.map(r => s"`${r.name}`").mkString(", ")} is %partial (evaluated with the round budget)"
-      )
     else if declared.nonEmpty then
       induction.check(declared) match
         case Right(lines) => accept("terminates, measure declared", lines)

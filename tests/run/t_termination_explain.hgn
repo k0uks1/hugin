@@ -16,9 +16,8 @@ path X Y :- edge X Y.
 path X Z :- edge X Y, path Y Z.
 
 nat : int -> rel.
-%partial nat.
 nat 0.
-nat M :- nat N, M = N + 1.
+nat M :- nat N, N < 3, M = N + 1.
 
 ?- fib 10 F.
 ?- words L, len L N.

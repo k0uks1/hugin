@@ -34,7 +34,7 @@ final case class CommandInfo(name: String, args: String, help: String, aliases: 
  *  session's program, a probe (like a query) is elaborated on its own over the session's elaborated items,
  *  which are not elaborated again (`docs/INCREMENTALITY.md`, step 10).
  */
-final class Session(settings: Settings = Settings(), initialBudget: Option[Int] = None, initialStats: Boolean = false):
+final class Session(settings: Settings = Settings(), initialStats: Boolean = false):
   private given db: Database = Database()
 
   /** The session's query database: every input, probe and `:reload` compiles in it, so the prelude and
@@ -62,7 +62,6 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
   /** The diagnostics of the current session (see [[Session.identity]]); they are not reported again. */
   private var known = Set.empty[Session.Identity]
   private var inputs = 0
-  private var budget = initialBudget
   private var stats = initialStats
 
   restore()
@@ -121,7 +120,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
         val chunks = current.map(c => if c.file then c.copy(text = read(c.path)) else c)
         extend(chunks, loaded.toSet, texts -- gone ++ read, factFiles.map((f, _) => (f, read(f))), s"reloaded ${read.size} file(s)")
 
-  /** Starts an empty session (`:reset`); the budget and statistics settings are kept. */
+  /** Starts an empty session (`:reset`); the statistics setting is kept. */
   def reset(): Reply =
     current = Vector.empty
     factFiles = Vector.empty
@@ -154,7 +153,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     val queries = db(ParseProgram, Session.path).program.items.collect { case q: QueryItem => q.span }
     val outcome =
       if queries.isEmpty && facts == factFiles then None
-      else Some(db(Evaluate, EvaluateKey(key, facts.map(_._1).toList, budget)))
+      else Some(db(Evaluate, EvaluateKey(key, facts.map(_._1).toList)))
     val factDiagnostics = outcome.toList.flatMap(_.diagnostics)
     if outcome.exists(_.result.isEmpty) then
       restore()
@@ -170,7 +169,7 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       for r <- outcome.flatMap(_.result).toList if queries.nonEmpty
       yield
         val headers = done.nonEmpty || r.answers.length > 1
-        r.notice.toList ++ r.answers.flatMap(a => if headers then a.query :: a.lines else a.lines) ++ (if stats then r.statistics else Nil)
+        r.answers.flatMap(a => if headers then a.query :: a.lines else a.lines) ++ (if stats then r.statistics else Nil)
     Reply(done.toList ++ answers.flatten, fresh ++ factDiagnostics)
 
   /** Sets the database inputs to the accepted session; its queries have been answered. */
@@ -205,7 +204,6 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       List("print-after")
     ),
     CommandInfo("explain", "<code>", "explain a diagnostic code (e.g. E0401)"),
-    CommandInfo("budget", "<n>|off", "round budget for components with %partial relations"),
     CommandInfo("stats", "on|off", "print evaluation statistics after query answers"),
     CommandInfo("help", "", "list the commands"),
     CommandInfo("quit", "", "end the session")
@@ -229,15 +227,6 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
       case ("imports", Nil) => Reply(imports.headOption.fold(List("(* the session imports no files *)"))(_ => imports))
       case ("print", p :: n) if n.length <= 1 => print(p, n.headOption)
       case ("explain", List(c)) => explain(c)
-      case ("budget", List("off")) =>
-        budget = None
-        Reply(List("round budget: unbounded"))
-      case ("budget", List(n)) =>
-        n.toIntOption.filter(_ >= 0) match
-          case Some(b) =>
-            budget = Some(b)
-            Reply(List(s"round budget: $b"))
-          case None => error(s":budget expects a natural number or `off`, got `$n`")
       case ("stats", List(s @ ("on" | "off"))) =>
         stats = s == "on"
         Reply(List(s"statistics: $s"))
@@ -380,7 +369,6 @@ final class Session(settings: Settings = Settings(), initialBudget: Option[Int] 
     case List(":print") => Compiler.allPhaseNames :+ "all"
     case List(":print", _) | List(":type") | List(":kind") => names
     case List(":explain") => Code.values.toList.map(_.id)
-    case List(":budget") => List("off")
     case List(":stats") => List("on", "off")
     case _ => Nil
 

@@ -9,6 +9,5 @@ error[E0604]: invalid `%terminates` directive for `f`
    |
    = note: this call demands `f` with values read from relations that depend on the answers of `f`, so the demands could grow without bound
    = help: bind the argument by a relation that does not depend on the answers of `f`
-   = help: if the recursion terminates for another reason, mark the relation `%partial f.` to evaluate it with a round budget
 
 1 error found

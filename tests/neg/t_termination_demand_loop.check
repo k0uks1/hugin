@@ -9,6 +9,5 @@ error[E0604]: invalid `%terminates` directive for `c`
   |   the caller has `X`
   |
   = note: the measure of `c` is argument 1 (integer); for the call it must be smaller than for the caller
-  = help: if the recursion terminates for another reason, mark the relation `%partial c.` to evaluate it with a round budget
 
 1 error found

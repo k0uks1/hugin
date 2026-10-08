@@ -26,8 +26,6 @@ enum Command:
 final case class RunOptions(
     /** Files of ground facts for input relations. */
     facts: List[String] = Nil,
-    /** Round budget for components with `%partial` relations (Section 9.7); `None` is unbounded. */
-    budget: Option[Int] = None,
     /** Print evaluation statistics to stderr. */
     stats: Boolean = false,
     /** Print every relation, including fact constructors and demand relations. */
@@ -128,11 +126,6 @@ object CommandLine:
         .unbounded()
         .text("load ground facts for input relations (repeatable)")
         .action((f, o) => o.copy(run = o.run.copy(facts = o.run.facts :+ f))),
-      opt[Int]("budget")
-        .valueName("<n>")
-        .text("round budget for components with %partial relations (default: unbounded)")
-        .validate(b => if b >= 0 then success else failure(s"--budget expects a natural number, got `$b`"))
-        .action((b, o) => o.copy(run = o.run.copy(budget = Some(b)))),
       opt[Seq[String]]("print-after")
         .valueName("<phase>,...")
         .unbounded()

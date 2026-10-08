@@ -45,7 +45,7 @@ final class RecursiveComponent(
       Some(c :: path)
 
   /** Variables of `body` with finitely many values whatever the facts of the component: bound by positive
-   *  atoms of finite sources outside the component ([[Termination.finiteVars]]), occurring in a column of `finite` of an
+   *  atoms of finite sources outside the component ([[Constructive.finiteVars]]), occurring in a column of `finite` of an
    *  atom of the component, or equal to a term over such variables. */
   def finiteSources(body: List[Formula], finite: Set[(RelSym, Int)]): Set[String] =
     var vars = Constructive.finiteVars(body, inC) ++ body.collect {
@@ -91,7 +91,7 @@ final class RecursiveComponent(
     finite
 
   /** Positive atoms of finite sources outside the component bind their variables to finitely many values
-   *  (see [[Termination.finiteVars]]). */
+   *  (see [[Constructive.finiteVars]]). */
   def boundOutside(body: List[Formula]): Set[String] = Constructive.finiteVars(body, inC)
 
   /** A measured relation that `d` depends on inside the component, not counting dependencies through
@@ -121,7 +121,7 @@ final class RecursiveComponent(
   /** Rules of relations without a measure (other than demand relations of measured ones) must not be
    *  constructive: their facts consist of existing terms. With `answers`, in a demand-driven component, the
    *  answers of measured relations count as finite sources (there are finitely many demands, see
-   *  [[moded]]), so `d0 (some N) :- e L, len L N` constructs terms from a finite set. */
+   *  [[DemandDriven.check]]), so `d0 (some N) :- e L, len L N` constructs terms from a finite set. */
   def unmeasuredConstructive(ctx: MeasureCtx, allowed: RelSym => Boolean, answers: Boolean = false): Option[TerminationFailure] =
     val grows: RelSym => Boolean = x => inC(x) && !(answers && ctx.measuredAnywhere(x))
     rules.iterator.collectFirst(Function.unlift { r =>
@@ -134,7 +134,7 @@ final class RecursiveComponent(
             Some(r),
             ctx.measures.keys.headOption.flatMap(ctx.directive),
             notes = List(s"`${h.name}` is in the recursive component ${showComponent(comp)}"),
-            helps = List(s"give `${h.name}` a `%terminates` measure with the same shape, or mark it `%partial ${h.name}.`")
+            helps = List(s"give `${h.name}` a `%terminates` measure with the same shape")
           )
         )
       )

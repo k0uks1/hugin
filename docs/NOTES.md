@@ -11,7 +11,7 @@ while implementing it. Section numbers refer to the definition.
 | 2. Object types and records: declarations, inference, unions and open types, tag tests, named patterns, projection, update | done |
 | 3. Arithmetic, aggregates, queries | done |
 | 4. Modes and provenance: demand transformation, derivations | done |
-| 5. Checks: completeness discipline, termination, `%partial` budgets, `%open` | done |
+| 5. Checks: completeness discipline, termination, `%open` (`%partial` budgets were removed in the redesign, A3) | done |
 | 6. Meta level: stage inference, meta evaluator, modules and functors, formula functions, families, monomorphization | done |
 
 All twelve conformance tests of Appendix A.2 are in `tests/` (see the README).
@@ -358,7 +358,7 @@ demand reads the first call of `len`, and the second call's demand reads the agg
 has a cycle through negation, every call site of a plain moded relation `c` from a rule of another
 relation whose demand rule `c^d[m] … :- prefix` lies in such a component and reads it (the edge of the
 cycle that the sharing creates) gets its own copy `c#k` of `c`: the rules of `c` with `c` renamed (also its
-recursive calls), the directives of `c` (modes, `%terminates`, `%partial`, `%open`), and the call renamed;
+recursive calls), the directives of `c` (modes, `%terminates`, `%open`), and the call renamed;
 the transformation is repeated (a few rounds, copies are not copied again). The copy has its own demand
 relation `c#k^d[m]`, which only that call site and the copy's own recursion feed. If cycles through
 negation remain, they are not caused by the sharing and the shared transformation is kept, so the error
@@ -398,9 +398,9 @@ and finite sources, `SizeChange.scala` direction (A), `GuardedInduction.scala` d
 inference, `DemandDriven.scala` its case for `%mode`, `Decrease.scala` and `Intervals.scala` the decrease
 reasoning, `TerminationFailures.scala` the diagnostics) decides statically
 that every recursive component reaches a finite fixed point (docs/REDESIGN.md §4). A recursive component
-(Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below);
-a component with a `%partial` relation is evaluated with the round budget and not checked. Otherwise the
-check tries, in this order:
+(Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below).
+There is no escape hatch: `%partial` and round budgets were removed (redesign A3, REDESIGN §4.6); a program
+that cannot be shown to terminate is rejected. The check tries, in this order:
 
 1. If a relation of the component (or the relation its demand relations belong to) carries a measure
    `%terminates X (c … X …)`, `%terminates l c`, or lexicographically `%terminates (X, Y) (c … X … Y …)` /
@@ -545,7 +545,7 @@ ground term has one instance. A term whose variables are bound by finite sources
 valuation of those variables, and each such variable is a subterm of a fact of such a relation (or the
 fact itself, for `as` variables). Those relations belong to earlier components, which are complete when
 this component is evaluated (Definition 8.7) and finite by induction over the evaluation order (recursive
-components are checked here or `%partial` with a budget; others are finite in their inputs). Plain
+components are checked here; others are finite in their inputs). Plain
 relations only get facts from their own rules, so they do not grow later. So every rule constructs terms
 from a fixed finite set, and the component's facts consist of the existing terms plus that set: still
 finite. Fact constructors and fact structs count as finite sources outside the component like plain
@@ -662,9 +662,9 @@ copy existing terms or construct terms from a fixed finite set (condition 1).
 
 **Diagnostics.** E0603 names the constructive rule, the cycle through the component, and a measure that
 would be accepted (single positions per relation, or a lexicographic pair for a single relation, found by
-running the check) or `%partial`. E0604 points at the call (or the demanded call) that fails, labels the
+running the check). E0604 points at the call (or the demanded call) that fails, labels the
 head's or caller's measure, says which slot of the measure fails and whether the decrease or the anchor
-is missing, and suggests the missing comparison or `%partial`. Components with a cycle through negation
+is missing, and suggests the missing comparison. Components with a cycle through negation
 are skipped (E0601 is reported).
 
 **Not covered.** Measures through non-linear arithmetic other than division by a literal, multiset
@@ -672,6 +672,57 @@ orders, declared measure functions, anchors through finite (non-recursive) types
 need (A) for some relations and (B) for others at once (a hand-written demand relation in the same
 component as its answer relation, which happens when demand depends on answers; the generated demand of
 `%mode` is covered by the demand-driven case). Argument permutations are covered by (A).
+
+## Bound columns (redesign A2)
+
+The rules are in `docs/REDESIGN.md` §5.2 (with the definitions of Kaminski et al. 2017 and Berent et al.
+2022 they come from). Implementation: `obj/check/BoundColumns.scala` (E0605), `TypeConsistency.scala`
+(E0606), `runtime/Store.scala` (one current tuple per key), `runtime/Divergence.scala` (value propagation
+graph), `runtime/Infinity.scala` (`±∞`).
+
+**Decisions.**
+
+* *Best-value reading.* A body atom binds a bound column to the key's best value (the
+  pseudo-interpretation of Kaminski et al.), not to every worse value of the limit-closed reading. For
+  rules of the bound relation's own component the two readings agree by type-consistency (the optimum
+  of a type-consistent rule is attained at the best values). Rules of *later* components read the final
+  values as constants, as Kaminski et al.'s semi-grounding does for ordinary numeric atoms; this is what
+  makes `report V D :- dist V D` useful and finite. Consequently type-consistency is checked only for
+  *limit variables*: variables bound by bound atoms of the head's component.
+* *Coefficients are literals.* Kaminski et al. allow `sᵢ·mᵢ` with `sᵢ` built from ordinary variables
+  (constants after semi-grounding); since type-consistency then depends on the sign of `sᵢ` per
+  instance, Hugin requires integer literals (`2 * D + C` is fine, `N * D` is E0606).
+* *Binding equations* `X = t` over limit variables (with `X` bound nowhere else) are definitions and are
+  substituted before the check; any other `=` / `<>` with a limit variable is E0606, and so is a constant
+  in a recursive bound atom's bound column.
+* *Termination.* The bound column of a bound head is not value invention (`Constructive.keyArgs`) and
+  takes no part in size-change graphs or measures; the key columns are checked as before. *Soundness:* the
+  check of §4 makes the set of keys finite (its arguments are about the facts' key columns; a body that
+  holds for some best values satisfies the size-change arcs, which are derived from the body alone). With
+  finitely many keys, a value improves only finitely often unless the value propagation graph has a
+  positive cycle (Kaminski et al., termination lemma for stable programs), and every node on or after
+  such a cycle becomes `∞` and never changes again; so evaluation terminates.
+* *Divergence check at growing intervals.* Kaminski et al. check after every round. The engine checks
+  after rounds 4, 8, 16, … of a component: building the graph costs a full pass over the component's
+  rules. A positive cycle persists once present (stability: weights only grow), so it is found at the
+  next check, and the number of checks is logarithmic in the number of rounds. Nodes *reachable* from a
+  positive cycle are set to `∞` too (Bellman–Ford reports them together); this is sound, since an edge
+  is a rule instance whose head term grows without bound with its premise (non-zero coefficient in the
+  improving direction, and the instance stays applicable by stability).
+* *`∞` as a value.* `∞` is a word of integer columns, printed `∞` / `-∞` (parenthesised when nested like
+  negative numbers). Arithmetic and comparisons are extended (`runtime/Infinity.scala`); undefined
+  combinations (`∞ - ∞`, `0 · ∞`, `∞ / ∞`) make the rule not fire, as overflow does. Type-consistent
+  rules never meet them; a later component reading `∞` as a constant may. Input facts cannot contain `∞`
+  (no syntax).
+* *Not covered* (Q4): bound columns of constructors, `%mode`d bound relations (E0605), `min`/`max` on
+  floats.
+
+**Testing.** `tests/run/rd_shortest_paths.hgn` (§8.3: a negative cycle gives `-∞`, a positive cycle
+with `max` gives `∞`), `tests/run/b_bound_columns.hgn`, `tests/neg/b_bound_declarations.hgn`,
+`tests/neg/b_type_inconsistent.hgn`. The naive evaluator implements the same semantics by Kaminski et
+al.'s Algorithm 1 literally (every round, Floyd–Warshall, cycle nodes only), so the differential fuzz test
+compares two different divergence procedures; `ProgramGen` emits bound columns over random weighted
+graphs (about one in five such programs diverges).
 
 ## Possible next steps
 
