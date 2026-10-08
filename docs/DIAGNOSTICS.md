@@ -1,7 +1,9 @@
 # Diagnostics: survey and design
 
-Status: proposal for [issue #41](https://github.com/k0uks1/hugin/issues/41). Documentation only; no code
-has changed yet. It interacts with the redesign ([`docs/REDESIGN.md`](REDESIGN.md), issue #40): the new
+Status: **implemented** (steps M1–M5 and the retirements of M6, see [§3.12](#312-migration-plan); the
+wording review of M6 remains). Written as the proposal for [issue #41](https://github.com/k0uks1/hugin/issues/41)
+and kept as the record of the design; Part 2 describes the code before M1. The explanations are published as
+the [error index](https://k0uks1.github.io/hugin/errors/index.html) of the language reference. It interacts with the redesign ([`docs/REDESIGN.md`](REDESIGN.md), issue #40): the new
 meta elaborator (Phase B) and the size-change termination checker (Phase A1) will add many diagnostics,
 so the typed core described here should land **before Phase B3 and Phase C**.
 
