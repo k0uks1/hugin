@@ -203,8 +203,11 @@ directives. Its names can be shadowed by the program. The design and its
 relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).
 
 A directive `%d a₁ … aₙ.` applies the meta function `d` ([reference: directives](https://k0uks1.github.io/hugin/directives.html)): `%input r.` is the
-prelude's `input` applied to the declaration of `r`, and a program can define directives of its own, such
-as `symmetric R = [ R Y X :- R X Y ].` for `%symmetric friend.` The type of the application says what a
+prelude's `input` applied to the declaration of `r` (a directive's arguments are quoted implicitly), and
+a program can define directives of its own, such as `symmetric R = '{ R Y X :- R X Y. }.` for
+`%symmetric friend.` Object syntax as data is written in a reflection quote `'{ … }`, whose category
+(module, rule, formula, term, …) the expected type gives ([reference:
+reflection](https://k0uks1.github.io/hugin/reflection.html)). The type of the application says what a
 directive changes: a declaration (`decl`), the items added in its place (`seq item`) or all rules of the
 file (`module -> module`). Written without `.` before a declaration (`%output path : node -> rel.`), it
 applies to that declaration. Mode items `+e -t` are arguments of their own (the prelude's `modes` data,
