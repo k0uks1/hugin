@@ -9,11 +9,11 @@ import hugin.util.*
  *  staged — normalised, which runs the meta code they splice ([[Staging]]) — and translated to an
  *  [[ObjProgram]], which the object-level phases (object typing, moding, transformations, checks,
  *  lowering) then process. An item whose staged code is not object code is reported and left out. */
-final class Handover(core: Core, reporter: Reporter):
+final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()):
   import core.*
 
   private val staging = Staging(core, reporter)
-  private val symbols = ObjectSymbols(core, reporter)
+  private val symbols = ObjectSymbols(core, reporter, index)
 
   def program(items: List[CoreItem]): ObjProgram =
     val ordered = items.sortBy(staging.position)
@@ -29,6 +29,7 @@ final class Handover(core: Core, reporter: Reporter):
     val all = (own ++ moduleItems()).sortBy(_._1).map(_._2)
     // the generic rules come last: they are staged at the instances everything else uses
     val instantiated = Generics(core, symbols, reporter, this).rules(genericRules)
+    recordInstances()
     ObjProgram(
       symbols.allTypes,
       symbols.allRelations,
@@ -37,6 +38,10 @@ final class Handover(core: Core, reporter: Reporter):
       all.collect { case q: obj.Query => q }.toVector,
       (all.collect { case d: obj.Directive => d } ++ genericDirs.flatMap(instanceDirectives)).toVector
     )
+
+  /** The instances of families, for tooling (hover over a family's declaration). */
+  private def recordInstances(): Unit =
+    for id <- globals.indices; (fam, _) <- globals(id).instanceOf do index.instance(globals(fam).span, globals(id).name)
 
   /** The requirements of signatures met by the relations passed to functors (checked by the object level,
    *  E0208); a `%fact` field must be passed a fact constructor (E0204). */
@@ -98,7 +103,7 @@ final class Handover(core: Core, reporter: Reporter):
     val env = vars.indices.reverse.map(Val.local).toList ++ base
     val names = vars.map(_._1).reverse
     // the base environment is closed: only the variables of the item are bound
-    val normal = at(span, "")(parts.map(p => quote(vars.length, eval(env, p))))
+    val normal = observing(names, vars.length)(at(span, "")(parts.map(p => quote(vars.length, eval(env, p)))))
     if !normal.forall(staging.objectCode(names, _, span)) then None
     else
       try Some(f(ObjectTerms(core, symbols, names, span), normal))
@@ -106,6 +111,19 @@ final class Handover(core: Core, reporter: Reporter):
         case e: NotObjectCode =>
           reporter.report(e.diagnostic)
           None
+
+  /** Records in the semantic index how code crossed the stages while `f` stages an item's code over the
+   *  variables `names` (at level `lvl`). */
+  private def observing[A](names: List[Name], lvl: Int)(f: => A): A =
+    import hugin.compiler.SemanticIndex.Stage
+    def show(v: Val) = showTm(names, quote(lvl, v))
+    val saved = observer
+    observer = new StagingObserver:
+      def quoted(span: Span, code: Val): Unit = index.staged(span, Stage.Quoted, show(code))
+      def spliced(span: Span, code: Val): Unit = index.staged(span, Stage.Spliced, show(code))
+      def persisted(span: Span, value: Val): Unit = index.staged(span, Stage.Persisted, show(value))
+    try f
+    finally observer = saved
 
   private def qualify(prefix: String, name: String): String = if prefix.isEmpty then name else s"$prefix.$name"
 

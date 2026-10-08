@@ -11,7 +11,7 @@ relation roads.path : city -> city -> rel
 hugin> :type short.hop
 relation short.hop : city -> city -> int -> rel
 hugin> :type tc
-meta definition tc : (g : { node : type, edge : ⇑(node -> node -> rel) }) -> { path : ⇑(g.node -> g.node -> rel) }
+meta definition tc : (g : graph) -> { path : ⇑(g.node -> g.node -> rel) }
 hugin> :kind tc
 tc : meta definition
 hugin> :type tc { node = city, edge = road }

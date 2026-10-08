@@ -29,7 +29,8 @@ class FileDiagnosticsSuite extends munit.FunSuite:
     db.set(SourceText, "other.hgn", "h = %import \"lib\".\n")
     val main = FileDiagnostics.of(CompileKey("main.hgn"))
     assertEquals(main.map(_.path), List("lib.hgn", "main.hgn"))
-    assertEquals(main.map(_.diagnostics.flatMap(_.code).map(_.id)), List(List("E0101", "E0101"), List("E0101")))
+    // an item stops at its first error: `bad` is reported, not also `nothing`
+    assertEquals(main.map(_.diagnostics.flatMap(_.code).map(_.id)), List(List("E0101"), List("E0101")))
     // another program importing the library: the library is not elaborated again, and has the same diagnostics
     db.stats.reset()
     val other = FileDiagnostics.of(CompileKey("other.hgn"))

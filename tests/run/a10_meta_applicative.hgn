@@ -1,6 +1,6 @@
 (* A.2 (10): two applications of a module-producing function yield distinct relations;
    two uses of a family at the same type yield one instance *)
-graph : mod = { node : type, edge : node -> node -> rel }.
+graph : Type = { node : type, edge : node -> node -> rel }.
 tc (g : graph) = {
   path : g.node -> g.node -> rel.
   path X Y :- g.edge X Y.

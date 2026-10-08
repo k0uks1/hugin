@@ -6,11 +6,8 @@ import hugin.util.*
 object Compiler:
   def phasePlan: List[List[Phase]] = List(
     List(hugin.syntax.ParserPhase()),
-    List(ImportsPhase()),
-    List(hugin.meta.NamerPhase()),
-    List(hugin.meta.typer.TyperPhase()),
-    List(hugin.meta.MetaEvalPhase()),
-    List(hugin.meta.MonomorphizePhase()),
+    List(hugin.core.ElaboratePhase()),
+    List(hugin.core.StagePhase()),
     List(hugin.obj.typing.DirectivesPhase()),
     List(hugin.obj.typing.ConstFold()),
     List(hugin.obj.typing.ObjTyperPhase()),
@@ -25,19 +22,12 @@ object Compiler:
     List(hugin.ir.LowerPhase())
   )
 
-  /** The phase plan of the new meta level: it replaces everything from the imports to monomorphization. */
-  def newMetaPlan: List[List[Phase]] =
-    List(hugin.syntax.ParserPhase()) :: List(hugin.core.ElaboratePhase()) :: List(hugin.core.StagePhase()) ::
-      phasePlan.dropWhile(_.head.phaseName != "directives")
-
-  def plan(settings: Settings): List[List[Phase]] = if settings.newMeta then newMetaPlan else phasePlan
-
-  def phases(settings: Settings): List[Phase] = plan(settings).map {
+  def phases: List[Phase] = phasePlan.map {
     case List(p) => p
     case ms => MegaPhase(ms.map(_.asInstanceOf[MiniPhase]))
   }
 
-  def allPhaseNames: List[String] = (phasePlan ++ newMetaPlan).flatten.map(_.phaseName).distinct
+  def allPhaseNames: List[String] = phasePlan.flatten.map(_.phaseName)
 
   /** Runs the pipeline; returns the context. Printing goes to `out`; imports are read from disk. */
   def compile(source: SourceFile, settings: Settings, out: String => Unit): Context =
@@ -59,7 +49,7 @@ object Compiler:
   private def run(ctx: Context, out: String => Unit): Context =
     given Context = ctx
     var stop = false
-    for p <- phases(ctx.settings) if !stop do
+    for p <- phases if !stop do
       if !ctx.reporter.hasErrors || p.runsAfterErrors then
         val start = System.nanoTime()
         p.run

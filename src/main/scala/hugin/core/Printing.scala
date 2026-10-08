@@ -17,6 +17,24 @@ trait Printing:
 
   def showTm(names: List[Name], t: Tm): String = go(names, t, 0)
 
+  /** Whether splices of names and paths are shown as the names (`g.node` for `$g.node`) and object types
+   *  as `type` (for `⇑type`): how users write them, in diagnostics and tooling. */
+  private var plain = false
+
+  /** `t` as users write it (see [[plain]]). */
+  def showPlain(names: List[Name], t: Tm): String =
+    val saved = plain
+    plain = true
+    try go(names, t, 0)
+    finally plain = saved
+
+  def showValPlain(names: List[Name], v: Val): String = showPlain(names, quote(names.length, v))
+
+  private def isPath(t: Tm): Boolean = t match
+    case Tm.Var(_) | Tm.Global(_) => true
+    case Tm.Proj(a, _) => isPath(a)
+    case _ => false
+
   /** A term without its implicit applications (patterns, as written by users). */
   def explicitOnly(t: Tm): Tm = t match
     case Tm.App(f, _, Icit.Impl) => explicitOnly(f)
@@ -37,7 +55,7 @@ trait Printing:
     case Tm.Lift(a) => occurs(ix, a)
     case Tm.Quote(a) => occurs(ix, a)
     case Tm.Splice(a) => occurs(ix, a)
-    case Tm.RecTy(fs, _) => fs.zipWithIndex.exists((f, k) => occurs(ix + k, f._2))
+    case Tm.RecTy(fs, _, _) => fs.zipWithIndex.exists((f, k) => occurs(ix + k, f._2))
     case Tm.Require(_, _, a) => occurs(ix, a)
     case Tm.Trace(_, a) => occurs(ix, a)
     case Tm.Rec(fs) => fs.exists(f => occurs(ix, f._2))
@@ -88,12 +106,14 @@ trait Printing:
       par(p, 0, s"let $y : ${go(ns, a, 0)} = ${go(ns, d, 0)} in ${go(y :: ns, b, 0)}")
     case Tm.U0 => "type"
     case Tm.U1(l) => showLevel(l)
+    case Tm.Lift(Tm.U0) if plain => "type"
     case Tm.Lift(a) => s"⇑${go(ns, a, 7)}"
     case Tm.Quote(a) => s"⟨${go(ns, a, 0)}⟩"
+    case Tm.Splice(a) if plain && isPath(a) => go(ns, a, p)
     case Tm.Splice(a) => s"$$${go(ns, a, 7)}"
     case Tm.Require(_, _, a) => go(ns, a, p)
     case Tm.Trace(_, a) => go(ns, a, p)
-    case Tm.RecTy(fs, _) =>
+    case Tm.RecTy(fs, _, _) =>
       var names = ns
       fs.map { (l, ty) =>
         val s = s"$l : ${go(names, ty, 0)}"

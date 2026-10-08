@@ -1,8 +1,8 @@
 error[E0307]: duplicate field `a` in signature
- --> tests/neg/labels.hgn:2:25
+ --> tests/neg/labels.hgn:2:26
   |
-2 | sig : mod = { a : type, a : type }.
-  |                         ^
+2 | sig : Type = { a : type, a : type }.
+  |                          ^
 
 error[E0307]: duplicate field `n`
  --> tests/neg/labels.hgn:3:16

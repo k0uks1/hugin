@@ -63,7 +63,7 @@ object Trees:
   final case class Arrow(label: Option[Ident], dom: Tree, cod: Tree)(val span: Span) extends Tree
   final case class Union(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   enum Kw:
-    case Type, Mod, Rel, Prop
+    case Type, Rel, Prop
   final case class Keyword(kw: Kw)(val span: Span) extends Tree
   final case class RecordType(entries: List[SigEntry])(val span: Span) extends Tree
   final case class ModuleBody(items: List[Item])(val span: Span) extends Tree
@@ -89,7 +89,7 @@ object Trees:
   /** `%import "path"`: the module value of another source file (Section 4.3, M-Body). */
   final case class Import(path: String)(val span: Span, val pathSpan: Span) extends Tree
 
-  // ---- syntax of the new meta level only (parsed in `meta2` mode; docs/REDESIGN.md §6)
+  // ---- the meta level's own syntax (docs/REDESIGN.md §6)
 
   /** `$t`: an explicit splice (REDESIGN §6.9); normally inferred. */
   final case class SpliceE(arg: Tree)(val span: Span) extends Tree

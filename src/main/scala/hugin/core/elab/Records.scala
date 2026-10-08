@@ -45,7 +45,7 @@ trait Records:
       cc = bind(cc, lb.name, ev(cc, ft), Stage.S1)
       (lb.name, ft)
     }
-    Tm.RecTy(tys, entries.flatMap(requirement(fields.map(_._1.name))))
+    Tm.RecTy(tys, entries.flatMap(requirement(fields.map(_._1.name))), fields.map((lb, tpe) => (lb.span, lb.span.to(tpe.span))))
 
   private def signatureFieldType(c: Cxt, tpe: Tree, l: Level): Tm =
     val inferred =
@@ -96,11 +96,13 @@ trait Records:
 
   /** `q.l`: a projection of a meta record, or of an object fact by column label. */
   def inferSelect(c: Cxt, sel: Select): (Tm, Val, Stage) =
-    val (qt, qty, qs) = spliceIfLifted(insertAll(c, sel.qual.span, infer(c, sel.qual)))
+    val (qt, qty, qs) = spliceIfLifted(sel.qual.span, insertAll(c, sel.qual.span, infer(c, sel.qual)))
     qty match
       case rt: Val.RecTy =>
         fieldType(rt, ev(c, qt), sel.name) match
-          case Some(fty) => (Tm.Proj(qt, sel.name), fty, qs)
+          case Some(fty) =>
+            recordFieldUse(c, rt, sel, fty)
+            (Tm.Proj(qt, sel.name), fty, qs)
           case None => noField(c, sel, qty, rt.labels)
       case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
       case other if qs == Stage.S1 && sel.qual.isInstanceOf[Ident] =>
@@ -111,14 +113,16 @@ trait Records:
             .withLabel(sel.qual.span, s"this has type `${show(c, other)}`, which is not a record type")
         )
 
-  /** Object code `⇑A` is projected at the object level. */
-  private def spliceIfLifted(r: (Tm, Val, Stage)): (Tm, Val, Stage) = force(r._2) match
-    case Val.Lift(x) => (Tm.splice(r._1), force(x), Stage.S0)
+  /** Object code `⇑A` is projected at the object level (spliced at the qualifier's position). */
+  private def spliceIfLifted(span: Span, r: (Tm, Val, Stage)): (Tm, Val, Stage) = force(r._2) match
+    case Val.Lift(x) => (located(span, Tm.splice(r._1), x, Stage.S0), force(x), Stage.S0)
     case other => (r._1, other, r._3)
 
   private def showLabels(ls: List[Name]): String = ls.map(l => s"`$l`").mkString(", ")
 
   private def noField(c: Cxt, sel: Select, ty: Val, labels: List[Name]): Nothing =
+    if droppedImport(sel.qual, sel.name) then
+      throw ElabError(ElabProblem.UnresolvedName(sel.name, sel.nameSpan, None, false).toDiagnostic, silent = true)
     fail(
       Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")
         .withNote(s"`${show(c, ty)}` has the fields ${showLabels(labels)}")

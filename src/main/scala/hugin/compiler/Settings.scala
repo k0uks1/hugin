@@ -13,9 +13,7 @@ final case class Settings(
     /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
     prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */
-    explainTermination: Boolean = false,
-    /** Elaborate with the new meta level (docs/REDESIGN.md, Phase B; hidden while it is developed). */
-    newMeta: Boolean = false
+    explainTermination: Boolean = false
 )
 
 /** How diagnostics are shown. Compilation always produces all diagnostics; clients filter and render

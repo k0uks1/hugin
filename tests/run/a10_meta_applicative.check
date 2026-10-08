@@ -1,4 +1,4 @@
-(* ---------------- after monomorphize ---------------- *)
+(* ---------------- after stage ---------------- *)
 city : type.
 box[int] : type.
 berlin : city.
@@ -7,9 +7,9 @@ road : city -> city -> rel.
 r1.path : city -> city -> rel.
 r2.path : city -> city -> rel.
 a : box[int] -> rel.
+put[int] : int -> box[int].
 b : box[int] -> rel.
 same : rel.
-put[int] : int -> box[int].
 %output r1.path.
 %output r2.path.
 %output same.

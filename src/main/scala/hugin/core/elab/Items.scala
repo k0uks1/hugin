@@ -101,6 +101,7 @@ trait Items:
    *  program that nothing refers to (module values and signatures are exempt: a module emits its rules
    *  even when unreferenced). */
   def finish(): Unit =
+    if file.lintUnused then recordTopLevel()
     if file.lintUnused then
       for (n, id) <- scope if !state.used(id) && isDefinitionToLint(id) do
         reporter.report(ElabProblem.UnusedDefinition(n, globals(id).span).toDiagnostic)
@@ -113,7 +114,7 @@ trait Items:
     )
     // module values, signatures and type definitions are exempt
     definition && (force(g.ty) match
-      case Val.RecTy(_, _, _, _) | Val.U1(_) => false
+      case Val.RecTy(_, _, _, _, _) | Val.U1(_) => false
       case _ => force(telescope(g.ty)._2) != Val.Lift(Val.U0)
     )
 
@@ -161,7 +162,9 @@ trait Items:
 
   /** Elaborates an item; module bodies it evaluates are instances of this item's site, named after the
    *  definition ([[Modules]]). */
-  def elabItem(item: Item): Unit = at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
+  def elabItem(item: Item): Unit =
+    at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
+    declares(item).flatMap(scope.get).foreach(recordDeclaration(_, item))
 
   private def elabItemAt(item: Item): Unit = item match
     case d: Decl => elabDecl(d)

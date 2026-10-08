@@ -25,6 +25,13 @@ enum SigReq:
 
   def label: String
 
+/** Observes how code crosses the stages where the handover stages it (for tooling): object code at a
+ *  position quoted into meta code, meta code spliced into object code, a persisted primitive value. */
+trait StagingObserver:
+  def quoted(span: hugin.util.Span, code: Val): Unit
+  def spliced(span: hugin.util.Span, code: Val): Unit
+  def persisted(span: hugin.util.Span, value: Val): Unit
+
 /** Explicit or implicit binders and applications. */
 enum Icit:
   case Expl, Impl
@@ -77,8 +84,9 @@ enum Tm:
 
   /** A record type `{ l₁ : A₁, … }`: a telescope, field `i` is in the scope of fields `0 … i-1`. As the
    *  type of a functor's parameter, a signature may require things of the relations passed for its
-   *  fields (`reqs`), checked where the functor is applied ([[Tm.Require]]). */
-  case RecTy(fields: List[(Name, Tm)], reqs: List[SigReq] = Nil)
+   *  fields (`reqs`), checked where the functor is applied ([[Tm.Require]]). `decls` are the positions of
+   *  the fields' names and declarations where they are written (for tooling; empty if unknown). */
+  case RecTy(fields: List[(Name, Tm)], reqs: List[SigReq] = Nil, decls: List[(hugin.util.Span, hugin.util.Span)] = Nil)
 
   /** `t`, the application of a functor: evaluation records the frame for the object code of the module
    *  instances it creates (diagnostics show the application chain, `in application of tc`). */
@@ -148,7 +156,7 @@ object Tm:
     case Lift(a) => List(a)
     case Quote(a) => List(a)
     case Splice(a) => List(a)
-    case RecTy(fs, _) => fs.map(_._2)
+    case RecTy(fs, _, _) => fs.map(_._2)
     case Require(_, _, a) => List(a)
     case Trace(_, a) => List(a)
     case Rec(fs) => fs.map(_._2)
@@ -179,7 +187,7 @@ object Tm:
       case Lift(a) => Lift(go(a, k))
       case Quote(a) => Quote(go(a, k))
       case Splice(a) => Splice(go(a, k))
-      case RecTy(fs, rs) => RecTy(fs.zipWithIndex.map((f, j) => (f._1, go(f._2, k + j))), rs)
+      case RecTy(fs, rs, ds) => RecTy(fs.zipWithIndex.map((f, j) => (f._1, go(f._2, k + j))), rs, ds)
       case Require(rs, u, a) => Require(rs, u, go(a, k))
       case Trace(f, a) => Trace(f, go(a, k))
       case Rec(fs) => Rec(fs.map((l, x) => (l, go(x, k))))

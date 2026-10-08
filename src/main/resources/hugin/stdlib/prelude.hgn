@@ -2,10 +2,10 @@
    scope everywhere and can be shadowed by the program. Declarations that are generic (families,
    functors) cost nothing unless they are used. *)
 
-(* Base types *)
-int : type = %builtin int.
-float : type = %builtin float.
-string : type = %builtin string.
+(* Base types: `int`, `float` and `string` are built in (docs/REDESIGN.md Q2). `type` is the
+   universe of object types and `Type` that of meta types, such as the signature `graph` below (a
+   record type); the functors `tc` and `bounded` are functions returning module bodies; the lines
+   of this file are those of the prelude before the redesign. *)
 
 (* Lists (Section 13.3). `nil` and `cons` are data constructors: lists are values, not facts. *)
 list A : type.
@@ -27,7 +27,7 @@ some : A -> option A.
 pair A B : type = { fst : A, snd : B }.
 
 (* Graphs (Section 13.1) *)
-graph : mod = { node : type, edge : node -> node -> rel }.
+graph : Type = { node : type, edge : node -> node -> rel }.
 
 tc (g : graph) = {
   path : g.node -> g.node -> rel.

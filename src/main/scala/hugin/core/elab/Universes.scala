@@ -22,8 +22,6 @@ trait Universes:
     case Kw.Type => (Tm.U0, Val.U0, Stage.S0)
     case Kw.Rel => (Tm.RelT, Val.U0, Stage.S0)
     case Kw.Prop => (Tm.PropT, Val.U0, Stage.S0)
-    // `mod`, the universe of signatures of the old meta level: signatures are record types in `Type`
-    case Kw.Mod => inferMetaUniverse()
 
   /** Whether a `%builtin` is being elaborated as the definition `b : type = %builtin n.` of a base type. */
   private var builtinDefinition = false

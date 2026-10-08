@@ -112,7 +112,7 @@ A file needs no interface: `geo = %import "lib/geo".` exposes everything the fil
 an import is ascribed a signature, which is checked like any ascription of a module value:
 
 ```
-shapes_sig : mod = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
+shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
 s : shapes_sig = %import "lib/shapes".
 ```
 

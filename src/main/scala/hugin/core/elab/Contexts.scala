@@ -8,7 +8,7 @@ trait Contexts:
   self: Elaborator =>
   import core.*
 
-  def show(c: Cxt, v: Val): String = showVal(c.names, v)
+  def show(c: Cxt, v: Val): String = showValPlain(c.names, v)
 
   def bind(c: Cxt, x: Name, a: Val, st: Stage, origin: BinderOrigin = BinderOrigin.Plain): Cxt =
     Cxt(

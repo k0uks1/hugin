@@ -24,12 +24,10 @@ error[E0103]: cannot classify the declaration of `f`
   |
   = help: declare a family with type parameters instead: `f A : type.`
 
-error[E0103]: relation `r` cannot be defined by `=`
+error[E0901]: mismatched types
  --> tests/neg/classification.hgn:6:18
   |
 6 | r : int -> rel = 5.
-  |                  ^ not allowed
-  |
-  = help: relations are defined by rules: `c X :- body.`
+  |                  ^ expected `int -> rel`, found `int`
 
 4 errors found

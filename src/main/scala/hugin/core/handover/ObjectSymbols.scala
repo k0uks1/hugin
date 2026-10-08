@@ -13,7 +13,7 @@ import scala.collection.mutable
  *  families get theirs when the staged program first refers to them, so only the instances it uses are
  *  part of it. A symbol's declaration is filled in after it exists, since declarations may refer to each
  *  other in any order. */
-final class ObjectSymbols(core: Core, reporter: Reporter):
+final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()):
   import core.*
 
   private val types = mutable.LinkedHashMap.empty[Int, TypeSym]
@@ -55,6 +55,7 @@ final class ObjectSymbols(core: Core, reporter: Reporter):
         for (fam, args) <- g.instanceOf do
           t.instanceOf = Some((familyTypes.getOrElseUpdate(fam, TypeSym(globals(fam).name, TypeKind.Open, t.span, Origin.Source)), Nil))
         fillType(id, t)
+        for (fam, args) <- g.instanceOf if d == ObjDecl.OpenType do closeInstance(fam, args)
         t
       case _ =>
         val r = RelSym(g.name, relKind(d), g.declSpan, Origin.Source, fact(d))
@@ -63,6 +64,45 @@ final class ObjectSymbols(core: Core, reporter: Reporter):
           r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(globals(fam).name, r.kind, r.span, Origin.Source, r.fact)), Nil))
         fillRelation(id, r)
         r
+
+  /** An instance of an open type family is closed with the instances of its constructors at the same
+   *  arguments (`some[int]` with `option[int]`), so that input facts can use them. */
+  private def closeInstance(fam: Int, args: List[Tm]): Unit =
+    for c <- constructorsOf(fam) do
+      familyInstance(c, args.map(eval(Nil, _))).foreach(v =>
+        Val.unloc(force(v)) match
+          case Val.Quote(q) =>
+            Val.unloc(force(q)) match
+              case Val.Rigid(Head.Glob(inst), Nil) => symbolOf(inst)
+              case _ =>
+          case _ =>
+      )
+
+  /** The constructor families of the type family `fam` whose parameters are the type's (`some : A -> option A`). */
+  private def constructorsOf(fam: Int): List[Int] =
+    val arity = globals(fam).kind match
+      case GlobalKind.Family(_, n) => n
+      case _ => 0
+    globals.indices.toList.filter { c =>
+      globals(c).kind match
+        case GlobalKind.Family(ObjDecl.Constructor(_), `arity`) => resultIsFamily(c, fam, arity)
+        case _ => false
+    }
+
+  /** Whether the constructor family `c`'s result is `fam` applied to `c`'s parameters, in order. */
+  private def resultIsFamily(c: Int, fam: Int, arity: Int): Boolean =
+    def result(ty: Val, k: Int): Val = force(ty) match
+      case Val.Pi(_, _, _, cl) => result(inst(cl, Val.local(k)), k + 1)
+      case other => other
+    val params = (0 until arity).toList
+    force(result(globals(c).ty, 0)) match
+      case Val.Lift(t) =>
+        Val.unloc(force(result(t, arity))) match
+          case Val.Rigid(Head.Glob(`fam`), sp) =>
+            sp.reverse.collect { case Elim.EApp(a, _) => a }.map(a => Val.unloc(force(a))) ==
+              params.map(Val.local)
+          case _ => false
+      case _ => false
 
   private def relKind(d: ObjDecl): RelKind = d match
     case ObjDecl.Constructor(_) => RelKind.Ctor

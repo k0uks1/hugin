@@ -6,37 +6,34 @@ error[E0204]: signature mismatch: missing field `edge`
    |
    = note: expected signature `{ node : type, edge : ⇑(node -> node -> rel) }`
 
-error[E0203]: meta type mismatch
+error[E0901]: mismatched types
   --> tests/neg/meta_types.hgn:11:33
    |
 11 | bad2 = tc { node = city, edge = weight }.
-   |                                 ^^^^^^ expected `⇑(city -> city -> rel)`
-   |
-   = note: found `⇑(city -> city -> int -> rel)`
-   = note: relation with 3 columns where 2 are expected
+   |                                 ^^^^^^ expected `city -> city -> rel`, found `city -> city -> int -> rel`
 
-error[E0207]: too many arguments for `tc`
-  --> tests/neg/meta_types.hgn:12:40
+error[E0905]: not a function
+  --> tests/neg/meta_types.hgn:12:8
    |
 12 | bad3 = tc { node = city, edge = road } 5.
-   |                                        ^ unexpected argument
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ - argument
+   |        applied to an argument here
    |
-   = note: `tc` has meta type `(g : { node : type, edge : ⇑(node -> node -> rel) }) -> { path : ⇑(g.node -> g.node -> rel) }`
+   = note: `tc` cannot be applied: its type `{ path : ⇑(city -> city -> rel) }` is not a function type
 
-error[E0204]: signature mismatch
+error[E0901]: mismatched types
   --> tests/neg/meta_types.hgn:13:11
    |
 13 | bad4 = tc 5.
-   |           ^ expected `{ node : type, edge : ⇑(node -> node -> rel) }`
-   |
-   = note: found `int`
+   |           ^ expected `{ node : type, edge : ⇑(node -> node -> rel) }`, found `int`
 
-error[E0202]: expected a formula
+error[E0905]: not a function
   --> tests/neg/meta_types.hgn:16:18
    |
 16 | q X :- road X Y, n Y.
-   |                  ^ this has meta type `int`
+   |                  ^ - argument
+   |                  applied to an argument here
    |
-   = note: a formula is a relation atom, a comparison, an aggregate or a formula function use
+   = note: `n` cannot be applied: its type `int` is not a function type
 
 5 errors found

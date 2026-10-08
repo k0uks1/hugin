@@ -10,7 +10,7 @@ class CommandLineSuite extends munit.FunSuite:
   }
 
   test("phase names are validated") {
-    assert(CommandLine.parse(List("check", "a.hgn", "--print-after", "typer,demand")).isRight)
+    assert(CommandLine.parse(List("check", "a.hgn", "--print-after", "elaborate,demand")).isRight)
     assertEquals(CommandLine.parse(List("check", "a.hgn", "--stop-after", "nope")), Left("unknown phase `nope`; see `hugin phases`"))
   }
 

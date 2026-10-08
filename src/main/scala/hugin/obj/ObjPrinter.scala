@@ -1,7 +1,5 @@
 package hugin.obj
 
-import hugin.meta.MExpr
-
 /** Printer for object programs (outputs of the object-level phases). */
 object ObjPrinter:
   def term(t: Term): String = t match
@@ -15,7 +13,6 @@ object ObjPrinter:
     case Term.With(v, fs) => s"(${term(v)} with ${fs.map((l, t, _) => s"$l = ${term(t)}").mkString("{ ", ", ", " }")})"
     case Term.Arith(op, l, r) => s"${arith(l)} ${op.show} ${arith(r)}"
     case Term.Neg(x) => s"-${arg(x)}"
-    case Term.Splice(m) => s"~(${MExpr.show(m)})"
 
   def arg(t: Term): String = t match
     case Term.App(_, _ :: _) | Term.Arith(_, _, _) => s"(${term(t)})"
@@ -32,7 +29,6 @@ object ObjPrinter:
     case Formula.Not(a) => s"not ${if a.as.isEmpty && a.args.nonEmpty then "(" + formula(a) + ")" else formula(a)}"
     case Formula.Agg(res, k, t, b) => s"$res = ${k.show} { ${term(t)} | ${body(b)} }"
     case Formula.Disj(alts) => alts.map(body).mkString("(", " ; ", ")")
-    case Formula.Splice(m) => s"~(${MExpr.show(m)})"
 
   def body(b: List[Formula]): String = if b.isEmpty then "true" else b.map(formula).mkString(", ")
 
@@ -56,20 +52,18 @@ object ObjPrinter:
 
   def relDecl(r: RelSym): String =
     val res = r.result.map(_.show).getOrElse("rel")
-    val tps = if r.tparams.isEmpty then "" else r.tparams.mkString(" [", " ", "]")
     val kind = r.kind match
       case RelKind.Struct => "  (* struct *)"
       case RelKind.Demand(c, m) => s"  (* demand of ${c.name} at ${m.show} *)"
       case RelKind.Derivation(rn) => s"  (* derivations of @$rn *)"
       case RelKind.Auxiliary(purpose) => s"  (* $purpose *)"
       case _ => ""
-    s"${if r.fact then "%fact " else ""}${r.name}$tps : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
+    s"${if r.fact then "%fact " else ""}${r.name} : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
 
   def typeDecl(t: TypeSym): String =
-    val tps = if t.tparams.isEmpty then "" else t.tparams.mkString(" [", " ", "]")
     t.kind match
-      case TypeKind.Open => s"${t.name}$tps : type."
-      case TypeKind.Refinement(b) => s"${t.name}$tps : type <: ${b.show}."
+      case TypeKind.Open => s"${t.name} : type."
+      case TypeKind.Refinement(b) => s"${t.name} : type <: ${b.show}."
 
   def directive(d: Directive): String =
     val tgt = d.target.map(_.show).orElse(d.rule.map("@" + _)).getOrElse("?")

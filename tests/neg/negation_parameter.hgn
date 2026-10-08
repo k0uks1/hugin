@@ -1,5 +1,5 @@
 (* Section 11: a functor that negates or aggregates over a parameter must require %complete. *)
-g : mod = { node : type, edge : node -> node -> rel }.
+g : Type = { node : type, edge : node -> node -> rel }.
 sinks (x : g) = {
   sink : x.node -> rel.
   sink N :- x.edge _ N, not x.edge N _.

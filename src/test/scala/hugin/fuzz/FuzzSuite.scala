@@ -1,7 +1,7 @@
 package hugin.fuzz
 
 import hugin.cli.Main
-import hugin.compiler.{Compiler, Context, ImportsPhase, Parsed, Settings, SourceLoader}
+import hugin.compiler.{Compiler, Context, ImportPaths, Parsed, Settings, SourceLoader}
 import hugin.util.*
 import org.scalacheck.{Prop, Test}
 import org.scalacheck.rng.Seed
@@ -94,7 +94,7 @@ object Fuzz:
    *  from disk) is then not run on it. */
   def escapes(program: Program): Boolean =
     val parsed = Parsed(SourceFile.virtual(file(program).toString, program.code))
-    ImportsPhase.importsIn(parsed.program).exists(i => !readable(SourceLoader.resolve(parsed.source.path, i.path)))
+    ImportPaths.importsIn(parsed.program).exists(i => !readable(SourceLoader.resolve(parsed.source.path, i.path)))
 
   /** Exit code, stdout and stderr of one CLI invocation. */
   final case class Invocation(exit: Int, out: String, err: String)

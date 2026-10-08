@@ -189,10 +189,6 @@ object CommandLine:
       opt[Unit]("no-prelude")
         .text("do not include the standard prelude (base types must then be declared with %builtin)")
         .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
-      opt[Unit]("new-meta")
-        .hidden()
-        .text("elaborate with the new meta level (redesign Phase B, in development)")
-        .action((_, o) => o.copy(settings = o.settings.copy(newMeta = true))),
       opt[Unit]("explain-termination")
         .text("print the termination argument of every recursive component (Section 10)")
         .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),

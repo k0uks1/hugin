@@ -11,11 +11,11 @@ tests/repl/lib/routes.hgn
 hugin> :hover r.legs.path
 relation r.legs.path : geo.place -> geo.place -> rel
 hugin> :type trip
-relation trip : geo.place -> rel
+relation trip : g.place -> rel
 hugin> :print-after lower trip
 (* ---------------- after lower ---------------- *)
-rule  trip Y :- routes.legs.path geo.here Y.
-  Scan routes.legs.path [0 := r0] [1 := r1]
+rule  trip Y :- legs.path geo.here Y.
+  Scan legs.path [0 := r0] [1 := r1]
   Deref r0 geo.here
   Insert trip(r1)
 hugin> :load tests/repl/lib/broken.hgn
@@ -27,14 +27,13 @@ error[E0108]: cannot find `nowhere`
   |
   = note: resolved to `tests/repl/lib/nowhere.hgn`
 
-error[E0101]: `h` has no member `plac`
+error[E0906]: no field `plac`
  --> tests/repl/lib/broken.hgn:4:10
   |
 4 | stay : h.plac -> rel.
-  |          ^^^^ unknown member
+  |          ^^^^ unknown field
   |
-  = note: available members: place, here, there, far
-  = help: did you mean `place`?
+  = note: `{ place : type, here : ⇑geo.place, there : ⇑geo.place, far : ⇑geo.place }` has the fields `place`, `here`, `there`, `far`
 
 hugin> (* The session still has trip.hgn. *)
 hugin> :list

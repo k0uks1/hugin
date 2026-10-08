@@ -784,7 +784,7 @@ Terminates for every input; a negative cycle yields `dist v -∞`.
 Today (`tests/run/a10_meta_applicative.hgn`):
 
 ```
-graph : mod = { node : type, edge : node -> node -> rel }.
+graph : Type = { node : type, edge : node -> node -> rel }.
 tc (g : graph) = {
   path : g.node -> g.node -> rel.
   path X Y :- g.edge X Y.

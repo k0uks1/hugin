@@ -8,12 +8,12 @@ import hugin.obj.ObjPrinter
  *  `stage` phase emits, for each object form; and object typing deferred to the object typer. */
 class HandoverSuite extends munit.FunSuite:
   private def staged(code: String): String =
-    val c = TestSupport.compile(code, Settings(newMeta = true, stopAfter = Some("stage")))
+    val c = TestSupport.compile(code, Settings(stopAfter = Some("stage")))
     assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message).mkString("\n"))
     ObjPrinter.program(c.unit.prog.nn)
 
   private def errors(code: String): List[String] =
-    TestSupport.errorCodes(TestSupport.compile(code, Settings(newMeta = true)))
+    TestSupport.errorCodes(TestSupport.compile(code, Settings()))
 
   private val shop =
     """%fact item : type = { name : string, price : int }.

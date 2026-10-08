@@ -95,9 +95,6 @@ error[E0406]: data constructor `cons` used as a relation
 error[E0406]: data constructor `p.link` used as a relation
   --> tests/neg/f_data_ctor_relation.hgn:34:15
    |
-32 | scan (p : pair_sig) = {
-   |       - parameter `p` declared here
-...
 34 |   linked X :- p.link X.
    |               ^^^^^^ not a relation: it has no facts to read
    |

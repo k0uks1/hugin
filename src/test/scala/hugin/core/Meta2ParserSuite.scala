@@ -6,10 +6,9 @@ import hugin.util.diagnostics.Code
 
 /** The syntax of the new meta level (`meta2` parsing) and that the old syntax is unchanged. */
 class Meta2ParserSuite extends munit.FunSuite:
-  private def parse(code: String, meta2: Boolean = true): (List[Item], List[Diagnostic]) =
+  private def parse(code: String): (List[Item], List[Diagnostic]) =
     val r = Reporter()
-    val src = SourceFile.virtual("t.hgn", code)
-    val p = if meta2 then Parser.parseMeta2(src, r) else Parser.parse(src, r)
+    val p = Parser.parse(SourceFile.virtual("t.hgn", code), r)
     (p.items, r.diagnostics)
 
   private def show(code: String): String =
@@ -33,11 +32,6 @@ class Meta2ParserSuite extends munit.FunSuite:
   test("splices and lifts") {
     assertEquals(show("p X :- q $X."), "p X :- q $X.")
     assertEquals(show("c : ⇑node = a."), "c : ⇑node = a.")
-  }
-
-  test("the old syntax does not know `$`, `⇑` or clauses") {
-    assert(parse("p X :- q $X.", meta2 = false)._2.nonEmpty)
-    assert(parse("plus (suc M) N = N.", meta2 = false)._2.exists(_.code.contains(Code.E0004)))
   }
 
   test("where blocks: layout by column") {

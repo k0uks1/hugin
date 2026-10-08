@@ -34,13 +34,9 @@ class GoldenTests extends munit.FunSuite:
     val name = p.toString
     Path.of(name.substring(0, name.lastIndexOf('.')) + ext)
 
-  /** `HUGIN_NEW_META=1` runs every test with the new meta level (redesign step B3). */
-  private val newMeta = sys.env.get("HUGIN_NEW_META").contains("1")
-
   private def flags(p: Path): List[String] =
     val f = sibling(p, ".flags")
-    val fs = if Files.exists(f) then Files.readString(f).trim.split("\\s+").filter(_.nonEmpty).toList else Nil
-    if newMeta && !fs.contains("--new-meta") then fs :+ "--new-meta" else fs
+    if Files.exists(f) then Files.readString(f).trim.split("\\s+").filter(_.nonEmpty).toList else Nil
 
   private def runMain(args: List[String]): (Int, String, String) =
     val out = new StringBuilder

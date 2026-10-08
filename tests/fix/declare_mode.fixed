@@ -1,5 +1,5 @@
 (* E0208: a mode the signature requires is declared before the relation, indented like it *)
-m : mod = { node : type, edge : node -> node -> rel, %mode edge + - }.
+m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
 deg (x : m) = {
   start : x.node -> rel.
   out : x.node -> x.node -> rel.

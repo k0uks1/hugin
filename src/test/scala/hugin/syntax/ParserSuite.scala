@@ -31,8 +31,8 @@ class ParserSuite extends munit.FunSuite:
 
   test("braces: record type, record value, named pattern and module body") {
     assertEquals(
-      item("g : mod = { node : type, edge : node -> node -> rel }."),
-      "g : mod = { node : type, edge : (node -> (node -> rel)) }."
+      item("g : Type = { node : type, edge : node -> node -> rel }."),
+      "g : Type = { node : type, edge : (node -> (node -> rel)) }."
     )
     assertEquals(item("r = tc { node = city, edge = road }."), "r = tc { node = city, edge = road }.")
     assertEquals(item("b N :- abs { name = N, .. }."), "b N :- abs { name = N, .. }.")

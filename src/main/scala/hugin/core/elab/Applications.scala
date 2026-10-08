@@ -65,7 +65,7 @@ trait Applications:
 
   /** A record passed for a signature with requirements records them when evaluated ([[Tm.Require]]). */
   private def withRequirements(dom: Val, span: Span, t: Tm): Tm = force(dom) match
-    case Val.RecTy(_, _, _, reqs) if reqs.nonEmpty => Tm.Require(reqs, span, t)
+    case Val.RecTy(_, _, _, reqs, _) if reqs.nonEmpty => Tm.Require(reqs, span, t)
     case _ => t
 
   /** The application of a functor (a function returning a module) records its frame for the module

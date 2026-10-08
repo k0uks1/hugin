@@ -21,11 +21,13 @@ trait Names:
     c.scope.get(n) match
       case Some(l) =>
         val b = c.binder(l)
+        recordParamUse(c, span, b)
         (Tm.Var(c.lvl - l - 1), b.ty, b.stage)
       case None =>
         lookupGlobal(n) match
           case Some(id) =>
             state.used += id
+            recordUse(span, id)
             val g = globals(id)
             (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
           case None =>

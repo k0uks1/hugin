@@ -9,8 +9,9 @@ import scala.collection.mutable
 final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None, val silent: Boolean = false)
     extends Exception(diag.message, null, false, false)
 
-/** The module value of an imported file: a record of its declarations (closed terms). */
-final case class ImportedModule(value: Tm, ty: Tm)
+/** The module value of an imported file: a record of its declarations (closed terms); `dropped` are the
+ *  names whose declarations were dropped for an error in the file (their uses are not reported again). */
+final case class ImportedModule(value: Tm, ty: Tm, dropped: Set[Name] = Set.empty)
 
 /** Where the items of a file are elaborated: its path, the qualifier of its object constants' names
  *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names
@@ -81,8 +82,12 @@ final class ElabState:
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
  */
-class Elaborator(val core: Core, val reporter: Reporter, val file: FileEnv = FileEnv())
-    extends Contexts
+class Elaborator(
+    val core: Core,
+    val reporter: Reporter,
+    val file: FileEnv = FileEnv(),
+    val index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()
+) extends Contexts
     with ElabErrors
     with Names
     with Coercions
@@ -108,7 +113,8 @@ class Elaborator(val core: Core, val reporter: Reporter, val file: FileEnv = Fil
     with ModuleBodies
     with Imports
     with CompleteParameters
-    with ObjectItems:
+    with ObjectItems
+    with Tooling:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope
   def items: mutable.ListBuffer[CoreItem] = state.items

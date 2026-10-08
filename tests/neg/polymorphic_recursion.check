@@ -10,8 +10,8 @@ error[E0206]: cannot infer type argument `A` of family `size`
   --> tests/neg/polymorphic_recursion.hgn:14:4
    |
 14 | ?- size nil.
-   |    ^^^^^^^^ type not determined
+   |    ^^^^ type not determined
    |
-   = help: ascribe argument 1 of `size` with its type, e.g. `(nil : list A)`, with `A` replaced by the intended type
+   = help: ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined
 
 2 errors found

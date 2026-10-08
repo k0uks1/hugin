@@ -1,2 +1,0 @@
-(* E0106: a type definition that is not strict is marked `%abbrev` *)
-t A : type = int.

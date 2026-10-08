@@ -13,7 +13,7 @@ trait Imports:
   import core.*
 
   def inferImport(imp: Import): (Tm, Val, Stage) =
-    val path = hugin.compiler.ImportsPhase.resolve(imp, file.path)
+    val path = hugin.compiler.ImportPaths.resolve(imp, file.path)
     file.imports.get(path) match
       case Some(m) => (m.value, eval(Nil, m.ty), Stage.S1)
       case None => erroneous(imp.span)
@@ -26,7 +26,17 @@ trait Imports:
   /** The module value of the file elaborated by this elaborator: its declarations in order. */
   def moduleValue: ImportedModule =
     val fields = scope.toList.flatMap((n, id) => field(id).map((n, _)))
-    ImportedModule(Tm.Rec(fields.map((n, f) => (n, f._1))), Tm.RecTy(fields.map((n, f) => (n, f._2))))
+    val decls = scope.toList.filter((_, id) => field(id).isDefined).map((_, id) => (globals(id).span, globals(id).declSpan))
+    ImportedModule(Tm.Rec(fields.map((n, f) => (n, f._1))), Tm.RecTy(fields.map((n, f) => (n, f._2)), Nil, decls), state.erroneous.toSet)
+
+  /** Whether `m.l` names a declaration of an imported file that was dropped for an error there. */
+  def droppedImport(qual: hugin.syntax.Tree, label: Name): Boolean = qual match
+    case hugin.syntax.Trees.Ident(n) =>
+      scope.get(n).orElse(file.parent.get(n)).map(globals(_).kind).exists {
+        case GlobalKind.Definition(tm, _) => file.imports.values.exists(m => m.value == tm && m.dropped(label))
+        case _ => false
+      }
+    case _ => false
 
   /** A declaration as a field: an object constant is object code (`⟨c⟩ : ⇑τ`), anything else itself. */
   private def field(id: Int): Option[(Tm, Tm)] =

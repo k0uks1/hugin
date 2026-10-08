@@ -12,7 +12,15 @@ trait Evaluation:
 
   final class Impossible(msg: String) extends Exception(msg)
 
+  /** Observes the staging of code at positions while the handover stages items (for tooling). */
+  var observer: StagingObserver | Null = null
+
   def eval(env: List[Val], t: Tm): Val = t match
+    case Tm.Obj(ObjForm.Loc(sp), List(inner)) if observer != null => observed(env, sp, inner)
+    case Tm.Quote(t @ Tm.Obj(ObjForm.Loc(sp), _)) if observer != null =>
+      val v = eval(env, t)
+      observer.nn.quoted(sp, v)
+      vQuote(v)
     case Tm.Var(ix) => env(ix)
     case Tm.Global(id) => globalValue(id)
     case Tm.Meta(m) => metaValue(m)
@@ -26,7 +34,7 @@ trait Evaluation:
     case Tm.Lift(a) => Lift(eval(env, a))
     case Tm.Quote(t) => vQuote(eval(env, t))
     case Tm.Splice(t) => vSplice(eval(env, t))
-    case Tm.RecTy(fs, rs) => RecTy(fs.map(_._1), env, fs.map(_._2), rs)
+    case Tm.RecTy(fs, rs, ds) => RecTy(fs.map(_._1), env, fs.map(_._2), rs, ds)
     case Tm.Require(rs, use, t) => required(rs, use, eval(env, t))
     case Tm.Trace(frame, t) => traced(frame)(eval(env, t))
     case Tm.Rec(fs) => Rec(fs.map((l, t) => (l, eval(env, t))))
@@ -42,6 +50,27 @@ trait Evaluation:
     case Tm.Module(b, menv) => evalModule(b, menv.map(eval(env, _)))
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
+
+  /** Object code at the position `sp`, a splice or a persisted value, observed. */
+  private def observed(env: List[Val], sp: hugin.util.Span, inner: Tm): Val =
+    val v = inner match
+      case Tm.Splice(m) =>
+        val code = vSplice(eval(env, m))
+        if !isFamilyConstant(m) then observer.nn.spliced(sp, code)
+        code
+      case Tm.Persist(m) =>
+        val x = eval(env, m)
+        observer.nn.persisted(sp, x)
+        persist(x)
+      case other => eval(env, other)
+    Obj(ObjForm.Loc(sp), List(v))
+
+  /** A family's constant with its implicit arguments (`nil` for `nil[int]`): its splice is no staging a
+   *  user wrote. */
+  private def isFamilyConstant(t: Tm): Boolean = t match
+    case Tm.App(f, _, Icit.Impl) => isFamilyConstant(f)
+    case Tm.Global(id) => globals(id).kind.isInstanceOf[GlobalKind.Family]
+    case _ => false
 
   private var hygiene = 0
 

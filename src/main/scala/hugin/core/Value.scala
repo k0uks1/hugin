@@ -36,7 +36,13 @@ enum Val:
   case Quote(t: Val)
 
   /** A record type: its labels and the telescope of field types, closed over `env`. */
-  case RecTy(labels: List[Name], env: List[Val], tys: List[Tm], reqs: List[SigReq] = Nil)
+  case RecTy(
+      labels: List[Name],
+      env: List[Val],
+      tys: List[Tm],
+      reqs: List[SigReq] = Nil,
+      decls: List[(hugin.util.Span, hugin.util.Span)] = Nil
+  )
   case Rec(fields: List[(Name, Val)])
   case Lit(l: Literal, st: Stage)
   case Base(b: BaseType, st: Stage)

@@ -2,7 +2,7 @@ package hugin.query
 
 class CompilerQueriesSuite extends munit.FunSuite:
   private val program =
-    """graph : mod = { node : type, edge : node -> node -> rel }.
+    """graph : Type = { node : type, edge : node -> node -> rel }.
       |tc (g : graph) = {
       |  path : g.node -> g.node -> rel.
       |  path X Y :- g.edge X Y.
@@ -121,7 +121,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     val text =
       """item : (name : string) -> (price : int) -> rel.
-        |graph : mod = { node : type, edge : node -> node -> rel }.
+        |graph : Type = { node : type, edge : node -> node -> rel }.
         |road : int -> int -> rel.
         |mk (g : graph) = { reach : g.node -> rel. reach X :- g.edge X _. }.
         |r = mk { node = int, edge = road }.

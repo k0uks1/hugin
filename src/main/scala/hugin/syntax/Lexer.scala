@@ -6,11 +6,11 @@ import scala.collection.mutable
 enum Tok:
   case Var, Name, RuleName, Directive, IntLit, FloatLit, StrLit
   // keywords
-  case KwType, KwMod, KwRel, KwProp, KwNot, KwAs, KwWith, KwCount, KwSum, KwMin, KwMax
+  case KwType, KwRel, KwProp, KwNot, KwAs, KwWith, KwCount, KwSum, KwMin, KwMax
   // symbols
   case Turnstile, Query, Arrow, SubT, Neq, Le, Ge, DotDot, Period, Select, Comma, Semi, Colon,
     Bar, Eq, Lt, Gt, Plus, Minus, Star, Slash, Caret, LParen, RParen, LBrace, RBrace, LBrack, RBrack
-  // only in the syntax of the new meta level (`meta2`): `$` (splice, REDESIGN §6.9) and `⇑` (lift)
+  // the meta level's `$` (splice, REDESIGN §6.9), `⇑` (lift) and `where`
   case Dollar, Up, KwWhere
   case EOF, Error
 
@@ -22,7 +22,6 @@ final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean
 object Lexer:
   val keywords: Map[String, Tok] = Map(
     "type" -> Tok.KwType,
-    "mod" -> Tok.KwMod,
     "rel" -> Tok.KwRel,
     "prop" -> Tok.KwProp,
     "not" -> Tok.KwNot,
@@ -79,7 +78,6 @@ object Lexer:
     Tok.Up -> "⇑",
     Tok.KwWhere -> "where",
     Tok.KwType -> "type",
-    Tok.KwMod -> "mod",
     Tok.KwRel -> "rel",
     Tok.KwProp -> "prop",
     Tok.KwNot -> "not",
@@ -91,9 +89,8 @@ object Lexer:
     Tok.KwMax -> "max"
   )
 
-/** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. With `meta2`, the tokens of
- *  the new meta level's syntax (`$`, `⇑`) are recognised (docs/REDESIGN.md §6). */
-final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
+/** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. */
+final class Lexer(src: SourceFile, reporter: Reporter):
   private val s = src.content
   private var pos = 0
   private val out = mutable.ArrayBuffer.empty[Token]
@@ -159,7 +156,7 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
       while isIdent(peek()) do pos += 1
       val text = s.substring(start, pos)
       if c.isUpper || c == '_' then mk(Tok.Var, start, space)
-      else if meta2 && text == "where" then mk(Tok.KwWhere, start, space)
+      else if text == "where" then mk(Tok.KwWhere, start, space)
       else
         Lexer.keywords.get(text) match
           case Some(kw) => mk(kw, start, space)
@@ -209,8 +206,8 @@ final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
         case '}' => sym(Tok.RBrace, 1)
         case '[' => sym(Tok.LBrack, 1)
         case ']' => sym(Tok.RBrack, 1)
-        case '$' if meta2 => sym(Tok.Dollar, 1)
-        case '⇑' if meta2 => sym(Tok.Up, 1)
+        case '$' => sym(Tok.Dollar, 1)
+        case '⇑' => sym(Tok.Up, 1)
         case _ =>
           val cp = s.codePointAt(pos)
           pos += Character.charCount(cp)

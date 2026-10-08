@@ -25,7 +25,7 @@ class RecordingClient extends LanguageClient:
 /** The server's request handlers, called directly on in-memory documents. */
 class LanguageServerSuite extends munit.FunSuite:
   private val program =
-    """graph : mod = { node : type, edge : node -> node -> rel }.
+    """graph : Type = { node : type, edge : node -> node -> rel }.
       |tc (g : graph) = {
       |  path : g.node -> g.node -> rel.
       |  path X Y :- g.edge X Y.
@@ -190,8 +190,8 @@ class LanguageServerSuite extends munit.FunSuite:
       val (mainUri, otherUri, libUri) = (main.toUri.toString, other.toUri.toString, lib.toUri.toString)
       open(s, mainUri, "g = %import \"geo\".\nat : g.place -> rel.\nat g.here.\n")
       val errors = c.published(libUri)
-      assertEquals(errors.map(_.getCode.getLeft), List("E0101", "E0101"))
-      assertEquals(errors.map(_.getRange.getStart), List(Position(2, 0), Position(2, 9)))
+      assertEquals(errors.map(_.getCode.getLeft), List("E0101"))
+      assertEquals(errors.map(_.getRange.getStart), List(Position(2, 0)))
       assertEquals(c.published(mainUri), Nil)
       def sent(uri: String) =
         val all = Iterator.continually(c.queue.poll()).takeWhile(_ != null).toList
@@ -268,7 +268,7 @@ class LanguageServerSuite extends munit.FunSuite:
   test("code actions: add `%complete edge` to the signature, away from the diagnostic") {
     val (s, _) = server()
     val text =
-      """g : mod = { node : type, edge : node -> node -> rel }.
+      """g : Type = { node : type, edge : node -> node -> rel }.
         |iso (x : g) = {
         |  lonely : x.node -> rel.
         |  lonely N :- x.edge N _, not x.edge _ N.

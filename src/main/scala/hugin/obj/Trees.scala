@@ -2,7 +2,6 @@ package hugin.obj
 
 import hugin.util.*
 import hugin.syntax.{AggKind, Literal}
-import hugin.meta.MExpr
 
 enum ArithOp:
   case Add, Sub, Mul, Div, Concat
@@ -40,16 +39,12 @@ object CmpOp:
     case ">=" => Some(Ge)
     case _ => None
 
-/** Reference to a relation: resolved, or (before meta evaluation) a spliced meta expression. */
+/** Reference to a relation. */
 enum RelRef:
   case Sym(rel: RelSym)
-  case Spliced(m: MExpr)
-  def show: String = this match
-    case Sym(r) => r.name
-    case Spliced(m) => s"~(${MExpr.show(m)})"
+  def show: String = sym.name
   def sym: RelSym = this match
     case Sym(r) => r
-    case Spliced(m) => throw IllegalStateException(s"unevaluated relation splice ${MExpr.show(m)}")
 
 object Var:
   /** Wildcards become fresh variables with this prefix. */
@@ -82,7 +77,6 @@ object Term:
   final case class Neg(t: Term)(val span: Span) extends Term
 
   /** Splice of a meta expression of type ⇑τ or a meta primitive (persisted). */
-  final case class Splice(m: MExpr)(val span: Span) extends Term
 
 /** Formulas (Figure 2). Bodies are lists (conjunctions). */
 sealed trait Formula:
@@ -96,7 +90,6 @@ object Formula:
   final case class Disj(alts: List[List[Formula]])(val span: Span) extends Formula
 
   /** Use of a formula function (meta application of type ⇑prop), before meta evaluation. */
-  final case class Splice(m: MExpr)(val span: Span) extends Formula
 
 /** A formula function expansion, recorded for diagnostics. */
 final case class Expansion(fn: String, use: Span, body: Span)

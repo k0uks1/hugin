@@ -7,7 +7,7 @@ import hugin.obj.ObjPrinter
 /** Compiling programs with the new meta level for the tests of B3: the staged object program, the error
  *  codes, the run's output. */
 object NewMetaTesting:
-  private val settings = Settings(newMeta = true)
+  private val settings = Settings()
 
   /** The object program after `stage`; fails on errors. */
   def staged(code: String, prelude: Boolean = true): String =

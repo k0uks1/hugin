@@ -28,7 +28,7 @@ class ExplanationsSuite extends munit.FunSuite:
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */
   private def diagnostics(e: Example): List[Diagnostic] =
-    if e.newMeta then hugin.core.NewMeta.check(SourceFile.virtual("test.hgn", e.program))
+    if e.newMeta then hugin.core.MetaLevel.check(SourceFile.virtual("test.hgn", e.program))
     else compiled(e)
 
   private def compiled(e: Example): List[Diagnostic] =

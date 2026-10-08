@@ -145,7 +145,7 @@ trait Declarations:
           case _ =>
       case Some(e) =>
         val (ty, tm) = declDefinition(Cxt.empty, d, e)
-        define(d.name, ty, tm)
+        define(d.name, ty, tm, d.span)
 
   /** `x params : A = e.` in context `c`: its type and definition. Checking `e` against the full type
    *  introduces the implicit lambdas. */
@@ -166,15 +166,15 @@ trait Declarations:
       Tm.Require(rt.reqs.filter(_.isInstanceOf[SigReq.Fact]), span, t)
     case _ => t
 
-  def define(name: Ident, ty: Tm, tm: Tm): Int =
+  def define(name: Ident, ty: Tm, tm: Tm, declSpan: Span): Int =
     val ztm = zonk(Nil, 0, tm)
-    declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)))
+    declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)), declSpan)
 
   /** `f params = e.` without a declaration of `f`: a definition with an inferred type. (After a
    *  declaration, it is a clause of the declared function.) */
   def elabDef(name: Ident, params: List[Param], rhs: Tree, span: Span): Unit =
     val (ty, tm) = definition(Cxt.empty, params, rhs)
-    define(name, ty, tm)
+    define(name, ty, tm, span)
 
   /** `f params = e.` in context `c`: its inferred type and its definition. Free uppercase variables of
    *  the parameters' types are implicit binders (`select (p : A -> prop) (r : A -> rel) = …`), of unknown

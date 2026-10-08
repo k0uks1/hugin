@@ -71,7 +71,7 @@ trait Modules:
     case Tm.Lam(_, _, b) => noFreeVariables(b, depth + 1)
     case Tm.Pi(_, _, a, b) => noFreeVariables(a, depth) && noFreeVariables(b, depth + 1)
     case Tm.Let(_, a, d, b) => noFreeVariables(a, depth) && noFreeVariables(d, depth) && noFreeVariables(b, depth + 1)
-    case Tm.RecTy(fs, _) => fs.zipWithIndex.forall((f, k) => noFreeVariables(f._2, depth + k))
+    case Tm.RecTy(fs, _, _) => fs.zipWithIndex.forall((f, k) => noFreeVariables(f._2, depth + k))
     case Tm.Fresh(ns, b) => noFreeVariables(b, depth + ns.length)
     case other => Tm.children(other).forall(noFreeVariables(_, depth))
 

@@ -61,8 +61,15 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
       Term.With(inner, ls.zip(es).map { case ((l, lsp), e) => (l, term(e, span), lsp) })(span)
     case Tm.App(_, _, _) | Tm.Global(_) =>
       val (head, args) = spine(t, Nil)
+      recordInstance(head, span)
       Term.App(RelRef.Sym(relation(head, span)), args.map(term(_, span)))(span)
     case other => expected("an object term", other, span)
+
+  /** A use of a family instance (`cons[int]`) at `span`, for tooling (hover over the family's name). */
+  private def recordInstance(head: Tm, span: Span): Unit = Tm.unloc(head) match
+    case Tm.Global(id) =>
+      globals(id).instanceOf.foreach((fam, _) => symbols.index.instance(globals(fam).span, globals(id).name, span))
+    case _ =>
 
   def formulas(t: Tm, span: Span = itemSpan): List[Formula] = t match
     case Tm.Obj(ObjForm.Loc(sp), List(u)) => formulas(u, sp)
@@ -83,6 +90,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
         case _ => bad(ElabProblem.NotAnAtom("as", span))
     case Tm.App(_, _, _) | Tm.Global(_) =>
       val (head, args) = spine(t, Nil)
+      recordInstance(head, span)
       List(Formula.Atom(RelRef.Sym(relation(head, span)), args.map(term(_, span)), None)(span))
     case other => expected("a formula", other, span)
 

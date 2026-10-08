@@ -57,14 +57,14 @@ class SuggestionsSuite extends munit.FunSuite:
 
   test("a functor negating over a relation parameter: add `%complete` to a named signature") {
     val text =
-      """g : mod = { node : type, edge : node -> node -> rel }.
+      """g : Type = { node : type, edge : node -> node -> rel }.
         |iso (x : g) = {
         |  lonely : x.node -> rel.
         |  lonely N :- x.edge N _, not x.edge _ N.
         |}.
         |""".stripMargin
     assertEquals(suggestions(text, "E0210").map(_.message), List("add `%complete edge`"))
-    assert(fix(text, "E0210").startsWith("g : mod = { node : type, edge : node -> node -> rel, %complete edge }."))
+    assert(fix(text, "E0210").startsWith("g : Type = { node : type, edge : node -> node -> rel, %complete edge }."))
   }
 
   test("a signature of the prelude is not edited") {
@@ -91,7 +91,7 @@ class SuggestionsSuite extends munit.FunSuite:
 
   test("a missing mode: declare it before the relation, indented like it") {
     val text =
-      """m : mod = { node : type, edge : node -> node -> rel, %mode edge + - }.
+      """m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
         |deg (x : m) = {
         |  out : x.node -> x.node -> rel.
         |  out A B :- x.edge A B.
@@ -102,11 +102,6 @@ class SuggestionsSuite extends munit.FunSuite:
         |b = deg { node = v, edge = f }.
         |""".stripMargin
     assert(fix(text, "E0208").contains("%mode f + -.\nf : v -> v -> rel."))
-  }
-
-  test("a type definition that is not strict can be marked `%abbrev`") {
-    val text = "t A : type = int.\n"
-    assertEquals(fix(text, "E0106"), "%abbrev t A : type = int.\n")
   }
 
   test("generated code has no span, so no suggestion") {

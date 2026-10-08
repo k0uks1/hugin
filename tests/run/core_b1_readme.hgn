@@ -1,4 +1,4 @@
-(* The new meta level (redesign Phase B1, `--new-meta`): README and example programs that use only
+(* The meta level (redesign Phase B1): README and example programs that use only
    object declarations, rules, meta definitions, records and formula functions. The output is the
    elaborated program (meta definitions with the inserted quotes ⟨⟩, splices $ and implicit arguments)
    followed by the staged object items. *)

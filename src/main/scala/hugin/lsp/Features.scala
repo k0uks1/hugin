@@ -1,6 +1,6 @@
 package hugin.lsp
 
-import hugin.meta.SymKind
+import hugin.compiler.SymKind
 import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
 import hugin.util.diagnostics.{Code, Suggestion}

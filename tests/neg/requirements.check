@@ -15,8 +15,8 @@ note: in application of `iso`
 error[E0208]: relation `e` does not satisfy `%complete edge`
   --> tests/neg/requirements.hgn:16:5
    |
- 2 | g : mod = { node : type, edge : node -> node -> rel, %complete edge }.
-   |                                                      -------------- required here
+ 2 | g : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+   |                                                       -------------- required here
 ...
 16 | a = iso { node = v, edge = e }.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ `e` is open
@@ -26,8 +26,8 @@ error[E0208]: relation `e` does not satisfy `%complete edge`
 error[E0208]: relation `f` does not have mode `+-`
   --> tests/neg/requirements.hgn:17:5
    |
- 3 | m : mod = { node : type, edge : node -> node -> rel, %mode edge + - }.
-   |                                                      -------------- required here
+ 3 | m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
+   |                                                       -------------- required here
 ...
 17 | b = deg { node = v, edge = f }.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ required for field `edge`

@@ -26,7 +26,7 @@ object CoreTesting:
     def eval(expr: String): String =
       val src = SourceFile.virtual("expr.hgn", s"it = $expr.")
       val r = Reporter()
-      val items = hugin.syntax.Parser.parseMeta2(src, r).items
+      val items = hugin.syntax.Parser.parse(src, r).items
       items.foreach(elab.elabItemReporting)
       assert(!r.hasErrors && !reporterErrors, s"errors in $expr: ${elab.reporter.diagnostics.map(_.message)}")
       val v = global("it").kind match
@@ -39,7 +39,7 @@ object CoreTesting:
 
   def elaborate(code: String): Elaborated =
     val reporter = Reporter()
-    val prog = hugin.syntax.Parser.parseMeta2(SourceFile.virtual("test.hgn", code), reporter)
+    val prog = hugin.syntax.Parser.parse(SourceFile.virtual("test.hgn", code), reporter)
     val core = Core()
     val elab = hugin.core.elab.Elaborator(core, reporter)
     if !reporter.hasErrors then elab.elabProgram(prog.items)

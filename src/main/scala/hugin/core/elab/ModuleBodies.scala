@@ -25,9 +25,10 @@ trait ModuleBodies:
       case _ => false
     }
     val (cb, members) = elabMembers(c, memberItems)
+    recordBody(c, cb, body.span, members, memberItems)
     val items = objectItems.flatMap(item => reportingErrors(objectItem(cb, item)).getOrElse(Nil))
     val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items)
-    val ty = Tm.RecTy(members.map(m => (m.name, m.ty)))
+    val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
     (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)
 
   private def reportingErrors[A](a: => A): Option[A] =
