@@ -5,5 +5,5 @@ k : type.
 mk : (x : min int) -> k. (*~ E0605 *)
 label : (v : node) -> (s : max string) -> rel. (*~ E0605 *)
 dist : (v : node) -> (d : min int) -> rel. (*~ E0605 *)
-%mode dist +v -d.
+%demand dist +v -d.
 score : type = max int. (*~ E0605 *)

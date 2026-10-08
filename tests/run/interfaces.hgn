@@ -18,7 +18,7 @@ small s.dot.
 small (s.square 2).
 ?- small X, s.area X A.
 
-marks_sig : Type = { shape : type, %fact mark : int -> shape, plain : int -> shape }.
+marks_sig : Type = { shape : type, mark : int -> shape, plain : int -> shape }.
 m : marks_sig = %import "lib/marks".
 data_sig : Type = { shape : type, mark : int -> shape }.
 d : data_sig = %import "lib/marks".
@@ -31,7 +31,7 @@ plains (m.plain 7).
 %output plains.
 
 (* inside a functor, a `%fact` field can be read *)
-counter (c : { shape : type, %fact mark : int -> shape, %complete mark }) = {
+counter (c : { shape : type, mark : int -> shape, %complete mark }) = {
   marks : int -> rel.
   marks K :- K = count { N | c.mark N }.
 }.

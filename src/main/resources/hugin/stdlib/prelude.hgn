@@ -205,8 +205,8 @@ bool : Type.
 true : bool.
 false : bool.
 
-(* whether two symbols are the same object constant *)
-eqsym : sym -> sym -> bool = %builtin eqsym.
+(* whether two atoms (literals, symbols) are equal; stuck on anything else *)
+same : A -> A -> bool = %builtin same.
 (* the labels of the columns of a constant (`""` for a column without one) *)
 labels : sym -> seq string = %builtin labels.
 (* the constant `r.l` derived from `r`, declared by an item `irelation`; and whether a constant is one *)
@@ -220,7 +220,13 @@ minput : (l : string) -> modes Ls -> modes (scons l Ls).
 moutput : (l : string) -> modes Ls -> modes (scons l Ls).
 
 demand : (r : sym) -> modes (labels r) -> module -> module.
-demand R M Is = irelation (derive R "check") (dcolumns R izero M) :: dmodule R M [] Is.
+demand R M Is = irelation (derive R "check") (dcolumns R izero M) :: dmodule R (derive R "check" :: ddemanded Is) M [] Is.
+
+(* The demand relations declared in the module *)
+ddemanded : module -> seq sym.
+ddemanded [] = [].
+ddemanded (irelation D Cols :: Is) = D :: ddemanded Is.
+ddemanded (I :: Is) = ddemanded Is.
 
 (* The columns of the demand relation: the inputs of `r` *)
 dcolumns : sym -> index -> modes Ls -> seq column.
@@ -252,23 +258,23 @@ dnames P (T :: Ts) = dname (P ^ "a") T :: dnames (P ^ "b") Ts.
 (* The module: `G` is the guard of the last rule of `r`; the rules derived from a rule follow it, so the
    demand rules an earlier `%demand` generated from a rule of `r` are guarded with it (the order of the
    `%demand` directives does not matter) *)
-dmodule : sym -> modes Ls -> seq formula -> module -> module.
-dmodule R M G [] = [].
-dmodule R M G (irule Rl :: Is) = sappend (dstep R M G Rl irule) (dmodule R M (dguardOf R M Rl G) Is).
-dmodule R M G (inamed N Rl :: Is) = sappend (dstep R M G Rl (inamed N)) (dmodule R M (dguardOf R M Rl G) Is).
-dmodule R M G (iquery B :: Is) = iquery B :: sappend (ditems (dcalls R M [] B)) (dmodule R M [] Is).
-dmodule R M G (I :: Is) = I :: dmodule R M [] Is.
+dmodule : sym -> seq sym -> modes Ls -> seq formula -> module -> module.
+dmodule R Cs M G [] = [].
+dmodule R Cs M G (irule Rl :: Is) = sappend (dstep R Cs M G Rl irule) (dmodule R Cs M (dguardOf R M Rl G) Is).
+dmodule R Cs M G (inamed N Rl :: Is) = sappend (dstep R Cs M G Rl (inamed N)) (dmodule R Cs M (dguardOf R M Rl G) Is).
+dmodule R Cs M G (iquery B :: Is) = iquery B :: sappend (ditems (dcalls R Cs M [] B)) (dmodule R Cs M [] Is).
+dmodule R Cs M G (I :: Is) = I :: dmodule R Cs M [] Is.
 
 (* A rule: of `r` guarded, with the demand of its calls; derived from the last rule of `r`, guarded like
    it; any other with the demand of its calls *)
-dstep : sym -> modes Ls -> seq formula -> rule -> (rule -> item) -> module.
-dstep R M G ($S $..Ts :- $..B) Mk = dhead (eqsym R S) (derived S) R M G S Ts B Mk.
-dstep R M G Rl Mk = Mk Rl :: ditems (dbody R M Rl).
+dstep : sym -> seq sym -> modes Ls -> seq formula -> rule -> (rule -> item) -> module.
+dstep R Cs M G ($S $..Ts :- $..B) Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
+dstep R Cs M G Rl Mk = Mk Rl :: ditems (dbody R Cs M Rl).
 
-dhead : bool -> bool -> sym -> modes Ls -> seq formula -> sym -> seq term -> seq formula -> (rule -> item) -> module.
-dhead true D R M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R M [dguard R M Ts] B).
-dhead false true R M G S Ts B Mk = [Mk (horn [fatom S Ts] (sappend G B))].
-dhead false false R M G S Ts B Mk = Mk ($S $..Ts :- $..B) :: ditems (dcalls R M [] B).
+dhead : bool -> bool -> sym -> seq sym -> modes Ls -> seq formula -> sym -> seq term -> seq formula -> (rule -> item) -> module.
+dhead true D R Cs M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R Cs M [dguard R M Ts] B).
+dhead false true R Cs M G S Ts B Mk = [Mk (horn [fatom S Ts] (dprefix Cs Ts (sappend G B)))].
+dhead false false R Cs M G S Ts B Mk = Mk ($S $..Ts :- $..B) :: ditems (dcalls R Cs M [] B).
 
 dguarded : formula -> sym -> seq term -> seq formula -> (rule -> item) -> item.
 dguarded F S Ts B Mk = Mk ($S $..Ts :- $F, $..B).
@@ -279,7 +285,7 @@ dguard R M Ts = fatom (derive R "check") (dinputs M (dnamed "_" M Ts)).
 
 (* The guard the rules after `Rl` get: `Rl`'s if it is a rule of `r`, `G` if it is derived *)
 dguardOf : sym -> modes Ls -> rule -> seq formula -> seq formula.
-dguardOf R M ($S $..Ts :- $..B) G = dguardSel (eqsym R S) (derived S) (dguard R M Ts) G.
+dguardOf R M ($S $..Ts :- $..B) G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
 dguardOf R M Rl G = [].
 
 dguardSel : bool -> bool -> formula -> seq formula -> seq formula.
@@ -287,45 +293,141 @@ dguardSel true D F G = [F].
 dguardSel false true F G = G.
 dguardSel false false F G = [].
 
-dbody : sym -> modes Ls -> rule -> seq rule.
-dbody R M (horn Hs B) = dcalls R M [] B.
+dbody : sym -> seq sym -> modes Ls -> rule -> seq rule.
+dbody R Cs M (horn Hs B) = dcalls R Cs M [] B.
 
-(* The demand of the calls of `r` among the formulas `Fs`, each from the formulas before it except the
-   calls of `r` (as in docs/REDESIGN.md §8.1-8.2: the demand of a call does not wait for the answers of
-   earlier calls of `r`, so the demand relation is evaluated before `r`) *)
-dcalls : sym -> modes Ls -> seq formula -> seq formula -> seq rule.
-dcalls R M Pre [] = [].
-dcalls R M Pre (F :: Fs) = sappend (dcall R M Pre F) (dcalls R M (dextend R Pre F) Fs).
+(* The demand of the calls of `r` among the formulas `Fs`, each from the formulas before it *)
+dcalls : sym -> seq sym -> modes Ls -> seq formula -> seq formula -> seq rule.
+dcalls R Cs M Pre [] = [].
+dcalls R Cs M Pre (F :: Fs) = sappend (dcall R Cs M Pre F) (dcalls R Cs M (sappend Pre [F]) Fs).
 
-dextend : sym -> seq formula -> formula -> seq formula.
-dextend R Pre (fatom S Ts) = dkeep (eqsym R S) Pre (fatom S Ts).
-dextend R Pre F = sappend Pre [F].
-
-dkeep : bool -> seq formula -> formula -> seq formula.
-dkeep true Pre F = Pre.
-dkeep false Pre F = sappend Pre [F].
-
-dcall : sym -> modes Ls -> seq formula -> formula -> seq rule.
-dcall R M Pre (fatom S Ts) = ddemand (eqsym R S) R M Pre Ts.
-dcall R M Pre (fnot F) = dcall R M Pre F.
-dcall R M Pre (fconj F G) = sappend (dcall R M Pre F) (dcall R M (dextend R Pre F) G).
-dcall R M Pre (fdisj F G) = sappend (dcall R M Pre F) (dcall R M Pre G).
-dcall R M Pre (fagg O X T F) = dinner R M Pre F.
-dcall R M Pre F = [].
+dcall : sym -> seq sym -> modes Ls -> seq formula -> formula -> seq rule.
+dcall R Cs M Pre (fatom S Ts) = ddemand (same R S) R Cs M Pre Ts.
+dcall R Cs M Pre (fnot F) = dcall R Cs M Pre F.
+dcall R Cs M Pre (fconj F G) = sappend (dcall R Cs M Pre F) (dcall R Cs M (sappend Pre [F]) G).
+dcall R Cs M Pre (fdisj F G) = sappend (dcall R Cs M Pre F) (dcall R Cs M Pre G).
+dcall R Cs M Pre (fagg O X T F) = dinner R Cs M Pre F.
+dcall R Cs M Pre F = [].
 
 (* In an aggregate, the demand of a call is built from the formulas before the aggregate (the formulas
    in it may mention its variable): the call's inputs must be bound outside it *)
-dinner : sym -> modes Ls -> seq formula -> formula -> seq rule.
-dinner R M Pre (fatom S Ts) = ddemand (eqsym R S) R M Pre Ts.
-dinner R M Pre (fnot F) = dinner R M Pre F.
-dinner R M Pre (fconj F G) = sappend (dinner R M Pre F) (dinner R M Pre G).
-dinner R M Pre (fdisj F G) = sappend (dinner R M Pre F) (dinner R M Pre G).
-dinner R M Pre (fagg O X T F) = dinner R M Pre F.
-dinner R M Pre F = [].
+dinner : sym -> seq sym -> modes Ls -> seq formula -> formula -> seq rule.
+dinner R Cs M Pre (fatom S Ts) = ddemand (same R S) R Cs M Pre Ts.
+dinner R Cs M Pre (fnot F) = dinner R Cs M Pre F.
+dinner R Cs M Pre (fconj F G) = sappend (dinner R Cs M Pre F) (dinner R Cs M Pre G).
+dinner R Cs M Pre (fdisj F G) = sappend (dinner R Cs M Pre F) (dinner R Cs M Pre G).
+dinner R Cs M Pre (fagg O X T F) = dinner R Cs M Pre F.
+dinner R Cs M Pre F = [].
 
-ddemand : bool -> sym -> modes Ls -> seq formula -> seq term -> seq rule.
-ddemand true R M Pre Ts = [horn [fatom (derive R "check") (dinputs M Ts)] Pre].
-ddemand false R M Pre Ts = [].
+ddemand : bool -> sym -> seq sym -> modes Ls -> seq formula -> seq term -> seq rule.
+ddemand true R Cs M Pre Ts = [horn [fatom (derive R "check") (dinputs M Ts)] (dprefix Cs (dinputs M Ts) Pre)].
+ddemand false R Cs M Pre Ts = [].
+
+(* The formulas a demand rule keeps of the prefix of a call with inputs `Is`: all but the calls of
+   demand-driven relations (with a demand relation among `Cs`) that bind no variable the inputs or the
+   other formulas need and the other formulas do not bind (as in docs/REDESIGN.md §8.1-8.2: the demand
+   does not wait for answers it does not need, so it is evaluated before the relation, by descent).
+   Demand rules generated earlier (by `%demand` of another relation) are pruned in the same way. *)
+dprefix : seq sym -> seq term -> seq formula -> seq formula.
+dprefix Cs Is Pre = dkeepCalls Cs (sdiff (sappend (tsvars Is) (dothers Cs fneeds Pre)) (dothers Cs fbound Pre)) Pre.
+
+dkeepCalls : seq sym -> seq string -> seq formula -> seq formula.
+dkeepCalls Cs Need [] = [].
+dkeepCalls Cs Need (F :: Fs) = dkeepIf (dcallOf Cs F) (shares (fvars F) Need) F (dkeepCalls Cs Need Fs).
+
+dkeepIf : bool -> bool -> formula -> seq formula -> seq formula.
+dkeepIf true false F Fs = Fs.
+dkeepIf C N F Fs = F :: Fs.
+
+dcallOf : seq sym -> formula -> bool.
+dcallOf Cs (fatom S Ts) = msym (derive S "check") Cs.
+dcallOf Cs F = false.
+
+msym : sym -> seq sym -> bool.
+msym S [] = false.
+msym S (C :: Cs) = bor (same S C) (msym S Cs).
+
+(* The variables `V` gives of the formulas that are not such calls *)
+dothers : seq sym -> (formula -> seq string) -> seq formula -> seq string.
+dothers Cs V [] = [].
+dothers Cs V (F :: Fs) = sappend (dunless (dcallOf Cs F) (V F)) (dothers Cs V Fs).
+
+dunless : bool -> seq string -> seq string.
+dunless true Xs = [].
+dunless false Xs = Xs.
+
+(* Variables of terms and formulas; those a formula binds (an atom all of its own, an equation those of
+   its sides without arithmetic, an aggregate its result) and those it needs bound *)
+tvarsOf : term -> seq string.
+tvarsOf (tvar X) = [X].
+tvarsOf (tapp S Ts) = tsvars Ts.
+tvarsOf (tarith O A B) = sappend (tvarsOf A) (tvarsOf B).
+tvarsOf (tneg A) = tvarsOf A.
+tvarsOf T = [].
+
+tsvars : seq term -> seq string.
+tsvars [] = [].
+tsvars (T :: Ts) = sappend (tvarsOf T) (tsvars Ts).
+
+fvars : formula -> seq string.
+fvars (fatom S Ts) = tsvars Ts.
+fvars (fcmp C A B) = sappend (tvarsOf A) (tvarsOf B).
+fvars (fnot F) = fvars F.
+fvars (fconj F G) = sappend (fvars F) (fvars G).
+fvars (fdisj F G) = sappend (fvars F) (fvars G).
+fvars (fagg O X T F) = sappend (tvarsOf X) (sappend (tvarsOf T) (fvars F)).
+
+fbound : formula -> seq string.
+fbound (fatom S Ts) = tsvars Ts.
+fbound (fcmp ceq A B) = dequation (plain A) (plain B) A B.
+fbound (fagg O X T F) = tvarsOf X.
+fbound (fconj F G) = sappend (fbound F) (fbound G).
+fbound F = [].
+
+dequation : bool -> bool -> term -> term -> seq string.
+dequation true true A B = sappend (tvarsOf A) (tvarsOf B).
+dequation true false A B = tvarsOf A.
+dequation false true A B = tvarsOf B.
+dequation false false A B = [].
+
+fneeds : formula -> seq string.
+fneeds F = sdiff (fvars F) (fbound F).
+
+(* a term without arithmetic: a pattern *)
+plain : term -> bool.
+plain (tapp S Ts) = plains Ts.
+plain (tarith O A B) = false.
+plain (tneg A) = false.
+plain T = true.
+
+plains : seq term -> bool.
+plains [] = true.
+plains (T :: Ts) = band (plain T) (plains Ts).
+
+(* Booleans and lists of strings as sets *)
+band : bool -> bool -> bool.
+band true B = B.
+band false B = false.
+
+bor : bool -> bool -> bool.
+bor true B = true.
+bor false B = B.
+
+member : string -> seq string -> bool.
+member X [] = false.
+member X (Y :: Ys) = bor (same X Y) (member X Ys).
+
+sdiff : seq string -> seq string -> seq string.
+sdiff [] Ys = [].
+sdiff (X :: Xs) Ys = dkeepS (member X Ys) X (sdiff Xs Ys).
+
+dkeepS : bool -> string -> seq string -> seq string.
+dkeepS true X Zs = Zs.
+dkeepS false X Zs = X :: Zs.
+
+shares : seq string -> seq string -> bool.
+shares [] Ys = false.
+shares (X :: Xs) Ys = bor (member X Ys) (shares Xs Ys).
 
 ditems : seq rule -> module.
 ditems [] = [].

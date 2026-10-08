@@ -1,6 +1,6 @@
 (* a fact constructor and a data constructor behind an interface *)
 shape : type.
-%fact mark : int -> shape.
+mark : int -> shape.
 plain : int -> shape.
 mark 1.
 mark 2.

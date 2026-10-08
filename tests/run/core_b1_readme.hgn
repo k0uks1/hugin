@@ -6,7 +6,7 @@
 (* README: data and fact constructors (every constructor is a fact constructor in the redesign) *)
 shape : type.
 circle : shape.
-%fact square : int -> shape.
+square : int -> shape.
 seen : int -> rel.
 seen N :- square N.
 

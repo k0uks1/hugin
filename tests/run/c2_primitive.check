@@ -11,8 +11,8 @@ path b c.
 reached.r a b.
 reached.r a c.
 reached.r b c.
-?- steps X, down X 0, len (cons a nil) L.
-X = 0, L = 1.
-X = 1, L = 1.
-X = 2, L = 1.
-X = 3, L = 1.
+?- steps X, down X 0, one L, len L N.
+X = 0, L = cons a nil, N = 1.
+X = 1, L = cons a nil, N = 1.
+X = 2, L = cons a nil, N = 1.
+X = 3, L = cons a nil, N = 1.

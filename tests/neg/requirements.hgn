@@ -1,17 +1,10 @@
 (* Signature requirements (Section 4.4) and negation over parameters (Section 11). *)
 g : Type = { node : type, edge : node -> node -> rel, %complete edge }.
-m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
 iso (x : g) = {
   lonely : x.node -> rel.
   lonely N :- x.edge N _, not x.edge _ N.
 }.
-deg (x : m) = {
-  out : x.node -> x.node -> rel.
-  out A B :- x.edge A B.
-}.
 v : type.
 e : v -> v -> rel.
 %open e.
-f : v -> v -> rel.
 a = iso { node = v, edge = e }.
-b = deg { node = v, edge = f }.

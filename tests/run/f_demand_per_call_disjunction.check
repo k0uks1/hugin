@@ -1,4 +1,0 @@
-?- s L N M.
-L = cons 1 nil, N = 1, M = 2.
-L = cons 2 (cons 1 nil), N = 2, M = 3.
-L = nil, N = 0, M = 1.

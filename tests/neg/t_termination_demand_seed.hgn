@@ -2,7 +2,7 @@
    `u` feeds `f`'s demands with `f`'s answers, so the demands grow without bound (docs/NOTES.md,
    "Termination"). *)
 f : (n : int) -> (m : int) -> rel.
-%mode f +n -m.
+%demand f +n -m.
 %terminates n f.
 f N M :- M = N + 1.
 u : int -> rel.

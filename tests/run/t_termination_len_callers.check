@@ -1,9 +1,8 @@
-termination: {pick, sized, len[int], len[int]^d[+-]}: terminates, measure declared
+termination: {len[int]}: terminates, measure inferred
+  inferred measure: `%terminates l len[int].`
   measure of `len[int]`: argument 1 `l` (structural)
-  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
-  rule at tests/run/t_termination_len_callers.hgn:11:1: demand `len[int]^d[+-] L` from outside the component: its inputs take finitely many values
-  rule at tests/run/t_termination_len_callers.hgn:17:1: demand `len[int]^d[+-] L` from outside the component: its inputs take finitely many values
-  rule at <stdlib>/prelude.hgn:20:1: demand for `len[int]^d[+-] L` from `len[int]^d[+-] (cons[int] _ L)`: `L` is a proper subterm of `cons[int] _ L`
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at <stdlib>/prelude.hgn:19:1: call `len[int] L N`: `L` is a proper subterm of `cons[int] X L`; anchored: `cons[int] X L` is bound by relations outside the component
 both 1 3.
 both 2 3.
 both 3 3.

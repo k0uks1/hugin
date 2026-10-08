@@ -2,7 +2,7 @@
    `mk 1` (a fact constructor of the earlier component of `mk`); its split rule `mk N :- src N` derives it
    in `mk`'s component, so `r`, evaluated before `h`, sees it: `r 1` (the least model) *)
 w : type.
-%fact mk : int -> w.
+mk : int -> w.
 src : int -> rel.
 src 1.
 r : int -> rel.

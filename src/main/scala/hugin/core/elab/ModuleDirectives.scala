@@ -109,19 +109,22 @@ trait ModuleDirectives:
       val data = listData(kindType(RKind.Item), quoted.map(Left(_)))
       val result = eval(Nil, Tm.App(fn, data, Icit.Expl))
       // an item the directive passed on unchanged keeps its place and provenance; a new one is placed at
-      // the directive and notes its expansion
+      // the first position in this file of the data it was built from (a rule generated from a source rule
+      // by a directive of the prelude is placed at that rule), or at the directive, and notes its expansion
       listValues(result, span).map { v =>
         before.get(stripPositions(quote(0, v))) match
           case Some(e) => e.copy(value = v)
-          case None => Entry(v, Origin(List(frame)), placeOf(v).getOrElse(span))
+          case None => Entry(v, Origin(List(frame)), placeOf(v, span).getOrElse(span))
       }
     catch
       case e: ElabError =>
         report(e)
         module
 
-  private def placeOf(v: Val): Option[Span] = force(v) match
-    case Val.Obj(ObjForm.Loc(s), _) if s.exists => Some(s)
+  private def placeOf(v: Val, at: Span): Option[Span] = force(v) match
+    case Val.Obj(ObjForm.Loc(s), _) if s.exists && (!at.exists || s.source.path == at.source.path) => Some(s)
+    case Val.Obj(ObjForm.Loc(_), List(x)) => placeOf(x, at)
+    case Val.Rigid(_, sp) => sp.reverse.iterator.collect { case Elim.EApp(a, Icit.Expl) => a }.flatMap(placeOf(_, at)).nextOption()
     case _ => None
 
   private def elabEntry(e: Entry): List[CoreItem] =

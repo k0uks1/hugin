@@ -14,18 +14,14 @@ class ModingSuite extends munit.FunSuite:
     assertEquals(out, Right(List("q 1 3.", "q 2 4.")))
   }
 
-  test("range restriction and applicable modes are enforced (Section 6.3)") {
+  test("range restriction is enforced (Section 6.3)") {
     assertEquals(TestSupport.run("p : int -> rel. p X :- X > 1.").left.toOption, Some(List("E0501")))
-    assertEquals(
-      TestSupport.run("f : (n : int) -> (m : int) -> rel. %mode f + -. f 1 2. q : int -> rel. q M :- f N M.").left.toOption,
-      Some(List("E0502"))
-    )
   }
 
   test("directives are phase output in the unit's facts; the core IR carries them by tag") {
     val c = TestSupport.compile("""
       f : (n : int) -> (m : int) -> rel.
-      %mode f + -. %mode f + +. %open f.
+      %open f.
       f 1 2.
       q : int -> rel.
       q M :- f 1 M.
@@ -34,13 +30,12 @@ class ModingSuite extends munit.FunSuite:
     assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message))
     val f = c.unit.prog.nn.rels.find(_.name == "f").get
     val facts = c.unit.facts
-    assertEquals(facts.modesOf(f).map(_.show), List("+-", "++"))
     assert(facts(f).open && !facts(f).output)
     val core = c.unit.core.nn
     assertEquals(core.directives.length, core.rels.length)
     assert(core.directives(core.tag(f)).open)
     val q = core.rels.find(_.name == "q").get
     assert(core.directives(core.tag(q)).output)
-    // a relation without directives reads as none (all outputs, complete)
-    assertEquals(facts.modesOf(q).map(_.show), List("-"))
+    // a relation without directives reads as none (complete)
+    assert(!facts(q).open)
   }

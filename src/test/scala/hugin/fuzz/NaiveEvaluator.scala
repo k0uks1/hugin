@@ -10,7 +10,7 @@ import scala.collection.mutable
  *  applying all of its rules to the full relations until nothing changes, with no deltas, no indexes and
  *  no identities. Words are structural: literals or [[NaiveEvaluator.Fact]]s (terms of any constructor),
  *  so interning is equality. A rule application adds `subfact_F` of its head: the head fact and its
- *  fact-constructor subterms, descending through data terms, which are values only and never facts.
+ *  constructor subterms (every constructor is a fact constructor, REDESIGN §3.2).
  *  A relation with a bound column (docs/REDESIGN.md §5.2) keeps one fact per key, the best; after every
  *  round the values on positive-weight cycles of the value propagation graph become `∞` (Kaminski et
  *  al.'s Algorithm 1, literally: every round, cycles found by Floyd–Warshall).
@@ -19,17 +19,15 @@ import scala.collection.mutable
 final class NaiveEvaluator(prog: CoreProgram):
   import NaiveEvaluator.Fact
 
-  /** The facts of each relation, by tag (always empty for data constructors). */
+  /** The facts of each relation, by tag. */
   val facts: Vector[mutable.LinkedHashSet[Vector[Any]]] = prog.rels.map(_ => mutable.LinkedHashSet.empty[Vector[Any]])
-
-  private val data: Vector[Boolean] = prog.rels.map(_.isData)
 
   /** Seeds the relations with the facts already in an engine's store (the loaded input facts). */
   def load(engine: Engine): Unit =
     def word(w: Any): Any = w match
       case Id(rel, n) => Fact(rel, engine.store(rel).tuples(n).toVector.map(word))
       case other => other
-    for (r, tag) <- engine.store.zipWithIndex if !data(tag); (t, n) <- r.tuples.zipWithIndex if r.current(n) do
+    for (r, tag) <- engine.store.zipWithIndex; (t, n) <- r.tuples.zipWithIndex if r.current(n) do
       facts(tag) += t.toVector.map(word)
 
   // ------------------------------------------------------------------ words and expressions
@@ -47,7 +45,7 @@ final class NaiveEvaluator(prog: CoreProgram):
 
   /** Evaluates an expression. In a body a constructor term denotes its structure, whether or not it is a
    *  fact (comparisons are structural; existence is checked only by `Lookup`); in a head (`created`
-   *  given), the fact-constructor terms it builds are recorded in `created` (`subfact_F`). */
+   *  given), the constructor terms it builds are recorded in `created` (`subfact_F`). */
   private def eval(e: Expr, regs: Map[Int, Any], created: Option[mutable.ArrayBuffer[Fact]]): Option[Any] = e match
     case Expr.Reg(r) => regs.get(r)
     case Expr.Const(w) => Some(w)
@@ -65,7 +63,7 @@ final class NaiveEvaluator(prog: CoreProgram):
       if vs.exists(_.isEmpty) then None
       else
         val f = Fact(rel, vs.map(_.get))
-        if !data(rel) then created.foreach(_ += f)
+        created.foreach(_ += f)
         Some(f)
 
   private def compare(op: CmpOp, a: Any, b: Any): Boolean = op match

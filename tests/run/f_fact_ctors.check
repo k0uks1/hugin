@@ -1,4 +1,6 @@
 grow (node (leaf 1) (leaf 2)).
+leaf 1.
+leaf 2.
 lefts (leaf 1).
 node (leaf 1) (leaf 2).
 seen 1 "a".

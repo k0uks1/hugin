@@ -3,8 +3,8 @@
    `--all-relations` prints facts only: the data constructor `leaf` is not a relation, so it is not listed. *)
 tree A : type.
 leaf : A -> tree A.
-%fact node : tree A -> tree A -> tree A.
-%fact seen : type = { at : int, what : string }.
+node : tree A -> tree A -> tree A.
+seen : type = { at : int, what : string }.
 
 grow : tree int -> rel.
 grow (node (leaf 1) (leaf 2)).

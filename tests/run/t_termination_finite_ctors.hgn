@@ -13,7 +13,7 @@ e : int -> box -> rel.
 e 0 (wrap nil).
 e X (mk Y) :- e X _, b Y.
 e Y B :- e _ B, b Y.
-%fact pt : int -> box.
+pt : int -> box.
 g : box -> rel. g (pt N) :- b N.
 f : int -> box -> rel.
 f 0 (wrap nil).

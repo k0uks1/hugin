@@ -3,7 +3,7 @@
 dom : int -> rel.
 dom 1.
 c : int -> int -> rel.
-%mode c + -.
+%demand c + -.
 %terminates X (c X _).
 d : int -> int -> rel.
 c 1 0.

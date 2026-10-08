@@ -39,10 +39,10 @@ rules : seq rule = [
 
 $guardAll rules.
 
-%mode lookup + + -.
+%demand lookup + + -.
 lookup (bind X T _) X T.
 lookup (bind Y _ G) X T :- lookup G X T, X <> Y.
 
-typed_check (app (ref "f") (ref "x")) G :- G = bind "f" (arr (base "i") (base "b")) (bind "x" (base "i") emp).
+typed_check (app (ref "f") (ref "x")) (bind "f" (arr (base "i") (base "b")) (bind "x" (base "i") emp)).
 
 ?- typed E _ T.

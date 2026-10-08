@@ -1,13 +1,18 @@
-error[E0604]: invalid `%terminates` directive for `ack`
- --> tests/neg/t_termination_lexicographic.hgn:6:21
+error[E0604]: constructive rule for `ack.check`, which has no measure
+ --> tests/neg/t_termination_lexicographic.hgn:6:26
   |
 4 | %terminates (n, m) ack.
   | ----------------------- measure declared here
 ...
 6 | ack M 0 R :- M > 0, ack (M - 1) 1 R. (*~ E0604 *)
-  |       -             ^^^^^^^^^^^^^^^ no decrease: component 1 of the measure: cannot show `1 < 0`
-  |       the caller has `0`
+  |                          ^^^^^ its head computes `M - 1`
   |
-  = note: the lexicographic measure of `ack` is argument 2 `n` (integer), argument 1 `m` (integer); for the call it must be smaller than for the caller
+  = note: `ack.check` is in the recursive component {ack, ack.check}
+  = help: give `ack.check` a `%terminates` measure with the same shape
+note: in expansion of `%demand ack +m +n -r`
+ --> tests/neg/t_termination_lexicographic.hgn:3:1
+  |
+3 | %demand ack +m +n -r.
+  | ^^^^^^^^^^^^^^^^^^^^^
 
 1 error found

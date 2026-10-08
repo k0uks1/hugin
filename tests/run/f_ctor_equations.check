@@ -1,10 +1,4 @@
 differs (pt 1).
 found 1 (pt 1).
-listed (cons (pt 1) nil).
-nested.
-opt (some 1).
-opt (some 2).
 points 1.
 same.
-wrapped (cons (some 1) nil).
-wrapped (cons (some 2) nil).

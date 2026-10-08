@@ -1,5 +1,8 @@
+a.
+b.
 back b a.
 back c c.
+c.
 edge a b.
 edge b a.
 edge c c.

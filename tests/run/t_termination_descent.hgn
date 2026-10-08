@@ -15,7 +15,7 @@ acc N lnil :- start N.
 acc N (lcons N L) :- acc (s N) L.
 
 (* fact constructors (Skolem terms) alike *)
-tree : type.   %fact leaf : int -> tree.   %fact node : tree -> tree -> tree.
+tree : type.   leaf : int -> tree.   node : tree -> tree -> tree.
 root : tree -> rel.
 root (node (node (leaf 1) (leaf 2)) (leaf 3)).
 sub : tree -> int -> rel.

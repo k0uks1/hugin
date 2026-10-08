@@ -5,11 +5,11 @@
 shape : type.
 circle : shape.
 square : int -> shape.
-%fact named : string -> shape.
+named : string -> shape.
 named "unit".
 
 area : (s : shape) -> (a : int) -> rel.
-%mode area +s -a.
+%demand area +s -a.
 area circle 3.
 area (square N) A :- A = N * N.
 area (named _) 1.

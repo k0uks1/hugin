@@ -1,9 +1,0 @@
-(* E0406: a data constructor read as a relation is declared a fact constructor *)
-shape : type.
-circle : shape.
-square : int -> shape.
-has : shape -> rel.
-has (square 2).
-sides : int -> rel.
-sides N :- square N.
-%output sides.

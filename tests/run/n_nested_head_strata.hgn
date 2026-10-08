@@ -3,7 +3,7 @@
    (`src, mk, r, q, h`) and accepted. Ordering `mk` after `h` (an edge `mk -> h`) would put `mk`, `r`, `q`
    and `h` in one component with a negation, and reject it *)
 w : type.
-%fact mk : int -> w.
+mk : int -> w.
 src : int -> rel.
 src 1. src 2.
 r : int -> rel.

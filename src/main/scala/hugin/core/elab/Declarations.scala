@@ -152,7 +152,8 @@ trait Declarations:
       case Some(Builtin(Ident("symbol"))) if d.params.isEmpty && d.tpe == VarRef("Type")(d.tpe.span) =>
         declare(d.name, Tm.U1(Level.zero), Stage.S1, GlobalKind.Symbols, d.span)
       case Some(b @ Builtin(Ident(k))) if PrimOp.byKey(k).isDefined && d.params.isEmpty =>
-        val ty = zonk(Nil, 0, checkType(Cxt.empty, d.tpe, Stage.S1))
+        val (c2, imps, _) = declContext(d, Cxt.empty)
+        val ty = zonk(Nil, 0, pis(imps, Icit.Impl, checkType(c2, d.tpe, Stage.S1)))
         val op = PrimOp.byKey(k).get
         declare(d.name, ty, Stage.S1, GlobalKind.Primitive(op, primitiveCtors(op, eval(Nil, ty), b.span)), d.span)
       case Some(e) =>
@@ -264,13 +265,14 @@ trait Declarations:
       case _ => None
     val doms = binders.map(_._3)
     val found = op match
-      case PrimOp.EqSym if doms.length == 2 && doms.forall(isSym) => ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
+      case PrimOp.Same if binders.map(_._2) == List(Icit.Impl, Icit.Expl, Icit.Expl) =>
+        ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
       case PrimOp.Derived if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
       case PrimOp.Labels if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.length == 1)
       case PrimOp.Derive if doms.length == 2 && isSym(doms(0)) && isString(doms(1)) && isSym(result) => Some(Nil)
       case _ => None
     val expected = op match
-      case PrimOp.EqSym => "sym -> sym -> bool"
+      case PrimOp.Same => "A -> A -> bool"
       case PrimOp.Labels => "sym -> seq string"
       case PrimOp.Derived => "sym -> bool"
       case PrimOp.Derive => "sym -> string -> sym"

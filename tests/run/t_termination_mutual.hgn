@@ -17,8 +17,8 @@ leaf : forest.
 grove : tree -> forest -> forest.
 size : (t : tree) -> (n : int) -> rel.
 fsize : (f : forest) -> (n : int) -> rel.
-%mode size +t -n.
-%mode fsize +f -n.
+%demand size +t -n.
+%demand fsize +f -n.
 %terminates t size.
 %terminates f fsize.
 size (node _ F) N :- fsize F M, N = M + 1.

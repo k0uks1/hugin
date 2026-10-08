@@ -113,9 +113,11 @@ trait Reflection:
 
   // ---------------------------------------------------------------- data to syntax
 
-  /** The value without its positions, and the innermost position (or `sp`). */
+  /** The value without its positions, and the innermost position (or `sp`). Positions in another file
+   *  than `sp`'s (the syntax of a directive of the prelude or of an imported file) are not used: code is
+   *  shown where it is generated, at the data it came from or at the reflecting item. */
   private def peel(v: Val, sp: Span): (Val, Span) = force(v) match
-    case Val.Obj(ObjForm.Loc(s), List(x)) => peel(x, if s.exists then s else sp)
+    case Val.Obj(ObjForm.Loc(s), List(x)) => peel(x, if s.exists && (!sp.exists || s.source.path == sp.source.path) then s else sp)
     case other => (other, sp)
 
   private lazy val ctorNames: Map[Int, Name] = reflectiveGlobals.get.ctors.map(_.swap)

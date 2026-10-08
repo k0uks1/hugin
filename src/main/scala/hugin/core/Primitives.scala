@@ -7,8 +7,9 @@ import scala.collection.mutable
 /** The primitive operations of the prelude on reflective data (REDESIGN §7.4, C3): what a directive needs
  *  to know about object constants that their data does not say (reflection is untyped, Q5).
  *
- *  - `eqsym : sym -> sym -> bool`: whether two symbols are the same object constant (the first
- *    constructor of `bool` if so, the second otherwise);
+ *  - `same : A -> A -> bool`: whether two atoms (meta literals, symbols: the values with decidable
+ *    equality that clauses split on) are equal (the first constructor of `bool` if so, the second
+ *    otherwise); stuck on other values;
  *  - `labels : sym -> seq string`: the labels of a constant's columns (`""` for a column without one), the
  *    index of the typed modes of `%demand` (`modes (labels r)`);
  *  - `derive : sym -> string -> sym`: the object constant `r.l` *derived* from `r` (`typed.check`),
@@ -20,14 +21,16 @@ import scala.collection.mutable
  *  They reduce on closed arguments only (a symbol is closed when it is a quoted object constant); on
  *  anything else they are stuck, like a function on a neutral. */
 enum PrimOp(val key: String):
-  case EqSym extends PrimOp("eqsym")
+  case Same extends PrimOp("same")
   case Labels extends PrimOp("labels")
   case Derive extends PrimOp("derive")
   case Derived extends PrimOp("derived")
 
+  /** The arguments, implicit ones included. */
   def arity: Int = this match
     case Labels | Derived => 1
-    case EqSym | Derive => 2
+    case Derive => 2
+    case Same => 3
 
 object PrimOp:
   def byKey(k: String): Option[PrimOp] = values.find(_.key == k)
@@ -46,8 +49,8 @@ trait Primitives:
   /** The application of primitive `op` (building `ctors`) to `args`, if they are canonical. */
   def reducePrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
     (op, args.map(forceData)) match
-      case (PrimOp.EqSym, List(a, b)) =>
-        for x <- symbolId(a); y <- symbolId(b) yield Rigid(Head.Glob(if x == y then ctors(0) else ctors(1)), Nil)
+      case (PrimOp.Same, List(a, b)) =>
+        for x <- atomKey(a); y <- atomKey(b) yield Rigid(Head.Glob(if stripPositions(x) == stripPositions(y) then ctors(0) else ctors(1)), Nil)
       case (PrimOp.Derived, List(a)) =>
         symbolId(a).map(id => Rigid(Head.Glob(if derivedFrom(id).isDefined then ctors(0) else ctors(1)), Nil))
       case (PrimOp.Labels, List(a)) =>

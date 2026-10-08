@@ -42,7 +42,10 @@ object Moding:
 
   /** B ⊢ φ ⇒ B' (Definition 6.3). */
   def step(f: Formula, b: Set[String]): Either[Stuck, Set[String]] = f match
-    case _: Formula.Atom => Right(b ++ formulaVars(f))
+    case Formula.Atom(_, args, _) =>
+      // arithmetic, projections and updates in an argument are computed, not matched
+      val missing = args.flatMap(needs).toSet -- b
+      if missing.isEmpty then Right(b ++ formulaVars(f)) else Left(Stuck.Unbound(f, missing))
     case Formula.Cmp(CmpOp.Eq, l, r) =>
       val lb = vars(l).subsetOf(b)
       val rb = vars(r).subsetOf(b)
