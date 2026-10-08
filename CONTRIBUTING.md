@@ -469,6 +469,13 @@ The diagnostic classes of Appendix A.1 are all distinguished; every diagnostic i
 code (`src/main/scala/hugin/util/diagnostics/Code.scala`, explained in `docs/errors/<code>.md` and by
 `hugin explain <code>`).
 
+Each code has a page in the error index of the published reference, `<site-url>errors/<code>.html`, where
+`<site-url>` is the single line of `reference/site-url.txt`. `build.sbt` packages that file as the resource
+`/hugin/site-url.txt` (`Explanations.siteUrl`, `Code.explanationUrl`), and three places link to the page:
+the last line of `hugin explain` and `:explain` (`Online: …`), `codeDescription.href` of the language
+server's diagnostics, and the field `url` of the code in `--error-format=json` (next to `explanation`, the
+path of the Markdown source).
+
 ## Tests
 
 Three kinds of tests, all run by `sbt test`:

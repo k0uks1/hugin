@@ -29,6 +29,15 @@ class CommandLineSuite extends munit.FunSuite:
     assertEquals(Main.run(List("explain", "E0401"), _ => (), _ => ()), ExitCode.Ok)
   }
 
+  test("explain prints the explanation and the link to its page in the error index") {
+    val out = StringBuilder()
+    assertEquals(Main.run(List("explain", "e0603"), s => out ++= s + "\n", _ => ()), ExitCode.Ok)
+    val lines = out.toString.linesIterator.toList
+    assert(lines.head.startsWith("# E0603: "), lines.head)
+    val site = java.nio.file.Files.readString(java.nio.file.Path.of("reference/site-url.txt")).trim.stripSuffix("/")
+    assertEquals(lines.last, s"Online: $site/errors/E0603.html")
+  }
+
   test("lint levels and fix are parsed; --no-warnings is gone") {
     import hugin.util.diagnostics.{Level, Lint}
     val o = CommandLine.parse(List("check", "a.hgn", "-A", "singleton_variables", "--deny", "W0003", "--deny-warnings")).toOption.get

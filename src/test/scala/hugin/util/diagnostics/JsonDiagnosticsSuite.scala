@@ -5,6 +5,12 @@ import hugin.util.{DiagnosticRenderer, SourceFile, Span}
 
 /** The JSON writer and the encoding of diagnostics (`--error-format=json`); `tests/json` has the goldens. */
 class JsonDiagnosticsSuite extends munit.FunSuite:
+  test("the site URL is reference/site-url.txt, packaged at build time") {
+    val site = java.nio.file.Files.readString(java.nio.file.Path.of("reference/site-url.txt")).trim
+    assertEquals(Explanations.siteUrl, if site.endsWith("/") then site else site + "/")
+    assertEquals(Code.E0603.explanationUrl, s"${Explanations.siteUrl}errors/E0603.html")
+  }
+
   test("strings are escaped so that any JSON parser reads them back") {
     val s = "quote \" backslash \\ newline \n tab \t bell \u0007 ü"
     val parsed = JsonParser.parseString(Json.obj("s" -> Json.str(s)).render).getAsJsonObject
@@ -20,6 +26,8 @@ class JsonDiagnosticsSuite extends munit.FunSuite:
     val o = JsonParser.parseString(JsonDiagnostics.encode(d, rendered).render).getAsJsonObject
     assertEquals(o.get("version").getAsInt, JsonDiagnostics.Version)
     assertEquals(o.getAsJsonObject("code").get("explanation").getAsString, "docs/errors/W0002.md")
+    val site = java.nio.file.Files.readString(java.nio.file.Path.of("reference/site-url.txt")).trim.stripSuffix("/")
+    assertEquals(o.getAsJsonObject("code").get("url").getAsString, s"$site/errors/W0002.html")
     assertEquals(o.get("level").getAsString, "warning")
     val span = o.getAsJsonArray("spans").get(0).getAsJsonObject
     assertEquals((span.getAsJsonObject("start").get("line").getAsInt, span.getAsJsonObject("start").get("col").getAsInt), (1, 12))

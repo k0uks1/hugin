@@ -846,7 +846,7 @@ tools can rely on it (GHC's practice), and modelled on rustc's:
 
 ```json
 {"version":1,"code":{"id":"E0602","title":"negation or aggregation over an incomplete relation",
- "explanation":"docs/errors/E0602.md"},"level":"error",
+ "explanation":"docs/errors/E0602.md","url":"https://k0uks1.github.io/hugin/errors/E0602.html"},"level":"error",
  "message":"query negates or aggregates over the incomplete relation `n`",
  "spans":[{"file":"q.hgn","start":{"line":7,"col":20},"end":{"line":7,"col":23},"byteStart":91,"byteEnd":94,
            "primary":true,"label":"used negatively"},
@@ -864,7 +864,7 @@ lines are also the format for CI annotations and for any future build-tool integ
 | LSP field | from |
 |---|---|
 | `code` | `code.id` |
-| `codeDescription.href` | the explanation's URL: `https://github.com/k0uks1/hugin/blob/<branch>/docs/errors/E0602.md`, configurable for a future docs site |
+| `codeDescription.href` | the explanation's page in the error index of the language reference, `<site-url>errors/E0602.html` (implemented: `site-url` is `reference/site-url.txt`, packaged at build time; `url` in the JSON, the last line of `hugin explain`) |
 | `message` | message, then the primary label; notes and helps follow as now (LSP has no structure for them) |
 | `tags` | `Unnecessary` from `code.unnecessary`, replacing the hard-coded set in `Features.scala`; `Deprecated` when a lint says so |
 | `relatedInformation` | secondary labels, then the expansion chain (as now) |
