@@ -12,6 +12,7 @@ warning[W0002]: variable `Y` occurs only once in this rule
 8 | free X Y :- edge X _.
   |        ^ singleton variable
   |
+  = note: `-W singleton_variables` is on by default
   = help: use `_` or `_Y` if this is intended
 
 error[E0501]: rule is not range-restricted
@@ -46,6 +47,7 @@ warning[W0002]: variable `N` occurs only once in this rule
 12 | call F :- fib N F.
    |               ^ singleton variable
    |
+   = note: `-W singleton_variables` is on by default
    = help: use `_` or `_N` if this is intended
 
 error[E0503]: input position 1 of `fib` is not a pattern

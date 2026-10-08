@@ -1,0 +1,6 @@
+(* E0301: missing labels of a named pattern in a body become `_` *)
+p : (a : int) -> (b : int) -> (c : int) -> rel.
+%input p.
+q : int -> rel.
+q X :- p { a = X, b = _, c = _ }.
+%output q.

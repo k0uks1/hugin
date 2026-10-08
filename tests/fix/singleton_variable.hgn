@@ -1,0 +1,6 @@
+(* W0002: a singleton variable becomes `_` *)
+e : int -> int -> rel.
+%input e.
+src : int -> rel.
+src X :- e X Y.
+%output src.

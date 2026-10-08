@@ -6,32 +6,32 @@ edge "a" "b" 1. source "a".
 
 d1 : (v : node) -> (d : min int) -> rel.
 d1 S 0 :- source S.
-d1 W (C - D) :- d1 V D, edge V W C.
+d1 W (C - D) :- d1 V D, edge V W C. (*~ E0606 *)
 
 d2 : (v : node) -> (d : min int) -> rel.
 d2 S 0 :- source S.
-d2 W D :- d2 V D, edge V W C, D = C.
+d2 W D :- d2 V D, edge V W C, D = C. (*~ E0606 *)
 
 d3 : (v : node) -> (d : max int) -> rel.
 d3 S 0 :- source S.
-d3 W (D * C) :- d3 V D, edge V W C.
+d3 W (D * C) :- d3 V D, edge V W C. (*~ E0606 *)
 
 d4 : (v : node) -> (d : min int) -> rel.
 d4 S 0 :- source S.
-d4 W (D + 1) :- d4 V D, edge V W _, D > 3.
+d4 W (D + 1) :- d4 V D, edge V W _, D > 3. (*~ E0606 *)
 
 d5 : (v : node) -> (d : min int) -> rel.
 d5 S 0 :- source S.
-d5 W 0 :- d5 V 3, edge V W _.
+d5 W 0 :- d5 V 3, edge V W _. (*~ E0606 *)
 
 d6 : (v : node) -> (d : min int) -> rel.
 d6 S 0 :- source S.
-d6 W E :- d6 V D, edge V W _, E = D + 1, other W E.
+d6 W E :- d6 V D, edge V W _, E = D + 1, other W E. (*~ E0606 *)
 other : node -> int -> rel.
 
 d7 : (v : node) -> (d : min int) -> rel.
 d7 S 0 :- source S.
-d7 W (D - D) :- d7 V D, edge V W _.
+d7 W (D - D) :- d7 V D, edge V W _. (*~ E0606 *)
 
 
 (* a `max` value with a positive coefficient in a `min` head *)
@@ -39,7 +39,7 @@ d8 : (v : node) -> (d : min int) -> rel.
 d9 : (v : node) -> (d : max int) -> rel.
 d8 S 0 :- source S.
 d9 S 0 :- source S.
-d8 W D :- d9 V D, edge V W _.
+d8 W D :- d9 V D, edge V W _. (*~ E0606 *)
 d9 W (0 - D) :- d8 V D, edge V W _.
 
 (* a recursive bound value in a plain head column *)
@@ -47,7 +47,7 @@ reach : node -> int -> rel.
 d10 : (v : node) -> (d : min int) -> rel.
 d10 S 0 :- source S.
 d10 W D :- reach W D.
-reach W D :- d10 V D, edge V W _.
+reach W D :- d10 V D, edge V W _. (*~ E0606 *)
 
 (* fine: an earlier bound relation is complete, so its values are plain integers *)
 later : node -> int -> rel.

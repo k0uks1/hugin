@@ -4,7 +4,7 @@ error[E0604]: `c` calls `d`, which has no measure
  7 | %terminates X (c X _).
    | ---------------------- measure declared here
 ...
-10 | c X Y :- d X Z, Y = Z + 1.
+10 | c X Y :- d X Z, Y = Z + 1. (*~ E0604 *)
    |          ^^^^^ `d` is in the same recursive component
    |
    = note: the component is {c, d}; a measure must decrease along every recursive call

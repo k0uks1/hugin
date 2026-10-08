@@ -24,6 +24,8 @@ warning[W0003]: unused definition `twice`
   |
 9 | twice : int = once * 2.
   | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 error[E0105]: `once` is used before its definition
   --> tests/neg/names.hgn:9:15

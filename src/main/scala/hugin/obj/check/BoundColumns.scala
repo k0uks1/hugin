@@ -1,8 +1,6 @@
 package hugin.obj
 package check
 
-import hugin.util.*
-import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 
 /** Phase: bound columns (docs/REDESIGN.md §5.2). Checks the declarations of bound columns (E0605) and that
@@ -19,29 +17,18 @@ final class BoundColumnsPhase extends Phase:
     val compOf = ctx.unit.components.zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
     for r <- p.rules; h <- Termination.headRel(r) do
       val inC: RelSym => Boolean = x => compOf.get(x).exists(compOf.get(h).contains)
-      TypeConsistency.check(r, inC).foreach(d => ctx.report(Diag.rule(r)(d)))
+      TypeConsistency.check(r, inC).foreach(p => ctx.report(Diag.rule(r)(p.toDiagnostic)))
 
   /** E0605: a bound column must be the last column of a plain relation, of an integer type, and the
    *  relation must not be moded (the demand transformation would drop the column from the inputs). */
   private def checkDeclaration(r: RelSym)(using Context): Unit =
     val bounds = r.cols.zipWithIndex.collect { case (c, i) if c.bound.isDefined => (c, i) }
-    def report(msg: String, label: String, help: String) =
-      ctx.report(Legacy.error(Code.E0605, msg, r.span, label).withHelp(help))
     for (c, i) <- bounds do
-      val k = c.bound.get.show
-      if r.kind != RelKind.Plain then
-        report(
-          s"`$k` column in the constructor `${r.name}`",
-          "constructors have no bound columns",
-          "declare a relation with a bound last column instead, e.g. `best : key -> (v : min int) -> rel.`"
-        )
-      else if i != r.arity - 1 then
-        report(
-          s"`$k` column of `${r.name}` is not the last column",
-          s"column ${i + 1} of ${r.arity} is a `$k` column",
-          "move the bound column to the end"
-        )
-      else if !Termination.isInt(c.tpe) then
-        report(s"`$k` column of `${r.name}` is not an integer column", s"has type `${c.tpe.show}`", s"use `$k int`")
-      else if ctx.unit.facts.hasModes(r) then
-        report(s"`${r.name}` has a bound column and a `%mode`", "moded relation with a bound column", "remove the `%mode` directive")
+      val k = c.bound.get
+      val problem =
+        if r.kind != RelKind.Plain then Some(BoundColumnError.InConstructor(r, k))
+        else if i != r.arity - 1 then Some(BoundColumnError.NotLast(r, k, i))
+        else if !Termination.isInt(c.tpe) then Some(BoundColumnError.NotInteger(r, k, c.tpe))
+        else if ctx.unit.facts.hasModes(r) then Some(BoundColumnError.Moded(r))
+        else None
+      problem.foreach(p => ctx.report(p))

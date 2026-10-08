@@ -2,7 +2,7 @@
    the bounded readers do not help, the component of `nat` itself must terminate *)
 nat : int -> rel.
 nat 0.
-nat M :- nat N, M = N + 1.
+nat M :- nat N, M = N + 1. (*~ E0603 *)
 small : int -> rel.
 small N :- nat N, N < 4.
 %output small.

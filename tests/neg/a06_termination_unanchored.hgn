@@ -5,4 +5,4 @@ cons : A -> list A -> list A.
 grow : list int -> rel.
 %terminates L (grow L).
 grow nil.
-grow (cons 1 L) :- grow L.
+grow (cons 1 L) :- grow L. (*~ E0604 *)

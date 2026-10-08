@@ -1,0 +1,12 @@
+(* Lint levels from the command line (lint_levels.flags): `-D` denies a lint (an error), `-A` allows it
+   (not reported), `-W` keeps it a warning even under `--deny-warnings`, which denies the other lints. *)
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, X = 1 / 0. (*~ W0001 *)
+never : int -> prop. (*~ W0005 *)
+r : int -> rel.
+r X :- p X, never X.
+s : int -> rel.
+s X :- p X, p Y. (*~ W0002 *)
+twice : int = 2 * 2.

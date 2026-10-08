@@ -1,7 +1,7 @@
 error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign in the head's `min` column
  --> tests/neg/b_type_inconsistent.hgn:9:7
   |
-9 | d1 W (C - D) :- d1 V D, edge V W C.
+9 | d1 W (C - D) :- d1 V D, edge V W C. (*~ E0606 *)
   |       ^^^^^     ------ bound by this `min` atom
   |       improving `D` makes this worse
   |
@@ -11,7 +11,7 @@ error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign
 error[E0606]: type-inconsistent rule: `D` from a bound column is used in the test `=`
   --> tests/neg/b_type_inconsistent.hgn:13:31
    |
-13 | d2 W D :- d2 V D, edge V W C, D = C.
+13 | d2 W D :- d2 V D, edge V W C, D = C. (*~ E0606 *)
    |           ------              ^ used in the test `=`
    |           bound by this `min` atom
    |
@@ -21,7 +21,7 @@ error[E0606]: type-inconsistent rule: `D` from a bound column is used in the tes
 error[E0606]: type-inconsistent rule: `D * C` is not linear in a bound value
   --> tests/neg/b_type_inconsistent.hgn:17:7
    |
-17 | d3 W (D * C) :- d3 V D, edge V W C.
+17 | d3 W (D * C) :- d3 V D, edge V W C. (*~ E0606 *)
    |       ^^^^^ not linear
    |
    = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact
@@ -30,7 +30,7 @@ error[E0606]: type-inconsistent rule: `D * C` is not linear in a bound value
 error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign in the comparison `D > 3`
   --> tests/neg/b_type_inconsistent.hgn:21:37
    |
-21 | d4 W (D + 1) :- d4 V D, edge V W _, D > 3.
+21 | d4 W (D + 1) :- d4 V D, edge V W _, D > 3. (*~ E0606 *)
    |                 ------              ^^^^^ improving `D` makes this worse
    |                 bound by this `min` atom
    |
@@ -40,7 +40,7 @@ error[E0606]: type-inconsistent rule: `D` from a `min` column has the wrong sign
 error[E0606]: type-inconsistent rule: the `min` column of `d5` is not a variable
   --> tests/neg/b_type_inconsistent.hgn:25:16
    |
-25 | d5 W 0 :- d5 V 3, edge V W _.
+25 | d5 W 0 :- d5 V 3, edge V W _. (*~ E0606 *)
    |                ^ a recursive atom over a bound column must bind its value to a variable
    |
    = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact
@@ -49,7 +49,7 @@ error[E0606]: type-inconsistent rule: the `min` column of `d5` is not a variable
 error[E0606]: type-inconsistent rule: `D` from a bound column is used in the test `=`
   --> tests/neg/b_type_inconsistent.hgn:29:35
    |
-29 | d6 W E :- d6 V D, edge V W _, E = D + 1, other W E.
+29 | d6 W E :- d6 V D, edge V W _, E = D + 1, other W E. (*~ E0606 *)
    |           ------                  ^ used in the test `=`
    |           bound by this `min` atom
    |
@@ -59,7 +59,7 @@ error[E0606]: type-inconsistent rule: `D` from a bound column is used in the tes
 error[E0606]: type-inconsistent rule: `D` cancels out in the head's `min` column
   --> tests/neg/b_type_inconsistent.hgn:34:7
    |
-34 | d7 W (D - D) :- d7 V D, edge V W _.
+34 | d7 W (D - D) :- d7 V D, edge V W _. (*~ E0606 *)
    |       ^^^^^ coefficient 0
    |
    = note: in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact
@@ -68,7 +68,7 @@ error[E0606]: type-inconsistent rule: `D` cancels out in the head's `min` column
 error[E0606]: type-inconsistent rule: `D` from a `max` column has the wrong sign in the head's `min` column
   --> tests/neg/b_type_inconsistent.hgn:42:6
    |
-42 | d8 W D :- d9 V D, edge V W _.
+42 | d8 W D :- d9 V D, edge V W _. (*~ E0606 *)
    |      ^    ------ bound by this `max` atom
    |      improving `D` makes this worse
    |
@@ -78,7 +78,7 @@ error[E0606]: type-inconsistent rule: `D` from a `max` column has the wrong sign
 error[E0606]: type-inconsistent rule: `D` from a bound column is used in the head of `reach`, which has no bound column
   --> tests/neg/b_type_inconsistent.hgn:50:9
    |
-50 | reach W D :- d10 V D, edge V W _.
+50 | reach W D :- d10 V D, edge V W _. (*~ E0606 *)
    |         ^    ------- bound by this `min` atom
    |         used in the head of `reach`, which has no bound column
    |

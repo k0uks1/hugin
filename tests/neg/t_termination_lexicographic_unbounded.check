@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `cell`
 3 | %terminates (I, J) (cell I J).
   | ------------------------------ measure declared here
 ...
-6 | cell I J :- cell H K, H < 2, I = H + 1, J = K - 5.
+6 | cell I J :- cell H K, H < 2, I = H + 1, J = K - 5. (*~ E0604 *)
   |        -    ^^^^^^^^ no anchor: component 2 of the measure: the body does not bound `J` from above and below
   |        the head has `J`
   |

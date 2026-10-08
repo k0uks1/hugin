@@ -1,7 +1,7 @@
 error[E0605]: `min` column of `first` is not the last column
  --> tests/neg/b_bound_declarations.hgn:3:1
   |
-3 | first : (d : min int) -> (v : node) -> rel.
+3 | first : (d : min int) -> (v : node) -> rel. (*~ E0605 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ column 1 of 2 is a `min` column
   |
   = help: move the bound column to the end
@@ -9,7 +9,7 @@ error[E0605]: `min` column of `first` is not the last column
 error[E0605]: `min` column in the constructor `mk`
  --> tests/neg/b_bound_declarations.hgn:5:1
   |
-5 | mk : (x : min int) -> k.
+5 | mk : (x : min int) -> k. (*~ E0605 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^ constructors have no bound columns
   |
   = help: declare a relation with a bound last column instead, e.g. `best : key -> (v : min int) -> rel.`
@@ -17,7 +17,7 @@ error[E0605]: `min` column in the constructor `mk`
 error[E0605]: `max` column of `label` is not an integer column
  --> tests/neg/b_bound_declarations.hgn:6:1
   |
-6 | label : (v : node) -> (s : max string) -> rel.
+6 | label : (v : node) -> (s : max string) -> rel. (*~ E0605 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ has type `string`
   |
   = help: use `max int`
@@ -25,7 +25,7 @@ error[E0605]: `max` column of `label` is not an integer column
 error[E0605]: `dist` has a bound column and a `%mode`
  --> tests/neg/b_bound_declarations.hgn:7:1
   |
-7 | dist : (v : node) -> (d : min int) -> rel.
+7 | dist : (v : node) -> (d : min int) -> rel. (*~ E0605 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ moded relation with a bound column
   |
   = help: remove the `%mode` directive
@@ -33,7 +33,7 @@ error[E0605]: `dist` has a bound column and a `%mode`
 error[E0605]: `max` column type outside a relation declaration
  --> tests/neg/b_bound_declarations.hgn:9:16
   |
-9 | score : type = max int.
+9 | score : type = max int. (*~ E0605 *)
   |                ^^^^^^^ a bound column is only allowed as the last column of a relation declaration
 
 5 errors found

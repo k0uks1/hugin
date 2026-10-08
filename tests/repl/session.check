@@ -42,6 +42,8 @@ warning[W0005]: formula function `never` has no clauses
   |
 1 | never : node -> prop.
   | ^^^^^ always false
+  |
+  = note: `-W empty_formula_functions` is on by default
 
 hugin> to : node -> rel. to Y :- edge _ Y.
 hugin> start : node = a.

@@ -122,20 +122,13 @@ final class RecursiveComponent(
    *  constructive: their facts consist of existing terms. With `answers`, in a demand-driven component, the
    *  answers of measured relations count as finite sources (there are finitely many demands, see
    *  [[DemandDriven.check]]), so `d0 (some N) :- e L, len L N` constructs terms from a finite set. */
-  def unmeasuredConstructive(ctx: MeasureCtx, allowed: RelSym => Boolean, answers: Boolean = false): Option[TerminationFailure] =
+  def unmeasuredConstructive(ctx: MeasureCtx, allowed: RelSym => Boolean, answers: Boolean = false): Option[Rejection] =
     val grows: RelSym => Boolean = x => inC(x) && !(answers && ctx.measuredAnywhere(x))
+    val directive = ctx.measures.keys.headOption.flatMap(ctx.directive)
     rules.iterator.collectFirst(Function.unlift { r =>
       headRel(r).filterNot(allowed).flatMap(h =>
-        Constructive.constructive(r, grows).map((why, sp) =>
-          TerminationFailure(
-            s"constructive rule for `${h.name}`, which has no measure",
-            sp,
-            why,
-            Some(r),
-            ctx.measures.keys.headOption.flatMap(ctx.directive),
-            notes = List(s"`${h.name}` is in the recursive component ${showComponent(comp)}"),
-            helps = List(s"give `${h.name}` a `%terminates` measure with the same shape")
-          )
+        Constructive.constructive(r, grows).map(why =>
+          Rejection(TerminationError.UnmeasuredConstructive(h, why, directive, comp), Some(r))
         )
       )
     })

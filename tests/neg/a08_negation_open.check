@@ -1,7 +1,7 @@
 error[E0602]: negation or aggregation over the incomplete relation `active`
   --> tests/neg/a08_negation_open.hgn:10:24
    |
-10 | inactive U :- known U, not active U.
+10 | inactive U :- known U, not active U. (*~ E0602 *)
    |                        ^^^^^^^^^^^^ incomplete relation used negatively
    |
    = note: `active` depends positively on `login`; `login` is declared %open

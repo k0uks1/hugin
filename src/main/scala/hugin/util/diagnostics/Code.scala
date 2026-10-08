@@ -48,8 +48,8 @@ enum Code(
     val phase: Phase,
     val title: String,
     val level: Level = Level.Error,
-    /** The lint name of a warning (`singleton_variables`), used by lint flags. */
-    val lint: Option[String] = None,
+    /** The lint of a warning, which names it for lint flags (`-A singleton_variables`). */
+    val lint: Option[Lint] = None,
     /** Shown faded by editors (LSP `DiagnosticTag.Unnecessary`). */
     val unnecessary: Boolean = false,
     val status: Status = Status.Active
@@ -127,13 +127,13 @@ enum Code(
   case E0915 extends Code(915, Phase.Elaboration, "invalid pattern")
   // lints
   case W0001
-      extends Code(1, Phase.Lints, "undefined constant expression", Level.Warning, lint = Some("undefined_constant_expressions"))
+      extends Code(1, Phase.Lints, "undefined constant expression", Level.Warning, lint = Some(Lint.UndefinedConstantExpressions))
   case W0002
-      extends Code(2, Phase.Lints, "singleton variable", Level.Warning, lint = Some("singleton_variables"), unnecessary = true)
-  case W0003 extends Code(3, Phase.Lints, "unused definition", Level.Warning, lint = Some("unused_definitions"), unnecessary = true)
+      extends Code(2, Phase.Lints, "singleton variable", Level.Warning, lint = Some(Lint.SingletonVariables), unnecessary = true)
+  case W0003 extends Code(3, Phase.Lints, "unused definition", Level.Warning, lint = Some(Lint.UnusedDefinitions), unnecessary = true)
   case W0005
-      extends Code(5, Phase.Lints, "formula function without clauses", Level.Warning, lint = Some("empty_formula_functions"))
-  case W0006 extends Code(6, Phase.Lints, "unreachable clause", Level.Warning, lint = Some("unreachable_clauses"), unnecessary = true)
+      extends Code(5, Phase.Lints, "formula function without clauses", Level.Warning, lint = Some(Lint.EmptyFormulaFunctions))
+  case W0006 extends Code(6, Phase.Lints, "unreachable clause", Level.Warning, lint = Some(Lint.UnreachableClauses), unnecessary = true)
 
   /** The code as users see it: `E0602`, `W0002`. */
   def id: String = (if lint.isDefined then "W" else "E") + f"$number%04d"

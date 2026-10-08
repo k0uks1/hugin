@@ -1,6 +1,6 @@
 package hugin.obj
 
-import hugin.syntax.AggKind
+import hugin.syntax.{AggKind, Bound}
 import hugin.util.diagnostics.{DiagArg, Seg}
 
 /** An object variable as written by the user (see [[Var.display]]), for messages. */
@@ -17,3 +17,8 @@ object DiagArgs:
   given DiagArg[CmpOp] = DiagArg(op => Seg.Code(op.show))
   given DiagArg[AggKind] = DiagArg(k => Seg.Code(k.show))
   given DiagArg[Mode] = DiagArg(m => Seg.Code(m.show))
+  given DiagArg[Bound] = DiagArg(b => Seg.Code(b.show))
+
+  /** Terms and formulas as printed by [[ObjPrinter]]. */
+  given DiagArg[Term] = DiagArg(t => Seg.Code(ObjPrinter.term(t)))
+  given DiagArg[Formula] = DiagArg(f => Seg.Code(ObjPrinter.formula(f)))

@@ -7,6 +7,6 @@ c : int -> int -> rel.
 %terminates X (c X _).
 d : int -> int -> rel.
 c 1 0.
-c X Y :- d X Z, Y = Z + 1.
+c X Y :- d X Z, Y = Z + 1. (*~ E0604 *)
 d X Z :- dom X, c X Z.
 ?- c 1 Y.

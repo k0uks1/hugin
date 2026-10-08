@@ -7,4 +7,4 @@ s : nat -> nat.
 
 num : nat -> rel.
 num z.
-num X :- num Y, X = s Y.
+num X :- num Y, X = s Y. (*~ E0603 *)

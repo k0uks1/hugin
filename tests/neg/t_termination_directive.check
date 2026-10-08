@@ -1,19 +1,19 @@
 error[E0701]: variable `X` occurs twice in the measure
  --> tests/neg/t_termination_directive.hgn:3:1
   |
-3 | %terminates (X, X) (p X _).
+3 | %terminates (X, X) (p X _). (*~ E0701 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^ ambiguous position
 
 error[E0701]: `q` has no column labelled `c`
  --> tests/neg/t_termination_directive.hgn:5:1
   |
-5 | %terminates (a, c) q.
+5 | %terminates (a, c) q. (*~ E0701 *)
   | ^^^^^^^^^^^^^^^^^^^^^
 
 error[E0701]: label `a` occurs twice in the measure
  --> tests/neg/t_termination_directive.hgn:7:1
   |
-7 | %terminates (a, a) r.
+7 | %terminates (a, a) r. (*~ E0701 *)
   | ^^^^^^^^^^^^^^^^^^^^^ ambiguous position
 
 3 errors found

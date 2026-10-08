@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `f`
  6 | %terminates n f.
    | ---------------- measure declared here
 ...
-10 | u M :- u N, f N M.
+10 | u M :- u N, f N M. (*~ E0604 *)
    |               ^ the demanded `N` may take infinitely many values
    |
    = note: this call demands `f` with values read from relations that depend on the answers of `f`, so the demands could grow without bound

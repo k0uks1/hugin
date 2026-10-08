@@ -5,12 +5,15 @@ warning[W0001]: undefined constant expression
   |                 ^^^^^ `1 / 0` is undefined
   |
   = note: the formula containing it never holds, so this rule instance never fires
+  = note: `-W undefined_constant_expressions` is on by default
 
 warning[W0005]: formula function `never` has no clauses
  --> tests/neg/lints.hgn:6:1
   |
 6 | never : int -> prop.
   | ^^^^^ always false
+  |
+  = note: `-W empty_formula_functions` is on by default
 
 warning[W0002]: variable `Y` occurs only once in this rule
   --> tests/neg/lints.hgn:10:3
@@ -18,6 +21,7 @@ warning[W0002]: variable `Y` occurs only once in this rule
 10 | s Y :- p X.
    |   ^ singleton variable
    |
+   = note: `-W singleton_variables` is on by default
    = help: use `_` or `_Y` if this is intended
 
 error[E0501]: rule is not range-restricted
@@ -34,6 +38,7 @@ warning[W0002]: variable `X` occurs only once in this rule
 10 | s Y :- p X.
    |          ^ singleton variable
    |
+   = note: `-W singleton_variables` is on by default
    = help: use `_` or `_X` if this is intended
 
 1 error, 4 warnings found

@@ -4,5 +4,5 @@ fib : (n : int) -> (f : int) -> rel.
 %terminates n fib.
 fib 0 0.
 fib 1 1.
-fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
+fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0604 *)
 ?- fib 10 F.

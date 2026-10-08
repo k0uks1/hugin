@@ -3,5 +3,5 @@ p : int -> rel.
 q : int -> rel.
 base : int -> rel.
 base 1.
-p X :- base X, not q X.
+p X :- base X, not q X. (*~ E0601 *)
 q X :- base X, not p X.

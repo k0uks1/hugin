@@ -1,7 +1,7 @@
 (* malformed lexicographic measures *)
 p : int -> int -> rel.
-%terminates (X, X) (p X _).
+%terminates (X, X) (p X _). (*~ E0701 *)
 q : (a : int) -> (b : int) -> rel.
-%terminates (a, c) q.
+%terminates (a, c) q. (*~ E0701 *)
 r : (a : int) -> (b : int) -> rel.
-%terminates (a, a) r.
+%terminates (a, a) r. (*~ E0701 *)

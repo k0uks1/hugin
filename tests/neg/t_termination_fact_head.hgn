@@ -3,5 +3,5 @@
    Proposition 8.8 was repaired this program was accepted and did not terminate) *)
 t : type. z : t. %fact s : t -> t.
 s (s z).
-s (s N) :- s N.
+s (s N) :- s N. (*~ E0603 *)
 ?- s X.
