@@ -14,12 +14,22 @@ trait Records:
   self: Elaborator =>
   import core.*
 
-  def dupLabels(ls: List[Ident]): Unit =
+  /** E0307: a label used twice (in a named pattern, an update or a struct's columns). */
+  def dupLabels(ls: List[Ident]): Unit = firstDuplicate(ls).foreach((l, first) => fail(ElabProblem.DuplicateLabel(l.name, l.span, first)))
+
+  /** E0307: a field used twice in a record value or a signature. */
+  def dupFields(ls: List[Ident], inSignature: Boolean): Unit =
+    firstDuplicate(ls).foreach((l, _) => fail(ElabProblem.DuplicateField(l.name, inSignature, l.span)))
+
+  private def firstDuplicate(ls: List[Ident]): Option[(Ident, Span)] =
     val seen = scala.collection.mutable.HashMap.empty[Name, Span]
-    for l <- ls do
+    ls.collectFirst(Function.unlift { l =>
       seen.get(l.name) match
-        case Some(first) => fail(ElabProblem.DuplicateLabel(l.name, l.span, first))
-        case None => seen(l.name) = l.span
+        case Some(first) => Some((l, first))
+        case None =>
+          seen(l.name) = l.span
+          None
+    })
 
   /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. A field whose type is
    *  the type of an object constant (`node : type`, `edge : node -> node -> rel`, `dot : shape`,
@@ -28,7 +38,7 @@ trait Records:
    *  are part of the record type ([[SigReq]]). */
   def checkRecordType(c: Cxt, entries: List[SigEntry], l: Level): Tm =
     val fields = entries.collect { case SigEntry.FieldDecl(lb, tpe, _) => (lb, tpe) }
-    dupLabels(fields.map(_._1))
+    dupFields(fields.map(_._1), inSignature = true)
     var cc = c
     val tys = fields.map { (lb, tpe) =>
       val ft = signatureFieldType(cc, tpe, l)
@@ -57,7 +67,7 @@ trait Records:
 
   /** A record value with an inferred (non-dependent) record type. */
   def inferRecord(c: Cxt, fields: List[Field]): (Tm, Val, Stage) =
-    dupLabels(fields.map(_.label))
+    dupFields(fields.map(_.label), inSignature = false)
     val parts = fields.map(f => (f.label.name, inferS(c, f.value, Stage.S1)))
     // field j's type lives under j telescope binders: quoting at the deeper level shifts it
     val tys = parts.zipWithIndex.map { case ((l, (_, ty)), j) => (l, quote(c.lvl + j, ty)) }
@@ -66,7 +76,7 @@ trait Records:
   /** A record value checked against a record type: exactly its fields, each against its type
    *  instantiated with the earlier fields' values. */
   def checkRecord(c: Cxt, t: Tree, fields: List[Field], rt: Val.RecTy): Tm =
-    dupLabels(fields.map(_.label))
+    dupFields(fields.map(_.label), inSignature = false)
     val byLabel = fields.map(f => f.label.name -> f).toMap
     fields.find(f => !rt.labels.contains(f.label.name)).foreach { f =>
       fail(
@@ -93,6 +103,8 @@ trait Records:
           case Some(fty) => (Tm.Proj(qt, sel.name), fty, qs)
           case None => noField(c, sel, qty, rt.labels)
       case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
+      case other if qs == Stage.S1 && sel.qual.isInstanceOf[Ident] =>
+        fail(ElabProblem.NotAModule(hugin.syntax.Printer.show(sel.qual), show(c, other), sel.qual.span))
       case other =>
         fail(
           Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")

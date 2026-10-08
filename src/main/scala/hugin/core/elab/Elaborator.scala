@@ -46,7 +46,8 @@ final class ElabState:
   /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
   var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
 
-  /** Names whose definitions were dropped without an error of their own (see [[Imports]]). */
+  /** Names whose declarations were dropped for an error (reported, or an erroneous import): their uses
+   *  drop the items using them without further errors. */
   val erroneous: mutable.Set[Name] = mutable.HashSet.empty
 
   /** The globals that names resolved to (for W0003, unused definitions). */

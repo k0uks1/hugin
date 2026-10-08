@@ -53,8 +53,8 @@ trait Items:
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
             report(e)
-            // a name defined by an item dropped silently (an erroneous import) is erroneous too
-            if e.silent then declares(item).foreach(state.erroneous += _)
+            // the names of a dropped item are erroneous: their uses are not reported again
+            declares(item).foreach(state.erroneous += _)
             None
           case None => None
       }

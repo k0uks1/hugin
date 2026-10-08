@@ -24,6 +24,7 @@ enum ElabProblem extends Problem:
   case MissingLabels(rel: String, missing: List[String], inHead: Boolean, at: Span, afterLast: Option[Span])
   case UnlabelledColumns(rel: String, at: Span)
   case DuplicateLabel(label: String, at: Span, first: Span)
+  case DuplicateField(label: String, inSignature: Boolean, at: Span)
 
   /** A data constructor or data struct (`what`) used as a relation; `decl` is its declaration (with its
    *  text if it is in the file of the use). */
@@ -43,6 +44,7 @@ enum ElabProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+  case NotAModule(name: String, tpe: String, at: Span)
 
   /** A family's type argument (`what`: "type argument `A` of family `nil`") that nothing determines. */
   case UndeterminedTypeArgument(what: String, at: Span)
@@ -78,7 +80,7 @@ enum ElabProblem extends Problem:
     case _: RestInHead => Code.E0302
     case _: UnknownLabel | _: UnlabelledColumns => Code.E0306
     case _: MissingLabels => Code.E0301
-    case _: DuplicateLabel => Code.E0307
+    case _: DuplicateLabel | _: DuplicateField => Code.E0307
     case _: DataAsRelation | _: DataFieldAsRelation => Code.E0406
     case _: SingletonVariable => Code.W0002
     case _: UnknownDirective | _: NotARelation => Code.E0701
@@ -91,6 +93,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: NotAModule => Code.E0107
     case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
     case _: CyclicRefinement => Code.E0404
@@ -113,6 +116,7 @@ enum ElabProblem extends Problem:
     case MissingLabels(_, _, _, s, _) => s
     case UnlabelledColumns(_, s) => s
     case DuplicateLabel(_, s, _) => s
+    case DuplicateField(_, _, s) => s
     case DataAsRelation(_, _, _, s, _, _, _) => s
     case SingletonVariable(_, s) => s
     case DataFieldAsRelation(_, _, s) => s
@@ -130,6 +134,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case NotAModule(_, _, s) => s
     case UndeterminedTypeArgument(_, s) => s
     case SignatureMismatch(_, _, s) => s
     case MissingSignatureField(_, _, s) => s
@@ -154,6 +159,7 @@ enum ElabProblem extends Problem:
     case MissingLabels(r, ms, _, _, _) => msg"missing label${Lit(if ms.length > 1 then "s" else "")} in named pattern for ${Src(r)}"
     case UnlabelledColumns(r, _) => msg"${Src(r)} does not label all of its columns, so it cannot be used with a named pattern"
     case DuplicateLabel(l, _, _) => msg"duplicate label ${Src(l)}"
+    case DuplicateField(l, sig, _) => msg"duplicate field ${Src(l)}${Lit(if sig then " in signature" else "")}"
     case DataAsRelation(n, w, _, _, _, _, _) => msg"${Lit(w)} ${Src(n)} used as a relation"
     case SingletonVariable(n, _) => msg"variable ${Src(n)} occurs only once in this rule"
     case DataFieldAsRelation(n, _, _) => msg"data constructor ${Src(n)} used as a relation"
@@ -171,6 +177,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case NotAModule(n, _, _) => msg"${Src(n)} is not a module"
     case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
     case _: SignatureMismatch => msg"signature mismatch"
     case MissingSignatureField(l, _, _) => msg"signature mismatch: missing field ${Src(l)}"
@@ -201,6 +208,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
     case _: UndeterminedTypeArgument => msg"type not determined"
     case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
     case MissingSignatureField(l, _, _) => msg"field ${Src(l)} is required"
@@ -237,6 +245,7 @@ enum ElabProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case _: NotAModule => List(msg"a path `m.x` requires `m` to be module-valued")
     case SignatureMismatch(_, n, _) => List(Msg.text(n))
     case NotAFactConstructor(_, l, _) =>
       List(msg"field ${Src(l)}: a data constructor where a fact constructor is expected (declare the constructor with `%fact`)")
@@ -266,7 +275,8 @@ enum ElabProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
-    case _: UndeterminedTypeArgument => List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
+    case _: UndeterminedTypeArgument =>
+      List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")
     case IncompleteFieldParameter(_, p, l, _, _, _) => List(msg"add ${Src(s"%complete $l")} to the signature of ${Src(p)}")
     case _: IncompleteRelationParameter =>
