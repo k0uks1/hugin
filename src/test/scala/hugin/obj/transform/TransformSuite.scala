@@ -2,7 +2,6 @@ package hugin.obj.transform
 
 import hugin.TestSupport
 import hugin.obj.ObjPrinter
-import hugin.util.diagnostics.Code
 
 /** The object-level transformations of Section 7. */
 class TransformSuite extends munit.FunSuite:
