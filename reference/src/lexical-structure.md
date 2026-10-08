@@ -34,7 +34,7 @@ The case of the first character decides the class of an identifier:
   nowhere else.
 
 The identifier `Type` is lexically a variable. It names the universe of meta types (see
-[Universes](meta/universes.md)) wherever it is not bound by a declaration.
+[Universes](meta/universes.md)).
 
 It is an error ([E0004](errors/E0004.md)) to declare a constant with a variable as its name.
 

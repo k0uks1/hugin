@@ -84,8 +84,8 @@ type of its constructor and of every open type it has an edge to.
 ## Unions
 
 A *union* `τ₁ | … | τₙ` is the type of the values of any of its members. The members of a union are
-fact types or unions of fact types, and do not overlap; it is an error
-([E0404](../errors/E0404.md)) otherwise. A type is *closed* if it is a fact type or a union of closed
+*types of facts* (open types, fact types and unions of them), and no two of them have a common member;
+it is an error ([E0404](../errors/E0404.md)) otherwise. A type is *closed* if it is a fact type or a union of closed
 types. Projections and updates apply only to closed types ([Records](rules.md#records)), since a closed
 type has a known set of members.
 
