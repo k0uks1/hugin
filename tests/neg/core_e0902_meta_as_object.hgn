@@ -1,0 +1,5 @@
+(* new meta level: a meta value that is not object code used in object code *)
+nat : Type.
+zero : nat.
+q : int -> rel.
+q zero.

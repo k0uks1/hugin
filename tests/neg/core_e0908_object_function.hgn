@@ -1,0 +1,2 @@
+(* new meta level: the object level is first order *)
+r : type -> rel.

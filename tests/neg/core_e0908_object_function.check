@@ -1,0 +1,9 @@
+error[E0908]: relations and constructors cannot take object types as arguments
+ --> tests/neg/core_e0908_object_function.hgn:2:5
+  |
+2 | r : type -> rel.
+  |     ^^^^ a type
+  |
+  = note: the object level is first order; families of relations are meta functions returning relations
+
+1 error found

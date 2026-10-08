@@ -58,10 +58,26 @@ object ErrorCodes:
     Code.E0606 -> "A rule reads a bound column of a relation of its own recursive component in a way that is not monotone (Kaminski et al. 2017, Berent et al. Def. 4): the value must occur in exactly one atom, linearly (non-zero integer coefficients), only in the bound column of a bound head and in `<`, `<=`, `>`, `>=` comparisons, in the direction in which improving it improves the head or keeps the comparison true: for a `min` head (or the smaller side of a comparison) with a positive coefficient from `min` columns and a negative one from `max` columns, dually for `max`. Values of bound relations of earlier components are constants and can be used freely.",
     Code.E0701 -> "A directive refers to a relation of the wrong kind or arity.",
     Code.E0801 -> "An input fact is not ground, not well-typed, or not for an input relation.",
+    Code.E0901 -> "A term does not have the type expected by its context in the new meta level, and no coercion (stage adjustment, lift, record coercion) applies. Notes say why unification failed: an unknown that would contain itself (occurs check), that would mention a variable out of its scope, or that is applied to arguments that are not distinct variables (outside the pattern fragment).",
+    Code.E0902 -> "Object code (rule variables, constructor terms, formulas) is used where a compile-time value is needed, or a compile-time value that is not object code (`⇑A`) or a primitive value is used as object code. Object code exists only at run time; the meta level computes at compile time and can only take object code as data of type `⇑A`.",
+    Code.E0903 -> "An implicit argument, the type of a variable or another unknown is not determined by elaboration. Add a type annotation or pass the argument.",
+    Code.E0904 -> "The universe levels required by the program have no solution. Levels are inferred and cumulative (`Type₀ : Type₁ : …`, and a type in `Typeᵢ` is in `Typeⱼ` for i ≤ j); `Type : Type` is excluded because it makes the meta level inconsistent and non-terminating.",
+    Code.E0905 -> "A term is applied to an argument but its type is not a function type (or a relation is applied to too many arguments).",
+    Code.E0906 -> "A projection names a field the record type (or relation) does not have, or a record value lacks a field of its expected type.",
+    Code.E0907 -> "The construct is part of the language but not yet supported by the new meta level (`--new-meta`), which is developed in steps (docs/REDESIGN.md §10, Phase B).",
+    Code.E0908 -> "The object level is first order: object functions (lambdas at the object level) and relations or constructors over object types cannot be defined. Functions on object code are meta functions (formula functions, functors); families of relations are meta functions returning relations.",
+    Code.E0909 -> "After evaluating the meta code of an object item, what remains is not object code: meta code spliced into it is stuck (it applies a postulated meta function or a variable), or a compile-time primitive value is undefined (overflow, division by zero).",
+    Code.E0910 -> "A rule head must be an atom (a relation applied to all of its columns) or a constructor term.",
+    Code.E0911 -> "Meta functions are total: their clauses must cover every combination of constructors of the matched arguments. Cases that are impossible by the indices of the types (`head : vec A (suc N) -> A` applied to `vnil`) need no clause. The diagnostic shows a missing case.",
+    Code.E0912 -> "Meta functions must terminate: along every cycle of calls between functions, some argument must get structurally smaller (a proper constructor subterm of the clause's pattern). The check uses the size-change principle (Lee, Jones & Ben-Amram), so lexicographic orders, mutual recursion and permuted arguments are recognised.",
+    Code.E0913 -> "An inductive family occurs in a non-positive position in the type of one of its constructors (to the left of an arrow, or inside an argument of another type). Such types make the meta level inconsistent and non-terminating, so they are rejected (strict positivity).",
+    Code.E0914 -> "A constructor must return its family applied to all of its arguments, and its arguments must live in the family's universe (predicativity); clauses can only define meta functions, not constructors, families or object relations.",
+    Code.E0915 -> "A clause's patterns must be uppercase variables (each bound once), `_`, constructors applied to their explicit arguments, or natural-number literals of a nat-like type, and every clause of a function has the same number of patterns. Matching must be decidable: a constructor pattern must be against an inductive type whose indices unify with the constructor's, or clearly do not.",
     Code.W0001 -> "An object-level expression over literals is undefined, so the rule can never fire.",
     Code.W0002 -> "A variable occurs only once in a rule; use `_` if this is intended.",
     Code.W0003 -> "A top-level meta function, formula function or constant is never referenced.",
-    Code.W0005 -> "A formula function is declared without clauses or definition; it is always false."
+    Code.W0005 -> "A formula function is declared without clauses or definition; it is always false.",
+    Code.W0006 -> "A clause of a meta function is never used: the clauses before it cover every case it matches."
   )
 
   /** The explanation of a code (case-insensitive) as printed by `hugin explain` and `:explain`. */

@@ -1,0 +1,10 @@
+error[E0905]: not a function
+ --> tests/neg/core_e0905_not_a_function.hgn:4:6
+  |
+4 | p :- edge 1 2 3.
+  |      ^^^^^^^^ - argument
+  |      applied to an argument here
+  |
+  = note: `edge` cannot be applied: it is already a complete atom: too many arguments
+
+1 error found

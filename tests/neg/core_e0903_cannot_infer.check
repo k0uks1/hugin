@@ -1,0 +1,9 @@
+error[E0903]: cannot infer the type of `x`
+ --> tests/neg/core_e0903_cannot_infer.hgn:2:10
+  |
+2 | ident = [x] x.
+  |          ^ cannot infer this
+  |
+  = note: the elaborator found no constraint that determines it; add a type annotation
+
+1 error found

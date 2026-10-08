@@ -673,6 +673,154 @@ need (A) for some relations and (B) for others at once (a hand-written demand re
 component as its answer relation, which happens when demand depends on answers; the generated demand of
 `%mode` is covered by the demand-driven case). Argument permutations are covered by (A).
 
+## New meta level (redesign Phase B)
+
+The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one and is
+not part of the compiler pipeline yet: `hugin check --new-meta f.hgn` elaborates a file, `hugin run
+--new-meta f.hgn` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`, splices
+`$` and implicit arguments) followed by the staged object items. The flag is hidden. Golden tests use it
+through `.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files
+out of its corpus, since the compiler pipeline does not accept the new syntax.
+
+### Architecture
+
+The design follows Kovács's elaboration-zoo (normalisation by evaluation, bidirectional elaboration,
+metavariables with higher-order pattern unification and pruning, implicit arguments) and his staged
+elaborator for two-level type theory (*Staged Compilation with Two-Level Type Theory*, ICFP 2022).
+
+| file | contents |
+|---|---|
+| `core/Syntax.scala` | core terms `Tm` (de Bruijn indices), stages `S0` (object) / `S1` (meta), universe levels |
+| `core/Value.scala` | values: closures, neutrals (`Rigid`/`Flex` with spines of applications, splices, projections) |
+| `core/Evaluation.scala`, `Readback.scala` | `eval`, `force`, `quote`, `nf`, `zonk` |
+| `core/Renaming.scala`, `Unification.scala` | partial renamings, pruning, eta-expansion of metas; pattern unification, conversion |
+| `core/Levels.scala` | universe level constraints (difference constraints, least solution) |
+| `core/Core.scala` | the state: globals, metas, levels; `undoOnFailure` |
+| `core/Printing.scala` | printing in surface notation |
+| `core/Staging.scala`, `NewMeta.scala` | staging of object items, the driver |
+| `core/CaseTree.scala`, `Matching.scala` | case trees of functions defined by clauses, their reduction with memoisation |
+| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
+
+Every elaboration error is a diagnostic (`E09xx`, plus `E0101`/`E0102`/`E0307`); an item with an error is
+dropped and elaboration continues with the next one.
+
+### Decisions (B1)
+
+* **Universes.** `type` is the universe of object types (2LTT's U₀). It is classified by itself; this is
+  harmless because the object level is simply typed: there are no object lambdas (E0908) and object
+  arrows cannot range over `type` (a binder over object types is always a meta binder, `(A : type) -> …`
+  is `(A : ⇑type) -> …`). `Type` is the meta hierarchy: every occurrence gets a fresh level variable; the
+  constraints (`Type l : Type (l+1)`, Π and record formation, cumulativity) are difference constraints
+  kept satisfiable incrementally, with their least solution (`Levels`). Cumulativity is a coercion
+  (contravariant in Π domains), as in Kovács's subtyping coercions; unification of universes equates
+  levels. A meta whose type is a universe `Type l` gets the constraint that its solution lives in `Type l`
+  (unification alone would not check it under cumulativity). Level variables are global to a program: no
+  universe polymorphism (a definition is used at one level, which cumulativity makes rarely restrictive).
+  `Type : Type` is rejected (E0904).
+* **`⇑type` is small.** `⇑A : Type₀` for every object type `A`, also for `A = type`: object types carry no
+  meta-level computation, so a signature whose components are object types and relations
+  (`{ node : type, edge : node -> node -> rel }`) is in `Type₀`, and only signatures with meta-type
+  components (`{ t : Type }`) are in `Type₁`. REDESIGN §8.4 said `Type₁`; this is a refinement.
+* **Stage inference.** As Kovács: every term has the stage of its type's universe; checking against `⇑A`
+  checks object code under a quote; `coe` adjusts stages (quote, splice, `⇑` on types), coerces functions
+  by eta-expansion (so a relation `⇑(A -> rel)` can be passed where a formula function `⇑A -> ⇑prop` is
+  expected) and falls back to unification. Explicit forms: `$t` (splice, REDESIGN §6.9) and `⇑A`.
+* **Base types and literals (Q2).** A base type written where a meta type is expected is the meta
+  primitive (`int -> int` checked as a meta type is a function on compile-time integers, as the current
+  `Prim` types); `⇑int` is object code of type `int`. A meta primitive value used as object code is
+  persisted as a literal (`k : int = 6 * 7.  q k.` stages to `q 42.`); `$k` does the same explicitly.
+  Literals take the type and stage expected; inferred literals are meta values. Compile-time arithmetic
+  uses the shared primitives (`obj/Prims`); an undefined result (overflow, division by zero) that reaches
+  object code is E0909.
+* **Arrows.** An arrow ending in `rel` is an object relation type wherever it is written (in a signature,
+  `edge : node -> node -> rel` is `⇑($node -> $node -> rel)`). An arrow checked against `Type` is a meta
+  function type: `item -> prop` is the formula-function type `⇑item -> ⇑prop`. A relation used as a type
+  is its fact type (`listed : item -> rel`).
+* **Declarations** are classified by inferring their type (REDESIGN §6.2): an object constant (object
+  type, constructor, relation) if the type is one, otherwise the type is checked as a meta type (so
+  `f : int -> int.` is a meta function, not an object constructor into `int`). Free uppercase variables of
+  a declaration are implicit binders; when the type of such a binder is not determined before it is used
+  as a type, it is tried as a meta type first and then as an object type (`vcons : A -> vec A N -> …` vs.
+  `cons : A -> list A -> list A` with `list : type -> type`); the failed alternative is undone
+  (`Core.undoOnFailure`). Head parameters `list A : type.` range over object types. A declaration with
+  parameters or implicit binders is a meta-level constant (`list : ⇑type -> ⇑type`, `nil : {A : ⇑type}
+  -> ⇑$(list A)`): families are meta functions, memoised in B3.
+* **Order.** Meta and object declarations may be written in any order: an item that refers to a name
+  declared by a later item is retried after it (`Items.elabInDependencyOrder`). Rules and queries are
+  elaborated after all declarations.
+* **The object level in the core** is typed by unification, without subtyping, unions or refinements:
+  enough for staging and implicit arguments. Object typing proper stays with `obj/typing/ObjTyper` (B3
+  hands it the staged items). The variables of rules are bound implicitly at stage 0 with unknown object
+  types, which may stay unsolved. A constructor application used as a formula is an atom of the
+  constructor's relation (REDESIGN §3.2).
+* **Staging** of an object item is its normalisation (`$⟨t⟩ = t`); what remains must be object code, or
+  E0909 reports the stuck meta code (a postulated meta function, an undefined primitive).
+* **Not yet (B3):** module bodies, imports, signatures with requirements (`%complete`, `%mode`),
+  aggregates, `as`, record updates, unions, subtyping edges, hygiene of object variables in formula
+  functions, generativity and memoised families (E0907 where the syntax is accepted).
+
+### Decisions (B2)
+
+* **Clauses.** `f p̄ = e.` (and `f X̄ = e.` after a declaration `f : A.`) are clauses of the declared
+  function `f`; the parser produces `Clause` items in the new syntax when a definition head is not just
+  variables. A declaration with clauses declares a function; clauses are elaborated after all
+  declarations, so functions may be (mutually) recursive and may use every declaration of the module.
+  Patterns are uppercase variables (bound once), `_`, constructors applied to their explicit arguments,
+  and natural-number literals of a nat-like type. Implicit arguments are not written in patterns; the
+  names of the function's implicit binders (`A`, `N` in `head : vec A (suc N) -> A`) are in scope in the
+  right-hand side unless a pattern variable shadows them. The arguments up to the last explicit pattern
+  are matched; the right-hand side is checked against the rest of the type.
+* **Inductive families.** A meta declaration without definition or clauses is classified by its type:
+  `T : Δ -> Type.` is an inductive family, `c : Δ -> T ū.` (with `T` a family of the module, fully
+  applied) one of its constructors, anything else a postulate (kept for now: postulates are stuck at
+  compile time, and E0909 reports them when object code depends on them). All arguments of a family are
+  indices: there is no separate notion of parameters, dependent matching unifies them. Constructors are
+  checked for strict positivity (E0913) and predicativity: their argument types must live in the
+  family's universe, which levels inference turns into constraints (`small : Type. mk : Type -> small.`
+  is accepted with `small : Type₁`, but `mk small` is then a universe inconsistency).
+* **Case trees** follow Cockx & Abel (ICFP 2018), without copatterns and without the restrictions of
+  `--without-K`: a split context whose variables may be *solved* by index unification (deletion,
+  solution, injectivity, conflict, cycle), equations `term / pattern` per clause, splitting on the first
+  constructor pattern of the first applicable clause. Constructors whose indices conflict get no branch
+  (impossible cases need no clause); a branch without clauses is accepted only if some variable has no
+  applicable constructor (an empty split, as `lookup vnil i` with `i : fin zero`), otherwise it is a
+  missing case (E0911, which prints the missing pattern). Unification problems that are neither
+  solvable nor impossible (an index `plus N M` against `zero`) are reported (E0915) rather than
+  postponed. A clause that never reaches a leaf is unreachable (W0006).
+* **Evaluation.** A function applied to its arity of arguments runs its case tree; a split on a neutral
+  leaves the application neutral, and `force` retries it later. Applications to closed arguments are
+  memoised by their normal forms (sound, since meta functions are total and pure); this makes
+  `fibm (suc (suc N)) = fibm N + fibm (suc N)` linear, so `fib 90 (fibm 90).` stages to
+  `fib 90 2880067194370816120.` (REDESIGN §8.2).
+* **Termination** uses the size-change principle (Lee, Jones & Ben-Amram) over the constructor-subterm
+  order, implemented on its own in `core/elab/SizeChange.scala` (a call graph with size-change matrices,
+  closed under composition; every idempotent self-loop needs a strict decrease). It accepts structural,
+  lexicographic (Ackermann), mutual and permuted recursion. The object level's checker
+  (`obj/check/Termination.scala`, reworked in Phase A) solves a different problem (derivations of
+  facts); sharing the closure computation is possible later.
+* **`where` blocks** (designer addition to §6.4). Parsing: in the new syntax `where` is a keyword. After
+  the right-hand side of a clause starting at column `c`, `where` opens a block of items (definitions,
+  signatures, clauses); the block takes every following item that starts at a column greater than `c`
+  and ends before the first item starting at column `c` or less, at a `}` or at the end of the file. The
+  first binding may follow `where` on the same line. Each binding ends with its own period; the last
+  one ends the clause (no period before `where`). Nested blocks follow the same rule relative to their
+  binding's column. A definition head `f X̄ = e where …` with only variables is a clause as well.
+  Elaboration (`core/elab/Where.scala`), at each leaf of the clause, in order: `x = e.` and `x : A = e.`
+  are let-bound (`Let` in the leaf's body); a local function (`f : A.` and the clauses after it) is
+  lambda-lifted to a hidden global whose type abstracts over the bound variables of the leaf's context
+  (defined ones are let-bound in its type, and every name in scope is re-defined in its clauses from
+  its arguments), elaborated by the clause compiler, and its name is let-bound to the global applied
+  to the context; an irrefutable pattern binding `c x̄ = e.` becomes one lifted selector function
+  `sel (c x̄) = xᵢ` per name, so that coverage rejects refutable patterns (E0911), and fields whose
+  types depend on other fields are not supported (E0915). Termination: calls through the let-bound
+  names of local functions are calls of the lifted functions. Every function's termination is checked
+  as soon as its case tree exists, and a rejected function's case tree is removed, so that no
+  possibly non-terminating function is ever evaluated during elaboration.
+* **Literals (Q2).** A literal checked against a nat-like family (exactly a constant constructor and one
+  with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
+  otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
+  has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
+
 ## Bound columns (redesign A2)
 
 The rules are in `docs/REDESIGN.md` §5.2 (with the definitions of Kaminski et al. 2017 and Berent et al.

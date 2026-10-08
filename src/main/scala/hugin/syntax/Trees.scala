@@ -89,6 +89,20 @@ object Trees:
   /** `%import "path"`: the module value of another source file (Section 4.3, M-Body). */
   final case class Import(path: String)(val span: Span, val pathSpan: Span) extends Tree
 
+  // ---- syntax of the new meta level only (parsed in `meta2` mode; docs/REDESIGN.md §6)
+
+  /** `$t`: an explicit splice (REDESIGN §6.9); normally inferred. */
+  final case class SpliceE(arg: Tree)(val span: Span) extends Tree
+
+  /** `⇑t`: the lift of an object type to the meta level; normally inferred. */
+  final case class LiftE(arg: Tree)(val span: Span) extends Tree
+
+  /** `{A B : T}` in front of `->`: implicit binders (only as the domain of an [[ImplicitPi]]). */
+  final case class ImplicitBinder(names: List[Tree], tpe: Tree)(val span: Span) extends Tree
+
+  /** `{A B : T} -> B`: an implicit Π type. */
+  final case class ImplicitPi(names: List[Tree], dom: Tree, cod: Tree)(val span: Span) extends Tree
+
   final case class Field(label: Ident, value: Tree)
 
   enum SigEntry:
@@ -129,6 +143,10 @@ object Trees:
 
   /** `name param* = expr.` */
   final case class Def(name: Ident, params: List[Param], rhs: Tree)(val span: Span) extends Item
+
+  /** `f p̄ = e.` with patterns that are not all variables, or with a `where` block of local definitions:
+   *  an equational clause of a meta function (new meta level only, REDESIGN §6.4). */
+  final case class Clause(lhs: Tree, rhs: Tree, where: List[Item] = Nil)(val span: Span) extends Item
 
   /** `type <: type.` */
   final case class SubEdge(sub: Tree, sup: Tree)(val span: Span) extends Item

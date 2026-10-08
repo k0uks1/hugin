@@ -71,6 +71,7 @@ object ItemKey:
         case q: Query => anon("query", q)
         case d: Directive => anon("directive", d)
         case e: SubEdge => anon("edge", e)
+        case c: Clause => anon("clause", c) // only in the syntax of the new meta level
       ItemKey(scope, id)
     }
 

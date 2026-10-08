@@ -1,0 +1,12 @@
+error[E0912]: cannot show that `grow` terminates
+ --> tests/neg/core_e0912_termination.hgn:5:1
+  |
+5 | grow : nat -> nat.
+  | ^^^^ possibly non-terminating
+...
+7 | grow (suc N) = grow (suc (suc N)).
+  | ---------------------------------- in this clause: `grow (suc (suc N))`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+1 error found

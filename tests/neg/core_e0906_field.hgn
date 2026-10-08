@@ -1,0 +1,4 @@
+(* new meta level: projection of a field the record type does not have *)
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+z = origin.z.

@@ -1,0 +1,80 @@
+package hugin.core
+package elab
+
+import hugin.obj.BaseType
+import hugin.syntax.{Tree, TreeOps}
+import hugin.syntax.Trees.*
+import hugin.util.*
+import hugin.util.diagnostics.{Applicability, Code as DiagCode, Legacy}
+
+/** Name resolution: bound variables, top-level names, builtin base types; implicitly bound variables. */
+trait Names:
+  self: Elaborator =>
+  import core.*
+
+  val builtinTypes: Map[String, BaseType] =
+    Map("int" -> BaseType.IntT, "float" -> BaseType.FloatT, "string" -> BaseType.StringT)
+
+  private def lookupGlobal(n: Name): Option[Int] = scope.get(n)
+
+  def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
+    c.scope.get(n) match
+      case Some(l) =>
+        val b = c.binder(l)
+        (Tm.Var(c.lvl - l - 1), b.ty, b.stage)
+      case None =>
+        lookupGlobal(n) match
+          case Some(id) =>
+            val g = globals(id)
+            (Tm.Global(id), g.ty, g.stage)
+          case None =>
+            builtinTypes.get(n) match
+              case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
+              case None => unresolved(c, n, span)
+
+  private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
+    val candidates = (c.scope.keys ++ scope.keys).toList.distinct
+    val similar = candidates
+      .filter(k => k != n && org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(k, n) <= 2)
+      .sorted
+      .headOption
+    var d = Legacy.error(DiagCode.E0101, s"unresolved name `$n`", span, "not found in this scope")
+    similar.foreach(s =>
+      d = d.withHelp(s"a name with a similar spelling exists: `$s`").withSuggestion(
+        s"replace with `$s`",
+        span,
+        s,
+        Applicability.MaybeIncorrect
+      )
+    )
+    throw ElabError(d, unresolved = Some(n))
+
+  def paramName(p: Tree): Name = p match
+    case VarRef(n) => n
+    case Ident(n) => n
+    case Wildcard() => "_"
+    case other => error(DiagCode.E0001, "expected a parameter name", other.span)
+
+  def nameOf(t: Tree): Name = t match
+    case Ident(n) => n
+    case VarRef(n) => n
+    case _ => "_"
+
+  /** The names bound by a binder `(x : A)` or `(A B : T)`: the part before the colon, if it is names. */
+  def boundNames(t: Tree): Option[List[Tree]] =
+    val (h, args) = TreeOps.flattenApp(t)
+    Option.when((h :: args).forall(x => x.isInstanceOf[VarRef] || x.isInstanceOf[Ident]))(h :: args)
+
+  /** Free uppercase variables of a type or term, in order of occurrence (the implicit binders of a
+   *  declaration, the variables of a rule). Variables bound by Π binders and lambdas are not free. */
+  def freeVars(t: Tree, bound: Set[Name]): List[VarRef] = freeVarsIn(t, bound).distinctBy(_.name)
+
+  private def freeVarsIn(t: Any, bound: Set[Name]): List[VarRef] = t match
+    case v: VarRef => if bound(v.name) || v.name == "Type" || v.name == "_" then Nil else List(v)
+    case ImplicitPi(ns, d, c) => freeVarsIn(d, bound) ++ freeVarsIn(c, bound ++ ns.map(nameOf))
+    case Arrow(None, Ascribe(ns, a), c) if boundNames(ns).isDefined =>
+      freeVarsIn(a, bound) ++ freeVarsIn(c, bound ++ boundNames(ns).get.map(nameOf))
+    case Lambda(p, ann, b) => freeVarsIn(ann, bound) ++ freeVarsIn(b, bound + nameOf(p))
+    case p: Product => p.productIterator.toList.flatMap(freeVarsIn(_, bound))
+    case it: Iterable[?] => it.toList.flatMap(freeVarsIn(_, bound))
+    case _ => Nil

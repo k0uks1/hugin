@@ -1,0 +1,5 @@
+(* new meta level: a rule variable (run time) passed where a compile-time int is needed *)
+q : int -> rel.
+below : int -> int -> prop = [n] [x] q x.
+r : int -> rel.
+r X :- q X, below X 3.
