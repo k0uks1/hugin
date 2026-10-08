@@ -19,7 +19,6 @@ final class CompletenessPhase extends Phase:
     val facts = ctx.unit.facts
     for r <- p.rels do
       if facts(r).open then why(r) = Incompleteness.Open(r)
-      else if facts(r).partial then why(r) = Incompleteness.Partial(r)
     var changed = true
     while changed do
       changed = false

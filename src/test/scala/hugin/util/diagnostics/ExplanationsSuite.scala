@@ -30,7 +30,7 @@ class ExplanationsSuite extends munit.FunSuite:
     val compiled = c.reporter.diagnostics
     e.facts match
       case Some(f) if !c.reporter.hasErrors =>
-        compiled ++ hugin.runtime.Evaluation.run(c, List(SourceFile.virtual("test.facts", f)), None).diagnostics
+        compiled ++ hugin.runtime.Evaluation.run(c, List(SourceFile.virtual("test.facts", f))).diagnostics
       case _ => compiled
 
   private def file(c: Code): Path = dir.resolve(s"${c.id}.md")

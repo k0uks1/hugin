@@ -3,7 +3,8 @@ package hugin.ir
 import hugin.obj.{ArithOp, CmpOp, Rule, Query, RelDirectives, RelSym}
 import hugin.syntax.AggKind
 
-/** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String) or identities. */
+/** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String), identities, or the infinite
+ *  values of integer columns (`hugin.runtime.Infinity`, docs/REDESIGN.md §5.2). */
 final case class Id(rel: Int, n: Int)
 
 /** The value, in a comparison, of a term with a fact-constructor subterm that is not a fact (`c t̄` with
@@ -54,7 +55,10 @@ final class CompiledRule(
     val body: Array[BodyOp],
     val headRel: Int,
     val headArgs: Array[Expr],
-    val recursiveAtoms: Int
+    val recursiveAtoms: Int,
+    /** Registers holding the identities of the tuples matched by the atoms of the component whose bound
+     *  column flows into the head's bound column: the edges of the value propagation graph. */
+    val limitRegs: Array[Int] = Array.empty
 )
 
 final class CompiledQuery(

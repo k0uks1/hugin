@@ -1,0 +1,8 @@
+source "a".
+edge "a" "b" 4.  edge "a" "c" 1.  edge "c" "b" 2.  edge "b" "d" 5.
+(* a negative cycle e -> f -> e, reachable from a, and a node g after it *)
+edge "d" "e" 1.  edge "e" "f" (-3).  edge "f" "e" 1.  edge "f" "g" 7.
+(* a cycle of positive edges p -> q -> p, reachable from a *)
+edge "a" "p" 2.  edge "p" "q" 1.  edge "q" "p" 1.
+(* unreachable *)
+edge "x" "y" 1.

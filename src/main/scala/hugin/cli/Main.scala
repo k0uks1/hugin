@@ -64,7 +64,7 @@ object Main:
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
     case Command.Repl(files, batch, echo) =>
-      val session = Session(opts.settings, opts.run.budget, opts.run.stats)
+      val session = Session(opts.settings, opts.run.stats)
       val ok = Repl.run(session, files, opts.run.facts, batch, echo, opts.display, in, out, err)
       if ok then ExitCode.Ok else ExitCode.Errors
     case Command.Lsp =>
@@ -123,7 +123,7 @@ object Main:
       if !ok then err(s"error: no such facts file `$f`")
       ok
     }
-    val outcome = db(Evaluate, EvaluateKey(key, facts, opts.run.budget, opts.run.allRelations))
+    val outcome = db(Evaluate, EvaluateKey(key, facts, opts.run.allRelations))
     render(compiled.diagnostics ++ outcome.diagnostics, opts.display, err)
     outcome.result match
       case None => ExitCode.Errors

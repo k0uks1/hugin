@@ -10,6 +10,5 @@ error[E0604]: invalid `%terminates` directive for `bits`
   |
   = note: the measure of `bits` is argument 1 `n` (integer); for the call it must be smaller than for the caller
   = help: the body must imply `N - H >= 1`, e.g. through `H = N - 1`
-  = help: if the recursion terminates for another reason, mark the relation `%partial bits.` to evaluate it with a round budget
 
 1 error found

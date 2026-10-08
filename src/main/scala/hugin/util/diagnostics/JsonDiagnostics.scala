@@ -7,7 +7,7 @@ import hugin.util.{Diagnostic, Origin, Span}
  *
  *  {{{
  *  {"version":1,
- *   "code":{"id":"E0602","title":"...","explanation":"docs/errors/E0602.md"} | null,
+ *   "code":{"id":"<id>","title":"...","explanation":"docs/errors/<id>.md"} | null,
  *   "level":"error"|"warning"|"note", "message":"...",
  *   "spans":[{"file","start":{"line","col"},"end":{"line","col"},"primary","label"}],
  *   "notes":["..."], "helps":["..."],

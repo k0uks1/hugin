@@ -1,0 +1,8 @@
+(* A.2 (7), after %partial was removed: without a round budget an unbounded counter is rejected (E0603);
+   the bounded readers do not help, the component of `nat` itself must terminate *)
+nat : int -> rel.
+nat 0.
+nat M :- nat N, M = N + 1.
+small : int -> rel.
+small N :- nat N, N < 4.
+%output small.

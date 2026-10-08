@@ -19,6 +19,7 @@ object Compiler:
     List(hugin.obj.transform.DemandPhase()),
     List(hugin.obj.transform.DerivationsPhase()),
     List(hugin.obj.check.StratifyPhase()),
+    List(hugin.obj.check.BoundColumnsPhase()),
     List(hugin.obj.check.CompletenessPhase()),
     List(hugin.obj.check.TerminationPhase()),
     List(hugin.ir.LowerPhase())

@@ -267,12 +267,11 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(Session().execute(":hovr x").diagnostics.head.helps.head, "did you mean `:hover`?")
   }
 
-  test(":budget, :stats, :explain, :help and :quit") {
+  test(":stats, :explain, :help and :quit") {
     val s = session(graph*)
     assertEquals(s.execute(":stats on").output, List("statistics: on"))
     assert(s.execute("?- path a c.").output.exists(_.startsWith("(* {path}")))
-    assertEquals(s.execute(":budget 2").output, List("round budget: 2"))
-    assert(s.execute(":budget lots").hasErrors)
+    assert(s.execute(":budget 2").hasErrors) // removed with %partial
     assertEquals(s.execute(":explain e0101").output.head, "# E0101: unresolved name")
     assert(s.execute(":help").output.exists(_.contains(":print <phase> [<name>]")))
     assert(s.execute(":quit").quit)

@@ -33,7 +33,7 @@ class GeneratedFuzzSuite extends FuzzSuite:
       case Left(problem) => List(problem)
       case Right(c) =>
         val prog = c.unit.core.nn
-        val engine = Engine(prog, None)
+        val engine = Engine(prog)
         val reporter = Reporter()
         val loader = FactLoader(engine, prog, TypeOps(c.unit.prog.nn), reporter)
         factFiles(p).foreach(loader.load)
@@ -51,7 +51,7 @@ class GeneratedFuzzSuite extends FuzzSuite:
   /** The output lines of `run` (sorted, if `sorted`), or the problem. */
   private def output(p: Program, sorted: Boolean = true): Either[String, List[String]] =
     accepted(p).flatMap { c =>
-      val outcome = Evaluation.run(c, factFiles(p), budget = None)
+      val outcome = Evaluation.run(c, factFiles(p))
       outcome.result.map(r => if sorted then r.output.sorted else r.output).toRight(
         s"evaluation failed: ${outcome.diagnostics.map(_.message).mkString("; ")}"
       )
@@ -123,6 +123,6 @@ class GeneratedFuzzSuite extends FuzzSuite:
 
   property("generated programs are handled robustly by check and run") {
     Prop.forAll(ProgramGen.programs) { g =>
-      verdict("robustness", g.program, Fuzz.robustness(g.program, budget = 2, mustRun = true))
+      verdict("robustness", g.program, Fuzz.robustness(g.program, mustRun = true))
     }
   }

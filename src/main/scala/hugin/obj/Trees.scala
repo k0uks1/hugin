@@ -122,7 +122,7 @@ enum DirKind:
 
   /** The measure labels (several for a lexicographic measure). */
   case TerminatesLabel(labels: List[String])
-  case Partial, Open, Input, Output
+  case Open, Input, Output
   case Derivations
   case NameHint(v: String)
 
@@ -134,7 +134,7 @@ final case class Edge(sub: OType, sup: TypeSym)(val span: Span, val origin: Orig
 
 /** A requirement of a functor's parameter signature (Section 4.4) on the relation passed for `label`. */
 enum Requirement:
-  /** `%complete label`: the relation is neither open nor partial. */
+  /** `%complete label`: the relation is not open. */
   case Complete(label: String, span: Span)
 
   /** `%mode label m`: the relation has mode `m`. */

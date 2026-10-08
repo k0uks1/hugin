@@ -9,6 +9,5 @@ error[E0604]: invalid `%terminates` directive for `len[int]`
   |      the head has `cons[int] X L`
   |
   = note: the measure of `len[int]` is argument 1 (structural); for the call it must be smaller than for the head
-  = help: if the recursion terminates for another reason, mark the relation `%partial len[int].` to evaluate it with a round budget
 
 1 error found

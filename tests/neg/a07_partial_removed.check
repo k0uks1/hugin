@@ -1,0 +1,22 @@
+error[E0001]: `%partial` has been removed
+ --> tests/neg/a07_partial_removed.hgn:3:1
+  |
+3 | %partial nat.
+  | ^^^^^^^^ removed directive
+  |
+  = note: every accepted program terminates; there are no round budgets
+  = help: let an argument decrease along the recursion, bound it by a guard, or use a bound column (`min int` / `max int`)
+
+error[E0603]: growing component without a termination argument
+ --> tests/neg/a07_partial_removed.hgn:5:17
+  |
+5 | nat M :- nat N, M = N + 1.
+  |                 ^^^^^^^^^ head variable `M` is computed by `M = N + 1`
+  |
+  = note: the recursive component {nat} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `nat` -> `nat`
+  = note: descent along derivations (A) fails: along `nat` -> ... -> `nat` (rule at tests/neg/a07_partial_removed.hgn:5:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no anchor: the body bounds neither `M` nor `N` from above (measure: argument 1 (integer))
+  = help: `M` is larger than `N` but not bounded above: add a guard such as `M < 100` (or bound `N`)
+
+2 errors found

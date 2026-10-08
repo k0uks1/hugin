@@ -26,6 +26,14 @@ private[meta] trait TypeElaboration extends TyperBase:
       err(DiagCode.E0202, s"`${k.toString.toLowerCase}` is not an object type", t.span, "expected an object type")
       OType.Err
     case Trees.Union(l, r) => OType.union(List(elabOType(l, sc, tv), elabOType(r, sc, tv)))
+    case BoundType(k, inner) =>
+      err(
+        DiagCode.E0605,
+        s"`${k.show}` column type outside a relation declaration",
+        t.span,
+        "a bound column is only allowed as the last column of a relation declaration"
+      )
+      elabOType(inner, sc, tv)
     case VarRef(n) =>
       tv match
         case TVars.Family(ex, _, _) if ex.contains(n) => OType.Param(ex(n))

@@ -2,10 +2,9 @@ package hugin.cli
 
 class CommandLineSuite extends munit.FunSuite:
   test("commands and options are parsed") {
-    val o = CommandLine.parse(List("run", "a.hgn", "--facts", "x.facts", "--facts", "y.facts", "--budget", "3")).toOption.get
+    val o = CommandLine.parse(List("run", "a.hgn", "--facts", "x.facts", "--facts", "y.facts")).toOption.get
     assertEquals(o.command, Command.Run("a.hgn"))
     assertEquals(o.run.facts, List("x.facts", "y.facts"))
-    assertEquals(o.run.budget, Some(3))
     assert(!o.settings.explainTermination)
     assert(CommandLine.parse(List("check", "a.hgn", "--explain-termination")).toOption.get.settings.explainTermination)
   }
@@ -16,7 +15,7 @@ class CommandLineSuite extends munit.FunSuite:
   }
 
   test("malformed command lines are rejected with a message") {
-    assertEquals(CommandLine.parse(List("run", "a.hgn", "--budget", "-1")), Left("--budget expects a natural number, got `-1`"))
+    assert(CommandLine.parse(List("run", "a.hgn", "--budget", "3")).left.exists(_.contains("--budget"))) // removed with %partial
     assert(CommandLine.parse(List("run", "a.hgn", "--frob")).left.exists(_.contains("--frob")))
     assert(CommandLine.parse(List("run", "a.hgn", "--facts")).left.exists(_.contains("--facts")))
     assert(CommandLine.parse(List("run")).isLeft)

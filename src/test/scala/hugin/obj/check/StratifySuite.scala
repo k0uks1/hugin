@@ -106,7 +106,7 @@ class StratifySuite extends munit.FunSuite:
     val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0601))
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.startsWith("cycle: mk -> not r -> mk")), d.head.notes)
-    assert(d.head.notes.exists(_.contains("Proposition 8.8")), d.head.notes)
+    assert(d.head.notes.exists(_.contains("asserts facts of `mk` in its head")), d.head.notes)
   }
 
   test("an asserting rule aggregating over the constructor is a cycle through aggregation (E0601)") {

@@ -9,6 +9,5 @@ error[E0604]: invalid `%terminates` directive for `ack`
   |       the caller has `0`
   |
   = note: the lexicographic measure of `ack` is argument 2 `n` (integer), argument 1 `m` (integer); for the call it must be smaller than for the caller
-  = help: if the recursion terminates for another reason, mark the relation `%partial ack.` to evaluate it with a round budget
 
 1 error found

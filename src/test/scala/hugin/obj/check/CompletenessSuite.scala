@@ -39,7 +39,7 @@ class CompletenessSuite extends munit.FunSuite:
   test("incompleteness propagates along positive dependencies") {
     val ds = errors("""
       e : int -> rel.
-      %partial e.
+      %open e.
       f : int -> rel.
       f X :- e X.
       d : int -> rel.
@@ -47,7 +47,7 @@ class CompletenessSuite extends munit.FunSuite:
       p N :- d N, N = count { X | f X }.
     """)
     assertEquals(ds.length, 1)
-    assert(ds.head.notes.contains("`f` depends positively on `e`; `e` is declared %partial"), ds.head.notes)
+    assert(ds.head.notes.contains("`f` depends positively on `e`; `e` is declared %open"), ds.head.notes)
   }
 
   test("queries may mention incomplete relations only positively") {
@@ -63,7 +63,7 @@ class CompletenessSuite extends munit.FunSuite:
 
   test("the incomplete relations are a result of the unit, not state of the phase object") {
     val a = TestSupport.compile("x : int -> rel. %open x. y : int -> rel. y N :- x N.")
-    val b = TestSupport.compile("z : int -> rel. %partial z. z 1.")
+    val b = TestSupport.compile("z : int -> rel. %open z. z 1.")
     assertEquals(a.unit.incomplete.map(_.name), Set("x", "y"))
     assertEquals(b.unit.incomplete.map(_.name), Set("z"))
     // one phase object serves both units

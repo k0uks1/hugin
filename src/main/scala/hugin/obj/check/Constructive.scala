@@ -14,13 +14,13 @@ object Constructive:
    *  in a head (also through a head variable bound by a binding equation `X = c t̄` with a data term, which
    *  builds the value) or in a moded input (the head of a demand rule). Such a term counts only if it can
    *  take infinitely many values: a ground term (`red`, `mk 1`) is one fixed term, and a term whose
-   *  variables are all [[Termination.finiteVars]] ranges over finitely many valuations, since the relations
+   *  variables are all [[Constructive.finiteVars]] ranges over finitely many valuations, since the relations
    *  binding them are complete and finite when the component is evaluated (induction over the evaluation
    *  order). See docs/NOTES.md, "Termination" (issue #1, F3).
    */
   def constructive(r: Rule, inC: RelSym => Boolean): Option[(String, Span)] =
     val finite = finiteVars(r.body, inC)
-    val headVars = r.heads.flatMap(Moding.vars).toSet
+    val headVars = r.heads.flatMap(keyArgs).flatMap(Moding.vars).toSet
     val atomVars = r.body.collect { case Formula.Atom(_, as, v) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
     val existing = DepGraph.positiveSubpatterns(r.body)
     def builds(t: Term): Boolean = t match
@@ -54,7 +54,7 @@ object Constructive:
           case Term.As(x, _) => arith(x)
           case Term.Ascr(x, _) => arith(x)
           case _ => None
-        r.heads.flatMap(arith).headOption.map(t => (s"its head computes `${ObjPrinter.term(t)}`", t.span))
+        r.heads.flatMap(keyArgs).flatMap(arith).headOption.map(t => (s"its head computes `${ObjPrinter.term(t)}`", t.span))
       }
       .orElse {
         r.body.collectFirst {
@@ -64,6 +64,15 @@ object Constructive:
             (s"head variable `${Var.display(x)}` is computed by `${ObjPrinter.formula(c)}`", c.span)
         }
       }
+
+  /** The arguments of a head that can invent values: all but a bound column. The values of a bound column
+   *  are kept finite per key by evaluation (the best value, or `∞` when it would improve forever,
+   *  docs/REDESIGN.md §5.2), so a component whose invention is only through bound columns terminates
+   *  when its keys do. */
+  def keyArgs(head: Term): List[Term] = head match
+    case Term.App(RelRef.Sym(h), as) if h.boundColumn.isDefined => as.init
+    case Term.App(_, as) => as
+    case _ => Nil
 
   private def hasOp(t: Term): Boolean = t match
     case _: Term.Arith | _: Term.Neg => true

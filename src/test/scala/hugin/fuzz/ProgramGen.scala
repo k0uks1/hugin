@@ -162,7 +162,39 @@ object ProgramGen:
         facts += s"counter ${between(0, 2)}."
         rules += s"counter M :- counter N, N < ${between(0, 8)}, M = N + ${between(1, 2)}."
         derived += c
+      if chance(0.4) then boundColumns(decls, facts, rules, derived)
       Generated(decls.toVector, facts.toVector, rules.toVector, inputs.toVector, derived.map(_.name).toVector, demand)
+
+    /** Relations with bound columns (docs/REDESIGN.md §5.2) over a small weighted graph `wg` with seeds
+     *  `ws`: `w0` keeps the best value per node (`min` or `max`), propagated along edges by type-consistent
+     *  rules (a positive multiple of the value plus the weight, guards in the improving direction), so
+     *  cycles may diverge to `∞`; sometimes `w1` of the other kind mirrors `w0` with a negative
+     *  coefficient (the two feed each other); `wr` reads `w0` from a later component as plain values. */
+    private def boundColumns(
+        decls: mutable.ArrayBuffer[String],
+        facts: mutable.ArrayBuffer[String],
+        rules: mutable.ArrayBuffer[String],
+        derived: mutable.ArrayBuffer[Rel]
+    ): Unit =
+      val min = chance(0.5)
+      val (kind, other) = if min then ("min", "max") else ("max", "min")
+      decls ++= Seq("wg : int -> int -> int -> rel.", "ws : int -> int -> rel.", s"w0 : (a : int) -> (b : $kind int) -> rel.")
+      for _ <- 0 until between(1, 6) do facts += s"wg ${between(0, 4)} ${between(0, 4)} ${int()}."
+      for _ <- 0 until between(1, 2) do facts += s"ws ${between(0, 4)} ${int()}."
+      rules += "w0 K V :- ws K V."
+      for _ <- 0 until between(1, 2) do
+        val scale = if chance(0.2) then "2 * " else ""
+        // a guard keeps the comparison true when the value improves: `V <= c` for `min`, `V >= c` for `max`
+        val guard = if !chance(0.4) then "" else if min then s", V <= ${between(0, 6)}" else s", V >= ${int()}"
+        rules += s"w0 L (${scale}V + C) :- w0 K V, wg K L C$guard."
+      if chance(0.3) then
+        decls += s"w1 : (a : int) -> (b : $other int) -> rel."
+        rules += "w1 K (0 - V) :- w0 K V."
+        rules += s"w0 K (${int()} - V) :- w1 K V."
+        derived += Rel("w1", Vector(IntT, IntT))
+      decls += "wr : int -> int -> rel."
+      rules += s"wr K V :- w0 K V, V ${if min then "<" else ">"} ${int()}."
+      derived += Rel("w0", Vector(IntT, IntT)) += Rel("wr", Vector(IntT, IntT))
 
     /** One rule of `head`; positive atoms over `lower` (and `head` if `recursive`), negation and aggregates
      *  over `lower` only. In the rules of a relation with recursive rules (`inRecursion`), heads compute

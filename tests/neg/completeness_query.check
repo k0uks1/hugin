@@ -4,7 +4,7 @@ error[E0602]: query negates or aggregates over the incomplete relation `n`
 7 | ?- C = count { X | n X }.
   |                    ^^^ used negatively
   |
-  = note: `n` is declared %partial
+  = note: `n` is declared %open
   = note: queries may mention incomplete relations only positively
 
 1 error found
