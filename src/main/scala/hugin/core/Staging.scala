@@ -58,11 +58,14 @@ final class Staging(core: Core, reporter: Reporter):
       val pats = patterns.map(p => showArg(ns, explicitOnly(p)))
       List(s"  ${(f :: pats).mkString(" ")} = ${showTm(ns, explicitOnly(nf(env, body)))}.")
 
-  /** Items are printed in source order (elaboration may have deferred some). */
-  private def position(item: CoreItem): Int = item match
+  /** The position of an item in the source: items are staged and printed in source order (elaboration
+   *  may have deferred some). */
+  def position(item: CoreItem): Int = item match
     case CoreItem.GlobalItem(id) => globals(id).span.start
     case r: CoreItem.RuleItem => r.span.start
     case q: CoreItem.QueryItem => q.span.start
+    case e: CoreItem.EdgeItem => e.span.start
+    case d: CoreItem.DirectiveItem => d.span.start
 
   /** The staged program: declarations, definitions (as elaborated, with inserted quotes, splices and
    *  implicit arguments), and object items after staging. */
@@ -88,4 +91,14 @@ final class Staging(core: Core, reporter: Reporter):
       val names = vars.map(_._1).reverse
       val b = nf(env, body)
       if objectCode(names, b, span) then List(s"?- ${showTm(names, b)}.") else Nil
+    case CoreItem.EdgeItem(sub, sup, _) => List(s"${showTm(Nil, nf(Nil, sub))} <: ${showTm(Nil, nf(Nil, sup))}.")
+    case CoreItem.DirectiveItem(d, target, _) =>
+      List((s"%${directiveName(d)}" :: target.map(t => showTm(Nil, nf(Nil, t))).toList).mkString(" ") + ".")
   }
+
+  private def directiveName(d: CoreDirective): String = d match
+    case CoreDirective.DerivationsRule(r) => s"derivations @$r"
+    case CoreDirective.Mode(_) => "mode" // the target follows; modes are shown by the object level
+    case CoreDirective.TerminatesLabel(_) | CoreDirective.TerminatesVar(_, _, _) => "terminates"
+    case CoreDirective.NameHint(_) => "name"
+    case other => other.toString.toLowerCase

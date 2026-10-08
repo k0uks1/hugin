@@ -13,8 +13,17 @@ trait Coercions:
   /** Coerces `t : a` (stage `s`) to `a2` (stage `s2`), inserting quotes, splices, lifts and record
    *  coercions; falls back to unification. */
   def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
-    try coeOpt(c, t, a, s, a2, s2).getOrElse(t)
-    catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
+    if s == Stage.S0 && s2 == Stage.S0 && isObjectData(a) && isObjectData(a2) then coeObjectData(c, t, a, a2)
+    else
+      try coeOpt(c, t, a, s, a2, s2).getOrElse(t)
+      catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
+
+  /** Object data between object types: unified if possible (which solves implicit arguments and the
+   *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */
+  private def coeObjectData(c: Cxt, t: Tm, a: Val, a2: Val): Tm =
+    try undoOnFailure(unify(c.lvl, a, a2))
+    catch case _: UnifyError => ()
+    t
 
   private def adjustStage(c: Cxt, t: Tm, a: Val, s: Stage, s2: Stage): Option[(Tm, Val)] =
     (s, s2) match
@@ -57,8 +66,8 @@ trait Coercions:
             val body = coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2)
             Some(Tm.Lam(if x2 == "_" then x else x2, i, body.getOrElse(Tm.App(tw, cv, i))))
       case (Val.U0, Val.U1(_)) => Some(liftType(c, t))
-      case (rel, Val.U0) if isRelationType(rel) => Some(Tm.FactTy(t))
-      case (rel, Val.U1(_)) if isRelationType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
+      case (rel, Val.U0) if isFactConstantType(rel) => Some(Tm.FactTy(t))
+      case (rel, Val.U1(_)) if isFactConstantType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
       case (Val.U1(l), Val.U1(l2)) =>
         if !levels.le(l, l2) then throw UnifyError(UnifyFailure.Universe)
         None

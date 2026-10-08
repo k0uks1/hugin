@@ -70,10 +70,7 @@ trait Records:
         fieldType(rt, ev(c, qt), sel.name) match
           case Some(fty) => (Tm.Proj(qt, sel.name), fty, qs)
           case None => noField(c, sel, qty, rt.labels)
-      case Val.FactTy(r) =>
-        columns(r).find(_._1 == sel.name) match
-          case Some((_, cty)) => (Tm.Proj(qt, sel.name), cty, Stage.S0)
-          case None => noField(c, sel, qty, columns(r).map(_._1).filter(_ != "_"))
+      case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
       case other =>
         fail(
           Diagnostic.error("E0906", s"no field `${sel.name}`", sel.nameSpan, "unknown field")

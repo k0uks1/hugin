@@ -41,13 +41,19 @@ trait Operators:
         val (t1, ty1) = inferS(c, first, s)
         (t1, ty1, s)
       case None => infer(c, first)
-    operandType(c, op, fty, first.span)
+    if s == Stage.S1 then operandType(c, op, fty, first.span)
     val st2 = check(c, second, fty, s)
     val (a, b) = if swapped then (st2, ft) else (ft, st2)
     (Tm.Arith(op, a, b, s), fty, s)
 
   /** Comparisons are object formulas. */
-  private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) =
+  private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match
+    case (v: VarRef, agg: Agg) if op == CmpOp.Eq => inferAggregate(c, v, agg)
+    case _ if isAggregate(l) || isAggregate(r) =>
+      error("E0202", "an aggregate must be bound to a variable, `X = count { ... }`", l.span.to(r.span))
+    case _ => inferPlainComparison(c, op, l, r)
+
+  private def inferPlainComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) =
     val (first, second, swapped) = order(l, r)
     val (ft, fty) = inferS(c, first, Stage.S0)
     val st2 = check(c, second, fty, Stage.S0)
@@ -57,7 +63,7 @@ trait Operators:
   /** Arithmetic checked against a known type: both operands are checked against it. */
   def checkArith(c: Cxt, op: String, l: Tree, r: Tree, ty: Val, st: Stage, span: Span): Tm =
     val aop = arithOps(op)
-    operandType(c, aop, ty, span)
+    if st == Stage.S1 then operandType(c, aop, ty, span)
     Tm.Arith(aop, check(c, l, ty, st), check(c, r, ty, st), st)
 
   /** Negation, and the connectives of formulas. */
@@ -66,7 +72,7 @@ trait Operators:
     t match
       case Neg(a) =>
         val (at, aty, s) = infer(c, a)
-        numeric(c, aty, a.span)
+        if s == Stage.S1 then numeric(c, aty, a.span)
         (Tm.Negate(at, s), aty, s)
       case Not(a) => (Tm.Obj(ObjForm.Not, List(formula(a))), Val.PropT, Stage.S0)
       case Conj(a, b) => (Tm.Obj(ObjForm.And, List(formula(a), formula(b))), Val.PropT, Stage.S0)

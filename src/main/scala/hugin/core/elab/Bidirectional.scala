@@ -2,7 +2,7 @@ package hugin.core
 package elab
 
 import hugin.obj.BaseType
-import hugin.syntax.{Literal, Tree}
+import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
@@ -38,8 +38,10 @@ trait Bidirectional:
     case RecordLit(fields, false) => inferRecord(c, fields)
     case Ascribe(e, a) =>
       val (at, s, _) = inferU(c, a)
-      val av = ev(c, at)
-      (check(c, e, av, s), av, s)
+      if s == Stage.S0 then objectAscription(c, e, at)
+      else
+        val av = ev(c, at)
+        (check(c, e, av, s), av, s)
     case Lambda(param, ann, body) => inferLambda(c, param, ann, body)
     case Infix(op, l, r) => inferInfix(c, op, l, r, t.span, None)
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
@@ -48,10 +50,14 @@ trait Bidirectional:
         Diagnostic.error("E0903", "cannot infer the type of `_`", t.span, "type annotations needed")
           .withNote("`_` stands for an unknown meta value or, in object code, for a wildcard")
       )
-    case other => unsupported(other)
+    case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
-  def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
+  def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) =
+    val (tm, ty) = inferAt(c, t, st)
+    (located(t.span, tm, ty, st), ty)
+
+  private def inferAt(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
     case Parens(i) => inferS(c, i, st)
     case Lit(l) => (Tm.Lit(l, st), Val.Base(BaseType.of(l), st))
     case Wildcard() if st == Stage.S0 =>
@@ -68,8 +74,11 @@ trait Bidirectional:
       adjust(c, t.span, tm, ty, s, st)
 
   /** Checks a term against a type at a stage. */
-  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
+  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm = located(t.span, checkAt(c, t, a, st), a, st)
+
+  private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (Parens(i), _) => check(c, i, a, st)
+    case (Lit(l), _) if st == Stage.S0 => Tm.Lit(l, Stage.S0) // literals of refinements: the object typer checks
     case (Lambda(param, ann, body), pi @ Val.Pi(_, Icit.Expl, _, _)) => checkLambda(c, t, param, ann, body, pi, st)
     case (_, Val.Pi(x, Icit.Impl, dom, cl)) =>
       // an implicit Π is introduced by an inserted implicit lambda
@@ -89,6 +98,10 @@ trait Bidirectional:
       val (tm, ty) = inferS(c, t, st)
       val (tm2, ty2, _) = insert(c, t.span, (tm, ty, st))
       coe(c, t.span, tm2, ty2, st, a, st)
+    case (_, Val.PropT) if st == Stage.S0 =>
+      val (tm, ty, s) = insert(c, t.span, infer(c, t))
+      dataConstructorOf(tm).foreach(dataUsedAsRelation(_, TreeOps.flattenApp(t)._1.span, "not a relation: it has no facts to read"))
+      coe(c, t.span, tm, ty, s, a, st)
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
       coe(c, t.span, tm, ty, s, a, st)

@@ -2,6 +2,7 @@ package hugin.core
 package elab
 
 import hugin.syntax.{Tree, TreeOps}
+import hugin.syntax.Trees.RecordLit
 import hugin.util.*
 
 /** Lambdas, applications and the insertion of implicit applications (elaboration-zoo `04-implicit-args`):
@@ -53,6 +54,17 @@ trait Applications:
 
   def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
     val (ft, fty, fs) = objectFunction(insertAll(c, f.span, infer(c, f)))
+    (a, namedColumns(fty)) match
+      case (rl: RecordLit, Some(cols)) if fs == Stage.S0 =>
+        (namedPattern(c, f, ft, cols, rl), cols.foldLeft(fty)((t, _) => objectCodomain(t)), Stage.S0)
+      case _ => inferPositionalApp(c, f, a, span, ft, fty, fs)
+
+  /** The codomain of an object arrow (object arrows are not dependent). */
+  private def objectCodomain(ty: Val): Val = force(ty) match
+    case Val.Pi(_, _, _, cl) => inst(cl, Val.Wild)
+    case other => other
+
+  private def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>
         val at = check(c, a, dom, fs)

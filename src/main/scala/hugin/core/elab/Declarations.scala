@@ -22,13 +22,13 @@ trait Declarations:
   import core.*
 
   /** Adds a global and its item; a name may be declared once per module. */
-  def declare(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind): Int =
+  def declare(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span = Span.NoSpan): Int =
     if scope.contains(name.name) then
       fail(
         Diagnostic.error("E0102", s"duplicate declaration of `${name.name}`", name.span, "declared again here")
           .withLabel(globals(scope(name.name)).span, "first declared here")
       )
-    val id = addGlobal(GlobalEntry(name.name, eval(Nil, ty), ty, stage, kind, name.span))
+    val id = addGlobal(GlobalEntry(name.name, eval(Nil, ty), ty, stage, kind, name.span, declSpan))
     scope(name.name) = id
     items += CoreItem.GlobalItem(id)
     id
@@ -118,13 +118,18 @@ trait Declarations:
     finally state.unknownTypesAre = Stage.S1
 
   def elabDecl(d: Decl): Unit =
-    if d.sup.isDefined then unsupportedAt(d.span, "subtyping declarations (`<:`)")
+    if isStructDecl(d) then elabStruct(d)
+    else if d.sup.isDefined then elabRefinement(d)
+    else elabPlainDecl(d)
+
+  private def elabPlainDecl(d: Decl): Unit =
     d.defn match
       case None =>
         val (ty, st) = declType(d)
         val zty = zonk(Nil, 0, ty)
-        val kind = if st == Stage.S1 then classifyMetaConstant(d, eval(Nil, zty)) else GlobalKind.Postulate
-        val id = declare(d.name, zty, st, kind)
+        val kind =
+          if st == Stage.S1 then classifyMetaConstant(d, eval(Nil, zty)) else GlobalKind.Object(objectDecl(d, eval(Nil, zty)))
+        val id = declare(d.name, zty, st, kind, d.span)
         kind match
           case GlobalKind.Constructor(fam) => addConstructor(fam, id)
           case _ =>

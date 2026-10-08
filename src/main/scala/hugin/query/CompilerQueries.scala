@@ -273,7 +273,9 @@ final class Compiled(val context: Context, val printed: List[String]):
 object Compile extends Query[CompileKey, Compiled]("compile"):
   def compute(key: CompileKey)(using db: Database): Compiled =
     val printed = mutable.ListBuffer.empty[String]
-    val ctx = Compiler.compileWith(db(ParseProgram, key.path), key.settings, DatabaseLibraries(), printed += _)
+    // the new meta level has its own syntax; it is parsed as a whole file (no per-item incrementality yet)
+    val parsed = if key.settings.newMeta then Parsed.meta2(db(Parse, key.path).source) else db(ParseProgram, key.path)
+    val ctx = Compiler.compileWith(parsed, key.settings, DatabaseLibraries(), printed += _)
     Compiled(ctx, printed.toList)
 
 final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, allRelations: Boolean = false)

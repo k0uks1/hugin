@@ -5,9 +5,12 @@ import scala.collection.mutable
 
 /** What a global is. */
 enum GlobalKind:
-  /** A declaration without definition: an object constant at stage 0 (object type, constructor, relation)
-   *  or a meta-level postulate. */
+  /** A meta-level declaration without definition that is not an inductive type, a constructor or a
+   *  function: stuck at compile time. */
   case Postulate
+
+  /** An object constant (stage 0): an object type, a relation, a constructor or a struct. */
+  case Object(decl: ObjDecl)
 
   /** A definition `x : A = e.`; unfolded by evaluation. */
   case Definition(tm: Tm, value: Val)
@@ -22,14 +25,34 @@ enum GlobalKind:
    *  clauses are elaborated; arity -1 before). */
   case Function(arity: Int, tree: Option[CaseTree])
 
-/** A top-level entity. `ty` is its type (closed), `stage` the stage of its type's universe. */
+/** What an object constant declares (REDESIGN §3.1). The core only needs to know that it is an object
+ *  constant; the handover to the object level ([[hugin.core.handover]]) needs the rest. */
+enum ObjDecl:
+  /** `a : type.` */
+  case OpenType
+
+  /** `a : type <: b.`, a nominal refinement of the object type `base`. */
+  case Refinement(base: Tm)
+
+  /** `r : τ̄ -> rel.` */
+  case Relation
+
+  /** `c : τ̄ -> a.`; `fact` if declared `%fact` (a fact constructor, readable as a relation). */
+  case Constructor(fact: Boolean)
+
+  /** `s : type = { l : τ, … }.`: a relation whose fact type is `s`. */
+  case Struct(fact: Boolean)
+
+/** A top-level entity. `ty` is its type (closed), `stage` the stage of its type's universe, `span` the
+ *  position of its name and `declSpan` that of its whole declaration. */
 final class GlobalEntry(
     val name: Name,
     val ty: Val,
     val tyTm: Tm,
     val stage: Stage,
     var kind: GlobalKind,
-    val span: Span
+    val span: Span,
+    val declSpan: Span = Span.NoSpan
 )
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).

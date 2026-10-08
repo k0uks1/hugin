@@ -22,6 +22,9 @@ final class ElabState:
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
+  /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
+  var objectHead: Boolean = false
+
 /** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
  *  elaboration-zoo and his staged elaborator. The concerns are split into traits:
  *
@@ -59,6 +62,10 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with Clauses
     with SizeChange
     with Where
+    with ObjectDecls
+    with ObjectCode
+    with NamedPatterns
+    with DataConstructors
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

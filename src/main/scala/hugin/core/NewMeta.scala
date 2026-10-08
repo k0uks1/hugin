@@ -1,20 +1,20 @@
 package hugin.core
 
+import hugin.syntax.Trees.Item
 import hugin.util.*
 
-/** Entry point of the new meta level (`hugin check --new-meta`, `hugin run --new-meta`): parses a file in
- *  the new syntax, elaborates it and stages its object items. Not yet part of the compiler pipeline. */
-object NewMeta:
-  final case class Result(diagnostics: List[Diagnostic], output: List[String]):
-    def hasErrors: Boolean = diagnostics.exists(_.severity == Severity.Error)
+/** A program elaborated by the new meta level: the core state and the elaborated items. */
+final class Elaborated(val core: Core, val elaborator: elab.Elaborator):
+  def items: List[CoreItem] = elaborator.items.toList
 
-  def elaborate(src: SourceFile): Result =
-    val reporter = Reporter()
-    val prog = hugin.syntax.Parser.parseMeta2(src, reporter)
+  /** The elaborated program: definitions (with the inserted quotes, splices and implicit arguments) and
+   *  the staged object items (for `--print-after elaborate`). */
+  def render(reporter: Reporter): List[String] = Staging(core, reporter).render(items)
+
+/** Entry point of the new meta level. */
+object NewMeta:
+  def elaborate(items: List[Item], reporter: Reporter): Elaborated =
     val core = Core()
     val elaborator = elab.Elaborator(core, reporter)
-    if !reporter.hasErrors then elaborator.elabProgram(prog.items)
-    val out =
-      if reporter.hasErrors then Nil
-      else Staging(core, reporter).render(elaborator.items.toList)
-    Result(reporter.sorted, if reporter.hasErrors then Nil else out)
+    elaborator.elabProgram(items)
+    Elaborated(core, elaborator)

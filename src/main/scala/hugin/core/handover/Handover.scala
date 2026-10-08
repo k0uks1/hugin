@@ -1,0 +1,74 @@
+package hugin.core
+package handover
+
+import hugin.obj
+import hugin.obj.{DirKind, ModeSpec, ObjProgram}
+import hugin.util.*
+
+/** The handover of an elaborated program to the object level (REDESIGN §10, B3). The object items are
+ *  staged — normalised, which runs the meta code they splice ([[Staging]]) — and translated to an
+ *  [[ObjProgram]], which the object-level phases (object typing, moding, transformations, checks,
+ *  lowering) then process. An item whose staged code is not object code is reported and left out. */
+final class Handover(core: Core, reporter: Reporter):
+  import core.*
+
+  private val staging = Staging(core, reporter)
+  private val symbols = ObjectSymbols(core, reporter)
+
+  def program(items: List[CoreItem]): ObjProgram =
+    val ordered = items.sortBy(staging.position)
+    symbols.declare(ordered.collect { case CoreItem.GlobalItem(id) => id })
+    ObjProgram(
+      symbols.allTypes,
+      symbols.allRelations,
+      ordered.collect { case e: CoreItem.EdgeItem => edge(e) }.flatten.toVector,
+      ordered.collect { case r: CoreItem.RuleItem => rule(r) }.flatten.toVector,
+      ordered.collect { case q: CoreItem.QueryItem => query(q) }.flatten.toVector,
+      ordered.collect { case d: CoreItem.DirectiveItem => directive(d) }.flatten.toVector
+    )
+
+  /** Stages object code over the variables `vars` and translates it with `f`; `None` (reported) if it is
+   *  not object code. */
+  private def staged[A](vars: List[(Name, Tm)], parts: List[Tm], span: Span)(f: (ObjectTerms, List[Tm]) => A): Option[A] =
+    val env = vars.indices.reverse.map(Val.local).toList
+    val names = vars.map(_._1).reverse
+    val normal = parts.map(nf(env, _))
+    if !normal.forall(staging.objectCode(names, _, span)) then None
+    else
+      try Some(f(ObjectTerms(core, symbols, names, span), normal))
+      catch
+        case e: NotObjectCode =>
+          reporter.report(e.diagnostic)
+          None
+
+  private def rule(r: CoreItem.RuleItem): Option[obj.Rule] =
+    staged(r.vars, r.heads ++ r.body.toList, r.span) { (terms, normal) =>
+      val heads = normal.take(r.heads.length).map(terms.term(_))
+      val body = normal.drop(r.heads.length).flatMap(terms.formulas(_))
+      obj.Rule(r.name, heads, body)(r.span, Origin.Source)
+    }
+
+  private def query(q: CoreItem.QueryItem): Option[obj.Query] =
+    staged(q.vars, List(q.body), q.span)((terms, normal) => obj.Query(terms.formulas(normal.head))(q.span, Origin.Source))
+
+  private def edge(e: CoreItem.EdgeItem): Option[obj.Edge] =
+    Tm.unloc(nf(Nil, e.sup)) match
+      case Tm.Global(id) =>
+        symbols.typeSym(id).map(sup => obj.Edge(symbols.otype(nf(Nil, e.sub), e.span), sup)(e.span, Origin.Source))
+      case _ => None
+
+  private def directive(d: CoreItem.DirectiveItem): Option[obj.Directive] =
+    val target = d.target.flatMap(t => staged(Nil, List(t), d.span)((terms, normal) => terms.term(normal.head)))
+    val rel = target.collect { case obj.Term.App(r, Nil) => r }
+    def withTarget(k: DirKind) = rel.map(r => obj.Directive(k, Some(r), None)(d.span, Origin.Source))
+    d.directive match
+      case CoreDirective.Input => withTarget(DirKind.Input)
+      case CoreDirective.Output => withTarget(DirKind.Output)
+      case CoreDirective.Open => withTarget(DirKind.Open)
+      case CoreDirective.Derivations => withTarget(DirKind.Derivations)
+      case CoreDirective.DerivationsRule(rn) => Some(obj.Directive(DirKind.Derivations, None, Some(rn))(d.span, Origin.Source))
+      case CoreDirective.Mode(inputs) => withTarget(DirKind.ModeD(ModeSpec(inputs)))
+      case CoreDirective.TerminatesLabel(ls) => withTarget(DirKind.TerminatesLabel(ls))
+      case CoreDirective.NameHint(v) => withTarget(DirKind.NameHint(v))
+      case CoreDirective.TerminatesVar(vs, vars, args) =>
+        staged(vars, args, d.span)((terms, normal) => normal.map(terms.term(_))).flatMap(ts => withTarget(DirKind.TerminatesVar(vs, ts)))

@@ -44,7 +44,7 @@ trait Universes:
       case Val.U0 => (tm, Stage.S0, Val.U0)
       case u @ Val.U1(_) => (tm, Stage.S1, u)
       case Val.Lift(x) if force(x) == Val.U0 => (Tm.splice(tm), Stage.S0, Val.U0)
-      case rel if isRelationType(rel) => (Tm.FactTy(tm), Stage.S0, Val.U0)
+      case rel if isFactConstantType(rel) => (Tm.FactTy(tm), Stage.S0, Val.U0)
       case Val.Flex(_, _) if s == Stage.S1 && state.unknownTypesAre == Stage.S0 =>
         unifyAt(c, t.span, Val.Lift(Val.U0), ty)
         (Tm.splice(tm), Stage.S0, Val.U0)
@@ -82,6 +82,13 @@ trait Universes:
   def isRelationType(v: Val): Boolean = force(v) match
     case Val.RelT => true
     case Val.Pi(_, _, d, cl) => stageOfType(d) == Stage.S0 && isRelationType(inst(cl, Val.Wild))
+    case _ => false
+
+  /** The type of a relation (`A₁ -> … -> rel`) or of a constructor with columns (`A₁ -> … -> a`): such a
+   *  constant used as a type denotes its fact type. */
+  def isFactConstantType(v: Val): Boolean = force(v) match
+    case Val.RelT => true
+    case p: Val.Pi => isObjectConstantType(p)
     case _ => false
 
   /** Whether a type is the type of an object constant: an object type (`type`), a relation type, or a

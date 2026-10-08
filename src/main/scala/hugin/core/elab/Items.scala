@@ -108,7 +108,7 @@ trait Items:
     case r: Rule => elabRule(r)
     case q: Query => elabQuery(q)
     case d: Directive => elabDirective(d)
-    case e: SubEdge => unsupportedAt(e.span, "subtyping edges")
+    case e: SubEdge => elabEdge(e)
     case cl: Clause => throw Impossible(s"clause outside of its group: ${cl.span}")
 
   def elabItemReporting(item: Item): Unit =

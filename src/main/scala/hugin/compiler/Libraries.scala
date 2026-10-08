@@ -15,6 +15,12 @@ object Parsed:
     val program = Parser.parse(source, reporter)
     Parsed(source, program, reporter.sorted)
 
+  /** Parses a file in the syntax of the new meta level (`--new-meta`). */
+  def meta2(source: SourceFile): Parsed =
+    val reporter = Reporter()
+    val program = Parser.parseMeta2(source, reporter)
+    Parsed(source, program, reporter.sorted)
+
 /** Finds and parses the source files of imports and of the prelude. */
 trait SourceLoader:
   /** The parsed file at a (resolved) path, or `None` if there is no such file. */

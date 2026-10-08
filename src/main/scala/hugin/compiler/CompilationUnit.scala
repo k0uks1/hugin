@@ -28,6 +28,9 @@ final class CompilationUnit(val source: SourceFile):
   val symKeys: SymKeys = SymKeys()
   var elab: MExpr | Null = null
 
+  /** The program elaborated by the new meta level (`--new-meta`). */
+  var elaborated: hugin.core.Elaborated | Null = null
+
   /** Typing results of the meta level (filled by the typer). */
   var symbols: TypingResults = TypingResults.empty
 
