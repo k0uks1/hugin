@@ -1,6 +1,6 @@
 package hugin.core
 
-import NewMetaTesting.*
+import StagedTesting.*
 
 /** Families as memoised meta functions (REDESIGN §6.7): instances per normalised arguments, generic rules
  *  staged at the instances used, polymorphic recursion. */

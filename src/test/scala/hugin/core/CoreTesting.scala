@@ -2,7 +2,7 @@ package hugin.core
 
 import hugin.util.*
 
-/** Helpers for the tests of the new meta level: elaborating programs given as strings, and building core
+/** Helpers for the tests of the meta level: elaborating programs given as strings, and building core
  *  terms directly. */
 object CoreTesting:
   final case class Elaborated(core: Core, elab: hugin.core.elab.Elaborator, diagnostics: List[Diagnostic], output: List[String]):

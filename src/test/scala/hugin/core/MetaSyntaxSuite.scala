@@ -4,8 +4,8 @@ import hugin.syntax.*
 import hugin.util.*
 import hugin.util.diagnostics.Code
 
-/** The syntax of the new meta level (`meta2` parsing) and that the old syntax is unchanged. */
-class Meta2ParserSuite extends munit.FunSuite:
+/** The syntax of the meta level: clauses, implicit binders, splices and lifts, where blocks. */
+class MetaSyntaxSuite extends munit.FunSuite:
   private def parse(code: String): (List[Item], List[Diagnostic]) =
     val r = Reporter()
     val p = Parser.parse(SourceFile.virtual("t.hgn", code), r)

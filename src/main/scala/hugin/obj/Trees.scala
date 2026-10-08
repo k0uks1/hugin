@@ -137,11 +137,11 @@ enum Requirement:
   def span: Span
 
 /** A requirement to check for a relation passed at the functor application `use`. Requirements are
- *  recorded by the meta evaluator and checked once directives are attached, because a directive may follow
+ *  recorded by staging and checked once directives are attached, because a directive may follow
  *  the application textually (issue #1, C5). */
 final case class RequirementCheck(requirement: Requirement, rel: RelSym, use: Span, origin: Origin)
 
-/** A monomorphic (after `monomorphize`) object program (Figure 2). */
+/** A monomorphic object program (Figure 2), as staged from the meta level. */
 final class ObjProgram(
     var types: Vector[TypeSym],
     var rels: Vector[RelSym],

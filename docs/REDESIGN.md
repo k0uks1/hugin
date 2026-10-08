@@ -875,6 +875,17 @@ memoised families, hygiene, ascription and interfaces. *Accept*: every current g
 same output (diagnostic texts may change; each changed `.check` is reviewed and listed); then the old
 meta level (`meta/typer`, `MetaEval`, `Monomorphize`) is deleted.
 
+*Status: Phase B is done* (B3 in three steps: the handover of object code to the object level, modules
+and families, the switch). The meta level is `hugin.core` and the only one; `--new-meta` is gone, and so
+are the old typer, MetaEval and Monomorphize. Deviations from this plan, with their reasons, are recorded
+in docs/NOTES.md ("New meta level (redesign Phase B)", the decisions of B3a, B3b and B3c); the main ones:
+families of object constants are memoised per closed arguments as planned, but a module body is
+generative per *item* that evaluates it (two applications in one item are one instance); a meta
+definition is a value (an undefined primitive operation is reported where its value reaches object
+code, E0909, not at the definition); type definitions with parameters are meta functions (no strictness
+check, no `%abbrev`); the incrementality of elaboration is per object item against all declarations of
+the file, not per declaration; base types are built in (Q2) but not in scope without the prelude.
+
 ### Phase C — reflection and directives
 
 **C1. Reflective embedding.** Prelude types of §6.8, reify/reflect coercions, re-elaboration of

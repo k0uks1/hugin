@@ -145,7 +145,7 @@ object Trees:
   final case class Def(name: Ident, params: List[Param], rhs: Tree)(val span: Span) extends Item
 
   /** `f p̄ = e.` with patterns that are not all variables, or with a `where` block of local definitions:
-   *  an equational clause of a meta function (new meta level only, REDESIGN §6.4). */
+   *  an equational clause of a meta function (REDESIGN §6.4). */
   final case class Clause(lhs: Tree, rhs: Tree, where: List[Item] = Nil)(val span: Span) extends Item
 
   /** `type <: type.` */

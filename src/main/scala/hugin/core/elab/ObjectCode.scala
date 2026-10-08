@@ -78,8 +78,13 @@ trait ObjectCode:
 
   /** `X = k { t | φ }`: an aggregate over the formula `φ`, its result bound to `X`. */
   def inferAggregate(c: Cxt, res: Tree, agg: Agg): (Tm, Val, Stage) =
-    val (rt, _) = inferS(c, res, Stage.S0)
-    val (tt, _) = inferS(c, agg.term, Stage.S0)
+    val (rt, rty) = inferS(c, res, Stage.S0)
+    val (tt, tty) = inferS(c, agg.term, Stage.S0)
+    // the result's type, where the core knows it (so that it can solve implicit type arguments that
+    // depend on it); otherwise the object typer's
+    val resultType = if agg.kind == hugin.syntax.AggKind.Count then Val.Base(hugin.obj.BaseType.IntT, Stage.S0) else tty
+    try undoOnFailure(unify(c.lvl, rty, resultType))
+    catch case _: UnifyError => ()
     val body = check(c, agg.body, Val.PropT, Stage.S0)
     atomsOf(body).foreach((atom, span) => requireComplete(c, atom, span, "aggregates over"))
     (Tm.Obj(ObjForm.Agg(agg.kind), List(rt, tt, body)), Val.PropT, Stage.S0)

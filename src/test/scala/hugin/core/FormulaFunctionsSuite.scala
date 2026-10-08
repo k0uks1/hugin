@@ -1,6 +1,6 @@
 package hugin.core
 
-import NewMetaTesting.*
+import StagedTesting.*
 
 /** Formula functions defined by clauses, hygiene, `%mode` on formula functions. */
 class FormulaFunctionsSuite extends munit.FunSuite:

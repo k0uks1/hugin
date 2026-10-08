@@ -676,14 +676,13 @@ component as its answer relation, which happens when demand depends on answers; 
 
 ## New meta level (redesign Phase B)
 
-The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one. With
-the hidden flag `--new-meta`, the compiler runs it in place of the old meta level: the phases `elaborate`
-(the core elaborator) and `stage` (the handover of the staged object items to the object level) replace
-`imports` … `monomorphize`, and every object-level phase from `directives` on runs unchanged.
-`--print-after elaborate` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`,
-splices `$` and implicit arguments) followed by the staged object items. Golden tests use the flag through
-`.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files out of
-its corpus, since the old pipeline does not accept the new syntax.
+The meta level of `docs/REDESIGN.md` §6 is `hugin.core`; since B3c it is the only one. The phases
+`elaborate` (the core elaborator, with the prelude and the imported files) and `stage` (the handover of
+the staged object items to the object level) come after `parser`, and every object-level phase from
+`directives` on runs unchanged. `--print-after elaborate` prints the elaborated program (meta definitions
+with the inserted quotes `⟨⟩`, splices `$` and implicit arguments) followed by the staged object items.
+(While it was developed, B1–B3b, the old meta level was the default and this one ran behind the hidden
+flag `--new-meta`; the decisions below that mention the flag or "the old pipeline" describe that time.)
 
 ### Architecture
 
@@ -907,16 +906,17 @@ dropped and elaboration continues with the next one.
   to a `RequirementUse`) and checked by the object level on the staged program (E0208), except `%fact`,
   which the core checks (E0204). Negation over a parameter's relation needs `%complete` (E0210).
 * **Imports.** `%import "f"` is the record of `f`'s declarations (`ImportedModule`); its object constants
-  are qualified by the file's qualifier (`shapes.shape`). Libraries are elaborated once per compilation,
-  in import order; the prelude (`<stdlib>/prelude-core.hgn`, the old prelude in the new syntax) is the
-  parent scope of every file. Without the prelude, `int`, `float` and `string` are not in scope.
-* **`mod`** is accepted as an alias of `Type` (signatures are record types in `Type`), so programs of the
-  old meta level keep working; C-phase cleanup may retire it.
+  are qualified by the file's qualifier (`shapes.shape`). Libraries are elaborated in import order (since
+  B3c as a memoised chain); the prelude (then `<stdlib>/prelude-core.hgn`, the old prelude in the new
+  syntax; the prelude since B3c) is the parent scope of every file. Without the prelude, `int`, `float`
+  and `string` are not in scope.
+* **`mod`** was accepted as an alias of `Type` (signatures are record types in `Type`) until B3c removed
+  it and rewrote the tests that used it.
 * **Diagnostics that changed** (with `--new-meta`; the `.check` files change when B3c makes the new meta
   level the default):
   * `run/a10_meta_applicative`: the program is printed after `stage`; there is no `monomorphize` phase.
   * `run/f_demand_per_call`, `run/t_termination_explain`, `run/t_termination_len_callers`: positions in
-    the prelude are `<stdlib>/prelude-core.hgn` (same lines) until the prelude is renamed in B3c.
+    the prelude were `<stdlib>/prelude-core.hgn` until B3c made it the prelude (same lines; unchanged now).
   * `neg/a11_stage_overflow`: meta definitions are values; an overflow is reported where the value reaches
     object code (E0909), not at the unused definition (E0209 retired for the new meta level).
   * `neg/classification`: `r : int -> rel = 5.` is a type mismatch (E0901): a meta definition of a
@@ -935,6 +935,80 @@ dropped and elaboration continues with the next one.
 * **Acceptance.** With `HUGIN_NEW_META=1` every golden passes except the ones listed above;
   `PipelineParitySuite` compares the two pipelines on all other golden programs (the listed ones are
   excluded with their reasons).
+
+### Decisions (B3c: the switch)
+
+* **One meta level, one syntax.** The parser always accepts the meta level's syntax (clauses, `$`, `⇑`,
+  implicit binders, `where`); `mod` is gone (signatures are record types in `Type`); the prelude is the
+  former `prelude-core.hgn` (`<stdlib>/prelude.hgn`, same lines as before the redesign). Deleted: the
+  namer, the typer (`meta/typer/*`), MetaEval, Monomorphize, the meta trees and symbol tables, the
+  imports phase (the import graph is loaded by `elaborate`), and in the object level the forms that only
+  existed before meta evaluation (`Splice` terms, formulas and types, type parameters `TParam`, `OType.Param`
+  and `OType.Meta`); `RelSym.instanceOf` stays, for the display names of instances (`len` for `len[int]`).
+* **Elaboration in parts** (`core/ProgramElab`). A `Core` can be *forked*: a copy sharing the globals
+  (an elaboration only adds globals, it never changes the ones it was forked from), with copies of the
+  metas, universe levels and memo tables. The prelude and the imported files form a chain, each elaborated
+  in a fork of the core before it; the program's declarations (everything but rules, queries and
+  directives) in a fork of the chain's; each object item on its own in a fork of the declarations'; the
+  program is assembled in a last fork, where the items are moved in: the family instances an item
+  created are the instances at the same arguments there (`Tm.rename` maps the ids), the metas it left
+  (the types of object variables) are created again. An item that created module instances or universe
+  levels of its own is elaborated again in the assembled core instead. The direct compilation and the
+  query database run the same parts, so incremental results equal those from scratch by construction.
+* **Positions are spans.** What the core used to compute eagerly from positions (where a module instance's
+  constants and items are placed) is kept as a span (`GlobalEntry.placedAt`, `ModuleInstance.placedAt`)
+  and turned into a position at the handover, so results computed for an item stay valid when the item
+  moves. Files are ranked explicitly (`Core.rankFile`): the prelude, the imported files, the program's
+  files in the order of their declarations, then those of the object items.
+* **Prelude names.** A prelude object constant that the program redeclares is named `prelude.n` by the
+  handover (`ObjectSymbols.objectName`), no longer by the elaboration of the prelude, so the prelude's
+  elaboration does not depend on the program.
+* **Tooling** reads a new `SemanticIndex` (symbols are `compiler.Sym`: name, kind, the span of the name
+  and of the declaration): the elaborator records references (names, parameters, fields through paths:
+  record types carry the positions of their fields' declarations, `Tm.RecTy.decls`), declarations with
+  their descriptions, members, column labels and scopes (`elab/Tooling`); staging records quotes, splices
+  and persisted values (an observer in `eval`, active while the handover stages items) and family
+  instances. Hover descriptions show declared types as written and inferred types in the printer's
+  *plain* mode, which shows splices of names and paths as the names and `⇑type` as `type`.
+* **Closed type instances.** An instance of an open type family comes with the instances of its
+  constructors at the same arguments (`option[int]` with `none[int]`, `some[int]`), so input facts can use
+  constructors the program never applies, as monomorphization did.
+* **Diagnostics.** Every diagnostic is a typed problem (`ElabProblem`, `TypeProblem`, `ClauseProblem`);
+  `Legacy` is gone and `Diagnostic.code` is a `Code`. The REPL's own errors are E1101, a crash reported
+  by the language server E1102. An item stops at its first error; uses of a name whose declaration was
+  dropped (also in an imported file) are not reported again. Classification (E0103: a declaration whose
+  result is a base type or `type`, `%builtin` outside the definition of a base type), self-reference
+  (E0105), a data constructor passed for a relation (E0406), duplicate declarations (E0102) keep the old
+  pipeline's wording. New: E0916, the binders of a declared type used in its definition
+  (`f : (x : A) -> B = e.`), with a machine-applicable rewriting to `f (x : A) : B = e.`; an untyped
+  parameter of a definition `f X : A = e.` has an inferred type (of a type definition, an object type).
+* **Aggregates.** The result of `count` is an `int` and that of `sum`/`min`/`max` has the aggregated
+  term's type in the core already, so implicit type arguments that depend on it are solved (found by the
+  generated fuzz suite: `V = cons N nil` with `N = count { … }`).
+* **Changed `.check` files** (all reviewed): those listed for B3b, now with the final prelude path, plus
+  `run/a10_meta_applicative` (`--print-after stage`; `put[int]` is listed where `box[int]` is first
+  used), `neg/labels`, `neg/requirements` and `neg/f_data_ctor_relation` (columns moved by `mod` →
+  `Type`), `neg/core_e0906_field` and `repl/imports` (a help naming a similar field), `neg/core_e0907_unsupported`
+  (the final wording), `repl/files`, `repl/session` (REPL errors have the code E1101), the `core_*`
+  goldens without the flag; `fix/abbrev` is deleted (E0106 and `%abbrev` retired), `fix/type_binder_params`
+  and `neg/e0916_type_binder` are new.
+* **Tests.** Deleted with the old meta level: its unit suites (`meta/*`), the parity suite (two pipelines
+  no longer exist). Rewritten: the incrementality suites (`ItemQueriesSuite`, `LibraryQueriesSuite`, the
+  REPL's counts) for the granularity above; tests that relied on forward-reference errors (E0105) now
+  check that a definition may come after its uses.
+
+### Open issues (after Phase B, for Phase C)
+
+* Finer incrementality: an object item depends on all declarations of its file; per-declaration
+  dependencies would need item results that survive a re-elaboration of the declarations (globals keyed
+  by stable names rather than ids).
+* Not supported (E0907): refinements and families in module bodies, inline module bodies in object
+  items are re-elaborated at assembly (correct, not incremental).
+* An implicit type argument that only the object typer could determine (the type of an object variable
+  constrained by nothing in the core) stays unknown and is reported at staging (E0909), not as E0206.
+* E0202's concepts (shape, stage, unbound aggregate) still share a code; "no member" is E0906.
+* Phase C: reflection (§6.8), quoted patterns and `$`/`$..` holes (§6.9), directives as meta functions
+  (C2), `%demand` in the prelude and the removal of relation modes and the data/fact split (C3).
 
 ## Bound columns (redesign A2)
 

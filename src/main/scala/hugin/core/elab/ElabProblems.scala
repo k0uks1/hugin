@@ -5,11 +5,11 @@ import hugin.util.Span
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** Problems found by the new meta level that are reported as typed problems (docs/DIAGNOSTICS.md): the
- *  shape of object items (named patterns, atoms, directives), the data/fact split, object declarations,
- *  module bodies, signatures and their requirements, formula functions, names. (The diagnostics of B1/B2
- *  are still built by `ElabErrors` through `Legacy`.) Object *typing* problems are the object typer's
- *  (`obj/typing/TypingProblems`). */
+/** Problems of the meta level with object code and declarations (docs/DIAGNOSTICS.md): the shape of
+ *  object items (named patterns, atoms, directives), the data/fact split, object declarations, module
+ *  bodies, signatures and their requirements, formula functions, names. Type and stage errors are
+ *  [[TypeProblem]]s, those of meta functions [[ClauseProblem]]s; object *typing* problems are the object
+ *  typer's (`obj/typing/TypingProblems`). */
 enum ElabProblem extends Problem:
   /** An aggregate that is not the right-hand side of `X = k { … }`. */
   case UnboundAggregate(at: Span)

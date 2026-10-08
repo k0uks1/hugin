@@ -3,7 +3,7 @@ package hugin.core
 import hugin.obj.{ArithOp, BaseType}
 import hugin.syntax.Literal
 
-/** Core syntax of the new meta level (docs/REDESIGN.md §6): a two-level type theory in the style of
+/** Core syntax of the meta level (docs/REDESIGN.md §6): a two-level type theory in the style of
  *  Kovács, *Staged Compilation with Two-Level Type Theory* (ICFP 2022), with de Bruijn indices.
  *
  *  Stage 0 (`S0`) is the object level (Datalog terms, relations and formulas), stage 1 (`S1`) the meta

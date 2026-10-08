@@ -588,7 +588,7 @@ final class Parser(
       advance()
       ModuleBody(items.toList)(spanFrom(start))
 
-  /** At `{A B ... :` (after the brace): implicit binders of the new meta level. */
+  /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =
     var k = i
     while toks(k).kind == Tok.Var || toks(k).kind == Tok.Name do k += 1

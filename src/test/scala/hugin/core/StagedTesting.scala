@@ -4,9 +4,9 @@ import hugin.TestSupport
 import hugin.compiler.Settings
 import hugin.obj.ObjPrinter
 
-/** Compiling programs with the new meta level for the tests of B3: the staged object program, the error
+/** Compiling programs for the tests of the meta level's handover: the staged object program, the error
  *  codes, the run's output. */
-object NewMetaTesting:
+object StagedTesting:
   private val settings = Settings()
 
   /** The object program after `stage`; fails on errors. */

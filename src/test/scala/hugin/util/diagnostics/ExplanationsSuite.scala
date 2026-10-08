@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 /** The explanations `docs/errors/<id>.md`: one per code, each with examples that compile as documented.
  *  A ` ```hugin fail=<id> ` block must report `<id>` as its first error; a plain ` ```hugin ` block (the fix) must compile
  *  without errors and without that code. A ` ```facts ` block right after a `hugin` block is loaded as its
- *  input facts. Blocks tagged `new-meta` are elaborated by the new meta level (`hugin.core`, `--new-meta`).
+ *  input facts. Blocks tagged `elaborate` are only elaborated and staged, without the prelude.
  *  Blocks of retired codes are tagged `ignore` and skipped. */
 class ExplanationsSuite extends munit.FunSuite:
   /** A code block of an explanation: the program, its expected code (for a failing example) and facts. */
@@ -23,7 +23,7 @@ class ExplanationsSuite extends munit.FunSuite:
       case ((("hugin", attrs, body)), next) =>
         val facts = next.collect { case ("facts", _, f) => f }
         val fails = "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1))
-        Example(body, fails, facts, attrs.contains("ignore"), attrs.contains("new-meta"))
+        Example(body, fails, facts, attrs.contains("ignore"), attrs.contains("elaborate"))
     }
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */

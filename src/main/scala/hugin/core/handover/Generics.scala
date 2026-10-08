@@ -10,7 +10,7 @@ import scala.collection.mutable
  *  determines (`len nil 0.`, `len (cons _ L) M :- len L N, …`) is a family of rules. It is staged at
  *  every instance of its head's family that the staged program uses, by solving its unknowns so that its
  *  head is that instance (by unification, then undone), until no new instances are used. This replaces
- *  the worklist of the old monomorphization phase.
+ *  the worklist monomorphization used before the redesign.
  *
  *  Polymorphic recursion is rejected: an instance of a rule of family `f` at `ā` that uses `f` at other
  *  arguments would create ever larger instances. */

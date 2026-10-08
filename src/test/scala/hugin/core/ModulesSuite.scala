@@ -1,6 +1,6 @@
 package hugin.core
 
-import NewMetaTesting.*
+import StagedTesting.*
 
 /** Module bodies, functors, signatures and their requirements, imports (REDESIGN §6.7). */
 class ModulesSuite extends munit.FunSuite:

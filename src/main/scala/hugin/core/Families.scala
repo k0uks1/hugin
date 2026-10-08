@@ -6,7 +6,7 @@ import scala.collection.mutable
  *  ⇑type`, `nil : list A.` the meta constant `nil : {A : ⇑type} -> ⇑$(list A)`. An application to closed
  *  object types reduces to an *instance*: an object constant created once per family and normalised
  *  arguments (memoised, which gives applicative sharing: one `len[int]` per program), named after the
- *  family and its arguments (`len[int]`, `pair[int, string]`), as the old monomorphization named them.
+ *  family and its arguments (`len[int]`, `pair[int, string]`), as monomorphization named them before the redesign.
  *
  *  Instances are created by evaluation (the only effect of evaluation besides module instances); an
  *  instance created during an elaboration that was undone stays, which is harmless (it is an object
