@@ -14,6 +14,8 @@ import scala.jdk.CollectionConverters.*
  *    the codes and lines reported (see [[Annotations]]).
  *  - `tests/pos/X.hgn`: must compile without errors.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
+ *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
+ *    without errors, and be a fixed point (fixing it again changes nothing).
  *  - `tests/repl/X.in`: a REPL session, run by `hugin repl --batch --echo`; the transcript (inputs after
  *    their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds extra options (e.g.
  *    files to load).
@@ -42,8 +44,8 @@ class GoldenTests extends munit.FunSuite:
     val code = Main.run(args :+ "--no-color", s => out ++= s += '\n', s => err ++= s += '\n')
     (code, out.toString, err.toString)
 
-  private def compare(p: Path, actual: String): Unit =
-    val check = sibling(p, ".check")
+  private def compare(p: Path, actual: String, ext: String = ".check"): Unit =
+    val check = sibling(p, ext)
     if update || !Files.exists(check) then
       Files.writeString(check, actual)
       if !update then fail(s"no check file for $p; wrote ${check.getFileName}")
@@ -76,6 +78,24 @@ class GoldenTests extends munit.FunSuite:
     test(s"json/${p.getFileName}") {
       val (_, _, err) = runMain(List("check", p.toString, "--error-format=json") ++ flags(p))
       compare(p, err)
+    }
+
+  for p <- files("fix") do
+    test(s"fix/${p.getFileName}") {
+      val dir = Files.createTempDirectory("hugin-fix")
+      val copy = dir.resolve(p.getFileName)
+      try
+        Files.copy(p, copy)
+        runMain(List("fix", copy.toString) ++ flags(p))
+        val fixed = Files.readString(copy)
+        compare(p, fixed, ".fixed")
+        val (code, _, err) = runMain(List("check", copy.toString) ++ flags(p))
+        assertEquals(code, 0, s"the fixed program has errors:\n$err")
+        runMain(List("fix", copy.toString) ++ flags(p))
+        assertNoDiff(Files.readString(copy), fixed, "fixing again changed the program")
+      finally
+        Files.deleteIfExists(copy)
+        Files.deleteIfExists(dir)
     }
 
   for p <- files("pos") do

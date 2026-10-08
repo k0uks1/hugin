@@ -1,0 +1,4 @@
+(* E0001: a missing `.` at the end of a line is added *)
+p : int -> rel.
+p 1.
+%output p.

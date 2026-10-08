@@ -1,0 +1,1 @@
+-D singleton_variables -A unused_definitions -W empty_formula_functions --deny-warnings

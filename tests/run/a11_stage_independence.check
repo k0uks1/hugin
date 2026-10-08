@@ -5,6 +5,7 @@
 //    |                   ^^^^^^^^^^^^^^^^^^^^^^^ `9223372036854775807 + 1` is undefined
 //    |
 //    = note: the formula containing it never holds, so this rule instance never fires
+//    = note: `-W undefined_constant_expressions` is on by default
 // 
 // 1 warning found
 equal.

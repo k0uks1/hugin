@@ -3,12 +3,16 @@ warning[W0003]: unused definition `succ2`
   |
 3 | succ2 : int -> int -> prop.
   | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 warning[W0003]: unused definition `pred2`
  --> tests/neg/formula_modes.hgn:6:1
   |
 6 | pred2 : int -> int -> prop.
   | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 error[E0501]: unbound variables `Arg1`, `X`
  --> tests/neg/formula_modes.hgn:8:7
@@ -26,6 +30,8 @@ warning[W0003]: unused definition `far`
   |
 9 | far : int -> int -> prop.
   | ^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 warning[W0002]: variable `Y` occurs only once in this rule
   --> tests/neg/formula_modes.hgn:11:7
@@ -33,6 +39,7 @@ warning[W0002]: variable `Y` occurs only once in this rule
 11 | far X Y :- edge X Z.
    |       ^ singleton variable
    |
+   = note: `-W singleton_variables` is on by default
    = help: use `_` or `_Y` if this is intended
 
 error[E0501]: unbound variables `Arg2`, `Y`
@@ -52,6 +59,7 @@ warning[W0002]: variable `Z` occurs only once in this rule
 11 | far X Y :- edge X Z.
    |                   ^ singleton variable
    |
+   = note: `-W singleton_variables` is on by default
    = help: use `_` or `_Z` if this is intended
 
 2 errors, 5 warnings found

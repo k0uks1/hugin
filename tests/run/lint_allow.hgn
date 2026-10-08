@@ -1,0 +1,6 @@
+(* `-A` silences a lint (lint_allow.flags): the singleton variable is not reported *)
+p : int -> rel.
+p 1.
+s : int -> rel.
+s X :- p X, p Y.
+%output s.

@@ -20,7 +20,7 @@ object Explanations:
   def inventory: String =
     Code.byPhase
       .map { (phase, codes) =>
-        val lines = codes.map(c => s"  ${c.id}  ${c.title}${c.lint.fold("")(l => s" ($l)")}${statusNote(c.status)}")
+        val lines = codes.map(c => s"  ${c.id}  ${c.title}${c.lint.fold("")(l => s" (${l.name})")}${statusNote(c.status)}")
         (s"${phase.title}:" :: lines).mkString("\n")
       }
       .mkString("\n\n")
