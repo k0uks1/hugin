@@ -21,7 +21,7 @@ trait ObjectDecls:
       else
         constructorResult(other) match
           case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind.isInstanceOf[GlobalKind.Object] && !isOpen(id) =>
-            fail(ElabProblem.ConstructorOfRefinement(d.name.name, globals(id).name, d.tpe.span))
+            fail(ElabProblem.Unclassifiable(d.name.name, globals(id).name, false, d.tpe.span))
           case _ => ObjDecl.Constructor(d.fact)
 
   private def constructorResult(ty: Val): Val = force(ty) match

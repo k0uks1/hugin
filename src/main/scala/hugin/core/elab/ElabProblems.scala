@@ -40,13 +40,25 @@ enum ElabProblem extends Problem:
   case StructFieldFact(at: Span)
   case StructRequirement(at: Span)
   case UsedBeforeDeclaration(name: String, at: Span)
+
+  /** `x : A = … x ….`: a definition referring to itself (only functions defined by clauses recurse). */
+  case SelfReference(name: String, at: Span, defined: Span)
   case StuckObjectType(shown: String, at: Span)
 
+  /** A second declaration of `name` in a file or module body. */
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
 
-  /** `c : … -> a.` where `a` is not an open type (a refinement): it cannot have constructors. */
-  case ConstructorOfRefinement(name: String, result: String, at: Span)
+  /** `c : … -> a.` where `a` is not an open type (a refinement, or a base type if `base`): it is neither a
+   *  relation nor a constructor. */
+  case Unclassifiable(name: String, result: String, base: Boolean, at: Span)
+
+  /** `%builtin n` with an unknown `n`, or outside the definition `b : type = %builtin n.` of a base type. */
+  case UnknownBaseType(name: String, at: Span)
+  case MisplacedBuiltin(name: String, at: Span)
+
+  /** `f : int -> type.`: a declared function into object types (a family is declared with parameters). */
+  case TypeFunction(name: String, at: Span)
   case NotAModule(name: String, tpe: String, at: Span)
 
   /** A family's type argument (`what`: "type argument `A` of family `nil`") that nothing determines. */
@@ -91,12 +103,13 @@ enum ElabProblem extends Problem:
     case _: NotOpenType | _: EdgeTarget | _: RefinementOfNonType => Code.E0404
     case _: StructFieldFact | _: StructRequirement => Code.E0004
     case _: UsedBeforeDeclaration => Code.E0101
+    case _: SelfReference => Code.E0105
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
-    case _: ConstructorOfRefinement => Code.E0103
+    case _: Unclassifiable | _: TypeFunction | _: UnknownBaseType | _: MisplacedBuiltin => Code.E0103
     case _: NotAModule => Code.E0107
     case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
@@ -133,12 +146,16 @@ enum ElabProblem extends Problem:
     case StructFieldFact(s) => s
     case StructRequirement(s) => s
     case UsedBeforeDeclaration(_, s) => s
+    case SelfReference(_, s, _) => s
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
-    case ConstructorOfRefinement(_, _, s) => s
+    case Unclassifiable(_, _, _, s) => s
+    case TypeFunction(_, s) => s
+    case UnknownBaseType(_, s) => s
+    case MisplacedBuiltin(_, s) => s
     case NotAModule(_, _, s) => s
     case UndeterminedTypeArgument(_, s) => s
     case SignatureMismatch(_, _, s) => s
@@ -177,12 +194,16 @@ enum ElabProblem extends Problem:
     case _: StructFieldFact => msg"`%fact` is not allowed on the fields of a struct"
     case _: StructRequirement => msg"requirements are not allowed in struct declarations"
     case UsedBeforeDeclaration(n, _) => msg"${Src(n)} is used before its declaration"
+    case SelfReference(n, _, _) => msg"${Src(n)} refers to itself"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
-    case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
+    case DuplicateMember(n, _, _) => msg"${Src(n)} is declared twice in this scope"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
-    case ConstructorOfRefinement(n, _, _) => msg"cannot classify the declaration of ${Src(n)}"
+    case Unclassifiable(n, _, _, _) => msg"cannot classify the declaration of ${Src(n)}"
+    case TypeFunction(n, _) => msg"cannot classify the declaration of ${Src(n)}"
+    case UnknownBaseType(n, _) => msg"unknown base type ${Src(n)}"
+    case MisplacedBuiltin(n, _) => msg"${Src(s"%builtin $n")} is only allowed as the definition of a base type"
     case NotAModule(n, _, _) => msg"${Src(n)} is not a module"
     case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
     case _: SignatureMismatch => msg"signature mismatch"
@@ -212,9 +233,14 @@ enum ElabProblem extends Problem:
     case _: SingletonVariable => msg"singleton variable"
     case _: DataFieldAsRelation => msg"not a relation: it has no facts to read"
     case _: FormulaFunctionWithoutClauses => msg"always false"
-    case _: DuplicateMember => msg"declared again here"
+    case _: DuplicateMember => msg"redeclared here"
     case _: UnusedDefinition => msg"never referenced"
-    case ConstructorOfRefinement(_, r, _) => msg"result is ${Src(r)}, which is not an open type"
+    case Unclassifiable(_, r, true, _) => msg"result is the base type ${Src(r)}"
+    case Unclassifiable(_, r, false, _) => msg"result is ${Src(r)}, which is not an open type"
+    case _: TypeFunction => msg"a function returning `type`"
+    case _: UnknownBaseType => msg"not a builtin"
+    case _: SelfReference => msg"recursive reference"
+    case _: MisplacedBuiltin => msg"not a type declaration"
     case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
     case _: UndeterminedTypeArgument => msg"type not determined"
     case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
@@ -235,6 +261,7 @@ enum ElabProblem extends Problem:
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
+    case SelfReference(_, _, d) => List(d -> msg"while elaborating this definition")
     case UnknownLabel(_, _, _, _, d) if d.exists => List(d -> msg"declared here")
     case DuplicateLabel(_, _, first) => List(first -> msg"first used here")
     case DataAsRelation(_, w, _, _, d, _, _) if d.exists => List(d -> msg"declared here as a ${Lit(w)}")
@@ -252,7 +279,11 @@ enum ElabProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
-    case _: ConstructorOfRefinement =>
+    case _: UnknownBaseType => List(msg"the builtin base types are float, int, string")
+    case _: SelfReference => List(msg"only a function declared with its type and defined by clauses may be recursive")
+    case NotAnAtom("not", _) =>
+      List(msg"a formula function use may expand to an arbitrary formula; declare a relation for the negated condition")
+    case _: Unclassifiable =>
       List(msg"a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
     case _: NotAModule => List(msg"a path `m.x` requires `m` to be module-valued")
     case SignatureMismatch(_, n, _) => List(Msg.text(n))
@@ -284,7 +315,8 @@ enum ElabProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
-    case ConstructorOfRefinement(n, r, _) => List(msg"to define a compile-time constant, write ${Src(s"$n : $r = ...")}.")
+    case Unclassifiable(n, r, _, _) => List(msg"to define a compile-time constant, write ${Src(s"$n : $r = ...")}.")
+    case TypeFunction(n, _) => List(msg"declare a family with type parameters instead: ${Src(s"$n A : type.")}")
     case _: UndeterminedTypeArgument =>
       List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")

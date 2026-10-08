@@ -29,6 +29,9 @@ trait Inductives:
         case Val.Rigid(Head.Glob(fam), sp) if isFamily(fam) =>
           checkConstructor(d, fam, binders, sp)
           GlobalKind.Constructor(fam)
+        case Val.Base(b, _) if binders.isEmpty =>
+          fail(ElabProblem.Unclassifiable(d.name.name, b.show, true, d.tpe.span))
+        case Val.U0 | Val.Lift(Val.U0) => fail(ElabProblem.TypeFunction(d.name.name, d.tpe.span))
         case _ => GlobalKind.Postulate
 
   def isFamily(id: Int): Boolean = globals(id).kind.isInstanceOf[GlobalKind.Inductive]

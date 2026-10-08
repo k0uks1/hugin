@@ -20,7 +20,7 @@ trait Bidirectional:
     case VarRef("Type") if !c.scope.contains("Type") => inferMetaUniverse()
     case VarRef(n) => resolve(c, n, t.span)
     case k: Keyword => inferKeyword(k)
-    case Builtin(n) => inferBuiltin(n)
+    case b @ Builtin(n) => inferBuiltin(n, b.span)
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     case s: Select => inferSelect(c, s)

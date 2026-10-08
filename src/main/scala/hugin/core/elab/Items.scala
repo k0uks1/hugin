@@ -34,9 +34,11 @@ trait Items:
     finish()
 
   /** The name an item declares. */
-  private def declares(item: Item): Option[Name] = item match
-    case d: Decl => Some(d.name.name)
-    case d: Def => Some(d.name.name)
+  private def declares(item: Item): Option[Name] = declaresIdent(item).map(_.name)
+
+  private def declaresIdent(item: Item): Option[Ident] = item match
+    case d: Decl => Some(d.name)
+    case d: Def => Some(d.name)
     case _ => None
 
   /** Elaborates items in source order, except that an item referring to a name declared by a later item
@@ -52,7 +54,7 @@ trait Items:
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
-            report(e)
+            if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
             // the names of a dropped item are erroneous: their uses are not reported again
             declares(item).foreach(state.erroneous += _)
             None
@@ -76,6 +78,11 @@ trait Items:
           if t.span.start < d.span.start then
             reporter.report(ElabProblem.CyclicTypeDefinition(t.name.name, e.diag.labels.head.span, t.name.span).toDiagnostic)
         case _ => report(e)
+
+  /** E0105: the definition `item` refers to itself (`e` is the unresolved reference). */
+  private def selfReference(item: Item, e: ElabError): Unit =
+    val name = declaresIdent(item).get
+    reporter.report(ElabProblem.SelfReference(name.name, e.diag.labels.head.span, name.span).toDiagnostic)
 
   /** Elaborates an item; on an error, undoes its effects on metas and returns the error. */
   private def attemptItem(item: Item): Option[ElabError] =

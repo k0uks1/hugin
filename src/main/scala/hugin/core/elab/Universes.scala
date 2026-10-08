@@ -25,9 +25,18 @@ trait Universes:
     // `mod`, the universe of signatures of the old meta level: signatures are record types in `Type`
     case Kw.Mod => inferMetaUniverse()
 
-  def inferBuiltin(n: Ident): (Tm, Val, Stage) = builtinTypes.get(n.name) match
-    case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
-    case None => error(DiagCode.E0101, s"unknown builtin type `${n.name}`", n.span, "expected int, float or string")
+  /** Whether a `%builtin` is being elaborated as the definition `b : type = %builtin n.` of a base type. */
+  private var builtinDefinition = false
+
+  def definingBuiltin[A](a: => A): A =
+    builtinDefinition = true
+    try a
+    finally builtinDefinition = false
+
+  def inferBuiltin(n: Ident, span: Span): (Tm, Val, Stage) = builtinTypes.get(n.name) match
+    case Some(b) if builtinDefinition => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
+    case Some(_) => fail(ElabProblem.MisplacedBuiltin(n.name, span))
+    case None => fail(ElabProblem.UnknownBaseType(n.name, n.span))
 
   /** The universe of a stage (at a fresh level for the meta stage). */
   def universe(st: Stage): Val = st match

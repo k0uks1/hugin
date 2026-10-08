@@ -15,7 +15,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0102 duplicate declaration") {
-    assertError("E0102", "nat : Type.\nnat : Type.\n", "duplicate declaration of `nat`", "first declared here")
+    assertError("E0102", "nat : Type.\nnat : Type.\n", "`nat` is declared twice in this scope", "first declared here")
   }
 
   test("E0901 mismatched types") {
@@ -70,4 +70,24 @@ class ElabErrorsSuite extends munit.FunSuite:
 
   test("E0910 invalid rule head") {
     assertError("E0910", "q : int -> int -> rel.\nq 1.\n", "incomplete rule head")
+  }
+
+  test("E0103 declarations that are neither relations nor constructors") {
+    assertError("E0103", "limit : int.\n", "cannot classify the declaration of `limit`", "result is the base type `int`")
+    assertError("E0103", "f : int -> type.\n", "a function returning `type`", "`f A : type.`")
+  }
+
+  test("E0103 `%builtin` only as the definition of a base type") {
+    assertError("E0103", "num : type = %builtin integer.\n", "unknown base type `integer`")
+    assertError("E0103", "n = %builtin int.\n", "only allowed as the definition of a base type")
+  }
+
+  test("E0105 a definition referring to itself") {
+    assertError("E0105", "self : int = self + 1.\n", "`self` refers to itself", "while elaborating this definition")
+  }
+
+  test("E0406 a data constructor passed where a relation is expected") {
+    val program =
+      "shape : type.\nsquare : int -> shape.\nuse (r : shape -> shape -> rel) = { p : shape -> shape -> rel. p X Y :- r X Y. }.\nm = use square.\n"
+    assertError("E0406", program, "data constructor `square` used as a relation", "expected a relation")
   }

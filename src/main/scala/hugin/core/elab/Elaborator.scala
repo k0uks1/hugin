@@ -23,7 +23,10 @@ final case class FileEnv(
     parent: Map[Name, Int] = Map.empty,
     imports: Map[String, ImportedModule] = Map.empty,
     /** Whether unused definitions are reported (W0003, in the program, not in libraries). */
-    lintUnused: Boolean = false
+    lintUnused: Boolean = false,
+    /** Whether `int`, `float` and `string` are in scope without a declaration: in core tests, not in a
+     *  compilation without the prelude (which declares them). */
+    builtinNames: Boolean = true
 ):
   /** The name of an object constant declared as `n`. */
   def objectName(n: Name): Name =

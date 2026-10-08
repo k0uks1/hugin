@@ -23,7 +23,16 @@ trait Coercions:
           case None if s == Stage.S0 && isObjectData(a) => coeObjectData(c, t, a, a2)
           case None => coeOpt(c, t, a, s, a2, s2).getOrElse(t)
       else coeOpt(c, t, a, s, a2, s2).getOrElse(t)
-    catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
+    catch
+      case e: UnifyError =>
+        expectedRelation(a2).foreach { r =>
+          dataConstructorOf(t).foreach(dataUsedAsRelation(_, span, s"expected a relation `⇑(${show(c, r)})`"))
+        }
+        fail(mismatch(c, span, a2, s2, a, s, e.failure))
+
+  private def expectedRelation(a: Val): Option[Val] = force(a) match
+    case Val.Lift(x) => Option.when(isRelationType(x))(x)
+    case other => Option.when(isRelationType(other))(other)
 
   /** Object data between object types: unified if possible (which solves implicit arguments and the
    *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */

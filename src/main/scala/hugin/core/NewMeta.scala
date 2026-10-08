@@ -17,7 +17,13 @@ final case class SourceItems(path: String, qualifier: String, items: List[Item])
  *  order. The prelude's names are in scope in every other file; an imported file is the module value of
  *  its `%import`s ([[elab.Imports]]). */
 object NewMeta:
-  def elaborate(program: SourceItems, prelude: Option[SourceItems], libraries: List[SourceItems], reporter: Reporter): Elaborated =
+  def elaborate(
+      program: SourceItems,
+      prelude: Option[SourceItems],
+      libraries: List[SourceItems],
+      reporter: Reporter,
+      builtinNames: Boolean = true
+  ): Elaborated =
     val core = Core()
     (prelude.toList ++ libraries).map(_.qualifier).foreach(core.reservePrefix)
     val shadowed = program.items.flatMap(declared).toSet
@@ -25,12 +31,12 @@ object NewMeta:
     val parent = preludeElab.fold(Map.empty[Name, Int])(_.scope.toMap)
     var imports = Map.empty[String, elab.ImportedModule]
     val libElabs = libraries.map { lib =>
-      val e = elabFile(core, reporter, lib, elab.FileEnv(lib.path, lib.qualifier, Set.empty, parent, imports))
+      val e = elabFile(core, reporter, lib, elab.FileEnv(lib.path, lib.qualifier, Set.empty, parent, imports, builtinNames = builtinNames))
       imports += lib.path -> e.moduleValue
       e
     }
     val main =
-      elabFile(core, reporter, program, elab.FileEnv(program.path, program.qualifier, Set.empty, parent, imports, lintUnused = true))
+      elabFile(core, reporter, program, elab.FileEnv(program.path, program.qualifier, Set.empty, parent, imports, true, builtinNames))
     val all = (preludeElab.toList ++ libElabs :+ main).flatMap(_.items.toList)
     Elaborated(core, all, main.items.toList)
 

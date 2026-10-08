@@ -19,7 +19,8 @@ final class ElaboratePhase extends Phase:
     u.missingImports ++= graph.missing
     val prelude = Option.when(ctx.settings.prelude)(Prelude.items(reporter)).flatten
     val libraries = qualified(graph.files).map((path, q) => SourceItems(path, q, parse(path, reporter)))
-    u.elaborated = NewMeta.elaborate(SourceItems(root, "", program.items), prelude, libraries, reporter)
+    val builtinNames = ctx.settings.prelude
+    u.elaborated = NewMeta.elaborate(SourceItems(root, "", program.items), prelude, libraries, reporter, builtinNames)
     reporter.diagnostics.foreach(ctx.report)
 
   /** The files with the qualifiers of their object constants: their names, numbered where they clash. */

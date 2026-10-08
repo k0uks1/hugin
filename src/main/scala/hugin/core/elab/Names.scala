@@ -29,7 +29,7 @@ trait Names:
             val g = globals(id)
             (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
           case None =>
-            builtinTypes.get(n) match
+            builtinTypes.get(n).filter(_ => file.builtinNames) match
               case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
               case None => unresolved(c, n, span)
 

@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 class DiagnosticsCoverageSuite extends munit.FunSuite:
   /** The number of `Legacy` call sites when it was recorded. It may only go down: lower it when a phase
    *  migrates to its problem enum, never raise it (new code reports `Problem`s). */
-  val LegacyBound = 162
+  val LegacyBound = 155
 
   private def files(dir: String, ext: String): List[Path] =
     Files.walk(Path.of(dir)).iterator.asScala.filter(_.toString.endsWith(ext)).toList.sortBy(_.toString)

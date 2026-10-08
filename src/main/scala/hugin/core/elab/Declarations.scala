@@ -4,7 +4,7 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
+import hugin.util.diagnostics.Code as DiagCode
 
 /** Declarations and definitions (REDESIGN §6.2, §6.4):
  *
@@ -33,10 +33,7 @@ trait Declarations:
 
   private def declareNew(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span): Int =
     if scope.contains(name.name) then
-      fail(
-        Legacy.error(DiagCode.E0102, s"duplicate declaration of `${name.name}`", name.span, "declared again here")
-          .withLabel(globals(scope(name.name)).span, "first declared here")
-      )
+      fail(ElabProblem.DuplicateMember(name.name, name.span, globals(scope(name.name)).span))
     val objectLike = stage == Stage.S0 || kind.isInstanceOf[GlobalKind.Family]
     val gname = if objectLike then file.objectName(name.name) else name.name
     val id = addGlobal(GlobalEntry(gname, eval(Nil, ty), ty, stage, kind, name.span, declSpan))
@@ -156,7 +153,11 @@ trait Declarations:
     val (c2, imps, ps) = declContext(d, c)
     val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1)))
     val tyV = ev(c, ty)
-    (ty, ascribed(tyV, e.span, check(c, asLambda(d.params, e), tyV, Stage.S1)))
+    val builtin = (e, d.tpe) match
+      case (_: Builtin, Keyword(Kw.Type)) => d.params.isEmpty
+      case _ => false
+    val body = if builtin then definingBuiltin(check(c, e, tyV, Stage.S1)) else check(c, asLambda(d.params, e), tyV, Stage.S1)
+    (ty, ascribed(tyV, e.span, body))
 
   /** A module ascribed a signature with `%fact` fields (`m : sig = e.`) must pass fact constructors for
    *  them ([[Tm.Require]]; the other requirements concern functor applications). */
