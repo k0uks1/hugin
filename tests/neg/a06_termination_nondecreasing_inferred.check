@@ -1,0 +1,13 @@
+error[E0603]: growing component without a termination argument
+ --> tests/neg/a06_termination_nondecreasing_inferred.hgn:9:49
+  |
+9 | len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1. (*~ E0603 *)
+  |                                                 ^^^^^^^^^ head variable `M` is computed by `M = N + 1`
+  |
+  = note: the recursive component {len[int]} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `len[int]` -> `len[int]`
+  = note: descent along derivations (A) fails: along `len[int]` -> ... -> `len[int]` (rule at tests/neg/a06_termination_nondecreasing_inferred.hgn:9:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no anchor: the body bounds neither `M` nor `N` from above (measure: argument 2 (integer))
+  = help: `M` is larger than `N` but not bounded above: add a guard such as `M < 100` (or bound `N`)
+
+1 error found
