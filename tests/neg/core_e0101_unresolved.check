@@ -3,7 +3,5 @@ error[E0101]: unresolved name `nta`
   |
 3 | n : nta.
   |     ^^^ not found in this scope
-  |
-  = help: a name with a similar spelling exists: `nat`
 
 1 error found
