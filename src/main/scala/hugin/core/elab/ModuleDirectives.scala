@@ -1,7 +1,6 @@
 package hugin.core
 package elab
 
-import hugin.syntax.Literal
 import hugin.syntax.Trees.*
 import hugin.util.*
 import scala.collection.mutable
@@ -83,17 +82,12 @@ trait ModuleDirectives:
         None
     finally index.muted = saved
 
-  /** A rule or query as written, as data of type `item` (at the item's position). */
+  /** A rule or query as written, as data of type `item` (at the item's position). Its meta subterms
+   *  (a meta constant used as object code) are evaluated and their values reified (issue #79). */
   def reifyItem(item: Item): Tm = Tm.loc(item.span, reifyAt(item))
 
   private def reifyAt(item: Item): Tm = item match
-    case Rule(name, heads, body) =>
-      val rule = reify(Cxt.empty, RuleQuote(heads, body)(item.span), RKind.Rule)
-      name match
-        case Some(n) => con("inamed", Tm.Lit(Literal.StrL(n.name), Stage.S1), rule)
-        case None => con("irule", rule)
-    case Query(body) =>
-      con("iquery", listData(kindType(RKind.Formula), conjuncts(body).map(f => Left(reify(Cxt.empty, f, RKind.Formula)))))
+    case _: Rule | _: Query => reifyingFile(reify(Cxt.empty, Quote(List(item), true)(item.span), RKind.Item))
     case other => throw Impossible(s"not a rule or query: $other")
 
   /** The items of data `tm` of kind `k`, one entry each. */

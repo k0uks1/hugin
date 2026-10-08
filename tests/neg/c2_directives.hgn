@@ -19,7 +19,7 @@ twice X = X + X.
 seen : node -> rel.
 
 redirect : decl -> decl.
-redirect D = output edge.
+redirect D = output '{ edge }.
 %redirect (*~ E1003 *)
 other : node -> rel.
 
@@ -37,7 +37,7 @@ not_yet R = [ierror "`%not_yet` is not implemented yet"].
 %terminates n edge. (*~ E0701 *)
 
 copy : sym -> seq item.
-copy R = [($R X Y :- edge X Y)].
+copy R = '{ $R X Y :- edge X Y. }.
 loops = {
   l : node -> node -> rel.
   %copy l. (*~ E0907 *)

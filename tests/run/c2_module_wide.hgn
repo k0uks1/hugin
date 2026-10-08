@@ -13,12 +13,12 @@ path X Z :- path X Y, edge Y Z.
 
 mirror : module -> module.
 mirror [] = [].
-mirror ((edge $X $Y :- $..B) :: Rest) = (edge $X $Y :- $..B) :: (edge $Y $X :- $..B) :: mirror Rest.
+mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
 mirror (I :: Rest) = I :: mirror Rest.
 
 (* an edge from a node to `d` *)
 loop : term -> seq item.
-loop N = [edge $N d].
+loop N = '{ edge $N d. }.
 
 %loop c.
 %mirror.

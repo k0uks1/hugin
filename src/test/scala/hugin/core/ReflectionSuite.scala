@@ -17,16 +17,20 @@ class ReflectionSuite extends munit.FunSuite:
     assert(r.diagnostics.isEmpty, r.diagnostics.map(_.message).mkString("\n"))
     items.map(Printer.showItem).mkString("\n")
 
-  test("syntax: lists, lambdas, rules as expressions, holes") {
+  test("syntax: lists, lambdas, quotes, holes") {
     assertEquals(show("x = [a, b]."), "x = [a, b].")
     assertEquals(show("x = f [] [a]."), "x = f [] [a].")
     assertEquals(show("x = [y] y."), "x = [y] y.")
     assertEquals(show("x = [Y]."), "x = [Y].")
     assertEquals(show("x = a :: b :: []."), "x = (a :: (b :: [])).")
-    assertEquals(show("x = (p X :- q X, $..B)."), "x = (p X :- q X, $..B).")
-    assertEquals(show("x = (p X, q X :-)."), "x = (p X, q X :-).")
-    assertEquals(show("x = [p X :- q X, r X]."), "x = [(p X :- q X, r X)].")
-    assertEquals(show("f ($R $X) = $F[V]."), "f ($R $X) = $F[V].")
+    assertEquals(show("x = '{ p X :- q X, $..B }."), "x = '{ p X :- q X, $..B }.")
+    assertEquals(show("x = '{p X, q X}."), "x = '{ p X, q X }.")
+    assertEquals(show("x = '{ a. @r b :- c. ?- b. }."), "x = '{ a. @r b :- c. ?- b. }.")
+    assertEquals(show("x = ['{ p X :- q X, r X }]."), "x = ['{ p X :- q X, r X }].")
+    assertEquals(show("x = f '{ X + 1 } '{}."), "x = f '{ (X + 1) } '{ }.")
+    assertEquals(show("f '{ $R $X } = '{ $F[V] }."), "f '{ $R $X } = '{ $F[V] }.")
+    // a prime inside or after a name is part of it: only `'` at the start of a token, before `{`, quotes
+    assertEquals(show("x' = f' '{ g' }."), "x' = f' '{ g' }.")
     // with a space, `[V]` is not the argument list of a higher-order hole
     assertEquals(show("f X = $F [V]."), "f X = $F [V].")
   }
@@ -53,9 +57,7 @@ class ReflectionSuite extends munit.FunSuite:
     "num X, r 1 :- p X 2."
   )
 
-  private def quoted(rule: String): String =
-    val r = rule.stripSuffix(".")
-    "(" + (if r.contains(":-") then r else r + " :-") + ")"
+  private def quoted(rule: String): String = "'{ " + rule + " }"
 
   private def staged(code: String): String =
     val c = TestSupport.compile(code, Settings(stopAfter = Some("stage")))
@@ -76,14 +78,14 @@ class ReflectionSuite extends munit.FunSuite:
     case _ => Nil
 
   test("reify ∘ reflect = id: reflected data quoted again is the same data") {
-    val e = CoreTesting.ok(prelude + decls + rules.map(quoted).mkString("data : module = [", ", ", "]."))
+    val e = CoreTesting.ok(prelude + decls + rules.mkString("data : module = '{ ", " ", " }."))
     val v = e.global("data").kind match
       case GlobalKind.Definition(_, v) => v
       case other => fail(s"not a definition: $other")
     val items = e.elab.reflectedItems(v, RKind.List(RKind.Item), Span.NoSpan)
     assertEquals(items.length, rules.length)
     val again = items.map {
-      case Rule(_, heads, body) => e.elab.reify(Cxt.empty, RuleQuote(heads, body)(Span.NoSpan), RKind.Item)
+      case r: Rule => e.elab.reify(Cxt.empty, Quote(List(r), true)(Span.NoSpan), RKind.Item)
       case other => fail(s"not a rule: $other")
     }
     val original = elements(withoutPositions(e.core.quote(0, v)))
@@ -98,36 +100,36 @@ class ReflectionSuite extends munit.FunSuite:
       |edge : node -> node -> rel.
       |m = { edge : node -> node -> rel. }.
       |isEdge : formula -> int.
-      |isEdge (edge $X $Y) = 1.
+      |isEdge '{ edge $X $Y } = 1.
       |isEdge _ = 0.
       |flip : formula -> formula.
-      |flip ($R $X $Y) = ($R $Y $X).
+      |flip '{ $R $X $Y } = '{ $R $Y $X }.
       |flip F = F.
       |size : formula -> int.
-      |size ($F, $G) = size F + size G.
+      |size '{ $F, $G } = size F + size G.
       |size _ = 1.
       |body : formula -> formula.
-      |body (N = count { V | $F[V] }) = F (tvar "W").
+      |body '{ N = count { V | $F[V] } } = F (tvar "W").
       |body G = G.
       |""".stripMargin
 
   test("matching resolves names to symbols: a shadowing `edge` does not match") {
     val e = CoreTesting.ok(prelude + program)
-    assertEquals(e.eval("isEdge (edge a b)"), "1")
-    assertEquals(e.eval("isEdge (m.edge a b)"), "0")
-    assertEquals(e.eval("isEdge (edge a b, edge b a)"), "0")
+    assertEquals(e.eval("isEdge '{ edge a b }"), "1")
+    assertEquals(e.eval("isEdge '{ m.edge a b }"), "0")
+    assertEquals(e.eval("isEdge '{ edge a b, edge b a }"), "0")
   }
 
   test("quoted patterns: holes in relation position, higher-order holes for aggregates") {
     val e = CoreTesting.ok(prelude + program)
-    assertEquals(e.eval("isEdge (flip (edge a b))"), "1")
-    assertEquals(e.eval("size (edge a b, edge b a, edge b b)"), "3")
+    assertEquals(e.eval("isEdge (flip '{ edge a b })"), "1")
+    assertEquals(e.eval("size '{ edge a b, edge b a, edge b b }"), "3")
     // the body of the aggregate with its bound variable instantiated by `W`
-    val opened = e.eval("body (N = count { V | edge V a, edge a V })")
+    val opened = e.eval("body '{ N = count { V | edge V a, edge a V } }")
     assert(opened.startsWith("fconj (fatom ⟨edge⟩ (scons {term} (tvar \"W\")"), opened)
   }
 
   test("quoted patterns are checked for coverage and termination") {
-    assertEquals(CoreTesting.errors(prelude + "isEdge : formula -> int.\nisEdge (not $F) = 1."), List("E0911"))
-    assertEquals(CoreTesting.errors(prelude + "f : formula -> int.\nf (not $F) = f (not $F).\nf _ = 0."), List("E0912"))
+    assertEquals(CoreTesting.errors(prelude + "isEdge : formula -> int.\nisEdge '{ not $F } = 1."), List("E0911"))
+    assertEquals(CoreTesting.errors(prelude + "f : formula -> int.\nf '{ not $F } = f '{ not $F }.\nf _ = 0."), List("E0912"))
   }

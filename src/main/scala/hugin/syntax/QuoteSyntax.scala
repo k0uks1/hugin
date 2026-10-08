@@ -4,14 +4,55 @@ import scala.collection.mutable
 
 /** The grammar of reflection (reference: reflection), mixed into [[Parser]]:
  *
- *  - holes `$x`, sequence holes `$..xs` and higher-order holes `$f[t̄]` (the `[` directly after `f`);
+ *  - quotes `'{ … }`: object syntax as data. The content is a sequence of entries as in a file, separated
+ *    by periods (the last period optional): `[@name] e [:- b]` (a rule, or a fact whose head `e` is kept
+ *    whole: a formula, a term, a measure) and `?- b` (a query). The expected type chooses the category;
+ *  - holes `$x`, sequence holes `$..xs` and higher-order holes `$f[t̄]` (the `[` directly after `f`), which
+ *    the elaborator accepts only inside a quote (outside, `$x` is the staging splice);
  *  - meta lists `[]`, `[e₁, …, eₙ]` and `e :: es`. A `[` starts a list unless it has the shape of a
- *    lambda `[x] e` (one name, optionally typed, followed by an expression); a list element may be a rule
- *    `h :- b`, whose body extends to the closing `]` (so `[h :- a, b]` is one rule; several rules with
- *    bodies are parenthesised);
- *  - rules as expressions and patterns, `(h̄ :- b)` (`(h :-)` without a body).
+ *    lambda `[x] e` (one name, optionally typed, followed by an expression).
  */
 private[syntax] trait QuoteSyntax extends ParserBase:
+  /** `'{ … }`, at `'`. An unclosed quote is E0005 (the `'{` never closed); the entries are recovery
+   *  regions, like the items of a module body. */
+  protected def parseQuote(): Tree =
+    val q = advance()
+    val brace = advance()
+    val open = Token(Tok.LBrace, "'{", q.span.to(brace.span), q.spaceBefore)
+    val entries = mutable.ListBuffer.empty[Trees.Item]
+    var terminated = false
+    var more = !at(Tok.RBrace) && startsEntry
+    while more do
+      entries += parseEntry()
+      terminated = at(Tok.Period)
+      if terminated then
+        advance()
+        resync()
+      more = terminated && !at(Tok.RBrace) && startsEntry
+    val closed = close(open, Tok.RBrace)
+    checked(Trees.Quote(entries.toList, terminated)(spanFrom(q.span.start)), closed)
+
+  private def startsEntry: Boolean = kind == Tok.Query || startsExpression(kind)
+
+  private def parseEntry(): Trees.Item =
+    val start = tok.span.start
+    if at(Tok.Query) then
+      advance()
+      Trees.Query(parseExpr(Parser.LvlSemi))(spanFrom(start))
+    else
+      val name =
+        if at(Tok.RuleName) then
+          val rn = advance()
+          Some(Trees.Ident(rn.text.drop(1))(rn.span))
+        else None
+      val e = parseExpr(Parser.LvlSemi)
+      if at(Tok.Turnstile) then
+        advance()
+        resync()
+        val body = parseExpr(Parser.LvlSemi)
+        Trees.Rule(name, conjuncts(e), Some(body))(spanFrom(start))
+      else Trees.Rule(name, List(e), None)(spanFrom(start))
+
   /** After `$` (at `start`): a hole, a sequence hole or a higher-order hole. */
   protected def parseDollar(start: Int): Tree =
     val seq = at(Tok.DotDot)
@@ -74,22 +115,16 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     val closed = close(open, Tok.RBrack)
     checked(ListLit(elems.toList)(spanFrom(open.span.start)), closed)
 
+  /** A list element; a `:-` after it is the rule syntax of old, which is written in a quote now. */
   private def listElement(): Tree =
-    val start = tok.span.start
     val e = parseExpr(Parser.LvlComma + 1)
-    if at(Tok.Turnstile) then
-      advance()
-      val body = parseExpr(Parser.LvlSemi)
-      RuleQuote(List(e), Some(body))(spanFrom(start))
-    else e
+    if at(Tok.Turnstile) then ruleOutsideQuote()
+    e
 
-  /** The rest of `(h̄ :- b)` at `:-`, after the heads `inner` (a conjunction for several heads); `open` is
-   *  the opening parenthesis, closed here. */
-  protected def ruleQuoteRest(open: Token, inner: Tree): Tree =
-    advance()
-    val body = if at(Tok.RParen) then None else Some(parseExpr(Parser.LvlSemi))
-    val closed = close(open, Tok.RParen)
-    checked(RuleQuote(conjuncts(inner), body)(spanFrom(open.span.start)), closed)
+  /** At `:-` in parentheses or a list: reported with the quote syntax as help (the enclosing construct
+   *  skips to its closing delimiter). */
+  protected def ruleOutsideQuote(): Unit =
+    error(SyntaxError.Expected(List(Expect.expression), found, tok.span, None, Some(SyntaxHelp.RuleOutsideQuote(tok.span))))
 
   private def conjuncts(t: Tree): List[Tree] = t match
     case Conj(a, b) => conjuncts(a) ++ conjuncts(b)

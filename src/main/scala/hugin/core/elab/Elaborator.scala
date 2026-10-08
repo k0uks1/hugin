@@ -138,6 +138,7 @@ class Elaborator(
     with ObjectItems
     with Reflective
     with Quotes
+    with QuoteTerms
     with QuotedPatterns
     with Reflection
     with Directives

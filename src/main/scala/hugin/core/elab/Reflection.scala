@@ -51,16 +51,36 @@ trait Reflection:
         case _ => None
     case _ => None
 
-  private def spliceKind(e: Tree): Option[RKind] =
-    try
-      reflectiveKind(insert(Cxt.empty, e.span, infer(Cxt.empty, e))._2).filter {
-        case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
-        case _ => false
-      }
-    catch case _: ElabError => None
+  private def spliceKind(e: Tree): Option[RKind] = e match
+    case Parens(i) => spliceKind(i)
+    // a quote is reflected items (errors in it are reported when it is elaborated)
+    case _: Quote => Some(RKind.List(RKind.Item))
+    case _ =>
+      try
+        reflectiveKind(splicedData(e)._2).filter {
+          case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
+          case _ => false
+        }
+      catch case _: ElabError => None
+
+  /** The data of `$e.` and its type: inferred; a quote (or a list that has no type of its own) is
+   *  checked against `module`. */
+  private def splicedData(e: Tree): (Tm, Val) =
+    def inferred = insert(Cxt.empty, e.span, infer(Cxt.empty, e)) match
+      case (tm, ty, _) => (tm, ty)
+    def asModule =
+      val ty = listOf(eval(Nil, kindType(RKind.Item)))
+      (check(Cxt.empty, e, ty, Stage.S1), ty)
+    e match
+      case Parens(i) => splicedData(i)
+      case _: Quote => asModule
+      case _: ListLit =>
+        try undoOnFailure(inferred)
+        catch case _: ElabError => asModule
+      case _ => inferred
 
   private def elabSplice(r: Rule, e: Tree, k: RKind): Unit =
-    val (tm, _, _) = insert(Cxt.empty, e.span, infer(Cxt.empty, e))
+    val (tm, _) = splicedData(e)
     val frame = TraceFrame(s"in code reflected by `$$${Printer.show(e)}`", r.span)
     val closed = zonk(Nil, 0, tm)
     recordPart(ModulePart.Data(closed, k, frame, directive = false))

@@ -199,7 +199,7 @@ class ItemQueriesSuite extends munit.FunSuite:
   private val mirror =
     """mirror : module -> module.
       |mirror [] = [].
-      |mirror ((edge $X $Y :- $..B) :: Rest) = (edge $X $Y :- $..B) :: (edge $Y $X :- $..B) :: mirror Rest.
+      |mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
       |mirror (I :: Rest) = I :: mirror Rest.
       |%mirror.
       |""".stripMargin

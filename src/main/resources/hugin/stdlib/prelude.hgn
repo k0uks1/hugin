@@ -41,9 +41,10 @@ bounded (g : graph) (limit : int) = {
   hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
 }.
 
-(* Reflection (reference: reflection): object syntax as data. Object syntax written where one of
-   these types is expected is quoted (`[ (p X :- q X) ]`); in a pattern it is a quoted pattern with holes
-   `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the program. *)
+(* Reflection (reference: reflection): object syntax as data. A quote `'{ … }` where one of these
+   types is expected is data of it (`'{ p X :- q X }`, `'{ edge 1 2. edge 2 3. }`); in a pattern it is
+   a quoted pattern with holes `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the
+   program. *)
 seq : Type -> Type.
 snil : seq A.
 scons : A -> seq A -> seq A.
@@ -151,9 +152,10 @@ openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isu
    application says what it changes. A directive returning a `decl` changes the declaration of an object
    constant (local: `%input r.`; in the prefix form `%d a₁ … aₙ` before a declaration, `d a₁ … aₙ` has type
    `decl -> decl` and is applied to it); one of type `module -> module` rewrites the file's rules and
-   queries (module-wide); one returning items (`seq item`, `item`, `rule`, `seq rule`) adds them. Where a
-   `decl` is expected, the name of an object constant (or a rule name `@r`) is quoted as its
-   declaration. *)
+   queries (module-wide); one returning items (`seq item`, `item`, `rule`, `seq rule`) adds them. The
+   arguments of a directive are object syntax: at a parameter of a reflective type, an argument is quoted
+   implicitly (where a `decl` is expected, the name of an object constant or a rule name `@r` is its
+   declaration). *)
 
 (* What directives attach to a declaration; the compiler implements them *)
 measure : Type.
@@ -268,16 +270,16 @@ dmodule R Cs M G (I :: Is) = I :: dmodule R Cs M [] Is.
 (* A rule: of `r` guarded, with the demand of its calls; derived from the last rule of `r`, guarded like
    it; any other with the demand of its calls *)
 dstep : sym -> seq sym -> modes Ls -> seq formula -> rule -> (rule -> item) -> module.
-dstep R Cs M G ($S $..Ts :- $..B) Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
+dstep R Cs M G '{ $S $..Ts :- $..B } Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
 dstep R Cs M G Rl Mk = Mk Rl :: ditems (dbody R Cs M Rl).
 
 dhead : bool -> bool -> sym -> seq sym -> modes Ls -> seq formula -> sym -> seq term -> seq formula -> (rule -> item) -> module.
 dhead true D R Cs M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R Cs M [dguard R M Ts] B).
 dhead false true R Cs M G S Ts B Mk = [Mk (horn [fatom S Ts] (dprefix Cs Ts (sappend G B)))].
-dhead false false R Cs M G S Ts B Mk = Mk ($S $..Ts :- $..B) :: ditems (dcalls R Cs M [] B).
+dhead false false R Cs M G S Ts B Mk = Mk '{ $S $..Ts :- $..B } :: ditems (dcalls R Cs M [] B).
 
 dguarded : formula -> sym -> seq term -> seq formula -> (rule -> item) -> item.
-dguarded F S Ts B Mk = Mk ($S $..Ts :- $F, $..B).
+dguarded F S Ts B Mk = Mk '{ $S $..Ts :- $F, $..B }.
 
 (* The guard of a rule of `r` with head arguments `Ts` *)
 dguard : sym -> modes Ls -> seq term -> formula.
@@ -285,7 +287,7 @@ dguard R M Ts = fatom (derive R "check") (dinputs M (dnamed "_" M Ts)).
 
 (* The guard the rules after `Rl` get: `Rl`'s if it is a rule of `r`, `G` if it is derived *)
 dguardOf : sym -> modes Ls -> rule -> seq formula -> seq formula.
-dguardOf R M ($S $..Ts :- $..B) G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
+dguardOf R M '{ $S $..Ts :- $..B } G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
 dguardOf R M Rl G = [].
 
 dguardSel : bool -> bool -> formula -> seq formula -> seq formula.

@@ -59,6 +59,9 @@ enum SyntaxHelp:
   /** `$` not followed by the expression of a hole or splice. */
   case DollarWithoutExpression
 
+  /** `:-` in parentheses or a list: a rule as data, which is written in a quote `'{ h :- b }`. */
+  case RuleOutsideQuote(at: Span)
+
 /** The problems of the lexer and the parser (E0001–E0005): the inventory of the syntax phase. */
 enum SyntaxError extends Problem:
   // ---------------------------------------------------------------------------------------- lexer
@@ -140,6 +143,7 @@ enum SyntaxError extends Problem:
     case _: IntegerOutOfRange => msg"integer literal out of range"
     case Expected(_, f, _, _, Some(SyntaxHelp.DoubleColon(_))) => msg"expected `:` in a declaration, found $f"
     case Expected(_, f, _, _, Some(SyntaxHelp.LowercaseVariable(_, _))) => msg"expected a variable, found $f"
+    case Expected(_, _, _, _, Some(SyntaxHelp.RuleOutsideQuote(_))) => msg"a rule outside a quote"
     case Expected(w, f, _, _, _) => msg"expected $w, found $f"
     case MissingPeriod(c, f, _, _) => msg"expected `.` after the ${Lit(c)}, found $f"
     case Unclosed(open, _, _, _, _, _) => msg"unclosed ${Src(open)}"
@@ -163,6 +167,7 @@ enum SyntaxError extends Problem:
     case _: IntegerOutOfRange => msg"does not fit into a 64-bit integer"
     case Expected(_, _, _, _, Some(SyntaxHelp.DoubleColon(_))) => msg"expected `:`"
     case Expected(_, _, _, _, Some(SyntaxHelp.LowercaseVariable(_, _))) => msg"a name, not a variable"
+    case Expected(_, _, _, _, Some(SyntaxHelp.RuleOutsideQuote(_))) => msg"`:-` outside a quote"
     case Expected(w, _, _, _, _) => msg"expected $w"
     case _: MissingPeriod => msg"expected `.` here"
     case Unclosed(_, _, closer, _, _, _) => msg"expected ${Src(closer)} here"
@@ -202,6 +207,7 @@ enum SyntaxError extends Problem:
           List(msg"a record value gives its fields with `=`, a record type declares them with `:`")
         case SyntaxHelp.LowercaseVariable(_, _) => List(msg"variables start with an uppercase letter or `_`")
         case SyntaxHelp.DollarWithoutExpression => List(msg"a hole or splice is written `$$x`, `$$(f x)`, `$$..xs` or `$$f[V]`")
+        case _: SyntaxHelp.RuleOutsideQuote => List(msg"a rule as data is written in a quote: `'{ h :- b }`")
     case _: MissingPeriod => List(msg"every item ends with a period")
     case _: RuleNameOnDeclaration => List(msg"rule names are written `@name head :- body.`; declarations have no `@`")
     case _: NonAssociativeChain => List(msg"add parentheses")
@@ -228,5 +234,5 @@ enum SyntaxError extends Problem:
         case SyntaxHelp.LowercaseVariable(name, at) =>
           val v = name.capitalize
           List(Suggestion.replace(at, v, msg"write the variable ${Src(v)}", Applicability.MaybeIncorrect))
-        case SyntaxHelp.DollarWithoutExpression => Nil
+        case SyntaxHelp.DollarWithoutExpression | _: SyntaxHelp.RuleOutsideQuote => Nil
     case _ => Nil

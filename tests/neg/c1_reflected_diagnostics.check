@@ -1,8 +1,8 @@
 error[E0501]: rule is not range-restricted
- --> tests/neg/c1_reflected_diagnostics.hgn:7:12
+ --> tests/neg/c1_reflected_diagnostics.hgn:7:13
   |
-7 | mk N = [(p X :- q N)]. (*~ E0501 *)
-  |            ^ `X` not bound by the body
+7 | mk N = '{ p X :- q N. }. (*~ E0501 *)
+  |             ^ `X` not bound by the body
   |
   = note: every variable of the head must be bound by a positive atom or an equation in the body
 note: in code reflected by `$mk 1`
@@ -12,10 +12,10 @@ note: in code reflected by `$mk 1`
   | ^^^^^^
 
 error[E0402]: type mismatch
-  --> tests/neg/c1_reflected_diagnostics.hgn:11:18
+  --> tests/neg/c1_reflected_diagnostics.hgn:11:20
    |
-11 | typo : rule = (p "one" :- q 1). (*~ E0402 *)
-   |                  ^^^^^ expected `int`, found `string`
+11 | typo : rule = '{ p "one" :- q 1 }. (*~ E0402 *)
+   |                    ^^^^^ expected `int`, found `string`
    |
    = note: in column 1 of `p`
 note: in code reflected by `$[typo]`

@@ -14,6 +14,9 @@ enum Tok:
   case Dollar, Up, KwWhere
   // `::`, the meta level's list constructor (reference: reflection)
   case ColonColon
+  // `'` directly before `{`: the opener of a reflection quote `'{ … }` (reference: reflection); the `{`
+  // is a token of its own, so that delimiters nest as usual
+  case Quote
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -78,6 +81,7 @@ object Lexer:
     Tok.RBrack -> "]",
     Tok.Dollar -> "$",
     Tok.ColonColon -> "::",
+    Tok.Quote -> "'{",
     Tok.Up -> "⇑",
     Tok.KwWhere -> "where",
     Tok.KwType -> "type",
@@ -212,6 +216,8 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case '[' => sym(Tok.LBrack, 1)
         case ']' => sym(Tok.RBrack, 1)
         case '$' => sym(Tok.Dollar, 1)
+        // a prime is an identifier character (`x'`); at the start of a token, before `{`, it opens a quote
+        case '\'' if peek(1) == '{' => sym(Tok.Quote, 1)
         case '⇑' => sym(Tok.Up, 1)
         case _ =>
           val cp = s.codePointAt(pos)

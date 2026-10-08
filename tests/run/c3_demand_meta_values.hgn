@@ -1,0 +1,20 @@
+(* Issue #79: a module-wide directive (here `%demand`) reifies the rules of the file; a meta value used
+   as object code in them (a persisted base value, object code) is evaluated and reified as its value, as
+   if it had been written in its place. *)
+k : int = 3.
+held : int -> rel.
+held k.
+
+node : type.
+a : node. b : node. c : node.
+start : ⇑node = a.
+edge : node -> node -> rel.
+edge start b.
+edge b c.
+
+reach : (x : node) -> (y : node) -> rel.
+%demand reach +x -y.
+reach X Y :- edge X Y.
+reach X Z :- reach X Y, edge Y Z.
+
+?- reach start Y, held N.

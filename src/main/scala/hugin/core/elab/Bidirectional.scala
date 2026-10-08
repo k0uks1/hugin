@@ -53,9 +53,8 @@ trait Bidirectional:
       val a = freshMeta(c, Val.U0, Stage.S0, t.span, s"the type of `$n`", allowUnsolved = true)
       (Tm.Obj(ObjForm.Named(n), Nil), ev(c, a), Stage.S0)
     case ListLit(_) | ConsE(_, _) => inferList(c, t)
-    case _: RuleQuote =>
-      val r = reflective(t.span)
-      (reify(c, t, RKind.Rule), Val.Rigid(Head.Glob(r.rule), Nil), Stage.S1)
+    case q: Quote => quoteWithoutType(c, q, None)
+    case _: SpliceSeq | _: SpliceHO => fail(ReflectionProblem.HoleOutsideQuote(t.span))
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
@@ -88,9 +87,13 @@ trait Bidirectional:
     finally state.typePosition = saved
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
+    case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined => reify(c, t, implicitQuote(t, ty).get)
     case (Parens(i), _) => check(c, i, a, st)
+    case (q: Quote, ty) =>
+      reflectiveKind(ty) match
+        case Some(k) if st == Stage.S1 => reify(c, q, k)
+        case _ => quoteWithoutType(c, q, Some(ty))
     case (ListLit(_) | ConsE(_, _), _) if st == Stage.S1 => checkList(c, t, a)
-    case (_, ty) if st == Stage.S1 && reflectiveKind(ty).exists(quotedSyntax(t, _, c)) => reify(c, t, reflectiveKind(ty).get)
     case (Lit(l), ty) if st == Stage.S0 =>
       // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
       coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)

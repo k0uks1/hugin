@@ -41,13 +41,15 @@ trait Patterns:
       Some(SurfaceClause(d.name, pats, d.rhs, d.span))
     case _ => None
 
-  /** A surface pattern, with the type it matches if that is known and closed: object syntax where a
-   *  reflective type is expected is a quoted pattern ([[QuotedPatterns]]); list syntax is the prelude's
-   *  `List`. */
-  def pattern(t: Tree, expected: Option[Val] = None): Pat =
-    expected.flatMap(reflectiveKind) match
-      case Some(k) if k != RKind.Decl && k != RKind.Measure && quotedSyntax(t, k) => quotedPattern(t, k)
-      case _ => plainPattern(t, expected)
+  /** A surface pattern, with the type it matches if that is known and closed: a quote `'{ … }` is a
+   *  quoted pattern ([[QuotedPatterns]]), which needs a reflective type; list syntax is the prelude's
+   *  `seq`. */
+  def pattern(t: Tree, expected: Option[Val] = None): Pat = t match
+    case q: Quote =>
+      expected.flatMap(reflectiveKind) match
+        case Some(k) => quotedPattern(q, k)
+        case None => quoteWithoutType(Cxt.empty, q, expected)
+    case _ => plainPattern(t, expected)
 
   private def plainPattern(t: Tree, expected: Option[Val]): Pat = t match
     case Parens(i) => pattern(i, expected)

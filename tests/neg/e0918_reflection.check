@@ -1,8 +1,8 @@
 error[E0918]: cannot reflect a value that is not known at compile time
- --> tests/neg/e0918_reflection.hgn:6:3
+ --> tests/neg/e0918_reflection.hgn:6:5
   |
-6 | $[(p 1 :- $opaque)]. (*~ E0918 *)
-  |   ^^^^^^^^^^^^^^^^ the value is `opaque`
+6 | $'{ p 1 :- $opaque. }. (*~ E0918 *)
+  |     ^^^^^^^^^^^^^^ the value is `opaque`
   |
   = note: reflection turns closed data into object code during elaboration
 
