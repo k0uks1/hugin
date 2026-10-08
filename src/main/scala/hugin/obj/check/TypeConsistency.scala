@@ -70,7 +70,7 @@ object TypeConsistency:
   private def violation(span: Span, msg: String, label: String, help: String, notes: List[String] = Nil): Diagnostic =
     val d = Legacy.error(Code.E0606, s"type-inconsistent rule: $msg", span, label)
       .withNote(
-        "in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact (docs/REDESIGN.md §5.2)"
+        "in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact"
       )
     (notes.foldLeft(d)(_.withNote(_))).withHelp(help)
 

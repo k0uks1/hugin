@@ -94,5 +94,5 @@ trait ElabErrors:
   def unsupportedAt(span: Span, what: String): Nothing =
     fail(
       Legacy.error(DiagCode.E0907, s"$what are not supported by the new meta level yet", span, "not supported yet")
-        .withNote("the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md §10; the rest is ported in B3")
+        .withNote("the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md; the rest is ported in B3")
     )

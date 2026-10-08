@@ -1,0 +1,12 @@
+(* --error-format=json: an error with secondary labels, a warning with suggestions, and a note *)
+p : int -> rel.
+q : int -> rel.
+base : int -> rel.
+base 1.
+p X :- base X, not q X.
+q X :- base X, not p X.
+s : int -> rel.
+s X :- base X, base Y.
+road : int -> int -> rel.
+path : int -> int -> rel.
+path X Y :- rood X Y.

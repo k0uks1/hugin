@@ -1,6 +1,7 @@
 package hugin.cli
 
 import hugin.util.*
+import hugin.util.diagnostics.{Explanations, JsonDiagnostics}
 import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
@@ -48,8 +49,11 @@ object Main:
             out(s"  (fused: ${group.map(_.phaseName).mkString(" + ")})")
             group.foreach(m => out(f"    ${m.phaseName}%-12s ${m.description}"))
       ExitCode.Ok
-    case Command.Explain(code) =>
-      ErrorCodes.explain(code) match
+    case Command.Explain(_, true) =>
+      out(Explanations.inventory)
+      ExitCode.Ok
+    case Command.Explain(code, false) =>
+      Explanations.explain(code) match
         case Some(text) =>
           out(text)
           ExitCode.Ok
@@ -87,14 +91,19 @@ object Main:
       err(s"error: no such file `$file`")
       ExitCode.Usage
 
+  /** Prints diagnostics: rendered with a summary line, or as JSON lines (`--error-format=json`). */
   private def render(all: List[Diagnostic], display: Display, err: String => Unit): Unit =
     val diags = display.shown(all)
-    val renderer = DiagnosticRenderer(display.color)
-    diags.foreach(d => err(renderer.render(d)))
-    val r = Reporter()
-    diags.foreach(r.report)
-    val summary = renderer.summary(r)
-    if summary.nonEmpty then err(summary)
+    if display.json then
+      val plain = DiagnosticRenderer(color = false)
+      diags.foreach(d => err(JsonDiagnostics.encode(d, plain.render(d)).render))
+    else
+      val renderer = DiagnosticRenderer(display.color)
+      diags.foreach(d => err(renderer.render(d)))
+      val r = Reporter()
+      diags.foreach(r.report)
+      val summary = renderer.summary(r)
+      if summary.nonEmpty then err(summary)
 
   /** The new meta level (redesign Phase B): elaborates the file; `print` writes the elaborated program
    *  with its object items staged. */

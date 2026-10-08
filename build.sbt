@@ -33,3 +33,15 @@ lazy val root = (project in file("."))
 // `sbt fuzz`: the long run of the fuzz suites (hugin.fuzz): 2000 tests per property from a random seed;
 // HUGIN_FUZZ_COUNT and HUGIN_FUZZ_SEED in the environment override both (see README, "Fuzz testing")
 addCommandAlias("fuzz", "set Test / javaOptions += \"-Dhugin.fuzz.long=true\"; testOnly hugin.fuzz.*")
+
+// the explanations of the diagnostic codes (docs/errors/EXXXX.md) are resources `/hugin/errors/EXXXX.md`,
+// printed by `hugin explain` without the repository at hand
+Compile / resourceGenerators += Def.task {
+  val out = (Compile / resourceManaged).value / "hugin" / "errors"
+  val docs = ((ThisBuild / baseDirectory).value / "docs" / "errors" * "*.md").get
+  docs.map { f =>
+    val target = out / f.getName
+    IO.copyFile(f, target)
+    target
+  }
+}.taskValue

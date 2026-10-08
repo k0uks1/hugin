@@ -5,7 +5,7 @@ import hugin.query.*
 import hugin.syntax.{Lexer, Tok}
 import hugin.syntax.Trees.Query as QueryItem
 import hugin.util.*
-import hugin.util.diagnostics.Code
+import hugin.util.diagnostics.{Code, Explanations}
 import java.nio.file.{Files, Path}
 import org.apache.commons.text.similarity.LevenshteinDistance
 
@@ -340,7 +340,7 @@ final class Session(settings: Settings = Settings(), initialStats: Boolean = fal
       Reply(name.fold(lines)(n => Session.mentioning(lines, n)))
 
   private def explain(code: String): Reply =
-    ErrorCodes.explain(code) match
+    Explanations.explain(code) match
       case Some(text) => Reply(text.linesIterator.toList)
       case None => error(s"unknown diagnostic code `$code`")
 

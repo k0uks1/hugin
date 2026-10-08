@@ -7,7 +7,7 @@ error[E0601]: stratification cycle through negation
   |        `s^or1^d[+-]` depends on `s`
   |
   = note: cycle: s -> not s^or1 -> s^or1^d[+-] -> s
-  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+  = note: negation and aggregation must not occur in a recursive cycle
   = note: `s^or1` stands for a disjunction inside an aggregate; its demand needs the disjunction's outer variables, which are bound only by relations that depend on `s`
   = help: bind the disjunction's outer variables with relations evaluated before `s`, or define the disjunction as a relation with one rule per alternative
 

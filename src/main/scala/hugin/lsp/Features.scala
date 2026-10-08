@@ -3,7 +3,7 @@ package hugin.lsp
 import hugin.meta.SymKind
 import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
-import hugin.util.diagnostics.Suggestion
+import hugin.util.diagnostics.{Code, Suggestion}
 import org.eclipse.lsp4j.*
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
@@ -95,7 +95,10 @@ final class Features(using db: Database):
       d.notes.map("note: " + _) ++ d.helps.map("help: " + _)
     val range = primary.map(l => Positions.range(l.span)).getOrElse(Range(Position(0, 0), Position(0, 0)))
     val out = Diagnostic(range, text.mkString("\n"), severity(d.severity), "hugin")
-    d.code.foreach(c => out.setCode(c.id))
+    d.code.foreach { c =>
+      out.setCode(c.id)
+      out.setCodeDescription(DiagnosticCodeDescription(Features.explanationLink(c)))
+    }
     if d.code.exists(_.unnecessary) then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
     val secondary =
       for
@@ -255,8 +258,10 @@ final class Features(using db: Database):
   // --------------------------------------------------------------------------------------- code actions
 
   /** Quick fixes for the diagnostics overlapping a range: their suggestions (see
-   *  [[hugin.util.diagnostics.Suggestion]]), the first one of each diagnostic preferred. An edit may lie in
-   *  another file (a signature); suggestions with edits in the bundled standard library are not offered. */
+   *  [[hugin.util.diagnostics.Suggestion]]). Only the first machine-applicable suggestion of a diagnostic is
+   *  preferred, since editors may apply a preferred fix without asking; guesses (`MaybeIncorrect`) are only
+   *  offered. An edit may lie in another file (a signature); suggestions with edits in the bundled standard
+   *  library are not offered. */
   def codeActions(uri: String, range: Range): List[CodeAction] =
     val path = Uris.path(uri)
     if isFacts(path) then return Nil
@@ -266,14 +271,15 @@ final class Features(using db: Database):
       d <- compilerDiagnostics(path)
       sp = d.primarySpan
       if inFile(sp, path) && sp.start <= to && from <= sp.end
-      (s, i) <- d.suggestions.zipWithIndex
+      preferred = d.suggestions.find(_.isMachineApplicable)
+      s <- d.suggestions
       edits <- workspaceEdit(s).toList
     yield
       val action = CodeAction(s.message.capitalize)
       action.setKind(CodeActionKind.QuickFix)
       action.setDiagnostics(List(toLsp(d)).asJava)
       action.setEdit(edits)
-      action.setIsPreferred(i == 0)
+      action.setIsPreferred(preferred.exists(_ eq s))
       action
 
   /** The edits of a suggestion by document, or `None` if one of them lies in a file without a URI. */
@@ -281,3 +287,9 @@ final class Features(using db: Database):
     val byFile = s.edits.groupBy(_.span.source.path).toList
     val targets = byFile.map((path, es) => uriOf(path).map(_ -> es.map(e => TextEdit(Positions.range(e.span), e.replacement)).asJava))
     Option.when(targets.forall(_.isDefined))(WorkspaceEdit(targets.flatten.toMap.asJava))
+
+object Features:
+  /** The link of a code's explanation (LSP `codeDescription`): its path in the repository, after the base
+   *  `HUGIN_DOCS_BASE` from the environment (empty by default, so the link is repo-relative; set it to a
+   *  docs site or a repository URL ending in `/`). */
+  def explanationLink(c: Code): String = sys.env.getOrElse("HUGIN_DOCS_BASE", "") + c.explanationPath
