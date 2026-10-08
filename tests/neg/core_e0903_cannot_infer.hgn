@@ -1,0 +1,2 @@
+(* new meta level: nothing determines the type of the parameter *)
+ident = [x] x.

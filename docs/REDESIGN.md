@@ -405,6 +405,11 @@ Universe levels: the meta level needs `Type`-valued signatures (modules containi
 live one level up. Start with a predicative hierarchy `Type₀ : Type₁ : …` whose levels are inferred and
 never written (§11, Q1). `Type : Type` is excluded: it breaks totality.
 
+*Implementation note (Phase B1):* `⇑A : Type₀` for every object type `A`, including `type` itself, so a
+signature whose components are object types and relations is in `Type₀`; only signatures with meta-type
+components (`{ t : Type }`) live one level up. Levels are inferred, cumulative and global to a program
+(no universe polymorphism). See `docs/NOTES.md`, "New meta level (redesign Phase B)".
+
 ### 6.3 Core calculus
 
 * Π types `(x : A) -> B`, implicit `{x : A} -> B` (inferred by higher-order pattern unification).
@@ -447,6 +452,28 @@ head (vcons X _) = X.
 * `[x] e` lambdas remain for inline functions.
 * Definitions without clauses: `x : A = e.` as today; `x = e.` with inferred type.
 * Pattern matching is by clauses only (no `case` expression in the first version; §11, Q7).
+* **Local definitions** (Haskell-style `where`): a clause's right-hand side may be followed by a `where`
+  block of bindings, each ending in `.` (the last one ends the clause). The bindings scope over the
+  right-hand side and over each other in source order, and see the clause's pattern variables. They are
+  simple definitions (`x = e.`, `x : A = e.`), local functions (`f : A.` followed by its clauses, checked
+  for coverage and termination like top-level functions; no general recursion), or irrefutable pattern
+  bindings (`c x̄ = e.`, a constructor pattern binding the names `x̄`; a refutable pattern is a coverage
+  error). A `where` block is elaborated to `let` bindings and lambda-lifted local functions, not to new
+  core syntax. Layout: the block consists of the items after `where` that start at a column greater
+  than the clause's first column; it ends before the next item at that column or less (for top-level
+  clauses: the next item at column 0), at `}` or at the end of the file.
+
+```
+area : shape -> int.
+area (rect W H) = w * h
+  where w = abs W.
+        h = abs H.
+
+fibPair : nat -> pair int int.
+fibPair zero = mkPair 0 1.
+fibPair (suc N) = mkPair b (a + b)
+  where mkPair a b = fibPair N.          (* irrefutable pattern binding *)
+```
 
 ### 6.5 Totality
 
@@ -765,7 +792,8 @@ tc (g : graph) = {
 }.
 ```
 
-New: the same text. `graph` is a record type in `Type₁` (`mod` disappears as a separate universe), `tc`
+New: the same text. `graph` is a record type in `Type₀` (its components are object types and relations,
+and `⇑type : Type₀`; see §6.2) (`mod` disappears as a separate universe), `tc`
 a function returning a module (record) value; the body is generative.
 
 ### 8.5 A user-defined directive

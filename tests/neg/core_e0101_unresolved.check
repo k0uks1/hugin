@@ -1,0 +1,9 @@
+error[E0101]: unresolved name `nta`
+ --> tests/neg/core_e0101_unresolved.hgn:3:5
+  |
+3 | n : nta.
+  |     ^^^ not found in this scope
+  |
+  = help: a name with a similar spelling exists: `nat`
+
+1 error found

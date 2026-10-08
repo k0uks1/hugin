@@ -1,0 +1,31 @@
+shape : type.
+circle : shape.
+square : int -> shape.
+seen : int -> rel.
+seen N :- square N.
+name : ⇑type = ⟨string⟩.
+expr : type.
+ref : $name -> expr.
+lam : $name -> typ -> expr -> expr.
+app : expr -> expr -> expr.
+typ : type.
+base : string -> typ.
+arrow : typ -> typ -> typ.
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+cheap : ⇑item -> ⇑prop = [I] ⟨$I.price < 10⟩.
+bargain : item -> rel.
+bargain I :- listed I, I.price < 10.
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+city : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+roads : graph = { node = ⟨city⟩, edge = ⟨road⟩ }.
+linked : (g : graph) -> ⇑$(g.node) -> ⇑$(g.node) -> ⇑prop = [g] [x] [y] ⟨$(g.edge) $x $y ; $(g.edge) $y $x⟩.
+near : city -> city -> rel.
+near X Y :- road X Y ; road Y X.
+limit : int = 2 * 21.
+small : int -> rel.
+small 42.
+small N :- small M, N = M - 1, N > 0.

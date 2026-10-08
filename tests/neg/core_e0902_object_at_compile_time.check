@@ -1,0 +1,11 @@
+error[E0902]: object code used where a compile-time value is needed
+ --> tests/neg/core_e0902_object_at_compile_time.hgn:5:19
+  |
+5 | r X :- q X, below X 3.
+  |                   ^ object code of type `int`
+  |
+  = note: a meta value of type `int` is expected here
+  = note: object terms (rule variables, constructor terms, formulas) only exist at run time; the meta level computes at compile time
+  = help: to take object code as an argument, declare the parameter with an object type (`⇑int` at the meta level)
+
+1 error found

@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+ --> tests/neg/core_e0901_mismatch.hgn:4:11
+  |
+4 | n : int = zero.
+  |           ^^^^ expected `int`, found `nat`
+
+1 error found

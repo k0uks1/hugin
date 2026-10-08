@@ -1,0 +1,3 @@
+(* new meta level: unresolved names, with a suggestion *)
+nat : Type.
+n : nta.

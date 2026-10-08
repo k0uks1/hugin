@@ -275,6 +275,9 @@ src/main/scala/hugin/
                      Declarations (object declarations, type definitions), TypeElaboration (object and
                      meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
                      application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
+  core/            the new meta level of the redesign (docs/REDESIGN.md Phase B, in development behind the
+                   hidden flag `--new-meta`): core syntax and values, normalisation by evaluation, pattern
+                   unification, universe levels, staging; core/elab/ is the bidirectional elaborator
   obj/             object-level AST: types and symbols, directives of relations (ProgramFacts), terms and
                    formulas, primitives, printer
   obj/typing/      type operations, directives, constant folding, object typer, moding

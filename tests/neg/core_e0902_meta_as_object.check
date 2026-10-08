@@ -1,0 +1,10 @@
+error[E0902]: compile-time value used as object code
+ --> tests/neg/core_e0902_meta_as_object.hgn:5:3
+  |
+5 | q zero.
+  |   ^^^^ a meta value of type `nat`
+  |
+  = note: object code of type `int` is expected here
+  = note: only object code (of type `⇑A`) and primitive values (`int`, `float`, `string`) can be spliced into object code
+
+1 error found

@@ -1,0 +1,13 @@
+(* new meta level: matching that needs to unify with a stuck function application *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc (plus M N).
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+f : vec A (plus N M) -> nat.
+f vnil = zero.
+f (vcons _ _) = zero.
