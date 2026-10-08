@@ -207,7 +207,13 @@ private object TerminationWording:
           case u: UnboundedDemand => u.measure
         msg"guarded induction (B) fails: ${a.primaryLabel} (measure: ${m.positionsShown})"
       case _ => msg"guarded induction (B) fails: no argument decreases from the head to every recursive call"
-    (invention :: cycle.toList) ++ asserted.toList ++ List(p.descent.note, induction)
+    // a demand relation and the relation it is the demand of, in one component (C3, known limitation)
+    val mixed = p.comp.collectFirst(Function.unlift(d =>
+      d.derivedFrom.flatMap(b => p.comp.find(_.displayName == b)).map(b =>
+        msg"the component mixes the demand relation $d, whose rules descend (A), with $b, whose rules are guarded by it (B): a demand that needs an answer of $b (an input bound by an earlier call) puts them in one component, and components mixing the two directions are not supported"
+      )
+    ))
+    (invention :: cycle.toList) ++ asserted.toList ++ List(p.descent.note, induction) ++ mixed.toList
 
   def noArgumentHelp(p: NoArgument): Msg =
     val decrease = "make an argument decrease along the recursion (a proper subterm, or an integer bounded by a guard such as `N > 0`)"

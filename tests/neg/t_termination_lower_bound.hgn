@@ -1,8 +1,9 @@
-(* issue #2: a decreasing demanded integer must be bounded below *)
+(* issue #2: a decreasing demanded integer must be bounded below: the descent of the demand relation
+   `fib.check` needs `N > 1` (here `A` is not bounded below) *)
 fib : (n : int) -> (f : int) -> rel.
 %demand fib +n -f.
 %terminates n fib.
 fib 0 0.
 fib 1 1.
-fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0604 *)
+fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0603 *)
 ?- fib 10 F.

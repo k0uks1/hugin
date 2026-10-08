@@ -172,17 +172,10 @@ trait Reflection:
     val id = symbolId(sym, s, t)
     val columns = elements(cols, s, t).map { (c, cs) =>
       ctorApp(c, cs, t) match
-        case ("colof", List(of, k), s2) =>
-          val owner = symbolId(of, s2, t)
-          if globals(owner).kind.isInstanceOf[GlobalKind.Family] then
-            malformed(s"a column of the family `${globals(owner).name}` (derived relations of families are not supported)", s2)
-          objectColumns(globals(owner).ty).lift(index(k, s2, t)).getOrElse(malformed("a column index out of range", s2))
+        case ("colof", List(of, k), s2) => (symbolId(of, s2, t), index(k, s2, t))
         case (_, _, s2) => malformed("not a column", s2)
     }
-    val ty = columns.foldRight(Tm.RelT: Tm)((col, acc) => Tm.Pi(col._1, Icit.Expl, quote(0, col._2), acc))
-    if !declareDerived(id, ty, t.fallback) then
-      if derivedFrom(id).isEmpty then malformed(s"`${globals(id).name}` is not a derived constant (`derive`)", s)
-      else malformed(s"`${globals(id).name}` is declared twice", s)
+    declareDerived(id, columns, t.fallback).foreach(malformed(_, s))
 
   private def symbolId(v: Val, s: Span, t: Target): Int = peel(v, s)._1 match
     case Val.Quote(x) =>

@@ -1,11 +1,11 @@
-(* A call of a moded relation whose input is read from a relation that depends on the relation's answers:
-   `u` feeds `f`'s demands with `f`'s answers, so the demands grow without bound (docs/NOTES.md,
-   "Termination"). *)
+(* A call of a demand-driven relation whose input is read from a relation that depends on the relation's
+   answers: `u` feeds `f`'s demands with `f`'s answers, so the demands grow without bound. The demand
+   relation `f.check`, `f` and `u` form one component with arithmetic and no argument that decreases or
+   is bounded (E0603). *)
 f : (n : int) -> (m : int) -> rel.
 %demand f +n -m.
-%terminates n f.
-f N M :- M = N + 1.
+f N M :- M = N + 1. (*~ E0603 *)
 u : int -> rel.
 u 0.
-u M :- u N, f N M. (*~ E0604 *)
+u M :- u N, f N M.
 %output u.

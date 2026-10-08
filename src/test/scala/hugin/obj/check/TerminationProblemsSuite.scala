@@ -78,7 +78,7 @@ class TerminationProblemsSuite extends munit.FunSuite:
     val code = """
       list A : type.
       nil : list A.
-      %fact cons : A -> list A -> list A.
+      cons : A -> list A -> list A.
       len : list A -> int -> rel.
       %terminates L (len L _).
       len nil 0.
@@ -114,18 +114,17 @@ class TerminationProblemsSuite extends munit.FunSuite:
       case other => fail(s"unexpected $other")
   }
 
-  test("E0604: a decreasing demanded integer without a lower bound") {
+  test("E0603: a decreasing demanded integer without a lower bound (the demand relation does not descend)") {
     val code = """
       fib : (n : int) -> (f : int) -> rel.
-      %mode fib +n -f.
+      %demand fib +n -f.
       %terminates n fib.
       fib 0 0.
       fib 1 1.
       fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
     """
     rejection(code) match
-      case Some(u: TerminationError.UnboundedDemand) =>
-        assertEquals((u.measure.rel.name, u.slot, show(u.demanded)), ("fib", 0, "A"))
-        assert(u.isAnchor)
+      case Some(p: TerminationError.NoArgument) =>
+        assertEquals(p.comp.map(_.name), List("fib.check"))
       case other => fail(s"unexpected $other")
   }

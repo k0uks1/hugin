@@ -323,24 +323,49 @@ ddemand : bool -> sym -> seq sym -> modes Ls -> seq formula -> seq term -> seq r
 ddemand true R Cs M Pre Ts = [horn [fatom (derive R "check") (dinputs M Ts)] (dprefix Cs (dinputs M Ts) Pre)].
 ddemand false R Cs M Pre Ts = [].
 
-(* The formulas a demand rule keeps of the prefix of a call with inputs `Is`: all but the calls of
-   demand-driven relations (with a demand relation among `Cs`) that bind no variable the inputs or the
-   other formulas need and the other formulas do not bind (as in docs/REDESIGN.md §8.1-8.2: the demand
-   does not wait for answers it does not need, so it is evaluated before the relation, by descent).
-   Demand rules generated earlier (by `%demand` of another relation) are pruned in the same way. *)
+(* The formulas a demand rule keeps of the prefix of a call with inputs `Is` (docs/REDESIGN.md §8.1-8.2):
+   demand rules are positive and do not wait for answers they do not need. A negation is dropped; a call
+   of a demand-driven relation (with a demand relation among `Cs`) or an aggregate is kept only if it
+   binds a variable that the inputs or the kept formulas need and that they do not bind themselves. So
+   the demand of a relation is evaluated before it (by descent) unless an input is an answer of an
+   earlier call, and it never depends negatively on the relations that call it. Keeping fewer formulas
+   only adds demand, never answers. Demand rules generated earlier (by `%demand` of another relation)
+   are pruned in the same way. *)
 dprefix : seq sym -> seq term -> seq formula -> seq formula.
-dprefix Cs Is Pre = dkeepCalls Cs (sdiff (sappend (tsvars Is) (dothers Cs fneeds Pre)) (dothers Cs fbound Pre)) Pre.
+dprefix Cs Is Pre = dpruned Cs Pre (dneed Cs Pre (dkeepCalls Cs (dneed Cs Pre [] Is) Pre) Is).
+
+(* The variables needed by the inputs and by the formulas `Kept` (all, or kept by a first round, which
+   adds the needs of a kept aggregate) that the other formulas do not bind *)
+dneed : seq sym -> seq formula -> seq formula -> seq term -> seq string.
+dneed Cs Pre Kept Is =
+  sdiff (sappend (tsvars Is) (sappend (dothers Cs fneeds Pre) (dallneeds Kept))) (dothers Cs fbound Pre).
+
+dallneeds : seq formula -> seq string.
+dallneeds [] = [].
+dallneeds (F :: Fs) = sappend (fneeds F) (dallneeds Fs).
+
+dpruned : seq sym -> seq formula -> seq string -> seq formula.
+dpruned Cs Pre Need = dkeepCalls Cs Need Pre.
 
 dkeepCalls : seq sym -> seq string -> seq formula -> seq formula.
 dkeepCalls Cs Need [] = [].
-dkeepCalls Cs Need (F :: Fs) = dkeepIf (dcallOf Cs F) (shares (fvars F) Need) F (dkeepCalls Cs Need Fs).
+dkeepCalls Cs Need (F :: Fs) = dkeepF Cs Need F (dkeepCalls Cs Need Fs).
+
+dkeepF : seq sym -> seq string -> formula -> seq formula -> seq formula.
+dkeepF Cs Need (fatom S Ts) Fs = dkeepIf (msym (derive S "check") Cs) (shares (tsvars Ts) Need) (fatom S Ts) Fs.
+dkeepF Cs Need (fnot F) Fs = Fs.
+dkeepF Cs Need (fagg O X T F) Fs = dkeepIf true (shares (tvarsOf X) Need) (fagg O X T F) Fs.
+dkeepF Cs Need F Fs = F :: Fs.
 
 dkeepIf : bool -> bool -> formula -> seq formula -> seq formula.
 dkeepIf true false F Fs = Fs.
 dkeepIf C N F Fs = F :: Fs.
 
+(* Whether a formula may be left out of a demand rule *)
 dcallOf : seq sym -> formula -> bool.
 dcallOf Cs (fatom S Ts) = msym (derive S "check") Cs.
+dcallOf Cs (fnot F) = true.
+dcallOf Cs (fagg O X T F) = true.
 dcallOf Cs F = false.
 
 msym : sym -> seq sym -> bool.

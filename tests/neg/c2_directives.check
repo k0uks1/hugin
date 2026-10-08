@@ -66,38 +66,26 @@ error[E0701]: `%input` does not apply to the rule `@r`
 35 | %input @r. (*~ E0701 *)
    | ^^^^^^^^^^
 
-error[E0406]: data constructor `a` used as a relation
-  --> tests/neg/c2_directives.hgn:36:9
-   |
- 7 | a : node.
-   | - declared here as a data constructor
-...
-36 | %output a. (*~ E0406 *)
-   |         ^ `%output` expects a relation
-   |
-   = note: `a` is a data constructor: it builds values, which are not facts of a relation
-   = help: declare `a` as a fact constructor to read its facts: `%fact a : node.`
-
 error[E0701]: a measure of labels names the relation without arguments
-  --> tests/neg/c2_directives.hgn:37:1
+  --> tests/neg/c2_directives.hgn:36:1
    |
-37 | %terminates n (edge X Y). (*~ E0701 *)
+36 | %terminates n (edge X Y). (*~ E0701 *)
    | ^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: `%terminates n r` names the column `n` of `r`; `%terminates N (r N _)` names a variable of a call pattern
 
 error[E0701]: `edge` has no column labelled `n`
-  --> tests/neg/c2_directives.hgn:38:1
+  --> tests/neg/c2_directives.hgn:37:1
    |
-38 | %terminates n edge. (*~ E0701 *)
+37 | %terminates n edge. (*~ E0701 *)
    | ^^^^^^^^^^^^^^^^^^^
 
 error[E0907]: directives that add items in module bodies are not supported by the meta level
-  --> tests/neg/c2_directives.hgn:44:3
+  --> tests/neg/c2_directives.hgn:43:3
    |
-44 |   %copy l. (*~ E0907 *)
+43 |   %copy l. (*~ E0907 *)
    |   ^^^^^^^^ not supported
    |
    = note: see the open issues of the redesign in docs/NOTES.md
 
-13 errors found
+12 errors found

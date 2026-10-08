@@ -63,6 +63,8 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
         for (fam, _) <- g.instanceOf do
           r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(objectName(fam), r.kind, r.span, Origin.Source)), Nil))
         fillRelation(id, r)
+        val base = g.instanceOf.map(_._1).getOrElse(id)
+        r.derivedFrom = core.derivedFrom(base).map((o, _) => globals(o).instanceOf.map(i => globals(i._1)).getOrElse(globals(o)).name)
         r
 
   /** An instance of an open type family is closed with the instances of its constructors at the same

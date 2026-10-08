@@ -1,0 +1,19 @@
+error[E0603]: growing component without a termination argument
+ --> tests/neg/t_termination_mixed_demand.hgn:9:14
+  |
+9 | ack 0 N R :- R = N + 1. (*~ E0603 *)
+  |              ^^^^^^^^^ head variable `R` is computed by `R = N + 1`
+  |
+  = note: the recursive component {ack, ack.check} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `ack` -> `ack`
+  = note: descent along derivations (A) fails: along `ack` -> ... -> `ack` (rule at tests/neg/t_termination_mixed_demand.hgn:11:1) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no anchor: the body bounds neither `R` nor `N` from above (measure: argument 3 `r` (integer))
+  = note: the component mixes the demand relation `ack.check`, whose rules descend (A), with `ack`, whose rules are guarded by it (B): a demand that needs an answer of `ack` (an input bound by an earlier call) puts them in one component, and components mixing the two directions are not supported
+  = help: `N` is larger than `N - 1` but not bounded above: add a guard such as `N < 100` (or bound `N - 1`)
+note: in expansion of `%demand ack +m +n -r`
+ --> tests/neg/t_termination_mixed_demand.hgn:8:1
+  |
+8 | %demand ack +m +n -r.
+  | ^^^^^^^^^^^^^^^^^^^^^
+
+1 error found

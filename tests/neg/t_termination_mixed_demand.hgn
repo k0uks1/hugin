@@ -1,0 +1,12 @@
+(* Ackermann's function with `%demand` (formerly accepted with `%mode`, by the demand-driven case of
+   moded termination, Definition 10.3, which the redesign removes, REDESIGN D2/D3). The input `R1` of the
+   second call is an answer of the first, so the demand rule `ack.check (M - 1) R1 :- ack.check M N, …,
+   ack M (N - 1) R1` keeps that call: the demand relation and `ack` form one component. Its demand rules
+   descend (A) and its answer rules are guarded by the demand (B), but a component mixing the two
+   directions is not supported (docs/NOTES.md, C3, known limitations; issue #2). *)
+ack : (m : int) -> (n : int) -> (r : int) -> rel.
+%demand ack +m +n -r.
+ack 0 N R :- R = N + 1. (*~ E0603 *)
+ack M 0 R :- M > 0, ack (M - 1) 1 R.
+ack M N R :- M > 0, N > 0, ack M (N - 1) R1, ack (M - 1) R1 R.
+?- ack 2 3 R.

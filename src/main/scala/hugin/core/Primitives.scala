@@ -109,11 +109,44 @@ trait Primitives:
       }
     )
 
-  /** Declares the derived constant `id` as a relation of type `ty` (closed), placed at `at`; false if it
-   *  is not a pending derived constant. */
-  def declareDerived(id: Int, ty: Tm, at: Span): Boolean =
+  /** Declares the derived constant `id` as the relation over the columns `cols` (an object constant and
+   *  the index of one of its columns each), placed at `at`; the reason if it cannot. A column of a family
+   *  makes the derived relation a family with the same parameters (`len.check` of `len : list A -> int
+   *  -> rel` is `{A} -> list A -> rel`); its columns must then all be the family's. */
+  def declareDerived(id: Int, cols: List[(Int, Int)], at: Span): Option[String] =
     val g = globals(id)
-    if !g.pending || derivedFrom(id).isEmpty then false
+    if !g.pending || derivedFrom(id).isEmpty then
+      Some(if derivedFrom(id).isEmpty then s"`${g.name}` is not a derived constant (`derive`)" else s"`${g.name}` is declared twice")
     else
-      globals(id) = GlobalEntry(g.name, eval(Nil, ty), ty, g.stage, g.kind, g.span, g.declSpan, placedAt = at)
-      true
+      val families = cols.map(_._1).distinct.filter(o => globals(o).kind.isInstanceOf[GlobalKind.Family])
+      families match
+        case Nil =>
+          val doms = cols.map((o, k) => objectColumns(globals(o).ty).lift(k))
+          if doms.exists(_.isEmpty) then Some("a column index out of range")
+          else
+            val ty = doms.flatten.foldRight(Tm.RelT: Tm)((col, acc) => Tm.Pi(col._1, Icit.Expl, quote(0, col._2), acc))
+            globals(id) = GlobalEntry(g.name, eval(Nil, ty), ty, Stage.S0, g.kind, g.span, g.declSpan, placedAt = at)
+            None
+        case List(fam) if cols.forall(_._1 == fam) =>
+          val n = globals(fam).kind match
+            case GlobalKind.Family(_, n) => n
+            case _ => 0
+          // the family's parameters, at levels 0 … n-1, and the selected columns under them
+          var t = force(globals(fam).ty)
+          val params = (0 until n).toList.map { l =>
+            t match
+              case Pi(x, i, d, cl) =>
+                t = force(inst(cl, Val.local(l)))
+                (x, i, quote(l, d))
+              case other => throw Impossible(s"family type $other")
+          }
+          val columns = objectColumns(t)
+          if cols.exists((_, k) => k >= columns.length) then Some("a column index out of range")
+          else
+            val selected = cols.map((_, k) => columns(k)).zipWithIndex.map { case ((x, d), j) => (x, quote(n + j, d)) }
+            val objTy = selected.foldRight(Tm.RelT: Tm)((col, acc) => Tm.Pi(col._1, Icit.Expl, col._2, acc))
+            val ty = params.foldRight(Tm.Lift(objTy): Tm)((p, acc) => Tm.Pi(p._1, p._2, p._3, acc))
+            val kind = GlobalKind.Family(ObjDecl.Relation, n)
+            globals(id) = GlobalEntry(g.name, eval(Nil, ty), ty, Stage.S1, kind, g.span, g.declSpan, placedAt = at)
+            None
+        case _ => Some("columns of a family and of other constants")

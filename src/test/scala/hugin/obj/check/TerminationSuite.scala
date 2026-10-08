@@ -8,7 +8,7 @@ import hugin.util.diagnostics.Code
 class TerminationSuite extends munit.FunSuite:
   test("a rule of a fact constructor builds its head fact, even if its arguments are matched (E0603)") {
     val out = TestSupport.run("""
-      t : type. z : t. %fact s : t -> t.
+      t : type. z : t. s : t -> t.
       s (s z).
       s (s N) :- s N.
     """)
@@ -17,7 +17,7 @@ class TerminationSuite extends munit.FunSuite:
 
   test("a fact term asserted in a later head that feeds its own constructor is checked in its component") {
     val c = TestSupport.compile("""
-      t : type. z : t. %fact s : t -> t.
+      t : type. z : t. s : t -> t.
       s z.
       d : t -> rel.
       d (s (s N)) :- s N.
@@ -31,7 +31,7 @@ class TerminationSuite extends munit.FunSuite:
   test("a fact constructor of an earlier component is a finite source") {
     // `mk` is complete after its component (its split rules run there), so `box M` takes finitely many values
     val out = TestSupport.run("""
-      w : type. %fact mk : int -> w. box : w -> w.
+      w : type. mk : int -> w. box : w -> w.
       src : int -> rel. src 1. src 2.
       g : w -> rel. g (mk N) :- src N.
       d : int -> w -> rel.

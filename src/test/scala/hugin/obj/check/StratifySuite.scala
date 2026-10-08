@@ -62,7 +62,7 @@ class StratifySuite extends munit.FunSuite:
 
   private val nested = """
     w : type.
-    %fact mk : int -> w.
+    mk : int -> w.
     src : int -> rel.
     src 1.
     r : int -> rel.
@@ -87,7 +87,7 @@ class StratifySuite extends munit.FunSuite:
 
   test("no split rule when the constructor's component is not earlier, or for data constructors") {
     val c = TestSupport.compile("""
-      w : type. %fact mk : int -> w. box : int -> w.
+      w : type. mk : int -> w. box : int -> w.
       src : int -> rel. src 1.
       h : w -> rel.
       h (mk N) :- src N.
@@ -111,7 +111,7 @@ class StratifySuite extends munit.FunSuite:
 
   test("an asserting rule aggregating over the constructor is a cycle through aggregation (E0601)") {
     val out = TestSupport.run("""
-      w : type. %fact mk : int -> w.
+      w : type. mk : int -> w.
       mk 1.
       h : w -> rel.
       h (mk C) :- C = count { N | mk N }.
@@ -121,7 +121,7 @@ class StratifySuite extends munit.FunSuite:
 
   test("aggregates and negations over a constructor see the facts asserted by later heads") {
     val out = TestSupport.run("""
-      w : type. %fact mk : int -> w.
+      w : type. mk : int -> w.
       mk 10.
       src : int -> rel. src 1. src 2.
       h : w -> rel. h (mk N) :- src N.
@@ -135,7 +135,7 @@ class StratifySuite extends munit.FunSuite:
 
   test("the split rule depends on its rule's body only, not on the head relation's other rules") {
     val out = TestSupport.run("""
-      w : type. %fact mk : int -> w.
+      w : type. mk : int -> w.
       src : int -> rel. src 1.
       r : int -> rel. r N :- mk N.
       q : int -> rel. q N :- src N, not r 3.

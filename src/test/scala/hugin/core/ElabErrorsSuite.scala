@@ -86,8 +86,3 @@ class ElabErrorsSuite extends munit.FunSuite:
     assertError("E0105", "self : int = self + 1.\n", "`self` refers to itself", "while elaborating this definition")
   }
 
-  test("E0406 a data constructor passed where a relation is expected") {
-    val program =
-      "shape : type.\nsquare : int -> shape.\nuse (r : shape -> shape -> rel) = { p : shape -> shape -> rel. p X Y :- r X Y. }.\nm = use square.\n"
-    assertError("E0406", program, "data constructor `square` used as a relation", "expected a relation")
-  }

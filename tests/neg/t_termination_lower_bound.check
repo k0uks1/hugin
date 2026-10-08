@@ -1,13 +1,18 @@
-error[E0604]: invalid `%terminates` directive for `fib`
- --> tests/neg/t_termination_lower_bound.hgn:7:50
+error[E0603]: growing component without a termination argument
+ --> tests/neg/t_termination_lower_bound.hgn:8:54
   |
-4 | %terminates n fib.
-  | ------------------ measure declared here
-...
-7 | fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0604 *)
-  |                                                  ^^^^^^^^ no anchor: the body does not bound the demanded `A` from below
+8 | fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0603 *)
+  |                                                      ^ head variable `A` is computed by `A = N - 1`
   |
-  = note: demands decrease from caller to callee; integers must stay bounded below for the recursion to stop
-  = help: add a lower bound, e.g. `A >= 0`, or bound the caller's argument (`N > 0` with `A = N - 1`)
+  = note: the recursive component {fib.check} contains this constructive rule, so its fixed point may be infinite
+  = note: recursion: `fib.check` -> `fib.check`
+  = note: descent along derivations (A) fails: along `fib.check` -> ... -> `fib.check` (rule at tests/neg/t_termination_lower_bound.hgn:8:54) no argument of the derived fact is smaller than in the premise
+  = note: guarded induction (B) fails: no argument decreases from the head to every recursive call
+  = help: `A` is smaller than `N` but not bounded below: add a guard such as `A >= 0` (or bound `N`)
+note: in expansion of `%demand fib +n -f`
+ --> tests/neg/t_termination_lower_bound.hgn:4:1
+  |
+4 | %demand fib +n -f.
+  | ^^^^^^^^^^^^^^^^^^
 
 1 error found

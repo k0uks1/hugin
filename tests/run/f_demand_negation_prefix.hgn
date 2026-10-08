@@ -1,0 +1,26 @@
+(* Demand rules are positive (docs/REDESIGN.md §7.4): `b`'s call of the demand-driven `size` has the
+   prefix `e L, not a L 1`, and `a` calls `size`; a demand rule `size.check L :- e L, not a L 1` would
+   make `size.check` depend negatively on `a`, which depends on `size` and so on `size.check` (a cycle
+   through negation, E0601), although the program is stratified. `%demand` leaves the negation out of the
+   demand rule (it binds nothing; a weaker prefix only adds demand). `c`'s call demands a list built at
+   the call (the demand rule asserts it) from an aggregate over `a`: that demand needs the aggregate, so
+   it depends negatively on `size`'s answers, and `c` calls a relation of its own, `size2` (what the
+   per-call copies of the former built-in demand transformation did automatically). *)
+e : list int -> rel.
+e nil. e (cons 1 nil). e (cons 2 (cons 1 nil)).
+size : (l : list int) -> (n : int) -> rel.
+%demand size +l -n.
+size nil 0.
+size (cons _ L) M :- size L N, M = N + 1.
+a : list int -> int -> rel.
+a L N :- e L, size L N.
+b : list int -> int -> rel.
+b L N :- e L, not a L 1, size L N.
+size2 : (l : list int) -> (n : int) -> rel.
+%demand size2 +l -n.
+size2 nil 0.
+size2 (cons _ L) M :- size2 L N, M = N + 1.
+c : int -> int -> rel.
+c M K :- M = count { L | a L _ }, size2 (cons M (cons M nil)) K.
+?- b L N.
+?- c M K.

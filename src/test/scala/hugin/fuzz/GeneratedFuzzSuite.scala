@@ -92,8 +92,8 @@ class GeneratedFuzzSuite extends FuzzSuite:
     }
   }
 
-  /** Queries `?- d v X1 … Xn.` of the relation that can be moded, without and with `%mode d +a -b …`
-   *  (and without `%output`, which would show only the demanded facts of a moded relation). */
+  /** Queries `?- d v X1 … Xn.` of the relation that can be moded, without and with `%demand d +a -b …`
+   *  (and without `%output`, which would show only the demanded facts of a demand-driven relation). */
   private def demandVariants(g: Generated): Option[(Program, Program)] =
     for
       d <- g.demand
@@ -101,11 +101,11 @@ class GeneratedFuzzSuite extends FuzzSuite:
     yield
       val vars = d.cols.indices.tail.map(i => s"X$i")
       val queries = vs.map(v => s"?- ${(d.name +: v +: vars).mkString(" ")}.")
-      val mode = d.cols.indices.map(i => (if i == 0 then "+" else "-") + ProgramGen.Rel.column(i)).mkString(s"%mode ${d.name} ", " ", ".")
+      val mode = d.cols.indices.map(i => (if i == 0 then "+" else "-") + ProgramGen.Rel.column(i)).mkString(s"%demand ${d.name} ", " ", ".")
       val plain = g.copy(derived = Vector.empty, rules = g.rules ++ queries)
       (plain.program, plain.copy(decls = plain.decls :+ mode).program)
 
-  property("the demand transformation (%mode) preserves query answers") {
+  property("the demand transformation (%demand) preserves query answers") {
     Prop.forAll(ProgramGen.programs) { g =>
       val problems = demandVariants(g).toList.flatMap { (plain, moded) =>
         Fuzz.guarded {
@@ -113,7 +113,7 @@ class GeneratedFuzzSuite extends FuzzSuite:
             case (Right(a), Right(b)) if a == b => Nil
             case (a, b) =>
               List(
-                s"answers differ; without %mode\n  ${a.fold(identity, _.mkString("\n  "))}\nwith %mode\n  ${b.fold(identity, _.mkString("\n  "))}\n----- moded$moded"
+                s"answers differ; without %demand\n  ${a.fold(identity, _.mkString("\n  "))}\nwith %demand\n  ${b.fold(identity, _.mkString("\n  "))}\n----- moded$moded"
               )
         }.fold(f => List(f.describe), identity)
       }

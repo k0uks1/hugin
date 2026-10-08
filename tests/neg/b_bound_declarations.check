@@ -22,18 +22,10 @@ error[E0605]: `max` column of `label` is not an integer column
   |
   = help: use `max int`
 
-error[E0605]: `dist` has a bound column and a `%mode`
- --> tests/neg/b_bound_declarations.hgn:7:1
-  |
-7 | dist : (v : node) -> (d : min int) -> rel. (*~ E0605 *)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ moded relation with a bound column
-  |
-  = help: remove the `%mode` directive
-
 error[E0605]: `max` column type outside a relation declaration
- --> tests/neg/b_bound_declarations.hgn:9:16
+ --> tests/neg/b_bound_declarations.hgn:7:16
   |
-9 | score : type = max int. (*~ E0605 *)
+7 | score : type = max int. (*~ E0605 *)
   |                ^^^^^^^ a bound column is only allowed as the last column of a relation declaration
 
-5 errors found
+4 errors found

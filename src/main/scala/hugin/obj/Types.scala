@@ -65,6 +65,10 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
   var result: Option[OType] = None
   var instanceOf: Option[(RelSym, List[OType])] = None
 
+  /** For a relation derived from another by a directive (`typed.check` from `typed`, REDESIGN §7.4): the
+   *  display name of that relation. Provenance for diagnostics only. */
+  var derivedFrom: Option[String] = None
+
   def arity: Int = cols.length
 
   /** The kind of the relation's bound column (`min τ` / `max τ`, docs/REDESIGN.md §5.2), which is its last

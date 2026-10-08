@@ -1,0 +1,21 @@
+(* A rule calls the demand-driven `size` twice, with a disjunction inside an aggregate between the
+   calls: the auxiliary relation of the disjunction gets the formulas before the aggregate as its
+   context, and the second call's demand keeps the aggregate, whose result it needs, and the first call,
+   whose answer the aggregate needs. So the second call's demand depends negatively on `size`'s answers:
+   it calls a relation of its own, `size2` (what the per-call copies of the former built-in demand
+   transformation did automatically). Its list is built at the call, so the demand rule asserts it. *)
+e : list int -> rel.
+e nil. e (cons 1 nil). e (cons 2 (cons 1 nil)).
+f : int -> rel. f 0. f 5.
+g : int -> int -> rel. g 7 1. g 8 2. g 9 2.
+size : (l : list int) -> (n : int) -> rel.
+%demand size +l -n.
+size nil 0.
+size (cons _ L) M :- size L N, M = N + 1.
+size2 : (l : list int) -> (n : int) -> rel.
+%demand size2 +l -n.
+size2 nil 0.
+size2 (cons _ L) M :- size2 L N, M = N + 1.
+s : list int -> int -> int -> rel.
+s L N M :- e L, size L N, C = count { X | f X ; g X N }, size2 (cons C L) M.
+?- s L N M.

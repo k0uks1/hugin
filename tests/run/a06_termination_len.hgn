@@ -1,5 +1,7 @@
-(* A.2 (6): the termination check accepts the prelude's `len` (moded `+l -n`, structural recursion on the
-   given list: `%terminates l len`) and a bounded integer counter *)
+(* A.2 (6): the termination check accepts the prelude's `len` (guarded induction on the list, a fact
+   whose tail is a smaller fact) and a bounded integer counter. `len` measures the lists that are facts;
+   with `%demand len +l -n.` a call demands its list, and the demand rule makes it a fact. *)
+%demand len +l -n.
 counter : int -> rel.
 %terminates N (counter N).
 counter 0.
@@ -9,5 +11,5 @@ words : list string -> rel.
 words (cons "a" (cons "b" nil)).
 ?- words L, len L N.
 ?- len (cons "b" nil) N.
-?- len (cons "c" nil) N.            (* `len` is moded: it computes the length of any list it is given *)
+?- len (cons "c" nil) N.            (* demanded: the list becomes a fact *)
 ?- counter N.
