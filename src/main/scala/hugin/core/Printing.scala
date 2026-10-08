@@ -43,6 +43,7 @@ trait Printing:
     case Tm.Arith(_, a, b, _) => occurs(ix, a) || occurs(ix, b)
     case Tm.Negate(a, _) => occurs(ix, a)
     case Tm.Obj(_, as) => as.exists(occurs(ix, _))
+    case Tm.Fresh(ns, b) => occurs(ix + ns.length, b)
     case Tm.Persist(a) => occurs(ix, a)
     case Tm.FactTy(a) => occurs(ix, a)
     case _ => false
@@ -107,14 +108,18 @@ trait Printing:
       par(p, q, s"${go(ns, a, q)} ${op.show} ${go(ns, b, q + 1)}")
     case Tm.Negate(a, _) => s"-${go(ns, a, 6)}"
     case Tm.Obj(f, as) => goObj(ns, f, as, p)
+    case Tm.Fresh(xs, b) => par(p, 0, s"fresh ${xs.mkString(" ")}. ${go(xs.reverse ++ ns, b, 0)}")
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)
 
   private def goObj(ns: List[Name], f: ObjForm, as: List[Tm], p: Int): String = (f, as) match
     case (ObjForm.Loc(_), List(a)) => go(ns, a, p)
     case (ObjForm.Compare(op), List(a, b)) => par(p, 2, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 3)}")
-    case (ObjForm.And, List(a, b)) => par(p, 1, s"${go(ns, a, 1)}, ${go(ns, b, 2)}")
-    case (ObjForm.Or, List(a, b)) => par(p, 0, s"${go(ns, a, 0)} ; ${go(ns, b, 1)}")
+    case (ObjForm.And, Nil) => "true"
+    case (ObjForm.And, as) => par(p, 1, as.map(go(ns, _, 2)).mkString(", "))
+    case (ObjForm.Or, Nil) => "false"
+    case (ObjForm.Or, as) => par(p, 0, as.map(go(ns, _, 1)).mkString(" ; "))
+    case (ObjForm.Named(x), Nil) => x
     case (ObjForm.Not, List(a)) => par(p, 5, s"not ${go(ns, a, 6)}")
     case (ObjForm.Wild, Nil) => "_"
     case (ObjForm.As, List(a, x)) => par(p, 5, s"${go(ns, a, 6)} as ${go(ns, x, 6)}")

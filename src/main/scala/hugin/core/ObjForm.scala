@@ -23,6 +23,8 @@ import hugin.util.Span
  *  - [[With]] `[t, e₁, …, eₙ]`: `t with { l₁ = e₁, … }`, a functional update.
  *  - [[Agg]] `[x, t, φ]`: `X = k { t | φ }`, an aggregate.
  *  - [[Union]] `[A₁, …, Aₙ]`: the object union type `A₁ | … | Aₙ`.
+ *  - [[Named]] `[]`: an object variable by name (see [[Tm.Fresh]]).
+ *  - [[And]] and [[Or]] take any number of subterms (`Or` of none is the empty disjunction, false).
  *  - [[BoundCol]] `[A]`: the column type `min A` / `max A` of a bound column (REDESIGN §5.2).
  */
 enum ObjForm:
@@ -35,4 +37,7 @@ enum ObjForm:
   case With(labels: List[(Name, Span)])
   case Agg(kind: AggKind)
   case Union
+
+  /** A named object variable: a variable of a formula function's clause after hygienic renaming. */
+  case Named(name: Name)
   case BoundCol(kind: Bound)

@@ -13,9 +13,12 @@ trait ObjectItems:
   import core.*
 
   /** Binds the variables of a rule or query (stage 0, of unknown object types). */
-  private def bindRuleVars(trees: List[Tree]): (Cxt, List[(Name, Tm)]) =
-    val vs = trees.flatMap(t => freeVars(t, Set.empty)).distinctBy(_.name)
-    var c = Cxt.empty
+  private def bindRuleVars(trees: List[Tree]): (Cxt, List[(Name, Tm)]) = bindRuleVarsFrom(Cxt.empty, trees)
+
+  /** Binds the variables of object code in `c` (those not bound there already). */
+  def bindRuleVarsFrom(c0: Cxt, trees: List[Tree]): (Cxt, List[(Name, Tm)]) =
+    val vs = trees.flatMap(t => freeVars(t, c0.scope.keySet)).distinctBy(_.name)
+    var c = c0
     val out = vs.map { v =>
       val ty = freshMeta(c, Val.U0, Stage.S0, v.span, s"the type of `${v.name}`", allowUnsolved = true)
       c = bind(c, v.name, ev(c, ty), Stage.S0)
@@ -42,7 +45,7 @@ trait ObjectItems:
   private def isObjectTypeUnknown(m: Int): Boolean = force(telescope(metas(m).ty)._2) == Val.Lift(Val.U0)
 
   /** W0002: object variables that occur only once in a rule (names starting with `_` are exempt). */
-  private def warnSingletons(trees: List[Tree]): Unit =
+  def warnSingletons(trees: List[Tree]): Unit =
     val occurrences = TreeOps.nodes(trees).collect { case v: VarRef => v }.filterNot(_.name.startsWith("_")).toList
     for (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start) do
       reporter.report(ObjectProblem.SingletonVariable(name, v.span).toDiagnostic)

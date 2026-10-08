@@ -28,6 +28,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
 
   private def variable(t: Tm, span: Span): String = Tm.unloc(t) match
     case Tm.Var(ix) => names(ix)
+    case Tm.Obj(ObjForm.Named(x), Nil) => x
     case Tm.Obj(ObjForm.Wild, Nil) => freshWild()
     case other => expected("a variable", other, span)
 
@@ -43,6 +44,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
   def term(t: Tm, span: Span = itemSpan): Term = t match
     case Tm.Obj(ObjForm.Loc(sp), List(u)) => term(u, sp)
     case Tm.Var(ix) => Term.Var(names(ix))(span)
+    case Tm.Obj(ObjForm.Named(x), Nil) => Term.Var(x)(span)
     case Tm.Lit(l, _) => Term.Lit(l)(span)
     case Tm.Arith(op, a, b, _) => Term.Arith(op, term(a, span), term(b, span))(span)
     case Tm.Negate(a, _) => Term.Neg(term(a, span))(span)
@@ -64,7 +66,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
 
   def formulas(t: Tm, span: Span = itemSpan): List[Formula] = t match
     case Tm.Obj(ObjForm.Loc(sp), List(u)) => formulas(u, sp)
-    case Tm.Obj(ObjForm.And, List(a, b)) => formulas(a, span) ++ formulas(b, span)
+    case Tm.Obj(ObjForm.And, as) => as.flatMap(formulas(_, span))
     case Tm.Obj(ObjForm.Or, _) => List(Formula.Disj(alternatives(t).map(formulas(_, span)))(span))
     case Tm.Obj(ObjForm.Not, List(a)) =>
       formulas(a, span) match
@@ -86,7 +88,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
 
   /** The alternatives of nested disjunctions (`a ; (b ; c)` has three). */
   private def alternatives(t: Tm): List[Tm] = Tm.unloc(t) match
-    case Tm.Obj(ObjForm.Or, List(a, b)) => alternatives(a) ++ alternatives(b)
+    case Tm.Obj(ObjForm.Or, as) => as.flatMap(alternatives)
     case _ => List(t)
 
   private def spanOf(t: Tm, default: Span): Span = t match

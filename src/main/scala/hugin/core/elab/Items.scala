@@ -17,7 +17,9 @@ trait Items:
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
-    val (obj, meta) = rest.partition {
+    val formulaFunctions = formulaFunctionNames(rest)
+    val (formulaClauses, rest1) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    val (obj, meta) = rest1.partition {
       case _: Rule | _: Query | _: Directive => true
       case _ => false
     }
@@ -25,6 +27,8 @@ trait Items:
     elabInDependencyOrder(meta)
     dropPending()
     elabClauseGroups(clauses)
+    for f <- formulaFunctions do
+      elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
     obj.foreach(elabItemReporting)
     finish()
 

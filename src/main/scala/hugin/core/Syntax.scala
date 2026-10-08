@@ -87,6 +87,11 @@ enum Tm:
   case Arith(op: ArithOp, a: Tm, b: Tm, st: Stage)
   case Negate(a: Tm, st: Stage)
 
+  /** `fresh X̄. t`: object variables local to the object code `t` (the variables of a formula function's
+   *  clause that are not its parameters). Evaluation binds them to fresh named object variables
+   *  (`X#k`), so every application of a formula function gets its own (hygiene, REDESIGN §6.7). */
+  case Fresh(names: List[Name], body: Tm)
+
   /** Object syntax (stage 0 only): formulas, patterns, object types beyond constants, positions. */
   case Obj(form: ObjForm, args: List[Tm])
 
@@ -126,6 +131,7 @@ object Tm:
     case Arith(_, a, b, _) => List(a, b)
     case Negate(a, _) => List(a)
     case Obj(_, as) => as
+    case Fresh(_, b) => List(b)
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
     case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => Nil
@@ -153,6 +159,7 @@ object Tm:
       case Arith(op, a, b, st) => Arith(op, go(a, k), go(b, k), st)
       case Negate(a, st) => Negate(go(a, k), st)
       case Obj(f, as) => Obj(f, as.map(go(_, k)))
+      case Fresh(ns, b) => Fresh(ns, go(b, k + ns.length))
       case Persist(a) => Persist(go(a, k))
       case FactTy(a) => FactTy(go(a, k))
       case other => other

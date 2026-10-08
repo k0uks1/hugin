@@ -38,6 +38,9 @@ enum ObjectProblem extends Problem:
   case UsedBeforeDeclaration(name: String, at: Span)
   case StuckObjectType(shown: String, at: Span)
 
+  case FormulaFunctionWithoutClauses(name: String, at: Span)
+  case ClauseArity(name: String, args: Int, params: Int, at: Span)
+
   /** A rule of family `family`, instantiated at `instance`, uses the family at `used`. */
   case PolymorphicRecursion(family: String, used: String, instance: String, at: Span)
 
@@ -56,6 +59,8 @@ enum ObjectProblem extends Problem:
     case _: UsedBeforeDeclaration => Code.E0101
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
+    case _: FormulaFunctionWithoutClauses => Code.W0005
+    case _: ClauseArity => Code.E0207
 
   def primary: Span = this match
     case UnboundAggregate(s) => s
@@ -79,6 +84,8 @@ enum ObjectProblem extends Problem:
     case UsedBeforeDeclaration(_, s) => s
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
+    case FormulaFunctionWithoutClauses(_, s) => s
+    case ClauseArity(_, _, _, s) => s
 
   def message: Msg = this match
     case _: UnboundAggregate => msg"an aggregate must be bound to a variable, `X = count { ... }`"
@@ -102,6 +109,8 @@ enum ObjectProblem extends Problem:
     case UsedBeforeDeclaration(n, _) => msg"${Src(n)} is used before its declaration"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
+    case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
+    case ClauseArity(n, a, p, _) => msg"clause of ${Src(n)} has $a arguments, but the function takes $p"
 
   override def primaryLabel: Msg = this match
     case _: NotAnAtom => msg"not a relation atom"
@@ -112,6 +121,7 @@ enum ObjectProblem extends Problem:
     case _: DuplicateLabel => msg"duplicate"
     case DataAsRelation(_, _, l, _, _, _, _) => Msg.text(l)
     case _: SingletonVariable => msg"singleton variable"
+    case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: NotARelation => msg"not a relation"
     case _: BoundOutsideRelation => msg"a bound column is only allowed as the last column of a relation declaration"
     case _: NotOpenType => msg"edge target must be open"

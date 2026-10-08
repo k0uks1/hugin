@@ -80,6 +80,9 @@ trait Readback:
           case Tm.Arith(op, a, b, st) => Tm.Arith(op, zonk(env, l, a), zonk(env, l, b), st)
           case Tm.Negate(a, st) => Tm.Negate(zonk(env, l, a), st)
           case Tm.Obj(f, as) => Tm.Obj(f, as.map(zonk(env, l, _)))
+          case Tm.Fresh(ns, b) =>
+            val locals = ns.indices.map(i => Val.local(l + i)).reverse.toList
+            Tm.Fresh(ns, zonk(locals ++ env, l + ns.length, b))
           case Tm.Persist(a) => Tm.Persist(zonk(env, l, a))
           case Tm.FactTy(a) => Tm.FactTy(zonk(env, l, a))
           case other => other

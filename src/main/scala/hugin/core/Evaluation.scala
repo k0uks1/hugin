@@ -36,8 +36,16 @@ trait Evaluation:
     case Tm.Arith(op, a, b, st) => arith(op, eval(env, a), eval(env, b), st)
     case Tm.Negate(a, st) => negate(eval(env, a), st)
     case Tm.Obj(f, as) => Obj(f, as.map(eval(env, _)))
+    case Tm.Fresh(ns, b) => eval(ns.reverse.map(freshObjectVariable) ++ env, b)
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
+
+  private var hygiene = 0
+
+  /** A fresh object variable named after `x` (`X#k`). */
+  def freshObjectVariable(x: Name): Val =
+    hygiene += 1
+    Obj(ObjForm.Named(s"$x#$hygiene"), Nil)
 
   def globalValue(id: Int): Val = globals(id).kind match
     case GlobalKind.Definition(_, v) => v

@@ -97,8 +97,21 @@ trait PiTypes:
   /** An arrow checked against `Type l`: domains and codomain are meta types. */
   def checkMetaArrow(c: Cxt, label: Option[Ident], dom: Tree, cod: Tree, l: Level): Tm =
     val (ns, d) = binders(label, dom)
-    val dt = check(c, d, Val.U1(l), Stage.S1)
+    val dt = if endsInProp(cod) then formulaParam(c, d, l) else check(c, d, Val.U1(l), Stage.S1)
     piChain(c, ns.map(_._1), Icit.Expl, dt, Stage.S1, scoped = true)(check(_, cod, Val.U1(l), Stage.S1))
+
+  /** `A₁ -> … -> prop`: the type of a formula function. */
+  def endsInProp(t: Tree): Boolean = t match
+    case Arrow(_, _, cod) => endsInProp(cod)
+    case Parens(i) => endsInProp(i)
+    case Keyword(Kw.Prop) => true
+    case _ => false
+
+  /** A parameter of a formula function: an object type is object code (`int -> prop` is `⇑int ->
+   *  ⇑prop`, base types included, unlike other meta function types); other types are meta types. */
+  private def formulaParam(c: Cxt, d: Tree, l: Level): Tm =
+    val (t, s, _) = inferU(c, d)
+    if s == Stage.S0 then Tm.Lift(t) else check(c, d, Val.U1(l), Stage.S1)
 
   /** `{A B : T} -> B` checked against `Type l`. */
   def checkImplicitPi(c: Cxt, names: List[Tree], dom: Tree, cod: Tree, l: Level): Tm =
