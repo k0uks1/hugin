@@ -115,21 +115,27 @@ trait ModuleDirectives:
       listValues(result, span).map { v =>
         before.get(stripPositions(quote(0, v))) match
           case Some(e) => e.copy(value = v)
-          case None => Entry(v, Origin(List(frame)), placeOf(v, span).getOrElse(span))
+          case None => Entry(v, Origin(List(frame)), (if foreign(fn, span) then placeOf(v, span) else None).getOrElse(span))
       }
     catch
       case e: ElabError =>
         report(e)
         module
 
-  private def placeOf(v: Val, at: Span): Option[Span] =
-    def sameFile(s: Span) = !at.exists || s.source.path == at.source.path
-    def located(v: Val, inner: Boolean): Option[Span] = force(v) match
-      case Val.Obj(ObjForm.Loc(s), _) if s.exists && sameFile(s) => Option.when(inner)(s)
-      case Val.Obj(ObjForm.Loc(s), List(x)) => located(x, inner || s.exists)
-      case Val.Rigid(_, sp) => sp.reverse.iterator.collect { case Elim.EApp(a, Icit.Expl) => a }.flatMap(located(_, inner)).nextOption()
-      case _ => None
-    located(v, false)
+  private def placeOf(v: Val, at: Span): Option[Span] = force(v) match
+    case Val.Obj(ObjForm.Loc(s), _) if s.exists && (!at.exists || s.source.path == at.source.path) => Some(s)
+    case Val.Obj(ObjForm.Loc(_), List(x)) => placeOf(x, at)
+    case Val.Rigid(_, sp) => sp.reverse.iterator.collect { case Elim.EApp(a, Icit.Expl) => a }.flatMap(placeOf(_, at)).nextOption()
+    case _ => None
+
+  /** Whether the directive `fn` is defined in another file than `at` (the prelude's `demand`). */
+  private def foreign(fn: Tm, at: Span): Boolean =
+    def head(t: Tm): Tm = Tm.unloc(t) match
+      case Tm.App(f, _, _) => head(f)
+      case other => other
+    head(fn) match
+      case Tm.Global(id) => at.exists && globals(id).declSpan.exists && globals(id).declSpan.source.path != at.source.path
+      case _ => false
 
   private def elabEntry(e: Entry): List[CoreItem] =
     try reflectedItems(e.value, RKind.Item, e.span).map(elabGenerated(_, e.origin))

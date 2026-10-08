@@ -10,10 +10,10 @@ edge a b.
 edge b c.
 path X Y :- edge X Y.
 path X Z :- path X Y, edge Y Z.
+edge c d.
 edge b a.
 edge c b.
 edge d c.
-edge c d.
 edge a d.
 ?- path d X.
 

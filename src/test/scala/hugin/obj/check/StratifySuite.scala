@@ -85,7 +85,7 @@ class StratifySuite extends munit.FunSuite:
     assertEquals(TestSupport.run(nested + "%output r. %output h."), Right(List("h (mk 1).", "r 1.")))
   }
 
-  test("no split rule when the constructor's component is not earlier, or for data constructors") {
+  test("no split rule when the constructor's component is not earlier") {
     val c = TestSupport.compile("""
       w : type. mk : int -> w. box : int -> w.
       src : int -> rel. src 1.
@@ -96,9 +96,9 @@ class StratifySuite extends munit.FunSuite:
     """)
     assert(!c.reporter.hasErrors, c.reporter.diagnostics.map(_.message))
     val comps = c.unit.components.map(_.map(_.name))
-    // `mk` and `h` both depend on `src` only; if `mk` comes after `h`, `h`'s assertions precede it
-    val mkFirst = comps.indexWhere(_.contains("mk")) < comps.indexWhere(_.contains("h"))
-    assertEquals(c.unit.prog.nn.rules.count(c.unit.splitRules.contains), if mkFirst then 1 else 0)
+    // `mk`, `box` and `h` depend on `src` only; a constructor after `h` gets no split rule
+    def first(k: String) = if comps.indexWhere(_.contains(k)) < comps.indexWhere(_.contains("h")) then 1 else 0
+    assertEquals(c.unit.prog.nn.rules.count(c.unit.splitRules.contains), first("mk") + first("box"))
   }
 
   test("an asserting rule that negates a reader of the constructor is a cycle through negation (E0601)") {

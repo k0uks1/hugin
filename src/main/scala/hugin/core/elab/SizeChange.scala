@@ -109,7 +109,12 @@ trait SizeChange:
    *  terminate (cycles through functions elaborated later are stuck until those are checked). */
   def checkTermination(): Unit =
     val base = calls.toList
-    val closure = mutable.LinkedHashSet.from(base.map(c => (c.caller, c.callee, c.m): Graph))
+    // only calls inside a strongly connected component of the call graph can be on a cycle
+    val nodes = base.flatMap(c => List(c.caller, c.callee)).distinct
+    val succ = base.groupMap(_.caller)(_.callee)
+    val component = Graphs.components(nodes, n => succ.getOrElse(n, Nil)).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
+    val cyclic = base.filter(c => component(c.caller) == component(c.callee))
+    val closure = mutable.LinkedHashSet.from(cyclic.map(c => (c.caller, c.callee, c.m): Graph))
     var frontier = closure.toList
     while frontier.nonEmpty do
       val next =

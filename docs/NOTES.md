@@ -1348,6 +1348,14 @@ expansion of `%demand …`", and they are typed, stratified and termination-chec
 * **Named patterns** `r { l = t, .. }` are quoted as `r`'s positional arguments (a column not named is
   `_` with `..`), so programs using them can be rewritten by module-wide directives (a04).
 
+* **Elaboration cost** (for issue #60). The prelude's demand code (about 250 lines of clauses) makes the
+  prelude slower to elaborate: warm (in one JVM, after JIT) about 85 ms for the whole prelude against about
+  13 ms without the demand section; cold (`hugin run` of a one-line program, `--stats`) `elaborate` about
+  1.35 s against about 0.75 s before C3. Most of it was the termination check of meta functions
+  (`core/elab/SizeChange`), which composed size-change graphs over the whole call graph after every
+  function (about 500 ms warm); its closure is now restricted to the strongly connected components of the
+  call graph (only they contain cycles), which does not change its verdicts. Further work is issue #60.
+
 ### Goldens (C3)
 
 New: `run/f_demand_negation_prefix`, `run/f_demand_disjunction` (formerly the per-call-copy tests, same
