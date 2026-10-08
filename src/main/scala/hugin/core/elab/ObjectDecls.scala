@@ -16,7 +16,19 @@ trait ObjectDecls:
   /** The kind of an object constant declared `x : A.` with the (closed) object type `ty`. */
   def objectDecl(d: Decl, ty: Val): ObjDecl = force(ty) match
     case Val.U0 => ObjDecl.OpenType
-    case other => if isRelationType(other) then ObjDecl.Relation else ObjDecl.Constructor(d.fact)
+    case other =>
+      if isRelationType(other) then ObjDecl.Relation
+      else
+        constructorResult(other) match
+          case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind.isInstanceOf[GlobalKind.Object] && !isOpen(id) =>
+            fail(ElabProblem.ConstructorOfRefinement(d.name.name, globals(id).name, d.tpe.span))
+          case _ => ObjDecl.Constructor(d.fact)
+
+  private def constructorResult(ty: Val): Val = force(ty) match
+    case Val.Pi(_, _, _, cl) => constructorResult(inst(cl, Val.Wild))
+    case other => other
+
+  private def isOpen(id: Int): Boolean = globals(id).kind == GlobalKind.Object(ObjDecl.OpenType)
 
   def isStructDecl(d: Decl): Boolean = (d.tpe, d.defn) match
     case (Keyword(Kw.Type), Some(_: RecordType)) => true

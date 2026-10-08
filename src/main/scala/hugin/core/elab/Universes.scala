@@ -98,7 +98,9 @@ trait Universes:
    *  constructor type whose result is a declared (or computed) object type — not a base type or `prop`. */
   def isObjectConstantType(v: Val): Boolean = force(v) match
     case Val.U0 | Val.RelT | Val.FactTy(_) => true
-    case Val.Pi(_, _, d, cl) => stageOfType(d) == Stage.S0 && isObjectConstantType(inst(cl, Val.Wild))
+    case Val.Pi(_, _, d, cl) =>
+      // a constructor returns an object type, not `type` (families of types are meta functions)
+      stageOfType(d) == Stage.S0 && force(inst(cl, Val.Wild)) != Val.U0 && isObjectConstantType(inst(cl, Val.Wild))
     case Val.Rigid(Head.Glob(id), Nil) => isObjectType(id)
     case Val.Rigid(_, Elim.ESplice :: _) | Val.Flex(_, Elim.ESplice :: _) => true
     case _ => false

@@ -44,6 +44,9 @@ enum ElabProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+
+  /** `c : … -> a.` where `a` is not an open type (a refinement): it cannot have constructors. */
+  case ConstructorOfRefinement(name: String, result: String, at: Span)
   case NotAModule(name: String, tpe: String, at: Span)
 
   /** A family's type argument (`what`: "type argument `A` of family `nil`") that nothing determines. */
@@ -93,6 +96,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: ConstructorOfRefinement => Code.E0103
     case _: NotAModule => Code.E0107
     case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
@@ -134,6 +138,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case ConstructorOfRefinement(_, _, s) => s
     case NotAModule(_, _, s) => s
     case UndeterminedTypeArgument(_, s) => s
     case SignatureMismatch(_, _, s) => s
@@ -177,6 +182,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case ConstructorOfRefinement(n, _, _) => msg"cannot classify the declaration of ${Src(n)}"
     case NotAModule(n, _, _) => msg"${Src(n)} is not a module"
     case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
     case _: SignatureMismatch => msg"signature mismatch"
@@ -208,6 +214,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case ConstructorOfRefinement(_, r, _) => msg"result is ${Src(r)}, which is not an open type"
     case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
     case _: UndeterminedTypeArgument => msg"type not determined"
     case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
@@ -245,6 +252,8 @@ enum ElabProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case _: ConstructorOfRefinement =>
+      List(msg"a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
     case _: NotAModule => List(msg"a path `m.x` requires `m` to be module-valued")
     case SignatureMismatch(_, n, _) => List(Msg.text(n))
     case NotAFactConstructor(_, l, _) =>
@@ -275,6 +284,7 @@ enum ElabProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
+    case ConstructorOfRefinement(n, r, _) => List(msg"to define a compile-time constant, write ${Src(s"$n : $r = ...")}.")
     case _: UndeterminedTypeArgument =>
       List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")
