@@ -29,7 +29,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   test("E0902 stage errors in both directions") {
     assertError(
       "E0902",
-      "q : int -> rel.\nlimit : int -> prop = [n] q n.\nr : int -> rel.\nr X :- limit X.\n",
+      "q : int -> rel.\nscale : int -> int = [n] n * 2.\nr : int -> rel.\nr X :- q X, q (scale X).\n",
       "object code used where a compile-time value is needed"
     )
     assertError("E0902", "nat : Type.\nz : nat.\nq : int -> rel.\nq z.\n", "compile-time value used as object code")

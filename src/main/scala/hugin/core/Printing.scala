@@ -116,9 +116,9 @@ trait Printing:
     case (ObjForm.Loc(_), List(a)) => go(ns, a, p)
     case (ObjForm.Compare(op), List(a, b)) => par(p, 2, s"${go(ns, a, 3)} ${op.show} ${go(ns, b, 3)}")
     case (ObjForm.And, Nil) => "true"
-    case (ObjForm.And, as) => par(p, 1, as.map(go(ns, _, 2)).mkString(", "))
+    case (ObjForm.And, as) => par(p, 1, as.map(go(ns, _, 1)).mkString(", "))
     case (ObjForm.Or, Nil) => "false"
-    case (ObjForm.Or, as) => par(p, 0, as.map(go(ns, _, 1)).mkString(" ; "))
+    case (ObjForm.Or, as) => par(p, 0, as.map(go(ns, _, 0)).mkString(" ; "))
     case (ObjForm.Named(x), Nil) => x
     case (ObjForm.Not, List(a)) => par(p, 5, s"not ${go(ns, a, 6)}")
     case (ObjForm.Wild, Nil) => "_"

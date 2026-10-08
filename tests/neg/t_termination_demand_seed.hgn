@@ -7,5 +7,5 @@ f : (n : int) -> (m : int) -> rel.
 f N M :- M = N + 1.
 u : int -> rel.
 u 0.
-u M :- u N, f N M.
+u M :- u N, f N M. (*~ E0604 *)
 %output u.

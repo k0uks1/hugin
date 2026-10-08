@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `bits`
 4 | %terminates n bits.
   | ------------------- measure declared here
 ...
-6 | bits N L :- N <> 0, H = N / 2, bits H K, L = K + 1.
+6 | bits N L :- N <> 0, H = N / 2, bits H K, L = K + 1. (*~ E0604 *)
   |      -                         ^^^^^^^^ no decrease: cannot show `H < N`
   |      the caller has `N`
   |

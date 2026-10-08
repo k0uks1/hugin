@@ -1,25 +1,23 @@
 package hugin.util.diagnostics
 
-import hugin.util.Span
-import scala.language.implicitConversions
+/** A named lint: a kind of warning that users may silence or turn into an error from the command line
+ *  (`-A`, `-W`, `-D`, see [[LintLevels]]). Every warning code is the code of exactly one lint
+ *  (`Code.lint`), whose default level is the code's level.
+ *
+ *  Names follow rustc's rule: lowercase with underscores, plural, reading well after "allow"
+ *  ("allow singleton_variables"). A new warning is declared as a lint from the start. */
+enum Lint(val name: String):
+  case UndefinedConstantExpressions extends Lint("undefined_constant_expressions")
+  case SingletonVariables extends Lint("singleton_variables")
+  case UnusedDefinitions extends Lint("unused_definitions")
+  case EmptyFormulaFunctions extends Lint("empty_formula_functions")
+  case UnreachableClauses extends Lint("unreachable_clauses")
 
-/** Warnings that users may want to silence: each has a lint name in its [[Code]] (`Code.lint`). The
- *  other lints (W0002, W0003, W0005) are still reported by the old meta typer through `Legacy`. */
-enum Lint extends Problem:
-  /** An object-level expression over literals whose value is undefined, as written (`1 / 0`). */
-  case UndefinedConstant(expr: String, at: Span)
+  /** The warning code this lint reports. */
+  def code: Code = Code.values.find(_.lint.contains(this)).getOrElse(sys.error(s"lint $name has no code"))
 
-  def code: Code = this match
-    case _: UndefinedConstant => Code.W0001
+  def defaultLevel: Level = code.level
 
-  def primary: Span = this match
-    case UndefinedConstant(_, s) => s
-
-  def message: Msg = this match
-    case _: UndefinedConstant => msg"undefined constant expression"
-
-  override def primaryLabel: Msg = this match
-    case UndefinedConstant(e, _) => msg"${Src(e)} is undefined"
-
-  override def notes: List[Msg] = this match
-    case _: UndefinedConstant => List(msg"the formula containing it never holds, so this rule instance never fires")
+object Lint:
+  /** A lint by its name, or by its code (`W0002`). */
+  def parse(s: String): Option[Lint] = values.find(_.name == s.trim).orElse(Code.parse(s).flatMap(_.lint))

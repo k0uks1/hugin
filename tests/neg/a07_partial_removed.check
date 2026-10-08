@@ -1,7 +1,7 @@
 error[E0001]: `%partial` has been removed
  --> tests/neg/a07_partial_removed.hgn:3:1
   |
-3 | %partial nat.
+3 | %partial nat. (*~ E0001 *)
   | ^^^^^^^^ removed directive
   |
   = note: every accepted program terminates; there are no round budgets
@@ -10,7 +10,7 @@ error[E0001]: `%partial` has been removed
 error[E0603]: growing component without a termination argument
  --> tests/neg/a07_partial_removed.hgn:5:17
   |
-5 | nat M :- nat N, M = N + 1.
+5 | nat M :- nat N, M = N + 1. (*~ E0603 *)
   |                 ^^^^^^^^^ head variable `M` is computed by `M = N + 1`
   |
   = note: the recursive component {nat} contains this constructive rule, so its fixed point may be infinite

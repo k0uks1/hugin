@@ -3,6 +3,8 @@ warning[W0003]: unused definition `next`
   |
 3 | next : int = big + 1.
   | ^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 error[E0209]: compile-time arithmetic failure
  --> tests/neg/a11_stage_overflow.hgn:3:14

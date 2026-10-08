@@ -4,7 +4,7 @@ error[E0504]: fact constructor built in a moded input
 11 | %mode area +s -a.
    | ----------------- the call uses mode `+-` of `area`
 ...
-18 | q A :- area (square 4) A.
+18 | q A :- area (square 4) A. (*~ E0504 *)
    |              ^^^^^^^^ `square 4` would be built as an input of `area`
    |
    = note: `square` is a fact constructor (`%fact`): building `square 4` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
@@ -17,7 +17,7 @@ error[E0504]: fact constructor built in a moded input
 11 | %mode area +s -a.
    | ----------------- the call uses mode `+-` of `area`
 ...
-21 | nested A :- area (box (square 2)) A.
+21 | nested A :- area (box (square 2)) A. (*~ E0504 *)
    |                        ^^^^^^^^ `square 2` would be built as an input of `area`
    |
    = note: `square` is a fact constructor (`%fact`): building `square 2` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
@@ -30,7 +30,7 @@ error[E0504]: fact constructor built in a moded input
 11 | %mode area +s -a.
    | ----------------- the call uses mode `+-` of `area`
 ...
-24 | negated :- not area (square 3) 9.
+24 | negated :- not area (square 3) 9. (*~ E0504 *)
    |                      ^^^^^^^^ `square 3` would be built as an input of `area`
    |
    = note: `square` is a fact constructor (`%fact`): building `square 3` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
@@ -43,7 +43,7 @@ error[E0504]: fact constructor built in a moded input
 11 | %mode area +s -a.
    | ----------------- the call uses mode `+-` of `area`
 ...
-27 | counted C :- C = count { A | area (square 5) A }.
+27 | counted C :- C = count { A | area (square 5) A }. (*~ E0504 *)
    |                                    ^^^^^^^^ `square 5` would be built as an input of `area`
    |
    = note: `square` is a fact constructor (`%fact`): building `square 5` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database
@@ -56,7 +56,7 @@ error[E0504]: fact constructor built in a moded input
 11 | %mode area +s -a.
    | ----------------- the call uses mode `+-` of `area`
 ...
-36 | ?- area (square 7) A.
+36 | ?- area (square 7) A. (*~ E0504 *)
    |          ^^^^^^^^ `square 7` would be built as an input of `area`
    |
    = note: `square` is a fact constructor (`%fact`): building `square 7` makes it a fact of `square`, and a moded call builds its inputs as demands, so `%mode` would change the database

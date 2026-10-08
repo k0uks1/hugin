@@ -1,7 +1,7 @@
 error[E0603]: growing component without a termination argument
  --> tests/neg/t_termination_descent.hgn:6:19
   |
-6 | need A :- need N, A = N - 1.
+6 | need A :- need N, A = N - 1. (*~ E0603 *)
   |                   ^^^^^^^^^ head variable `A` is computed by `A = N - 1`
   |
   = note: the recursive component {need} contains this constructive rule, so its fixed point may be infinite
@@ -13,7 +13,7 @@ error[E0603]: growing component without a termination argument
 error[E0603]: growing component without a termination argument
   --> tests/neg/t_termination_descent.hgn:11:24
    |
-11 | pair Y X1 :- pair X Y, X1 = X + 1.
+11 | pair Y X1 :- pair X Y, X1 = X + 1. (*~ E0603 *)
    |                        ^^^^^^^^^^ head variable `X1` is computed by `X1 = X + 1`
    |
    = note: the recursive component {pair} contains this constructive rule, so its fixed point may be infinite
@@ -25,7 +25,7 @@ error[E0603]: growing component without a termination argument
 error[E0603]: growing component without a termination argument
   --> tests/neg/t_termination_descent.hgn:17:7
    |
-17 | grow (s N) :- grow N.
+17 | grow (s N) :- grow N. (*~ E0603 *)
    |       ^^^ its head constructs `s N`, which is not matched in the body
    |
    = note: the recursive component {grow} contains this constructive rule, so its fixed point may be infinite

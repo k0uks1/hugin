@@ -21,12 +21,14 @@ final case class MeasureCtx(
   def measuredAnywhere(c: RelSym): Boolean = all.contains(c)
   def directive(c: RelSym): Option[Span] = facts(c).terminates.map(_._2)
 
+  /** The measure of `c` in this group. */
+  def measure(c: RelSym): Measure = Measure(c, of(c), slots)
+
 /** Guarded induction (B): measures, declared or inferred, that decrease from the head to every recursive
  *  call and are anchored in a finite set. */
 final class GuardedInduction(rc: RecursiveComponent):
   import Termination.*
   import Decrease.*
-  import Failures.*
 
   private val (comp, rules, allRules, facts) = (rc.comp, rc.rules, rc.allRules, rc.facts)
   private val inC = rc.inC
@@ -54,12 +56,10 @@ final class GuardedInduction(rc: RecursiveComponent):
       (m, s"  inferred measure: $shown" :: lines)
     }
 
-  /** Why guarded induction (B) fails, for E0603: the first candidate measure that decreases along every
-   *  recursive call but is not anchored, or that no argument decreases. */
-  def inductionFailure: String =
-    candidates.map(check).collectFirst { case Left(f) if f.kind == FailKind.Anchor => f }
-      .map(f => s"${f.label} (measure: ${f.measure})")
-      .getOrElse("no argument decreases from the head to every recursive call")
+  /** Why guarded induction (B) fails, for E0603: the anchor failure of the first candidate measure that
+   *  decreases along every recursive call but is not anchored; `None` if no argument decreases. */
+  def inductionFailure: Option[TerminationError] =
+    candidates.map(check).collectFirst { case Left(f) if f.error.isAnchor => f.error }
 
   /** Checks the component with the given measures; the explanation, or the first violation.
    *
@@ -70,7 +70,7 @@ final class GuardedInduction(rc: RecursiveComponent):
    *  dependency graph may still join such groups into one component through answers (`typed` reads
    *  `lookup`, whose demands come from `typed`'s). Measures are compared, and need the same shape, only
    *  within a group. */
-  def check(measures: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
+  def check(measures: Map[RelSym, List[Int]]): Either[Rejection, List[String]] =
     val groups =
       if !measures.keys.exists(facts.hasModes) then List(measures.keys.toList)
       else
@@ -85,13 +85,13 @@ final class GuardedInduction(rc: RecursiveComponent):
           yield c -> e
         }
         hugin.util.Graphs.components(measured, c => edges.collect { case (`c`, e) => e }.distinct)
-    groups.foldLeft[Either[TerminationFailure, List[String]]](Right(Nil)) { (acc, g) =>
+    groups.foldLeft[Either[Rejection, List[String]]](Right(Nil)) { (acc, g) =>
       acc.flatMap(lines => checkGroup(measures.filter((c, _) => g.contains(c)), measures).map(lines ++ _))
     }
 
   /** Checks one group of relations whose measures are compared with each other (see [[check]]); `all` are
    *  the measures of the whole component. */
-  def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[TerminationFailure, List[String]] =
+  def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[Rejection, List[String]] =
     val measured = measures.keys.toList.sortBy(_.name)
     def declared(c: RelSym) = facts(c).terminates.map(_._2)
     val first = measured.head
@@ -99,27 +99,13 @@ final class GuardedInduction(rc: RecursiveComponent):
     def slotNumeric(c: RelSym, k: Int) = c.cols.lift(k).exists(col => isInt(col.tpe))
     val shapeError = measured.collectFirst {
       case c if measures(c).length != n =>
-        TerminationFailure(
-          s"measures of different lengths in the component ${showComponent(comp)}",
-          declared(c).getOrElse(c.span),
-          s"`${c.name}` is measured by ${plural(measures(c).length)}",
-          None,
-          None,
-          declared(first).toList.map(_ -> s"`${first.name}` is measured by ${plural(n)}"),
-          notes = List("measures of mutually recursive relations are compared with each other, so they need the same shape")
-        )
+        val at = declared(c).getOrElse(c.span)
+        Rejection(TerminationError.MeasureLengths(comp, c, measures(c).length, at, first, n, declared(first)), None)
       case c if (0 until n).exists(i => slotNumeric(c, measures(c)(i)) != slotNumeric(first, measures(first)(i))) =>
         val i = (0 until n).find(i => slotNumeric(c, measures(c)(i)) != slotNumeric(first, measures(first)(i))).get
-        TerminationFailure(
-          s"measures of different types in the component ${showComponent(comp)}",
-          declared(c).getOrElse(c.span),
-          s"component ${i + 1} of `${c.name}`'s measure is ${kind(slotNumeric(c, measures(c)(i)))}",
-          None,
-          None,
-          declared(first).toList.map(
-            _ -> s"component ${i + 1} of `${first.name}`'s measure is ${kind(slotNumeric(first, measures(first)(i)))}"
-          )
-        )
+        val (numeric, firstNumeric) = (slotNumeric(c, measures(c)(i)), slotNumeric(first, measures(first)(i)))
+        val at = declared(c).getOrElse(c.span)
+        Rejection(TerminationError.MeasureTypes(comp, c, i, numeric, at, first, firstNumeric, declared(first)), None)
     }
     val slots = (0 until n).toList.map(i => slotNumeric(first, measures(first)(i)))
     val ctx = MeasureCtx(measures, slots, all, facts, comp)
@@ -133,7 +119,7 @@ final class GuardedInduction(rc: RecursiveComponent):
     }
 
   /** Bottom-up evaluation: every recursive call is smaller than the head and anchored. */
-  def bottomUp(ctx: MeasureCtx): Either[TerminationFailure, List[String]] =
+  def bottomUp(ctx: MeasureCtx): Either[Rejection, List[String]] =
     rc.unmeasuredConstructive(ctx, ctx.has).toLeft(()).flatMap { _ =>
       val lines = List.newBuilder[String]
       lines += "  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set"
@@ -143,18 +129,24 @@ final class GuardedInduction(rc: RecursiveComponent):
         val arith = Arithmetic(r.body)
         val outside = rc.boundOutside(r.body)
         r.body.iterator.collect { case a @ Formula.Atom(RelRef.Sym(d), _, _) if inC(d) => (a, d) }.map { (a, d) =>
-          if !ctx.has(d) then Some(unmeasuredCall(ctx, r, c, a, d))
+          if !ctx.has(d) then Some(Rejection.unmeasuredCall(ctx, r, c, a, d))
           else
             val big = ctx.of(c).map(hs)
             val small = ctx.of(d).map(a.args)
             compare(ctx.slots, big, small, arith, r.body) match
-              case Left(f) => Some(decreaseFailure(ctx, r, c, d, a.span, big, small, f, "the call", "the head"))
+              case Left(f) =>
+                Some(Rejection(
+                  TerminationError.NoDecrease(ctx.measure(d), a.span, big, small, f, Roles.CallAndHead, ctx.directive(d)),
+                  Some(r)
+                ))
               case Right((i, why)) =>
                 val anchors = (i until ctx.slots.length).toList.map { j =>
                   anchor(ctx.slots(j), j == i, big(j), small(j), arith, outside).toRight(j)
                 }
                 anchors.collectFirst { case Left(j) => j } match
-                  case Some(j) => Some(anchorFailure(ctx, r, c, a.span, j, i, big(j), small(j)))
+                  case Some(j) =>
+                    val p = TerminationError.NoAnchor(ctx.measure(c), a.span, j, i, big(j), small(j), ctx.directive(c))
+                    Some(Rejection(p, Some(r)))
                   case None =>
                     val as = anchors.collect { case Right(s) => s }.mkString("; ")
                     lines += s"  ${where(r)}: call `${ObjPrinter.formula(a)}`: $why; anchored: $as"

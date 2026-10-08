@@ -2,7 +2,6 @@ package hugin.obj
 package check
 
 import hugin.util.*
-import hugin.util.diagnostics.{Code, Legacy}
 import hugin.syntax.Bound
 import hugin.obj.typing.Moding
 
@@ -27,7 +26,7 @@ object TypeConsistency:
   /** A limit variable: the atom binding it and the kind of that atom's bound column. */
   private final case class Limit(atom: Formula.Atom, kind: Bound)
 
-  def check(r: Rule, inC: RelSym => Boolean): Option[Diagnostic] =
+  def check(r: Rule, inC: RelSym => Boolean): Option[BoundColumnError] =
     val limits = limitVars(r, inC)
     malformedAtom(r, inC).orElse(Option.when(limits.nonEmpty)(Checker(r, limits).firstViolation).flatten)
 
@@ -50,29 +49,15 @@ object TypeConsistency:
 
   /** The bound column of an atom of the component must be a variable (or `_`): a constant would test the
    *  best value for equality, which is not monotone. */
-  private def malformedAtom(r: Rule, inC: RelSym => Boolean): Option[Diagnostic] =
+  private def malformedAtom(r: Rule, inC: RelSym => Boolean): Option[BoundColumnError] =
     r.body.collectFirst(Function.unlift {
       case Formula.Atom(RelRef.Sym(b), args, _) if inC(b) && b.boundColumn.isDefined =>
         args.lastOption.filter {
           case _: Term.Var => false
           case _ => true
-        }.map(t =>
-          violation(
-            t.span,
-            s"the `${b.boundColumn.get.show}` column of `${b.name}` is not a variable",
-            "a recursive atom over a bound column must bind its value to a variable",
-            s"bind a variable and compare it, e.g. `${b.name} … D, D <= ${ObjPrinter.term(t)}`"
-          )
-        )
+        }.map(t => BoundColumnError.Inconsistent(t.span, Inconsistency.NotAVariable(b, b.boundColumn.get, t)))
       case _ => None
     })
-
-  private def violation(span: Span, msg: String, label: String, help: String, notes: List[String] = Nil): Diagnostic =
-    val d = Legacy.error(Code.E0606, s"type-inconsistent rule: $msg", span, label)
-      .withNote(
-        "in the recursion of a bound relation, improving a value read from a bound column must improve the head (or keep the body true), so that keeping only the best value per key is exact"
-      )
-    (notes.foldLeft(d)(_.withNote(_))).withHelp(help)
 
   /** The checks of one rule with limit variables `limits`. */
   private final class Checker(r: Rule, limits: Map[String, Limit]):
@@ -116,51 +101,32 @@ object TypeConsistency:
 
     private def limitOf(t: Term): Option[Limit] = Moding.vars(expand(t, definitions)).flatMap(limits.get).headOption
 
-    private def boundBy(l: Limit): (Span, String) =
-      (l.atom.span, s"bound by this `${l.kind.show}` atom")
+    private def boundBy(l: Limit): (Span, Bound) = (l.atom.span, l.kind)
 
-    private def misplaced(t: Term, where: String, help: String): Diagnostic =
+    private def misplaced(t: Term, use: Misuse): BoundColumnError =
       val o = occurrence(t)
-      val d = violation(o.span, s"`${ObjPrinter.term(o)}` from a bound column is used $where", s"used $where", help)
-      limitOf(o).map(boundBy).fold(d)((s, l) => d.withLabel(s, l))
+      BoundColumnError.Inconsistent(o.span, Inconsistency.Misused(o, use), limitOf(o).map(boundBy))
 
-    def firstViolation: Option[Diagnostic] =
+    private def violation(span: Span, why: Inconsistency): BoundColumnError = BoundColumnError.Inconsistent(span, why)
+
+    def firstViolation: Option[BoundColumnError] =
       atomUses.orElse(tests).orElse(comparisons).orElse(head)
 
     /** Limit variables in other atom columns, a second bound atom, negations, aggregates or disjunctions. */
-    private def atomUses: Option[Diagnostic] =
+    private def atomUses: Option[BoundColumnError] =
       r.body.iterator.flatMap {
         case a @ Formula.Atom(_, args, _) =>
           val own = limits.collect { case (v, l) if l.atom eq a => v }.toSet
           args.zipWithIndex.collectFirst {
             case (t, i) if isTainted(t) && !(i == args.length - 1 && Moding.vars(t).subsetOf(own) && t.isInstanceOf[Term.Var]) =>
-              misplaced(
-                t,
-                "in a column of an atom",
-                "compare it with `<`, `<=`, `>`, `>=` instead, or read the relation from a later component"
-              )
+              misplaced(t, Misuse.InAtomColumn)
           }
         case n: Formula.Not if formulaTainted(n) =>
-          Some(violation(
-            n.span,
-            "a value from a bound column is negated",
-            "uses a recursive bound value",
-            "read the value outside the recursion"
-          ))
+          Some(violation(n.span, Inconsistency.Negated))
         case g: Formula.Agg if formulaTainted(g) =>
-          Some(violation(
-            g.span,
-            "a value from a bound column is aggregated",
-            "uses a recursive bound value",
-            "read the value outside the recursion"
-          ))
+          Some(violation(g.span, Inconsistency.Aggregated))
         case d: Formula.Disj if formulaTainted(d) =>
-          Some(violation(
-            d.span,
-            "a value from a bound column is used in a disjunction",
-            "uses a recursive bound value",
-            "split the rule into one rule per alternative"
-          ))
+          Some(violation(d.span, Inconsistency.InDisjunction))
         case _ => None
       }.nextOption()
 
@@ -173,58 +139,43 @@ object TypeConsistency:
       case _ => false
 
     /** `=` and `<>` tests (other than the binding equations of [[definitions]]) are not monotone. */
-    private def tests: Option[Diagnostic] =
+    private def tests: Option[BoundColumnError] =
       r.body.collectFirst {
         case c @ Formula.Cmp(op @ (CmpOp.Eq | CmpOp.Ne), l, rr) if !isDefinition(c) && (isTainted(l) || isTainted(rr)) =>
-          misplaced(
-            if isTainted(l) then l else rr,
-            s"in the test `${op.show}`",
-            "compare with `<`, `<=`, `>` or `>=` (a bound value only improves)"
-          )
+          misplaced(if isTainted(l) then l else rr, Misuse.InTest(op))
       }
 
     /** `s₁ < s₂`: in `s₁ - s₂` positive coefficients come from `min` atoms, negative ones from `max` atoms. */
-    private def comparisons: Option[Diagnostic] =
+    private def comparisons: Option[BoundColumnError] =
       r.body.iterator.collect {
         case c @ Formula.Cmp(op @ (CmpOp.Lt | CmpOp.Le | CmpOp.Gt | CmpOp.Ge), l, rr) if isTainted(l) || isTainted(rr) =>
           val (lo, hi) = if op == CmpOp.Lt || op == CmpOp.Le then (l, rr) else (rr, l)
           val diff = Term.Arith(ArithOp.Sub, expand(lo, definitions), expand(hi, definitions))(c.span)
-          directions(diff, c.span, positive = Bound.Min, s"the comparison `${ObjPrinter.formula(c)}`")
+          directions(diff, c.span, positive = Bound.Min, Place.Comparison(c))
       }.flatten.nextOption()
 
     /** The head: limit variables only in the bound column of a bound head, in the improving direction. */
-    private def head: Option[Diagnostic] =
+    private def head: Option[BoundColumnError] =
       r.heads.headOption.collect { case Term.App(RelRef.Sym(h), args) => (h, args) }.flatMap { (h, args) =>
         val kind = h.boundColumn
         val keys = if kind.isDefined then args.init else args
         keys.find(isTainted).map(t =>
-          misplaced(
-            t,
-            if kind.isDefined then "in a key column of the head" else s"in the head of `${h.name}`, which has no bound column",
-            "a recursive bound value can only flow into the bound column of a bound relation; read it from a later component to use it as a plain value"
-          )
+          misplaced(t, if kind.isDefined then Misuse.InKeyColumn else Misuse.InPlainHead(h))
         ).orElse(kind.flatMap(k =>
-          directions(expand(args.last, definitions), args.last.span, positive = k, s"the head's `${k.show}` column")
+          directions(expand(args.last, definitions), args.last.span, positive = k, Place.HeadColumn(k))
         ))
       }
 
     /** Checks the linear form of `t`: every limit variable has a non-zero coefficient, a positive one from
      *  an atom of kind `positive` and a negative one from the other kind. */
-    private def directions(t: Term, span: Span, positive: Bound, where: String): Option[Diagnostic] =
+    private def directions(t: Term, span: Span, positive: Bound, where: Place): Option[BoundColumnError] =
       val lin = Linear.of(t)
       val nonLinear = lin.coeffs.keys.collectFirst {
         case a if !a.isInstanceOf[Term.Var] && Moding.vars(a).exists(limits.contains) => a
       }
       nonLinear match
         case Some(a) =>
-          Some(
-            violation(
-              a.span,
-              s"`${ObjPrinter.term(a)}` is not linear in a bound value",
-              "not linear",
-              "use only `+`, `-` and multiplication by an integer literal on bound values"
-            )
-          )
+          Some(violation(a.span, Inconsistency.NonLinear(a)))
         case None =>
           val occurring = Moding.vars(t).filter(limits.contains)
           occurring.toList.sorted.iterator.flatMap { v =>
@@ -232,22 +183,10 @@ object TypeConsistency:
             val l = limits(v)
             val wanted = if c > 0 then positive else other(positive)
             if c == 0 then
-              Some(violation(
-                span,
-                s"`${Var.display(v)}` cancels out in $where",
-                "coefficient 0",
-                "remove the variable or give it a non-zero coefficient"
-              ))
+              Some(violation(span, Inconsistency.CancelsOut(VarName(v), where)))
             else if l.kind != wanted then
-              val (s, lbl) = boundBy(l)
-              Some(
-                violation(
-                  span,
-                  s"`${Var.display(v)}` from a `${l.kind.show}` column has the wrong sign in $where",
-                  s"improving `${Var.display(v)}` makes this worse",
-                  s"in $where a value from a `${l.kind.show}` column needs a ${if l.kind == positive then "positive" else "negative"} coefficient"
-                ).withLabel(s, lbl)
-              )
+              val why = Inconsistency.WrongSign(VarName(v), l.kind, where, positive)
+              Some(BoundColumnError.Inconsistent(span, why, Some(boundBy(l))))
             else None
           }.nextOption()
 

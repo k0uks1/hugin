@@ -5,7 +5,7 @@ nil : list A.
 len : list A -> int -> rel.
 %terminates L (len L _).
 len nil 0.
-len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1.
+len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1. (*~ E0604 *)
 nums : list int -> rel.
 nums (cons 1 nil).
 ?- nums L, len L N.

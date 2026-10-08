@@ -1,0 +1,2 @@
+(* E0106: a type definition that is not strict is marked `%abbrev` *)
+%abbrev t A : type = int.

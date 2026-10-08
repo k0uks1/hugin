@@ -1,12 +1,16 @@
 package hugin.cli
 
 import hugin.compiler.{Compiler, Display, Settings}
+import hugin.util.diagnostics.{Level, Lint}
 import scopt.{OEffect, OParser}
 
 /** What the user asked for. */
 enum Command:
   case Run(file: String)
   case Check(file: String)
+
+  /** Apply the machine-applicable suggestions to the file, until none is left. */
+  case Fix(file: String)
   case Phases
 
   /** The explanation of a code, or with `list` the inventory of all codes. */
@@ -65,6 +69,10 @@ object CommandLine:
         .text("compile only and report diagnostics")
         .action((_, o) => o.copy(command = Command.Check("")))
         .children(arg[String]("<file.hgn>").action((f, o) => o.copy(command = Command.Check(f)))),
+      cmd("fix")
+        .text("apply the machine-applicable suggestions of the diagnostics to the file, until none is left")
+        .action((_, o) => o.copy(command = Command.Fix("")))
+        .children(arg[String]("<file.hgn>").action((f, o) => o.copy(command = Command.Fix(f)))),
       cmd("phases")
         .text("list the compiler phases")
         .action((_, o) => o.copy(command = Command.Phases)),
@@ -172,9 +180,12 @@ object CommandLine:
         .text("how to print diagnostics: rendered for people (default) or as JSON lines")
         .validate(f => if f == "human" || f == "json" then success else failure(s"unknown error format `$f`; expected human or json"))
         .action((f, o) => o.copy(display = o.display.copy(json = f == "json"))),
-      opt[Unit]("no-warnings")
-        .text("suppress warnings")
-        .action((_, o) => o.copy(display = o.display.copy(warnings = false))),
+      lintLevel('W', "warn", Level.Warning, "report the lint as a warning"),
+      lintLevel('A', "allow", Level.Allow, "allow the lint: do not report it"),
+      lintLevel('D', "deny", Level.Error, "deny the lint: report it as an error"),
+      opt[Unit]("deny-warnings")
+        .text("report every lint that is a warning as an error")
+        .action((_, o) => o.copy(display = o.display.copy(lints = o.display.lints.copy(denyWarnings = true)))),
       opt[Unit]("no-prelude")
         .text("do not include the standard prelude (base types must then be declared with %builtin)")
         .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
@@ -193,6 +204,16 @@ object CommandLine:
           case _ => success
       )
     )
+
+  /** `-W`, `-A` or `-D` with a lint name (or code); repeatable, the last flag for a lint wins. */
+  private def lintLevel(short: Char, long: String, level: Level, text: String): OParser[String, Options] =
+    import builder.*
+    opt[String](short, long)
+      .valueName("<lint>")
+      .unbounded()
+      .text(s"$text (see `hugin explain --list` for the lints)")
+      .validate(n => if Lint.parse(n).isDefined then success else failure(s"unknown lint `$n`; see `hugin explain --list`"))
+      .action((n, o) => o.copy(display = o.display.copy(lints = o.display.lints.set(Lint.parse(n).get, level))))
 
   val usage: String = OParser.usage(parser)
 

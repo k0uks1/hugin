@@ -1,7 +1,7 @@
 error[E0603]: growing component without a termination argument
  --> tests/neg/t_termination_fact_head.hgn:6:1
   |
-6 | s (s N) :- s N.
+6 | s (s N) :- s N. (*~ E0603 *)
   | ^^^^^^^ its head constructs `s (s N)`, which is not matched in the body
   |
   = note: the recursive component {s} contains this constructive rule, so its fixed point may be infinite

@@ -1,7 +1,7 @@
 package hugin.cli
 
 import hugin.util.*
-import hugin.util.diagnostics.{Explanations, JsonDiagnostics}
+import hugin.util.diagnostics.{Explanations, JsonDiagnostics, LintLevels}
 import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
@@ -61,6 +61,7 @@ object Main:
           err(s"error: unknown diagnostic code `$code`")
           ExitCode.Usage
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
+    case Command.Fix(file) => fix(file, opts, err)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
     case Command.Query(file, request, position) => query(file, request, position, opts, out, err)
     case Command.Repl(files, batch, echo) =>
@@ -89,8 +90,9 @@ object Main:
       err(s"error: no such file `$file`")
       ExitCode.Usage
 
-  /** Prints diagnostics: rendered with a summary line, or as JSON lines (`--error-format=json`). */
-  private def render(all: List[Diagnostic], display: Display, err: String => Unit): Unit =
+  /** Prints the diagnostics shown at the lint levels: rendered with a summary line, or as JSON lines
+   *  (`--error-format=json`). Returns whether an error was shown (a denied lint counts). */
+  private def render(all: List[Diagnostic], display: Display, err: String => Unit): Boolean =
     val diags = display.shown(all)
     if display.json then
       val plain = DiagnosticRenderer(color = false)
@@ -102,6 +104,7 @@ object Main:
       diags.foreach(r.report)
       val summary = renderer.summary(r)
       if summary.nonEmpty then err(summary)
+    LintLevels.hasErrors(diags)
 
   private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
     withProgram(file, err) {
@@ -109,9 +112,10 @@ object Main:
       val compiled = summon[Database](Compile, key)
       compiled.printed.foreach(out)
       if opts.run.stats then err(phaseTimings(compiled))
-      if compiled.hasErrors || !evaluate || opts.settings.stopAfter.isDefined then
-        render(compiled.diagnostics, opts.display, err)
-        if compiled.hasErrors then ExitCode.Errors else ExitCode.Ok
+      val denied = LintLevels.hasErrors(opts.display.shown(compiled.diagnostics))
+      if denied || !evaluate || opts.settings.stopAfter.isDefined then
+        val errors = render(compiled.diagnostics, opts.display, err)
+        if errors then ExitCode.Errors else ExitCode.Ok
       else evaluateProgram(key, compiled, opts, out, err)
     }
 
@@ -124,13 +128,24 @@ object Main:
       ok
     }
     val outcome = db(Evaluate, EvaluateKey(key, facts, opts.run.allRelations))
-    render(compiled.diagnostics ++ outcome.diagnostics, opts.display, err)
+    val errors = render(compiled.diagnostics ++ outcome.diagnostics, opts.display, err)
     outcome.result match
       case None => ExitCode.Errors
       case Some(res) =>
         res.output.foreach(out)
         if opts.run.stats then res.statistics.foreach(err)
-        ExitCode.Ok
+        if errors then ExitCode.Errors else ExitCode.Ok
+
+  /** `hugin fix`: applies the machine-applicable suggestions, writes the file if it changed, and reports
+   *  what is left. */
+  private def fix(file: String, opts: Options, err: String => Unit): Int = withProgram(file, err) {
+    val outcome = Fix.run(CompileKey(file, opts.settings), opts.display)
+    if outcome.applied > 0 then
+      Files.writeString(Path.of(file), outcome.text)
+      err(s"fixed $file (${outcome.applied} ${if outcome.applied == 1 then "fix" else "fixes"})")
+    val errors = render(outcome.diagnostics, opts.display, err)
+    if errors then ExitCode.Errors else ExitCode.Ok
+  }
 
   /** One line with the time each compiler phase took. */
   private def phaseTimings(c: Compiled): String =
@@ -163,5 +178,5 @@ object Main:
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))
       case "symbols" =>
         for s <- Ide.symbols(key) do out(s"${s.span.show}  ${s.kind.describe} ${s.name}${s.container.map(c => s"  (in $c)").getOrElse("")}")
-      case "diagnostics" => render(Ide.diagnostics(key), opts.display, out)
+      case "diagnostics" => render(Ide.diagnostics(key), opts.display, out): Unit
     ExitCode.Ok

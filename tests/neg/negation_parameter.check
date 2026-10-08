@@ -3,6 +3,8 @@ warning[W0003]: unused definition `sinks`
   |
 3 | sinks (x : g) = {
   | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 error[E0210]: the functor negates the relation parameter `x.edge` without requiring `%complete edge`
  --> tests/neg/negation_parameter.hgn:5:29
@@ -31,6 +33,8 @@ warning[W0003]: unused definition `without`
   |
 9 | without (r : A -> rel) (s : A -> rel) = {
   | ^^^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
 
 error[E0210]: the function negates the relation parameter `s`
   --> tests/neg/negation_parameter.hgn:11:22

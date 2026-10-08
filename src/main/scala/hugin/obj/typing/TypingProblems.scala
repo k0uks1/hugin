@@ -2,7 +2,7 @@ package hugin.obj
 package typing
 
 import hugin.obj.DiagArgs.given
-import hugin.syntax.AggKind
+import hugin.syntax.{AggKind, Literal}
 import hugin.util.{Origin, Span}
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
@@ -165,3 +165,23 @@ enum RecordError extends Problem:
     case NoCommonLabel(_, _, Some((v, t)), _) => List(msg"$v has type $t; every member must have the label")
     case _: UndefinedJoin => List(msg"the join of different base types is undefined")
     case _ => Nil
+
+/** Warnings of object typing (lints). */
+enum TypingWarning extends Problem:
+  /** The object-level expression `left op right` over literals has no value (`1 / 0`). */
+  case UndefinedConstant(op: ArithOp, left: Literal, right: Literal, at: Span)
+
+  def code: Code = this match
+    case _: UndefinedConstant => Code.W0001
+
+  def primary: Span = this match
+    case UndefinedConstant(_, _, _, s) => s
+
+  def message: Msg = this match
+    case _: UndefinedConstant => msg"undefined constant expression"
+
+  override def primaryLabel: Msg = this match
+    case UndefinedConstant(op, l, r, _) => msg"${Src(s"${l.show} ${op.show} ${r.show}")} is undefined"
+
+  override def notes: List[Msg] = this match
+    case _: UndefinedConstant => List(msg"the formula containing it never holds, so this rule instance never fires")

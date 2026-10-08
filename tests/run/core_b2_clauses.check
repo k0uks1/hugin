@@ -5,6 +5,7 @@
 //    | ^^^^^^^^^^^^^^^^^^^ this clause is never used
 //    |
 //    = note: the clauses before it cover all the cases it matches
+//    = note: `-W unreachable_clauses` is on by default
 // 
 // 1 warning found
 (* ---------------- after elaborate ---------------- *)

@@ -2,7 +2,6 @@ package hugin.obj
 package transform
 
 import hugin.util.*
-import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 import scala.collection.mutable
 
@@ -242,22 +241,8 @@ final class DemandPhase extends ObjProgramPhase:
    *  variables (bound values, whose fact-constructor subterms are facts already). This keeps the
    *  guarantee that `%mode` adds facts only to the moded relation and its demand relations. */
   private def factInInput(c: RelSym, m: Mode, t: Term.App)(using facts: ProgramFacts): Diagnostic =
-    val f = t.rel.sym
-    val name = c.displayName
-    var d = Legacy.error(
-      Code.E0504,
-      "fact constructor built in a moded input",
-      t.span,
-      s"`${ObjPrinter.term(t)}` would be built as an input of `$name`"
-    )
-    facts.modes(c).find(_._1 == m).map(_._2).filter(_.exists).foreach(sp =>
-      d = d.withLabel(sp, s"the call uses mode `${m.show}` of `$name`")
-    )
-    d.withNote(
-      s"`${f.displayName}` is a fact constructor (`%fact`): building `${ObjPrinter.term(t)}` makes it a fact of `${f.displayName}`, and a moded call builds its inputs as demands, so `%mode` would change the database"
-    )
-      .withHelp(s"if `${f.displayName}` is only used as a value, remove `%fact` from its declaration")
-      .withHelp(s"otherwise bind an existing fact first and pass the variable, e.g. `S = ${ObjPrinter.term(t)}` before the call")
+    val modeAt = facts.modes(c).find(_._1 == m).map(_._2)
+    DemandError.FactInModedInput(c, m, modeAt, t, t.rel.sym).toDiagnostic
 
   /** The demand of an auxiliary relation for a disjunction inside an aggregate (see `Disjunctions`):
    *  the formulas of `prefix` (in canonical order) that do not mention a relation of `excluded` (the

@@ -7,4 +7,4 @@ known : user -> rel.
 active : user -> rel.
 active U :- login U.
 inactive : user -> rel.
-inactive U :- known U, not active U.
+inactive U :- known U, not active U. (*~ E0602 *)

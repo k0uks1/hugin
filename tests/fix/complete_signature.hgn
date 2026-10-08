@@ -1,0 +1,5 @@
+(* E0210: negation over a relation parameter needs `%complete` in the signature *)
+iso (x : { node : type, edge : node -> node -> rel }) = {
+  lonely : x.node -> rel.
+  lonely N :- x.edge N _, not x.edge _ N.
+}.

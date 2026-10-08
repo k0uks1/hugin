@@ -2,8 +2,8 @@
 counter : int -> rel.
 %terminates N (counter N).
 counter 0.
-counter M :- counter N, M = N + 1.
+counter M :- counter N, M = N + 1. (*~ E0604 *)
 
 nat : int -> rel.
 nat 0.
-nat M :- nat N, M = N + 1.
+nat M :- nat N, M = N + 1. (*~ E0603 *)

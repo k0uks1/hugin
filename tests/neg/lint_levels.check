@@ -1,0 +1,27 @@
+error[W0001]: undefined constant expression
+ --> tests/neg/lint_levels.hgn:6:17
+  |
+6 | q X :- p X, X = 1 / 0. (*~ W0001 *)
+  |                 ^^^^^ `1 / 0` is undefined
+  |
+  = note: the formula containing it never holds, so this rule instance never fires
+  = note: `-D undefined_constant_expressions` is implied by `--deny-warnings`
+
+warning[W0005]: formula function `never` has no clauses
+ --> tests/neg/lint_levels.hgn:7:1
+  |
+7 | never : int -> prop. (*~ W0005 *)
+  | ^^^^^ always false
+  |
+  = note: `-W empty_formula_functions` is set on the command line
+
+error[W0002]: variable `Y` occurs only once in this rule
+  --> tests/neg/lint_levels.hgn:11:15
+   |
+11 | s X :- p X, p Y. (*~ W0002 *)
+   |               ^ singleton variable
+   |
+   = note: `-D singleton_variables` is set on the command line
+   = help: use `_` or `_Y` if this is intended
+
+2 errors, 1 warning found

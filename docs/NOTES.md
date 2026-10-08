@@ -396,7 +396,8 @@ components, and outputs, of accepted programs, e.g. the type checker's `lookup`)
 The termination check (`obj/check/`: `Termination.scala` the phase, `Constructive.scala` constructive rules
 and finite sources, `SizeChange.scala` direction (A), `GuardedInduction.scala` direction (B) with measure
 inference, `DemandDriven.scala` its case for `%mode`, `Decrease.scala` and `Intervals.scala` the decrease
-reasoning, `TerminationFailures.scala` the diagnostics) decides statically
+reasoning, `TerminationProblems.scala` and `TerminationReasons.scala` the diagnostics, with their reasons as
+data) decides statically
 that every recursive component reaches a finite fixed point (docs/REDESIGN.md §4). A recursive component
 (Section 6.4) needs an argument only if one of its rules is constructive (Definition 10.1, refined below).
 There is no escape hatch: `%partial` and round budgets were removed (redesign A3, REDESIGN §4.6); a program
