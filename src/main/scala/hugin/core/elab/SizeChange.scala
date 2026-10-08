@@ -118,33 +118,49 @@ trait SizeChange:
   /** The number of recorded calls already checked by [[checkTermination]]. */
   private var checkedCalls = 0
 
+  /** The call graph of the checked calls: callees and callers of each function. */
+  private val callees = mutable.HashMap.empty[Int, mutable.Set[Int]]
+  private val callers = mutable.HashMap.empty[Int, mutable.Set[Int]]
+
   /** Checks the calls recorded so far; reports E0912 for each function that may not terminate (once) and
    *  removes its case tree, so that it never reduces. Run after each function's case tree is installed,
    *  before anything can evaluate it: a function only reduces once its call cycles are known to
    *  terminate (cycles through functions elaborated later are stuck until those are checked).
    *
    *  Only calls inside a strongly connected component of the call graph can be on a cycle, and the
-   *  verdict for a component depends only on the calls inside it. Calls are only ever added, so a
-   *  component without a call recorded since the last check has exactly the calls it had then (a
-   *  component that grew, by merging, contains the new call that merged it): its verdict is the one
-   *  already acted on, and only the components with new calls are checked again. */
+   *  verdict for a component depends only on the calls inside it (Agda's termination checker also works
+   *  per component). Calls are only ever added, so a component without a call recorded since the last
+   *  check has exactly the calls it had then (a component that grew, by merging, contains the new call
+   *  that merged it): its verdict is the one already acted on, and only the components with new calls
+   *  inside them are checked again. The component of a new call's caller is the set of functions it
+   *  reaches that reach it back. */
   def checkTermination(): Unit =
-    val base = calls.toList
-    val fresh = base.drop(checkedCalls)
-    checkedCalls = base.length
-    if fresh.isEmpty then return
-    val nodes = base.flatMap(c => List(c.caller, c.callee)).distinct
-    val succ = base.groupMap(_.caller)(_.callee)
-    val component = Graphs.components(nodes, n => succ.getOrElse(n, Nil)).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
-    val changed = fresh.filter(c => component(c.caller) == component(c.callee)).map(c => component(c.caller)).toSet
-    val cyclic = base.filter(c => component(c.caller) == component(c.callee) && changed(component(c.caller)))
+    val fresh = calls.view.drop(checkedCalls).toList
+    checkedCalls = calls.length
+    for c <- fresh do
+      callees.getOrElseUpdate(c.caller, mutable.LinkedHashSet.empty) += c.callee
+      callers.getOrElseUpdate(c.callee, mutable.LinkedHashSet.empty) += c.caller
+    val components = mutable.ArrayBuffer.empty[collection.Set[Int]]
+    for c <- fresh if !components.exists(k => k(c.caller) && k(c.callee)) do
+      val component = reachable(c.caller, callees).intersect(reachable(c.caller, callers))
+      if component(c.callee) then components += component
+    if components.isEmpty then return
+    val cyclic = calls.toList.filter(c => components.exists(k => k(c.caller) && k(c.callee)))
     val bad = closure(cyclic).collect {
       case (f, g, m) if f == g && compose(m, m) == m && !m.indices.exists(i => m(i)(i).contains(Rel.Lt)) => f
     }.distinct
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
-      val call = base.find(c => c.caller == f && c.callee == f).orElse(base.find(_.caller == f))
+      val call = calls.find(c => c.caller == f && c.callee == f).orElse(calls.find(_.caller == f))
       reporter.report(ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown))).toDiagnostic)
+
+  /** The functions reachable from `f` (itself included) along `edges`. */
+  private def reachable(f: Int, edges: mutable.HashMap[Int, mutable.Set[Int]]): mutable.Set[Int] =
+    val seen = mutable.HashSet(f)
+    val todo = mutable.Stack(f)
+    while todo.nonEmpty do
+      for g <- edges.getOrElse(todo.pop(), Nil) if seen.add(g) do todo.push(g)
+    seen
 
   /** The size-change graphs of all paths of calls: the calls closed under composition. A path is
    *  extended at its end by one call at a time, so each new graph is composed with the calls of its

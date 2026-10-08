@@ -69,8 +69,11 @@ trait Items:
     var progress = true
     while pending.nonEmpty && progress do
       val before = pending.length
+      // how many of this round's items declare a name: a name is declared by a later item if another
+      // one does (counted once per round instead of listing the others for every item)
+      val declaring = pending.flatMap((i, _) => declares(i)).groupMapReduce(identity)(_ => 1)(_ + _)
       pending = pending.flatMap { (item, _) =>
-        val later = pending.map(_._1).filter(_ ne item).flatMap(declares).toSet
+        def later(n: Name) = declaring.getOrElse(n, 0) > (if declares(item).contains(n) then 1 else 0)
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
