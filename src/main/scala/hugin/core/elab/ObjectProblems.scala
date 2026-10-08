@@ -38,6 +38,7 @@ enum ObjectProblem extends Problem:
   case UsedBeforeDeclaration(name: String, at: Span)
   case StuckObjectType(shown: String, at: Span)
 
+  case DuplicateMember(name: String, at: Span, first: Span)
   case FormulaFunctionWithoutClauses(name: String, at: Span)
   case ClauseArity(name: String, args: Int, params: Int, at: Span)
 
@@ -60,6 +61,7 @@ enum ObjectProblem extends Problem:
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
+    case _: DuplicateMember => Code.E0102
     case _: ClauseArity => Code.E0207
 
   def primary: Span = this match
@@ -85,6 +87,7 @@ enum ObjectProblem extends Problem:
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
+    case DuplicateMember(_, s, _) => s
     case ClauseArity(_, _, _, s) => s
 
   def message: Msg = this match
@@ -110,6 +113,7 @@ enum ObjectProblem extends Problem:
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
+    case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case ClauseArity(n, a, p, _) => msg"clause of ${Src(n)} has $a arguments, but the function takes $p"
 
   override def primaryLabel: Msg = this match
@@ -122,6 +126,7 @@ enum ObjectProblem extends Problem:
     case DataAsRelation(_, _, l, _, _, _, _) => Msg.text(l)
     case _: SingletonVariable => msg"singleton variable"
     case _: FormulaFunctionWithoutClauses => msg"always false"
+    case _: DuplicateMember => msg"declared again here"
     case _: NotARelation => msg"not a relation"
     case _: BoundOutsideRelation => msg"a bound column is only allowed as the last column of a relation declaration"
     case _: NotOpenType => msg"edge target must be open"
@@ -136,6 +141,7 @@ enum ObjectProblem extends Problem:
     case DuplicateLabel(_, _, first) => List(first -> msg"first used here")
     case DataAsRelation(_, w, _, _, d, _, _) if d.exists => List(d -> msg"declared here as a ${Lit(w)}")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
+    case DuplicateMember(_, _, first) => List(first -> msg"first declared here")
     case _ => Nil
 
   override def notes: List[Msg] = this match

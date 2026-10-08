@@ -12,9 +12,6 @@ trait ObjectItems:
   self: Elaborator =>
   import core.*
 
-  /** Binds the variables of a rule or query (stage 0, of unknown object types). */
-  private def bindRuleVars(trees: List[Tree]): (Cxt, List[(Name, Tm)]) = bindRuleVarsFrom(Cxt.empty, trees)
-
   /** Binds the variables of object code in `c` (those not bound there already). */
   def bindRuleVarsFrom(c0: Cxt, trees: List[Tree]): (Cxt, List[(Name, Tm)]) =
     val vs = trees.flatMap(t => freeVars(t, c0.scope.keySet)).distinctBy(_.name)
@@ -26,14 +23,17 @@ trait ObjectItems:
     }
     (c, out)
 
-  def elabRule(r: Rule): Unit =
+  def elabRule(r: Rule): Unit = items += ruleItem(Cxt.empty, r)
+
+  /** A rule in the context `base` (a module body's environment and members, or empty). */
+  def ruleItem(base: Cxt, r: Rule): CoreItem =
     warnSingletons(r.heads ++ r.body.toList)
     val start = metas.length
-    val (c, vars) = bindRuleVars(r.heads ++ r.body.toList)
+    val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
     val heads = r.heads.map(h => elabHead(c, h))
     val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
     val generic = generalize(start)
-    items += CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
+    CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
 
   /** Whether metas created since `start` are unknown object types (implicit arguments of families that
    *  nothing determines): the item is then generic over them; they are allowed to stay unsolved. */
@@ -70,22 +70,26 @@ trait ObjectItems:
             .withNote("a rule head is an atom of a relation or a constructor term")
         )
 
-  def elabQuery(q: Query): Unit =
-    val (c, vars) = bindRuleVars(List(q.body))
-    val body = check(c, q.body, Val.PropT, Stage.S0)
-    items += CoreItem.QueryItem(vars, body, q.span)
+  def elabQuery(q: Query): Unit = items += queryItem(Cxt.empty, q)
 
-  def elabDirective(d: Directive): Unit =
-    directive(d).foreach((dir, tgt) => items += CoreItem.DirectiveItem(dir, tgt, d.span))
+  def queryItem(base: Cxt, q: Query): CoreItem =
+    val (c, vars) = bindRuleVarsFrom(base, List(q.body))
+    val body = check(c, q.body, Val.PropT, Stage.S0)
+    CoreItem.QueryItem(vars, body, q.span)
+
+  def elabDirective(d: Directive): Unit = items ++= directiveItem(Cxt.empty, d)
+
+  def directiveItem(base: Cxt, d: Directive): Option[CoreItem] =
+    directive(base, d).map((dir, tgt) => CoreItem.DirectiveItem(dir, tgt, d.span))
 
   /** A directive with its target; `None` for `%infix` (handled by the parser). */
-  private def directive(d: Directive): Option[(CoreDirective, Option[Tm])] =
-    def target(t: Tree) = Some(relationTarget(t, s"%${d.kind}"))
+  private def directive(base: Cxt, d: Directive): Option[(CoreDirective, Option[Tm])] =
+    def target(t: Tree) = Some(relationTarget(base, t, s"%${d.kind}"))
     d.args match
       case DirArgs.Mode(t, ms) => Some((CoreDirective.Mode(ms.map(m => (m.input, m.label.map(_.name), m.span))), target(t)))
       case DirArgs.TerminatesLabel(ls, t) => Some((CoreDirective.TerminatesLabel(ls.map(_.name)), target(t)))
       case DirArgs.TerminatesVar(vs, t, args) =>
-        val (c, vars) = bindRuleVars(args)
+        val (c, vars) = bindRuleVarsFrom(base, args)
         Some((CoreDirective.TerminatesVar(vs.map(_.name), vars, args.map(inferS(c, _, Stage.S0)._1)), target(t)))
       case DirArgs.Target(RuleRef(rn)) => Some((CoreDirective.DerivationsRule(rn), None))
       case DirArgs.Target(t) =>
@@ -101,16 +105,16 @@ trait ObjectItems:
 
   /** The relation a directive is about: an object relation, fact constructor or struct, or meta code of a
    *  relation type. */
-  private def relationTarget(t: Tree, what: String): Tm =
-    val (tm, ty, st) = infer(Cxt.empty, t)
+  private def relationTarget(base: Cxt, t: Tree, what: String): Tm =
+    val (tm, ty, st) = infer(base, t)
     tm match
       case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => tm // applies to each instance
-      case _ => relationTargetCode(t, what, tm, ty, st)
+      case _ => relationTargetCode(base, t, what, tm, ty, st)
 
-  private def relationTargetCode(t: Tree, what: String, tm: Tm, ty: Val, st: Stage): Tm =
+  private def relationTargetCode(base: Cxt, t: Tree, what: String, tm: Tm, ty: Val, st: Stage): Tm =
     val (code, codeTy) = force(ty) match
       case Val.Lift(x) if st == Stage.S1 => (Tm.splice(tm), force(x))
       case other => (tm, other)
     dataConstructorOf(code).foreach(dataUsedAsRelation(_, t.span, s"`$what` expects a relation"))
     if !isFactConstantType(codeTy) then fail(ObjectProblem.NotARelation(what, t.span))
-    zonk(Nil, 0, code)
+    zonk(base.env, base.lvl, code)

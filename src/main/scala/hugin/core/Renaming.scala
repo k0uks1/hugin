@@ -162,6 +162,7 @@ trait Renaming:
         case None => fail(UnifyFailure.Escape(x))
         case Some(v) => psubstSp(psub, quote(psub.dom, v), sp)
     case Rigid(Head.Glob(id), sp) => psubstSp(psub, Tm.Global(id), sp)
+    case Rigid(Head.Module(b, env), sp) => psubstSp(psub, Tm.Module(b, env.map(psubst(psub, _))), sp)
     case Lam(x, i, cl) => Tm.Lam(x, i, psubst(psub.lift, inst(cl, Val.local(psub.cod))))
     case Pi(x, i, a, cl) => Tm.Pi(x, i, psubst(psub, a), psubst(psub.lift, inst(cl, Val.local(psub.cod))))
     case U0 => Tm.U0

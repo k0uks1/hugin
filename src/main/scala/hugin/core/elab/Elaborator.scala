@@ -71,6 +71,7 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with NamedPatterns
     with DataConstructors
     with FormulaFunctions
+    with ModuleBodies
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

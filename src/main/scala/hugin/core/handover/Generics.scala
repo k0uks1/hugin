@@ -21,7 +21,7 @@ final class Generics(core: Core, symbols: ObjectSymbols, reporter: Reporter, han
 
   def rules(items: List[CoreItem.RuleItem]): List[obj.Rule] =
     val (withHead, without) = items.zipWithIndex.partitionMap((r, i) => headFamily(r).map((f, as) => Generic(r, i, f, as)).toLeft(r))
-    without.flatMap(handover.rule) ++ worklist(withHead)
+    without.flatMap(handover.rule(_)) ++ worklist(withHead)
 
   private def worklist(generics: List[Generic]): List[obj.Rule] =
     val done = mutable.HashSet.empty[(Int, Int)]

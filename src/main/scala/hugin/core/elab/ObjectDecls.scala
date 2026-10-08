@@ -43,7 +43,7 @@ trait ObjectDecls:
   private def elabPlainStruct(d: Decl): Unit =
     declare(d.name, structType(Cxt.empty, d), Stage.S0, GlobalKind.Object(ObjDecl.Struct(d.fact)), d.span)
 
-  private def structType(c: Cxt, d: Decl): Tm =
+  def structType(c: Cxt, d: Decl): Tm =
     val entries = d.defn.get.asInstanceOf[RecordType].entries
     val fields = entries.map {
       case SigEntry.FieldDecl(l, t, fact) =>
@@ -81,15 +81,17 @@ trait ObjectDecls:
 
   /** `τ <: a.`: the object type `τ` (an object type, a relation's or constructor's fact type) becomes a
    *  subtype of the open type `a`. */
-  def elabEdge(e: SubEdge): Unit =
-    val sub = check(Cxt.empty, e.sub, Val.U0, Stage.S0)
-    val sup = check(Cxt.empty, e.sup, Val.U0, Stage.S0)
-    force(eval(Nil, sup)) match
+  def elabEdge(e: SubEdge): Unit = items += edgeItem(Cxt.empty, e)
+
+  def edgeItem(c: Cxt, e: SubEdge): CoreItem =
+    val sub = check(c, e.sub, Val.U0, Stage.S0)
+    val sup = check(c, e.sup, Val.U0, Stage.S0)
+    force(ev(c, sup)) match
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind == GlobalKind.Object(ObjDecl.OpenType) =>
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).stage == Stage.S0 =>
         fail(ObjectProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
       case _ => fail(ObjectProblem.EdgeTarget(e.sup.span))
-    items += CoreItem.EdgeItem(zonk(Nil, 0, sub), zonk(Nil, 0, sup), e.span)
+    CoreItem.EdgeItem(zonk(c.env, c.lvl, sub), zonk(c.env, c.lvl, sup), e.span)
 
   // ------------------------------------------------------------------ cycles between object declarations
 

@@ -37,6 +37,7 @@ trait Bidirectional:
       val l = levels.fresh()
       (checkRecordType(c, entries, l), Val.U1(l), Stage.S1)
     case RecordLit(fields, false) => inferRecord(c, fields)
+    case mb: ModuleBody => inferModuleBody(c, mb)
     case Ascribe(e, a) =>
       val (at, s, _) = inferU(c, a)
       if s == Stage.S0 then objectAscription(c, e, at)

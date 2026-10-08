@@ -92,6 +92,10 @@ enum Tm:
    *  (`X#k`), so every application of a formula function gets its own (hygiene, REDESIGN §6.7). */
   case Fresh(names: List[Name], body: Tm)
 
+  /** A module body with its environment given explicitly (`env`, innermost first: the terms its free
+   *  variables stand for). Elaborated as `Module(body, x̄)` with the context's variables. */
+  case Module(body: ModuleBody, env: List[Tm])
+
   /** Object syntax (stage 0 only): formulas, patterns, object types beyond constants, positions. */
   case Obj(form: ObjForm, args: List[Tm])
 
@@ -132,6 +136,7 @@ object Tm:
     case Negate(a, _) => List(a)
     case Obj(_, as) => as
     case Fresh(_, b) => List(b)
+    case Module(_, env) => env
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
     case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => Nil
@@ -160,6 +165,7 @@ object Tm:
       case Negate(a, st) => Negate(go(a, k), st)
       case Obj(f, as) => Obj(f, as.map(go(_, k)))
       case Fresh(ns, b) => Fresh(ns, go(b, k + ns.length))
+      case Module(b, env) => Module(b, env.map(go(_, k)))
       case Persist(a) => Persist(go(a, k))
       case FactTy(a) => FactTy(go(a, k))
       case other => other

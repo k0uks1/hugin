@@ -63,9 +63,9 @@ trait Declarations:
   private val objectTypeParam: (Cxt, VarRef) => Tm = (_, _) => Tm.Lift(Tm.U0)
 
   /** Binds the implicit binders of a declaration: its free uppercase variables, of unknown meta types. */
-  def bindImplicits(vs: List[VarRef]): (Cxt, List[(Name, Tm)]) =
-    var c = Cxt.empty
-    val out = vs.distinctBy(_.name).map { v =>
+  def bindImplicits(vs: List[VarRef], base: Cxt = Cxt.empty): (Cxt, List[(Name, Tm)]) =
+    var c = base
+    val out = vs.distinctBy(_.name).filterNot(v => base.scope.contains(v.name)).map { v =>
       val ty = freshType(c, Stage.S1, v.span, s"the type of `${v.name}`")
       c = bind(c, v.name, ev(c, ty), Stage.S1)
       (v.name, ty)
@@ -73,10 +73,10 @@ trait Declarations:
     (c, out)
 
   /** The context of a declaration's type: its implicit binders, then its parameters. */
-  private def declContext(d: Decl): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
+  private def declContext(d: Decl, base: Cxt): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
     val paramNames = d.params.map(_.nameString).toSet
     val paramTypes = d.params.collect { case Param.Typed(_, t, _) => t }
-    val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)))
+    val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)), base)
     val (c2, ps) = bindParams(c, d.params, objectTypeParam)
     (c2, imps, ps)
 
@@ -88,15 +88,15 @@ trait Declarations:
    *  implicit binders are unknown: they are tried as meta types first (`vcons : A -> vec A N -> …`), then
    *  as object types (`cons : A -> list A -> list A.` with `list : type -> type`). The first alternative
    *  that elaborates wins; failed ones are undone. */
-  def declType(d: Decl): (Tm, Stage) =
+  def declType(d: Decl, base: Cxt = Cxt.empty): (Tm, Stage) =
     val alternatives =
       for
         unknown <- List(Stage.S1, Stage.S0)
         inferred <- List(true, false)
-      yield () => declTypeWith(d, unknown, inferred)
+      yield () => declTypeWith(d, unknown, inferred, base)
     firstSuccess(alternatives)
 
-  private def firstSuccess[A](alternatives: List[() => A]): A =
+  def firstSuccess[A](alternatives: List[() => A]): A =
     var firstError: Option[ElabError] = None
     alternatives.iterator
       .map { alt =>
@@ -109,10 +109,10 @@ trait Declarations:
       .collectFirst { case Some(r) => r }
       .getOrElse(throw firstError.get)
 
-  private def declTypeWith(d: Decl, unknown: Stage, inferred: Boolean): (Tm, Stage) =
+  private def declTypeWith(d: Decl, unknown: Stage, inferred: Boolean, base: Cxt): (Tm, Stage) =
     state.unknownTypesAre = unknown
     try
-      val (c2, imps, ps) = declContext(d)
+      val (c2, imps, ps) = declContext(d, base)
       val (body, st) =
         if inferred then
           val (b, s, _) = inferU(c2, d.tpe)
@@ -145,11 +145,15 @@ trait Declarations:
           case GlobalKind.Constructor(fam) => addConstructor(fam, id)
           case _ =>
       case Some(e) =>
-        // `x params : A = e.`: a meta definition; checking `e` against the full type introduces the
-        // implicit lambdas
-        val (c, imps, ps) = declContext(d)
-        val ty = zonk(Nil, 0, pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c, d.tpe, Stage.S1))))
-        define(d.name, ty, check(Cxt.empty, asLambda(d.params, e), eval(Nil, ty), Stage.S1))
+        val (ty, tm) = declDefinition(Cxt.empty, d, e)
+        define(d.name, ty, tm)
+
+  /** `x params : A = e.` in context `c`: its type and definition. Checking `e` against the full type
+   *  introduces the implicit lambdas. */
+  def declDefinition(c: Cxt, d: Decl, e: Tree): (Tm, Tm) =
+    val (c2, imps, ps) = declContext(d, c)
+    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1)))
+    (ty, check(c, asLambda(d.params, e), ev(c, ty), Stage.S1))
 
   def define(name: Ident, ty: Tm, tm: Tm): Int =
     val ztm = zonk(Nil, 0, tm)
@@ -158,9 +162,30 @@ trait Declarations:
   /** `f params = e.` without a declaration of `f`: a definition with an inferred type. (After a
    *  declaration, it is a clause of the declared function.) */
   def elabDef(name: Ident, params: List[Param], rhs: Tree, span: Span): Unit =
-    val (c, ps) = bindParams(Cxt.empty, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
-    val (body, bty) = inferS(c, rhs, Stage.S1)
-    define(name, pis(ps, Icit.Expl, quote(c.lvl, bty)), lams(ps, body))
+    val (ty, tm) = definition(Cxt.empty, params, rhs)
+    define(name, ty, tm)
+
+  /** `f params = e.` in context `c`: its inferred type and its definition. Free uppercase variables of
+   *  the parameters' types are implicit binders (`select (p : A -> prop) (r : A -> rel) = …`), of unknown
+   *  meta types first, then of object types (as for declarations). */
+  def definition(c: Cxt, params: List[Param], rhs: Tree): (Tm, Tm) =
+    val paramNames = params.map(_.nameString).toSet
+    val free = params.collect { case Param.Typed(_, t, _) => t }.flatMap(freeVars(_, paramNames ++ c.scope.keySet))
+    if free.isEmpty then definitionWith(c, Nil, params, rhs)
+    else
+      firstSuccess(List(Stage.S1, Stage.S0).map { unknown => () =>
+        state.unknownTypesAre = unknown
+        try definitionWith(c, free, params, rhs)
+        finally state.unknownTypesAre = Stage.S1
+      })
+
+  private def definitionWith(c: Cxt, free: List[VarRef], params: List[Param], rhs: Tree): (Tm, Tm) =
+    val (ci, imps) = bindImplicits(free, c)
+    val (cp, ps) = bindParams(ci, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
+    val (body, bty) = inferS(cp, rhs, Stage.S1)
+    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, quote(cp.lvl, bty)))
+    val tm = imps.foldRight(lams(ps, body))((b, acc) => Tm.Lam(b._1, Icit.Impl, acc))
+    (ty, tm)
 
   private def asLambda(params: List[Param], rhs: Tree): Tree = params.foldRight(rhs) { (p, acc) =>
     p match

@@ -77,7 +77,7 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
-final class Core extends Evaluation with Matching with Families with Readback with Renaming with Unification with Printing:
+final class Core extends Evaluation with Matching with Families with Modules with Readback with Renaming with Unification with Printing:
   val levels: Levels = Levels()
   val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty
   val metas: mutable.ArrayBuffer[MetaEntry] = mutable.ArrayBuffer.empty

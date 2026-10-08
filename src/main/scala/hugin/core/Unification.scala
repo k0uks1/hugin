@@ -82,6 +82,7 @@ trait Unification:
       val hty = h match
         case Head.Local(x) => types.lift(x)
         case Head.Glob(id) => Some(globals(id).ty)
+        case Head.Module(_, _) => None
       hty.flatMap(t => spineType(t, Rigid(h, Nil), sp)).map(force) match
         case Some(U1(k)) => List(k)
         case _ => Nil

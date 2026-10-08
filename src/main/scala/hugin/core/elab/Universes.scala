@@ -22,11 +22,8 @@ trait Universes:
     case Kw.Type => (Tm.U0, Val.U0, Stage.S0)
     case Kw.Rel => (Tm.RelT, Val.U0, Stage.S0)
     case Kw.Prop => (Tm.PropT, Val.U0, Stage.S0)
-    case Kw.Mod =>
-      fail(
-        Legacy.error(DiagCode.E0907, "`mod` is not part of the new meta level", k.span, "not supported")
-          .withNote("signatures are record types: they live in a meta universe `Type`, which is inferred")
-      )
+    // `mod`, the universe of signatures of the old meta level: signatures are record types in `Type`
+    case Kw.Mod => inferMetaUniverse()
 
   def inferBuiltin(n: Ident): (Tm, Val, Stage) = builtinTypes.get(n.name) match
     case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)

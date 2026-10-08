@@ -2,9 +2,8 @@ package hugin.core
 package elab
 
 import hugin.obj.CmpOp
-import hugin.syntax.{Tree, TreeOps}
+import hugin.syntax.TreeOps
 import hugin.syntax.Trees.*
-import hugin.util.*
 
 /** Formula functions defined by clauses (REDESIGN §6.7): `f : τ̄ -> prop.` with rules `f t̄ⱼ :- ψⱼ.` as its
  *  clauses defines `f = [x̄] ⟨(x̄ = t̄₁, ψ₁) ; … ; (x̄ = t̄ₖ, ψₖ)⟩`. The variables of a clause are local to

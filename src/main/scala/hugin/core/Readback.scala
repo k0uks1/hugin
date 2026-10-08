@@ -9,6 +9,7 @@ trait Readback:
     case Flex(m, sp) => quoteSp(l, Tm.Meta(m), sp)
     case Rigid(Head.Local(x), sp) => quoteSp(l, Tm.Var(l - x - 1), sp)
     case Rigid(Head.Glob(id), sp) => quoteSp(l, Tm.Global(id), sp)
+    case Rigid(Head.Module(b, env), sp) => quoteSp(l, Tm.Module(b, env.map(quote(l, _))), sp)
     case Lam(x, i, cl) => Tm.Lam(x, i, quote(l + 1, inst(cl, Val.local(l))))
     case Pi(x, i, a, cl) => Tm.Pi(x, i, quote(l, a), quote(l + 1, inst(cl, Val.local(l))))
     case U0 => Tm.U0
@@ -80,6 +81,7 @@ trait Readback:
           case Tm.Arith(op, a, b, st) => Tm.Arith(op, zonk(env, l, a), zonk(env, l, b), st)
           case Tm.Negate(a, st) => Tm.Negate(zonk(env, l, a), st)
           case Tm.Obj(f, as) => Tm.Obj(f, as.map(zonk(env, l, _)))
+          case Tm.Module(b, menv) => Tm.Module(b, menv.map(zonk(env, l, _)))
           case Tm.Fresh(ns, b) =>
             val locals = ns.indices.map(i => Val.local(l + i)).reverse.toList
             Tm.Fresh(ns, zonk(locals ++ env, l + ns.length, b))

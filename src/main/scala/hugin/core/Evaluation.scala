@@ -37,6 +37,7 @@ trait Evaluation:
     case Tm.Negate(a, st) => negate(eval(env, a), st)
     case Tm.Obj(f, as) => Obj(f, as.map(eval(env, _)))
     case Tm.Fresh(ns, b) => eval(ns.reverse.map(freshObjectVariable) ++ env, b)
+    case Tm.Module(b, menv) => evalModule(b, menv.map(eval(env, _)))
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
 
@@ -119,7 +120,12 @@ trait Evaluation:
       metas(m).solution match
         case Some(s) => force(appSp(s, sp))
         case None => v
-    case Rigid(Head.Glob(id), sp) => reduceFunction(id, sp).map(force).getOrElse(v)
+    case Rigid(Head.Glob(id), sp) =>
+      globals(id).kind match
+        // a global defined after the value was computed (a formula function defined by its clauses)
+        case GlobalKind.Definition(_, d) => force(appSp(d, sp))
+        case _ => reduceFunction(id, sp).map(force).getOrElse(v)
+    case Rigid(Head.Module(b, env), sp) if closedEnv(env).isDefined => force(appSp(evalModule(b, env), sp))
     // compile-time arithmetic stuck on an application that may reduce now
     case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
     case Negate(a, Stage.S1) => negate(force(a), Stage.S1)

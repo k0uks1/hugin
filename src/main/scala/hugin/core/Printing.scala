@@ -44,6 +44,7 @@ trait Printing:
     case Tm.Negate(a, _) => occurs(ix, a)
     case Tm.Obj(_, as) => as.exists(occurs(ix, _))
     case Tm.Fresh(ns, b) => occurs(ix + ns.length, b)
+    case Tm.Module(_, env) => env.exists(occurs(ix, _))
     case Tm.Persist(a) => occurs(ix, a)
     case Tm.FactTy(a) => occurs(ix, a)
     case _ => false
@@ -108,6 +109,7 @@ trait Printing:
       par(p, q, s"${go(ns, a, q)} ${op.show} ${go(ns, b, q + 1)}")
     case Tm.Negate(a, _) => s"-${go(ns, a, 6)}"
     case Tm.Obj(f, as) => goObj(ns, f, as, p)
+    case Tm.Module(b, _) => s"{ ${b.members.map(_.name).mkString(", ")} }"
     case Tm.Fresh(xs, b) => par(p, 0, s"fresh ${xs.mkString(" ")}. ${go(xs.reverse ++ ns, b, 0)}")
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)

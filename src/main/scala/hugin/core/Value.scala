@@ -13,6 +13,9 @@ enum Head:
   case Local(lvl: Int)
   case Glob(id: Int)
 
+  /** A module body in an environment that is not closed, not instantiated ([[Modules]]). */
+  case Module(body: ModuleBody, env: List[Val])
+
 /** Eliminations of a neutral value; a spine lists them innermost (most recent) first. */
 enum Elim:
   case EApp(a: Val, i: Icit)

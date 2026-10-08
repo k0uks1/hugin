@@ -109,7 +109,11 @@ trait Items:
     case GlobalKind.Definition(_, _) => "a definition"
     case _ => "a constant"
 
-  def elabItem(item: Item): Unit = item match
+  /** Elaborates an item; module bodies it evaluates are instances of this item's site, named after the
+   *  definition ([[Modules]]). */
+  def elabItem(item: Item): Unit = at(siteOf(item.span), declares(item).getOrElse(""))(elabItemAt(item))
+
+  private def elabItemAt(item: Item): Unit = item match
     case d: Decl => elabDecl(d)
     case d: Def => elabDef(d.name, d.params, d.rhs, d.span)
     case r: Rule => elabRule(r)
