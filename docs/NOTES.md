@@ -675,12 +675,14 @@ component as its answer relation, which happens when demand depends on answers; 
 
 ## New meta level (redesign Phase B)
 
-The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one and is
-not part of the compiler pipeline yet: `hugin check --new-meta f.hgn` elaborates a file, `hugin run
---new-meta f.hgn` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`, splices
-`$` and implicit arguments) followed by the staged object items. The flag is hidden. Golden tests use it
-through `.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files
-out of its corpus, since the compiler pipeline does not accept the new syntax.
+The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one. With
+the hidden flag `--new-meta`, the compiler runs it in place of the old meta level: the phases `elaborate`
+(the core elaborator) and `stage` (the handover of the staged object items to the object level) replace
+`imports` … `monomorphize`, and every object-level phase from `directives` on runs unchanged.
+`--print-after elaborate` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`,
+splices `$` and implicit arguments) followed by the staged object items. Golden tests use the flag through
+`.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files out of
+its corpus, since the old pipeline does not accept the new syntax.
 
 ### Architecture
 
@@ -697,9 +699,11 @@ elaborator for two-level type theory (*Staged Compilation with Two-Level Type Th
 | `core/Levels.scala` | universe level constraints (difference constraints, least solution) |
 | `core/Core.scala` | the state: globals, metas, levels; `undoOnFailure` |
 | `core/Printing.scala` | printing in surface notation |
-| `core/Staging.scala`, `NewMeta.scala` | staging of object items, the driver |
+| `core/Staging.scala`, `NewMeta.scala`, `CorePhases.scala` | staging of object items, the driver, the compiler phases `elaborate` and `stage` |
+| `core/ObjForm.scala` | the forms of object syntax (one inert core node `Obj`): formulas, `as`, ascriptions, projections, updates, aggregates, unions, bound columns, positions |
+| `core/handover/*` | B3: staged object items to `obj.Trees` (`ObjectSymbols`: object constants to `TypeSym`/`RelSym`; `ObjectTerms`: terms and formulas; `Handover`: the `ObjProgram`) |
 | `core/CaseTree.scala`, `Matching.scala` | case trees of functions defined by clauses, their reduction with memoisation |
-| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
+| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B3 `ObjectDecls` (structs, refinements, edges, cycles), `ObjectCode` (object-only forms, positions, deferred object typing), `NamedPatterns`, `DataConstructors`, `ObjectProblems` (typed diagnostics); for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
 
 Every elaboration error is a diagnostic (`E09xx`, plus `E0101`/`E0102`/`E0307`); an item with an error is
 dropped and elaboration continues with the next one.
@@ -820,6 +824,55 @@ dropped and elaboration continues with the next one.
   with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
   otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
   has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
+
+### Decisions (B3a: the handover to the object level)
+
+* **Object syntax is one core node.** `Tm.Obj(form, args)` / `Val.Obj` (`core/ObjForm.scala`) hold the
+  object-only forms: formulas (`,` `;` `not`, comparisons), `_`, `as`, ascriptions, projections and
+  updates of facts, aggregates, union types, bound column types, and positions. Evaluation, read-back,
+  unification and renaming treat all forms alike (object code is inert data), so the B3 forms added no
+  cases to the core's algorithms; the former `Compare`/`And`/`Or`/`Not`/`Wild` nodes were folded into it.
+* **Positions.** An object term or formula elaborated from a tree is wrapped in `Obj(Loc(span), t)`
+  (`ObjectCode.located`; types, relations and constructors are not). Evaluation keeps positions, so the
+  staged program carries them into `obj.Trees` and the object-level diagnostics point where the old
+  pipeline pointed (also into the bodies of meta functions that produced the code). Unification and
+  application look through positions; the innermost position wins (`(X)` has the position of `X`).
+* **Object typing is deferred** (the risk noted for B3). The core unifies object types where it can
+  (that solves implicit arguments and the types of rule variables) but never rejects object code for its
+  object types: between two object data types that do not unify, `Coercions.coe` keeps the term
+  (`coeObjectData`); literals in object code are object literals of any type; arithmetic operand types
+  are not checked at stage 0; projections get the column's type if the fact type is known, otherwise an
+  unknown one. Subtyping, unions, refinements, fact types of relations, labels of projections are the
+  object typer's (`ObjTyper`), which sees the staged program. What the core does check is the *shape* of
+  object code: stages, arities (a relation applied as a function), labels of named patterns (they need
+  the columns), data constructors used as relations (E0406, until C3 removes the data/fact split).
+* **Object declarations.** `GlobalKind.Object(ObjDecl)` classifies object constants (open type,
+  refinement `a : type <: b.`, relation, constructor with its `%fact` flag, struct `s : type = { … }.`, a
+  relation whose fact type is `s`); `τ <: a.` is an `EdgeItem`. A constructor or struct used as a type
+  denotes its fact type, as a relation does. Bound column types `min τ` / `max τ` are allowed in the columns
+  of relations and constructors (the object level's `BoundColumns` validates them), elsewhere E0605.
+* **Cycles between object declarations** (`abs : (body : term) -> rel.  term : type = var | abs.`):
+  relations, structs and constructors (whose result is a `: type` declaration of the module) are declared
+  *pending* before the declarations are elaborated (`ObjectDecls.predeclare`): a pending constant can be
+  used as a type (its fact type) but not applied, which retries the item after the declaration. This is
+  the only mutable part of a global (`GlobalEntry.ty`), and only during the declaration phase.
+* **Compile-time arithmetic in object code.** Arithmetic whose operands are both meta primitives (and not
+  both literals) is computed at compile time and persisted (`k = 42.  q (k + 1).` stages to `q 43.`), as
+  the old typer did; an undefined result reaching object code is E0909 (the old pipeline reported E0209
+  at the meta definition already; meta definitions are values, evaluated where they are used).
+* **The handover** (`core/handover`): object symbols are created in source order (the object level
+  orders members of closed types by symbol id), then their columns are translated; rules, queries,
+  edges and directives are staged (`nf`, checked by `Staging.objectCode`) and translated. Wildcards
+  become `_#1`, `_#2`, … per item in order of occurrence, as the old typer named them. An item whose
+  staged code does not have the shape of an object item is reported (E0202, E0909) and left out.
+* **Diagnostics** of object code found by the core are typed problems (`ObjectProblem`, docs/DIAGNOSTICS.md)
+  with the old typer's wording where the old typer reported the same concept (W0002, E0301, E0302, E0306,
+  E0307, E0406, E0605, E0701, E0404); an item stops at its first error (the old typer reported all errors
+  of a rule).
+* **Acceptance.** `PipelineParitySuite` runs every golden program of `tests/run` and `tests/neg` through
+  both pipelines; 63 programs produce the same output (results, diagnostics, exit code). The others use
+  families, modules, functors, formula functions or imports (B3b) or diagnostics of the old typer that
+  the new meta level reports differently; each is listed with its reason.
 
 ## Bound columns (redesign A2)
 
