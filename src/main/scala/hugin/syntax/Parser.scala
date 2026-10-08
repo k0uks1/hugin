@@ -12,13 +12,15 @@ import scala.collection.mutable
  *
  *  The meta level's syntax (docs/REDESIGN.md §6) includes equational clauses `f p̄ = e.`
  *  ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and lifts `⇑t`; the syntax
- *  of reflection (holes, lists, rules as expressions) is in [[QuoteSyntax]].
+ *  of reflection (holes, lists, rules as expressions) is in [[QuoteSyntax]], records and signatures in
+ *  [[RecordSyntax]].
  */
 final class Parser(
     src: SourceFile,
     reporter: Reporter,
     infix: Option[Map[String, (Parser.Assoc, Int)]] = None
-) extends QuoteSyntax:
+) extends QuoteSyntax
+    with RecordSyntax:
   import Parser.*
 
   private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
@@ -28,13 +30,13 @@ final class Parser(
   /** True while parsing a type: comparison operators (in particular `=`) end the type. */
   private var inType = false
 
-  private def parseType(minLevel: Int = LvlArrow): Tree =
+  protected def parseType(minLevel: Int): Tree =
     val saved = inType
     inType = true
     try parseExpr(minLevel)
     finally inType = saved
 
-  private def parseNonType(minLevel: Int): Tree =
+  protected def parseNonType(minLevel: Int): Tree =
     val saved = inType
     inType = false
     try parseExpr(minLevel)
@@ -260,17 +262,6 @@ final class Parser(
       val n = expect(Tok.Name)
       p = Select(p, n.text)(p.span.to(n.span), n.span)
     p
-
-  private def parseModeItems(): List[ModeItem] =
-    val b = mutable.ListBuffer.empty[ModeItem]
-    while kind == Tok.Plus || kind == Tok.Minus do
-      val t = advance()
-      // `+e` names the column labelled `e`
-      val lbl = if kind == Tok.Name then
-        val n = advance(); Some(Ident(n.text)(n.span))
-      else None
-      b += ModeItem(t.kind == Tok.Plus, lbl, t.span.to(lbl.map(_.span).getOrElse(t.span)))
-    b.toList
 
   private def parseDirective(): Item =
     val start = tok.span.start
@@ -616,44 +607,6 @@ final class Parser(
         case _ =>
       k += 1
     false
-
-  private def parseRecordType(start: Int): Tree =
-    val entries = mutable.ListBuffer.empty[SigEntry]
-    var continue = true
-    while continue do
-      if kind == Tok.Directive && tok.text == "%complete" then
-        val d = advance()
-        val l = expect(Tok.Name, "a label")
-        entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
-      else if kind == Tok.Directive && tok.text == "%mode" then
-        val d = advance()
-        val l = expect(Tok.Name, "a label")
-        val ms = parseModeItems()
-        entries += SigEntry.ModeReq(Ident(l.text)(l.span), ms, d.span.to(ms.lastOption.map(_.span).getOrElse(l.span)))
-      else
-        val fact = kind == Tok.Directive && tok.text == "%fact"
-        if fact then advance()
-        val l = expect(Tok.Name, "a label")
-        expect(Tok.Colon, "`:` in record type")
-        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType(), fact)
-      if kind == Tok.Comma then advance() else continue = false
-    expect(Tok.RBrace, "`,` or `}`")
-    RecordType(entries.toList)(spanFrom(start))
-
-  private def parseRecordLit(start: Int): Tree =
-    val fields = mutable.ListBuffer.empty[Field]
-    var rest = false
-    var continue = true
-    while continue do
-      if kind == Tok.DotDot then
-        advance(); rest = true; continue = false
-      else
-        val l = expect(Tok.Name, "a label")
-        expect(Tok.Eq, "`=` in record")
-        fields += Field(Ident(l.text)(l.span), parseNonType(LvlArrow))
-        if kind == Tok.Comma then advance() else continue = false
-    expect(Tok.RBrace, if rest then "`}` after `..`" else "`,` or `}`")
-    RecordLit(fields.toList, rest)(spanFrom(start))
 
 object Parser:
   enum Assoc:

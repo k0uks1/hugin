@@ -28,13 +28,13 @@ trait ObjectItems:
   def ruleItem(base: Cxt, r: Rule, lint: Boolean = true): CoreItem =
     val reflected = scala.collection.mutable.Set.empty[Name]
     try reflectingVariables(reflected) {
-      val start = metas.length
-      val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
-      val heads = r.heads.map(h => elabHead(c, h))
-      val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
-      val generic = generalize(start) || openFamilyHead(c, heads)
-      CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
-    }
+        val start = metas.length
+        val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
+        val heads = r.heads.map(h => elabHead(c, h))
+        val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
+        val generic = generalize(start) || openFamilyHead(c, heads)
+        CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
+      }
     // a variable that reflected code uses as well is not a singleton
     finally if lint then warnSingletons(r.heads ++ r.body.toList, reflected.toSet)
 

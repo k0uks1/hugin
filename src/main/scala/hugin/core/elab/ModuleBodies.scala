@@ -105,6 +105,7 @@ trait ModuleBodies:
     )
 
   private def objectItem(c: Cxt, item: Item): List[CoreItem] = item match
+    case r: Rule if isSpliceItem(r) => unsupportedAt(r.span, "reflected items (`$e.`) in module bodies")
     case r: Rule => List(ruleItem(c, r))
     case q: Query => List(queryItem(c, q))
     case d: Directive => directiveItem(c, d).toList

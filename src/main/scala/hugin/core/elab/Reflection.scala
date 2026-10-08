@@ -34,35 +34,43 @@ trait Reflection:
 
   /** `$e.` (also `$f a₁ … aₙ.` for `$(f a₁ … aₙ).`): if `e` has the type of reflected items, elaborates
    *  the items it evaluates to and returns true. */
-  def elabSpliceItem(r: Rule): Boolean = r match
+  def elabSpliceItem(r: Rule): Boolean =
+    spliced(r).flatMap(e => tentatively(spliceKind(e)).map((e, _))) match
+      case Some((e, k)) =>
+        elabSplice(r, e, k)
+        true
+      case None => false
+
+  /** Whether `r` has the shape of an item `$e.` whose `e` has the type of reflected items. */
+  def isSpliceItem(r: Rule): Boolean = spliced(r).exists(e => tentatively(spliceKind(e)).isDefined)
+
+  private def spliced(r: Rule): Option[Tree] = r match
     case Rule(None, List(head), None) if reflectiveGlobals.isDefined =>
       hugin.syntax.TreeOps.flattenApp(head) match
-        case (SpliceE(f), args) => elabSplice(r, args.foldLeft(f)((g, a) => Apply(g, a)(g.span.to(a.span))))
-        case _ => false
-    case _ => false
+        case (SpliceE(f), args) => Some(args.foldLeft(f)((g, a) => Apply(g, a)(g.span.to(a.span))))
+        case _ => None
+    case _ => None
 
-  private def elabSplice(r: Rule, e: Tree): Boolean =
-    def kindOf(ty: Val) = reflectiveKind(ty).filter {
-      case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
-      case _ => false
-    }
-    val probe =
-      try tentatively(kindOf(insert(Cxt.empty, e.span, infer(Cxt.empty, e))._2))
-      catch case _: ElabError => None
-    probe.foreach { k =>
-      val (tm, _, _) = insert(Cxt.empty, e.span, infer(Cxt.empty, e))
-      val frame = TraceFrame(s"in code reflected by `$$${Printer.show(e)}`", r.span)
-      val generated = reflectItems(eval(Nil, zonk(Nil, 0, tm)), k, Target(None, r.span))
-      for g <- generated do
-        val item = inFrame(frame) {
-          g match
-            case rule: Rule => ruleItem(Cxt.empty, rule, lint = false)
-            case q: Query => queryItem(Cxt.empty, q)
-            case other => throw Impossible(s"reflected $other")
-        }
-        items += withOrigin(item, Origin(List(frame)))
-    }
-    probe.isDefined
+  private def spliceKind(e: Tree): Option[RKind] =
+    try
+      reflectiveKind(insert(Cxt.empty, e.span, infer(Cxt.empty, e))._2).filter {
+        case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
+        case _ => false
+      }
+    catch case _: ElabError => None
+
+  private def elabSplice(r: Rule, e: Tree, k: RKind): Unit =
+    val (tm, _, _) = insert(Cxt.empty, e.span, infer(Cxt.empty, e))
+    val frame = TraceFrame(s"in code reflected by `$$${Printer.show(e)}`", r.span)
+    val generated = reflectItems(eval(Nil, zonk(Nil, 0, tm)), k, Target(None, r.span))
+    for g <- generated do
+      val item = inFrame(frame) {
+        g match
+          case rule: Rule => ruleItem(Cxt.empty, rule, lint = false)
+          case q: Query => queryItem(Cxt.empty, q)
+          case other => throw Impossible(s"reflected $other")
+      }
+      items += withOrigin(item, Origin(List(frame)))
 
   /** Object code for the meta value `tm : Formula` or `Term` in `c`, elaborated against `expected`
    *  (`prop` for a formula); for a term without an expected type, inferred. */
@@ -126,7 +134,10 @@ trait Reflection:
     case _ =>
       ctorApp(v, t.fallback, t) match
         case ("irule", List(r), s) => List(rule(r, s, t))
-        case ("iquery", List(fs), s) => List(Query(conj(elements(fs, s, t).map((f, fs2) => formula(f, fs2, Nil, t))).getOrElse(malformed("an empty query", s)))(t.fallback))
+        case ("iquery", List(fs), s) => List(Query(conj(elements(fs, s, t).map((f, fs2) => formula(f, fs2, Nil, t))).getOrElse(malformed(
+            "an empty query",
+            s
+          )))(t.fallback))
         case (_, _, s) => malformed("not an item", s)
 
   private def rule(v: Val, sp: Span, t: Target): Rule = ctorApp(v, sp, t) match

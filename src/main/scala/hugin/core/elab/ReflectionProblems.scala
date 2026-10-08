@@ -76,11 +76,17 @@ enum ReflectionProblem extends Problem:
     case _: NoReflectiveTypes =>
       List(msg"`term`, `formula`, `rule`, `item` and `module` are declared by the prelude, which `--no-prelude` leaves out")
     case _: Unsupported =>
-      List(msg"reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates")
+      List(
+        msg"reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates"
+      )
     case _: NotObjectSyntax =>
-      List(msg"in a position of a reflective type, object syntax is quoted: an object constant applied to terms, a hole `$$x`, or a formula")
+      List(
+        msg"in a position of a reflective type, object syntax is quoted: an object constant applied to terms, a hole `$$x`, or a formula"
+      )
     case _: SequenceHoleNotLast => List(msg"a pattern can only match a sequence by its first elements and the rest")
     case _: HigherOrderHoleArgument =>
-      List(msg"`$$F[V]` matches a formula that may mention `V`, the variable an enclosing aggregate binds; `F` is then a function of type `term -> formula`")
+      List(
+        msg"`$$F[V]` matches a formula that may mention `V`, the variable an enclosing aggregate binds; `F` is then a function of type `term -> formula`"
+      )
     case _: NotClosed => List(msg"reflection turns closed data into object code during elaboration")
     case _ => Nil

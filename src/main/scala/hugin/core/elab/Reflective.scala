@@ -36,10 +36,53 @@ trait Reflective:
   import core.*
 
   private val names = List(
-    "seq", "snil", "scons", "sappend", "sym", "term", "formula", "rule", "item", "index", "openF", "openT", "tvar", "tbound",
-    "twild", "tint", "tfloat", "tstr", "tapp", "tarith", "tneg", "fatom", "fcmp", "fnot", "fconj", "fdisj", "fagg", "horn",
-    "irule", "iquery", "izero", "isuc", "oadd", "osub", "omul", "odiv", "ocat", "ceq", "cne", "clt", "cle", "cgt", "cge",
-    "acount", "asum", "amin", "amax"
+    "seq",
+    "snil",
+    "scons",
+    "sappend",
+    "sym",
+    "term",
+    "formula",
+    "rule",
+    "item",
+    "index",
+    "openF",
+    "openT",
+    "tvar",
+    "tbound",
+    "twild",
+    "tint",
+    "tfloat",
+    "tstr",
+    "tapp",
+    "tarith",
+    "tneg",
+    "fatom",
+    "fcmp",
+    "fnot",
+    "fconj",
+    "fdisj",
+    "fagg",
+    "horn",
+    "irule",
+    "iquery",
+    "izero",
+    "isuc",
+    "oadd",
+    "osub",
+    "omul",
+    "odiv",
+    "ocat",
+    "ceq",
+    "cne",
+    "clt",
+    "cle",
+    "cgt",
+    "cge",
+    "acount",
+    "asum",
+    "amin",
+    "amax"
   )
 
   private var loaded: Option[Option[ReflectiveGlobals]] = None
@@ -50,8 +93,19 @@ trait Reflective:
       val found = names.map(n => n -> file.parent.get(n).orElse(scope.get(n))).collect { case (n, Some(id)) => n -> id }.toMap
       loaded = Some(Option.when(found.size == names.size && globals(found("sym")).kind == GlobalKind.Symbols) {
         ReflectiveGlobals(
-          found("seq"), found("snil"), found("scons"), found("sappend"), found("sym"), found("term"), found("formula"),
-          found("rule"), found("item"), found("index"), found("openF"), found("openT"), found
+          found("seq"),
+          found("snil"),
+          found("scons"),
+          found("sappend"),
+          found("sym"),
+          found("term"),
+          found("formula"),
+          found("rule"),
+          found("item"),
+          found("index"),
+          found("openF"),
+          found("openT"),
+          found
         )
       })
     loaded.flatten

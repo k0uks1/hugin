@@ -895,6 +895,14 @@ and `propagate` of §6.9 elaborate and pass coverage and termination; matching r
 (a shadowed `typed` does not match); higher-order holes for aggregates; diagnostics in generated code
 point to source items.
 
+*Status: C1 is done.* The reflective types are in the prelude with lowercase names (`term`, `formula`,
+`rule`, `item`, `module`; `seq` for `List`, written `[]`, `[a, b]`, `x :: xs`), since uppercase names are
+variables; reflection is untyped (Q5) and happens during elaboration on closed data, which is turned into
+syntax with resolved symbols and elaborated again; an item `$e.` reflects rules and queries. Deviations
+and decisions are in docs/NOTES.md ("Reflection (redesign Phase C1)"): `Decl` is left to C2/C3, only
+aggregates bind variables (locally nameless), matching on object constants splits by identity with a
+default branch.
+
 **C2. Directives as meta functions.** Resolution, argument elaboration, footprints, source-order
 expansion; primitive directives re-expressed. *Accept*: `%symmetric` (§8.5) as a user directive;
 unknown directives give name errors; incremental tests show local directives keep per-item reuse.

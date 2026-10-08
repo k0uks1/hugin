@@ -1,6 +1,5 @@
 package hugin.syntax
 
-import hugin.util.*
 import scala.collection.mutable
 
 /** The grammar of reflection (docs/REDESIGN.md §6.8–6.9), mixed into [[Parser]]:
@@ -12,16 +11,7 @@ import scala.collection.mutable
  *    bodies are parenthesised);
  *  - rules as expressions and patterns, `(h̄ :- b)` (`(h :-)` without a body).
  */
-private[syntax] trait QuoteSyntax:
-  protected def tok: Token
-  protected def kind: Tok
-  protected def advance(): Token
-  protected def peekTok(k: Int): Token
-  protected def spanFrom(start: Int): Span
-  protected def expectTok(k: Tok, what: String): Token
-  protected def parsePostfix(): Tree
-  def parseExpr(minLevel: Int): Tree
-
+private[syntax] trait QuoteSyntax extends ParserBase:
   /** After `$` (at `start`): a hole, a sequence hole or a higher-order hole. */
   protected def parseDollar(start: Int): Tree =
     if kind == Tok.DotDot then

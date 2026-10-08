@@ -84,8 +84,14 @@ trait Quotes:
       case (_, SpliceHO(f, args)) => Q.HigherOrder(f, args.map(q(_, RKind.Term)), k, sp)
       case (RKind.Item, _) => Q.Con("irule", List(q(t, RKind.Rule)), false, sp)
       case (RKind.Rule, RuleQuote(hs, b)) =>
-        Q.Con("horn", List(sequence(c, hs, RKind.Formula, bound, sp), sequence(c, b.toList.flatMap(conjuncts), RKind.Formula, bound, sp)), true, sp)
-      case (RKind.Rule, _) => Q.Con("horn", List(Q.QList(List(q(t, RKind.Formula)), RKind.Formula, sp), Q.QList(Nil, RKind.Formula, sp)), true, sp)
+        Q.Con(
+          "horn",
+          List(sequence(c, hs, RKind.Formula, bound, sp), sequence(c, b.toList.flatMap(conjuncts), RKind.Formula, bound, sp)),
+          true,
+          sp
+        )
+      case (RKind.Rule, _) =>
+        Q.Con("horn", List(Q.QList(List(q(t, RKind.Formula)), RKind.Formula, sp), Q.QList(Nil, RKind.Formula, sp)), true, sp)
       case (RKind.Formula, Conj(a, b)) => Q.Con("fconj", List(q(a, k), q(b, k)), true, sp)
       case (RKind.Formula, Disj(a, b)) => Q.Con("fdisj", List(q(a, k), q(b, k)), true, sp)
       case (RKind.Formula, Not(a)) => Q.Con("fnot", List(q(a, k)), true, sp)
@@ -124,7 +130,9 @@ trait Quotes:
   /** An object constant (or a hole) applied to terms: an atom (`fatom`) or a term (`tapp`). */
   private def application(c: Cxt, t: Tree, ctor: Name, bound: List[Name]): Q =
     val (h, args) = TreeOps.flattenApp(t)
-    unsupportedForm(t).foreach(w => fail(ReflectionProblem.Unsupported(w, kindName(if ctor == "fatom" then RKind.Formula else RKind.Term), t.span)))
+    unsupportedForm(t).foreach(w =>
+      fail(ReflectionProblem.Unsupported(w, kindName(if ctor == "fatom" then RKind.Formula else RKind.Term), t.span))
+    )
     args.collectFirst { case r: RecordLit => r }.foreach(r => fail(ReflectionProblem.Unsupported("a named pattern", "data", r.span)))
     val sym = h match
       case SpliceE(x) => Q.Hole(x, RKind.Sym, h.span)
@@ -152,10 +160,14 @@ trait Quotes:
     case _ => None
 
   private def sequence(c: Cxt, elems: List[Tree], k: RKind, bound: List[Name], span: Span): Q =
-    Q.QList(elems.map {
-      case s @ SpliceSeq(x) => Q.SeqHole(x, k, s.span)
-      case e => quoted(c, e, k, bound)
-    }, k, span)
+    Q.QList(
+      elems.map {
+        case s @ SpliceSeq(x) => Q.SeqHole(x, k, s.span)
+        case e => quoted(c, e, k, bound)
+      },
+      k,
+      span
+    )
 
   private def conjuncts(t: Tree): List[Tree] = t match
     case Conj(a, b) => conjuncts(a) ++ conjuncts(b)
@@ -186,10 +198,13 @@ trait Quotes:
       val t = con(n, args.map(reifyQ(c, _))*)
       if located then Tm.loc(sp, t) else t
     case Q.QList(elems, k, _) =>
-      listData(kindType(k), elems.map {
-        case Q.SeqHole(x, k2, _) => Right(check(c, x, ev(c, kindType(RKind.List(k2))), Stage.S1))
-        case e => Left(reifyQ(c, e))
-      })
+      listData(
+        kindType(k),
+        elems.map {
+          case Q.SeqHole(x, k2, _) => Right(check(c, x, ev(c, kindType(RKind.List(k2))), Stage.S1))
+          case e => Left(reifyQ(c, e))
+        }
+      )
     case Q.Var(n, sp) => Tm.loc(sp, con("tvar", Tm.Lit(Literal.StrL(n), Stage.S1)))
     case Q.Bound(i, sp) => Tm.loc(sp, con("tbound", indexData(i)))
     case Q.Wild(sp) => Tm.loc(sp, con("twild"))
@@ -209,12 +224,19 @@ trait Quotes:
     val elemTm = quote(c.lvl, elem)
     t match
       case ListLit(es) =>
-        listData(elemTm, es.map {
-          case SpliceSeq(x) => Right(check(c, x, listOf(elem), Stage.S1))
-          case e => Left(check(c, e, elem, Stage.S1))
-        })
+        listData(
+          elemTm,
+          es.map {
+            case SpliceSeq(x) => Right(check(c, x, listOf(elem), Stage.S1))
+            case e => Left(check(c, e, elem, Stage.S1))
+          }
+        )
       case ConsE(h, tl) =>
-        Tm.App(Tm.App(Tm.App(Tm.Global(r.scons), elemTm, Icit.Impl), check(c, h, elem, Stage.S1), Icit.Expl), check(c, tl, listOf(elem), Stage.S1), Icit.Expl)
+        Tm.App(
+          Tm.App(Tm.App(Tm.Global(r.scons), elemTm, Icit.Impl), check(c, h, elem, Stage.S1), Icit.Expl),
+          check(c, tl, listOf(elem), Stage.S1),
+          Icit.Expl
+        )
       case other => unsupported(other)
 
   /** A list with an inferred element type. */

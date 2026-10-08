@@ -89,6 +89,8 @@ another name for the same base type. Base types are printed by their builtin nam
 | `option A`, `none`, `some` | optional values |
 | `pair A B` | a struct family with labels `fst`, `snd` |
 | `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
+| `seq A`, `snil`, `scons`, `sappend` | meta lists, written `[]`, `[a, b]` and `x :: xs` |
+| `sym`, `term`, `formula`, `rule`, `item`, `module` | reflection (docs/REDESIGN.md §6.8): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
 
 ## Diagnostics
 
