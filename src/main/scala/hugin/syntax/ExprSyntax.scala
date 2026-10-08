@@ -172,7 +172,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
         parseDollar(start)
       case Tok.Up =>
         advance()
-        val arg = parsePostfix()
+        // the operand does not start in column 0 (it would be the next item)
+        val arg = if atColumn0(position) then missing(Expect.tpe) else parsePostfix()
         LiftE(arg)(spanFrom(start))
       case _ => missing(if inType then Expect.tpe else Expect.expression)
 
@@ -211,6 +212,9 @@ private[syntax] trait ExprSyntax extends ParserBase:
   private def parseParens(): Tree =
     val open = advance()
     val start = open.span.start
+    if strayOpener(Tok.RParen) then
+      error(SyntaxError.Unclosed(open.text, open.span, ")", insertionPoint, found, tok.span))
+      return ErrorTree(Nil)(open.span)
     if (at(Tok.Var) || at(Tok.Name)) && peekTok(1).kind == Tok.KwWith then
       val v = variable()
       advance()

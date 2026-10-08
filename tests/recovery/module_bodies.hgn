@@ -1,5 +1,6 @@
-(* A module body: a broken member is dropped by itself (uses of it are not reported); an unclosed body
-   whose items are indented ends before the next item in column 0. *)
+(* A module body with a broken member: the module is not elaborated (its type would lack the member), and
+   uses of it are not reported. An unclosed body whose items are indented ends before the next item in
+   column 0. *)
 graph : Type = { node : type, edge : node -> node -> rel }.
 tc (g : graph) = {
   path : g.node -> g.node -> rel.

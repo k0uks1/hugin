@@ -33,10 +33,13 @@ private[syntax] trait RecordSyntax extends ParserBase:
    *  (`docs/PARSER.md`, §4.3). */
   private def parseModuleBody(open: Token): Tree =
     val column0Members = atColumn0(position)
-    val items = parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody)
+    bodies += 1
+    val (items, clean) =
+      try parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody)
+      finally bodies -= 1
     if at(Tok.RBrace) then
       advance()
-      ModuleBody(items)(spanFrom(open.span.start))
+      checked(ModuleBody(items)(spanFrom(open.span.start)), clean)
     else
       resync() // a mistake of its own, also after one in the last item
       error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))

@@ -179,13 +179,18 @@ trait Items:
           elabFunction(id, group.flatMap(surfaceClause))
           checkSolved(start)
         }
-      catch case e: ElabError => report(e)
+      catch
+        case e: ElabError =>
+          report(e)
+          // dropped for an error that follows from a syntax error: its uses are not elaborated either
+          if e.silent then state.unelaborated += n
 
   private def declaredFunction(n: Name, first: Item): Int =
     scope.get(n) match
       case Some(id) if globals(id).kind.isInstanceOf[GlobalKind.Function] => id
       case Some(id) =>
         fail(ClauseProblem.NotDefinableByClauses(n, first.span, globals(id).span, describeKind(id)))
+      case None if state.erroneous(n) => syntaxError(first.span) // its declaration had a syntax error
       case None =>
         fail(ClauseProblem.ClausesWithoutDeclaration(n, first.span))
 

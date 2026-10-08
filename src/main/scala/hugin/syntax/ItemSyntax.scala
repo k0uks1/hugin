@@ -12,7 +12,7 @@ private[syntax] trait ItemSyntax extends ParserBase:
   import Parser.*
 
   def parseProgram(): Program =
-    val items = parseItems(!at(Tok.EOF), unexpectedAtTop)
+    val (items, _) = parseItems(!at(Tok.EOF), unexpectedAtTop)
     Program(items, Span(src, 0, src.content.length))
 
   private def unexpectedAtTop(t: Token): SyntaxError =
@@ -49,6 +49,26 @@ private[syntax] trait ItemSyntax extends ParserBase:
             List(SubEdge(lhs, checked(sup, ok))(spanFrom(start)))
           case _ => parseRuleRest(None, first, lhs)
 
+  protected def damagedItem(item: Item): Option[Item] = item match
+    case d: Decl =>
+      Some(
+        if d.defn.isDefined then d.copy(defn = d.defn.map(damaged))(d.span)
+        else if d.sup.isDefined then d.copy(sup = d.sup.map(damaged))(d.span)
+        else d.copy(tpe = damaged(d.tpe))(d.span)
+      )
+    case d: Def => Some(d.copy(rhs = damaged(d.rhs))(d.span))
+    case c: Clause => Some(c.copy(rhs = damaged(c.rhs))(c.span))
+    case e: SubEdge => Some(e.copy(sup = damaged(e.sup))(e.span))
+    case q: Query => Some(q.copy(body = damaged(q.body))(q.span))
+    case r: Rule =>
+      Some(
+        if r.body.isDefined then r.copy(body = r.body.map(damaged))(r.span)
+        else r.copy(heads = r.heads.init :+ damaged(r.heads.last))(r.span)
+      )
+    case d @ Directive(_, DirArgs.Apply(args, decl)) =>
+      Some(Directive(d.kind, DirArgs.Apply(args :+ ErrorTree(Nil)(d.span), decl))(d.span, d.kindSpan))
+    case _: Directive => None
+
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:` (or a `::` reported already).
    *  A head without a name declares nothing: the item is parsed and dropped. */
   private def parseDeclRest(lhs: Tree, first: Token): List[Item] =
@@ -79,8 +99,8 @@ private[syntax] trait ItemSyntax extends ParserBase:
     val start = first.span.start
     advance()
     val rhs = parseExpr(LvlSemi)
-    val where = if at(Tok.KwWhere) then parseWhere(first) else Nil
-    if where.nonEmpty then Clause(lhs, rhs, where)(spanFrom(start))
+    val (where, clean) = if at(Tok.KwWhere) then parseWhere(first) else (Nil, true)
+    if where.nonEmpty then Clause(lhs, checked(rhs, clean), where)(spanFrom(start))
     else
       val head = defHead(lhs)
       // `(f X) = e.`
@@ -123,12 +143,12 @@ private[syntax] trait ItemSyntax extends ParserBase:
    *  the first item at that column or less (so a top-level clause's block ends at the next item at column
    *  0), at a `}`, or at the end of the file. The last binding's period ends the clause; if there is no
    *  binding, the clause ends as usual. */
-  private def parseWhere(first: Token): List[Item] =
+  private def parseWhere(first: Token): (List[Item], Boolean) =
     val w = advance()
     val col = first.span.startCol
     if !startsItem(kind) then
       error(SyntaxError.EmptyWhere(w.span))
-      Nil
+      (Nil, true)
     else
       val firstBinding = position
       parseItems(

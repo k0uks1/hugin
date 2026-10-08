@@ -26,6 +26,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   /** The item at the current token, and the declaration a prefix directive is attached to. */
   protected def parseItem(): List[Trees.Item]
 
+  /** `item` with an error after it: its last part an error node (none for an item that cannot hold one). */
+  protected def damagedItem(item: Trees.Item): Option[Trees.Item]
+
   // ---------------------------------------------------------------- the cursor
 
   /** Looks at the current token costs fuel, consuming one restores it: a loop that makes no progress
@@ -58,6 +61,10 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   /** Whether the token at index `k` is the first of its line and in column 0: an argument cannot start
    *  there, and in recovery it is taken to start the next item (`docs/PARSER.md`, §4.4). */
   protected def atColumn0(k: Int): Boolean = toks(k).span.startCol == 0 && startsLine(k)
+
+  /** Whether only white space precedes `span` on its line. */
+  protected def firstOnLine(span: Span): Boolean =
+    src.content.substring(src.lineStart(span.startLine), span.start).forall(_.isWhitespace)
 
   protected def found: Found = if tok.kind == Tok.EOF then Found.EndOfFile else Found.Token(tok.text)
 
@@ -163,17 +170,58 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
           // is then found by the period or the column-0 token after it
           if depth == 0 && t == closer then return k
           depth = (depth - 1).max(0)
-        case Tok.Period if depth == 0 => return -1
+        // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`)
+        case Tok.Period if depth == 0 && !closerOnLine(k + 1, closer) => return -1
         case _ =>
       k += 1
     -1
 
+  /** Whether `closer` follows at depth 0 on the line of the token at index `k`. */
+  private def closerOnLine(k: Int, closer: Tok): Boolean =
+    val line = toks(k - 1).span.startLine
+    var j = k
+    var depth = 0
+    while j < toks.length && toks(j).kind != Tok.EOF && toks(j).span.startLine == line do
+      toks(j).kind match
+        case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+        case t @ (Tok.RParen | Tok.RBrack | Tok.RBrace) =>
+          if depth == 0 then return t == closer
+          depth -= 1
+        case _ =>
+      j += 1
+    false
+
+  /** Whether `closer` closes the construct just opened somewhere ahead, before the end of its item (a
+   *  period at depth 0) or of the file: a construct that is not closed and whose contents would start in
+   *  column 0 of the next line is a stray opening delimiter at the end of a line. */
+  protected def strayOpener(closer: Tok): Boolean =
+    atColumn0(i) && {
+      var k = i
+      var depth = 0
+      var closed = false
+      var done = false
+      while !done && k < toks.length do
+        toks(k).kind match
+          case Tok.EOF => done = true
+          case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+          case t @ (Tok.RParen | Tok.RBrack | Tok.RBrace) =>
+            if depth == 0 then { closed = t == closer; done = true }
+            else depth -= 1
+          case Tok.Period if depth == 0 => done = true
+          case _ =>
+        k += 1
+      !closed
+    }
+
   // ---------------------------------------------------------------- items
 
-  /** Ends the item that started with `first` at its period (`docs/PARSER.md`, §4.1, §4.4): the period is
-   *  consumed if it is there, and inserted if the item evidently ended (the next token starts a line or
-   *  closes the enclosing body, or the file ends). Otherwise one of `expectations` was expected: reported,
-   *  and the rest of the item is skipped; false then, and the caller makes its last part an error node. */
+  /** Ends the item (`context`) at its period (`docs/PARSER.md`, §4.1, §4.4): the period is consumed if it
+   *  is there, and inserted if the item evidently ended (the next token starts a line or closes the
+   *  enclosing body, or the file ends). Otherwise one of `expectations` was expected: reported, and the
+   *  rest of the item is skipped. False after an error that makes the item uncertain: the caller then
+   *  makes its last part an error node. An item with an inserted period is certain (and elaborated as
+   *  usual) if it starts its line; one that starts after other text on its line (`a : rel. b`) may be
+   *  a stray piece of text. */
   protected def endItem(context: Context, expectations: List[Expect]): Boolean =
     if at(Tok.Period) then
       advance()
@@ -181,15 +229,17 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     else if tok.kind == Tok.Error then
       skipItem()
       false
-    else if at(Tok.EOF) || startsLine(i) || at(Tok.RBrace) then
-      // a repair: the item is complete, and elaborated as usual
+    else if at(Tok.EOF) || startsLine(i) || (at(Tok.RBrace) && bodies > 0) then
       val next = Option.when(tok.kind != Tok.EOF && tok.kind != Tok.RBrace)(tok.span)
       error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, next))
-      true
+      firstOnLine(context.start)
     else
       expected(expectations, Some(context))
       skipItem()
       false
+
+  /** The number of module bodies the parser is in: a `}` outside of them is a stray token. */
+  protected var bodies = 0
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
    *  closing the enclosing body, or the end of the file. */
@@ -201,7 +251,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
         case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
         case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
         case Tok.RBrace =>
-          if depth == 0 then done = true else { depth -= 1; advance() }
+          if depth == 0 && bodies > 0 then done = true else { depth = (depth - 1).max(0); advance() }
         case Tok.Period if depth == 0 => advance(); done = true
         case _ => advance()
 
@@ -223,17 +273,28 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
 
   /** The items of a file, a module body or a `where` block, while `more` holds: each item is a recovery
    *  region. A token that cannot start an item is reported by `unexpected` and skipped with the rest of
-   *  its item (a period or `}` alone is skipped by itself). */
-  protected def parseItems(more: => Boolean, unexpected: Token => SyntaxError): List[Trees.Item] =
+   *  its item (a period or `}` alone is skipped by itself). If it follows an item on the same line, that
+   *  item's period may be the mistake (`go : nat . -> int.`): the item is damaged too (not for a second
+   *  period, which is harmless). With whether no
+   *  tokens were skipped (else a member may have been lost: the enclosing construct is damaged). */
+  protected def parseItems(more: => Boolean, unexpected: Token => SyntaxError): (List[Trees.Item], Boolean) =
     val items = mutable.ListBuffer.empty[Trees.Item]
+    var clean = true
     while more do
       resync()
       if startsItem(kind) then items ++= parseItem()
       else
+        if items.nonEmpty && !startsLine(i) && !at(Tok.Period) && items.last.span.source.lineOf(
+            (items.last.span.end - 1).max(items.last.span.start)
+          ) == tok.span.startLine
+        then
+          val last = items.remove(items.length - 1)
+          items ++= damagedItem(last)
         error(unexpected(tok))
+        clean = false
         val t = advance()
         if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
-    items.toList
+    (items.toList, clean)
 
 object ParserBase:
   val Fuel = 1024

@@ -20,11 +20,11 @@ object TreeOps:
       pending ++= children.reverseIterator
       y
 
-  /** Whether an item or tree has a syntax error in it ([[ErrorTree]], [[Param.Malformed]]). The members of
-   *  a module body are not looked at: they are elaborated (or dropped) one by one. */
+  /** Whether an item or tree has a syntax error in it ([[ErrorTree]], [[Param.Malformed]]), also in the
+   *  members of a module body in it (a broken member changes the module's type, so uses of the module
+   *  elsewhere would fail). */
   def hasSyntaxErrors(x: Any): Boolean = x match
     case _: ErrorTree | _: Param.Malformed => true
-    case _: ModuleBody => false
     case p: Product => p.productIterator.exists(hasSyntaxErrors)
     case it: Iterable[?] => it.exists(hasSyntaxErrors)
     case _ => false

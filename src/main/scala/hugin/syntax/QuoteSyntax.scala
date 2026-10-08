@@ -16,7 +16,8 @@ private[syntax] trait QuoteSyntax extends ParserBase:
   protected def parseDollar(start: Int): Tree =
     val seq = at(Tok.DotDot)
     if seq then advance()
-    if !startsExpression(kind) then
+    // the expression of a hole does not start in column 0 (it would be the next item)
+    if !startsExpression(kind) || atColumn0(position) then
       error(SyntaxError.Expected(List(Expect.expression), found, tok.span, None, Some(SyntaxHelp.DollarWithoutExpression)))
       ErrorTree(Nil)(spanFrom(start))
     else if seq then
@@ -57,6 +58,9 @@ private[syntax] trait QuoteSyntax extends ParserBase:
   /** `[e₁, …, eₙ]`, at `[`. */
   protected def parseList(): Tree =
     val open = advance()
+    if strayOpener(Tok.RBrack) then
+      error(SyntaxError.Unclosed(open.text, open.span, "]", insertionPoint, found, tok.span))
+      return ErrorTree(Nil)(open.span)
     val elems = mutable.ListBuffer.empty[Tree]
     if !at(Tok.RBrack) then
       var more = true
