@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/k0uks1/hugin/actions/workflows/ci.yml/badge.svg)](https://github.com/k0uks1/hugin/actions/workflows/ci.yml)
 [![Reference](https://github.com/k0uks1/hugin/actions/workflows/reference.yml/badge.svg)](https://k0uks1.github.io/hugin/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Hugin is a typed Datalog with first-class facts at the object level and a total, dependently typed meta
 level that computes object programs at compile time. This repository holds its language reference and
@@ -107,4 +108,4 @@ test the implementation and how the compiler is organised.
 
 ## License
 
-The repository does not yet carry a license. Until one is added, all rights are reserved by the author.
+Hugin is licensed under the [Apache License, Version 2.0](LICENSE).

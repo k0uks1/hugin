@@ -1,6 +1,7 @@
 ThisBuild / scalaVersion := "3.3.4"
 ThisBuild / organization := "hugin"
 ThisBuild / version := "0.1.0"
+ThisBuild / licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))
 
 lazy val root = (project in file("."))
   .enablePlugins(JavaAppPackaging)
