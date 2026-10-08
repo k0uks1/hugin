@@ -3,5 +3,5 @@ bits : (n : int) -> (l : int) -> rel.
 %mode bits +n -l.
 %terminates n bits.
 bits 0 0.
-bits N L :- N <> 0, H = N / 2, bits H K, L = K + 1.
+bits N L :- N <> 0, H = N / 2, bits H K, L = K + 1. (*~ E0604 *)
 ?- bits 1000 L.

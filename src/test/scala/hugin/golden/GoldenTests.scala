@@ -10,7 +10,8 @@ import scala.jdk.CollectionConverters.*
  *  - `tests/run/X.hgn`: compiled and run; stdout must equal `X.check`. Optional `X.facts` is loaded and
  *    `X.flags` holds extra command-line options (one line).
  *  - `tests/neg/X.hgn`: must fail to compile (or, with `X.facts`, to load its input); the rendered
- *    diagnostics must equal `X.check`.
+ *    diagnostics must equal `X.check`. Inline annotations `(*~ E0603 *)`, if the file has any, must match
+ *    the codes and lines reported (see [[Annotations]]).
  *  - `tests/pos/X.hgn`: must compile without errors.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/repl/X.in`: a REPL session, run by `hugin repl --batch --echo`; the transcript (inputs after
@@ -66,6 +67,8 @@ class GoldenTests extends munit.FunSuite:
       val cmd = if Files.exists(facts) then List("run", p.toString, "--facts", facts.toString) else List("check", p.toString)
       val (code, _, err) = runMain(cmd ++ flags(p))
       assertEquals(code, 1, s"expected errors in $p")
+      val expected = Annotations.expected(Files.readString(p))
+      if expected.nonEmpty then assertEquals(Annotations.reported(err, p.toString), expected, s"annotations of $p")
       compare(p, err)
     }
 

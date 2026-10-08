@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `fib`
 4 | %terminates n fib.
   | ------------------ measure declared here
 ...
-7 | fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
+7 | fib N F :- N <> 0, N <> 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB. (*~ E0604 *)
   |                                                  ^^^^^^^^ no anchor: the body does not bound the demanded `A` from below
   |
   = note: demands decrease from caller to callee; integers must stay bounded below for the recursion to stop

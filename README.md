@@ -458,7 +458,9 @@ Three kinds of tests, all run by `sbt test`:
   - `tests/run/X.hgn` — compiled and run; stdout (and warnings, as `//` lines) must equal `X.check`.
     `X.facts` is loaded as input; `X.flags` holds extra options (e.g. `--explain-termination`).
   - `tests/neg/X.hgn` — must fail; the rendered diagnostics must equal `X.check` (with `X.facts`, the
-    failure may come from loading the input).
+    failure may come from loading the input). Inline annotations `(*~ E0603 *)` (on the reported line;
+    `(*~^ E0603 *)` for the line above) state the codes independently of the wording: a file with
+    annotations must account for exactly the diagnostics reported in it.
   - `tests/pos/X.hgn` — must compile without errors.
   - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
     their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.

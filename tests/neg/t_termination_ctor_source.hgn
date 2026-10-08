@@ -7,5 +7,5 @@ b : t -> rel. b z.
 d : t -> rel.
 d z :- b z.
 d X :- d X.
-d (s (s N)) :- s N.
+d (s (s N)) :- s N. (*~ E0603 *)
 %output d.

@@ -1,8 +1,6 @@
 package hugin.obj
 package check
 
-import hugin.util.*
-
 import hugin.obj.typing.Moding
 
 /** Constructive rules (Definition 10.1, refined) and finite sources: what makes a recursive component
@@ -18,7 +16,7 @@ object Constructive:
    *  binding them are complete and finite when the component is evaluated (induction over the evaluation
    *  order). See docs/NOTES.md, "Termination" (issue #1, F3).
    */
-  def constructive(r: Rule, inC: RelSym => Boolean): Option[(String, Span)] =
+  def constructive(r: Rule, inC: RelSym => Boolean): Option[Invention] =
     val finite = finiteVars(r.body, inC)
     val headVars = r.heads.flatMap(keyArgs).flatMap(Moding.vars).toSet
     val atomVars = r.body.collect { case Formula.Atom(_, as, v) => as.flatMap(Moding.vars).toSet ++ v }.flatten.toSet
@@ -28,23 +26,21 @@ object Constructive:
       case Term.As(x, _) => builds(x)
       case Term.Ascr(x, _) => builds(x)
       case _ => false
-    DepGraph.newHeadConstructors(r, withHead = true).find(t => !Moding.vars(t).subsetOf(finite)).map(t =>
-      (s"its head constructs `${ObjPrinter.term(t)}`, which is not matched in the body", t.span)
-    )
+    DepGraph.newHeadConstructors(r, withHead = true).find(t => !Moding.vars(t).subsetOf(finite)).map(Invention.HeadConstructs(_))
       .orElse {
         // `X = c t̄` with a data term binds `X` to a new value unless `X` is bound by an atom (a test)
         r.body.collectFirst(Function.unlift {
           case c @ Formula.Cmp(CmpOp.Eq, l, rr) =>
             List((l, rr), (rr, l)).collectFirst {
               case (Term.Var(x), e) if headVars(x) && !atomVars(x) && builds(e) && !Moding.vars(e).subsetOf(finite) =>
-                (s"head variable `${Var.display(x)}` is built by `${ObjPrinter.formula(c)}`", c.span)
+                Invention.BuiltByEquation(VarName(x), c)
             }
           case _ => None
         })
       }
       .orElse {
         val asVars = r.body.collect { case Formula.Atom(_, _, Some(v)) => v }.toSet
-        asVars.intersect(headVars).headOption.map(v => (s"the matched fact `${Var.display(v)}` is lifted into the head", r.span))
+        asVars.intersect(headVars).headOption.map(v => Invention.LiftedFact(VarName(v), r.span))
       }
       .orElse {
         def arith(t: Term): Option[Term] = t match
@@ -54,14 +50,12 @@ object Constructive:
           case Term.As(x, _) => arith(x)
           case Term.Ascr(x, _) => arith(x)
           case _ => None
-        r.heads.flatMap(keyArgs).flatMap(arith).headOption.map(t => (s"its head computes `${ObjPrinter.term(t)}`", t.span))
+        r.heads.flatMap(keyArgs).flatMap(arith).headOption.map(Invention.HeadComputes(_))
       }
       .orElse {
         r.body.collectFirst {
-          case c @ Formula.Cmp(CmpOp.Eq, Term.Var(x), e) if headVars(x) && hasOp(e) =>
-            (s"head variable `${Var.display(x)}` is computed by `${ObjPrinter.formula(c)}`", c.span)
-          case c @ Formula.Cmp(CmpOp.Eq, e, Term.Var(x)) if headVars(x) && hasOp(e) =>
-            (s"head variable `${Var.display(x)}` is computed by `${ObjPrinter.formula(c)}`", c.span)
+          case c @ Formula.Cmp(CmpOp.Eq, Term.Var(x), e) if headVars(x) && hasOp(e) => Invention.ComputedByEquation(VarName(x), c)
+          case c @ Formula.Cmp(CmpOp.Eq, e, Term.Var(x)) if headVars(x) && hasOp(e) => Invention.ComputedByEquation(VarName(x), c)
         }
       }
 

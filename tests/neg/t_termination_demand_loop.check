@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `c`
 5 | %terminates X (c X _).
   | ---------------------- measure declared here
 ...
-7 | c X Y :- c X Z, Y = Z + 1.
+7 | c X Y :- c X Z, Y = Z + 1. (*~ E0604 *)
   |   -      ^^^^^ no decrease: `X` is not smaller than `X`
   |   the caller has `X`
   |

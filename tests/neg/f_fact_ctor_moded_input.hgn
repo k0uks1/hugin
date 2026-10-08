@@ -15,16 +15,16 @@ area (square N) A :- A = N * N.
 area (box S) A :- area S A.
 
 q : int -> rel.
-q A :- area (square 4) A.
+q A :- area (square 4) A. (*~ E0504 *)
 
 nested : int -> rel.
-nested A :- area (box (square 2)) A.
+nested A :- area (box (square 2)) A. (*~ E0504 *)
 
 negated : rel.
-negated :- not area (square 3) 9.
+negated :- not area (square 3) 9. (*~ E0504 *)
 
 counted : int -> rel.
-counted C :- C = count { A | area (square 5) A }.
+counted C :- C = count { A | area (square 5) A }. (*~ E0504 *)
 
 (* fine: a data term, and an existing fact bound to a variable first *)
 fine : int -> rel.
@@ -33,4 +33,4 @@ square 6.
 bound : int -> rel.
 bound A :- S = square 6, area S A.
 
-?- area (square 7) A.
+?- area (square 7) A. (*~ E0504 *)

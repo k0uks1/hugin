@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `len[int]`
 6 | %terminates L (len L _).
   | ------------------------ measure declared here
 ...
-8 | len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1.
+8 | len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1. (*~ E0604 *)
   |      --------                 ^^^^^^^^^^^^^^^^ no decrease: `cons[int] X L` is not smaller than `cons[int] X L`
   |      the head has `cons[int] X L`
   |

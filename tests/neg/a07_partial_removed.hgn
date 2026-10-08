@@ -1,5 +1,5 @@
 (* A.2 (7), after %partial was removed (docs/REDESIGN.md §4.6): the directive is an error *)
 nat : int -> rel.
-%partial nat.
+%partial nat. (*~ E0001 *)
 nat 0.
-nat M :- nat N, M = N + 1.
+nat M :- nat N, M = N + 1. (*~ E0603 *)

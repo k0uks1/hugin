@@ -1,7 +1,7 @@
 error[E0603]: growing component without a termination argument
   --> tests/neg/t_termination_equation_ctor.hgn:10:17
    |
-10 | num X :- num Y, X = s Y.
+10 | num X :- num Y, X = s Y. (*~ E0603 *)
    |                 ^^^^^^^ head variable `X` is built by `X = s Y`
    |
    = note: the recursive component {num} contains this constructive rule, so its fixed point may be infinite

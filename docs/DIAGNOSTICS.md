@@ -936,6 +936,12 @@ in issue #41.
 * Add inline annotations to the `tests/neg/a0[5-8]_*` and `t_termination_*` tests.
 * *Accept*: no `Legacy` uses remain in `obj/check`; coverage holds; every changed `.check` is listed and
   reviewed; the size-change checker's diagnostics have structural tests.
+* *Done* (#41): `obj/check/TerminationProblems.scala` (`TerminationError`, with the reasons `Invention`,
+  `DescentFailure`, `Measure`, `MissingGuard` in `TerminationReasons.scala`), `BoundColumnProblems.scala`
+  (`BoundColumnError`, `Inconsistency`) and `obj/transform/DemandProblems.scala` (`DemandError`); no
+  `Legacy` use remains outside the old meta typer and the new elaborator; inline annotations are checked
+  by `GoldenTests` (`tests/neg/a0[5-8]_*`, `b_*`, `t_termination_*`); structural tests in
+  `TerminationProblemsSuite` and `BoundColumnProblemsSuite`.
 
 **M4 — The new meta level (B1–B3) and directives (C2).**
 * `core/*Problems.scala` from the first commit: `ElabError`, `StageError`, `TotalityError` (coverage,

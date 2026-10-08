@@ -4,7 +4,7 @@ error[E0604]: invalid `%terminates` directive for `counter`
 3 | %terminates N (counter N).
   | -------------------------- measure declared here
 ...
-5 | counter M :- counter N, M = N + 1.
+5 | counter M :- counter N, M = N + 1. (*~ E0604 *)
   |         -    ^^^^^^^^^ no anchor: the body bounds neither `M` nor `N` from above
   |         the head has `M`
   |
@@ -14,7 +14,7 @@ error[E0604]: invalid `%terminates` directive for `counter`
 error[E0603]: growing component without a termination argument
  --> tests/neg/a06_termination_unbounded.hgn:9:17
   |
-9 | nat M :- nat N, M = N + 1.
+9 | nat M :- nat N, M = N + 1. (*~ E0603 *)
   |                 ^^^^^^^^^ head variable `M` is computed by `M = N + 1`
   |
   = note: the recursive component {nat} contains this constructive rule, so its fixed point may be infinite

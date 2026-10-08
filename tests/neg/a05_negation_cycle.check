@@ -1,7 +1,7 @@
 error[E0601]: stratification cycle through negation
  --> tests/neg/a05_negation_cycle.hgn:6:16
   |
-6 | p X :- base X, not q X.
+6 | p X :- base X, not q X. (*~ E0601 *)
   |                ^^^^^^^ `p` depends negatively on `q`
 7 | q X :- base X, not p X.
   |                ------- `q` depends on `p`

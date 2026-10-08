@@ -4,5 +4,5 @@ c : int -> int -> rel.
 %mode c + -.
 %terminates X (c X _).
 c 1 0.
-c X Y :- c X Z, Y = Z + 1.
+c X Y :- c X Z, Y = Z + 1. (*~ E0604 *)
 ?- c 1 Y.

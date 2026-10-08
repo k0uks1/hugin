@@ -9,14 +9,13 @@ import hugin.obj.typing.Moding
 final class DemandDriven(rc: RecursiveComponent):
   import Termination.*
   import Decrease.*
-  import Failures.*
 
   private val (comp, rules, allRules, facts) = (rc.comp, rc.rules, rc.allRules, rc.facts)
   private val inC = rc.inC
 
   /** Demand-driven evaluation: every demand is smaller than the demand guarding it, and integer slots
    *  are bounded below where they decrease. */
-  def check(ctx: MeasureCtx): Either[TerminationFailure, List[String]] =
+  def check(ctx: MeasureCtx): Either[Rejection, List[String]] =
     def demandOf(x: RelSym): Option[RelSym] = x.kind match
       case RelKind.Demand(of, _) if ctx.has(of) => Some(of)
       case _ => None
@@ -28,27 +27,12 @@ final class DemandDriven(rc: RecursiveComponent):
     val measured = ctx.measures.keys.toList.sortBy(_.name)
     val unmoded = measured.find(!facts.hasModes(_)).map { c =>
       val other = measured.find(facts.hasModes).get
-      TerminationFailure(
-        s"`${c.name}` has a measure but no `%mode`",
-        ctx.directive(c).getOrElse(c.span),
-        "measure declared here",
-        None,
-        None,
-        notes = List(s"`${other.name}` in the same component is moded, so the component is evaluated by demand"),
-        helps = List(s"declare a mode for `${c.name}`, e.g. `%mode ${c.name} ${Mode(Vector.fill(c.arity)(true)).show}.`")
-      )
+      Rejection(TerminationError.NoMode(c, ctx.directive(c).getOrElse(c.span), other), None)
     }
     val notInput = measured.iterator.flatMap(c =>
       facts.modes(c).iterator.flatMap((m, sp) => ctx.of(c).find(k => !m.inputs.lift(k).contains(true)).map(k => (c, m, sp, k)))
     ).nextOption().map { (c, m, sp, k) =>
-      TerminationFailure(
-        s"invalid `%terminates` directive for `${c.name}`",
-        sp,
-        s"argument ${k + 1} is not an input of mode ${m.show}",
-        None,
-        ctx.directive(c),
-        notes = List("in a moded component the measure is checked on the demands, which consist of the input arguments")
-      )
+      Rejection(TerminationError.NotAnInput(c, m, sp, k, ctx.directive(c)), None)
     }
     unmoded.orElse(notInput).orElse(
       rc.unmeasuredConstructive(ctx, h => ctx.has(h) || demandOf(h).isDefined || otherGroup(h), answers = true)
@@ -63,7 +47,7 @@ final class DemandDriven(rc: RecursiveComponent):
           r.body.collectFirst(Function.unlift {
             case a @ Formula.Atom(RelRef.Sym(d), _, _) if inC(d) && !ctx.has(d) && demandOf(d).isEmpty && !otherGroup(d) =>
               rc.readsAnswers(d, ctx.measuredAnywhere, x => demandOf(x).isDefined || otherGroup(x))
-                .map(m => unmeasuredCall(ctx, r, headRel(r).get, a, d, Some(m)))
+                .map(m => Rejection.unmeasuredCall(ctx, r, headRel(r).get, a, d, Some(m)))
             case _ => None
           })
         }.nextOption()
@@ -84,24 +68,14 @@ final class DemandDriven(rc: RecursiveComponent):
         // `d2 N :- d0 X, f L X, len L N`). Its demands are finitely many if every input comes from a
         // finite set, independently of the component's facts.
         lazy val finiteCols = rc.finiteColumns(ctx.measuredAnywhere)
-        def seed(r: Rule, us: List[Term], e: RelSym): Option[TerminationFailure] =
+        def seed(r: Rule, us: List[Term], e: RelSym): Option[Rejection] =
           val finite = rc.finiteSources(r.body, finiteCols)
           us.find(u => !Moding.vars(u).subsetOf(finite)) match
             case None =>
               lines += s"  ${where(r)}: demand `${ObjPrinter.term(r.heads.head)}` from outside the component: its inputs take finitely many values"
               None
             case Some(u) =>
-              Some(TerminationFailure(
-                s"invalid `%terminates` directive for `${e.name}`",
-                u.span,
-                s"the demanded `${ObjPrinter.term(u)}` may take infinitely many values",
-                Some(r),
-                ctx.directive(e),
-                notes = List(
-                  s"this call demands `${e.name}` with values read from relations that depend on the answers of `${e.name}`, so the demands could grow without bound"
-                ),
-                helps = List(s"bind the argument by a relation that does not depend on the answers of `${e.name}`")
-              ))
+              Some(Rejection(TerminationError.InfiniteDemand(e, u, ctx.directive(e)), Some(r)))
         val demands = demandRules.iterator.flatMap { r =>
           val Term.App(RelRef.Sym(dh), us) = r.heads.head: @unchecked
           val e = demandOf(dh).get
@@ -115,7 +89,7 @@ final class DemandDriven(rc: RecursiveComponent):
                   val gOf = dg.kind match
                     case RelKind.Demand(of, _) => of
                     case _ => dg
-                  Some(unmeasuredCall(ctx, r, gOf, g, gOf))
+                  Some(Rejection.unmeasuredCall(ctx, r, gOf, g, gOf))
                 case Some(c) =>
                   val arith = Arithmetic(r.body)
                   val outside = rc.boundOutside(r.body)
@@ -124,7 +98,9 @@ final class DemandDriven(rc: RecursiveComponent):
                   val big = kg.map(ws)
                   compare(ctx.slots, big, small, arith, r.body) match
                     case Left(f) =>
-                      Some(decreaseFailure(ctx, r, c, e, r.heads.head.span, big, small, f, "the call", "the caller"))
+                      val p =
+                        TerminationError.NoDecrease(ctx.measure(e), r.heads.head.span, big, small, f, Roles.CallAndCaller, ctx.directive(e))
+                      Some(Rejection(p, Some(r)))
                     case Right((i, why)) =>
                       val u = small(i)
                       val lower =
@@ -136,7 +112,9 @@ final class DemandDriven(rc: RecursiveComponent):
                         case Some(l) =>
                           lines += s"  ${where(r)}: demand for `${ObjPrinter.term(r.heads.head)}` from `${ObjPrinter.formula(g)}`: $why$l"
                           None
-                        case None => Some(lowerBoundFailure(ctx, r, e, r.heads.head.span, i, u))
+                        case None =>
+                          val p = TerminationError.UnboundedDemand(ctx.measure(e), r.heads.head.span, i, u, ctx.directive(e))
+                          Some(Rejection(p, Some(r)))
             case _ => seed(r, us, e)
         }.nextOption()
         calls.orElse(demands).toLeft(lines.result())

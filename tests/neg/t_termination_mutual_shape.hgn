@@ -2,7 +2,7 @@
 ev : int -> int -> rel.
 od : int -> int -> rel.
 %terminates (N, K) (ev N K).
-%terminates N (od N _).
+%terminates N (od N _). (*~ E0604 *)
 ev 0 0.
 od N K :- ev M K, M < 9, N = M + 1.
 ev N K :- od M K, M < 9, N = M + 1.
