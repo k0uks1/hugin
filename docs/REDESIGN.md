@@ -907,6 +907,16 @@ default branch.
 expansion; primitive directives re-expressed. *Accept*: `%symmetric` (§8.5) as a user directive;
 unknown directives give name errors; incremental tests show local directives keep per-item reuse.
 
+*Status: C2 is done.* `Decl` is the prelude's `decl`: an object constant (or a rule `@r`) with the
+attributes the primitive directives attach (`dconst ⟨r⟩ [ainput]`), not its type; a local directive's
+application has type `decl` (standalone: its argument names the declaration) or `decl -> decl` (prefix
+form). `%input`, `%output`, `%open`, `%derivations` and `%terminates` are prelude functions; their
+attributes are attached by the handover, so local directives are evaluated where the object program is
+built (also in module bodies, over the body's constants). Additive and module-wide directives are top
+level only (E0907 in module bodies); `%mode` and `%infix` keep their own syntax until C3. A directive
+reports errors of its own with `derror`/`ierror` (E1000). Deviations and decisions are in docs/NOTES.md
+("Directives (redesign Phase C2)").
+
 **C3. `%demand` in the prelude; `%mode` alias.** *Accept*: the type checker (§8.1) and `fib` (§8.2) run
 with `%demand`/`%mode` and give the old answers; the generated rules are visible with `--print-after`;
 then `obj/transform/Demand.scala`, relation modes, per-call copies and the data/fact split are deleted;

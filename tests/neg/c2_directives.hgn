@@ -1,0 +1,45 @@
+(* Errors of directives as meta functions: unknown directives are unresolved names (E0101), an
+   application whose type is not a directive's (E1001), a prefix directive that does not have type
+   `decl -> decl` (E1002), or that returns another declaration (E1003), errors a directive reports
+   itself (E1000), arguments of the wrong type (E0901), attributes that do not fit (E0701), and what
+   module bodies do not support (E0907). *)
+node : type.
+a : node.
+edge : node -> node -> rel.
+
+%outptu edge. (*~ E0101 *)
+%frobnicate edge. (*~ E0101 *)
+
+twice : int -> int.
+twice X = X + X.
+%twice 3. (*~ E1001 *)
+%input 3. (*~ E0901 *)
+
+%output edge (*~ E1002 *)
+seen : node -> rel.
+
+redirect : decl -> decl.
+redirect D = output edge.
+%redirect (*~ E1003 *)
+other : node -> rel.
+
+relations_only : decl -> decl.
+relations_only (dconst S As) = dconst S As.
+relations_only D = derror "`%relations_only` applies to relations only".
+%relations_only @r. (*~ E1000 *)
+
+not_yet : (r : ⇑(A -> rel)) -> seq item.
+not_yet R = [ierror "`%not_yet` is not implemented yet"].
+%not_yet seen. (*~ E1000 *)
+
+%input @r. (*~ E0701 *)
+%output a. (*~ E0406 *)
+%terminates n (edge X Y). (*~ E0701 *)
+%terminates n edge. (*~ E0701 *)
+
+copy : sym -> seq item.
+copy R = [($R X Y :- edge X Y)].
+loops = {
+  l : node -> node -> rel.
+  %copy l. (*~ E0907 *)
+}.

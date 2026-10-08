@@ -31,8 +31,6 @@ enum ElabProblem extends Problem:
   case DataAsRelation(name: String, what: String, label: String, at: Span, declared: Span, decl: Option[(Span, String)], local: Boolean)
   case DataFieldAsRelation(shown: String, label: String, at: Span)
   case SingletonVariable(name: String, at: Span)
-  case UnknownDirective(name: String, at: Span)
-  case NotARelation(directive: String, at: Span)
   case BoundOutsideRelation(kind: String, at: Span)
   case NotOpenType(name: String, at: Span, declared: Span)
   case EdgeTarget(at: Span)
@@ -105,7 +103,6 @@ enum ElabProblem extends Problem:
     case _: DuplicateLabel | _: DuplicateField => Code.E0307
     case _: DataAsRelation | _: DataFieldAsRelation => Code.E0406
     case _: SingletonVariable => Code.W0002
-    case _: UnknownDirective | _: NotARelation => Code.E0701
     case _: BoundOutsideRelation => Code.E0605
     case _: NotOpenType | _: EdgeTarget | _: RefinementOfNonType => Code.E0404
     case _: StructFieldFact | _: StructRequirement => Code.E0004
@@ -146,8 +143,6 @@ enum ElabProblem extends Problem:
     case DataAsRelation(_, _, _, s, _, _, _) => s
     case SingletonVariable(_, s) => s
     case DataFieldAsRelation(_, _, s) => s
-    case UnknownDirective(_, s) => s
-    case NotARelation(_, s) => s
     case BoundOutsideRelation(_, s) => s
     case NotOpenType(_, s, _) => s
     case EdgeTarget(s) => s
@@ -196,8 +191,6 @@ enum ElabProblem extends Problem:
     case DataAsRelation(n, w, _, _, _, _, _) => msg"${Lit(w)} ${Src(n)} used as a relation"
     case SingletonVariable(n, _) => msg"variable ${Src(n)} occurs only once in this rule"
     case DataFieldAsRelation(n, _, _) => msg"data constructor ${Src(n)} used as a relation"
-    case UnknownDirective(n, _) => msg"unknown directive ${Src("%" + n)}"
-    case NotARelation(d, _) => msg"${Src(d)} expects a relation"
     case BoundOutsideRelation(k, _) => msg"${Src(k)} column type outside a relation declaration"
     case NotOpenType(n, _, _) => msg"${Src(n)} is not an open type"
     case _: EdgeTarget => msg"the target of a subtyping edge must be an open type"
@@ -266,7 +259,6 @@ enum ElabProblem extends Problem:
     case IncompleteFieldParameter(_, p, l, _, _, _) => msg"${Src(s"$p.$l")} may be bound to an incomplete relation"
     case IncompleteRelationParameter(_, p, _, _) => msg"${Src(p)} may be bound to an incomplete relation"
     case FormulaOutputsUnbound(_, m, _, _) => msg"mode ${Lit(m)}"
-    case _: NotARelation => msg"not a relation"
     case _: BoundOutsideRelation => msg"a bound column is only allowed as the last column of a relation declaration"
     case _: NotOpenType => msg"edge target must be open"
     case _: RefinementOfNonType => msg"`<:` after a type that is not `type`"

@@ -16,6 +16,8 @@ final case class ReflectiveGlobals(
     formula: Int,
     rule: Int,
     item: Int,
+    decl: Int,
+    measure: Int,
     index: Int,
     openF: Int,
     openT: Int,
@@ -26,6 +28,10 @@ final case class ReflectiveGlobals(
 /** What a reflective type is: the kinds of object syntax as data. */
 enum RKind:
   case Sym, Term, Formula, Rule, Item
+
+  /** A declaration with its attributes (what local directives change, REDESIGN §7.1) and the measure
+   *  of `%terminates`. */
+  case Decl, Measure
   case List(elem: RKind)
 
 /** The reflective embedding (REDESIGN §6.8): the prelude's types `term`, `formula`, `rule`, `item` (and
@@ -45,6 +51,16 @@ trait Reflective:
     "formula",
     "rule",
     "item",
+    "inamed",
+    "ierror",
+    "decl",
+    "attr",
+    "dconst",
+    "drule",
+    "derror",
+    "measure",
+    "mvars",
+    "mlabels",
     "index",
     "openF",
     "openT",
@@ -102,6 +118,8 @@ trait Reflective:
           found("formula"),
           found("rule"),
           found("item"),
+          found("decl"),
+          found("measure"),
           found("index"),
           found("openF"),
           found("openT"),
@@ -122,6 +140,8 @@ trait Reflective:
       case Val.Rigid(Head.Glob(id), Nil) if id == r.formula => Some(RKind.Formula)
       case Val.Rigid(Head.Glob(id), Nil) if id == r.rule => Some(RKind.Rule)
       case Val.Rigid(Head.Glob(id), Nil) if id == r.item => Some(RKind.Item)
+      case Val.Rigid(Head.Glob(id), Nil) if id == r.decl => Some(RKind.Decl)
+      case Val.Rigid(Head.Glob(id), Nil) if id == r.measure => Some(RKind.Measure)
       case Val.Rigid(Head.Glob(id), List(Elim.EApp(a, _))) if id == r.list => reflectiveKind(a).map(RKind.List(_))
       case _ => None
   }
@@ -144,6 +164,8 @@ trait Reflective:
       case RKind.Formula => Tm.Global(r.formula)
       case RKind.Rule => Tm.Global(r.rule)
       case RKind.Item => Tm.Global(r.item)
+      case RKind.Decl => Tm.Global(r.decl)
+      case RKind.Measure => Tm.Global(r.measure)
       case RKind.List(e) => Tm.App(Tm.Global(r.list), kindType(e), Icit.Expl)
 
   // ---------------------------------------------------------------- data

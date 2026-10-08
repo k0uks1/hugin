@@ -209,7 +209,7 @@ final class DemandPhase extends ObjProgramPhase:
       copy.instanceOf = c.instanceOf
       copies += copy
       ctx.unit.facts = ctx.unit.facts.updated(copy)(_ =>
-        ctx.unit.facts(c).copy(input = false, output = false, derivations = false, nameHint = None)
+        ctx.unit.facts(c).copy(input = false, output = false, derivations = false)
       )
       renaming.put(atom, copy)
       for r <- rules if Termination.headRel(r).contains(c) do

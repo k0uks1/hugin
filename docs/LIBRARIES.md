@@ -90,7 +90,9 @@ another name for the same base type. Base types are printed by their builtin nam
 | `pair A B` | a struct family with labels `fst`, `snd` |
 | `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
 | `seq A`, `snil`, `scons`, `sappend` | meta lists, written `[]`, `[a, b]` and `x :: xs` |
-| `sym`, `term`, `formula`, `rule`, `item`, `module` | reflection (docs/REDESIGN.md §6.8): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
+| `sym`, `term`, `formula`, `rule`, `item`, `module` | reflection (docs/REDESIGN.md §6.8): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, `inamed`, `ierror`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
+| `decl`, `attr`, `measure`, `attach` | declarations as data, with the attributes the primitive directives attach (docs/REDESIGN.md §7; docs/NOTES.md, "Directives") |
+| `input`, `output`, `open`, `derivations`, `terminates` | the primitive directives (`%input r.`, …): meta functions returning a `decl` |
 
 ## Diagnostics
 

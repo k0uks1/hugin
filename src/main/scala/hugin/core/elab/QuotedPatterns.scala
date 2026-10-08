@@ -51,6 +51,8 @@ trait QuotedPatterns:
       case Q.Wild(sp) => Pat.PCon(r.ctor("twild"), Nil, sp)
       case Q.QLit(l, sp) => Pat.PAtom(Tm.Lit(l, Stage.S1), sp)
       case Q.SymC(id, sp) => Pat.PAtom(Tm.Quote(Tm.Global(id)), sp)
+      case Q.SymTm(_, sp) => fail(ReflectionProblem.Unsupported("a relation given by meta code", "a pattern", sp))
+      case Q.Raw(_, sp) => fail(ReflectionProblem.Unsupported("this syntax", "a pattern", sp))
 
   /** `$F[V̄]`: a variable for the formula under the aggregates' binders, and `F = [w̄] openF i₁ w₁ (…)` (`openT` for a term). */
   private def higherOrder(f: Tree, args: List[Q], k: RKind, span: Span): Pat =
@@ -83,3 +85,5 @@ trait QuotedPatterns:
     case Q.Wild(s) => s
     case Q.QLit(_, s) => s
     case Q.SymC(_, s) => s
+    case Q.SymTm(_, s) => s
+    case Q.Raw(_, s) => s

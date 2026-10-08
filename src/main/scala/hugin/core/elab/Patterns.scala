@@ -45,7 +45,7 @@ trait Patterns:
    *  `List`. */
   def pattern(t: Tree, expected: Option[Val] = None): Pat =
     expected.flatMap(reflectiveKind) match
-      case Some(k) if quotedSyntax(t, k) => quotedPattern(t, k)
+      case Some(k) if k != RKind.Decl && k != RKind.Measure && quotedSyntax(t, k) => quotedPattern(t, k)
       case _ => plainPattern(t, expected)
 
   private def plainPattern(t: Tree, expected: Option[Val]): Pat = t match

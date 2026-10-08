@@ -28,20 +28,19 @@ enum CoreItem:
   /** `τ <: a.`: closed object types. */
   case EdgeItem(sub: Tm, sup: Tm, span: Span)
 
-  /** A directive about the relation `target` (closed object code), or `%derivations @r` (no target). */
+  /** `%mode` about the relation `target` (closed object code), or a formula function (until C3). */
   case DirectiveItem(directive: CoreDirective, target: Option[Tm], span: Span)
 
-/** The directives of the object level (REDESIGN §7.2); they become `obj.Directive`s. */
-enum CoreDirective:
-  case Input, Output, Open, Derivations
-  case DerivationsRule(rule: Name)
-  case Mode(inputs: List[(Boolean, Option[Name], Span)])
-  case TerminatesLabel(labels: List[Name])
+  /** What a local directive returned (REDESIGN §7.1): meta code of type `decl` (closed at the top level,
+   *  over the environment of a module body in one), whose attributes the handover attaches to the object
+   *  constant or rule it describes ([[handover.DeclData]]). `attached` is the symbol of the declaration
+   *  a prefix directive is attached to, which the result must describe. */
+  case DeclItem(decl: Tm, span: Span, attached: Option[Tm] = None)
 
-  /** `%terminates X̄ (r t̄)`: the measure variables and the call pattern, whose variables `vars` bind in
-   *  `args`. */
-  case TerminatesVar(measure: List[Name], vars: List[(Name, Tm)], args: List[Tm])
-  case NameHint(variable: Name)
+/** `%mode` (REDESIGN C3 replaces it with `%demand`); the other primitive directives are attributes of
+ *  declarations ([[CoreItem.DeclItem]]). */
+enum CoreDirective:
+  case Mode(inputs: List[(Boolean, Option[Name], Span)])
 
   /** `%mode f m̄` on a formula function `f`: its body must be well-moded for the mode
    *  ([[handover.FormulaModes]]). */
@@ -56,10 +55,10 @@ object CoreItem:
     case e: EdgeItem => e.copy(sub = f(e.sub), sup = f(e.sup))
     case d: DirectiveItem =>
       val directive = d.directive match
-        case CoreDirective.TerminatesVar(ms, vars, args) => CoreDirective.TerminatesVar(ms, vars.map((x, t) => (x, f(t))), args.map(f))
         case CoreDirective.FormulaMode(fn, ins) => CoreDirective.FormulaMode(g(fn), ins)
         case other => other
       d.copy(directive = directive, target = d.target.map(f))
+    case d: DeclItem => d.copy(decl = f(d.decl), attached = d.attached.map(f))
 
   /** The terms of an item. */
   def terms(item: CoreItem): List[Tm] = item match
@@ -67,8 +66,5 @@ object CoreItem:
     case r: RuleItem => r.vars.map(_._2) ++ r.heads ++ r.body.toList
     case q: QueryItem => q.vars.map(_._2) :+ q.body
     case e: EdgeItem => List(e.sub, e.sup)
-    case d: DirectiveItem =>
-      (d.directive match
-        case CoreDirective.TerminatesVar(_, vars, args) => vars.map(_._2) ++ args
-        case _ => Nil
-      ) ++ d.target.toList
+    case d: DirectiveItem => d.target.toList
+    case d: DeclItem => d.decl :: d.attached.toList

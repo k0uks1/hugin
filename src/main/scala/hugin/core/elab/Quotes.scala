@@ -21,6 +21,13 @@ enum Q:
   case QLit(l: Literal, span: Span)
   case SymC(id: Int, span: Span)
 
+  /** A symbol given by meta code of a relation type (a functor's parameter, a module body's member, a
+   *  clause's variable `R : ⇑(A -> rel)`): only in expressions. */
+  case SymTm(tm: Tm, span: Span)
+
+  /** Data built directly (a declaration's empty attributes, a measure): only in expressions. */
+  case Raw(tm: Tm, span: Span)
+
 /** Reification (REDESIGN §6.8–6.9): object syntax written where a reflective type is expected denotes
  *  data, with `$x` holes for meta values of reflective types and `$..xs` for sequences. Names of object
  *  constants resolve to their symbols. A plain uppercase variable is an object variable (in a pattern:
@@ -41,7 +48,9 @@ trait Quotes:
     case (_: SpliceSeq, _) => true
     case (_, RKind.List(_)) => false
     case (_: SpliceE | _: SpliceHO, _) => true
-    case (_, RKind.Sym) => objectConstant(c, t).isDefined
+    case (_: RuleRef, RKind.Decl) => true
+    case (_, RKind.Decl | RKind.Sym) => symbolOf(c, t).isDefined
+    case (_, RKind.Measure) => measureSyntax(c, t)
     case (_: RuleQuote, RKind.Rule | RKind.Item) => true
     case (_: Conj | _: Disj | _: Not | _: Agg, RKind.Formula | RKind.Rule | RKind.Item) => true
     case (Infix(op, _, _), RKind.Formula | RKind.Rule | RKind.Item) => quotedCmp.contains(op)
@@ -50,7 +59,7 @@ trait Quotes:
     case _ =>
       TreeOps.flattenApp(t) match
         case (SpliceE(_), args) => args.nonEmpty
-        case (h, _) => objectConstant(c, h).isDefined
+        case (h, _) => symbolOf(c, h).isDefined
 
   /** The object constant (relation, constructor, type, or family of them) a head denotes. */
   def objectConstant(c: Cxt, h: Tree): Option[Int] = h match
@@ -61,6 +70,38 @@ trait Quotes:
       try undoOnFailure(constantOf(ev(c, infer(c, s)._1)))
       catch case _: ElabError => None
     case _ => None
+
+  /** The symbol a head denotes: an object constant, or meta code of a relation (or fact constructor)
+   *  type in `c`. */
+  def symbolOf(c: Cxt, h: Tree): Option[Q] =
+    objectConstant(c, h).map(Q.SymC(_, h.span)).orElse(symbolCode(c, h).map(Q.SymTm(_, h.span)))
+
+  private def symbolCode(c: Cxt, h: Tree): Option[Tm] = h match
+    case Parens(i) => symbolCode(c, i)
+    case Ident(n) if c.scope.contains(n) => symbolTyped(c, h)
+    case VarRef(n) if c.scope.contains(n) => symbolTyped(c, h)
+    case s: Select if hugin.syntax.TreeOps.headName(s).exists(n => c.scope.contains(n.name)) => symbolTyped(c, h)
+    case _ => None
+
+  private def symbolTyped(c: Cxt, h: Tree): Option[Tm] =
+    try
+      undoOnFailure {
+        val (tm, ty, st) = infer(c, h)
+        force(ty) match
+          case Val.Lift(x) if st == Stage.S1 && isFactConstantType(x) => Some(tm)
+          case _ => None
+      }
+    catch case _: ElabError => None
+
+  /** Whether `t` is a measure as written in `%terminates`: a variable, a label, or a parenthesised tuple
+   *  of them (not meta code of type `measure`). */
+  private def measureSyntax(c: Cxt, t: Tree): Boolean = t match
+    case Parens(i) => measureSyntax(c, i)
+    case Conj(a, b) => measureSyntax(c, a) && measureSyntax(c, b)
+    case VarRef(n) => !c.scope.contains(n)
+    case Ident(n) =>
+      !c.scope.contains(n) && !lookupGlobal(n).exists(id => reflectiveKind(globals(id).ty).contains(RKind.Measure))
+    case _ => false
 
   private def isObjectConstant(id: Int): Boolean =
     globals(id).stage == Stage.S0 || globals(id).kind.isInstanceOf[GlobalKind.Family]
@@ -120,7 +161,28 @@ trait Quotes:
         Q.Con("tarith", List(Q.Con(arithCtor(quotedArith(op)), Nil, false, sp), q(l, k), q(r, k)), true, sp)
       case (RKind.Term, _) => application(c, t, "tapp", bound)
       case (RKind.Sym, _) => symbol(c, t, "a reference to an object constant")
+      case (RKind.Decl, RuleRef(n)) => Q.Con("drule", List(Q.QLit(Literal.StrL(n), sp), noAttributes(sp)), true, sp)
+      case (RKind.Decl, _) => Q.Con("dconst", List(symbol(c, t, "a declaration"), noAttributes(sp)), true, sp)
+      case (RKind.Measure, _) => measure(t)
       case (RKind.List(e), _) => fail(ReflectionProblem.NotObjectSyntax(kindName(k), sp))
+
+  private def noAttributes(sp: Span): Q =
+    val r = reflective(sp)
+    Q.Raw(Tm.App(Tm.Global(r.snil), Tm.Global(r.ctor("attr")), Icit.Impl), sp)
+
+  /** `X`, `(X, Y)`: `mvars`; `l`, `(l, m)`: `mlabels`. */
+  private def measure(t: Tree): Q =
+    def parts(t: Tree): List[Tree] = t match
+      case Parens(i) => parts(i)
+      case Conj(a, b) => parts(a) ++ parts(b)
+      case other => List(other)
+    val ps = parts(t)
+    val ctor =
+      if ps.forall(_.isInstanceOf[VarRef]) then "mvars"
+      else if ps.forall(_.isInstanceOf[Ident]) then "mlabels"
+      else fail(ReflectionProblem.NotObjectSyntax("a measure (variables or labels)", t.span))
+    val names = ps.map(p => Left(Tm.Lit(Literal.StrL(nameOf(p)), Stage.S1)))
+    Q.Raw(con(ctor, listData(Tm.Base(hugin.obj.BaseType.StringT, Stage.S1), names)), t.span)
 
   private def varName(t: Tree): Option[Name] = t match
     case VarRef(n) => Some(n)
@@ -140,14 +202,15 @@ trait Quotes:
     Q.Con(ctor, List(sym, sequence(c, args, RKind.Term, bound, t.span)), true, t.span)
 
   private def symbol(c: Cxt, h: Tree, what: String): Q =
-    objectConstant(c, h) match
-      case Some(id) =>
+    symbolOf(c, h) match
+      case Some(q @ Q.SymC(id, _)) =>
         h match
           case Ident(_) =>
             state.used += id
             recordUse(h.span, id)
           case _ =>
-        Q.SymC(id, h.span)
+        q
+      case Some(q) => q
       case None => fail(ReflectionProblem.NotObjectSyntax(what, h.span))
 
   private def unsupportedForm(t: Tree): Option[String] = t match
@@ -169,7 +232,7 @@ trait Quotes:
       span
     )
 
-  private def conjuncts(t: Tree): List[Tree] = t match
+  def conjuncts(t: Tree): List[Tree] = t match
     case Conj(a, b) => conjuncts(a) ++ conjuncts(b)
     case Parens(i @ Conj(_, _)) => conjuncts(i)
     case other => List(other)
@@ -180,6 +243,8 @@ trait Quotes:
     case RKind.Formula => "a formula"
     case RKind.Rule => "a rule"
     case RKind.Item => "an item"
+    case RKind.Decl => "a declaration"
+    case RKind.Measure => "a measure"
     case RKind.List(e) => s"a list of ${kindName(e).dropWhile(_ != ' ').drop(1)}s"
 
   // ---------------------------------------------------------------- expressions
@@ -209,7 +274,9 @@ trait Quotes:
     case Q.Bound(i, sp) => Tm.loc(sp, con("tbound", indexData(i)))
     case Q.Wild(sp) => Tm.loc(sp, con("twild"))
     case Q.QLit(l, _) => Tm.Lit(l, Stage.S1)
-    case Q.SymC(id, _) => Tm.Quote(Tm.Global(id))
+    case Q.SymC(id, sp) => Tm.loc(sp, Tm.Quote(Tm.Global(id)))
+    case Q.SymTm(tm, sp) => Tm.loc(sp, tm)
+    case Q.Raw(tm, _) => tm
 
   // ---------------------------------------------------------------- meta lists
 

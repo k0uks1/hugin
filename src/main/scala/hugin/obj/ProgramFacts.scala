@@ -11,8 +11,7 @@ final case class RelDirectives(
     output: Boolean = false,
     /** `%terminates`: the measured argument positions (lexicographic if several) and the directive. */
     terminates: Option[(List[Int], Span)] = None,
-    derivations: Boolean = false,
-    nameHint: Option[String] = None
+    derivations: Boolean = false
 ):
   def hasModes: Boolean = modes.nonEmpty
 

@@ -69,7 +69,12 @@ trait Tooling:
     val description = g.kind match
       case GlobalKind.Definition(tm, v) if force(v).isInstanceOf[Val.RecTy] => s"signature ${sym.name} = ${showPlain(Nil, tm)}"
       case _ => describe(sym, item, isFact(g.kind), showPlain(Nil, g.tyTm))
-    declared(sym, description, g.ty)
+    // constructors of reflective data (`irule`, `dconst`) are directives by their types, but not meant as such
+    (if g.kind.isInstanceOf[GlobalKind.Constructor] then None else directiveFootprint(g.ty)) match
+      case Some(fp) =>
+        index.directive(sym)
+        declared(sym, s"$description\n(directive, $fp)", g.ty)
+      case None => declared(sym, description, g.ty)
 
   private def declared(sym: Sym, description: String, ty: Val): Unit =
     index.declare(sym)

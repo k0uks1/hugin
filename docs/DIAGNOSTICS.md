@@ -1030,7 +1030,10 @@ and Elm's tone. This section is normative for new diagnostics.
 * **Q3 User-defined diagnostics from directives (C2).** A user directive must be able to reject its
   input. That needs a prelude-level `Diagnostic` type (`error : Span -> String -> Diag`) whose diagnostics
   render through the same pipeline under a code for user diagnostics. *Recommendation*: decide when C2 is
-  designed, and reserve the `U` prefix now.
+  designed, and reserve the `U` prefix now. *Decided in C2:* a directive returns `derror "message"` (a
+  `decl`) or an item `ierror "message"`; the message is reported at the directive under E1000. Codes of
+  the user's choice (and spans other than the directive's) are left for later; the block E1000–E1099
+  is that of directives (E1001–E1003 are the machinery's).
 * **Q4 Explanations site.** `codeDescription` links to GitHub until there is a docs site.
   *Recommendation*: make the base URL a setting.
 

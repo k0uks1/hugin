@@ -39,7 +39,6 @@ enum SyntaxError extends Problem:
   case UnmatchedBrace(at: Span)
   case UnclosedModuleBody(open: Span)
   case UnknownAssociativity(name: String, at: Span)
-  case UnknownDirective(name: String, at: Span)
   case RestInUpdate(at: Span)
   case ExpectedUpdateFields(at: Span)
   case MalformedDeclarationHead(at: Span)
@@ -73,7 +72,6 @@ enum SyntaxError extends Problem:
     case UnmatchedBrace(s) => s
     case UnclosedModuleBody(s) => s
     case UnknownAssociativity(_, s) => s
-    case UnknownDirective(_, s) => s
     case RestInUpdate(s) => s
     case ExpectedUpdateFields(s) => s
     case MalformedDeclarationHead(s) => s
@@ -97,7 +95,6 @@ enum SyntaxError extends Problem:
     case _: UnmatchedBrace => msg"unmatched `}`"
     case _: UnclosedModuleBody => msg"unclosed module body"
     case UnknownAssociativity(a, _) => msg"unknown associativity ${Src(a)}"
-    case UnknownDirective(d, _) => msg"unknown directive ${Src("%" + d)}"
     case _: RestInUpdate => msg"`..` is not allowed in an update"
     case _: ExpectedUpdateFields => msg"expected fields `{ l = t, ... }` after `with`"
     case _: MalformedDeclarationHead => msg"malformed declaration head"
@@ -119,7 +116,6 @@ enum SyntaxError extends Problem:
     case _: UnmatchedBrace => msg"no module body to close"
     case _: UnclosedModuleBody => msg"this `{` is never closed"
     case _: UnknownAssociativity => msg"expected `left`, `right` or `none`"
-    case _: UnknownDirective => msg"unknown directive"
     case _: MalformedDeclarationHead => msg"expected a lowercase name"
     case _: MalformedParameter => msg"expected `X` or `(name : type)`"
     case _: CompleteOutsideSignature => msg"not allowed here"
@@ -134,8 +130,6 @@ enum SyntaxError extends Problem:
   override def notes: List[Msg] = this match
     case _: MalformedDeclarationHead =>
       List(msg"declarations have the form `name param* : type.` and definitions `name param* = expr.`")
-    case _: UnknownDirective =>
-      List(msg"directives are %mode %terminates %open %derivations %input %output %infix %name %abbrev %fact")
     case _: RemovedPartial => List(msg"every accepted program terminates; there are no round budgets")
     case _ => Nil
 

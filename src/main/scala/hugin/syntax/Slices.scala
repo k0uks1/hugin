@@ -34,16 +34,26 @@ object Slices:
   def items(file: SourceFile, program: Program, slice: Key => Parsed): List[Trees.Item] =
     lazy val infix = Parser.infixOperators(file)
     val seen = mutable.HashMap.empty[String, Int]
-    program.items.map { item =>
+    val all = program.items.toVector
+    all.indices.toList.map { i =>
+      val item = all(i)
       val sp = item.span
-      if !sp.exists || (sp.origin ne file) || sp.end > file.content.length then item
+      // a directive attached to the declaration after it is parsed with it (it ends without a period)
+      val attached = item match
+        case Trees.Directive(_, Trees.DirArgs.Apply(_, Some(_))) => i + 1 < all.length
+        case _ => false
+      val end = if attached then all(i + 1).span.end else sp.end
+      if !sp.exists || (sp.origin ne file) || end > file.content.length then item
       else
-        val text = file.content.substring(sp.start, sp.end)
+        val text = file.content.substring(sp.start, end)
         val occurrence = seen.getOrElse(text, 0)
         seen(text) = occurrence + 1
         val parsed = slice(Key(file.path, text, infix, occurrence))
         parsed.items match
-          case Some(List(one)) =>
+          case Some(List(one)) if !attached =>
+            parsed.source.place(file, sp.start)
+            if congruent(item, one) then one else item
+          case Some(List(one, _)) if attached =>
             parsed.source.place(file, sp.start)
             if congruent(item, one) then one else item
           case _ => item

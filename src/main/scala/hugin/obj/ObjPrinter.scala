@@ -75,7 +75,6 @@ object ObjPrinter:
       case DirKind.Input => s"%input $tgt."
       case DirKind.Output => s"%output $tgt."
       case DirKind.Derivations => s"%derivations $tgt."
-      case DirKind.NameHint(v) => s"%name $tgt $v."
 
   def program(p: ObjProgram): String =
     val sb = new StringBuilder

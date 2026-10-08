@@ -182,6 +182,53 @@ class ItemQueriesSuite extends munit.FunSuite:
     assertEquals(signatures, 0)
   }
 
+  private val directives =
+    """node : type.
+      |a : node. b : node. c : node.
+      |edge : node -> node -> rel.
+      |path : node -> node -> rel.
+      |edge a b.
+      |path X Y :- edge X Y.
+      |path X Z :- path X Y, edge Y Z.
+      |%output path.
+      |io : decl -> decl.
+      |io D = input (output D).
+      |%io edge.
+      |""".stripMargin
+
+  private val mirror =
+    """mirror : module -> module.
+      |mirror [] = [].
+      |mirror ((edge $X $Y :- $..B) :: Rest) = (edge $X $Y :- $..B) :: (edge $Y $X :- $..B) :: mirror Rest.
+      |mirror (I :: Rest) = I :: mirror Rest.
+      |%mirror.
+      |""".stripMargin
+
+  test("a local directive is an item of its own: editing a rule or the directive elaborates only that item") {
+    given db: Database = setup(directives)
+    assert(!compile.hasErrors, compile.diagnostics)
+    edit("path X Y :- edge X Y.", "path Y X :- edge Y X.")
+    assertEquals(elaborated, 1)
+    assertEquals(signatures, 0)
+    edit("%output path.", "%input path.")
+    assertEquals(elaborated, 1)
+    assertEquals(signatures, 0)
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
+  }
+
+  test("a module-wide directive: the module's rules depend on its expansion") {
+    given db: Database = setup(directives + mirror)
+    assert(!compile.hasErrors, compile.diagnostics)
+    // the items are still elaborated one by one, but every rule is the expansion's, which an edit redoes
+    edit("edge a b.", "edge a c.")
+    assertEquals(elaborated, 1)
+    assertEquals(signatures, 0)
+    val lowered = compile.printed.mkString("\n")
+    assert(lowered.contains("edge c a"), lowered)
+    assert(!lowered.contains("edge b a"), lowered)
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
+  }
+
   // ------------------------------------------------------------------------- random edits of golden programs
 
   /** What a client observes: diagnostics, the printed lowered program, and at some names hover, the

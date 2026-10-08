@@ -1,7 +1,7 @@
-(* %infix operators (resolved into applications) and %abbrev type definitions *)
+(* %infix operators (resolved into applications) and a type definition with parameters *)
 %infix left 6 plus.
 %infix none 5 likes.
-%abbrev const A B : type = A.
+const A B : type = A.
 person : type. ann : person. bob : person.
 likes : person -> person -> rel.
 ann likes bob.

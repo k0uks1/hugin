@@ -3,5 +3,5 @@ a : type = b.
 b : type = a.
 pair A B : type = { fst : A, snd : B }.
 first A B : type = A.
-%abbrev second A B : type = B.
+second A B : type = B.
 ok : second string int -> rel.

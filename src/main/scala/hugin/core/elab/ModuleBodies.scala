@@ -34,6 +34,8 @@ trait ModuleBodies:
   private def reportingErrors[A](a: => A): Option[A] =
     try Some(a)
     catch
+      // a name the file declares later (a directive, a function): the definition is retried after it
+      case e: ElabError if e.unresolved.exists(n => state.declaredHere(n) && lookupGlobal(n).isEmpty) => throw e
       case e: ElabError =>
         report(e)
         None
@@ -108,6 +110,6 @@ trait ModuleBodies:
     case r: Rule if isSpliceItem(r) => unsupportedAt(r.span, "reflected items (`$e.`) in module bodies")
     case r: Rule => List(ruleItem(c, r))
     case q: Query => List(queryItem(c, q))
-    case d: Directive => directiveItem(c, d).toList
+    case d: Directive => directiveItems(c, d, inBody = true)
     case e: SubEdge => List(edgeItem(c, e))
     case other => unsupportedAt(other.span, "this item in a module body")

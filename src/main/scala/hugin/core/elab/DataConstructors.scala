@@ -58,11 +58,15 @@ trait DataConstructors:
     fail(ElabProblem.DataFieldAsRelation(shown, label, span))
 
   /** E0406 for the data constructor `id` used as a relation at `span`. */
-  def dataUsedAsRelation(id: Int, span: Span, label: String): Nothing =
-    val g = globals(id)
+  def dataUsedAsRelation(id: Int, span: Span, label: String): Nothing = fail(DataConstructors.asRelation(core, id, span, label))
+
+object DataConstructors:
+  /** E0406: the data constructor or data struct `id` used as a relation at `span`. */
+  def asRelation(core: Core, id: Int, span: Span, label: String): ElabProblem =
+    val g = core.globals(id)
     val what = g.kind match
       case GlobalKind.Object(ObjDecl.Struct(_)) => "data struct"
       case _ => "data constructor"
     val decl = Option.when(g.declSpan.exists)((g.declSpan, g.declSpan.text))
     val local = g.declSpan.exists && g.declSpan.source.path == span.source.path
-    fail(ElabProblem.DataAsRelation(g.name, what, label, span, g.span, decl, local))
+    ElabProblem.DataAsRelation(g.name, what, label, span, g.span, decl, local)

@@ -14,6 +14,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
 
   private val staging = Staging(core, reporter)
   private val symbols = ObjectSymbols(core, reporter, index)
+  private val declData = DeclData(core, symbols, reporter)
 
   def program(items: List[CoreItem]): ObjProgram =
     val ordered = items.sortBy(staging.position)
@@ -36,7 +37,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
       all.collect { case e: obj.Edge => e }.toVector,
       (all.collect { case r: obj.Rule => r } ++ instantiated).toVector,
       all.collect { case q: obj.Query => q }.toVector,
-      (all.collect { case d: obj.Directive => d } ++ genericDirs.flatMap(instanceDirectives)).toVector
+      (all.collect { case d: obj.Directive => d } ++ genericDirs.flatMap(instanceDirectives) ++ declData.familyDirectives()).toVector
     )
 
   /** The instances of families, for tooling (hover over a family's declaration). */
@@ -67,12 +68,13 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
 
   /** An item staged in the environment `base` (of a module instance, or empty), rule names qualified with
    *  `prefix`. */
-  private def stage(item: CoreItem, base: List[Val], prefix: String, origin: Origin): Option[Staged] = item match
-    case r: CoreItem.RuleItem => rule(r, base, prefix, origin)
-    case q: CoreItem.QueryItem => query(q, base, origin)
-    case e: CoreItem.EdgeItem => edge(e, base, origin)
-    case d: CoreItem.DirectiveItem => directive(d, base, prefix, origin)
-    case _: CoreItem.GlobalItem => None
+  private def stage(item: CoreItem, base: List[Val], prefix: String, origin: Origin): List[Staged] = item match
+    case r: CoreItem.RuleItem => rule(r, base, prefix, origin).toList
+    case q: CoreItem.QueryItem => query(q, base, origin).toList
+    case e: CoreItem.EdgeItem => edge(e, base, origin).toList
+    case d: CoreItem.DirectiveItem => directive(d, base, origin).toList
+    case d: CoreItem.DeclItem => declData.directives(d, base, prefix, origin)
+    case _: CoreItem.GlobalItem => Nil
 
   /** The items of all module instances with their positions (staging may create further instances). */
   private def moduleItems(): List[(Int, Staged)] =
@@ -84,7 +86,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
       k += 1
     out.toList
 
-  /** A directive about a family (`%mode len +l -n.`) applies to each of its instances. */
+  /** `%mode` about a family (`%mode len +l -n.`) applies to each of its instances. */
   private def isGeneric(d: CoreItem.DirectiveItem): Boolean = d.target.exists(t => familyOf(t).isDefined)
 
   private def familyOf(t: Tm): Option[Int] = Tm.unloc(t) match
@@ -145,28 +147,12 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
         symbols.typeSym(id).map(sup => obj.Edge(symbols.otype(nf(base, e.sub), e.span), sup)(e.span, origin))
       case _ => None
 
-  private def directive(
-      d: CoreItem.DirectiveItem,
-      base: List[Val] = Nil,
-      prefix: String = "",
-      origin: Origin = Origin.Source
-  ): Option[obj.Directive] =
-    val target = d.target.flatMap(t => staged(Nil, List(t), d.span, base)((terms, normal) => terms.term(normal.head)))
-    val rel = target.collect { case obj.Term.App(r, Nil) => r }
-    def withTarget(k: DirKind) = rel.map(r => obj.Directive(k, Some(r), None)(d.span, origin))
+  /** `%mode` (until C3). */
+  private def directive(d: CoreItem.DirectiveItem, base: List[Val] = Nil, origin: Origin = Origin.Source): Option[obj.Directive] =
     d.directive match
-      case CoreDirective.Input => withTarget(DirKind.Input)
-      case CoreDirective.Output => withTarget(DirKind.Output)
-      case CoreDirective.Open => withTarget(DirKind.Open)
-      case CoreDirective.Derivations => withTarget(DirKind.Derivations)
-      case CoreDirective.DerivationsRule(rn) =>
-        Some(obj.Directive(DirKind.Derivations, None, Some(qualify(prefix, rn)))(d.span, origin))
-      case CoreDirective.Mode(inputs) => withTarget(DirKind.ModeD(ModeSpec(inputs)))
-      case CoreDirective.TerminatesLabel(ls) => withTarget(DirKind.TerminatesLabel(ls))
-      case CoreDirective.NameHint(v) => withTarget(DirKind.NameHint(v))
+      case CoreDirective.Mode(inputs) =>
+        val target = d.target.flatMap(t => staged(Nil, List(t), d.span, base)((terms, normal) => terms.term(normal.head)))
+        target.collect { case obj.Term.App(r, Nil) => obj.Directive(DirKind.ModeD(ModeSpec(inputs)), Some(r), None)(d.span, origin) }
       case CoreDirective.FormulaMode(f, inputs) =>
         FormulaModes(core, symbols, reporter).check(f, inputs, d.span)
         None
-      case CoreDirective.TerminatesVar(vs, vars, args) =>
-        staged(vars, args, d.span, base)((terms, normal) => normal.map(terms.term(_)))
-          .flatMap(ts => withTarget(DirKind.TerminatesVar(vs, ts)))

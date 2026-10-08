@@ -117,7 +117,6 @@ enum DirKind:
   case TerminatesLabel(labels: List[String])
   case Open, Input, Output
   case Derivations
-  case NameHint(v: String)
 
 /** An object directive. `target` is the relation; for `%derivations @r` the rule name is in `rule`. */
 final case class Directive(kind: DirKind, target: Option[RelRef], rule: Option[String])(val span: Span, val origin: Origin)

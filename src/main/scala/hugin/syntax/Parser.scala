@@ -20,7 +20,8 @@ final class Parser(
     reporter: Reporter,
     infix: Option[Map[String, (Parser.Assoc, Int)]] = None
 ) extends QuoteSyntax
-    with RecordSyntax:
+    with RecordSyntax
+    with DirectiveSyntax:
   import Parser.*
 
   private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
@@ -52,7 +53,13 @@ final class Parser(
 
   final class ParseError extends Exception(null, null, false, false)
 
-  private def fail(p: SyntaxError): Nothing =
+  protected def report(e: SyntaxError): Unit = reporter.report(e)
+  protected def expectPeriod(what: String): Unit = expect(Tok.Period, what)
+  protected def position: Int = i
+  protected def tokenAt(k: Int): Token = toks(k.min(toks.length - 1))
+  protected def parseAttached(): Item = parseItem()
+
+  protected def fail(p: SyntaxError): Nothing =
     if kind == Tok.Error then throw new ParseError // already reported by the lexer
     reporter.report(p)
     throw new ParseError
@@ -116,13 +123,15 @@ final class Parser(
       else parseItemRecovering().foreach(items += _)
     Program(items.toList, Span(src, 0, src.content.length))
 
-  private def parseItemRecovering(): Option[Item] =
+  /** An item (and the declaration a prefix directive is attached to), or none after an error. */
+  private def parseItemRecovering(): List[Item] =
     val start = i
-    try Some(parseItem())
+    followingItems.clear()
+    try parseItem() :: followingItems.toList
     catch
       case _: ParseError =>
         sync(start)
-        None
+        Nil
 
   /** Skip to the end of the current item: a period at nesting depth 0, or a `}` closing the enclosing body. */
   private def sync(start: Int): Unit =
@@ -182,7 +191,7 @@ final class Parser(
           case _ => parseRuleRest(None, start, lhs)
 
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:`. */
-  private def parseDeclRest(lhs: Tree, start: Int, fact: Boolean): Item =
+  protected def parseDeclRest(lhs: Tree, start: Int, fact: Boolean): Item =
     expect(Tok.Colon)
     val (name, params) = declHead(lhs)
     val tpe = parseType()
@@ -191,7 +200,7 @@ final class Parser(
     val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
     else None
     expect(Tok.Period, "`.` after declaration")
-    Decl(name, params, tpe, sup, defn, abbrev = false, fact = fact)(spanFrom(start))
+    Decl(name, params, tpe, sup, defn, fact)(spanFrom(start))
 
   private def parseRuleRest(name: Option[Ident], start: Int, first: Tree): Item =
     val heads = mutable.ListBuffer(first)
@@ -248,98 +257,6 @@ final class Parser(
         throw new ParseError
     }
     (name, params)
-
-  // ---------------------------------------------------------------- directives
-
-  private def parsePath(): Tree =
-    val t = advance()
-    if t.kind != Tok.Name then
-      i -= 1
-      failExpected(msg"a name", msg"expected a relation or path")
-    var p: Tree = Ident(t.text)(t.span)
-    while kind == Tok.Select do
-      advance()
-      val n = expect(Tok.Name)
-      p = Select(p, n.text)(p.span.to(n.span), n.span)
-    p
-
-  private def parseDirective(): Item =
-    val start = tok.span.start
-    val d = advance()
-    val kindName = d.text.drop(1)
-    val args: DirArgs = kindName match
-      case "abbrev" =>
-        val lhs = parseExpr(LvlAdd)
-        expect(Tok.Colon)
-        val (name, params) = declHead(lhs)
-        val tpe = parseType()
-        expect(Tok.Eq, "`=` (an %abbrev must have a definition)")
-        val defn = parseNonType(LvlSemi)
-        expect(Tok.Period)
-        return Decl(name, params, tpe, None, Some(defn), abbrev = true)(spanFrom(start))
-      case "fact" =>
-        // `%fact c : τ̄ -> a.`: a modifier of a constructor or struct declaration
-        val lhs = parseExpr(LvlHead)
-        if kind != Tok.Colon then
-          failExpected(
-            msg"`:` after the name of a `%fact` declaration",
-            msg"expected `:`",
-            Some(msg"`%fact` marks a constructor or struct declaration: `%fact c : int -> t.`")
-          )
-        return parseDeclRest(lhs, start, fact = true)
-      case "mode" =>
-        val p = parsePath()
-        DirArgs.Mode(p, parseModeItems())
-      case "terminates" =>
-        // a measure: one variable or label, or a parenthesised tuple of them (lexicographic)
-        val measure =
-          if kind == Tok.LParen && (peekTok(1).kind == Tok.Var || peekTok(1).kind == Tok.Name) then
-            advance()
-            val first = advance()
-            val b = mutable.ListBuffer(first)
-            while kind == Tok.Comma do
-              advance()
-              b += expect(first.kind, if first.kind == Tok.Var then "a variable" else "a label")
-            expect(Tok.RParen, "`)` after the measure")
-            b.toList
-          else if kind == Tok.Var || kind == Tok.Name then List(advance())
-          else failExpected(msg"a variable, a label or a parenthesised measure after %terminates")
-        if measure.head.kind == Tok.Var then
-          expect(Tok.LParen, "`(` followed by a call pattern")
-          val p = parsePath()
-          val args = mutable.ListBuffer.empty[Tree]
-          while kind != Tok.RParen && kind != Tok.EOF && kind != Tok.Period do args += parsePostfix()
-          expect(Tok.RParen)
-          DirArgs.TerminatesVar(measure.map(v => VarRef(v.text)(v.span)), p, args.toList)
-        else DirArgs.TerminatesLabel(measure.map(l => Ident(l.text)(l.span)), parsePath())
-      case "open" | "input" | "output" => DirArgs.Target(parsePath())
-      case "partial" =>
-        reporter.report(SyntaxError.RemovedPartial(d.span))
-        throw new ParseError
-      case "derivations" =>
-        if kind == Tok.RuleName then
-          val r = advance()
-          DirArgs.Target(RuleRef(r.text.drop(1))(r.span))
-        else DirArgs.Target(parsePath())
-      case "infix" =>
-        val a = expect(Tok.Name, "`left`, `right` or `none`")
-        if !Set("left", "right", "none")(a.text) then
-          reporter.report(SyntaxError.UnknownAssociativity(a.text, a.span))
-        val p = expect(Tok.IntLit, "a precedence")
-        val n = expect(Tok.Name, "an operator name")
-        DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span))
-      case "name" =>
-        val p = parsePath()
-        val v = expect(Tok.Var)
-        DirArgs.NameHint(p, VarRef(v.text)(v.span))
-      case "complete" =>
-        reporter.report(SyntaxError.CompleteOutsideSignature(d.span))
-        throw new ParseError
-      case other =>
-        reporter.report(SyntaxError.UnknownDirective(other, d.span))
-        throw new ParseError
-    expect(Tok.Period, "`.` after directive")
-    Directive(kindName, args)(spanFrom(start), d.span)
 
   // ---------------------------------------------------------------- expressions
 

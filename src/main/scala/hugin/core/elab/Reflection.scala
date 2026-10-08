@@ -62,15 +62,27 @@ trait Reflection:
   private def elabSplice(r: Rule, e: Tree, k: RKind): Unit =
     val (tm, _, _) = insert(Cxt.empty, e.span, infer(Cxt.empty, e))
     val frame = TraceFrame(s"in code reflected by `$$${Printer.show(e)}`", r.span)
-    val generated = reflectItems(eval(Nil, zonk(Nil, 0, tm)), k, Target(None, r.span))
-    for g <- generated do
-      val item = inFrame(frame) {
-        g match
-          case rule: Rule => ruleItem(Cxt.empty, rule, lint = false)
-          case q: Query => queryItem(Cxt.empty, q)
-          case other => throw Impossible(s"reflected $other")
-      }
-      items += withOrigin(item, Origin(List(frame)))
+    val closed = zonk(Nil, 0, tm)
+    recordPart(ModulePart.Data(closed, k, frame, directive = false))
+    items ++= elabReflected(closed, k, frame, r.span)
+
+  /** The items that the closed data `tm` of kind `k` describes, elaborated at `span` in the frame `frame`
+   *  (the splice or directive that reflects them). */
+  def elabReflected(tm: Tm, k: RKind, frame: TraceFrame, span: Span): List[CoreItem] =
+    reflectItems(eval(Nil, tm), k, Target(None, span)).map(g => elabGenerated(g, Origin(List(frame))))
+
+  /** A generated rule or query (without warnings for its variables); its diagnostics note `origin`. */
+  def elabGenerated(g: Item, origin: Origin): CoreItem =
+    val item = inOrigin(origin) {
+      g match
+        case rule: Rule => ruleItem(Cxt.empty, rule, lint = false)
+        case q: Query => queryItem(Cxt.empty, q)
+        case other => throw Impossible(s"reflected $other")
+    }
+    withOrigin(item, origin)
+
+  /** The elements of a closed list value. */
+  def listValues(v: Val, span: Span): List[Val] = elements(v, span, Target(None, span)).map(_._1)
 
   /** Object code for the meta value `tm : Formula` or `Term` in `c`, elaborated against `expected`
    *  (`prop` for a formula); for a term without an expected type, inferred. */
@@ -87,10 +99,12 @@ trait Reflection:
         case (_, None) => inferS(c, tree, Stage.S0)
     }
 
-  private def inFrame[A](frame: TraceFrame)(f: => A): A =
+  private def inFrame[A](frame: TraceFrame)(f: => A): A = inOrigin(Origin(List(frame)))(f)
+
+  private def inOrigin[A](o: Origin)(f: => A): A =
     try f
     catch
-      case e: ElabError if e.diag.origin.isEmpty => throw ElabError(e.diag.withOrigin(Origin(List(frame))), e.unresolved, e.silent)
+      case e: ElabError if e.diag.origin.isEmpty && !o.isEmpty => throw ElabError(e.diag.withOrigin(o), e.unresolved, e.silent)
 
   private def withOrigin(item: CoreItem, o: Origin): CoreItem = item match
     case r: CoreItem.RuleItem => r.copy(origin = o)
@@ -134,6 +148,13 @@ trait Reflection:
     case _ =>
       ctorApp(v, t.fallback, t) match
         case ("irule", List(r), s) => List(rule(r, s, t))
+        case ("inamed", List(n, r), s) =>
+          literal(n, s, t) match
+            case Literal.StrL(name) if name.nonEmpty =>
+              val rl = rule(r, s, t)
+              List(Rule(Some(Ident(name)(s)), rl.heads, rl.body)(rl.span))
+            case _ => malformed("a rule name that is not a name", s)
+        case ("ierror", List(m), s) => fail(DirectiveProblem.Rejected(message(m, s, t), t.fallback))
         case ("iquery", List(fs), s) => List(Query(conj(elements(fs, s, t).map((f, fs2) => formula(f, fs2, Nil, t))).getOrElse(malformed(
             "an empty query",
             s
@@ -197,6 +218,10 @@ trait Reflection:
           case other => notClosed(other, s, t)
       case other => notClosed(other, s, t)
     elements(ts, s, t).foldLeft(head)((f, a) => Apply(f, term(a._1, a._2, names, t))(s))
+
+  private def message(v: Val, s: Span, t: Target): String = literal(v, s, t) match
+    case Literal.StrL(m) => m
+    case other => other.show
 
   private def literal(v: Val, s: Span, t: Target): Literal = peel(v, s)._1 match
     case Val.Lit(l, _) => l

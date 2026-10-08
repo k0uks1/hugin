@@ -16,6 +16,13 @@ trait Items:
     val (declarations, objectItems) = splitItems(prog)
     elabDeclarations(declarations)
     objectItems.foreach(elabItemReporting)
+    if rewrites(state.parts) then
+      // module-wide directives: the rules and queries are those of the expansion
+      items.filterInPlace {
+        case _: CoreItem.RuleItem | _: CoreItem.QueryItem => false
+        case _ => true
+      }
+      items ++= expandModule(state.parts.toList)
     finish()
 
   /** A program's declarations (declarations, definitions, clauses of functions and formula functions,
@@ -35,7 +42,7 @@ trait Items:
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
     state.declaredHere = prog.flatMap(declares).toSet
-    state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _, _) => n.name -> rt }.toMap
+    state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
@@ -82,7 +89,7 @@ trait Items:
     val byName = stuck.flatMap((item, e) => declares(item).map(_ -> (item, e))).toMap
     def target(item: Item, e: ElabError) = e.unresolved.flatMap(byName.get)
     def isTypeDefinition(item: Item) = item match
-      case Decl(_, Nil, Keyword(Kw.Type), None, Some(_), _, _) => true
+      case Decl(_, Nil, Keyword(Kw.Type), None, Some(_), _) => true
       case _ => false
     for (item, e) <- stuck do
       (item, target(item, e)) match
@@ -177,7 +184,7 @@ trait Items:
     case d: Def => elabDef(d.name, d.params, d.rhs, d.span)
     case r: Rule => elabRule(r)
     case q: Query => elabQuery(q)
-    case d: Directive => elabDirective(d)
+    case d: Directive => items ++= directiveItems(Cxt.empty, d, inBody = false)
     case e: SubEdge => elabEdge(e)
     case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))
 
@@ -193,11 +200,13 @@ trait Items:
   /** Runs `f`; if it fails, the items and names it added are removed (an item with an error is dropped). */
   private def itemTransaction[A](f: => A): A =
     val count = items.length
+    val partCount = state.parts.length
     val names = scope.keySet.toSet
     try f
     catch
       case e: ElabError =>
         items.dropRightInPlace(items.length - count)
+        state.parts.dropRightInPlace(state.parts.length - partCount)
         scope.filterInPlace((n, _) => names(n))
         throw e
 

@@ -50,7 +50,6 @@ final class DirectivesPhase extends Phase:
             case DirKind.Input => set(r)(_.copy(input = true))
             case DirKind.Output => set(r)(_.copy(output = true))
             case DirKind.Derivations => set(r)(_.copy(derivations = true))
-            case DirKind.NameHint(v) => set(r)(_.copy(nameHint = Some(v)))
         case _ =>
           d.kind match
             case DirKind.Derivations =>
@@ -91,7 +90,7 @@ final class DirectivesPhase extends Phase:
   override def show(using Context): String =
     val p = ctx.unit.prog.nn
     val facts = ctx.unit.facts
-    p.rels.map(r => (r, facts(r))).filter((_, d) => d.copy(nameHint = None) != RelDirectives.none)
+    p.rels.map(r => (r, facts(r))).filter((_, d) => d != RelDirectives.none)
       .map { (r, d) =>
         val terminates = d.terminates.map(t => s"terminates ${hugin.syntax.Printer.measure(t._1.map(k => (k + 1).toString))}")
         val parts = d.modes.map(m => s"mode ${m._1.show}") ++ terminates ++

@@ -14,7 +14,8 @@ scope; the interpreter is meant to make programs runnable and results comparable
 > **Redesign in progress.** The language is moving to a Datalog∃! object level (every constructor a
 > fact, termination by size-change, bound arithmetic columns) under a total, dependently typed meta
 > level in clause syntax, where directives such as `%demand`/`%mode` are meta functions. The meta level
-> (Phase B) is done; see `docs/REDESIGN.md` for the decisions and the implementation plan.
+> (Phase B), reflection (C1) and directives as meta functions (C2) are done; see `docs/REDESIGN.md` for
+> the decisions and the implementation plan.
 
 ```
 $ bin/hugin run examples/typechecker.hgn --facts examples/typechecker.facts
@@ -200,8 +201,16 @@ the prelude but not the program that imports it. Its object declarations are nam
 The prelude, [`prelude.hgn`](src/main/resources/hugin/stdlib/prelude.hgn), is ordinary Hugin source
 bundled with the compiler and included in every program (unless `--no-prelude`). It declares the base
 types (`int : type = %builtin int.`), lists with `len`, `option`, `pair`, the signature `graph` and the
-functors `tc` and `bounded` of Section 13.1. Its names can be shadowed by the program. The design and its
+functors `tc` and `bounded` of Section 13.1, the reflective types of object syntax, and the primitive
+directives. Its names can be shadowed by the program. The design and its
 relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).
+
+A directive `%d a₁ … aₙ.` applies the meta function `d` (docs/REDESIGN.md §7): `%input r.` is the
+prelude's `input` applied to the declaration of `r`, and a program can define directives of its own, such
+as `symmetric R = [ R Y X :- R X Y ].` for `%symmetric friend.` The type of the application says what a
+directive changes: a declaration (`decl`), the items added in its place (`seq item`) or all rules of the
+file (`module -> module`). Written without `.` before a declaration (`%output path : node -> rel.`), it
+applies to that declaration. `%mode` and `%infix` have a syntax of their own.
 
 ## Dependencies
 
@@ -252,7 +261,7 @@ only on error-free programs.
 | `parser` | 2 | hand-written lexer and precedence-climbing parser with error recovery; `%infix` operators are resolved into applications |
 | `elaborate` | REDESIGN §6 | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
 | `stage` | REDESIGN §6.9 | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); hands the object program over to the object level |
-| `directives` | Fig. 2 | attaches `%mode %terminates %open %input %output %derivations %name` to relations |
+| `directives` | Fig. 2 | attaches `%mode %terminates %open %input %output %derivations` to relations |
 | `constFold` | 3.3 | folds literal arithmetic (Prop. 3.1); undefined folds are warnings (the rule never fires) |
 | `objTyper` | 5, 6.1, 6.2 | well-formed declarations, subtyping/members, best typing contexts by meets, subsumption checks, projections/updates/joins, ascriptions as checked downcasts |
 | `moding` | 6.3 | binding steps, canonical (greedy) order, range restriction for every mode, applicable modes of calls |
