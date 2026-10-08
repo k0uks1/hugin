@@ -53,10 +53,10 @@ trait Declarations:
   def bindParams(c: Cxt, params: List[Param], untyped: (Cxt, VarRef) => Tm): (Cxt, List[(Name, Tm)]) =
     var cc = c
     val out = params.map { p =>
-      val (n, ty) = p match
-        case Param.VarParam(v) => (v.name, untyped(cc, v))
-        case Param.Typed(n, t, _) => (nameOf(n), checkType(cc, t, Stage.S1))
-      cc = bind(cc, n, ev(cc, ty), Stage.S1)
+      val (n, ty, origin) = p match
+        case Param.VarParam(v) => (v.name, untyped(cc, v), BinderOrigin.Plain)
+        case Param.Typed(n, t, _) => (nameOf(n), checkType(cc, t, Stage.S1), BinderOrigin.Param(n.span, t))
+      cc = bind(cc, n, ev(cc, ty), Stage.S1, origin)
       (n, ty)
     }
     (cc, out)

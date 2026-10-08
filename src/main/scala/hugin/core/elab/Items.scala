@@ -16,6 +16,7 @@ trait Items:
   def elabProgram(prog: List[Item]): Unit =
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
+    state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _, _) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, rest1) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
@@ -80,7 +81,7 @@ trait Items:
       case GlobalKind.Definition(_, _) => true
       case _ => false
     )
-    definition && (force(telescope(g.ty)._2) match
+    definition && (force(g.ty) match
       case Val.RecTy(_, _, _, _) | Val.U1(_) => false
       case _ => true
     )

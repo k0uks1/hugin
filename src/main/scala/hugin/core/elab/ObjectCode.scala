@@ -81,6 +81,7 @@ trait ObjectCode:
     val (rt, _) = inferS(c, res, Stage.S0)
     val (tt, _) = inferS(c, agg.term, Stage.S0)
     val body = check(c, agg.body, Val.PropT, Stage.S0)
+    atomsOf(body).foreach((atom, span) => requireComplete(c, atom, span, "aggregates over"))
     (Tm.Obj(ObjForm.Agg(agg.kind), List(rt, tt, body)), Val.PropT, Stage.S0)
 
   /** Whether a type is the type of object data (values of object terms), as opposed to formulas, types

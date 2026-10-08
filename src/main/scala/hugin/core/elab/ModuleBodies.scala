@@ -98,7 +98,10 @@ trait ModuleBodies:
         if st != Stage.S0 then unsupportedAt(d.span, "meta-level declarations without definition in module bodies")
         (t, objectDecl(d, ev(c, t)))
     val lifted = Tm.Lift(zonk(c.env, c.lvl, ty))
-    (bind(c, d.name.name, ev(c, lifted), Stage.S1), Member(d.name.name, MemberKind.Object(decl), lifted, d.name.span, d.span))
+    (
+      bind(c, d.name.name, ev(c, lifted), Stage.S1, BinderOrigin.Member),
+      Member(d.name.name, MemberKind.Object(decl), lifted, d.name.span, d.span)
+    )
 
   private def objectItem(c: Cxt, item: Item): List[CoreItem] = item match
     case r: Rule => List(ruleItem(c, r))

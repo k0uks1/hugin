@@ -43,6 +43,9 @@ final class ElabState:
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
+  /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
+  var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
+
   /** The globals that names resolved to (for W0003, unused definitions). */
   val used: mutable.Set[Int] = mutable.HashSet.empty
 
@@ -97,6 +100,7 @@ class Elaborator(val core: Core, val reporter: Reporter, val file: FileEnv = Fil
     with FormulaFunctions
     with ModuleBodies
     with Imports
+    with CompleteParameters
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

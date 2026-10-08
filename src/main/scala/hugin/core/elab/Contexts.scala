@@ -10,11 +10,11 @@ trait Contexts:
 
   def show(c: Cxt, v: Val): String = showVal(c.names, v)
 
-  def bind(c: Cxt, x: Name, a: Val, st: Stage): Cxt =
+  def bind(c: Cxt, x: Name, a: Val, st: Stage, origin: BinderOrigin = BinderOrigin.Plain): Cxt =
     Cxt(
       Val.local(c.lvl) :: c.env,
       c.lvl + 1,
-      Binder(x, a, quote(c.lvl, a), st) :: c.binders,
+      Binder(x, a, quote(c.lvl, a), st, None, origin) :: c.binders,
       if x == "_" then c.scope else c.scope + (x -> c.lvl),
       Some(Icit.Expl) :: c.pruning
     )

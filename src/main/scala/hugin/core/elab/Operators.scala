@@ -97,7 +97,10 @@ trait Operators:
         val (at, aty, s) = infer(c, a)
         if s == Stage.S1 then numeric(c, aty, a.span)
         (Tm.Negate(at, s), aty, s)
-      case Not(a) => (Tm.Obj(ObjForm.Not, List(formula(a))), Val.PropT, Stage.S0)
+      case Not(a) =>
+        val f = formula(a)
+        atomsOf(f).foreach((atom, span) => requireComplete(c, atom, span, "negates"))
+        (Tm.Obj(ObjForm.Not, List(f)), Val.PropT, Stage.S0)
       case Conj(a, b) => (Tm.Obj(ObjForm.And, List(formula(a), formula(b))), Val.PropT, Stage.S0)
       case Disj(a, b) => (Tm.Obj(ObjForm.Or, List(formula(a), formula(b))), Val.PropT, Stage.S0)
       case other => unsupported(other)

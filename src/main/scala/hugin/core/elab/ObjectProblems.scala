@@ -41,6 +41,11 @@ enum ObjectProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+
+  /** A functor negates or aggregates over (`what`) the field `label` of its parameter `param` without the
+   *  signature requiring `%complete label`; the requirement would be inserted at `insertAt`. */
+  case IncompleteFieldParameter(what: String, param: String, label: String, at: Span, declared: Span, insertAt: Option[Span])
+  case IncompleteRelationParameter(what: String, param: String, at: Span, declared: Span)
   case FormulaModeArity(name: String, items: Int, params: Int, at: Span)
   case FormulaOutputsUnbound(name: String, mode: String, outputs: List[String], at: Span)
   case UnknownRequirementField(label: String, at: Span)
@@ -71,6 +76,7 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: IncompleteFieldParameter | _: IncompleteRelationParameter => Code.E0210
     case _: FormulaModeArity => Code.E0701
     case _: FormulaOutputsUnbound => Code.E0501
     case _: UnknownRequirementField => Code.E0906
@@ -103,6 +109,8 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case IncompleteFieldParameter(_, _, _, s, _, _) => s
+    case IncompleteRelationParameter(_, _, s, _) => s
     case FormulaModeArity(_, _, _, s) => s
     case FormulaOutputsUnbound(_, _, _, s) => s
     case UnknownRequirementField(_, s) => s
@@ -135,6 +143,9 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case IncompleteFieldParameter(w, p, l, _, _, _) =>
+      msg"the functor ${Lit(w)} the relation parameter ${Src(s"$p.$l")} without requiring ${Src(s"%complete $l")}"
+    case IncompleteRelationParameter(w, p, _, _) => msg"the function ${Lit(w)} the relation parameter ${Src(p)}"
     case FormulaModeArity(n, m, p, _) => msg"mode for ${Src(n)} has $m items but the function takes $p arguments"
     case FormulaOutputsUnbound(n, _, os, _) =>
       msg"formula function ${Src(n)} does not bind its output argument${Lit(if os.length > 1 then "s" else "")}"
@@ -156,6 +167,8 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case IncompleteFieldParameter(_, p, l, _, _, _) => msg"${Src(s"$p.$l")} may be bound to an incomplete relation"
+    case IncompleteRelationParameter(_, p, _, _) => msg"${Src(p)} may be bound to an incomplete relation"
     case FormulaOutputsUnbound(_, m, _, _) => msg"mode ${Lit(m)}"
     case _: NotARelation => msg"not a relation"
     case _: BoundOutsideRelation => msg"a bound column is only allowed as the last column of a relation declaration"
@@ -172,6 +185,8 @@ enum ObjectProblem extends Problem:
     case DataAsRelation(_, w, _, _, d, _, _) if d.exists => List(d -> msg"declared here as a ${Lit(w)}")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
     case DuplicateMember(_, _, first) => List(first -> msg"first declared here")
+    case IncompleteFieldParameter(_, p, _, _, d, _) => List(d -> msg"parameter ${Src(p)} declared here")
+    case IncompleteRelationParameter(_, p, _, d) => List(d -> msg"parameter ${Src(p)} declared here")
     case _ => Nil
 
   override def notes: List[Msg] = this match
@@ -203,6 +218,9 @@ enum ObjectProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
+    case IncompleteFieldParameter(_, p, l, _, _, _) => List(msg"add ${Src(s"%complete $l")} to the signature of ${Src(p)}")
+    case _: IncompleteRelationParameter =>
+      List(msg"pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`")
     case DataFieldAsRelation(_, l, _) =>
       List(msg"to read its facts, require a fact constructor in the signature: ${Src(s"%fact $l : ...")}")
     case _ => Nil
@@ -220,6 +238,8 @@ enum ObjectProblem extends Problem:
       else List(add, Suggestion.replace(at, ", ..", msg"ignore the missing labels with `..`", Applicability.MachineApplicable))
     case DataAsRelation(_, _, _, _, _, Some((d, _)), true) =>
       List(Suggestion.replace(d.startPoint, "%fact ", msg"declare it with `%fact`", Applicability.MachineApplicable))
+    case IncompleteFieldParameter(_, _, l, _, _, Some(at)) =>
+      List(Suggestion.replace(at, s", %complete $l", msg"add ${Src(s"%complete $l")}", Applicability.MachineApplicable))
     case SingletonVariable(n, at) =>
       List(
         Suggestion.replace(at, "_", msg"replace ${Src(n)} with `_`", Applicability.MachineApplicable),
