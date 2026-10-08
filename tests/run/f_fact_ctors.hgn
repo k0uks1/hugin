@@ -1,6 +1,5 @@
-(* Data and fact constructors: `%fact` marks a constructor (or a struct) whose facts can be read as a
-   relation; other constructors only build values. `%fact` applies to every instance of a family.
-   `--all-relations` prints facts only: the data constructor `leaf` is not a relation, so it is not listed. *)
+(* Constructors and structs are fact constructors: their facts can be read as a relation, also for every
+   instance of a family. `--all-relations` lists the facts of every constructor (`leaf` too). *)
 tree A : type.
 leaf : A -> tree A.
 node : tree A -> tree A -> tree A.

@@ -1,4 +1,4 @@
-(* a fact constructor and a data constructor behind an interface *)
+(* two constructors behind an interface *)
 shape : type.
 mark : int -> shape.
 plain : int -> shape.

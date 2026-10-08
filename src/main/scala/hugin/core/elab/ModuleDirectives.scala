@@ -109,8 +109,9 @@ trait ModuleDirectives:
       val data = listData(kindType(RKind.Item), quoted.map(Left(_)))
       val result = eval(Nil, Tm.App(fn, data, Icit.Expl))
       // an item the directive passed on unchanged keeps its place and provenance; a new one is placed at
-      // the first position in this file of the data it was built from (a rule generated from a source rule
-      // by a directive of the prelude is placed at that rule), or at the directive, and notes its expansion
+      // the directive, or, if it was built by a directive of another file (the prelude), at the first position
+      // in this file of the data it was built from (a rule generated from a source rule is placed at that
+      // rule), and notes its expansion
       listValues(result, span).map { v =>
         before.get(stripPositions(quote(0, v))) match
           case Some(e) => e.copy(value = v)
@@ -121,11 +122,14 @@ trait ModuleDirectives:
         report(e)
         module
 
-  private def placeOf(v: Val, at: Span): Option[Span] = force(v) match
-    case Val.Obj(ObjForm.Loc(s), _) if s.exists && (!at.exists || s.source.path == at.source.path) => Some(s)
-    case Val.Obj(ObjForm.Loc(_), List(x)) => placeOf(x, at)
-    case Val.Rigid(_, sp) => sp.reverse.iterator.collect { case Elim.EApp(a, Icit.Expl) => a }.flatMap(placeOf(_, at)).nextOption()
-    case _ => None
+  private def placeOf(v: Val, at: Span): Option[Span] =
+    def sameFile(s: Span) = !at.exists || s.source.path == at.source.path
+    def located(v: Val, inner: Boolean): Option[Span] = force(v) match
+      case Val.Obj(ObjForm.Loc(s), _) if s.exists && sameFile(s) => Option.when(inner)(s)
+      case Val.Obj(ObjForm.Loc(s), List(x)) => located(x, inner || s.exists)
+      case Val.Rigid(_, sp) => sp.reverse.iterator.collect { case Elim.EApp(a, Icit.Expl) => a }.flatMap(located(_, inner)).nextOption()
+      case _ => None
+    located(v, false)
 
   private def elabEntry(e: Entry): List[CoreItem] =
     try reflectedItems(e.value, RKind.Item, e.span).map(elabGenerated(_, e.origin))

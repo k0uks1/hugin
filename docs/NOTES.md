@@ -83,12 +83,16 @@ inside `h`'s own component.
 
 ### Moded numeric termination (Definition 10.3)
 
+*Historical: relation modes and the moded termination case were removed in C3 (see "Demand in the prelude").*
+
 The moded numeric case requires the body of a propagation rule to contain `u_k > b` or `u_k ≥ b`
 syntactically. With `fib N F :- N > 1, A = N - 1, fib A FA, ...` the bound is on `N`, not on the
 demanded `A`, so the natural formulation is rejected. The implementation derives such bounds (see
 "Termination" below), and `tests/run/f_fib_moded.hgn` now uses the natural formulation.
 
 ### Demand components and termination (Definition 10.3)
+
+*Historical (removed in C3): the generated demand rules are checked by (A)/(B) like any rule.*
 
 Definition 10.3 checks the propagation rules `d(ū) :- d(w̄), …` *of the component of c*. The demand
 relation of `c` need not be in that component: `c X Y :- c X Z, Y = Z + 1` with `%mode c + -` gives the
@@ -165,7 +169,7 @@ elaboration, no variables local to negations or aggregates).
   the language server maps the edits to quick fixes without knowing any diagnostic code.
 * **Type definitions** are always unfolded; strict definitions are not folded back in diagnostics.
 * **Formula functions.** Every literal object variable of a quote is renamed at each application
-  (hygiene, Section 4.8); renamed variables print without the suffix. `%mode f m̄` is checked once on
+  (hygiene, Section 4.8); renamed variables print without the suffix. (`%mode f m̄` on formula functions was removed in C3; it was checked once on
   the body applied to fresh variables; uses are checked by the ordinary moding of the expanded rule.
 * **`%infix`.** An operator declared with precedence `p` gets level `10p + 5` on the scale where the
   built-in levels of Section 2.2 are 10 (`;`) … 70 (`* /`); rule heads are parsed above the comparison
@@ -202,7 +206,7 @@ elaboration, no variables local to negations or aggregates).
     reported (E0601, with a note naming the disjunction; `tests/neg/f_aggregate_disjunction_cycle.hgn`).
     Such a program is stratified in the source; accepting it would need disjunctions inside aggregates in
     the core (the aggregate would range over the alternatives directly) instead of the lifting.
-* **Demand relations** are named `c^d[m]`, derivation relations `@r` or `@r#i`. Derivation relations
+* **Demand relations** are named `c.check` (derived constants, C3; formerly `c^d[m]`), derivation relations `@r` or `@r#i`. Derivation relations
   are output relations; they cannot be referenced in atoms.
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
   compare by code point. NaN is never produced by the primitive operations.
@@ -215,6 +219,9 @@ elaboration, no variables local to negations or aggregates).
   distinct binding of the aggregate's local variables (Definition 8.4).
 
 ## Data and fact constructors
+
+*Historical: C3 removed the data/fact split (every constructor is a fact constructor, REDESIGN D1), `%fact`,
+E0406 and E0504; this section describes the semantics of PRs A–C before the redesign.*
 
 ### Declarations and typing
 
@@ -338,6 +345,8 @@ calls `len`, the shared demand relation would close a cycle through negation; su
 own demand relation (see "Demand per call site" below).
 
 ### Demand per call site
+
+*Historical: the built-in demand transformation and its per-call copies were removed in C3.*
 
 All calls of a moded relation `c` share its demand relation `c^d[m]` (Section 7.3), so the demand rule of
 every call depends on its prefix, and `c`'s guarded rules depend on all of them. If a prefix negates or
@@ -1134,8 +1143,8 @@ application `d a₁ … aₙ`, and its type says what it changes (the *footprint
 
 | file | contents |
 |---|---|
-| `syntax/DirectiveSyntax.scala` | `%d a₁ … aₙ.` (arguments are atoms), the prefix form, and the forms with a grammar of their own (`%mode`, `%infix`, `%fact`) |
-| `core/elab/Directives.scala` | resolution, the application, the footprint; `%mode` (until C3) |
+| `syntax/DirectiveSyntax.scala` | `%d a₁ … aₙ.` (arguments are atoms), the prefix form, and the forms with a grammar of their own (`%infix`; `%mode` and `%fact` until C3) |
+| `core/elab/Directives.scala` | resolution, the application, the footprint (`%mode` until C3; mode items since C3) |
 | `core/elab/ModuleDirectives.scala` | module parts and the expansion of module-wide directives |
 | `core/DeclAttributes.scala`, `core/handover/DeclData.scala` | `decl` values read back, and their attributes attached as object directives |
 | `core/elab/DirectiveProblems.scala` | E0101 (unknown directive), E1000–E1003, E0701 |
@@ -1199,7 +1208,7 @@ application `d a₁ … aₙ`, and its type says what it changes (the *footprint
   are not supported; the block E1000–E1099 holds E1000 and the machinery's codes E1001–E1003.
 * **Resolution.** `%d` is E0101 ("unknown directive") if no `d` is in scope, with a similar name among
   the directives in scope (meta functions of a directive type, not the constructors of reflective data)
-  as a suggestion. Without the prelude only `%mode` and `%infix` exist. A program's own `output` shadows
+  as a suggestion. Without the prelude only `%infix` exists (and `%mode` before C3). A program's own `output` shadows
   the prelude's (then `%output` is E1001). A directive in a module body whose function is declared later
   in the file retries the definition after it, as other declarations do.
 * **Removed.** The parser's, the core's and the handover's dispatch on directive names; `%name` (never
@@ -1221,6 +1230,131 @@ application `d a₁ … aₙ`, and its type says what it changes (the *footprint
   `neg/core_e0901_occurs` (meta numbers: the prelude elaborates differently), `lsp/navigation` (completion
   after `%` shows the directive's declaration, and a new hover over `%output`). `run/f_infix_abbrev` and
   `neg/typedefs` no longer use `%abbrev` (same output).
+
+## Demand in the prelude (redesign Phase C3)
+
+Demand is ordinary rules (REDESIGN D2, §3.6, §7.4), generated by the prelude's `%demand`, a module-wide
+directive written in Hugin; the compiler has no demand transformation, no relation modes and no data
+constructors.
+
+| file | contents |
+|---|---|
+| `stdlib/prelude.hgn` | `bool`, the primitives, `modes`, `column`/`colof`, `irelation`, `demand` and its helpers (`d…`) |
+| `core/Primitives.scala` | `same`, `labels`, `derive`, `derived`; derived constants and their declaration (also of families) |
+| `core/elab/Declarations.scala` | `x : A = %builtin p.` for a primitive operation (E0103 if `A` is not its type) |
+| `core/elab/Reflection.scala` | the item `irelation`; a pending derived constant is E0918 |
+| `core/elab/Directives.scala`, `syntax/DirectiveSyntax.scala` | mode items `+e -t` as an argument (`ModeArgs`), elaborated to `modes` data |
+| `core/elab/Quotes.scala` | named patterns `r { l = t, .. }` quoted as positional arguments (so module-wide directives see them) |
+| `obj/transform/Disjunctions.scala` | disjunctions inside aggregates: the auxiliary relation's rules get their context (formerly its demand) |
+
+### Declaring object constants from data
+
+* **Derived constants.** `derive : sym -> string -> sym` names the constant `r.l` *derived* from `r`
+  (`typed.check`): created on first use, memoised per constant and label like a family instance, so its
+  name is stable (diagnostics, `--print-after`, LSP) and cannot capture a name of the program (it is a
+  symbol, not a name looked up in scope). It is *pending* until an item `irelation (derive r "check") cols`
+  declares it; a reference to a pending one is E0918. `derived : sym -> bool` tells derived constants.
+* **Types are referred to, not reflected** (Q5): a column is `colof s k`, the column `k` of the constant
+  `s` with its label and type; `irelation d cols` declares the relation over those columns. A column of a
+  family makes the derived relation a family with the same parameters (`len.check : {A} -> list A -> rel`,
+  instances `len.check[int]`). This is the minimal extension: `%demand` only ever needs the input columns of
+  `r`; a reflective `ty` type of object types was not needed. Declaring other kinds of constants (types,
+  constructors) from data is left open.
+* **Why `same`.** Clauses split on symbols only by the constants they name; a directive over a parameter
+  `r` must compare symbols (and variable names, for the binding analysis below): `same : A -> A -> bool`
+  is decidable equality on atoms (literals and symbols, the values `CaseTree.SplitAtom` splits on), stuck
+  on other values. `labels : sym -> seq string` gives the labels of a constant's columns (`""` without).
+  The primitives are declared by the prelude (`same : A -> A -> bool = %builtin same.`) and checked against
+  their types; their result constructors are taken from the declared types (`bool`, `seq`).
+
+### Typed modes
+
+`modes : seq string -> Type` is indexed by the labels of a relation's columns: `mnone : modes []`,
+`minput, moutput : (l : string) -> modes Ls -> modes (l :: Ls)`, and
+`demand : (r : sym) -> modes (labels r) -> module -> module`. The parser reads a run of mode items as one
+argument (`ModeArgs`); the elaborator turns `+e -t +` into `minput "e" (moutput "t" (minput _ mnone))`
+(by the prelude's constructors, which the program cannot shadow): an unlabelled item leaves its label to
+unification. So `%demand typed +e +x -t.` is a type error (E0901: `"x"` against `"g"`), as is a wrong
+number of items. `labels` reduces on the quoted relation during elaboration of the directive.
+
+### The transformation (`demand r m`)
+
+For the module `Is` (rules, named rules, queries, earlier generated items):
+
+* `irelation r.check (inputs of r)` is added at the front.
+* A rule of `r` (single head) becomes `r ā :- r.check ī, body` (its heads' wildcards at inputs are named,
+  `_a`, `_ba`, …, so that the guard binds them), followed by its demand rules.
+* Every call `r t̄` (positive, negated, in an aggregate, in a disjunction) of every rule and query gets a
+  demand rule `r.check (inputs of t̄) :- prefix`: a *seed* outside `r`, a *propagation* rule inside `r`.
+  The prefix is the formulas before the call (source order; the guard first in a rule of `r`), pruned:
+  **demand rules are positive and do not wait for answers they do not need** — a negation is dropped, and
+  a call of a demand-driven relation (one with a declared `.check`) or an aggregate is kept only if it
+  binds a variable that the inputs (or the kept formulas) need and the other formulas do not bind. A
+  smaller prefix only adds demand, never answers (magic sets with a weaker guard), and it yields the
+  shape of REDESIGN §8.1/§8.2: `typed.check A G :- typed.check (app F A) G` without the call of `typed`
+  on `F`, `fib.check B :- fib.check N, N > 1, A = N - 1, B = N - 2` without `fib A FA`. So the demand
+  relation is in a component of its own, checked by descent (A), and `r` is checked by guarded induction
+  (B) with the guard outside its component. Calls inside an aggregate use the formulas before the
+  aggregate (its own formulas mention its bound variable).
+* **Order independence.** Several `%demand` directives expand in source order, each seeing the output of
+  the earlier ones. The demand rules generated from a rule follow it; a later `%demand` that guards a rule
+  of its relation also guards the demand rules that follow it, and prunes the calls of its relation from
+  every demand rule. So `%demand lookup …` before or after `%demand typed …` gives the same program.
+* **Binding analysis in Hugin.** The pruning needs the variables a formula binds (an atom all its own, an
+  equation its sides without arithmetic, an aggregate its result) and needs; it is written in the prelude
+  over `seq string` with `same`.
+
+The generated rules are ordinary rules: `--print-after stage` shows them (placed at the source rule they
+come from when the directive is in another file, such as the prelude), their diagnostics note "in
+expansion of `%demand …`", and they are typed, stratified and termination-checked like hand-written code.
+
+### Decisions (C3)
+
+* **`%mode` is removed**, not kept as an alias (Q10), under the standing no-baggage directive: there is no
+  external user base. Re-adding it is one line in the prelude (`mode = demand.`, with `%mode` resolving
+  to it as any directive).
+* **All constructors are fact constructors** (D1): `%fact`, `ObjDecl` fact flags, `RelSym.isData`, data
+  tables in the runtime, E0406 and E0504 are gone. A constructor term in a body is a pattern or an
+  existence check; a list, context or other term becomes a fact when a head (a demand rule included)
+  builds it. The type checker's contexts are `bind` facts (`--all-relations` lists them).
+* **The prelude's `len`** measures the lists that are facts (`len (cons X L) M :- cons X L, len L N, …`,
+  guarded induction on `l`). It cannot be demand-driven from the prelude: a module-wide directive
+  rewrites its own module (REDESIGN §7.1), and the seeds belong to the call sites in other files (Q6). A
+  program that measures lists it builds in bodies writes `%demand len +l -n.`: its seeds assert the lists
+  (`len.check (cons "c" nil).`), and `len` measures them (`a06_termination_len`, `c2_primitive` give the
+  old answers this way).
+* **Relation modes and the moded checks** (E0502, E0503, mode arity and labels of E0701, signature
+  `%mode` requirements of E0208 and their fix, `%mode` on formula functions, `ModeSpec`, `DirKind.ModeD`,
+  `Moding.firstApplicable`, `CoreDirective`) are removed. Range restriction (E0501) is checked on the
+  generated rules; a call whose inputs are not bound makes its seed not range-restricted, reported at the
+  call with the note "in expansion of `%demand`".
+* **Per-call copies are gone.** The cycles through negation they avoided do not arise with positive demand
+  rules, except when a demand needs an aggregate over (or an answer of) the relation's callers; such a
+  program uses a second relation (`tests/run/f_demand_negation_prefix.hgn`, `f_demand_disjunction.hgn`).
+* **Disjunctions inside aggregates** (issue #1, B4/F1): the auxiliary relation `aux(ī, ō)` has no mode;
+  each of its rules is the alternative after the context of the call (the formulas before the aggregate
+  that do not mention a relation depending on the head, if they bind `ī`; otherwise all of them), which is
+  what its demand rule was.
+* **Termination.** `DemandDriven` (the moded case of Definition 10.3) is deleted: demand relations are
+  checked by descent (A) and guarded relations by (B). **Known limitation**: a demand that needs an answer
+  of the relation (Ackermann's `ack (M - 1) R1` after `ack M (N - 1) R1`) puts the demand relation and the
+  relation into one component, which mixes the two directions and is rejected (E0603, with a note naming
+  the mixed component; `tests/neg/t_termination_mixed_demand.hgn`), as are the other components mixing
+  descent and guarded induction (Phase A). Formerly accepted with `%mode`; follow-up on issue #2.
+* **Positions.** Reflected syntax uses the positions of the data it came from only within the file it is
+  generated in: positions inside the prelude's quotes are not shown (a guarded rule points at the source
+  rule, not at `dguarded` in the prelude), and a new item generated by a directive of another file is
+  placed at the first position of its data in this file.
+* **Named patterns** `r { l = t, .. }` are quoted as `r`'s positional arguments (a column not named is
+  `_` with `..`), so programs using them can be rewritten by module-wide directives (a04).
+
+### Goldens (C3)
+
+New: `run/f_demand_negation_prefix`, `run/f_demand_disjunction` (formerly the per-call-copy tests, same
+answers with a second relation), `neg/t_termination_mixed_demand` (ack). Deleted (concept removed):
+`neg/f_data_ctor_relation` (E0406), `neg/f_fact_ctor_moded_input` (E0504), `neg/formula_modes`,
+`neg/t_termination_equation_ctor` (an equation no longer builds data), `fix/declare_mode`,
+`fix/fact_constructor`. Every `%mode` became `%demand` and every `%fact` was dropped.
 
 ## Bound columns (redesign A2)
 
@@ -1263,7 +1397,7 @@ graph), `runtime/Infinity.scala` (`±∞`).
   combinations (`∞ - ∞`, `0 · ∞`, `∞ / ∞`) make the rule not fire, as overflow does. Type-consistent
   rules never meet them; a later component reading `∞` as a constant may. Input facts cannot contain `∞`
   (no syntax).
-* *Not covered* (Q4): bound columns of constructors, `%mode`d bound relations (E0605), `min`/`max` on
+* *Not covered* (Q4): bound columns of constructors, `min`/`max` on
   floats.
 
 **Testing.** `tests/run/rd_shortest_paths.hgn` (§8.3: a negative cycle gives `-∞`, a positive cycle

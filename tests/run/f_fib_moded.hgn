@@ -1,4 +1,4 @@
-(* numeric demand-driven recursion: fib with a moded, numerically decreasing argument; the lower bounds
+(* numeric demand-driven recursion: fib with `%demand`, a numerically decreasing argument; the lower bounds
    of the demanded `A` and `B` follow from `N > 1` (issue #2) *)
 fib : (n : int) -> (f : int) -> rel.
 %demand fib +n -f.

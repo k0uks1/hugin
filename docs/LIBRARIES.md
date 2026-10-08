@@ -85,7 +85,7 @@ another name for the same base type. Base types are printed by their builtin nam
 | names | what |
 |---|---|
 | `int`, `float`, `string` | base types |
-| `list A`, `nil`, `cons`, `len` | lists (data constructors) and their length: `len : (l : list A) -> (n : int) -> rel`, moded `+l -n` with `%terminates l len`, so it computes the length of any given list on demand (Section 13.3) |
+| `list A`, `nil`, `cons`, `len` | lists (fact constructors) and their length: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3, REDESIGN §7.4) |
 | `option A`, `none`, `some` | optional values |
 | `pair A B` | a struct family with labels `fst`, `snd` |
 | `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
@@ -125,13 +125,11 @@ s : shapes_sig = %import "lib/shapes".
 * **Transparent.** Ascription is coercive but not sealing: `s.shape` is the file's `shape`, so values flow
   freely between `s` and any other import of the same file.
 * **Constructor fields.** A field `c : τ̄ -> a` whose domain and result are object types (Section 2.5)
-  denotes a constructor, not a meta function, so `s.square N` builds terms from object variables. A
-  constructor field is matched by a data or a fact constructor; a field `%fact c : τ̄ -> a` only by a fact
-  constructor (declared `%fact`), whose facts the importer (or a functor) may then read. A relation field
-  is matched only by a relation.
+  denotes a constructor, not a meta function, so `s.square N` builds terms from object variables; every
+  constructor is a fact constructor, whose facts the importer (or a functor) may read. A relation field is
+  matched only by a relation.
 * **Constants.** A nullary constructor `dot : shape.` of the file also matches a value field `dot : shape`.
-* Mismatches (missing field, wrong arity, relation versus constructor, data constructor versus `%fact`
-  field, wrong type) are E0204 with the reason as a note.
+* Mismatches (missing field, wrong arity, relation versus constructor, wrong type) are E0204 with the reason as a note.
 
 ## Not (yet) done
 

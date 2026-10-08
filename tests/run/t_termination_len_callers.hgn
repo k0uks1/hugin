@@ -1,8 +1,6 @@
-(* Callers of a moded relation in its component (docs/NOTES.md, "Termination"): `pick` reads answers of the
-   prelude's moded `len` and is read by another call of `len`, so the demand rule `len^d L :- pick L` joins
-   them into one component. The demands of such a call (a seed of the component) are finitely many: `L`
-   comes from a column of `pick` that only holds lists of `e`. `sized` builds terms over the answers of
-   `len`, of which there are finitely many since there are finitely many demands. *)
+(* Callers of `len` that read its answers and are read by other calls of `len` (formerly a component of
+   the moded `len` and its demand relation): the prelude's `len` measures the lists that are facts, so
+   `pick`, `long` and `sized` are in later components. `sized` builds terms over the answers of `len`. *)
 e : list int -> rel.
 e (cons 1 nil). e (cons 2 (cons 3 nil)). e (cons 1 (cons 2 (cons 3 nil))).
 pick : list int -> rel.

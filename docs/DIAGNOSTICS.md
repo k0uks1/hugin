@@ -981,6 +981,14 @@ in issue #41.
 
 **M6 — Consolidation** (with Phase D). Retire E0406 and E0504 when C3 deletes the data/fact split. Review
 the wording of the whole inventory against the style guide, phase by phase, as one PR per phase.
+* *Done* (retirements, with C3): E0406 (data constructor used as a relation) and E0504 (fact constructor
+  built in a moded input) are retired with the data/fact split, E0502 (call without applicable mode) and
+  E0503 (input position is not a pattern) with relation modes; their explanations are marked **Retired**
+  and their examples `ignore`d, and no `.check` file contains them. The mode checks of E0701 (arity and
+  labels of `%mode`), E0208's `%mode` requirement and its fix, E0204's `%fact` field and E0605's moded bound
+  relation are gone; a wrong mode of `%demand` is a type error (E0901), and an unbound demanded input is
+  E0501 on the generated rule. New under E0103: a primitive operation declared with another type. The
+  wording review remains for Phase D.
 
 ### 3.13 Style guide
 
