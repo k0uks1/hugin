@@ -16,7 +16,10 @@ final class Engine(prog: CoreProgram):
   // visibility windows per relation for the current round: old = [0, oldEnd), delta = [oldEnd, deltaEnd)
   private val oldEnd = Array.fill(store.length)(Int.MaxValue)
   private val deltaEnd = Array.fill(store.length)(Int.MaxValue)
-  private var versionOf: Int => Version = _ => Version.Full
+
+  /** Which recursive atom of the rule being fired reads the delta (semi-naive evaluation): the atoms before
+   *  it read the old part, the atoms after it the full relation; -1: all read the full relations. */
+  private var deltaAt = -1
 
   // modes of `eval`
   private final val Dry = 0
@@ -73,6 +76,13 @@ final class Engine(prog: CoreProgram):
           val n = r.lookup(vs)
           Some(if n >= 0 then Id(rel, n) else NonFact(rel, vs.toVector))
 
+  /** [[eval]] without an `Option` per value, for the inner loops of joins: `null` if undefined (no word
+   *  is `null`). Registers and constants, the most frequent expressions, allocate nothing. */
+  private inline def word(e: Expr, regs: Array[Any], mode: Int): Any = e match
+    case Expr.Reg(r) => regs(r)
+    case Expr.Const(w) => w
+    case _ => eval(e, regs, mode).getOrElse(null)
+
   private def compare(op: CmpOp, a: Any, b: Any): Boolean = op match
     case CmpOp.Eq => a == b
     case CmpOp.Ne => a != b
@@ -90,32 +100,39 @@ final class Engine(prog: CoreProgram):
 
   // ------------------------------------------------------------------ body execution
 
-  private def range(rel: Int, recIdx: Int): (Int, Int) =
-    if recIdx < 0 then (0, Int.MaxValue)
-    else
-      versionOf(recIdx) match
-        case Version.Full => (0, deltaEnd(rel))
-        case Version.Old => (0, oldEnd(rel))
-        case Version.Delta => (oldEnd(rel), deltaEnd(rel))
+  /** The index of the columns a scan checks, per scan (looked up once, not per probe). */
+  private val scanIndexes = java.util.IdentityHashMap[BodyOp.Scan, mutable.HashMap[Key, IntBuf]]()
+
+  private def scanIndex(scan: BodyOp.Scan): mutable.HashMap[Key, IntBuf] =
+    var idx = scanIndexes.get(scan)
+    if idx == null then
+      idx = store(scan.rel).index(scan.checks.map(_._1).toVector)
+      scanIndexes.put(scan, idx)
+    idx
 
   /** Runs ops(i..) and calls `k` for every solution. Returns false to stop early. */
   private def exec(ops: Array[BodyOp], i: Int, regs: Array[Any], k: Array[Any] => Boolean): Boolean =
     if i == ops.length then return k(regs)
     ops(i) match
-      case BodyOp.Scan(rel, recIdx, asReg, binds, checks) =>
+      case scan @ BodyOp.Scan(rel, recIdx, asReg, binds, checks) =>
         val r = store(rel)
-        val (lo, hi0) = range(rel, recIdx)
-        val hi = hi0.min(r.size)
-        // identities are in assertion order (see [[Relation]])
-        def visit(n: Int): Boolean =
+        // the window the atom reads (Section 9.5): old = [0, oldEnd), delta = [oldEnd, deltaEnd), full
+        val lo = if recIdx >= 0 && recIdx == deltaAt then oldEnd(rel) else 0
+        val hi =
+          (if recIdx < 0 then Int.MaxValue
+           else if deltaAt >= 0 && recIdx < deltaAt then oldEnd(rel)
+           else deltaEnd(rel)) .min(r.size)
+        // identities are in assertion order (see [[Relation]]). A tuple found through the index of the
+        // checked columns has those values (the index compares with `equals`, which implies `==`), so
+        // its checks are not evaluated again.
+        def visit(n: Int, checked: Boolean): Boolean =
           val t = r.tuples(n)
           var ok = r.visible(n, hi)
-          var j = 0
+          var j = if checked then checks.length else 0
           while ok && j < checks.length do
             val (col, e) = checks(j)
-            eval(e, regs, InBody) match
-              case Some(v) => if t(col) != v then ok = false
-              case None => ok = false
+            val v = word(e, regs, InBody)
+            if v == null || t(col) != v then ok = false
             j += 1
           if ok then
             j = 0
@@ -129,11 +146,11 @@ final class Engine(prog: CoreProgram):
           val key = new Array[Any](checks.length)
           var j = 0
           while j < checks.length do
-            eval(checks(j)._2, regs, InBody) match
-              case Some(v) => key(j) = v
-              case None => return true
+            val v = word(checks(j)._2, regs, InBody)
+            if v == null then return true
+            key(j) = v
             j += 1
-          r.index(checks.map(_._1).toVector).get(Key(key)) match
+          scanIndex(scan).get(Key(key)) match
             case None => true
             case Some(ids) =>
               // identities are ascending: restrict to the version window
@@ -148,14 +165,14 @@ final class Engine(prog: CoreProgram):
                 from = a
               var cont = true
               while cont && from < snapshot && ids(from) < hi do
-                cont = visit(ids(from))
+                cont = visit(ids(from), checked = true)
                 from += 1
               cont
         else
           var n = lo
           var cont = true
           while cont && n < hi do
-            cont = visit(n)
+            cont = visit(n, checked = false)
             n += 1
           cont
       case BodyOp.Deref(src, rel, binds, checks) =>
@@ -166,7 +183,8 @@ final class Engine(prog: CoreProgram):
             var j = 0
             while ok && j < checks.length do
               val (col, e) = checks(j)
-              if !eval(e, regs, InBody).contains(t(col)) then ok = false
+              val v = word(e, regs, InBody)
+              if v == null || !(v == t(col)) then ok = false
               j += 1
             if ok then
               binds.foreach((col, r) => regs(r) = t(col))
@@ -243,7 +261,7 @@ final class Engine(prog: CoreProgram):
       0,
       regs,
       rs => {
-        if r.headArgs.forall(e => eval(e, rs, Dry).isDefined) then k(r.headArgs.map(eval(_, rs, InHead).get), rs)
+        if r.headArgs.forall(e => word(e, rs, Dry) != null) then k(r.headArgs.map(e => word(e, rs, InHead)), rs)
         true
       }
     )
@@ -255,10 +273,29 @@ final class Engine(prog: CoreProgram):
 
   /** Replaces the values that improve forever by `∞` ([[Divergence]]); the replacements join the delta. */
   private def checkDivergence(comp: Vector[Int], rules: Vector[CompiledRule]): Unit =
-    versionOf = _ => Version.Full
+    deltaAt = -1
     if divergence.check(rules, derive) > 0 then comp.foreach(t => deltaEnd(t) = store(t).size)
 
   private lazy val divergence = Divergence(store)
+
+  /** Whether the relation `rel` (-1: unknown) may have a non-empty delta. */
+  private def hasDelta(rel: Int): Boolean = rel < 0 || deltaEnd(rel) > oldEnd(rel)
+
+  /** The relation of each recursive atom of a rule, by its index (-1 if not found). */
+  private val deltaRels = java.util.IdentityHashMap[CompiledRule, Array[Int]]()
+  private def deltaRel(r: CompiledRule): Array[Int] =
+    var rels = deltaRels.get(r)
+    if rels == null then
+      rels = Array.fill(r.recursiveAtoms)(-1)
+      def visit(ops: Array[BodyOp]): Unit = ops.foreach {
+        case BodyOp.Scan(rel, recIdx, _, _, _) if recIdx >= 0 => rels(recIdx) = rel
+        case BodyOp.NotIn(sub) => visit(sub)
+        case BodyOp.Agg(_, _, _, _, sub) => visit(sub)
+        case _ =>
+      }
+      visit(r.body)
+      deltaRels.put(r, rels)
+    rels
 
   /** Evaluates all components. Cancellable: an interrupt of the evaluating thread ends evaluation with
    *  an `InterruptedException` at the next round (an editor that no longer needs the result). */
@@ -270,7 +307,7 @@ final class Engine(prog: CoreProgram):
       comp.foreach { t =>
         oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size
       }
-      versionOf = _ => Version.Full
+      deltaAt = -1
       val before = comp.map(t => store(t).size)
       rules.foreach(fire)
       comp.foreach { t =>
@@ -284,8 +321,9 @@ final class Engine(prog: CoreProgram):
       while deltaNonEmpty && recursive.nonEmpty do
         if Thread.interrupted() then throw InterruptedException("evaluation cancelled")
         rounds += 1
-        for r <- recursive; j <- 0 until r.recursiveAtoms do
-          versionOf = i => if i < j then Version.Old else if i == j then Version.Delta else Version.Full
+        // a variant whose delta atom has an empty delta derives nothing: skipped (Soufflé does the same)
+        for r <- recursive; j <- 0 until r.recursiveAtoms if hasDelta(deltaRel(r)(j)) do
+          deltaAt = j
           fire(r)
         comp.foreach { t =>
           oldEnd(t) = deltaEnd(t); deltaEnd(t) = store(t).size
@@ -296,7 +334,7 @@ final class Engine(prog: CoreProgram):
       comp.foreach { t =>
         oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue
       }
-      versionOf = _ => Version.Full
+      deltaAt = -1
       stats += ComponentStats(comp.map(prog.rels(_).name), rounds)
 
   /** Answers of a query: distinct tuples of the user's variables. */
