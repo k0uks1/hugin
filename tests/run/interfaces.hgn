@@ -1,8 +1,7 @@
 (* An imported file ascribed with a signature (an interface): only the signature's fields are visible,
    types stay transparent (`s.shape` is the file's `shape`), constructor fields build terms from object
-   variables, and a constant also serves as a value field. A `%fact` field requires a fact constructor,
-   whose facts can be read; a fact constructor also matches a data-constructor field, which only builds
-   terms. *)
+   variables, and a constant also serves as a value field. Every constructor is a fact constructor,
+   whose facts can be read. *)
 shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
 s : shapes_sig = %import "lib/shapes".
 
@@ -18,7 +17,7 @@ small s.dot.
 small (s.square 2).
 ?- small X, s.area X A.
 
-marks_sig : Type = { shape : type, %fact mark : int -> shape, plain : int -> shape }.
+marks_sig : Type = { shape : type, mark : int -> shape, plain : int -> shape }.
 m : marks_sig = %import "lib/marks".
 data_sig : Type = { shape : type, mark : int -> shape }.
 d : data_sig = %import "lib/marks".
@@ -30,8 +29,8 @@ plains : m.shape -> rel.
 plains (m.plain 7).
 %output plains.
 
-(* inside a functor, a `%fact` field can be read *)
-counter (c : { shape : type, %fact mark : int -> shape, %complete mark }) = {
+(* inside a functor, a constructor field can be read *)
+counter (c : { shape : type, mark : int -> shape, %complete mark }) = {
   marks : int -> rel.
   marks K :- K = count { N | c.mark N }.
 }.

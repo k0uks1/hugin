@@ -33,7 +33,6 @@ not_yet R = [ierror "`%not_yet` is not implemented yet"].
 %not_yet seen. (*~ E1000 *)
 
 %input @r. (*~ E0701 *)
-%output a. (*~ E0406 *)
 %terminates n (edge X Y). (*~ E0701 *)
 %terminates n edge. (*~ E0701 *)
 

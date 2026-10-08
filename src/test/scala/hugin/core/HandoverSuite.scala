@@ -16,14 +16,14 @@ class HandoverSuite extends munit.FunSuite:
     TestSupport.errorCodes(TestSupport.compile(code, Settings()))
 
   private val shop =
-    """%fact item : type = { name : string, price : int }.
+    """item : type = { name : string, price : int }.
       |cheap : string -> rel.
       |""".stripMargin
 
   test("declarations: open types, refinements, relations, constructors, structs, edges") {
     val p = staged("""age : type <: int.
                      |person : type.
-                     |%fact student : (name : string) -> (years : age) -> person.
+                     |student : (name : string) -> (years : age) -> person.
                      |teacher : (name : string) -> rel.
                      |teacher <: person.
                      |""".stripMargin)
@@ -64,8 +64,8 @@ class HandoverSuite extends munit.FunSuite:
     assertEquals(errors("age : type <: int.\nr : age -> rel.\nr 30.\n"), Nil)
   }
 
-  test("data constructors used as relations, named-pattern errors") {
-    assertEquals(errors("t : type.\nc : int -> t.\nr : rel.\nr :- c 1.\n"), List("E0406"))
+  test("constructors are relations; named-pattern errors") {
+    assertEquals(errors("t : type.\nc : int -> t.\nr : rel.\nr :- c 1.\n"), Nil)
     assertEquals(errors(shop + "cheap N :- item { name = N }.\n"), List("E0301"))
     assertEquals(errors(shop + "cheap N :- item { nam = N, .. }.\n"), List("E0306"))
   }

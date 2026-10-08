@@ -98,12 +98,12 @@ enum Code(
   case E0402 extends Code(402, Phase.ObjectTyping, "type mismatch")
   case E0404 extends Code(404, Phase.ObjectTyping, "ill-formed declaration")
   case E0405 extends Code(405, Phase.ObjectTyping, "invalid ascription")
-  case E0406 extends Code(406, Phase.ObjectTyping, "data constructor used as a relation")
+  case E0406 extends Code(406, Phase.ObjectTyping, "data constructor used as a relation", status = Status.Retired("C3"))
   // moding
   case E0501 extends Code(501, Phase.Moding, "unbound variable")
-  case E0502 extends Code(502, Phase.Moding, "call without applicable mode")
-  case E0503 extends Code(503, Phase.Moding, "input position is not a pattern")
-  case E0504 extends Code(504, Phase.Moding, "fact constructor built in a moded input")
+  case E0502 extends Code(502, Phase.Moding, "call without applicable mode", status = Status.Retired("C3"))
+  case E0503 extends Code(503, Phase.Moding, "input position is not a pattern", status = Status.Retired("C3"))
+  case E0504 extends Code(504, Phase.Moding, "fact constructor built in a moded input", status = Status.Retired("C3"))
   // checks
   case E0601 extends Code(601, Phase.Checks, "stratification cycle through negation")
   case E0602 extends Code(602, Phase.Checks, "negation or aggregation over an incomplete relation")

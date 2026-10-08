@@ -1,20 +1,20 @@
-(* Data constructors in moded inputs never create facts: a call builds its inputs as values (the
-   demand), and a data value is never a fact. `%mode` adds facts only to the moded relation and its
-   demand relations. A fact constructor can still be passed through a variable bound to an existing
-   fact, and occur as a pattern in the input column of the moded relation's own head (no new fact). *)
+(* Constructor terms in demanded inputs: the demand rule of a call asserts its inputs (`area.check
+   (square 4)`), so the term becomes a fact, as any term a head builds (REDESIGN §8.1). A fact bound first
+   can be passed through a variable, and a constructor pattern in the input column of `area`'s own head
+   matches the demand. *)
 shape : type.
 circle : shape.
 square : int -> shape.
-%fact named : string -> shape.
+named : string -> shape.
 named "unit".
 
 area : (s : shape) -> (a : int) -> rel.
-%mode area +s -a.
+%demand area +s -a.
 area circle 3.
 area (square N) A :- A = N * N.
 area (named _) 1.
 
-(* the demand of `area` builds the data value `square 4`; no fact is created *)
+(* the demand of `area` asserts `square 4` *)
 q : int -> rel.
 q A :- area (square 4) A.
 %output q.
@@ -24,7 +24,7 @@ r : string -> int -> rel.
 r N A :- named N, S = named N, area S A.
 %output r.
 
-(* the facts of the fact constructor are only those asserted: the moded calls added none *)
+(* the facts of `named`: the demands of `area` added none (no call builds a `named` term) *)
 seen : string -> rel.
 seen N :- named N.
 %output seen.

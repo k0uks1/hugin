@@ -33,10 +33,9 @@ trait Records:
   /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. A field whose type is
    *  the type of an object constant (`node : type`, `edge : node -> node -> rel`, `dot : shape`,
    *  `square : int -> shape`) is object code of that type, as a declaration would declare an object
-   *  constant; other field types are meta types. Requirements (`%complete l`, `%mode l m̄`, `%fact l : …`)
-   *  are part of the record type ([[SigReq]]). */
+   *  constant; other field types are meta types. Requirements (`%complete l`) are part of the record type ([[SigReq]]). */
   def checkRecordType(c: Cxt, entries: List[SigEntry], l: Level): Tm =
-    val fields = entries.collect { case SigEntry.FieldDecl(lb, tpe, _) => (lb, tpe) }
+    val fields = entries.collect { case SigEntry.FieldDecl(lb, tpe) => (lb, tpe) }
     dupFields(fields.map(_._1), inSignature = true)
     var cc = c
     val tys = fields.map { (lb, tpe) =>
@@ -55,10 +54,8 @@ trait Records:
       case _ => check(c, tpe, Val.U1(l), Stage.S1)
 
   private def requirement(labels: List[Name])(e: SigEntry): Option[SigReq] = e match
-    case SigEntry.FieldDecl(lb, _, true) => Some(SigReq.Fact(lb.name))
-    case SigEntry.FieldDecl(_, _, false) => None
+    case SigEntry.FieldDecl(_, _) => None
     case SigEntry.Complete(lb, sp) => Some(SigReq.Complete(knownLabel(labels, lb), sp))
-    case SigEntry.ModeReq(lb, ms, sp) => Some(SigReq.HasMode(knownLabel(labels, lb), ms.map(_.input).toVector, sp))
 
   private def knownLabel(labels: List[Name], lb: Ident): Name =
     if !labels.contains(lb.name) then fail(ElabProblem.UnknownRequirementField(lb.name, lb.span))

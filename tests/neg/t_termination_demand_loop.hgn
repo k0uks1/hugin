@@ -1,7 +1,7 @@
 (* the demand `c^d 1` is finite, but the answers of `c` grow: the recursive call demands the same input.
    The demand rule `c^d X :- c^d X` forms a component of its own; it is checked with `c`'s measure. *)
 c : int -> int -> rel.
-%mode c + -.
+%demand c + -.
 %terminates X (c X _).
 c 1 0.
 c X Y :- c X Z, Y = Z + 1. (*~ E0604 *)

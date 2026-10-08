@@ -3,10 +3,10 @@
    `check` terminates by descent along derivations (A): the expression in the head is a proper subterm of
    the one in the premise; `typed` by guarded induction (B) on `e`, bound by the guard `check`. *)
 name : type = string.
-expr : type.   %fact ref : name -> expr.   %fact lam : name -> typ -> expr -> expr.
-               %fact app : expr -> expr -> expr.
-typ  : type.   %fact base : string -> typ.   %fact arrow : typ -> typ -> typ.
-ctx  : type.   %fact empty : ctx.   %fact bind : ctx -> name -> typ -> ctx.
+expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.
+               app : expr -> expr -> expr.
+typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
+ctx  : type.   empty : ctx.   bind : ctx -> name -> typ -> ctx.
 
 program : expr -> rel.
 %input program.

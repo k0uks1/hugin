@@ -4,7 +4,7 @@ counter 0.
 counter M :- counter N, N < 5, M = N + 1.
 
 fib : (n : int) -> (f : int) -> rel.
-%mode fib +n -f.
+%demand fib +n -f.
 fib 0 0.
 fib 1 1.
 fib N F :- N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
@@ -12,7 +12,7 @@ fib N F :- N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.
 
 (* the demands of `log2` form a component of their own; the measure is still suggested for `log2` *)
 log2 : (n : int) -> (l : int) -> rel.
-%mode log2 +n -l.
+%demand log2 +n -l.
 log2 1 0.
 log2 N L :- N > 1, H = N / 2, log2 H K, L = K + 1.
 ?- log2 1000 L.

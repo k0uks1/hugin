@@ -1,41 +1,33 @@
 error[E0906]: no field `internal`
- --> tests/neg/interfaces.hgn:6:10
+ --> tests/neg/interfaces.hgn:5:10
   |
-6 | x X :- a.internal X.
+5 | x X :- a.internal X.
   |          ^^^^^^^^ unknown field
   |
   = note: `{ shape : type, dot : ⇑shape }` has the fields `shape`, `dot`
 
 error[E0204]: signature mismatch
- --> tests/neg/interfaces.hgn:9:16
+ --> tests/neg/interfaces.hgn:8:16
   |
-9 | b : more_sig = %import "lib/shapes".
+8 | b : more_sig = %import "lib/shapes".
   |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, circle : ⇑shape }`
   |
   = note: missing field `circle`
 
 error[E0204]: signature mismatch
-  --> tests/neg/interfaces.hgn:12:17
+  --> tests/neg/interfaces.hgn:11:17
    |
-12 | c : arity_sig = %import "lib/shapes".
+11 | c : arity_sig = %import "lib/shapes".
    |                 ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, square : ⇑(int -> int -> shape) }`
    |
    = note: field `square`: expected `⇑(int -> int -> shapes.shape)`, found `⇑(int -> shapes.shape)`
 
 error[E0204]: signature mismatch
-  --> tests/neg/interfaces.hgn:15:16
+  --> tests/neg/interfaces.hgn:14:16
    |
-15 | d : kind_sig = %import "lib/shapes".
+14 | d : kind_sig = %import "lib/shapes".
    |                ^^^^^^^^^^^^^^^^^^^^ expected `{ shape : type, area : ⇑(shape -> int -> shape) }`
    |
    = note: field `area`: expected `⇑(shapes.shape -> int -> shapes.shape)`, found `⇑(shapes.shape -> int -> rel)`
 
-error[E0204]: signature mismatch
-  --> tests/neg/interfaces.hgn:18:16
-   |
-18 | e : fact_sig = %import "lib/shapes".
-   |                ^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: field `square`: a data constructor where a fact constructor is expected (declare the constructor with `%fact`)
-
-5 errors found
+4 errors found

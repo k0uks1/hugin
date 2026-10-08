@@ -20,7 +20,7 @@ notlist L :- lists L, L <> cons red nil.
 %output notlist.
 
 d : (a : color) -> rel.
-%mode d +a.
+%demand d +a.
 d X :- p X.
 ?- d red.
 ?- d blue.

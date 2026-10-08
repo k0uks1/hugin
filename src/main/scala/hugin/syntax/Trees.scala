@@ -129,13 +129,16 @@ object Trees:
    *  enclosing item with that name. */
   final case class NamedVar(name: String)(val span: Span) extends Tree
 
+  /** `+e -t +`: mode items as a directive argument (`%demand typed +e +g -t.`), elaborated to the prelude's
+   *  `modes` data (REDESIGN §7.4). */
+  final case class ModeArgs(items: List[ModeItem])(val span: Span) extends Tree
+
   final case class Field(label: Ident, value: Tree)
 
   enum SigEntry:
-    /** `l : τ`, or `%fact l : τ̄ -> a` (a field that must be a fact constructor). */
-    case FieldDecl(label: Ident, tpe: Tree, fact: Boolean = false)
+    /** `l : τ`. */
+    case FieldDecl(label: Ident, tpe: Tree)
     case Complete(label: Ident, span: Span)
-    case ModeReq(label: Ident, modes: List[ModeItem], span: Span)
 
   final case class ModeItem(input: Boolean, label: Option[Ident], span: Span)
 
@@ -155,8 +158,8 @@ object Trees:
   sealed trait Item:
     def span: Span
 
-  /** `name param* : type [<: sup] [= defn].`, or with `%fact` (a fact constructor or struct). */
-  final case class Decl(name: Ident, params: List[Param], tpe: Tree, sup: Option[Tree], defn: Option[Tree], fact: Boolean = false)(
+  /** `name param* : type [<: sup] [= defn].` */
+  final case class Decl(name: Ident, params: List[Param], tpe: Tree, sup: Option[Tree], defn: Option[Tree])(
       val span: Span
   ) extends Item
 
@@ -179,9 +182,6 @@ object Trees:
     /** `%d a₁ … aₙ.`: the application of the meta function `d`; with `decl`, the prefix form `%d a₁ … aₙ`
      *  attached to the declaration of `decl` that follows it. */
     case Apply(args: List[Tree], decl: Option[Ident])
-
-    /** `%mode r +l -m` (until `%demand` replaces it, REDESIGN C3). */
-    case Mode(target: Tree, modes: List[ModeItem])
 
     /** `%infix assoc p name`: handled by the parser. */
     case Infix(assoc: String, prec: Int, name: Ident)

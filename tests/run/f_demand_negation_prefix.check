@@ -1,0 +1,19 @@
+termination: {size.check}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
+termination: {size}: terminates, measure inferred
+  inferred measure: `%terminates l size.`
+  measure of `size`: argument 1 `l` (structural)
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at tests/run/f_demand_negation_prefix.hgn:14:1: call `size L N`: `L` is a proper subterm of `cons[int] _aa L`; anchored: `cons[int] _aa L` is bound by relations outside the component
+termination: {size2.check}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/f_demand_negation_prefix.hgn:22:29: premise `size2.check (cons[int] _aa L)`: `L` is a proper subterm of `cons[int] _aa L`
+termination: {size2}: terminates, measure inferred
+  inferred measure: `%terminates l size2.`
+  measure of `size2`: argument 1 `l` (structural)
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at tests/run/f_demand_negation_prefix.hgn:22:1: call `size2 L N`: `L` is a proper subterm of `cons[int] _aa L`; anchored: `cons[int] _aa L` is bound by relations outside the component
+?- b L N.
+L = cons 2 (cons 1 nil), N = 2.
+L = nil, N = 0.
+?- c M K.
+M = 3, K = 2.

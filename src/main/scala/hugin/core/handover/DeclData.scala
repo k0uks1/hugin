@@ -3,7 +3,7 @@ package handover
 
 import hugin.obj
 import hugin.obj.DirKind
-import hugin.core.elab.{DataConstructors, DirectiveProblem, ReflectionProblem}
+import hugin.core.elab.{DirectiveProblem, ReflectionProblem}
 import hugin.util.*
 
 /** The attributes that local directives attach to declarations (REDESIGN §7.1–7.2), staged: the `decl`
@@ -80,8 +80,6 @@ private[handover] final class DeclData(core: Core, symbols: ObjectSymbols, repor
   /** The relation of an object constant (a relation, fact constructor or struct). */
   private def relation(id: Int, directive: String, span: Span): obj.RelSym =
     globals(id).kind match
-      case GlobalKind.Object(ObjDecl.Constructor(false) | ObjDecl.Struct(false)) =>
-        fail(DataConstructors.asRelation(core, id, span, s"`$directive` expects a relation"))
       case _ => symbols.relSym(id).getOrElse(fail(DirectiveProblem.NotARelation(directive, span)))
 
   private var wildcards = 0

@@ -2,7 +2,7 @@ package hugin.core
 
 import StagedTesting.*
 
-/** Formula functions defined by clauses, hygiene, `%mode` on formula functions. */
+/** Formula functions defined by clauses, hygiene. */
 class FormulaFunctionsSuite extends munit.FunSuite:
   test("clauses define a disjunction of their bodies with the parameters equated to the arguments") {
     assertEquals(
@@ -22,8 +22,4 @@ class FormulaFunctionsSuite extends munit.FunSuite:
 
   test("a formula function without clauses is false (W0005)") {
     assertEquals(errors("never : int -> prop.\nr : int -> rel.\nr X :- X = 1, never X.\n"), Nil)
-  }
-
-  test("%mode on a formula function checks its body's binding order (E0501)") {
-    assertEquals(errors("f : int -> int -> prop.\n%mode f - +.\nf X Y :- Y = X + 2.\n"), List("E0501"))
   }

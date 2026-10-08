@@ -11,14 +11,16 @@ arr : typ -> typ -> typ.
 typed : expr -> ctx -> typ -> rel.
 typed_check : expr -> ctx -> rel.
 lookup : ctx -> string -> typ -> rel.
-%mode lookup + + -.
+lookup.check : ctx -> string -> rel.
+lookup.check G X :- typed_check (ref X) G.
 typed (ref X) G T :- typed_check (ref X) G, lookup G X T.
 typed (app F A) G T :- typed_check (app F A) G, typed F G (arr S T), typed A G S.
 typed_check F G :- typed_check (app F A) G.
 typed_check A G :- typed_check (app F A) G.
-lookup (bind X T _) X T.
-lookup (bind Y _ G) X T :- lookup G X T, X <> Y.
-typed_check (app (ref "f") (ref "x")) G :- G = bind "f" (arr (base "i") (base "b")) (bind "x" (base "i") emp).
+lookup (bind X T _abba) X T :- lookup.check (bind X T _abba) X.
+lookup (bind Y _aba G) X T :- lookup.check (bind Y _aba G) X, lookup G X T, X <> Y.
+lookup.check G X :- lookup.check (bind Y _aba G) X.
+typed_check (app (ref "f") (ref "x")) (bind "f" (arr (base "i") (base "b")) (bind "x" (base "i") emp)).
 ?- typed E _ T.
 
 ?- typed E _ T.

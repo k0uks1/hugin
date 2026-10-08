@@ -1,6 +1,6 @@
 (* the type argument of a family constructor in a comparison is inferred from the other side, and a
    constructor term can be ascribed with its declared result type (issue #1, F4); comparisons are
-   structural, and `M = (nil : list int)` builds the data value `nil` *)
+   structural, and `M = (nil : list int)` checks that `nil` is a fact *)
 l : list int -> rel.
 l nil. l (cons 1 nil). l (cons 2 (cons 1 nil)).
 nonempty : list int -> rel.

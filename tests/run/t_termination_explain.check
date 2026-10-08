@@ -1,17 +1,21 @@
-termination: {fib, fib^d[+-]}: terminates, measure declared
+termination: {fib.check}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_explain.hgn:7:45: premise `fib.check N`: `A` < `N` (`N - A` = 1; `A` >= 1)
+  rule at tests/run/t_termination_explain.hgn:7:55: premise `fib.check N`: `B` < `N` (`N - B` = 2; `B` >= 0)
+termination: {fib}: terminates, measure declared
   measure of `fib`: argument 1 `n` (integer)
-  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
-  rule at tests/run/t_termination_explain.hgn:7:1: demand for `fib^d[+-] A` from `fib^d[+-] N`: `N - A` = 1; `A` >= 1
-  rule at tests/run/t_termination_explain.hgn:7:1: demand for `fib^d[+-] B` from `fib^d[+-] N`: `N - B` = 2; `B` >= 0
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at tests/run/t_termination_explain.hgn:7:1: call `fib A FA`: `N - A` = 1; anchored: `N` is bound by relations outside the component
+  rule at tests/run/t_termination_explain.hgn:7:1: call `fib B FB`: `N - B` = 2; anchored: `N` is bound by relations outside the component
 termination: {path}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
 termination: {nat}: terminates by descent along derivations (A)
   descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
   rule at tests/run/t_termination_explain.hgn:20:1: premise `nat N`: `M` > `N` (`M - N` = 1; `M` <= 3)
-termination: {len[string]^d[+-]}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
-termination: {len[string]}: terminates, measure declared
+termination: {len[string]}: terminates, measure inferred
+  inferred measure: `%terminates l len[string].`
   measure of `len[string]`: argument 1 `l` (structural)
-  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
-  rule at <stdlib>/prelude.hgn:20:1: demand for `len[string]^d[+-] L` from `len[string]^d[+-] (cons[string] _ L)`: `L` is a proper subterm of `cons[string] _ L`
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at <stdlib>/prelude.hgn:19:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
 ?- fib 10 F.
 F = 55.
 ?- words L, len L N.

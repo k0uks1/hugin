@@ -25,7 +25,7 @@ steps 0.
 steps M :- steps N, N < 3, M = N + 1.
 down : (n : int) -> (k : int) -> rel.
 %terminates n down.
-%mode down +n -k.
+%demand down +n -k.
 down N N :- N <= 0.
 down N K :- N > 0, M = N - 1, down M K.
 
@@ -41,4 +41,5 @@ reach (g : graph) = {
   r X Z :- r X Y, g.edge Y Z.
 }.
 reached = reach { node = node, edge = edge }.
+%demand len +l -n.
 ?- steps X, down X 0, len (cons a nil) L.

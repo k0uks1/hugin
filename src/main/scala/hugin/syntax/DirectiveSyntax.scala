@@ -1,18 +1,16 @@
 package hugin.syntax
 
-import hugin.util.diagnostics.msg
 import scala.collection.mutable
 
 /** The grammar of directives (docs/REDESIGN.md §7), mixed into [[Parser]]. A directive is the application
  *  of a meta function, `%d a₁ … aₙ.`; its arguments are atoms (names, paths, variables, literals, rule
- *  names `@r`, parenthesised expressions). In the prefix form `%d a₁ … aₙ DECL` it is attached to the
- *  declaration that follows, which is recognised by its `:` (the declaration's head is the name before
- *  the `:` with its parameters). What a directive means is decided by elaboration: the parser knows only
- *  the forms with a grammar of their own:
+ *  names `@r`, parenthesised expressions) and mode items `+e -t` (one argument for a run of them,
+ *  [[ModeArgs]], elaborated to the prelude's `modes` data: `%demand typed +e +g -t.`). In the prefix form
+ *  `%d a₁ … aₙ DECL` it is attached to the declaration that follows, which is recognised by its `:` (the
+ *  declaration's head is the name before the `:` with its parameters). What a directive means is decided
+ *  by elaboration: the parser knows only the forms with a grammar of their own:
  *
  *  - `%infix assoc p name` (operators are resolved while parsing);
- *  - `%mode r +l -m` (mode items; until `%demand` replaces it, REDESIGN C3);
- *  - `%fact c : τ̄ -> a.` (a modifier of the declaration, until C3 removes the data/fact split);
  *  - `%partial` (removed) and `%complete` (only in signatures, [[RecordSyntax]]).
  */
 private[syntax] trait DirectiveSyntax extends RecordSyntax:
@@ -23,9 +21,6 @@ private[syntax] trait DirectiveSyntax extends RecordSyntax:
   /** The index of the current token, and the token at an index. */
   protected def position: Int
   protected def tokenAt(k: Int): Token
-
-  /** The rest of a declaration `lhs : …` at the `:` (with `%fact`). */
-  protected def parseDeclRest(lhs: Tree, start: Int, fact: Boolean): Trees.Item
 
   /** Parses the item at the current token (the declaration a directive is attached to). */
   protected def parseAttached(): Trees.Item
@@ -39,25 +34,6 @@ private[syntax] trait DirectiveSyntax extends RecordSyntax:
     val name = d.text.drop(1)
     def directive(args: DirArgs) = Directive(name, args)(spanFrom(start), d.span)
     name match
-      case "fact" =>
-        // `%fact c : τ̄ -> a.`: a modifier of a constructor or struct declaration
-        val lhs = parseExpr(Parser.LvlHead)
-        if kind != Tok.Colon then
-          fail(
-            SyntaxError.Expected(
-              msg"`:` after the name of a `%fact` declaration",
-              if kind == Tok.EOF then Found.EndOfFile else Found.Token(tok.text),
-              tok.span,
-              msg"expected `:`",
-              Some(msg"`%fact` marks a constructor or struct declaration: `%fact c : int -> t.`")
-            )
-          )
-        parseDeclRest(lhs, start, fact = true)
-      case "mode" =>
-        val p = parsePath()
-        val ms = parseModeItems()
-        expectPeriod("`.` after directive")
-        directive(DirArgs.Mode(p, ms))
       case "infix" =>
         val a = expectTok(Tok.Name, "`left`, `right` or `none`")
         if !Set("left", "right", "none")(a.text) then report(SyntaxError.UnknownAssociativity(a.text, a.span))
@@ -70,7 +46,8 @@ private[syntax] trait DirectiveSyntax extends RecordSyntax:
       case _ =>
         val declAt = attachedDeclaration()
         val args = mutable.ListBuffer.empty[Tree]
-        while kind != Tok.Period && kind != Tok.EOF && kind != Tok.RBrace && !declAt.contains(position) do args += parsePostfix()
+        while kind != Tok.Period && kind != Tok.EOF && kind != Tok.RBrace && !declAt.contains(position) do
+          args += (if kind == Tok.Plus || kind == Tok.Minus then parseModeArgs() else parsePostfix())
         declAt match
           case Some(_) =>
             val decl = Ident(tok.text)(tok.span)
@@ -81,15 +58,17 @@ private[syntax] trait DirectiveSyntax extends RecordSyntax:
             expectPeriod("`.` after directive")
             directive(DirArgs.Apply(args.toList, None))
 
-  /** A relation or path `m.r` (the target of `%mode`). */
-  protected def parsePath(): Tree =
-    val t = expectTok(Tok.Name, "a relation or path")
-    var p: Tree = Ident(t.text)(t.span)
-    while kind == Tok.Select do
-      advance()
-      val n = expectTok(Tok.Name, "a label after `.`")
-      p = Select(p, n.text)(p.span.to(n.span), n.span)
-    p
+  /** Mode items `+e -t +`: `+` an input, `-` an output, each optionally naming the column's label. */
+  private def parseModeArgs(): Tree =
+    val start = tok.span.start
+    val b = mutable.ListBuffer.empty[ModeItem]
+    while kind == Tok.Plus || kind == Tok.Minus do
+      val t = advance()
+      val lbl = if kind == Tok.Name then
+        val n = advance(); Some(Ident(n.text)(n.span))
+      else None
+      b += ModeItem(t.kind == Tok.Plus, lbl, t.span.to(lbl.map(_.span).getOrElse(t.span)))
+    ModeArgs(b.toList)(spanFrom(start))
 
   /** The index of the token that starts the declaration a prefix directive is attached to: the name in
    *  front of the first `:` (and of the declaration's parameters) at depth 0 before the end of the item. */

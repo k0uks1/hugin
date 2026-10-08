@@ -35,14 +35,14 @@ trait Where:
 
   /** Elaborates the first binding of `items` (a signature takes its clauses along). */
   private def binding(c: Cxt, owner: Name, items: List[Item]): (Cxt, List[Item]) = items.head match
-    case Decl(name, Nil, tpe, None, Some(e), _) =>
+    case Decl(name, Nil, tpe, None, Some(e)) =>
       val a = checkType(c, tpe, Stage.S1)
       val av = ev(c, a)
       (define(c, name.name, av, ev(c, check(c, e, av, Stage.S1))), items.tail)
     case Def(name, Nil, rhs) =>
       val (t, ty) = inferS(c, rhs, Stage.S1)
       (define(c, name.name, ty, ev(c, t)), items.tail)
-    case d @ Decl(name, Nil, tpe, None, None, _) =>
+    case d @ Decl(name, Nil, tpe, None, None) =>
       val (clauses, rest) = items.tail.span(isClauseOf(name.name))
       if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
       (localFunction(c, owner, name, tpe, clauses.flatMap(localClause), d.span), rest)

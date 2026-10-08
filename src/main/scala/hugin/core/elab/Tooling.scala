@@ -28,8 +28,8 @@ trait Tooling:
   private def objectKind(d: ObjDecl): SymKind = d match
     case ObjDecl.OpenType | ObjDecl.Refinement(_) => SymKind.ObjType
     case ObjDecl.Relation => SymKind.Rel
-    case ObjDecl.Constructor(_) => SymKind.Ctor
-    case ObjDecl.Struct(_) => SymKind.Struct
+    case ObjDecl.Constructor => SymKind.Ctor
+    case ObjDecl.Struct => SymKind.Struct
 
   /** A meta-level name by its type: a formula function returns `⇑prop`, a type definition `type`. */
   private def metaKind(ty: Val): SymKind = force(telescope(ty)._2) match
@@ -68,7 +68,7 @@ trait Tooling:
     val sym = symOf(id)
     val description = g.kind match
       case GlobalKind.Definition(tm, v) if force(v).isInstanceOf[Val.RecTy] => s"signature ${sym.name} = ${showPlain(Nil, tm)}"
-      case _ => describe(sym, item, isFact(g.kind), showPlain(Nil, g.tyTm))
+      case _ => describe(sym, item, showPlain(Nil, g.tyTm))
     // constructors of reflective data (`irule`, `dconst`) are directives by their types, but not meant as such
     (if g.kind.isInstanceOf[GlobalKind.Constructor] then None else directiveFootprint(g.ty)) match
       case Some(fp) =>
@@ -84,21 +84,15 @@ trait Tooling:
       case rt: Val.RecTy => index.members(sym, fieldSyms(rt))
       case _ =>
 
-  private def isFact(k: GlobalKind): Boolean = k match
-    case GlobalKind.Object(ObjDecl.Constructor(f)) => f
-    case GlobalKind.Object(ObjDecl.Struct(f)) => f
-    case GlobalKind.Family(ObjDecl.Constructor(f), _) => f
-    case _ => false
-
   /** `relation len A : (l : list A) -> (n : int) -> rel`: the kind, the name with its parameters and the
    *  type as written by a declaration, or `shown` (the elaborated type) for a definition without one. */
-  private def describe(sym: Sym, item: Item, fact: Boolean, shown: => String): String =
+  private def describe(sym: Sym, item: Item, shown: => String): String =
     val written = item match
       case d: Decl =>
         val params = (d.params.map(paramText) ++ freeVars(d.tpe, Set.empty).map(_.name)).distinct
         Some(s"${sym.name}${params.map(" " + _).mkString} : ${typeText(d.tpe)}")
       case _ => None
-    s"${if fact then "%fact " else ""}${sym.kind.describe} ${written.getOrElse(s"${sym.name} : $shown")}"
+    s"${sym.kind.describe} ${written.getOrElse(s"${sym.name} : $shown")}"
 
   /** A type as written, arrows without redundant parentheses. */
   private def typeText(t: hugin.syntax.Tree): String = t match
@@ -155,7 +149,7 @@ trait Tooling:
       val b = cb.binder(c.lvl + k)
       val sym = Sym(m.name, fieldKind(b.ty), m.span, m.declSpan)
       val shown = objectType(cb, b.ty)
-      declared(sym, byName.get(m.span).fold(s"${sym.kind.describe} ${m.name} : $shown")(describe(sym, _, false, shown)), b.ty)
+      declared(sym, byName.get(m.span).fold(s"${sym.kind.describe} ${m.name} : $shown")(describe(sym, _, shown)), b.ty)
       sym
     }
     val params = c.binders.reverse.flatMap(b => paramSym(c, b))

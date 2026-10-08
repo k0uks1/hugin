@@ -2,7 +2,7 @@
    whose component comes before `d`'s, so it is split into `s (s N) :- s N`, evaluated in `s`'s component
    (see docs/NOTES.md). That rule makes new `s` facts that it matches again: `{s}` is a recursive
    component with a constructive rule *)
-t : type. z : t. %fact s : t -> t.
+t : type. z : t. s : t -> t.
 b : t -> rel. b z.
 d : t -> rel.
 d z :- b z.

@@ -3,7 +3,7 @@
    `total` and the negation in `lonely` see all of them, although `h`'s own component comes after theirs.
    `big` aggregates in the asserting rule itself: `mk` depends on the count over `src` (a lower stratum) *)
 w : type.
-%fact mk : int -> w.
+mk : int -> w.
 mk 10.
 src : int -> rel.
 src 1. src 2.

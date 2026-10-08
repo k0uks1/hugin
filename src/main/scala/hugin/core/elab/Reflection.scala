@@ -113,9 +113,11 @@ trait Reflection:
 
   // ---------------------------------------------------------------- data to syntax
 
-  /** The value without its positions, and the innermost position (or `sp`). */
+  /** The value without its positions, and the innermost position (or `sp`). Positions in another file
+   *  than `sp`'s (the syntax of a directive of the prelude or of an imported file) are not used: code is
+   *  shown where it is generated, at the data it came from or at the reflecting item. */
   private def peel(v: Val, sp: Span): (Val, Span) = force(v) match
-    case Val.Obj(ObjForm.Loc(s), List(x)) => peel(x, if s.exists then s else sp)
+    case Val.Obj(ObjForm.Loc(s), List(x)) => peel(x, if s.exists && (!sp.exists || s.source.path == sp.source.path) then s else sp)
     case other => (other, sp)
 
   private lazy val ctorNames: Map[Int, Name] = reflectiveGlobals.get.ctors.map(_.swap)
@@ -155,11 +157,32 @@ trait Reflection:
               List(Rule(Some(Ident(name)(s)), rl.heads, rl.body)(rl.span))
             case _ => malformed("a rule name that is not a name", s)
         case ("ierror", List(m), s) => fail(DirectiveProblem.Rejected(message(m, s, t), t.fallback))
+        case ("irelation", List(sym, cols), s) =>
+          declareRelation(sym, cols, s, t)
+          Nil
         case ("iquery", List(fs), s) => List(Query(conj(elements(fs, s, t).map((f, fs2) => formula(f, fs2, Nil, t))).getOrElse(malformed(
             "an empty query",
             s
           )))(t.fallback))
         case (_, _, s) => malformed("not an item", s)
+
+  /** `irelation S cols`: declares the derived constant `S` (pending since `derive` created it) as the
+   *  relation over the columns `cols` (each a column of an object constant, with its label and type). */
+  private def declareRelation(sym: Val, cols: Val, s: Span, t: Target): Unit =
+    val id = symbolId(sym, s, t)
+    val columns = elements(cols, s, t).map { (c, cs) =>
+      ctorApp(c, cs, t) match
+        case ("colof", List(of, k), s2) => (symbolId(of, s2, t), index(k, s2, t))
+        case (_, _, s2) => malformed("not a column", s2)
+    }
+    declareDerived(id, columns, t.fallback).foreach(malformed(_, s))
+
+  private def symbolId(v: Val, s: Span, t: Target): Int = peel(v, s)._1 match
+    case Val.Quote(x) =>
+      peel(x, s)._1 match
+        case Val.Rigid(Head.Glob(id), Nil) => id
+        case other => notClosed(other, s, t)
+    case other => notClosed(other, s, t)
 
   private def rule(v: Val, sp: Span, t: Target): Rule = ctorApp(v, sp, t) match
     case ("horn", List(hs, bs), s) =>
@@ -214,6 +237,8 @@ trait Reflection:
     val head: Tree = peel(sym, s)._1 match
       case Val.Quote(x) =>
         peel(x, s)._1 match
+          case Val.Rigid(Head.Glob(id), Nil) if globals(id).pending =>
+            malformed(s"`${globals(id).name}` is not declared (a constant from `derive` is declared by an item `irelation`)", s)
           case Val.Rigid(Head.Glob(id), Nil) => SymRef(id, globals(id).name)(s)
           case other => notClosed(other, s, t)
       case other => notClosed(other, s, t)

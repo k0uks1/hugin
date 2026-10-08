@@ -38,7 +38,7 @@ object Evaluation:
     def directives(r: hugin.obj.RelSym) = prog.directives(prog.tag(r))
     val explicit = prog.rels.filter(directives(_).output)
     val shown =
-      if allRelations then prog.rels.filterNot(_.isData) // data constructors' values are not facts of a relation
+      if allRelations then prog.rels
       else if explicit.nonEmpty then explicit
       else if prog.queries.nonEmpty then Vector.empty
       else prog.rels.filter(r => r.kind == RelKind.Plain && !directives(r).input)

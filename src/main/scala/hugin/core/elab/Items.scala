@@ -42,7 +42,7 @@ trait Items:
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
     state.declaredHere = prog.flatMap(declares).toSet
-    state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _) => n.name -> rt }.toMap
+    state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
@@ -89,7 +89,7 @@ trait Items:
     val byName = stuck.flatMap((item, e) => declares(item).map(_ -> (item, e))).toMap
     def target(item: Item, e: ElabError) = e.unresolved.flatMap(byName.get)
     def isTypeDefinition(item: Item) = item match
-      case Decl(_, Nil, Keyword(Kw.Type), None, Some(_), _) => true
+      case Decl(_, Nil, Keyword(Kw.Type), None, Some(_)) => true
       case _ => false
     for (item, e) <- stuck do
       (item, target(item, e)) match

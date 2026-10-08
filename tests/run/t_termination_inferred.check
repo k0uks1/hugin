@@ -1,20 +1,22 @@
 termination: {counter}: terminates by descent along derivations (A)
   descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
   rule at tests/run/t_termination_inferred.hgn:4:1: premise `counter N`: `M` > `N` (`M - N` = 1; `M` <= 5)
-termination: {fib, fib^d[+-]}: terminates, measure inferred
-  inferred measure: `%terminates n fib.`
-  measure of `fib`: argument 1 `n` (integer)
-  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
-  rule at tests/run/t_termination_inferred.hgn:10:1: demand for `fib^d[+-] A` from `fib^d[+-] N`: `N - A` = 1; `A` >= 1
-  rule at tests/run/t_termination_inferred.hgn:10:1: demand for `fib^d[+-] B` from `fib^d[+-] N`: `N - B` = 2; `B` >= 0
-termination: {log2^d[+-]}: terminates by descent along derivations (A)
+termination: {fib.check}: terminates by descent along derivations (A)
   descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
-  rule at tests/run/t_termination_inferred.hgn:17:1: premise `log2^d[+-] N`: `H` < `N` (`H` = `N / 2` < `N` (`N` >= 1); `H` >= 1)
+  rule at tests/run/t_termination_inferred.hgn:10:45: premise `fib.check N`: `A` < `N` (`N - A` = 1; `A` >= 1)
+  rule at tests/run/t_termination_inferred.hgn:10:55: premise `fib.check N`: `B` < `N` (`N - B` = 2; `B` >= 0)
+termination: {fib}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_inferred.hgn:10:1: premise `fib A FA`: `N` > `A` (`N - A` = 1; `N` is bound by relations outside the component)
+  rule at tests/run/t_termination_inferred.hgn:10:1: premise `fib B FB`: `N` > `B` (`N - B` = 2; `N` is bound by relations outside the component)
+termination: {log2.check}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_inferred.hgn:17:36: premise `log2.check N`: `H` < `N` (`H` = `N / 2` < `N` (`N` >= 1); `H` >= 1)
 termination: {log2}: terminates, measure inferred
   inferred measure: `%terminates n log2.`
   measure of `log2`: argument 1 `n` (integer)
-  demand-driven: each demand is smaller than the demand guarding it; decreasing integers are bounded below
-  rule at tests/run/t_termination_inferred.hgn:17:1: demand for `log2^d[+-] H` from `log2^d[+-] N`: `H` = `N / 2` < `N` (`N` >= 1); `H` >= 1
+  guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
+  rule at tests/run/t_termination_inferred.hgn:17:1: call `log2 H K`: `H` = `N / 2` < `N` (`N` >= 1); anchored: `N` is bound by relations outside the component
 ?- fib 10 F.
 F = 55.
 ?- log2 1000 L.

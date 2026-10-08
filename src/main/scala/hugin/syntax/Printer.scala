@@ -44,15 +44,15 @@ object Printer:
     case SpliceHO(f, as) => s"$$${showArg(f)}${as.map(show).mkString("[", ", ", "]")}"
     case SymRef(_, n) => n
     case NamedVar(n) => n
+    case ModeArgs(ms) => ms.map(showMode).mkString(" ")
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"
     case _ => show(t)
 
   def showSig(e: SigEntry): String = e match
-    case SigEntry.FieldDecl(l, t, fact) => s"${if fact then "%fact " else ""}${l.name} : ${show(t)}"
+    case SigEntry.FieldDecl(l, t) => s"${l.name} : ${show(t)}"
     case SigEntry.Complete(l, _) => s"%complete ${l.name}"
-    case SigEntry.ModeReq(l, ms, _) => s"%mode ${l.name} ${ms.map(showMode).mkString(" ")}"
 
   def showMode(m: ModeItem): String = (if m.input then "+" else "-") + m.label.map(_.name).getOrElse("")
 
@@ -61,9 +61,8 @@ object Printer:
     case Param.Typed(n, t, _) => s"(${show(n)} : ${show(t)})"
 
   def showItem(i: Item): String = i match
-    case Decl(n, ps, t, sup, d, fact) =>
-      val pre = if fact then "%fact " else ""
-      s"$pre${(n.name :: ps.map(showParam)).mkString(" ")} : ${show(t)}${sup.map(s => " <: " + show(s)).getOrElse("")}${d.map(x => " = " + show(x)).getOrElse("")}."
+    case Decl(n, ps, t, sup, d) =>
+      s"${(n.name :: ps.map(showParam)).mkString(" ")} : ${show(t)}${sup.map(s => " <: " + show(s)).getOrElse("")}${d.map(x => " = " + show(x)).getOrElse("")}."
     case Def(n, ps, r) => s"${(n.name :: ps.map(showParam)).mkString(" ")} = ${show(r)}."
     case SubEdge(a, b) => s"${show(a)} <: ${show(b)}."
     case Rule(n, hs, b) =>
@@ -73,7 +72,6 @@ object Printer:
     case Clause(l, r, wh) => s"${show(l)} = ${show(r)}\n  where ${wh.map(showItem).mkString("\n        ")}"
     case Directive(k, args) =>
       args match
-        case DirArgs.Mode(t, ms) => s"%$k ${(show(t) :: ms.map(showMode)).mkString(" ")}."
         case DirArgs.Infix(a, p, n) => s"%$k $a $p ${n.name}."
         case DirArgs.Apply(as, decl) => (s"%$k" :: as.map(showArg)).mkString(" ") + decl.fold(".")(_ => "") // the declaration follows
 

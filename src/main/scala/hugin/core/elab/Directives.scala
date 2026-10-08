@@ -1,7 +1,7 @@
 package hugin.core
 package elab
 
-import hugin.syntax.{Printer, Tree}
+import hugin.syntax.{Literal, Printer, Tree}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
@@ -30,7 +30,10 @@ enum Footprint:
  *  - A module-wide directive is recorded as a part of the module ([[ModuleDirectives]]); the file's rules
  *    and queries are rewritten once all items are elaborated.
  *
- *  `%mode` (until `%demand` replaces it, C3) and `%infix` (a parse-time directive) keep their own syntax. */
+ *  Mode items `+e -t` among the arguments ([[ModeArgs]]) are the prelude's `modes` data
+ *  (`minput "e" (moutput "t" mnone)`; a plain `+` leaves the label to unification), so `%demand typed +e
+ *  +g -t.` is checked against `typed`'s labels by its type `modes (labels r)`. `%infix` (a parse-time
+ *  directive) keeps its own syntax. */
 trait Directives:
   self: Elaborator =>
   import core.*
@@ -38,7 +41,6 @@ trait Directives:
   /** The items of a directive at the top level (`c` empty) or in a module body. */
   def directiveItems(c: Cxt, d: Directive, inBody: Boolean): List[CoreItem] = d.args match
     case DirArgs.Infix(_, _, _) => Nil
-    case DirArgs.Mode(t, ms) => List(modeDirective(c, d, t, ms))
     case DirArgs.Apply(args, decl) =>
       val (tm, footprint, attached) = application(c, d, args, decl)
       val frame = TraceFrame(s"in expansion of `${shown(d)}`", d.span)
@@ -64,7 +66,7 @@ trait Directives:
     val n = d.kind
     if !c.scope.contains(n) && lookupGlobal(n).isEmpty then unknownDirective(c, d)
     val fn: Tree = Ident(n)(d.kindSpan)
-    val app = args.foldLeft(fn)((f, a) => Apply(f, a)(f.span.to(a.span)))
+    val app = args.map(modeData(c, _)).foldLeft(fn)((f, a) => Apply(f, a)(f.span.to(a.span)))
     val (tm, ty, st) = insertAll(c, d.span, infer(c, app))
     def notADirective = fail(DirectiveProblem.NotADirective(shown(d), show(c, ty), d.span))
     if st != Stage.S1 then notADirective
@@ -75,6 +77,17 @@ trait Directives:
         (Tm.App(tm, data, Icit.Expl), Footprint.Local, Some(symbolTerm(c, name)))
       case None =>
         footprintOf(c, ty).map((tm, _, None)).getOrElse(notADirective)
+
+  /** Mode items as the prelude's `modes` data (by its constructors, which the program cannot shadow). */
+  private def modeData(c: Cxt, t: Tree): Tree = t match
+    case m @ ModeArgs(items) =>
+      def ctor(n: Name, at: Span): Tree =
+        file.parent.get(n).orElse(lookupGlobal(n)).map(SymRef(_, n)(at)).getOrElse(fail(ReflectionProblem.NoReflectiveTypes(m.span)))
+      items.foldRight(ctor("mnone", m.span)) { (item, rest) =>
+        val label = item.label.map(l => Lit(Literal.StrL(l.name))(l.span)).getOrElse(Wildcard()(item.span))
+        Apply(Apply(ctor(if item.input then "minput" else "moutput", item.span), label)(item.span), rest)(item.span.to(rest.span))
+      }
+    case other => other
 
   /** The footprint of a directive whose application has type `ty`. */
   private def footprintOf(c: Cxt, ty: Val): Option[Footprint] = reflectiveKind(ty) match
@@ -122,31 +135,3 @@ trait Directives:
       (scope.keys ++ file.parent.keys).toList.distinct.filter(n => lookupGlobal(n).exists(isDirectiveGlobal))
     // a later declaration may declare it (the items of module bodies are elaborated with the declarations)
     throw ElabError(DirectiveProblem.UnknownDirective(d.kind, d.kindSpan, similarName(d.kind, globalNames)).toDiagnostic, Some(d.kind))
-
-  // ---------------------------------------------------------------- %mode (until C3)
-
-  private def modeDirective(c: Cxt, d: Directive, t: Tree, ms: List[ModeItem]): CoreItem = t match
-    case Ident(n) if formulaFunction(c, n).isDefined =>
-      CoreItem.DirectiveItem(CoreDirective.FormulaMode(formulaFunction(c, n).get, ms.map(_.input)), None, d.span)
-    case _ =>
-      val inputs = ms.map(m => (m.input, m.label.map(_.name), m.span))
-      CoreItem.DirectiveItem(CoreDirective.Mode(inputs), Some(relationTarget(c, t, "%mode")), d.span)
-
-  /** The formula function a top-level name denotes. */
-  private def formulaFunction(c: Cxt, n: Name): Option[Int] =
-    if c.scope.contains(n) then None
-    else scope.get(n).filter(id => globals(id).stage == Stage.S1 && force(telescope(globals(id).ty)._2) == Val.Lift(Val.PropT))
-
-  /** The relation `%mode` is about: an object relation, fact constructor or struct, a family of them, or
-   *  meta code of a relation type. */
-  private def relationTarget(c: Cxt, t: Tree, what: String): Tm =
-    val (tm, ty, st) = infer(c, t)
-    tm match
-      case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => tm // applies to each instance
-      case _ =>
-        val (code, codeTy) = force(ty) match
-          case Val.Lift(x) if st == Stage.S1 => (Tm.splice(tm), force(x))
-          case other => (tm, other)
-        dataConstructorOf(code).foreach(dataUsedAsRelation(_, t.span, s"`$what` expects a relation"))
-        if !isFactConstantType(codeTy) then fail(DirectiveProblem.NotARelation(what, t.span))
-        zonk(c.env, c.lvl, code)

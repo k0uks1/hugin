@@ -1,37 +1,26 @@
 error[E0602]: negation or aggregation over the incomplete relation `e`
-  --> tests/neg/requirements.hgn:6:27
+  --> tests/neg/requirements.hgn:5:27
    |
- 6 |   lonely N :- x.edge N _, not x.edge _ N.
+ 5 |   lonely N :- x.edge N _, not x.edge _ N.
    |                           ^^^^^^^^^^^^^^ incomplete relation used negatively
    |
    = note: `e` is declared %open
    = note: the absence of a fact of an incomplete relation means unknown, not false
 note: in application of `iso`
-  --> tests/neg/requirements.hgn:16:5
+  --> tests/neg/requirements.hgn:10:5
    |
-16 | a = iso { node = v, edge = e }.
+10 | a = iso { node = v, edge = e }.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0208]: relation `e` does not satisfy `%complete edge`
-  --> tests/neg/requirements.hgn:16:5
+  --> tests/neg/requirements.hgn:10:5
    |
  2 | g : Type = { node : type, edge : node -> node -> rel, %complete edge }.
    |                                                       -------------- required here
 ...
-16 | a = iso { node = v, edge = e }.
+10 | a = iso { node = v, edge = e }.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ `e` is open
    |
    = note: the functor negates or aggregates over this relation, which needs complete knowledge
 
-error[E0208]: relation `f` does not have mode `+-`
-  --> tests/neg/requirements.hgn:17:5
-   |
- 3 | m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
-   |                                                       -------------- required here
-...
-17 | b = deg { node = v, edge = f }.
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ required for field `edge`
-   |
-   = help: declare `%mode f + -.`
-
-3 errors found
+2 errors found

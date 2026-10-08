@@ -88,7 +88,7 @@ trait Names:
   /** The type of a global used in a term: a struct family takes its type arguments implicitly there
    *  (`pair 1 "x"` for `pair A B : type = { … }.`). */
   private def termType(g: GlobalEntry): Val = g.kind match
-    case GlobalKind.Family(ObjDecl.Struct(_), _) => core.eval(Nil, implicitBinders(g.tyTm))
+    case GlobalKind.Family(ObjDecl.Struct, _) => core.eval(Nil, implicitBinders(g.tyTm))
     case _ => g.ty
 
   private def implicitBinders(t: Tm): Tm = t match

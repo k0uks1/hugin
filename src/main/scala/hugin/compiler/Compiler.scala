@@ -13,7 +13,6 @@ object Compiler:
     List(hugin.obj.typing.ObjTyperPhase()),
     List(hugin.obj.typing.ModingPhase()),
     List(hugin.obj.transform.Records(), hugin.obj.transform.Disjunctions()),
-    List(hugin.obj.transform.DemandPhase()),
     List(hugin.obj.transform.DerivationsPhase()),
     List(hugin.obj.check.StratifyPhase()),
     List(hugin.obj.check.BoundColumnsPhase()),

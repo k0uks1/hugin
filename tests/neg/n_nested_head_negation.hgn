@@ -3,7 +3,7 @@
    The cycle `mk -> not r -> mk` is a stratification error: `r 1` would hold iff `mk 1` is asserted, which
    happens iff `r 1` does not hold *)
 w : type.
-%fact mk : int -> w.
+mk : int -> w.
 src : int -> rel.
 src 1.
 r : int -> rel.

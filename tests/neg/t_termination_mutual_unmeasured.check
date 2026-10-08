@@ -8,7 +8,11 @@ error[E0604]: `c` calls `d`, which has no measure
    |          ^^^^^ `d` is in the same recursive component
    |
    = note: the component is {c, d}; a measure must decrease along every recursive call
-   = note: `d` depends on the answers of `c`: `d` -> `c`
    = help: give `d` a `%terminates` measure with the same shape as `c`'s
+note: in expansion of `%demand c + -`
+  --> tests/neg/t_termination_mutual_unmeasured.hgn:6:1
+   |
+ 6 | %demand c + -.
+   | ^^^^^^^^^^^^^^
 
 1 error found

@@ -5,9 +5,14 @@ error[E0604]: invalid `%terminates` directive for `c`
   | ---------------------- measure declared here
 ...
 7 | c X Y :- c X Z, Y = Z + 1. (*~ E0604 *)
-  |   -      ^^^^^ no decrease: `X` is not smaller than `X`
-  |   the caller has `X`
+  | -        ^^^^^ no decrease: `X` is not smaller than `X`
+  | the head has `X`
   |
-  = note: the measure of `c` is argument 1 (integer); for the call it must be smaller than for the caller
+  = note: the measure of `c` is argument 1 (integer); for the call it must be smaller than for the head
+note: in expansion of `%demand c + -`
+ --> tests/neg/t_termination_demand_loop.hgn:4:1
+  |
+4 | %demand c + -.
+  | ^^^^^^^^^^^^^^
 
 1 error found

@@ -31,16 +31,6 @@ error[E0501]: unbound variable `X`
    |
    = note: comparisons require both sides to be bound
 
-error[E0502]: call to `fib` without an applicable mode
-  --> tests/neg/moding.hgn:12:11
-   |
-12 | call F :- fib N F.
-   |           ^^^^^^^ argument 1 is not bound
-   |
-   = note: declared mode of `fib`: +-
-   = note: unbound variable: `N`
-   = help: bind the input arguments with earlier formulas in the body
-
 warning[W0002]: variable `N` occurs only once in this rule
   --> tests/neg/moding.hgn:12:15
    |
@@ -50,12 +40,17 @@ warning[W0002]: variable `N` occurs only once in this rule
    = note: `-W singleton_variables` is on by default
    = help: use `_` or `_N` if this is intended
 
-error[E0503]: input position 1 of `fib` is not a pattern
-  --> tests/neg/moding.hgn:13:6
+error[E0501]: rule is not range-restricted
+  --> tests/neg/moding.hgn:12:15
    |
-13 | fib (N + 1) F :- edge N F.
-   |      ^^^^^ arithmetic, projections and updates are not allowed here
+12 | call F :- fib N F.
+   |               ^ `N` not bound by the body
    |
-   = note: `fib` has mode +-; its inputs must appear in the demand guard
+   = note: every variable of the head must be bound by a positive atom or an equation in the body
+note: in expansion of `%demand fib +n -f`
+  --> tests/neg/moding.hgn:4:1
+   |
+ 4 | %demand fib +n -f.
+   | ^^^^^^^^^^^^^^^^^^
 
-5 errors, 2 warnings found
+4 errors, 2 warnings found

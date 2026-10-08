@@ -12,9 +12,6 @@ enum Invention:
   /** The head builds a constructor term that the body does not match. */
   case HeadConstructs(term: Term)
 
-  /** A head variable is bound to a new data term by a binding equation. */
-  case BuiltByEquation(variable: VarName, equation: Formula)
-
   /** A fact matched with `as` is put into the head (at the whole rule). */
   case LiftedFact(variable: VarName, rule: Span)
 
@@ -27,14 +24,12 @@ enum Invention:
   /** The smallest span that shows the invention. */
   def at: Span = this match
     case HeadConstructs(t) => t.span
-    case BuiltByEquation(_, e) => e.span
     case LiftedFact(_, s) => s
     case HeadComputes(t) => t.span
     case ComputedByEquation(_, e) => e.span
 
   def describe: Msg = this match
     case HeadConstructs(t) => msg"its head constructs $t, which is not matched in the body"
-    case BuiltByEquation(v, e) => msg"head variable $v is built by $e"
     case LiftedFact(v, _) => msg"the matched fact $v is lifted into the head"
     case HeadComputes(t) => msg"its head computes $t"
     case ComputedByEquation(v, e) => msg"head variable $v is computed by $e"

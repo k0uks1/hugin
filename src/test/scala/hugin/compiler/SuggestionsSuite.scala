@@ -89,21 +89,6 @@ class SuggestionsSuite extends munit.FunSuite:
     assertEquals(fix(text, "E0001"), "p : rel.\nq : rel.\n")
   }
 
-  test("a missing mode: declare it before the relation, indented like it") {
-    val text =
-      """m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
-        |deg (x : m) = {
-        |  out : x.node -> x.node -> rel.
-        |  out A B :- x.edge A B.
-        |}.
-        |v : type.
-        |f : v -> v -> rel.
-        |%input f.
-        |b = deg { node = v, edge = f }.
-        |""".stripMargin
-    assert(fix(text, "E0208").contains("%mode f + -.\nf : v -> v -> rel."))
-  }
-
   test("generated code has no span, so no suggestion") {
     val d = TestDiagnostics.warning(Code.W0002, "x", Span.NoSpan).withSuggestion("m", Span.NoSpan, "_", Applicability.MachineApplicable)
     assertEquals(d.suggestions, Nil)

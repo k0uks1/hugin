@@ -31,6 +31,11 @@ program under edits) is the safety net for all of them.
 > on its expansion, which runs when the program is assembled (`ElabProgram`); the items are still
 > elaborated one by one for their diagnostics and index. A prefix directive is parsed from a slice that
 > includes the declaration it is attached to (docs/NOTES.md, "Directives").
+>
+> **`%demand` (C3)** is a module-wide directive of the prelude: a file with `%demand` has its rules and
+> queries rewritten when the program is assembled, and the derived relations it declares (`r.check`) are
+> created there (memoised per relation and label, like family instances). Editing a rule of such a file
+> still elaborates only that item, but the expansion (and so the object program) is recomputed.
 
 ## Obstacles (state shared across items)
 
@@ -49,8 +54,7 @@ program under edits) is the safety net for all of them.
 * Libraries: since step 7 a library's `Scope`, `SymTable` and `SymKeys` are frozen once elaborated and
   read through the program's layered table; MetaEval still evaluates every library once per compilation
   (its object names depend on the program: the prelude's `prelude.n` when the program shadows `n`, the
-  numbered prefixes `geo2`). A `%mode` written in a file for a prelude formula function is seen by that
-  file only (copy-on-write); the prelude has no formula functions.
+  numbered prefixes `geo2`).
 * Equality: surface and object trees keep spans in a second parameter list (`==` ignores them), meta
   trees do not; `SourceFile` compares by identity, so `Parse` never cuts off. A per-item query whose
   result ignores spans would keep stale positions after an edit before the item; since step 9 the spans
@@ -104,7 +108,7 @@ program under edits) is the safety net for all of them.
    `query/CompilerQueries.scala`). The program's top level is elaborated in parts:
    * `ScopeOf` names it (a frozen scope); its value is equal, and cut off, as long as the items the namer
      and the elaboration of declarations read are equal with their positions (declarations and
-     definitions, clauses of formula functions, `%mode`s of formula functions; see `ItemFingerprint`) and
+     definitions, clauses of formula functions; see `ItemFingerprint`) and
      the prelude is the same, so a cut-off keeps symbols whose spans are still right. `ScopeNames` (the
      names, kinds and keys of the top level) is what name resolution in an item depends on.
    * `Signatures` elaborates all declarations and definitions together, in item order, as the typer did
@@ -113,7 +117,7 @@ program under edits) is the safety net for all of them.
      fingerprints of the item and of the clauses of a formula function, and the typing results of all its
      symbols, compared with positions by `Positional.same`); it stands for the planned `DeclSig`,
      `TypeDefSig`, `MetaDefType` and `MetaDefResult`, which are one projection here because any edit of an
-     item changes its fingerprint anyway. A `%mode` of a prelude formula function is a part of its own.
+     item changes its fingerprint anyway.
    * `ElabItem` elaborates one other item (rule, query, directive, subtyping edge) with its own typer,
      whose table is layered over the signatures' table. It depends on the item with its position
      (`ItemOf`), on `ScopeNames`, on the libraries (`ProgramLibrariesOf`), on the declarations after it

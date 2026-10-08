@@ -1,6 +1,6 @@
 (* `--explain-termination`: the measure and the justification of every recursive component *)
 fib : (n : int) -> (f : int) -> rel.
-%mode fib +n -f.
+%demand fib +n -f.
 %terminates n fib.
 fib 0 0.
 fib 1 1.

@@ -13,9 +13,13 @@ import scala.collection.mutable
  *  - the inputs `ī` are the variables of the disjunction bound before it (in canonical order);
  *  - the outputs `ō` are the variables every alternative binds; a variable bound by only some
  *    alternatives is existential within its alternative;
- *  - if there are inputs, `aux` gets the mode `+…+-…-`, so that the demand transformation (Section 7.3)
- *    supplies the input bindings that arise at the call site; the demand is built only from formulas
- *    that do not depend on the calling rule's head (`DemandPhase.auxDemand`, issue #1, F1).
+ *  - each rule of `aux` is its alternative after the *context* of the call: the formulas before the
+ *    aggregate (in canonical order), which bind the inputs. Only the formulas that do not mention a
+ *    relation depending on the calling rule's head are kept, if they still bind the inputs (issue #1, F1):
+ *    then `aux` does not depend on the caller and the aggregate's negative edge closes no cycle; otherwise
+ *    the whole prefix is used (and a cycle through the aggregate is reported, E0601). The kept formulas
+ *    hold wherever the prefix holds, so for every binding of the inputs at the call `aux` has exactly
+ *    the alternatives' answers.
  *  The aggregate then ranges over the distinct bindings of `ō` (and its other variables), as for a
  *  relation atom. See issue #1, item B4.
  */
@@ -52,81 +56,110 @@ final class Disjunctions extends MiniPhase:
     case Some(Term.App(RelRef.Sym(c), _)) => c.name
     case _ => "rule"
 
-  /** Variables bound by the head in every mode of the head relation. */
-  private def headInputs(r: Rule)(using facts: ProgramFacts): Set[String] = r.heads
-    .collect {
-      case h @ Term.App(RelRef.Sym(c), _) if facts.hasModes(c) =>
-        facts.modes(c).map((m, _) => Moding.headInputVars(h, m)).reduce(_ intersect _)
-    }
-    .foldLeft(Set.empty[String])(_ ++ _)
-
   /** A traversal: the auxiliary relations and their rules, added to the program at the end. */
   private final class Traversal extends MiniPhase.Transformer:
     private val auxRules = mutable.ArrayBuffer.empty[Rule]
     private val auxRels = mutable.ArrayBuffer.empty[RelSym]
+    private var dependents: Option[Map[RelSym, Set[RelSym]]] = None
+
+    /** The relations that depend on `h` (in the program before the lifting). */
+    private def dependentsOf(h: RelSym)(using Context): Set[RelSym] =
+      val all = dependents.getOrElse {
+        val es = hugin.obj.check.DepGraph.edges(ctx.unit.prog.nn)
+        val pred = es.groupBy(_.to).view.mapValues(_.map(_.from)).toMap
+        val m = es.map(_.to).distinct.map { c =>
+          val seen = mutable.HashSet(c)
+          val todo = mutable.Stack(c)
+          while todo.nonEmpty do pred.getOrElse(todo.pop(), Nil).foreach(x => if seen.add(x) then todo.push(x))
+          c -> seen.toSet
+        }.toMap
+        dependents = Some(m)
+        m
+      }
+      all.getOrElse(h, Set(h))
+
+    /** The context of a lifted disjunction: the formulas of `prefix` that mention no relation of
+     *  `excluded`, if they bind `inputs`; otherwise the whole prefix. */
+    private def context(prefix: List[Formula], inputs: Set[String], excluded: Set[RelSym]): List[Formula] =
+      val (kept, bound) = prefix.foldLeft((Vector.empty[Formula], Set.empty[String])) { case ((ks, b), f) =>
+        if hugin.obj.check.DepGraph.occurrences(List(f), bound = b).exists(o => excluded(o._1)) then (ks, b)
+        else
+          Moding.step(f, b) match
+            case Right(b2) => (ks :+ f, b2)
+            case Left(_) => (ks, b)
+      }
+      if inputs.subsetOf(bound) then kept.toList else prefix
 
     override def finish(using Context): Unit =
       val p = ctx.unit.prog.nn
       p.rules = p.rules ++ auxRules
       p.rels = p.rels ++ auxRels
 
-    /** Lifts disjunctions out of the aggregates of `body`, which is evaluated with `bound` already bound. */
-    private def liftBody(body: List[Formula], bound: Set[String], item: Item)(using Context): List[Formula] =
-      if !body.exists { case Formula.Agg(_, _, _, ib) => hasDisj(ib); case _ => false } then return body
-      // walk in canonical order to know what is bound before each aggregate; keep the original order
-      val boundBefore = mutable.HashMap.empty[Formula, Set[String]]
+    /** Each formula of `body` (evaluated with `bound` bound) with the formulas before it in canonical
+     *  order and the variables bound then. */
+    private def prefixes(body: List[Formula], bound: Set[String]): Map[Formula, (List[Formula], Set[String])] =
+      val out = mutable.HashMap.empty[Formula, (List[Formula], Set[String])]
       Moding.canonical(body, bound).foreach { (ordered, _) =>
-        ordered.foldLeft(bound) { (b, f) =>
-          boundBefore(f) = b
-          Moding.step(f, b).getOrElse(b)
+        ordered.foldLeft((List.empty[Formula], bound)) { case ((pre, b), f) =>
+          out(f) = (pre, b)
+          (pre :+ f, Moding.step(f, b).getOrElse(b))
         }
       }
+      out.toMap
+
+    /** Lifts disjunctions out of the aggregates of `body`; `excluded` are the relations that depend on the
+     *  head of the rule (none for a query). */
+    private def liftBody(body: List[Formula], excluded: Set[RelSym], item: Item)(using Context): List[Formula] =
+      if !body.exists { case Formula.Agg(_, _, _, ib) => hasDisj(ib); case _ => false } then return body
+      // walk in canonical order to know what comes before each aggregate; keep the original order
+      val before = prefixes(body, Set.empty)
       body.map {
         case g @ Formula.Agg(res, k, t, ib) if hasDisj(ib) =>
-          Formula.Agg(res, k, t, liftInAggregate(ib, boundBefore.getOrElse(g, bound), item))(g.span)
+          val (pre, b) = before.getOrElse(g, (Nil, Set.empty[String]))
+          Formula.Agg(res, k, t, liftInAggregate(ib, pre, b, excluded, item))(g.span)
         case f => f
       }
 
-    /** Replaces each disjunction of an aggregate body by an atom of a fresh auxiliary relation. */
-    private def liftInAggregate(body: List[Formula], bound: Set[String], item: Item)(using Context): List[Formula] =
-      val boundBefore = mutable.HashMap.empty[Formula, Set[String]]
-      Moding.canonical(body, bound).foreach { (ordered, _) =>
-        ordered.foldLeft(bound) { (b, f) =>
-          boundBefore(f) = b
-          Moding.step(f, b).getOrElse(b)
-        }
-      }
+    /** Replaces each disjunction of an aggregate body (after the formulas `outer`, which bind `bound`) by
+     *  an atom of a fresh auxiliary relation. */
+    private def liftInAggregate(body: List[Formula], outer: List[Formula], bound: Set[String], excluded: Set[RelSym], item: Item)(
+        using Context
+    ): List[Formula] =
+      val before = prefixes(body, bound)
       body.map {
         case d @ Formula.Disj(alts) =>
-          val b = boundBefore.getOrElse(d, bound)
+          val (pre, b) = before.getOrElse(d, (Nil, bound))
           val altVars = alts.map(_.flatMap(allVars).toSet)
           val inputs = altVars.foldLeft(Set.empty[String])(_ ++ _).intersect(b).toList.sorted
           val results = alts.map(alt => Moding.canonical(alt, inputs.toSet).map(_._2).getOrElse(inputs.toSet))
           // an empty disjunction (a formula function without clauses) is false and binds nothing
           val outputs = (results.reduceOption(_ intersect _).getOrElse(Set.empty) -- inputs).toList.sorted
-          lift(d, inputs, outputs, item)
+          val ctxt = if inputs.isEmpty then Nil else context(outer ++ pre, inputs.toSet, excluded)
+          lift(d, inputs, outputs, ctxt, item)
         case g @ Formula.Agg(res, k, t, ib) if hasDisj(ib) =>
-          Formula.Agg(res, k, t, liftInAggregate(ib, boundBefore.getOrElse(g, bound), item))(g.span)
+          val (pre, b) = before.getOrElse(g, (Nil, bound))
+          Formula.Agg(res, k, t, liftInAggregate(ib, outer ++ pre, b, excluded, item))(g.span)
         case f => f
       }
 
-    private def lift(d: Formula.Disj, inputs: List[String], outputs: List[String], item: Item)(using Context): Formula =
+    private def lift(d: Formula.Disj, inputs: List[String], outputs: List[String], context: List[Formula], item: Item)(using
+        Context
+    ): Formula =
       val aux = RelSym(s"${item.name}^or${auxRels.length + 1}", RelKind.Auxiliary("disjunction inside an aggregate"), d.span, item.origin)
       val params = inputs ++ outputs
       aux.cols = params.map(v => Column(None, item.types.getOrElse(v, OType.Err))).toVector
-      if inputs.nonEmpty then
-        ctx.unit.facts = ctx.unit.facts.updated(aux)(_.copy(modes = List((Mode(params.map(inputs.contains).toVector), d.span))))
       auxRels += aux
       def args = params.map(v => Term.Var(v)(d.span): Term)
       for alt <- d.alts do
-        val rule = Rule(None, List(Term.App(RelRef.Sym(aux), args)(d.span)), alt)(item.span, item.origin, item.expansions)
+        val rule = Rule(None, List(Term.App(RelRef.Sym(aux), args)(d.span)), context ++ alt)(item.span, item.origin, item.expansions)
         ctx.unit.varTypes.put(rule, item.types)
         auxRules ++= transformRule(rule)
       Formula.Atom(RelRef.Sym(aux), args, None)(d.span)
 
     override def transformRule(r: Rule)(using Context): List[Rule] =
       val g = Option(ctx.unit.varTypes.get(r)).getOrElse(Map.empty)
-      val body = liftBody(r.body, headInputs(r), Item(headName(r), r.span, r.origin, r.expansions, g))
+      val heads = r.heads.collect { case Term.App(RelRef.Sym(c), _) => c }
+      val body = liftBody(r.body, heads.flatMap(dependentsOf).toSet, Item(headName(r), r.span, r.origin, r.expansions, g))
       for h <- r.heads; b <- split(body) yield
         val nr = r.withParts(heads = List(h), body = b)
         ctx.unit.varTypes.put(nr, g)

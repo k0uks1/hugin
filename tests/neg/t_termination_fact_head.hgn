@@ -1,7 +1,7 @@
 (* A rule of a fact constructor builds its head: the fact `s (s N)` is a new term although its argument
    `s N` is matched, so the rule is constructive and `{s}` grows without bound (Definition 10.1; before
    Proposition 8.8 was repaired this program was accepted and did not terminate) *)
-t : type. z : t. %fact s : t -> t.
+t : type. z : t. s : t -> t.
 s (s z).
 s (s N) :- s N. (*~ E0603 *)
 ?- s X.

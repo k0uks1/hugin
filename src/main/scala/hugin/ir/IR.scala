@@ -7,9 +7,8 @@ import hugin.syntax.AggKind
  *  values of integer columns (`hugin.runtime.Infinity`, docs/REDESIGN.md §5.2). */
 final case class Id(rel: Int, n: Int)
 
-/** The value, in a comparison, of a term with a fact-constructor subterm that is not a fact (`c t̄` with
- *  `c` declared `%fact`, or a data term containing one). Every value bound in a satisfying valuation has
- *  only facts as fact-constructor subterms, so such a term differs from every bound value; two of them are
+/** The value, in a comparison, of a constructor term that is not a fact (REDESIGN §3.3: bodies never
+ *  create facts). Every value bound in a satisfying valuation has only facts as constructor subterms, so such a term differs from every bound value; two of them are
  *  equal if they have the same structure. Comparisons are therefore structural without asserting or
  *  interning the term. It occurs only as an operand of a test, never in a register binding or a fact. */
 final case class NonFact(rel: Int, args: Vector[Any])
@@ -25,10 +24,9 @@ enum Expr:
   case Arith(op: ArithOp, l: Expr, r: Expr)
   case Neg(e: Expr)
 
-  /** A constructor term `c t̄`. In a head it is built: a data constructor's value is hash-consed, a fact
-   *  constructor's is asserted (the fact-constructor subterms of a head are facts, `subfact_F`). In a body
-   *  (comparison operands, binding equations) a data term is hash-consed too, which is unobservable, and a
-   *  fact-constructor term is looked up: its identity if it is a fact, otherwise a [[NonFact]]. */
+  /** A constructor term `c t̄`. In a head it is asserted (the constructor subterms of a head are facts,
+   *  `subfact_F`). In a body (comparison operands, binding equations) it is looked up: its identity if it
+   *  is a fact, otherwise a [[NonFact]]. */
   case Make(rel: Int, args: Array[Expr])
 
 /** Body operations of the core IR (Section 9.3). Registers are slots of a per-rule register file. */
@@ -76,8 +74,7 @@ final class CoreProgram(
     val rels: Vector[RelSym],
     /** The directives of each relation, by tag. */
     val directives: Vector[RelDirectives],
-    /** Components in evaluation order, as relation tags. Data constructors and data structs are in no
-     *  component: they have no rules and no facts, only a hash-cons table of values. */
+    /** Components in evaluation order, as relation tags. */
     val components: Vector[Vector[Int]],
     val rules: Vector[CompiledRule],
     val queries: Vector[CompiledQuery],

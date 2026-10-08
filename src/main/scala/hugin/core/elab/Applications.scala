@@ -78,6 +78,17 @@ trait Applications:
       case _ => n
     Option.when(isFactConstantType(ty))(go(ty, 0)).filter(_ > 0)
 
+  /** The object constant (or family of them) that the object term `t` applies: the head of its spine, also
+   *  through the splice of a family's application (`$(node ?A) L R`). */
+  def objectHead(t: Tm): Option[Int] =
+    def head(t: Tm): Tm = Tm.unloc(t) match
+      case Tm.App(f, _, _) => head(f)
+      case Tm.Splice(f) => head(f)
+      case other => other
+    head(t) match
+      case Tm.Global(id) => Some(id)
+      case _ => None
+
   /** E0207: the relation or constructor `head` (elaborated in `t`) applied to `found` instead of
    *  `expected` arguments. */
   def objectArity(head: Tree, t: Tm, expected: Int, found: Int, span: Span): Nothing =

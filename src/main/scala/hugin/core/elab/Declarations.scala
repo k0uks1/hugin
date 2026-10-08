@@ -151,6 +151,11 @@ trait Declarations:
           case _ =>
       case Some(Builtin(Ident("symbol"))) if d.params.isEmpty && d.tpe == VarRef("Type")(d.tpe.span) =>
         declare(d.name, Tm.U1(Level.zero), Stage.S1, GlobalKind.Symbols, d.span)
+      case Some(b @ Builtin(Ident(k))) if PrimOp.byKey(k).isDefined && d.params.isEmpty =>
+        val (c2, imps, _) = declContext(d, Cxt.empty)
+        val ty = zonk(Nil, 0, pis(imps, Icit.Impl, checkType(c2, d.tpe, Stage.S1)))
+        val op = PrimOp.byKey(k).get
+        declare(d.name, ty, Stage.S1, GlobalKind.Primitive(op, primitiveCtors(op, eval(Nil, ty), b.span)), d.span)
       case Some(e) =>
         val (ty, tm) = declDefinition(Cxt.empty, d, e)
         define(d.name, ty, tm, d.span)
@@ -167,7 +172,7 @@ trait Declarations:
     val body =
       if builtin then definingBuiltin(check(c, e, tyV, Stage.S1))
       else typeBindersOutOfScope(d, e)(check(c, asLambda(d.params, e), tyV, Stage.S1))
-    (ty, ascribed(tyV, e.span, body))
+    (ty, body)
 
   /** `f : (x : A) -> B = e.` where `e` uses `x`: the binders of a declared type do not scope over the
    *  definition (E0916), which should be written `f (x : A) : B = e.` */
@@ -201,13 +206,6 @@ trait Declarations:
       ((l, dom) :: bs, rest)
     case Parens(i) if namedBinders(i)._1.nonEmpty => namedBinders(i)
     case other => (Nil, other)
-
-  /** A module ascribed a signature with `%fact` fields (`m : sig = e.`) must pass fact constructors for
-   *  them ([[Tm.Require]]; the other requirements concern functor applications). */
-  private def ascribed(ty: Val, span: Span, t: Tm): Tm = force(ty) match
-    case rt: Val.RecTy if rt.reqs.exists(_.isInstanceOf[SigReq.Fact]) =>
-      Tm.Require(rt.reqs.filter(_.isInstanceOf[SigReq.Fact]), span, t)
-    case _ => t
 
   def define(name: Ident, ty: Tm, tm: Tm, declSpan: Span): Int =
     val ztm = zonk(Nil, 0, tm)
@@ -246,3 +244,36 @@ trait Declarations:
       case Param.VarParam(v) => Lambda(v, None, acc)(v.span.to(acc.span))
       case Param.Typed(n, t, sp) => Lambda(n, Some(t), acc)(sp.to(acc.span))
   }
+
+  /** The constructors primitive `op` of type `ty` builds; E0103 if `ty` is not its type
+   *  ([[hugin.core.Primitives]]). */
+  private def primitiveCtors(op: PrimOp, ty: Val, span: Span): List[Int] =
+    val (binders, result) = telescope(ty)
+    def isSym(v: Val) = forceData(v) match
+      case Val.Rigid(Head.Glob(id), Nil) => globals(id).kind == GlobalKind.Symbols
+      case _ => false
+    def isString(v: Val) = forceData(v) == Val.Base(hugin.obj.BaseType.StringT, Stage.S1)
+    def ctorsOf(v: Val, check: Int => Boolean): Option[List[Int]] = forceData(v) match
+      case Val.Rigid(Head.Glob(id), sp) =>
+        globals(id).kind match
+          case GlobalKind.Inductive(cs) if cs.length == 2 && check(id) && sp.forall {
+                case Elim.EApp(a, _) => isString(a)
+                case _ => false
+              } =>
+            Some(cs)
+          case _ => None
+      case _ => None
+    val doms = binders.map(_._3)
+    val found = op match
+      case PrimOp.Same if binders.map(_._2) == List(Icit.Impl, Icit.Expl, Icit.Expl) =>
+        ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
+      case PrimOp.Derived if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
+      case PrimOp.Labels if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.length == 1)
+      case PrimOp.Derive if doms.length == 2 && isSym(doms(0)) && isString(doms(1)) && isSym(result) => Some(Nil)
+      case _ => None
+    val expected = op match
+      case PrimOp.Same => "A -> A -> bool"
+      case PrimOp.Labels => "sym -> seq string"
+      case PrimOp.Derived => "sym -> bool"
+      case PrimOp.Derive => "sym -> string -> sym"
+    found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))

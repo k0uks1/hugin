@@ -1,7 +1,7 @@
 (* Range restriction and modes (Section 6.3). *)
 edge : int -> int -> rel.
 fib : (n : int) -> (f : int) -> rel.
-%mode fib +n -f.
+%demand fib +n -f.
 unsafe : int -> rel.
 unsafe X :- not edge X 1.
 free : int -> int -> rel.
@@ -10,4 +10,3 @@ cmp : int -> rel.
 cmp X :- X < 3.
 call : int -> rel.
 call F :- fib N F.
-fib (N + 1) F :- edge N F.

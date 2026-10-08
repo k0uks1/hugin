@@ -7,7 +7,7 @@ import scala.util.Random
 /** A generated program, one item per line: declarations, base facts, rules and directives. `inputs` are
  *  the facts of the `%input` relations, given in a facts file. `derived` are the relations defined by
  *  rules (all of them `%output`). `demand` is a derived relation that no rule calls, which can be moded
- *  `+-…-` (`%mode`) and queried. */
+ *  `+-…-` (`%demand`) and queried. */
 final case class Generated(
     decls: Vector[String],
     facts: Vector[String],
@@ -45,7 +45,7 @@ object ProgramGen:
     case BoxT extends Ty("box")
     case ListT extends Ty("list int")
 
-    /** Values of the fact constructor `pt` (`%fact pt : int -> point.`), whose facts are base facts only.
+    /** Values of the fact constructor `pt` (`pt : int -> point.`), whose facts are base facts only.
      *  Not a column type: variables of this type are bound by binding equations `V = pt X` (existence
      *  checks) and compared structurally. */
     case PointT extends Ty("point")
@@ -111,7 +111,7 @@ object ProgramGen:
         "box : type.",
         "mk : int -> box.",
         "point : type.",
-        "%fact pt : int -> point."
+        "pt : int -> point."
       )
       val facts = mutable.ArrayBuffer.empty[String]
       for _ <- 0 until between(0, 3) do facts += s"pt ${int()}."
@@ -233,15 +233,10 @@ object ProgramGen:
       /** Variables that occur in positive atoms of `lower` relations (bound without the recursion). */
       private val lowerVars = mutable.HashSet.empty[String]
 
-      /** `len` is moded (`+l -n`), so the demand rule of a call is built from the rule's body: a relation
-       *  read positively there that depends on `len` joins `len`'s component, which can make its
-       *  termination unprovable (arithmetic or a term built over a relation of the component). A rule that
-       *  calls `len` therefore reads positively only relations that do not depend on `len`. Negations and
-       *  aggregates may read any earlier relation, and `len` may be called several times: a demand that
-       *  would close a cycle through negation gets its own copy of `len` (see docs/NOTES.md, "Demand per
-       *  call site"). */
-      private val callsLen = !recursive && chance(0.4) && lower.exists(r => !lenDependent(r.name) && r.cols.contains(ListT))
-      private val readable: Vector[Rel] = if callsLen then lower.filterNot(r => lenDependent(r.name)) else lower
+      /** A rule may call `len` (the prelude's, which measures the lists that are facts) on a list of a
+       *  relation it reads; negations and aggregates in it often read relations that depend on `len`. */
+      private val callsLen = !recursive && chance(0.4) && lower.exists(_.cols.contains(ListT))
+      private val readable: Vector[Rel] = lower
 
       private def positive(): String =
         val r = if recursive && chance(0.5) then head else pick(readable)
@@ -260,7 +255,7 @@ object ProgramGen:
           val (v, t) = pick(others)
           val same = boundOf(t).filter(_ != v)
           if same.nonEmpty && chance(0.4) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
-          // a constant that was never built differs from every value, also under `%mode`
+          // a constant that was never built differs from every value, also under `%demand`
           else if t == ListT then
             val c = const(t)
             val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c

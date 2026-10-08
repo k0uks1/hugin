@@ -16,14 +16,14 @@ chain M S :- chain N T, small N, M = N + 1, S = T + M.
 
 (* demand-driven: the decrease is a halving (`H = N / 2` with `N >= 1`), the bound comes from `N > 1` *)
 log2 : (n : int) -> (l : int) -> rel.
-%mode log2 +n -l.
+%demand log2 +n -l.
 %terminates n log2.
 log2 1 0.
 log2 N L :- N > 1, H = N / 2, log2 H K, L = K + 1.
 
 (* demand-driven: the decrease goes through two equations *)
 down : (n : int) -> (k : int) -> rel.
-%mode down +n -k.
+%demand down +n -k.
 %terminates n down.
 down 0 0.
 down N K :- N > 0, M = N - 3, P = M + 1, P >= 0, down P J, K = J + 1.

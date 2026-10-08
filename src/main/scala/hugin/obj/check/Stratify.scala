@@ -43,8 +43,8 @@ final class StratifyPhase extends Phase:
           case _ => None
         CycleReason.HeadAssertion(h, x.from)
       }
-    // the demand of a disjunction inside an aggregate reads the caller (see `DemandPhase.auxDemand`)
-    val aux = cycle.map(_.to.kind).collectFirst { case RelKind.Demand(aux, _) if aux.kind.isInstanceOf[RelKind.Auxiliary] => aux }
+    // the context of a disjunction inside an aggregate reads the caller (see `Disjunctions.context`)
+    val aux = cycle.map(_.to).find(_.kind.isInstanceOf[RelKind.Auxiliary])
     asserted.toList ++ aux.map(CycleReason.AggregateDisjunction(_))
 
   override def show(using Context): String =

@@ -53,6 +53,8 @@ trait Reflective:
     "item",
     "inamed",
     "ierror",
+    "irelation",
+    "colof",
     "decl",
     "attr",
     "dconst",
