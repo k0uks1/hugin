@@ -866,7 +866,7 @@ dropped and elaboration continues with the next one.
   edges and directives are staged (`nf`, checked by `Staging.objectCode`) and translated. Wildcards
   become `_#1`, `_#2`, … per item in order of occurrence, as the old typer named them. An item whose
   staged code does not have the shape of an object item is reported (E0202, E0909) and left out.
-* **Diagnostics** of object code found by the core are typed problems (`ObjectProblem`, docs/DIAGNOSTICS.md)
+* **Diagnostics** of object code found by the core are typed problems (`ElabProblem`, docs/DIAGNOSTICS.md)
   with the old typer's wording where the old typer reported the same concept (W0002, E0301, E0302, E0306,
   E0307, E0406, E0605, E0701, E0404); an item stops at its first error (the old typer reported all errors
   of a rule).
@@ -874,6 +874,67 @@ dropped and elaboration continues with the next one.
   both pipelines; 63 programs produce the same output (results, diagnostics, exit code). The others use
   families, modules, functors, formula functions or imports (B3b) or diagnostics of the old typer that
   the new meta level reports differently; each is listed with its reason.
+
+### Decisions (B3b: families, modules, formula functions, imports)
+
+* **Families are memoised.** A declaration with type parameters (`list A : type = nil | cons A (list A).`,
+  `len A : list A -> int -> rel.`) is a `GlobalKind.Family`; an application to closed object types is
+  normalised (positions stripped) and memoised to one *instance*, a global named after its arguments
+  (`len[int]`, `cons[list[int]]`), so the object level sees the same names as before. Unification relates
+  a family application with its instance (`core/Families.scala`). Rules over a family's parameters are
+  *generic* (`RuleItem.generic`) and staged once per instance used, through a worklist that also follows
+  instances used by other instances (`handover/Generics.scala`); a rule whose recursion needs a new
+  instance of its own family is polymorphic recursion (E0205). Struct families take their type arguments
+  explicitly in types and implicitly in terms (`pair 1 "x"`).
+* **Formula functions** (`cheap : item -> prop = [I] I.price < 10.`, or clauses) are meta functions
+  into `⇑prop`; their object-typed and base-typed parameters are object code (`int -> prop` is
+  `⇑int -> ⇑prop`). Clauses become one disjunction `[x̄] ⟨(x̄ = t̄₁, ψ₁) ; …⟩`. Variables local to a
+  clause are bound by `Tm.Fresh`, which evaluation renames per use (`X#1`, `X#2`): hygiene. `%mode` on a
+  formula function is E0501 (it has no extension of its own); a formula function without clauses is
+  always false (W0005).
+* **Modules are generative records.** A body `{ items }` is `Tm.Module(body, env)`: its declarations
+  and definitions are members, its object items are elaborated in the context of all members. Evaluating
+  a body whose environment is closed creates fresh object constants for its object members — once per
+  (body, closed environment, item that evaluates it) — and the handover stages its items (`Modules.scala`,
+  `ModuleInstance`). Instances are named after the definition that created them (`hops.r`), `_m1` for an
+  anonymous one, with `#k` suffixes when a name repeats. A definition is evaluated once, so all uses of
+  `m = f x.` share the instance; two applications `f x` in two definitions are two instances
+  (generativity). A functor application records its origin (`Tm.Trace`) for diagnostics ("in
+  application of `f`").
+* **Signatures are record types with requirements.** `%complete r`, `%mode r …` and `%fact c` in a
+  signature are `SigReq`s of `Tm.RecTy`. Ascription is transparent (the record type is the type; the
+  value keeps its members). A requirement is recorded where a functor is applied (`Tm.Require`, evaluated
+  to a `RequirementUse`) and checked by the object level on the staged program (E0208), except `%fact`,
+  which the core checks (E0204). Negation over a parameter's relation needs `%complete` (E0210).
+* **Imports.** `%import "f"` is the record of `f`'s declarations (`ImportedModule`); its object constants
+  are qualified by the file's qualifier (`shapes.shape`). Libraries are elaborated once per compilation,
+  in import order; the prelude (`<stdlib>/prelude-core.hgn`, the old prelude in the new syntax) is the
+  parent scope of every file. Without the prelude, `int`, `float` and `string` are not in scope.
+* **`mod`** is accepted as an alias of `Type` (signatures are record types in `Type`), so programs of the
+  old meta level keep working; C-phase cleanup may retire it.
+* **Diagnostics that changed** (with `--new-meta`; the `.check` files change when B3c makes the new meta
+  level the default):
+  * `run/a10_meta_applicative`: the program is printed after `stage`; there is no `monomorphize` phase.
+  * `run/f_demand_per_call`, `run/t_termination_explain`, `run/t_termination_len_callers`: positions in
+    the prelude are `<stdlib>/prelude-core.hgn` (same lines) until the prelude is renamed in B3c.
+  * `neg/a11_stage_overflow`: meta definitions are values; an overflow is reported where the value reaches
+    object code (E0909), not at the unused definition (E0209 retired for the new meta level).
+  * `neg/classification`: `r : int -> rel = 5.` is a type mismatch (E0901): a meta definition of a
+    relation-valued type is allowed (`r : int -> rel = m.r.`).
+  * `neg/names`: definitions are elaborated in dependency order, so a forward reference is accepted; only
+    a self-reference is E0105.
+  * `neg/typedefs`, `fix/abbrev`: type definitions with parameters are meta functions; strictness (E0106)
+    and `%abbrev` are retired.
+  * `neg/interfaces`, `neg/meta_types`: signature and meta type errors in the new meta level's words
+    (E0204 naming the field, E0906 for a missing member, E0901/E0905 for argument mismatches); signatures
+    are printed as record types (`{ node : ⇑type, edge : ⇑($node -> $node -> rel) }`).
+  * `neg/stage`: E0902 replaces E0201; `not` over a formula function's expansion is E0202 with a note.
+  * `neg/f_nil_ascription_help`, `neg/polymorphic_recursion`: E0206 has a generic help.
+  * `neg/f_data_ctor_relation`: the label at a functor parameter's declaration is not shown.
+  * `repl/*`: REPL sessions are composite programs, routed through the new meta level in B3c.
+* **Acceptance.** With `HUGIN_NEW_META=1` every golden passes except the ones listed above;
+  `PipelineParitySuite` compares the two pipelines on all other golden programs (the listed ones are
+  excluded with their reasons).
 
 ## Bound columns (redesign A2)
 

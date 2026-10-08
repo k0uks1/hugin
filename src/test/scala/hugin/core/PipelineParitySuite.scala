@@ -63,14 +63,12 @@ object PipelineParitySuite:
    *  level's words and concepts that changed). */
   val excluded: Map[String, String] = Map(
     "neg/a11_stage_overflow.hgn" -> "meta definitions are values: an overflow is reported where it reaches object code (E0909), not at the definition (E0209)",
-    "neg/builtin.hgn" -> "base types are built into the new meta level: an unknown one is E0101, and `%builtin int` is a value",
-    "neg/classification.hgn" -> "`limit : int.` and `f : int -> type.` are meta-level postulates (REDESIGN §6.2); a relation defined by `=` is a type mismatch (E0901)",
-    "neg/f_data_ctor_relation.hgn" -> "a data constructor passed for a relation field is a type mismatch (E0901); the label at the parameter's declaration is missing",
+    "neg/classification.hgn" -> "a relation-typed meta definition (`r : int -> rel = e.`) is allowed, so `= 5` is a type mismatch (E0901)",
+    "neg/f_data_ctor_relation.hgn" -> "the label at the parameter's declaration is missing; relation types are printed without `⇑` inside the message",
     "neg/f_nil_ascription_help.hgn" -> "E0206 (a family's type argument not determined) has a generic help",
     "neg/interfaces.hgn" -> "signature mismatches in the new meta level's words (E0204 with the field, E0906 for a missing member)",
     "neg/meta_types.hgn" -> "meta type errors in the new meta level's words (E0204, E0901, E0905)",
-    "neg/names.hgn" -> "meta definitions are elaborated in dependency order: a forward reference is fine, a self-reference is an unresolved name (E0101, not E0105)",
-    "neg/no_prelude.hgn" -> "base types are built into the new meta level (REDESIGN Q2), so they exist without the prelude",
+    "neg/names.hgn" -> "meta definitions are elaborated in dependency order: a forward reference is fine (E0105 only for a self-reference)",
     "neg/polymorphic_recursion.hgn" -> "E0206 (a family's type argument not determined) has a generic help",
     "neg/stage.hgn" -> "stage errors of the new meta level (E0902); `not` over a formula function's expansion is E0202 `not a relation atom`",
     "neg/typedefs.hgn" -> "type definitions with parameters are meta functions, so they need not be strict (E0106 is retired)",
