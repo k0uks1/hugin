@@ -19,7 +19,7 @@ final case class ModuleBody(id: Int, span: Span, members: List[Member], items: L
 
 /** An instance of a module body: its environment, with the members' values innermost, and the prefix of
  *  the names of its object constants. */
-final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String, position: Int)
+final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String, position: Int, origin: hugin.util.Origin)
 
 /** Module bodies are **generative** (REDESIGN §6.7): evaluating a body creates fresh object constants for
  *  its object members, and its object items are staged for them ([[handover.Handover]]). To give each
@@ -71,7 +71,7 @@ trait Modules:
     case Tm.Lam(_, _, b) => noFreeVariables(b, depth + 1)
     case Tm.Pi(_, _, a, b) => noFreeVariables(a, depth) && noFreeVariables(b, depth + 1)
     case Tm.Let(_, a, d, b) => noFreeVariables(a, depth) && noFreeVariables(d, depth) && noFreeVariables(b, depth + 1)
-    case Tm.RecTy(fs) => fs.zipWithIndex.forall((f, k) => noFreeVariables(f._2, depth + k))
+    case Tm.RecTy(fs, _) => fs.zipWithIndex.forall((f, k) => noFreeVariables(f._2, depth + k))
     case Tm.Fresh(ns, b) => noFreeVariables(b, depth + ns.length)
     case other => Tm.children(other).forall(noFreeVariables(_, depth))
 
@@ -85,7 +85,7 @@ trait Modules:
       e = v :: e
       (m.name, v)
     }
-    moduleInstances += ModuleInstance(body, e, prefix, position)
+    moduleInstances += ModuleInstance(body, e, prefix, position, origin)
     Val.Rec(fields)
 
   private def objectMember(m: Member, decl: ObjDecl, env: List[Val], prefix: String): Val =
@@ -106,6 +106,15 @@ trait Modules:
     val p = Iterator.from(1).map(k => if k == 1 then base else s"$base#$k").find(p => !prefixes(p)).get
     prefixes += p
     p
+
+  /** The functor applications being evaluated (innermost first). */
+  var origin: hugin.util.Origin = hugin.util.Origin.Source
+
+  def traced[A](frame: hugin.util.TraceFrame)(f: => A): A =
+    val saved = origin
+    origin = origin.push(frame)
+    try f
+    finally origin = saved
 
   private val fileRanks = mutable.LinkedHashMap.empty[String, Int]
 

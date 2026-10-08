@@ -26,6 +26,7 @@ enum ObjectProblem extends Problem:
   /** A data constructor or data struct (`what`) used as a relation; `decl` is its declaration (with its
    *  text if it is in the file of the use). */
   case DataAsRelation(name: String, what: String, label: String, at: Span, declared: Span, decl: Option[(Span, String)], local: Boolean)
+  case DataFieldAsRelation(shown: String, label: String, at: Span)
   case SingletonVariable(name: String, at: Span)
   case UnknownDirective(name: String, at: Span)
   case NotARelation(directive: String, at: Span)
@@ -39,6 +40,10 @@ enum ObjectProblem extends Problem:
   case StuckObjectType(shown: String, at: Span)
 
   case DuplicateMember(name: String, at: Span, first: Span)
+  case UnknownRequirementField(label: String, at: Span)
+
+  /** A data constructor passed for a `%fact` field of a signature. */
+  case NotAFactConstructor(name: String, label: String, at: Span)
   case FormulaFunctionWithoutClauses(name: String, at: Span)
   case ClauseArity(name: String, args: Int, params: Int, at: Span)
 
@@ -51,7 +56,7 @@ enum ObjectProblem extends Problem:
     case _: UnknownLabel | _: UnlabelledColumns => Code.E0306
     case _: MissingLabels => Code.E0301
     case _: DuplicateLabel => Code.E0307
-    case _: DataAsRelation => Code.E0406
+    case _: DataAsRelation | _: DataFieldAsRelation => Code.E0406
     case _: SingletonVariable => Code.W0002
     case _: UnknownDirective | _: NotARelation => Code.E0701
     case _: BoundOutsideRelation => Code.E0605
@@ -62,6 +67,8 @@ enum ObjectProblem extends Problem:
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
+    case _: UnknownRequirementField => Code.E0906
+    case _: NotAFactConstructor => Code.E0204
     case _: ClauseArity => Code.E0207
 
   def primary: Span = this match
@@ -75,6 +82,7 @@ enum ObjectProblem extends Problem:
     case DuplicateLabel(_, s, _) => s
     case DataAsRelation(_, _, _, s, _, _, _) => s
     case SingletonVariable(_, s) => s
+    case DataFieldAsRelation(_, _, s) => s
     case UnknownDirective(_, s) => s
     case NotARelation(_, s) => s
     case BoundOutsideRelation(_, s) => s
@@ -88,6 +96,8 @@ enum ObjectProblem extends Problem:
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
+    case UnknownRequirementField(_, s) => s
+    case NotAFactConstructor(_, _, s) => s
     case ClauseArity(_, _, _, s) => s
 
   def message: Msg = this match
@@ -101,6 +111,7 @@ enum ObjectProblem extends Problem:
     case DuplicateLabel(l, _, _) => msg"duplicate label ${Src(l)}"
     case DataAsRelation(n, w, _, _, _, _, _) => msg"${Lit(w)} ${Src(n)} used as a relation"
     case SingletonVariable(n, _) => msg"variable ${Src(n)} occurs only once in this rule"
+    case DataFieldAsRelation(n, _, _) => msg"data constructor ${Src(n)} used as a relation"
     case UnknownDirective(n, _) => msg"unknown directive ${Src("%" + n)}"
     case NotARelation(d, _) => msg"${Src(d)} expects a relation"
     case BoundOutsideRelation(k, _) => msg"${Src(k)} column type outside a relation declaration"
@@ -114,6 +125,9 @@ enum ObjectProblem extends Problem:
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
+    case UnknownRequirementField(l, _) => msg"no field ${Src(l)} in the signature"
+    case NotAFactConstructor(n, l, _) =>
+      msg"signature mismatch: field ${Src(l)} must be a fact constructor, but ${Src(n)} is a data constructor"
     case ClauseArity(n, a, p, _) => msg"clause of ${Src(n)} has $a arguments, but the function takes $p"
 
   override def primaryLabel: Msg = this match
@@ -125,6 +139,7 @@ enum ObjectProblem extends Problem:
     case _: DuplicateLabel => msg"duplicate"
     case DataAsRelation(_, _, l, _, _, _, _) => Msg.text(l)
     case _: SingletonVariable => msg"singleton variable"
+    case _: DataFieldAsRelation => msg"not a relation: it has no facts to read"
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: NotARelation => msg"not a relation"
@@ -150,6 +165,7 @@ enum ObjectProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case DataFieldAsRelation(_, l, _) => List(msg"the field ${Src(l)} is a data constructor: its values are data, not facts of a relation")
     case _: PolymorphicRecursion =>
       List(msg"a rule over a family must use the family at the arguments it is instantiated at, or it would create ever larger instances")
     case _ => Nil
@@ -170,6 +186,8 @@ enum ObjectProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
+    case DataFieldAsRelation(_, l, _) =>
+      List(msg"to read its facts, require a fact constructor in the signature: ${Src(s"%fact $l : ...")}")
     case _ => Nil
 
   override def suggestions: List[Suggestion] = this match

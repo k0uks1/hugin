@@ -16,6 +16,15 @@ enum Stage:
     case S0 => "object"
     case S1 => "meta"
 
+/** A requirement of a signature on the relation passed for one of its fields: `%complete l` (it is not
+ *  open), `%mode l m̄` (it has the mode), `%fact l : …` (a fact constructor, readable as a relation). */
+enum SigReq:
+  case Complete(label: String, span: hugin.util.Span)
+  case HasMode(label: String, inputs: Vector[Boolean], span: hugin.util.Span)
+  case Fact(label: String)
+
+  def label: String
+
 /** Explicit or implicit binders and applications. */
 enum Icit:
   case Expl, Impl
@@ -66,8 +75,18 @@ enum Tm:
   /** `$t`: splicing meta code of type `⇑A` into object code. */
   case Splice(t: Tm)
 
-  /** A record type `{ l₁ : A₁, … }`: a telescope, field `i` is in the scope of fields `0 … i-1`. */
-  case RecTy(fields: List[(Name, Tm)])
+  /** A record type `{ l₁ : A₁, … }`: a telescope, field `i` is in the scope of fields `0 … i-1`. As the
+   *  type of a functor's parameter, a signature may require things of the relations passed for its
+   *  fields (`reqs`), checked where the functor is applied ([[Tm.Require]]). */
+  case RecTy(fields: List[(Name, Tm)], reqs: List[SigReq] = Nil)
+
+  /** `t`, the application of a functor: evaluation records the frame for the object code of the module
+   *  instances it creates (diagnostics show the application chain, `in application of tc`). */
+  case Trace(frame: hugin.util.TraceFrame, t: Tm)
+
+  /** `t`, a record passed for a signature with requirements at `use`: evaluation records the
+   *  requirements for the relations of the record ([[Requirements]]). */
+  case Require(reqs: List[SigReq], use: hugin.util.Span, t: Tm)
 
   /** A record value `{ l₁ = e₁, … }`. */
   case Rec(fields: List[(Name, Tm)])
@@ -129,7 +148,9 @@ object Tm:
     case Lift(a) => List(a)
     case Quote(a) => List(a)
     case Splice(a) => List(a)
-    case RecTy(fs) => fs.map(_._2)
+    case RecTy(fs, _) => fs.map(_._2)
+    case Require(_, _, a) => List(a)
+    case Trace(_, a) => List(a)
     case Rec(fs) => fs.map(_._2)
     case Proj(a, _) => List(a)
     case Arith(_, a, b, _) => List(a, b)
@@ -158,7 +179,9 @@ object Tm:
       case Lift(a) => Lift(go(a, k))
       case Quote(a) => Quote(go(a, k))
       case Splice(a) => Splice(go(a, k))
-      case RecTy(fs) => RecTy(fs.zipWithIndex.map((f, j) => (f._1, go(f._2, k + j))))
+      case RecTy(fs, rs) => RecTy(fs.zipWithIndex.map((f, j) => (f._1, go(f._2, k + j))), rs)
+      case Require(rs, u, a) => Require(rs, u, go(a, k))
+      case Trace(f, a) => Trace(f, go(a, k))
       case Rec(fs) => Rec(fs.map((l, x) => (l, go(x, k))))
       case Proj(a, l) => Proj(go(a, k), l)
       case Arith(op, a, b, st) => Arith(op, go(a, k), go(b, k), st)

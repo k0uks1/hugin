@@ -21,20 +21,39 @@ trait Records:
         case Some(first) => fail(ObjectProblem.DuplicateLabel(l.name, l.span, first))
         case None => seen(l.name) = l.span
 
-  /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. */
+  /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. A field whose type is
+   *  the type of an object constant (`node : type`, `edge : node -> node -> rel`, `dot : shape`,
+   *  `square : int -> shape`) is object code of that type, as a declaration would declare an object
+   *  constant; other field types are meta types. Requirements (`%complete l`, `%mode l m̄`, `%fact l : …`)
+   *  are part of the record type ([[SigReq]]). */
   def checkRecordType(c: Cxt, entries: List[SigEntry], l: Level): Tm =
-    val fields = entries.map {
-      case SigEntry.FieldDecl(lb, tpe, _) => (lb, tpe)
-      case SigEntry.Complete(_, sp) => unsupportedAt(sp, "`%complete` requirements")
-      case SigEntry.ModeReq(_, _, sp) => unsupportedAt(sp, "`%mode` requirements")
-    }
+    val fields = entries.collect { case SigEntry.FieldDecl(lb, tpe, _) => (lb, tpe) }
     dupLabels(fields.map(_._1))
     var cc = c
-    Tm.RecTy(fields.map { (lb, tpe) =>
-      val ft = check(cc, tpe, Val.U1(l), Stage.S1)
+    val tys = fields.map { (lb, tpe) =>
+      val ft = signatureFieldType(cc, tpe, l)
       cc = bind(cc, lb.name, ev(cc, ft), Stage.S1)
       (lb.name, ft)
-    })
+    }
+    Tm.RecTy(tys, entries.flatMap(requirement(fields.map(_._1.name))))
+
+  private def signatureFieldType(c: Cxt, tpe: Tree, l: Level): Tm =
+    val inferred =
+      try Some(undoOnFailure(inferU(c, tpe)))
+      catch case _: ElabError => None
+    inferred match
+      case Some((t, Stage.S0, _)) if isObjectConstantType(ev(c, t)) => Tm.Lift(t)
+      case _ => check(c, tpe, Val.U1(l), Stage.S1)
+
+  private def requirement(labels: List[Name])(e: SigEntry): Option[SigReq] = e match
+    case SigEntry.FieldDecl(lb, _, true) => Some(SigReq.Fact(lb.name))
+    case SigEntry.FieldDecl(_, _, false) => None
+    case SigEntry.Complete(lb, sp) => Some(SigReq.Complete(knownLabel(labels, lb), sp))
+    case SigEntry.ModeReq(lb, ms, sp) => Some(SigReq.HasMode(knownLabel(labels, lb), ms.map(_.input).toVector, sp))
+
+  private def knownLabel(labels: List[Name], lb: Ident): Name =
+    if !labels.contains(lb.name) then fail(ObjectProblem.UnknownRequirementField(lb.name, lb.span))
+    lb.name
 
   /** A record value with an inferred (non-dependent) record type. */
   def inferRecord(c: Cxt, fields: List[Field]): (Tm, Val, Stage) =

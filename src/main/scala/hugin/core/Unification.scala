@@ -163,7 +163,7 @@ trait Unification:
     case (Rigid(h, sp), Rigid(h2, sp2)) if h == h2 => unifySp(l, sp, sp2)
     case (Rigid(Head.Glob(i), sp), Rigid(Head.Glob(f), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp, sp2)
     case (Rigid(Head.Glob(f), sp), Rigid(Head.Glob(i), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp2, sp)
-    case (RecTy(ls, e, ts), RecTy(ls2, e2, ts2)) if ls == ls2 =>
+    case (RecTy(ls, e, ts, _), RecTy(ls2, e2, ts2, _)) if ls == ls2 =>
       var env1 = e
       var env2 = e2
       var lv = l

@@ -16,7 +16,7 @@ trait Readback:
     case U1(k) => Tm.U1(k)
     case Lift(a) => Tm.Lift(quote(l, a))
     case Quote(t) => Tm.Quote(quote(l, t))
-    case RecTy(ls, env, tys) =>
+    case RecTy(ls, env, tys, rs) =>
       var e = env
       var lv = l
       val qs = tys.map { ty =>
@@ -25,7 +25,7 @@ trait Readback:
         lv += 1
         q
       }
-      Tm.RecTy(ls.zip(qs))
+      Tm.RecTy(ls.zip(qs), rs)
     case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, quote(l, v))))
     case Lit(x, st) => Tm.Lit(x, st)
     case Base(b, st) => Tm.Base(b, st)
@@ -67,15 +67,20 @@ trait Readback:
           case Tm.Lift(a) => Tm.Lift(zonk(env, l, a))
           case Tm.Quote(a) => Tm.quote(zonk(env, l, a))
           case Tm.Splice(a) => Tm.splice(zonk(env, l, a))
-          case Tm.RecTy(fs) =>
+          case Tm.Require(rs, u, a) => Tm.Require(rs, u, zonk(env, l, a))
+          case Tm.Trace(f, a) => Tm.Trace(f, zonk(env, l, a))
+          case Tm.RecTy(fs, rs) =>
             var e = env
             var lv = l
-            Tm.RecTy(fs.map { (n, ty) =>
-              val z = zonk(e, lv, ty)
-              e = Val.local(lv) :: e
-              lv += 1
-              (n, z)
-            })
+            Tm.RecTy(
+              fs.map { (n, ty) =>
+                val z = zonk(e, lv, ty)
+                e = Val.local(lv) :: e
+                lv += 1
+                (n, z)
+              },
+              rs
+            )
           case Tm.Rec(fs) => Tm.Rec(fs.map((n, x) => (n, zonk(env, l, x))))
           case Tm.Proj(a, lb) => Tm.Proj(zonk(env, l, a), lb)
           case Tm.Arith(op, a, b, st) => Tm.Arith(op, zonk(env, l, a), zonk(env, l, b), st)

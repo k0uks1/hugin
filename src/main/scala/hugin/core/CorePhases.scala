@@ -54,5 +54,7 @@ final class StagePhase extends ObjProgramPhase:
     if u.elaborated == null then return
     val reporter = Reporter()
     val e = u.elaborated.nn
-    u.prog = handover.Handover(e.core, reporter).program(e.items)
+    val h = handover.Handover(e.core, reporter)
+    u.prog = h.program(e.items)
+    u.requirements = h.requirements
     reporter.diagnostics.foreach(ctx.report)

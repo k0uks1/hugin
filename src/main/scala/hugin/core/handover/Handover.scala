@@ -24,7 +24,7 @@ final class Handover(core: Core, reporter: Reporter):
       case r: CoreItem.RuleItem => !r.generic
       case d: CoreItem.DirectiveItem => !isGeneric(d)
       case _ => true
-    }.flatMap(item => stage(item, Nil, "").map(staging.position(item) -> _))
+    }.flatMap(item => stage(item, Nil, "", Origin.Source).map(staging.position(item) -> _))
     // module instances' items are placed at the item that created the instance (staging may create more)
     val all = (own ++ moduleItems()).sortBy(_._1).map(_._2)
     // the generic rules come last: they are staged at the instances everything else uses
@@ -38,6 +38,19 @@ final class Handover(core: Core, reporter: Reporter):
       (all.collect { case d: obj.Directive => d } ++ genericDirs.flatMap(instanceDirectives)).toVector
     )
 
+  /** The requirements of signatures met by the relations passed to functors (checked by the object level,
+   *  E0208); a `%fact` field must be passed a fact constructor (E0204). */
+  def requirements: List[obj.RequirementCheck] = requirementUses.toList.flatMap { u =>
+    symbols.relSym(u.rel).flatMap { rel =>
+      u.req match
+        case SigReq.Complete(l, sp) => Some(obj.RequirementCheck(obj.Requirement.Complete(l, sp), rel, u.use, u.origin))
+        case SigReq.HasMode(l, ins, sp) => Some(obj.RequirementCheck(obj.Requirement.HasMode(l, obj.Mode(ins), sp), rel, u.use, u.origin))
+        case SigReq.Fact(l) =>
+          if rel.isData then reporter.report(elab.ObjectProblem.NotAFactConstructor(rel.name, l, u.use).toDiagnostic)
+          None
+    }
+  }
+
   /** The object constants that are not instances of families, in the order of their declarations (module
    *  instances' constants at the item that created the instance). */
   private def objectConstants: List[Int] =
@@ -49,11 +62,11 @@ final class Handover(core: Core, reporter: Reporter):
 
   /** An item staged in the environment `base` (of a module instance, or empty), rule names qualified with
    *  `prefix`. */
-  private def stage(item: CoreItem, base: List[Val], prefix: String): Option[Staged] = item match
-    case r: CoreItem.RuleItem => rule(r, base, prefix)
-    case q: CoreItem.QueryItem => query(q, base)
-    case e: CoreItem.EdgeItem => edge(e, base)
-    case d: CoreItem.DirectiveItem => directive(d, base, prefix)
+  private def stage(item: CoreItem, base: List[Val], prefix: String, origin: Origin): Option[Staged] = item match
+    case r: CoreItem.RuleItem => rule(r, base, prefix, origin)
+    case q: CoreItem.QueryItem => query(q, base, origin)
+    case e: CoreItem.EdgeItem => edge(e, base, origin)
+    case d: CoreItem.DirectiveItem => directive(d, base, prefix, origin)
     case _: CoreItem.GlobalItem => None
 
   /** The items of all module instances with their positions (staging may create further instances). */
@@ -62,7 +75,7 @@ final class Handover(core: Core, reporter: Reporter):
     var k = 0
     while k < moduleInstances.length do
       val i = moduleInstances(k)
-      out ++= i.body.items.flatMap(stage(_, i.env, i.prefix)).map(i.position -> _)
+      out ++= i.body.items.flatMap(stage(_, i.env, i.prefix, i.origin)).map(i.position -> _)
       k += 1
     out.toList
 
@@ -96,33 +109,38 @@ final class Handover(core: Core, reporter: Reporter):
 
   private def qualify(prefix: String, name: String): String = if prefix.isEmpty then name else s"$prefix.$name"
 
-  def rule(r: CoreItem.RuleItem, base: List[Val] = Nil, prefix: String = ""): Option[obj.Rule] =
+  def rule(r: CoreItem.RuleItem, base: List[Val] = Nil, prefix: String = "", origin: Origin = Origin.Source): Option[obj.Rule] =
     staged(r.vars, r.heads ++ r.body.toList, r.span, base) { (terms, normal) =>
       val heads = normal.take(r.heads.length).map(terms.term(_))
       val body = normal.drop(r.heads.length).flatMap(terms.formulas(_))
-      obj.Rule(r.name.map(qualify(prefix, _)), heads, body)(r.span, Origin.Source)
+      obj.Rule(r.name.map(qualify(prefix, _)), heads, body)(r.span, origin)
     }
 
-  private def query(q: CoreItem.QueryItem, base: List[Val] = Nil): Option[obj.Query] =
-    staged(q.vars, List(q.body), q.span, base)((terms, normal) => obj.Query(terms.formulas(normal.head))(q.span, Origin.Source))
+  private def query(q: CoreItem.QueryItem, base: List[Val] = Nil, origin: Origin = Origin.Source): Option[obj.Query] =
+    staged(q.vars, List(q.body), q.span, base)((terms, normal) => obj.Query(terms.formulas(normal.head))(q.span, origin))
 
-  private def edge(e: CoreItem.EdgeItem, base: List[Val] = Nil): Option[obj.Edge] =
+  private def edge(e: CoreItem.EdgeItem, base: List[Val] = Nil, origin: Origin = Origin.Source): Option[obj.Edge] =
     Tm.unloc(nf(base, e.sup)) match
       case Tm.Global(id) =>
-        symbols.typeSym(id).map(sup => obj.Edge(symbols.otype(nf(base, e.sub), e.span), sup)(e.span, Origin.Source))
+        symbols.typeSym(id).map(sup => obj.Edge(symbols.otype(nf(base, e.sub), e.span), sup)(e.span, origin))
       case _ => None
 
-  private def directive(d: CoreItem.DirectiveItem, base: List[Val] = Nil, prefix: String = ""): Option[obj.Directive] =
+  private def directive(
+      d: CoreItem.DirectiveItem,
+      base: List[Val] = Nil,
+      prefix: String = "",
+      origin: Origin = Origin.Source
+  ): Option[obj.Directive] =
     val target = d.target.flatMap(t => staged(Nil, List(t), d.span, base)((terms, normal) => terms.term(normal.head)))
     val rel = target.collect { case obj.Term.App(r, Nil) => r }
-    def withTarget(k: DirKind) = rel.map(r => obj.Directive(k, Some(r), None)(d.span, Origin.Source))
+    def withTarget(k: DirKind) = rel.map(r => obj.Directive(k, Some(r), None)(d.span, origin))
     d.directive match
       case CoreDirective.Input => withTarget(DirKind.Input)
       case CoreDirective.Output => withTarget(DirKind.Output)
       case CoreDirective.Open => withTarget(DirKind.Open)
       case CoreDirective.Derivations => withTarget(DirKind.Derivations)
       case CoreDirective.DerivationsRule(rn) =>
-        Some(obj.Directive(DirKind.Derivations, None, Some(qualify(prefix, rn)))(d.span, Origin.Source))
+        Some(obj.Directive(DirKind.Derivations, None, Some(qualify(prefix, rn)))(d.span, origin))
       case CoreDirective.Mode(inputs) => withTarget(DirKind.ModeD(ModeSpec(inputs)))
       case CoreDirective.TerminatesLabel(ls) => withTarget(DirKind.TerminatesLabel(ls))
       case CoreDirective.NameHint(v) => withTarget(DirKind.NameHint(v))

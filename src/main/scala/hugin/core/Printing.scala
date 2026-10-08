@@ -37,7 +37,9 @@ trait Printing:
     case Tm.Lift(a) => occurs(ix, a)
     case Tm.Quote(a) => occurs(ix, a)
     case Tm.Splice(a) => occurs(ix, a)
-    case Tm.RecTy(fs) => fs.zipWithIndex.exists((f, k) => occurs(ix + k, f._2))
+    case Tm.RecTy(fs, _) => fs.zipWithIndex.exists((f, k) => occurs(ix + k, f._2))
+    case Tm.Require(_, _, a) => occurs(ix, a)
+    case Tm.Trace(_, a) => occurs(ix, a)
     case Tm.Rec(fs) => fs.exists(f => occurs(ix, f._2))
     case Tm.Proj(a, _) => occurs(ix, a)
     case Tm.Arith(_, a, b, _) => occurs(ix, a) || occurs(ix, b)
@@ -89,7 +91,9 @@ trait Printing:
     case Tm.Lift(a) => s"⇑${go(ns, a, 7)}"
     case Tm.Quote(a) => s"⟨${go(ns, a, 0)}⟩"
     case Tm.Splice(a) => s"$$${go(ns, a, 7)}"
-    case Tm.RecTy(fs) =>
+    case Tm.Require(_, _, a) => go(ns, a, p)
+    case Tm.Trace(_, a) => go(ns, a, p)
+    case Tm.RecTy(fs, _) =>
       var names = ns
       fs.map { (l, ty) =>
         val s = s"$l : ${go(names, ty, 0)}"

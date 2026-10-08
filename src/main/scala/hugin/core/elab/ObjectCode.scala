@@ -86,7 +86,7 @@ trait ObjectCode:
   /** Whether a type is the type of object data (values of object terms), as opposed to formulas, types
    *  and functions. Coercions between such types are left to the object typer. */
   def isObjectData(v: Val): Boolean = force(v) match
-    case Val.PropT | Val.U0 | Val.U1(_) | Val.Lift(_) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _) => false
+    case Val.PropT | Val.U0 | Val.U1(_) | Val.Lift(_) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _, _) => false
     case Val.RelT | Val.Flex(_, _) => true
     case other => stageOfType(other) == Stage.S0
 

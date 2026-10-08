@@ -76,7 +76,7 @@ trait ElabErrors:
       case _ => None
 
   private def isMetaPrimOrData(v: Val): Boolean = force(v) match
-    case Val.Base(_, Stage.S1) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _) | Val.U1(_) => true
+    case Val.Base(_, Stage.S1) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _, _) | Val.U1(_) => true
     case Val.Rigid(Head.Glob(id), _) => globals(id).stage == Stage.S1
     case _ => false
 

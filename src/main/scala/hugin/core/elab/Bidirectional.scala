@@ -73,7 +73,8 @@ trait Bidirectional:
       val (tm, ty, _) = inferInfix(c, op, l, r, t.span, Some(st))
       (tm, ty)
     case _ =>
-      val (tm, ty, s) = infer(c, t)
+      // implicit arguments first: a constructor of a family (`nil`) is object code once applied
+      val (tm, ty, s) = if st == Stage.S0 then insert(c, t.span, infer(c, t)) else infer(c, t)
       adjust(c, t.span, tm, ty, s, st)
 
   /** Checks a term against a type at a stage. */
@@ -85,7 +86,9 @@ trait Bidirectional:
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (Parens(i), _) => check(c, i, a, st)
-    case (Lit(l), _) if st == Stage.S0 => Tm.Lit(l, Stage.S0) // literals of refinements: the object typer checks
+    case (Lit(l), ty) if st == Stage.S0 =>
+      // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
+      coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)
     case (Lambda(param, ann, body), pi @ Val.Pi(_, Icit.Expl, _, _)) => checkLambda(c, t, param, ann, body, pi, st)
     case (_, Val.Pi(x, Icit.Impl, dom, cl)) =>
       // an implicit Π is introduced by an inserted implicit lambda
@@ -107,7 +110,9 @@ trait Bidirectional:
       coe(c, t.span, tm2, ty2, st, a, st)
     case (_, Val.PropT) if st == Stage.S0 =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
-      dataConstructorOf(tm).foreach(dataUsedAsRelation(_, TreeOps.flattenApp(t)._1.span, "not a relation: it has no facts to read"))
+      val head = TreeOps.flattenApp(t)._1
+      dataConstructorOf(tm).foreach(dataUsedAsRelation(_, head.span, "not a relation: it has no facts to read"))
+      dataFieldOf(c, tm).foreach(l => dataFieldUsedAsRelation(hugin.syntax.Printer.show(head), l, head.span))
       coe(c, t.span, tm, ty, s, a, st)
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))

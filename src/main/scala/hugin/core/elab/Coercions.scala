@@ -97,12 +97,10 @@ trait Coercions:
   /** A constructor application of an object type, used as a formula: an atom of the constructor's
    *  relation (in Datalog∃! every constructor is a relation, REDESIGN §3.2). */
   private def isConstructorAtom(t: Tm, ty: Val): Boolean =
-    def head(t: Tm): Tm = t match
-      case Tm.App(f, _, _) => head(f)
-      case other => other
-    head(t) match
-      case Tm.Global(id) => globals(id).stage == Stage.S0 && stageOfType(ty) == Stage.S0 && !isUniverse(ty)
+    def application(t: Tm): Boolean = Tm.unloc(t) match
+      case Tm.App(_, _, _) | Tm.Splice(_) | Tm.Global(_) => true
       case _ => false
+    application(t) && stageOfType(ty) == Stage.S0 && !isUniverse(ty)
 
   /** Record subtyping by coercion: every field of the expected record type must be present (width) and
    *  coerce to the expected field type (depth). */

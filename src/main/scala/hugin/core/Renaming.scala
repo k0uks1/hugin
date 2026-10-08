@@ -169,7 +169,7 @@ trait Renaming:
     case U1(l) => Tm.U1(l)
     case Lift(a) => Tm.Lift(psubst(psub, a))
     case Quote(t) => Tm.Quote(psubst(psub, t))
-    case RecTy(ls, env, tys) =>
+    case RecTy(ls, env, tys, rs) =>
       var e = env
       var p = psub
       val qs = tys.map { ty =>
@@ -178,7 +178,7 @@ trait Renaming:
         p = p.lift
         q
       }
-      Tm.RecTy(ls.zip(qs))
+      Tm.RecTy(ls.zip(qs), rs)
     case Rec(fs) => Tm.Rec(fs.map((n, x) => (n, psubst(psub, x))))
     case Lit(l, st) => Tm.Lit(l, st)
     case Base(b, st) => Tm.Base(b, st)

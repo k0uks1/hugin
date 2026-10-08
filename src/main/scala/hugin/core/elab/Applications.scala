@@ -60,6 +60,18 @@ trait Applications:
         (namedPattern(c, f, ft, cols, rl), cols.foldLeft(fty)((t, _) => objectCodomain(t)), Stage.S0)
       case _ => inferPositionalApp(c, f, a, span, ft, fty, fs)
 
+  /** A record passed for a signature with requirements records them when evaluated ([[Tm.Require]]). */
+  private def withRequirements(dom: Val, span: Span, t: Tm): Tm = force(dom) match
+    case Val.RecTy(_, _, _, reqs) if reqs.nonEmpty => Tm.Require(reqs, span, t)
+    case _ => t
+
+  /** The application of a functor (a function returning a module) records its frame for the module
+   *  instances it creates ([[Tm.Trace]]). */
+  private def functorApplication(f: Tree, span: Span, t: Tm, resTy: Val): Tm = force(resTy) match
+    case _: Val.RecTy =>
+      Tm.Trace(TraceFrame(s"in application of `${hugin.syntax.Printer.show(TreeOps.flattenApp(f)._1)}`", span), t)
+    case _ => t
+
   /** The codomain of an object arrow (object arrows are not dependent). */
   private def objectCodomain(ty: Val): Val = force(ty) match
     case Val.Pi(_, _, _, cl) => inst(cl, Val.Wild)
@@ -68,8 +80,9 @@ trait Applications:
   private def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>
-        val at = check(c, a, dom, fs)
-        (Tm.App(ft, at, Icit.Expl), inst(cl, ev(c, at)), fs)
+        val at = withRequirements(dom, span, check(c, a, dom, fs))
+        val resTy = inst(cl, ev(c, at))
+        (functorApplication(f, span, Tm.App(ft, at, Icit.Expl), resTy), resTy, fs)
       case Val.Flex(_, _) =>
         val dom = ev(c, freshType(c, fs, a.span, "the type of an argument"))
         val cod = freshType(bind(c, "x", dom, fs), fs, span, "the type of an application")
