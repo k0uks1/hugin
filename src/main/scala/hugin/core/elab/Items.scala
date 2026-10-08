@@ -69,8 +69,11 @@ trait Items:
     var progress = true
     while pending.nonEmpty && progress do
       val before = pending.length
+      // how many of this round's items declare a name: a name is declared by a later item if another
+      // one does (counted once per round instead of listing the others for every item)
+      val declaring = pending.flatMap((i, _) => declares(i)).groupMapReduce(identity)(_ => 1)(_ + _)
       pending = pending.flatMap { (item, _) =>
-        val later = pending.map(_._1).filter(_ ne item).flatMap(declares).toSet
+        def later(n: Name) = declaring.getOrElse(n, 0) > (if declares(item).contains(n) then 1 else 0)
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
@@ -201,14 +204,20 @@ trait Items:
   private def itemTransaction[A](f: => A): A =
     val count = items.length
     val partCount = state.parts.length
-    val names = scope.keySet.toSet
-    try f
-    catch
-      case e: ElabError =>
-        items.dropRightInPlace(items.length - count)
-        state.parts.dropRightInPlace(state.parts.length - partCount)
-        scope.filterInPlace((n, _) => names(n))
-        throw e
+    val names = scope.begin()
+    val result =
+      try f
+      catch
+        case e: ElabError =>
+          items.dropRightInPlace(items.length - count)
+          state.parts.dropRightInPlace(state.parts.length - partCount)
+          scope.rollback(names)
+          throw e
+        case e: Throwable =>
+          scope.commit(names)
+          throw e
+    scope.commit(names)
+    result
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
    *  object typer infers). */

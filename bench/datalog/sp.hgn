@@ -1,0 +1,11 @@
+(* bench: shortest paths with a bound column (min) over a weighted grid *)
+node : type = int.
+edge : node -> node -> int -> rel.
+source : node -> rel.
+%input edge.  %input source.
+dist : (v : node) -> (d : min int) -> rel.
+dist S 0 :- source S.
+dist W (D + C) :- dist V D, edge V W C.
+far : int -> rel.
+far M :- M = max { D | dist _ D }.
+%output far.

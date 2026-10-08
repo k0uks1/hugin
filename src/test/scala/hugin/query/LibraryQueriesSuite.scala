@@ -1,6 +1,6 @@
 package hugin.query
 
-import hugin.compiler.{Compiler, Parsed, Settings, SourceLoader}
+import hugin.compiler.{Compiler, Settings, SourceLoader, StdlibCache}
 import hugin.util.*
 
 /** Libraries as queries: the prelude and the imported files are elaborated as a chain, each file on top of
@@ -59,7 +59,8 @@ class LibraryQueriesSuite extends munit.FunSuite:
   /** The same, compiled from scratch: a new database and, independently, without a database. */
   private def fromScratch(texts: Map[String, String], path: String) =
     val viaDb = observe(path)(using setup(texts))
-    val loader: SourceLoader = p => texts.get(p).orElse(SourceLoader.read(p)).map(t => Parsed(SourceFile.virtual(p, t)))
+    // the standard library's parse is the process's shared one (`StdlibCache`), as in `SourceLoader.files`
+    val loader: SourceLoader = p => texts.get(p).orElse(SourceLoader.read(p)).map(t => StdlibCache.parsed(p, t))
     val direct = Compiler.compileParsed(loader.load(path).get, settings, loader, _ => ())
     val renderer = DiagnosticRenderer(color = false)
     assertEquals(direct.reporter.sorted.map(renderer.render), viaDb._1, "database and direct compilation differ")

@@ -1,6 +1,6 @@
 package hugin.query
 
-import hugin.compiler.{Library, ProgramElaboration, SourceLoader}
+import hugin.compiler.{Library, ProgramElaboration, SourceLoader, StdlibCache}
 import hugin.core.{ElabBase, ElaboratedDeclarations, ElaboratedItem, ProgramElab, SourceItems}
 import hugin.syntax.Trees.Item
 import hugin.util.*
@@ -59,7 +59,9 @@ object ElabLibrary extends Query[ChainKey, ElabBase]("elabLibrary"):
   def compute(key: ChainKey)(using db: Database): ElabBase =
     key.files match
       case Nil => ProgramElab.empty(key.builtinNames)
-      case List((p, q)) if p == SourceLoader.PreludePath => ProgramElab.prelude(SourceItems(p, q, items(p)), key.builtinNames)
+      case List((p, q)) if p == SourceLoader.PreludePath =>
+        if db.has(SourceText, p) then StdlibCache.prelude(db(Parse, p), key.builtinNames)
+        else ProgramElab.prelude(SourceItems(p, q, Nil), key.builtinNames)
       case files =>
         val (p, q) = files.last
         ProgramElab.library(db(ElabLibrary, ChainKey(files.init, key.builtinNames)), SourceItems(p, q, items(p)))

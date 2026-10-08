@@ -9,7 +9,9 @@ package elab
  *  any level. */
 final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: Vector[Val]):
   def size: Int = names.length
-  def env: List[Val] = values.reverse.toList
+
+  /** The values as an environment (innermost first), computed once per problem. */
+  lazy val env: List[Val] = values.reverse.toList
   def isFree(l: Int): Boolean = values(l) == Val.local(l)
 
   def extend(name: Name, ty: Val): SplitProblem =

@@ -42,8 +42,8 @@ object SourceLoader:
         if Files.isRegularFile(p) then Some(Files.readString(p)) else None
       catch case _: InvalidPathException => None
 
-  /** Reads and parses files directly (no caching). */
-  val files: SourceLoader = path => read(path).map(text => Parsed(SourceFile.virtual(path, text)))
+  /** Reads and parses files directly (the standard library's parses are shared, [[StdlibCache]]). */
+  val files: SourceLoader = path => read(path).map(text => StdlibCache.parsed(path, text))
 
   /** Resolves an import path relative to the importing file; `.hgn` is appended if there is no extension.
    *  A path that is not a valid file path (a NUL character, characters the file system cannot encode, a
@@ -126,7 +126,7 @@ trait Libraries:
   /** Elaborates the program `program` (the file `root`) with the files of its import graph (the prelude
    *  first, if included). The query database computes it in memoised parts. */
   def elaborate(root: String, program: Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
-    hugin.core.MetaLevel.elaborateProgram(root, program, graph, prelude, path => load(path).fold(Nil)(_.program.items))
+    hugin.core.MetaLevel.elaborateProgram(root, program, graph, prelude, load)
 
 /** A program elaborated by the meta level: the result, its diagnostics and what it recorded for tooling. */
 final class ProgramElaboration(

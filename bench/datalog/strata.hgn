@@ -1,0 +1,20 @@
+(* bench: stratified negation and aggregates over a large random graph *)
+node : type = int.
+edge : node -> node -> rel.
+root : node -> rel.
+%input edge.  %input root.
+known : node -> rel.
+known X :- edge X _.
+known Y :- edge _ Y.
+reach : node -> rel.
+reach X :- root X.
+reach Y :- reach X, edge X Y.
+unreached : node -> rel.
+unreached X :- known X, not reach X.
+outdeg : node -> int -> rel.
+outdeg X N :- known X, N = count { Y | edge X Y }.
+sink : node -> rel.
+sink X :- known X, not edge X _.
+stats : int -> int -> int -> rel.
+stats U S M :- U = count { X | unreached X }, S = count { X | sink X }, M = max { N | outdeg _ N }.
+%output stats.
