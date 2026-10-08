@@ -1,0 +1,13 @@
+/* Small adjustments to the default mdBook theme: a narrower reading column and calmer headings.
+   No fonts or scripts are loaded from elsewhere. */
+:root {
+  --content-max-width: 46em;
+}
+.content h1,
+.content h2,
+.content h3 {
+  font-weight: 600;
+}
+.content td:first-child a {
+  white-space: nowrap;
+}
