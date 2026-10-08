@@ -41,6 +41,7 @@ final class Staging(core: Core, reporter: Reporter):
   /** The leaves of a case tree as clauses, with their bodies normalised. */
   private def clauses(f: Name, tree: CaseTree): List[String] = tree match
     case CaseTree.Split(_, branches) => branches.flatMap(b => clauses(f, b.tree))
+    case CaseTree.SplitAtom(_, branches, default) => branches.flatMap(b => clauses(f, b._2)) ++ clauses(f, default)
     case CaseTree.Leaf(body, _, order, names, patterns) =>
       val ns = names.toList.reverse
       val env = order.indices.reverse.map(Val.local).toList
@@ -66,7 +67,7 @@ final class Staging(core: Core, reporter: Reporter):
         case GlobalKind.Definition(tm, _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.")
         case GlobalKind.Function(_, Some(tree)) => s"${g.name} : $ty." :: clauses(g.name, tree)
         case _ => List(s"${g.name} : $ty.")
-    case CoreItem.RuleItem(name, vars, heads, body, span, generic) =>
+    case CoreItem.RuleItem(name, vars, heads, body, span, generic, _) =>
       val env = vars.indices.reverse.map(Val.local).toList
       val names = vars.map(_._1).reverse
       val hs = heads.map(nf(env, _))
@@ -76,7 +77,7 @@ final class Staging(core: Core, reporter: Reporter):
         val pre = name.map(n => s"@$n ").getOrElse("")
         List(s"$pre${hs.map(showTm(names, _)).mkString(", ")}${b.map(x => " :- " + showTm(names, x)).getOrElse("")}.")
       else Nil
-    case CoreItem.QueryItem(vars, body, span) =>
+    case CoreItem.QueryItem(vars, body, span, _) =>
       val env = vars.indices.reverse.map(Val.local).toList
       val names = vars.map(_._1).reverse
       val b = nf(env, body)

@@ -37,6 +37,13 @@ object Printer:
     case LiftE(a) => s"⇑${showArg(a)}"
     case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
+    case ListLit(es) => es.map(show).mkString("[", ", ", "]")
+    case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
+    case RuleQuote(hs, b) => s"(${hs.map(show).mkString(", ")} :-${b.map(x => " " + show(x)).getOrElse("")})"
+    case SpliceSeq(a) => s"$$..${showArg(a)}"
+    case SpliceHO(f, as) => s"$$${showArg(f)}${as.map(show).mkString("[", ", ", "]")}"
+    case SymRef(_, n) => n
+    case NamedVar(n) => n
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"

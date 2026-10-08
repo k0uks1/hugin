@@ -11,13 +11,16 @@ import scala.collection.mutable
  *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
  *
  *  The meta level's syntax (docs/REDESIGN.md §6) includes equational clauses `f p̄ = e.`
- *  ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and lifts `⇑t`.
+ *  ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and lifts `⇑t`; the syntax
+ *  of reflection (holes, lists, rules as expressions) is in [[QuoteSyntax]], records and signatures in
+ *  [[RecordSyntax]].
  */
 final class Parser(
     src: SourceFile,
     reporter: Reporter,
     infix: Option[Map[String, (Parser.Assoc, Int)]] = None
-):
+) extends QuoteSyntax
+    with RecordSyntax:
   import Parser.*
 
   private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
@@ -27,24 +30,25 @@ final class Parser(
   /** True while parsing a type: comparison operators (in particular `=`) end the type. */
   private var inType = false
 
-  private def parseType(minLevel: Int = LvlArrow): Tree =
+  protected def parseType(minLevel: Int): Tree =
     val saved = inType
     inType = true
     try parseExpr(minLevel)
     finally inType = saved
 
-  private def parseNonType(minLevel: Int): Tree =
+  protected def parseNonType(minLevel: Int): Tree =
     val saved = inType
     inType = false
     try parseExpr(minLevel)
     finally inType = saved
 
-  private def tok: Token = toks(i)
-  private def peekTok(k: Int): Token = toks((i + k).min(toks.length - 1))
-  private def kind: Tok = tok.kind
-  private def advance(): Token = { val t = tok; if i < toks.length - 1 then i += 1; t }
+  protected def tok: Token = toks(i)
+  protected def peekTok(k: Int): Token = toks((i + k).min(toks.length - 1))
+  protected def kind: Tok = tok.kind
+  protected def advance(): Token = { val t = tok; if i < toks.length - 1 then i += 1; t }
   private def prevEnd: Int = if i == 0 then 0 else toks(i - 1).span.end
-  private def spanFrom(start: Int): Span = Span(src, start, prevEnd.max(start))
+  protected def spanFrom(start: Int): Span = Span(src, start, prevEnd.max(start))
+  protected def expectTok(k: Tok, what: String): Token = expect(k, what)
 
   final class ParseError extends Exception(null, null, false, false)
 
@@ -259,17 +263,6 @@ final class Parser(
       p = Select(p, n.text)(p.span.to(n.span), n.span)
     p
 
-  private def parseModeItems(): List[ModeItem] =
-    val b = mutable.ListBuffer.empty[ModeItem]
-    while kind == Tok.Plus || kind == Tok.Minus do
-      val t = advance()
-      // `+e` names the column labelled `e`
-      val lbl = if kind == Tok.Name then
-        val n = advance(); Some(Ident(n.text)(n.span))
-      else None
-      b += ModeItem(t.kind == Tok.Plus, lbl, t.span.to(lbl.map(_.span).getOrElse(t.span)))
-    b.toList
-
   private def parseDirective(): Item =
     val start = tok.span.start
     val d = advance()
@@ -354,6 +347,7 @@ final class Parser(
     case Tok.Semi => Some((";", LvlSemi, Assoc.Left))
     case Tok.Comma => Some((",", LvlComma, Assoc.Left))
     case Tok.Arrow => Some(("->", LvlArrow, Assoc.Right))
+    case Tok.ColonColon => Some(("::", LvlCons, Assoc.Right))
     case Tok.Bar => Some(("|", LvlBar, Assoc.Left))
     case Tok.Eq => Some(("=", LvlCmp, Assoc.NonAssoc))
     case Tok.Neq => Some(("<>", LvlCmp, Assoc.NonAssoc))
@@ -388,6 +382,7 @@ final class Parser(
             case ";" => Disj(lhs, rhs)(sp)
             case "," => Conj(lhs, rhs)(sp)
             case "|" => Union(lhs, rhs)(sp)
+            case "::" => ConsE(lhs, rhs)(sp)
             case "->" =>
               lhs match
                 case ImplicitBinder(ns, t) => ImplicitPi(ns, t, rhs)(sp)
@@ -416,7 +411,7 @@ final class Parser(
           case l @ Lit(Literal.IntL(v)) => Lit(Literal.IntL(-v))(spanFrom(start))
           case l @ Lit(Literal.FloatL(v)) => Lit(Literal.FloatL(-v))(spanFrom(start))
           case other => Neg(other)(spanFrom(start))
-      case Tok.LBrack =>
+      case Tok.LBrack if !listAhead =>
         advance()
         val p = tok
         val param: Tree = p.kind match
@@ -436,6 +431,7 @@ final class Parser(
   private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Dollar | Tok.Up => true
+    case Tok.LBrack => listAhead
     case Tok.Name => !infixOps.contains(t.text)
     case _ => false
   )
@@ -447,7 +443,7 @@ final class Parser(
       f = Apply(f, a)(f.span.to(a.span))
     f
 
-  private def parsePostfix(): Tree =
+  protected def parsePostfix(): Tree =
     var t = parsePrimary()
     while kind == Tok.Select do
       advance()
@@ -509,11 +505,11 @@ final class Parser(
         advance()
         val p = expect(Tok.StrLit, "a file path in quotes")
         Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
+      case Tok.LBrack if listAhead => parseList()
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
       case Tok.Dollar =>
         advance()
-        val arg = parsePostfix()
-        SpliceE(arg)(spanFrom(start))
+        parseDollar(start)
       case Tok.Up =>
         advance()
         val arg = parsePostfix()
@@ -552,6 +548,7 @@ final class Parser(
         val t = parseType()
         expect(Tok.RParen)
         Ascribe(inner, t)(spanFrom(start))
+      case Tok.Turnstile => ruleQuoteRest(start, inner)
       case _ =>
         expect(Tok.RParen, "`)`")
         Parens(inner)(spanFrom(start))
@@ -611,44 +608,6 @@ final class Parser(
       k += 1
     false
 
-  private def parseRecordType(start: Int): Tree =
-    val entries = mutable.ListBuffer.empty[SigEntry]
-    var continue = true
-    while continue do
-      if kind == Tok.Directive && tok.text == "%complete" then
-        val d = advance()
-        val l = expect(Tok.Name, "a label")
-        entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
-      else if kind == Tok.Directive && tok.text == "%mode" then
-        val d = advance()
-        val l = expect(Tok.Name, "a label")
-        val ms = parseModeItems()
-        entries += SigEntry.ModeReq(Ident(l.text)(l.span), ms, d.span.to(ms.lastOption.map(_.span).getOrElse(l.span)))
-      else
-        val fact = kind == Tok.Directive && tok.text == "%fact"
-        if fact then advance()
-        val l = expect(Tok.Name, "a label")
-        expect(Tok.Colon, "`:` in record type")
-        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType(), fact)
-      if kind == Tok.Comma then advance() else continue = false
-    expect(Tok.RBrace, "`,` or `}`")
-    RecordType(entries.toList)(spanFrom(start))
-
-  private def parseRecordLit(start: Int): Tree =
-    val fields = mutable.ListBuffer.empty[Field]
-    var rest = false
-    var continue = true
-    while continue do
-      if kind == Tok.DotDot then
-        advance(); rest = true; continue = false
-      else
-        val l = expect(Tok.Name, "a label")
-        expect(Tok.Eq, "`=` in record")
-        fields += Field(Ident(l.text)(l.span), parseNonType(LvlArrow))
-        if kind == Tok.Comma then advance() else continue = false
-    expect(Tok.RBrace, if rest then "`}` after `..`" else "`,` or `}`")
-    RecordLit(fields.toList, rest)(spanFrom(start))
-
 object Parser:
   enum Assoc:
     case Left, Right, NonAssoc
@@ -656,6 +615,9 @@ object Parser:
   val LvlComma = 20
   val LvlArrow = 30
   val LvlBar = 40
+
+  /** `::`, the meta level's list constructor (right associative). */
+  val LvlCons = 45
   val LvlCmp = 50
 
   /** Items' heads: everything binding tighter than comparisons. */

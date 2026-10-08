@@ -72,16 +72,18 @@ trait Clauses:
 
   private def initialClause(p: SplitProblem, binders: List[(Name, Icit, Val)], cl: SurfaceClause, index: Int): ClauseState =
     var pats = cl.pats
-    val eqns = binders.zipWithIndex.map { case ((x, i, a), l) =>
-      val pat =
-        if i == Icit.Impl then Pat.PVar(x, cl.name.span, implicitBinder = true)
-        else
-          val q = pattern(pats.head)
-          pats = pats.tail
-          q
-      Eqn(Val.local(l), pat, a)
+    val (eqns, derived) = withDerivedBindings {
+      binders.zipWithIndex.map { case ((x, i, a), l) =>
+        val pat =
+          if i == Icit.Impl then Pat.PVar(x, cl.name.span, implicitBinder = true)
+          else
+            val q = pattern(pats.head, closedType(a, l))
+            pats = pats.tail
+            q
+        Eqn(Val.local(l), pat, a)
+      }
     }
-    ClauseState(index, eqns, Nil, cl)
+    ClauseState(index, eqns, Nil, cl.copy(where = derived ++ cl.where))
 
   // ---------------------------------------------------------------- simplification of equations
 
@@ -112,6 +114,13 @@ trait Clauses:
               pending = e.copy(pat = q) :: pending
             case None =>
               fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
+        case Pat.PAtom(key, span) =>
+          force(e.term) match
+            case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => stuck += e
+            case other =>
+              atomKey(other) match
+                case Some(k) => if k != key then matches = false
+                case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, other), span))
         case Pat.PCon(c, args, span) =>
           force(e.term) match
             case Val.Rigid(Head.Glob(c2), sp) if isConstructor(c2) =>
@@ -149,7 +158,10 @@ trait Clauses:
       case first :: _ if first.eqns.isEmpty => leaf(f, p, target, first)
       case all @ (first :: _) =>
         force(first.eqns.head.term) match
-          case Val.Rigid(Head.Local(x), Nil) => split(f, p, x, target, all, first.eqns.head.pat)
+          case Val.Rigid(Head.Local(x), Nil) =>
+            first.eqns.head.pat match
+              case _: Pat.PAtom => splitAtom(f, p, x, target, all)
+              case pat => split(f, p, x, target, all, pat)
           case _ => throw Impossible("split on a non-variable")
 
   /** Splits on variable `x`: a branch per constructor whose indices unify. */
@@ -179,6 +191,17 @@ trait Clauses:
         CaseTree.Split(x, branches)
       case other =>
         fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
+
+  /** Splits on variable `x` of a type without constructors but with decidable equality: a branch per value
+   *  that a clause matches it against, and a default branch for the clauses that do not. */
+  private def splitAtom(f: FunctionInfo, p: SplitProblem, x: Int, target: Val, clauses: List[ClauseState]): CaseTree =
+    def atomOn(e: Eqn) = e.pat.isInstanceOf[Pat.PAtom] && force(e.term) == Val.local(x)
+    val keys = clauses.flatMap(_.eqns.filter(atomOn)).collect { case Eqn(_, Pat.PAtom(k, _), _) => k }.distinct
+    val branches = keys.map { k =>
+      val p2 = p.solve(core, x, eval(Nil, k))
+      (k, buildTree(f, p2, p2.norm(core, target), clauses))
+    }
+    CaseTree.SplitAtom(x, branches, buildTree(f, p, target, clauses.filterNot(_.eqns.exists(atomOn))))
 
   /** Extends the problem with the arguments of constructor `c` and unifies the indices of its type with
    *  those of the scrutinee's type `famSp`. */

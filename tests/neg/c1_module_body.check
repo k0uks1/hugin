@@ -1,0 +1,9 @@
+error[E0907]: reflected items (`$e.`) in module bodies are not supported by the meta level
+ --> tests/neg/c1_module_body.hgn:6:3
+  |
+6 |   $rs. (*~ E0907 *)
+  |   ^^^^ not supported
+  |
+  = note: see the open issues of the redesign in docs/NOTES.md
+
+1 error found

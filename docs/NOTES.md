@@ -1007,8 +1007,124 @@ dropped and elaboration continues with the next one.
 * An implicit type argument that only the object typer could determine (the type of an object variable
   constrained by nothing in the core) stays unknown and is reported at staging (E0909), not as E0206.
 * E0202's concepts (shape, stage, unbound aggregate) still share a code; "no member" is E0906.
-* Phase C: reflection (§6.8), quoted patterns and `$`/`$..` holes (§6.9), directives as meta functions
+* Phase C: reflection (§6.8), quoted patterns and `$`/`$..` holes (§6.9) (done in C1, see "Reflection"
+  below), directives as meta functions
   (C2), `%demand` in the prelude and the removal of relation modes and the data/fact split (C3).
+
+## Reflection (redesign Phase C1)
+
+Object syntax as data (REDESIGN §6.8) and quoted patterns with holes (§6.9). The reflective types are
+ordinary inductive types of the prelude; the compiler adds reification (syntax → data, in expressions
+and patterns), splits by identity in case trees, and reflection (data → syntax → elaboration).
+
+| file | contents |
+|---|---|
+| `syntax/QuoteSyntax.scala` | holes `$x`, `$..xs`, `$f[t̄]`; lists `[ē]`, `e :: es`; rules as expressions `(h̄ :- b)` |
+| `core/elab/Reflective.scala` | the prelude's reflective globals, the kind of an expected type (`RKind`), data constructors |
+| `core/elab/Quotes.scala` | when syntax is quoted, its analysis (`Q`), reification in expressions, meta lists |
+| `core/elab/QuotedPatterns.scala` | quoted patterns (`Q` → `Pat`), higher-order holes |
+| `core/elab/Reflection.scala` | data → syntax with resolved symbols (`SymRef`), items `$e.`, formulas and terms in object code |
+| `core/elab/ReflectionProblems.scala` | E0917 (invalid quoted syntax), E0918 (reflection failure) |
+
+### The reflective types (prelude)
+
+| type | constructors |
+|---|---|
+| `seq A` | `snil`, `scons` (`[]`, `[a, b]`, `x :: xs`), with `sappend` |
+| `sym` | none: `%builtin symbol`; its values are object constants, compared by identity (`⟨typed⟩` when printed) |
+| `term` | `tvar string`, `tbound index`, `twild`, `tint`, `tfloat`, `tstr`, `tapp sym (seq term)`, `tarith arith_op`, `tneg` |
+| `formula` | `fatom sym (seq term)`, `fcmp cmp_op`, `fnot`, `fconj`, `fdisj`, `fagg agg_op x t φ` |
+| `rule` | `horn (seq formula) (seq formula)`: heads and body conjuncts |
+| `item` | `irule rule`, `iquery (seq formula)` |
+| `module` | `seq item` (a definition) |
+
+`openT k w t` / `openF k w φ` (by clauses in the prelude) replace the bound variable with index `k` by
+`w`; `index` is nat-like (`izero`, `isuc`), so literals work in patterns.
+
+### Decisions (C1)
+
+* **Names.** Uppercase names are variables in Hugin, so the types of §6.8 are lowercase: `term`,
+  `formula`, `rule`, `item`, `module`, and `List` is `seq` (with the list syntax above; `list` is the
+  prelude's object list). The constructor of `rule` is `horn`. A program may shadow every one of these
+  names (the reflective machinery finds the prelude's by name in the prelude's scope, not the program's).
+  There is no `Var` type: variable names are `string`s. `Decl` is not there yet: reflected declarations
+  create object constants, which C2 (directives adding declarations) and C3 (`%demand` declaring
+  `r.check`) need and will design; `irule` and `iquery` are the items for now.
+* **Untyped reflection** (Q5, first version): `sym` is one type for all object constants (not
+  `⇑(τ̄ → rel)`), `term` is untyped; reflected code is re-checked. Data refers to object constants by
+  symbol, so it cannot name undeclared ones, and matching is by symbol: a pattern on `edge` does not match
+  the `edge` of a module (`m.edge`), nor a program's `edge` that shadows the one in scope where the
+  pattern is written.
+* **What is quoted.** Where a reflective type is expected, syntax is quoted if it is object syntax of that
+  kind: an object constant (also a path `m.r`) or a hole `$r` applied to arguments, a rule `(h :- b)`, a
+  formula (`,` `;` `not`, comparisons, aggregates `X = k { … }`), arithmetic or a literal for a term, a
+  hole. Anything else is meta code of the reflective type (`R`, `guard R`, `fatom S Ts`, list syntax),
+  so in a quoted formula position a meta variable needs its `$` (`($Pre, $F)`). Inside quoted syntax a
+  plain uppercase variable is an object variable: in an expression `tvar "X"`, in a pattern any object
+  variable (patterns are linear: two occurrences are not compared); `_` is the object wildcard `twild`
+  in a term position and matches anything in a formula position; `$_` matches anything. A single atom
+  where a rule is expected is a fact (`horn [a] []`); a rule where an item is expected is `irule`.
+  `as`, ascriptions, projections, `with`, named patterns have no representation (E0917).
+* **Sequences.** `$..Xs` stands for the arguments of an atom, the heads or body conjuncts of a rule, or
+  the elements of a list. In an expression it may be anywhere (`sappend` joins); in a pattern it must end
+  its sequence (E0917). A list element may be a rule whose body extends to the closing `]`
+  (`[h :- a, b]` is one rule, as in §6.8); several rules with bodies are parenthesised.
+* **Aggregates are locally nameless.** In `X = k { t | φ }`, if `t` is a variable `V`, `V` is bound: its
+  occurrences in `t` and `φ` are `tbound` indices (one binder per aggregate). Reflection names it afresh
+  (`V#1`): the variable is local to the aggregate even where the source used the same name outside it.
+  Other variables are names (Datalog's grouping variables are the shared names). A higher-order hole
+  `$F[V]` in a pattern needs `V` bound by an enclosing aggregate; it binds `F : term -> formula`
+  (`term -> term` in a term position) as a definition `F = [w] openF i w F#body` added to the clause's
+  `where` block, with a pattern variable for the body. In an expression `$F[t̄]` is `F` applied to the
+  quoted terms.
+* **Matching by identity.** Quoted patterns elaborate to constructor patterns over the reflective types,
+  so coverage (E0911), termination (E0912) and index unification apply unchanged. Object constants and
+  literals have no constructors; a pattern on them is `Pat.PAtom`, and the case tree splits with
+  `CaseTree.SplitAtom`: a branch per value the clauses name and a default branch with the clauses that
+  do not constrain the variable (as for literal patterns in ML). A split on a value that is not
+  canonical yet is stuck, as a constructor split on a neutral.
+* **Reflection happens during elaboration**, on closed data: the value is evaluated, turned into surface
+  syntax whose object constants are resolved already (`SymRef`, never parsed), and elaborated like
+  hand-written code, so families, implicit arguments, the core's checks and then the object level's
+  (typing, stratification, termination) apply to reflected code. Data that is not closed (a postulate, a
+  parameter of a meta function: reflection inside a function body that depends on its arguments) is
+  E0918, as is data that is not object code (a variable without a name, a rule without heads, a dangling
+  bound index). The opaque `⇑` staging remains for code generation under binders.
+* **Where reflection applies.** An item `$e.` with `e : rule`, `item`, `seq rule` or `module` stands for
+  the rules and queries `e` evaluates to; `$f a.` is read as `$(f a).` (in an item, a splice applied to
+  arguments). Only at the top level of a file: in a module body it is E0907 (the rules would need the module's members, which are not object constants before the body is instantiated). In object
+  code a value of type `formula` or `term` stands for the formula or term, with or without `$` (the
+  coercion from `formula` to `prop` reflects); its variables are the item's variables of the same names
+  (names are data, so this is by design, not capture), and they count as uses for W0002.
+* **Positions and provenance.** Reified data carries the positions of its syntax (`Loc`, which evaluation,
+  matching and unification look through), so the syntax generated from it has the positions of the
+  quoted syntax it came from — a diagnostic in a rule built by `guard` points into `guard`'s right-hand
+  side or at the rule the data came from. Generated items keep the span of the reflecting item (their
+  place in the program) and carry a frame `in code reflected by `$e`` (`CoreItem.RuleItem.origin`,
+  `QueryItem.origin`, passed on to `obj.Rule`/`obj.Query`), shown as a note.
+* **Changes to the meta level that reflection needed.** (1) Strict positivity allows a family in an
+  argument of another family that is strictly positive in that argument (nested inductives:
+  `tapp : sym -> seq term -> term`). (2) An implicit binder of a constructor that is an argument of the
+  constructor's result (`A` in `scons : A -> seq A -> seq A`) is forced, like a parameter, and does not
+  count for predicativity; otherwise `seq term` would be one universe above `term` and the nested
+  declarations inconsistent. So `vec : Type -> nat -> Type` is in `Type` now (was `Type₁`). (3) A
+  constructor declaration must return a family of its own file: `x : formula.` in a program is a
+  postulate, not a new constructor of the prelude's `formula`. (4) A declaration of the program shadows
+  the prelude's name in the whole file, also before it: a forward reference to `term` waits for the
+  program's `term` instead of resolving to the prelude's (this was latent before, for the prelude's
+  `graph`, `pair`, …, and became visible with the common names above).
+* **Goldens.** `tests/run/c1_guard` (§6.9's `guard`/`propagate`, run on a small type checker; it writes
+  `typed_check` for `typed.check`, which C3 names), `c1_patterns` (`flip`, matching by symbol, literal
+  patterns), `c1_aggregates` (higher-order holes), `c1_roundtrip`, `c1_splices`; negative:
+  `e0917_quoted_syntax`, `e0917_no_prelude`, `e0918_reflection`, `c1_coverage`,
+  `c1_reflected_diagnostics`, `c1_module_body`. `ReflectionSuite` checks both round trips (reflect ∘ reify on rules,
+  reify ∘ reflect on data, up to the names of aggregate variables). Changed `.check` files:
+  `neg/core_e0901_occurs` (meta numbers: the prelude elaborates more), `run/core_b2_clauses` and
+  `run/core_b2_where` (`vec`, `pair` in `Type`, decision (2) above).
+* **For C2.** `Reflection.reflectedItems(v, kind, span)` turns a closed `module`/`seq item` value into
+  syntax, `elabSpliceItem` elaborates it with provenance; `reify(c, tree, kind)` quotes syntax (a
+  directive's arguments). Missing: `Decl` (declarations as data), reflection inside module bodies,
+  reflecting rule names.
 
 ## Bound columns (redesign A2)
 

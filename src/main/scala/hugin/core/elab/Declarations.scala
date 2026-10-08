@@ -149,6 +149,8 @@ trait Declarations:
         kind match
           case GlobalKind.Constructor(fam) => addConstructor(fam, id)
           case _ =>
+      case Some(Builtin(Ident("symbol"))) if d.params.isEmpty && d.tpe == VarRef("Type")(d.tpe.span) =>
+        declare(d.name, Tm.U1(Level.zero), Stage.S1, GlobalKind.Symbols, d.span)
       case Some(e) =>
         val (ty, tm) = declDefinition(Cxt.empty, d, e)
         define(d.name, ty, tm, d.span)

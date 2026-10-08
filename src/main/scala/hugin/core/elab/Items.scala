@@ -34,6 +34,7 @@ trait Items:
   def elabDeclarations(prog: List[Item]): Unit =
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
     state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
+    state.declaredHere = prog.flatMap(declares).toSet
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType), _, _) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)

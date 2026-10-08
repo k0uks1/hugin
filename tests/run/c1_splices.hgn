@@ -1,0 +1,14 @@
+(* Reflection in object code (docs/REDESIGN.md §6.8): a meta value of type `formula` or `term` stands for
+   the formula or term, with or without `$`; its variables are those of the rule with the same names. *)
+p : int -> rel.
+q : int -> rel.
+r : int -> int -> rel.
+
+body : formula = (q X, X > 1).
+three : term = 1 + 2.
+
+q 1.
+q 2.
+q 3.
+p X :- $body.
+r X $three :- body.

@@ -1,0 +1,40 @@
+(* Quoted patterns (docs/REDESIGN.md §6.9): `flip` swaps the arguments of binary atoms; names in patterns
+   resolve to symbols, so a pattern on `edge` does not match the relation `edge` of a module, which
+   shadows it in the module's own body; literals and the object wildcard are matched as written. *)
+node : type.
+a : node.
+b : node.
+c : node.
+edge : node -> node -> rel.
+back : node -> node -> rel.
+weight : node -> int -> rel.
+
+flip : formula -> formula.
+flip ($R $X $Y) = ($R $Y $X).
+flip F = F.
+
+(* every rule with `edge` in its body gets a reversed copy deriving `back` *)
+reverse : rule -> seq rule.
+reverse (edge $X $Y :-) = [(back $Y $X :-)].
+reverse (_ :- edge $X $Y) = [(back $Y $X :- edge $X $Y)].
+reverse _ = [].
+
+heavy : formula -> seq rule.
+heavy (weight $N 3) = [(edge $N $N :-)].
+heavy (weight _ _) = [].
+heavy _ = [].
+
+m = {
+  edge : node -> node -> rel.
+  edge a c.
+}.
+
+rules : seq rule = [ (edge a b :-), (m.edge b c :-), (back X X :- weight X 3) ].
+
+$rules.
+$sappend (reverse (edge a b :-)) (reverse (m.edge b c :-)).
+$[($(flip (edge a b)) :-)].
+$heavy (weight c 3).
+$heavy (weight c 4).
+
+weight c 3.

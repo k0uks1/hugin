@@ -130,6 +130,8 @@ enum Code(
   case E0914 extends Code(914, Phase.Elaboration, "invalid inductive declaration")
   case E0915 extends Code(915, Phase.Elaboration, "invalid pattern")
   case E0916 extends Code(916, Phase.Elaboration, "type binder used in a definition")
+  case E0917 extends Code(917, Phase.Elaboration, "invalid quoted syntax")
+  case E0918 extends Code(918, Phase.Elaboration, "reflection failure")
   // tools
   case E1101 extends Code(1101, Phase.Tools, "invalid REPL command")
   case E1102 extends Code(1102, Phase.Tools, "internal compiler error")

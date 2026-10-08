@@ -25,7 +25,7 @@ trait Inductives:
       val (binders, result) = telescope(ty)
       force(result) match
         case Val.U1(_) => GlobalKind.Inductive(Nil)
-        case Val.Rigid(Head.Glob(fam), sp) if isFamily(fam) =>
+        case Val.Rigid(Head.Glob(fam), sp) if isFamily(fam) && scope.get(globals(fam).name).contains(fam) =>
           checkConstructor(d, fam, binders, sp)
           GlobalKind.Constructor(fam)
         case Val.Base(b, _) if binders.isEmpty =>
@@ -65,15 +65,25 @@ trait Inductives:
       case Val.U1(k) => k
       case _ => Level.zero
     val types = binders.map(_._3).toVector
-    binders.zipWithIndex.foreach { case ((x, _, a), l) =>
+    val forced = forcedBinders(binders, resultSp)
+    binders.zipWithIndex.filterNot((_, l) => forced(l)).foreach { case ((x, _, a), l) =>
       typeLevels(types.take(l), l, a).foreach { k =>
         if !levels.le(k, famLevel) then
           fail(ClauseProblem.ArgumentTooLarge(x, globals(fam).name, showLevel(famLevel), d.tpe.span))
       }
     }
 
+  /** The implicit binders of a constructor that are arguments of its result (`A` in `scons : A -> seq A ->
+   *  seq A`): forced by the type, like parameters, so they do not count for predicativity (otherwise a
+   *  family over `Type` could not hold its elements in its own universe, and nested families such as
+   *  `tapp : sym -> seq term -> term` would be universe-inconsistent). */
+  private def forcedBinders(binders: List[(Name, Icit, Val)], resultSp: Spine): Set[Int] =
+    val args = resultSp.collect { case Elim.EApp(Val.Rigid(Head.Local(x), Nil), _) => x }.toSet
+    binders.zipWithIndex.collect { case ((_, Icit.Impl, _), l) if args(l) => l }.toSet
+
   /** `T` occurs strictly positively in `a` (over `l` variables): `a` does not mention `T`, or is
-   *  `(ȳ : B̄) -> T w̄` with `T` neither in `B̄` nor in `w̄`. */
+   *  `(ȳ : B̄) -> T w̄` with `T` neither in `B̄` nor in `w̄`, or `T` occurs strictly positively in an argument
+   *  of another family that is positive in that argument (nested, `seq term`). */
   private def strictlyPositive(fam: Int, l: Int, a: Val): Boolean =
     force(a) match
       case Val.Pi(_, _, b, cl) => !mentions(fam, l, b) && strictlyPositive(fam, l + 1, inst(cl, Val.local(l)))
@@ -82,7 +92,37 @@ trait Inductives:
           case Elim.EApp(x, _) => !mentions(fam, l, x)
           case _ => false
         }
+      case Val.Rigid(Head.Glob(f), sp) if isFamily(f) =>
+        sp.reverse.zipWithIndex.forall {
+          case (Elim.EApp(x, _), j) => !mentions(fam, l, x) || positiveIn(f, j) && strictlyPositive(fam, l, x)
+          case _ => false
+        }
       case other => !mentions(fam, l, other)
+
+  /** Whether family `f` is strictly positive in its argument `j`: every constructor takes it as a forced
+   *  binder, which its arguments use only strictly positively (as `A` or in `f … A …` at `j`). */
+  private def positiveIn(f: Int, j: Int): Boolean =
+    constructors(f).nonEmpty && constructors(f).forall { c =>
+      val (binders, result) = telescope(globals(c).ty)
+      force(result) match
+        case Val.Rigid(_, rsp) =>
+          rsp.reverse.lift(j) match
+            case Some(Elim.EApp(Val.Rigid(Head.Local(v), Nil), _)) =>
+              binders.zipWithIndex.forall { case ((_, _, b), k) => k <= v || onlyPositive(f, j, v, k, b) }
+            case _ => false
+        case _ => false
+    }
+
+  /** The variable `v` occurs in `b` (over `k` variables) only strictly positively for argument `j` of `f`. */
+  private def onlyPositive(f: Int, j: Int, v: Int, k: Int, b: Val): Boolean = force(b) match
+    case Val.Rigid(Head.Local(x), Nil) if x == v => true
+    case Val.Pi(_, _, d, cl) => !occurs(k - v - 1, quote(k, d)) && onlyPositive(f, j, v, k + 1, inst(cl, Val.local(k)))
+    case Val.Rigid(Head.Glob(g), sp) if g == f =>
+      sp.reverse.zipWithIndex.forall {
+        case (Elim.EApp(x, _), i) => if i == j then onlyPositive(f, j, v, k, x) else !occurs(k - v - 1, quote(k, x))
+        case _ => false
+      }
+    case other => !occurs(k - v - 1, quote(k, other))
 
   private def mentions(fam: Int, l: Int, v: Val): Boolean = mentionsTm(fam, quote(l, v))
 

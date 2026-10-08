@@ -48,6 +48,14 @@ trait Bidirectional:
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
       fail(TypeProblem.CannotInferWildcard(t.span))
+    case SymRef(id, _) => globalRef(id)
+    case NamedVar(n) =>
+      val a = freshMeta(c, Val.U0, Stage.S0, t.span, s"the type of `$n`", allowUnsolved = true)
+      (Tm.Obj(ObjForm.Named(n), Nil), ev(c, a), Stage.S0)
+    case ListLit(_) | ConsE(_, _) => inferList(c, t)
+    case _: RuleQuote =>
+      val r = reflective(t.span)
+      (reify(c, t, RKind.Rule), Val.Rigid(Head.Glob(r.rule), Nil), Stage.S1)
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
@@ -81,6 +89,8 @@ trait Bidirectional:
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (Parens(i), _) => check(c, i, a, st)
+    case (ListLit(_) | ConsE(_, _), _) if st == Stage.S1 => checkList(c, t, a)
+    case (_, ty) if st == Stage.S1 && reflectiveKind(ty).exists(quotedSyntax(t, _, c)) => reify(c, t, reflectiveKind(ty).get)
     case (Lit(l), ty) if st == Stage.S0 =>
       // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
       coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)

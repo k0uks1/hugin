@@ -1,0 +1,19 @@
+(* ---------------- after stage ---------------- *)
+item : type.
+pen : item.
+ink : item.
+cap : item.
+stock : item -> rel.
+excluded : item -> rel.
+count_ok : int -> rel.
+count_ok N :- N = count { V | stock V, not (excluded V) }.
+stock pen.
+stock ink.
+stock cap.
+excluded cap.
+
+count_ok 2.
+excluded cap.
+stock cap.
+stock ink.
+stock pen.

@@ -1,0 +1,22 @@
+(* ---------------- after stage ---------------- *)
+n : type.
+z : n.
+s : n -> n.
+num : n -> rel.
+p : n -> int -> rel.
+q : int -> string -> rel.
+r : int -> rel.
+w : float -> rel.
+num z.
+num (s X) :- X = z, not (w 2.0).
+q K "x" :- (p _ K, K >= 1, K <= 2 ; K = 1).
+r N :- N = count { V | num V }.
+r M :- M = sum { K * 2 | p _ K }, M <> 0.
+p X 1 :- num X, X = z.
+w 1.5.
+p (s z) 2 :- num (s z).
+?- q K S.
+
+?- q K S.
+K = 1, S = "x".
+K = 2, S = "x".

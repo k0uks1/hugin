@@ -41,6 +41,10 @@ final class ElabState:
    *  [[Declarations.declType]]). */
   var unknownTypesAre: Stage = Stage.S1
 
+  /** The names the file's declarations and definitions declare (they shadow the prelude's in the whole
+   *  file, also before their declarations). */
+  var declaredHere: Set[Name] = Set.empty
+
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
@@ -67,6 +71,7 @@ final class ElabState:
     val s = ElabState()
     s.scope ++= scope
     s.functionNames = functionNames
+    s.declaredHere = declaredHere
     s.signatures = signatures
     s.erroneous ++= erroneous
     s.used ++= used
@@ -88,7 +93,10 @@ final class ElabState:
  *  - [[Inductives]]: inductive families, constructors, positivity, nat literals; [[Patterns]],
  *    [[Clauses]], [[IndexUnifier]]: functions defined by clauses, elaborated into case trees with
  *    coverage checking; [[SizeChange]]: their termination;
- *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
+ *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics;
+ *  - [[Reflective]], [[Quotes]], [[QuotedPatterns]], [[Reflection]]: object syntax as data (REDESIGN
+ *    §6.8–6.9): the prelude's reflective types, reification of quoted syntax in expressions and
+ *    patterns, reflection of data back into object code.
  */
 class Elaborator(
     val core: Core,
@@ -123,6 +131,10 @@ class Elaborator(
     with Imports
     with CompleteParameters
     with ObjectItems
+    with Reflective
+    with Quotes
+    with QuotedPatterns
+    with Reflection
     with Tooling:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =

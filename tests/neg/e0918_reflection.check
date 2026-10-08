@@ -1,0 +1,21 @@
+error[E0918]: cannot reflect a value that is not known at compile time
+ --> tests/neg/e0918_reflection.hgn:6:3
+  |
+6 | $[(p 1 :- $opaque)]. (*~ E0918 *)
+  |   ^^^^^^^^^^^^^^^^ the value is `opaque`
+  |
+  = note: reflection turns closed data into object code during elaboration
+
+error[E0918]: cannot reflect this value: a variable without a name
+ --> tests/neg/e0918_reflection.hgn:9:1
+  |
+9 | $[unnamed]. (*~ E0918 *)
+  | ^^^^^^^^^^^ reflected here
+
+error[E0918]: cannot reflect this value: a rule without heads
+  --> tests/neg/e0918_reflection.hgn:10:1
+   |
+10 | $[horn [] []]. (*~ E0918 *)
+   | ^^^^^^^^^^^^^^ reflected here
+
+3 errors found
