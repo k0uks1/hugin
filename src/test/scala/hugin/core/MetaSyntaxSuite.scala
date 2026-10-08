@@ -2,7 +2,6 @@ package hugin.core
 
 import hugin.syntax.*
 import hugin.util.*
-import hugin.util.diagnostics.Code
 
 /** The syntax of the meta level: clauses, implicit binders, splices and lifts, where blocks. */
 class MetaSyntaxSuite extends munit.FunSuite:
