@@ -25,10 +25,21 @@ trait ObjectItems:
 
   def elabRule(r: Rule): Unit =
     warnSingletons(r.heads ++ r.body.toList)
+    val start = metas.length
     val (c, vars) = bindRuleVars(r.heads ++ r.body.toList)
     val heads = r.heads.map(h => elabHead(c, h))
     val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
-    items += CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span)
+    val generic = generalize(start)
+    items += CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
+
+  /** Whether metas created since `start` are unknown object types (implicit arguments of families that
+   *  nothing determines): the item is then generic over them; they are allowed to stay unsolved. */
+  private def generalize(start: Int): Boolean =
+    val open = (start until metas.length).filter(m => metas(m).solution.isEmpty && isObjectTypeUnknown(m))
+    open.foreach(m => metas(m).allowUnsolved = true)
+    open.nonEmpty
+
+  private def isObjectTypeUnknown(m: Int): Boolean = force(telescope(metas(m).ty)._2) == Val.Lift(Val.U0)
 
   /** W0002: object variables that occur only once in a rule (names starting with `_` are exempt). */
   private def warnSingletons(trees: List[Tree]): Unit =
@@ -89,6 +100,11 @@ trait ObjectItems:
    *  relation type. */
   private def relationTarget(t: Tree, what: String): Tm =
     val (tm, ty, st) = infer(Cxt.empty, t)
+    tm match
+      case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => tm // applies to each instance
+      case _ => relationTargetCode(t, what, tm, ty, st)
+
+  private def relationTargetCode(t: Tree, what: String, tm: Tm, ty: Val, st: Stage): Tm =
     val (code, codeTy) = force(ty) match
       case Val.Lift(x) if st == Stage.S1 => (Tm.splice(tm), force(x))
       case other => (tm, other)

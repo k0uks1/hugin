@@ -160,6 +160,8 @@ trait Unification:
     case (Lift(a), Lift(b)) => unify(l, a, b)
     case (Quote(a), Quote(b)) => unify(l, a, b)
     case (Rigid(h, sp), Rigid(h2, sp2)) if h == h2 => unifySp(l, sp, sp2)
+    case (Rigid(Head.Glob(i), sp), Rigid(Head.Glob(f), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp, sp2)
+    case (Rigid(Head.Glob(f), sp), Rigid(Head.Glob(i), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp2, sp)
     case (RecTy(ls, e, ts), RecTy(ls2, e2, ts2)) if ls == ls2 =>
       var env1 = e
       var env2 = e2
@@ -190,6 +192,9 @@ trait Unification:
       if m == m2 then intersect(l, m, sp, sp2) else flexFlex(l, m, sp, m2, sp2)
     case (Flex(m, sp), u1) => solve(l, m, sp, u1)
     case (t1, Flex(m, sp)) => solve(l, m, sp, t1)
+    // η for code: ⟨t⟩ = u iff t = $u
+    case (Quote(a), u1 @ Rigid(_, _)) => unify(l, a, vSplice(u1))
+    case (t1 @ Rigid(_, _), Quote(b)) => unify(l, vSplice(t1), b)
     case (Rec(fs), u1) => fs.foreach((lb, v) => unify(l, v, proj(u1, lb)))
     case (t1, Rec(fs)) => fs.foreach((lb, v) => unify(l, proj(t1, lb), v))
     case _ => fail()

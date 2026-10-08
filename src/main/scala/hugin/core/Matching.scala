@@ -29,6 +29,10 @@ trait Matching:
           for k <- key; v <- r do memo(k) = v
           r
         }.map(appSp(_, later))
+    case GlobalKind.Family(_, arity) if sp.length >= arity =>
+      val (later, first) = sp.splitAt(sp.length - arity)
+      val args = first.reverse.collect { case Elim.EApp(a, _) => a }
+      if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
     case _ => None
 
   private def runTree(tree: CaseTree, env: Vector[Val]): Option[Val] = tree match
@@ -44,7 +48,7 @@ trait Matching:
         case _ => None
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
-  private def closedKey(args: List[Val]): Option[List[Tm]] =
+  def closedKey(args: List[Val]): Option[List[Tm]] =
     val tms = args.map(quote(0, _))
     Option.when(tms.forall(closed))(tms)
 

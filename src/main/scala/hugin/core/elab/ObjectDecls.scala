@@ -19,11 +19,31 @@ trait ObjectDecls:
     case other => if isRelationType(other) then ObjDecl.Relation else ObjDecl.Constructor(d.fact)
 
   def isStructDecl(d: Decl): Boolean = (d.tpe, d.defn) match
-    case (Keyword(Kw.Type), Some(_: RecordType)) => d.params.isEmpty
+    case (Keyword(Kw.Type), Some(_: RecordType)) => true
     case _ => false
 
-  /** `s : type = { l₁ : τ₁, … }.`: the relation `s : (l₁ : τ₁) -> … -> rel`, whose fact type is `s`. */
+  /** The kind of a family of object constants, if `ty` (closed) is the type of one: binders over object
+   *  types only (`{A : ⇑type} -> …`), and an object constant's type as result (`⇑$(list A)`). */
+  def familyKind(d: Decl, ty: Val): Option[GlobalKind.Family] =
+    val (binders, result) = telescope(ty)
+    val overTypes = binders.nonEmpty && binders.forall(b => force(b._3) == Val.Lift(Val.U0))
+    force(result) match
+      case Val.Lift(t) if overTypes && isObjectConstantType(t) => Some(GlobalKind.Family(objectDecl(d, t), binders.length))
+      case _ => None
+
+  /** `s : type = { l₁ : τ₁, … }.`: the relation `s : (l₁ : τ₁) -> … -> rel`, whose fact type is `s`; with
+   *  parameters (`pair A B : type = { … }.`) a family of structs. */
   def elabStruct(d: Decl): Unit =
+    if d.params.isEmpty then elabPlainStruct(d)
+    else
+      val (c, ps) = bindParams(Cxt.empty, d.params, (_, _) => Tm.Lift(Tm.U0))
+      val ty = pis(ps, Icit.Expl, Tm.Lift(structType(c, d)))
+      declare(d.name, ty, Stage.S1, GlobalKind.Family(ObjDecl.Struct(d.fact), ps.length), d.span)
+
+  private def elabPlainStruct(d: Decl): Unit =
+    declare(d.name, structType(Cxt.empty, d), Stage.S0, GlobalKind.Object(ObjDecl.Struct(d.fact)), d.span)
+
+  private def structType(c: Cxt, d: Decl): Tm =
     val entries = d.defn.get.asInstanceOf[RecordType].entries
     val fields = entries.map {
       case SigEntry.FieldDecl(l, t, fact) =>
@@ -33,8 +53,7 @@ trait ObjectDecls:
       case SigEntry.ModeReq(_, _, sp) => fail(ObjectProblem.StructRequirement(sp))
     }
     dupLabels(fields.map(_._1))
-    val ty = columnsType(Cxt.empty, fields.map((l, t) => (l.name, t)), Tm.RelT)
-    declare(d.name, ty, Stage.S0, GlobalKind.Object(ObjDecl.Struct(d.fact)), d.span)
+    columnsType(c, fields.map((l, t) => (l.name, t)), Tm.RelT)
 
   /** `(l₁ : τ₁) -> … -> result` over object column types (labels are not in scope: object arrows are not
    *  dependent). */

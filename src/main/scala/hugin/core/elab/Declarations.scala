@@ -136,8 +136,10 @@ trait Declarations:
       case None =>
         val (ty, st) = declType(d)
         val zty = zonk(Nil, 0, ty)
+        val tv = eval(Nil, zty)
         val kind =
-          if st == Stage.S1 then classifyMetaConstant(d, eval(Nil, zty)) else GlobalKind.Object(objectDecl(d, eval(Nil, zty)))
+          if st == Stage.S0 then GlobalKind.Object(objectDecl(d, tv))
+          else familyKind(d, tv).getOrElse(classifyMetaConstant(d, tv))
         val id = declare(d.name, zty, st, kind, d.span)
         kind match
           case GlobalKind.Constructor(fam) => addConstructor(fam, id)

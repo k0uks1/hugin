@@ -18,18 +18,37 @@ final class Handover(core: Core, reporter: Reporter):
   def program(items: List[CoreItem]): ObjProgram =
     val ordered = items.sortBy(staging.position)
     symbols.declare(ordered.collect { case CoreItem.GlobalItem(id) => id })
+    val (genericRules, rules) = ordered.collect { case r: CoreItem.RuleItem => r }.partition(_.generic)
+    val (genericDirs, dirs) = ordered.collect { case d: CoreItem.DirectiveItem => d }.partition(isGeneric)
+    // the generic rules come last: they are staged at the instances everything else uses
+    val plain = rules.flatMap(rule)
+    val queries = ordered.collect { case q: CoreItem.QueryItem => query(q) }.flatten
+    val edges = ordered.collect { case e: CoreItem.EdgeItem => edge(e) }.flatten
+    val directives = dirs.flatMap(directive)
+    val instantiated = Generics(core, symbols, reporter, this).rules(genericRules)
     ObjProgram(
       symbols.allTypes,
       symbols.allRelations,
-      ordered.collect { case e: CoreItem.EdgeItem => edge(e) }.flatten.toVector,
-      ordered.collect { case r: CoreItem.RuleItem => rule(r) }.flatten.toVector,
-      ordered.collect { case q: CoreItem.QueryItem => query(q) }.flatten.toVector,
-      ordered.collect { case d: CoreItem.DirectiveItem => directive(d) }.flatten.toVector
+      edges.toVector,
+      (plain ++ instantiated).toVector,
+      queries.toVector,
+      (directives ++ genericDirs.flatMap(instanceDirectives)).toVector
     )
+
+  /** A directive about a family (`%mode len +l -n.`) applies to each of its instances. */
+  private def isGeneric(d: CoreItem.DirectiveItem): Boolean = d.target.exists(t => familyOf(t).isDefined)
+
+  private def familyOf(t: Tm): Option[Int] = Tm.unloc(t) match
+    case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => Some(id)
+    case _ => None
+
+  private def instanceDirectives(d: CoreItem.DirectiveItem): List[obj.Directive] =
+    val fam = familyOf(d.target.get).get
+    symbols.instancesOf(fam).flatMap(inst => directive(d.copy(target = Some(Tm.Global(inst)))))
 
   /** Stages object code over the variables `vars` and translates it with `f`; `None` (reported) if it is
    *  not object code. */
-  private def staged[A](vars: List[(Name, Tm)], parts: List[Tm], span: Span)(f: (ObjectTerms, List[Tm]) => A): Option[A] =
+  def staged[A](vars: List[(Name, Tm)], parts: List[Tm], span: Span)(f: (ObjectTerms, List[Tm]) => A): Option[A] =
     val env = vars.indices.reverse.map(Val.local).toList
     val names = vars.map(_._1).reverse
     val normal = parts.map(nf(env, _))
@@ -41,7 +60,7 @@ final class Handover(core: Core, reporter: Reporter):
           reporter.report(e.diagnostic)
           None
 
-  private def rule(r: CoreItem.RuleItem): Option[obj.Rule] =
+  def rule(r: CoreItem.RuleItem): Option[obj.Rule] =
     staged(r.vars, r.heads ++ r.body.toList, r.span) { (terms, normal) =>
       val heads = normal.take(r.heads.length).map(terms.term(_))
       val body = normal.drop(r.heads.length).flatMap(terms.formulas(_))

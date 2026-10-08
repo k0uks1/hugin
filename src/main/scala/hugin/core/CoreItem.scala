@@ -8,8 +8,10 @@ enum CoreItem:
   case GlobalItem(id: Int)
 
   /** An object rule: its variables (with their object types, possibly unsolved metas) bind in the heads
-   *  and the body. */
-  case RuleItem(name: Option[Name], vars: List[(Name, Tm)], heads: List[Tm], body: Option[Tm], span: Span)
+   *  and the body. A `generic` rule has unsolved object types among the implicit arguments of the
+   *  families it uses (`len nil 0.`): it is a family of rules, instantiated at every instance of its
+   *  head's family ([[handover.Generics]]). */
+  case RuleItem(name: Option[Name], vars: List[(Name, Tm)], heads: List[Tm], body: Option[Tm], span: Span, generic: Boolean = false)
   case QueryItem(vars: List[(Name, Tm)], body: Tm, span: Span)
 
   /** `τ <: a.`: closed object types. */

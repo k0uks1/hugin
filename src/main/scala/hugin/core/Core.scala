@@ -12,6 +12,11 @@ enum GlobalKind:
   /** An object constant (stage 0): an object type, a relation, a constructor or a struct. */
   case Object(decl: ObjDecl)
 
+  /** A family of object constants (`list A : type.`, `nil : list A.`, `len : list A -> int -> rel.`): a
+   *  meta function over `arity` object types whose applications to closed types are instances, object
+   *  constants created once per normalised arguments ([[Families]]). */
+  case Family(decl: ObjDecl, arity: Int)
+
   /** A definition `x : A = e.`; unfolded by evaluation. */
   case Definition(tm: Tm, value: Val)
 
@@ -59,18 +64,20 @@ final class GlobalEntry(
     var kind: GlobalKind,
     val span: Span,
     val declSpan: Span = Span.NoSpan,
-    var pending: Boolean = false
+    var pending: Boolean = false,
+    /** For an instance of a family: the family and the (closed, normal) arguments. */
+    val instanceOf: Option[(Int, List[Tm])] = None
 )
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).
  *  `what` describes it for diagnostics; metas with `allowUnsolved` (the types of object variables, which
  *  the object typer infers) may stay unsolved. */
-final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: String, val allowUnsolved: Boolean):
+final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: String, var allowUnsolved: Boolean):
   var solution: Option[Val] = None
 
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
-final class Core extends Evaluation with Matching with Readback with Renaming with Unification with Printing:
+final class Core extends Evaluation with Matching with Families with Readback with Renaming with Unification with Printing:
   val levels: Levels = Levels()
   val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty
   val metas: mutable.ArrayBuffer[MetaEntry] = mutable.ArrayBuffer.empty
@@ -84,6 +91,18 @@ final class Core extends Evaluation with Matching with Readback with Renaming wi
     metas.length - 1
 
   def solveMeta(m: Int, v: Val): Unit = metas(m).solution = Some(v)
+
+  /** Runs `f` and restores the metas and universe levels afterwards, whatever happens: for staging a
+   *  generic item at an instance (its unknowns are solved for the instance only). */
+  def tentatively[A](f: => A): A =
+    val count = metas.length
+    val solutions = metas.map(_.solution).toVector
+    val lv = levels.snapshot()
+    try f
+    finally
+      metas.dropRightInPlace(metas.length - count)
+      metas.zip(solutions).foreach((m, s) => m.solution = s)
+      levels.restore(lv)
 
   /** Runs `f`; if it throws, the metas and universe levels are restored to their state before (metas
    *  created by `f` are removed, solutions it found are undone), and the exception is rethrown. */

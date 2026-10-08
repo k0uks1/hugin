@@ -40,11 +40,16 @@ trait Universes:
   /** Infers a type: its term, its stage and its universe. A meta value of type `⇑type` (an object type
    *  computed at compile time) used as a type is spliced. */
   def inferU(c: Cxt, t: Tree): (Tm, Stage, Val) =
-    val (tm, ty, s) = infer(c, t)
+    val saved = state.typePosition
+    state.typePosition = true
+    val (tm, ty, s) =
+      try infer(c, t)
+      finally state.typePosition = saved
     force(ty) match
       case Val.U0 => (tm, Stage.S0, Val.U0)
       case u @ Val.U1(_) => (tm, Stage.S1, u)
       case Val.Lift(x) if force(x) == Val.U0 => (Tm.splice(tm), Stage.S0, Val.U0)
+      case Val.Lift(x) if isFactConstantType(x) => (Tm.FactTy(Tm.splice(tm)), Stage.S0, Val.U0)
       case rel if isFactConstantType(rel) => (Tm.FactTy(tm), Stage.S0, Val.U0)
       case Val.Flex(_, _) if s == Stage.S1 && state.unknownTypesAre == Stage.S0 =>
         unifyAt(c, t.span, Val.Lift(Val.U0), ty)

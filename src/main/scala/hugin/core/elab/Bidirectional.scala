@@ -75,7 +75,11 @@ trait Bidirectional:
       adjust(c, t.span, tm, ty, s, st)
 
   /** Checks a term against a type at a stage. */
-  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm = located(t.span, checkAt(c, t, a, st), a, st)
+  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
+    val saved = state.typePosition
+    state.typePosition = isUniverse(a)
+    try located(t.span, checkAt(c, t, a, st), a, st)
+    finally state.typePosition = saved
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (Parens(i), _) => check(c, i, a, st)

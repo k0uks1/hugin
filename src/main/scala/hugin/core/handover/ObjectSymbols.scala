@@ -8,38 +8,71 @@ import scala.collection.mutable
 /** The object symbols of a program's object constants: one [[TypeSym]] per object type, one [[RelSym]]
  *  per relation, constructor and struct, with their columns and result types translated from the core.
  *
- *  Symbols are created in the order of their declarations in the source (`symbols` must be called with
- *  the globals in that order before anything else asks for them): the object level orders the members
- *  of a closed type by symbol id. Their types are filled in after all symbols exist, since declarations
- *  may refer to each other in any order. */
+ *  The declared constants get their symbols first, in the order of their declarations in the source
+ *  ([[declare]]; the object level orders the members of a closed type by symbol id); instances of
+ *  families get theirs when the staged program first refers to them, so only the instances it uses are
+ *  part of it. A symbol's declaration is filled in after it exists, since declarations may refer to each
+ *  other in any order. */
 final class ObjectSymbols(core: Core, reporter: Reporter):
   import core.*
 
   private val types = mutable.LinkedHashMap.empty[Int, TypeSym]
   private val rels = mutable.LinkedHashMap.empty[Int, RelSym]
 
-  /** Creates the symbols of the object constants among `ids` (in this order), then their declarations. */
-  def declare(ids: List[Int]): Unit =
-    for id <- ids do
-      globals(id).kind match
-        case GlobalKind.Object(d) => create(id, d)
-        case _ =>
-    for (id, t) <- types do fillType(id, t)
-    for (id, r) <- rels do fillRelation(id, r)
+  /** The symbols of the families, which instances name as what they instantiate (for display). */
+  private val familyTypes = mutable.HashMap.empty[Int, TypeSym]
+  private val familyRels = mutable.HashMap.empty[Int, RelSym]
+
+  /** Creates the symbols of the object constants among `ids` (in this order). */
+  def declare(ids: List[Int]): Unit = ids.foreach(symbolOf)
 
   def allTypes: Vector[TypeSym] = types.values.toVector
   def allRelations: Vector[RelSym] = rels.values.toVector
 
-  def typeSym(id: Int): Option[TypeSym] = types.get(id)
-  def relSym(id: Int): Option[RelSym] = rels.get(id)
+  /** The instances of family `fam` that the staged program uses so far, in the order of first use. */
+  def instancesOf(fam: Int): List[Int] =
+    (types.keys ++ rels.keys).filter(id => globals(id).instanceOf.exists(_._1 == fam)).toList
 
-  private def create(id: Int, d: ObjDecl): Unit =
+  /** All instances the staged program uses so far. */
+  def instanceIds: List[Int] = (types.keys ++ rels.keys).filter(id => globals(id).instanceOf.isDefined).toList
+
+  def typeSym(id: Int): Option[TypeSym] = symbolOf(id).collect { case t: TypeSym => t }
+  def relSym(id: Int): Option[RelSym] = symbolOf(id).collect { case r: RelSym => r }
+
+  private def symbolOf(id: Int): Option[TypeSym | RelSym] =
+    types.get(id).orElse(rels.get(id)).orElse {
+      globals(id).kind match
+        case GlobalKind.Object(d) => Some(create(id, d))
+        case _ => None
+    }
+
+  private def create(id: Int, d: ObjDecl): TypeSym | RelSym =
     val g = globals(id)
     d match
-      case ObjDecl.OpenType | ObjDecl.Refinement(_) => types(id) = TypeSym(g.name, TypeKind.Open, g.declSpan, Origin.Source)
-      case ObjDecl.Relation => rels(id) = RelSym(g.name, RelKind.Plain, g.declSpan, Origin.Source)
-      case ObjDecl.Constructor(fact) => rels(id) = RelSym(g.name, RelKind.Ctor, g.declSpan, Origin.Source, fact)
-      case ObjDecl.Struct(fact) => rels(id) = RelSym(g.name, RelKind.Struct, g.declSpan, Origin.Source, fact)
+      case ObjDecl.OpenType | ObjDecl.Refinement(_) =>
+        val t = TypeSym(g.name, TypeKind.Open, g.declSpan, Origin.Source)
+        types(id) = t
+        for (fam, args) <- g.instanceOf do
+          t.instanceOf = Some((familyTypes.getOrElseUpdate(fam, TypeSym(globals(fam).name, TypeKind.Open, t.span, Origin.Source)), Nil))
+        fillType(id, t)
+        t
+      case _ =>
+        val r = RelSym(g.name, relKind(d), g.declSpan, Origin.Source, fact(d))
+        rels(id) = r
+        for (fam, _) <- g.instanceOf do
+          r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(globals(fam).name, r.kind, r.span, Origin.Source, r.fact)), Nil))
+        fillRelation(id, r)
+        r
+
+  private def relKind(d: ObjDecl): RelKind = d match
+    case ObjDecl.Constructor(_) => RelKind.Ctor
+    case ObjDecl.Struct(_) => RelKind.Struct
+    case _ => RelKind.Plain
+
+  private def fact(d: ObjDecl): Boolean = d match
+    case ObjDecl.Constructor(f) => f
+    case ObjDecl.Struct(f) => f
+    case _ => false
 
   private def fillType(id: Int, t: TypeSym): Unit = globals(id).kind match
     case GlobalKind.Object(ObjDecl.Refinement(base)) => t.kind = TypeKind.Refinement(otype(nf(Nil, base), t.span))
@@ -64,10 +97,10 @@ final class ObjectSymbols(core: Core, reporter: Reporter):
   /** The object type a closed normal form denotes. */
   def otype(t: Tm, span: Span): OType = Tm.unloc(t) match
     case Tm.Base(b, Stage.S0) => OType.Base(b)
-    case Tm.Global(id) if types.contains(id) => OType.Con(types(id), Nil)
+    case Tm.Global(id) if typeSym(id).isDefined => OType.Con(typeSym(id).get, Nil)
     case Tm.FactTy(r) =>
       Tm.unloc(r) match
-        case Tm.Global(id) if rels.contains(id) => OType.Fact(rels(id), Nil)
+        case Tm.Global(id) if relSym(id).isDefined => OType.Fact(relSym(id).get, Nil)
         case other => notAnObjectType(other, span)
     case Tm.Obj(ObjForm.Union, ms) => OType.union(ms.map(otype(_, span)))
     case other => notAnObjectType(other, span)

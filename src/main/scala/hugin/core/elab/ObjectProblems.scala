@@ -38,6 +38,9 @@ enum ObjectProblem extends Problem:
   case UsedBeforeDeclaration(name: String, at: Span)
   case StuckObjectType(shown: String, at: Span)
 
+  /** A rule of family `family`, instantiated at `instance`, uses the family at `used`. */
+  case PolymorphicRecursion(family: String, used: String, instance: String, at: Span)
+
   def code: Code = this match
     case _: UnboundAggregate | _: NotAnAtom | _: NotObjectShape => Code.E0202
     case _: RestInHead => Code.E0302
@@ -52,6 +55,7 @@ enum ObjectProblem extends Problem:
     case _: StructFieldFact | _: StructRequirement => Code.E0004
     case _: UsedBeforeDeclaration => Code.E0101
     case _: StuckObjectType => Code.E0909
+    case _: PolymorphicRecursion => Code.E0205
 
   def primary: Span = this match
     case UnboundAggregate(s) => s
@@ -74,6 +78,7 @@ enum ObjectProblem extends Problem:
     case StructRequirement(s) => s
     case UsedBeforeDeclaration(_, s) => s
     case StuckObjectType(_, s) => s
+    case PolymorphicRecursion(_, _, _, s) => s
 
   def message: Msg = this match
     case _: UnboundAggregate => msg"an aggregate must be bound to a variable, `X = count { ... }`"
@@ -96,6 +101,7 @@ enum ObjectProblem extends Problem:
     case _: StructRequirement => msg"requirements are not allowed in struct declarations"
     case UsedBeforeDeclaration(n, _) => msg"${Src(n)} is used before its declaration"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
+    case _: PolymorphicRecursion => msg"polymorphic recursion"
 
   override def primaryLabel: Msg = this match
     case _: NotAnAtom => msg"not a relation atom"
@@ -112,6 +118,7 @@ enum ObjectProblem extends Problem:
     case _: RefinementOfNonType => msg"`<:` after a type that is not `type`"
     case _: StructFieldFact => msg"struct field"
     case StuckObjectType(shown, _) => msg"${Src(shown)} is not an object type"
+    case PolymorphicRecursion(f, used, inst, _) => msg"${Src(f)} used at ${Lit(used)} while instantiating ${Src(f)} at ${Lit(inst)}"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -127,6 +134,8 @@ enum ObjectProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case _: PolymorphicRecursion =>
+      List(msg"a rule over a family must use the family at the arguments it is instantiated at, or it would create ever larger instances")
     case _ => Nil
 
   override def helps: List[Msg] = this match

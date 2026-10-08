@@ -79,12 +79,13 @@ final class Staging(core: Core, reporter: Reporter):
         case GlobalKind.Definition(tm, _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.")
         case GlobalKind.Function(_, Some(tree)) => s"${g.name} : $ty." :: clauses(g.name, tree)
         case _ => List(s"${g.name} : $ty.")
-    case CoreItem.RuleItem(name, vars, heads, body, span) =>
+    case CoreItem.RuleItem(name, vars, heads, body, span, generic) =>
       val env = vars.indices.reverse.map(Val.local).toList
       val names = vars.map(_._1).reverse
       val hs = heads.map(nf(env, _))
       val b = body.map(nf(env, _))
-      if (hs ++ b.toList).forall(objectCode(names, _, span)) then
+      // a generic rule is staged at the instances of its head's family; here it is shown with its unknowns
+      if generic || (hs ++ b.toList).forall(objectCode(names, _, span)) then
         val pre = name.map(n => s"@$n ").getOrElse("")
         List(s"$pre${hs.map(showTm(names, _)).mkString(", ")}${b.map(x => " :- " + showTm(names, x)).getOrElse("")}.")
       else Nil

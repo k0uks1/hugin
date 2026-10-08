@@ -22,9 +22,19 @@ trait Coercions:
   /** Object data between object types: unified if possible (which solves implicit arguments and the
    *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */
   private def coeObjectData(c: Cxt, t: Tm, a: Val, a2: Val): Tm =
-    try undoOnFailure(unify(c.lvl, a, a2))
+    try undoOnFailure(unify(c.lvl, dataType(c, t, a), a2))
     catch case _: UnifyError => ()
     t
+
+  /** The type of object data `t : a`; a fact term of a relation or struct (`pair 1 "x"`, of type `rel`) is
+   *  of the relation's fact type. */
+  private def dataType(c: Cxt, t: Tm, a: Val): Val = force(a) match
+    case Val.RelT =>
+      def head(t: Tm): Tm = Tm.unloc(t) match
+        case Tm.App(f, _, Icit.Expl) => head(f)
+        case other => other
+      Val.FactTy(ev(c, head(t)))
+    case other => other
 
   private def adjustStage(c: Cxt, t: Tm, a: Val, s: Stage, s2: Stage): Option[(Tm, Val)] =
     (s, s2) match

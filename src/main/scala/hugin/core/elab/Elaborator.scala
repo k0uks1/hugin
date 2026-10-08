@@ -22,6 +22,10 @@ final class ElabState:
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
+  /** Whether a type (rather than a term) is being elaborated: a struct family is a type family in a type
+   *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */
+  var typePosition: Boolean = false
+
   /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
   var objectHead: Boolean = false
 

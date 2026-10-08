@@ -26,7 +26,7 @@ trait Names:
         lookupGlobal(n) match
           case Some(id) =>
             val g = globals(id)
-            (Tm.Global(id), g.ty, g.stage)
+            (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
           case None =>
             builtinTypes.get(n) match
               case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
@@ -78,3 +78,13 @@ trait Names:
     case p: Product => p.productIterator.toList.flatMap(freeVarsIn(_, bound))
     case it: Iterable[?] => it.toList.flatMap(freeVarsIn(_, bound))
     case _ => Nil
+
+  /** The type of a global used in a term: a struct family takes its type arguments implicitly there
+   *  (`pair 1 "x"` for `pair A B : type = { … }.`). */
+  private def termType(g: GlobalEntry): Val = g.kind match
+    case GlobalKind.Family(ObjDecl.Struct(_), _) => core.eval(Nil, implicitBinders(g.tyTm))
+    case _ => g.ty
+
+  private def implicitBinders(t: Tm): Tm = t match
+    case Tm.Pi(x, _, a, b) => Tm.Pi(x, Icit.Impl, a, implicitBinders(b))
+    case other => other
