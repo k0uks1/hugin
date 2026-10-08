@@ -196,8 +196,10 @@ enum SyntaxError extends Problem:
       h match
         case _: SyntaxHelp.DoubleColon => List(msg"declarations are written `name : type.`")
         case _: SyntaxHelp.ColonEquals => List(msg"a definition without a declared type is written `name = expr.`")
-        case SyntaxHelp.RecordSeparator(_, true) => List(msg"a record type declares its fields with `:`, a record value gives them with `=`")
-        case SyntaxHelp.RecordSeparator(_, false) => List(msg"a record value gives its fields with `=`, a record type declares them with `:`")
+        case SyntaxHelp.RecordSeparator(_, true) =>
+          List(msg"a record type declares its fields with `:`, a record value gives them with `=`")
+        case SyntaxHelp.RecordSeparator(_, false) =>
+          List(msg"a record value gives its fields with `=`, a record type declares them with `:`")
         case SyntaxHelp.LowercaseVariable(_, _) => List(msg"variables start with an uppercase letter or `_`")
         case SyntaxHelp.DollarWithoutExpression => List(msg"a hole or splice is written `$$x`, `$$(f x)`, `$$..xs` or `$$f[V]`")
     case _: MissingPeriod => List(msg"every item ends with a period")

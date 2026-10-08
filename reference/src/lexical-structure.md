@@ -109,9 +109,12 @@ The remaining tokens are:
 +    -    *    /    ^    (    )    {    }    [    ]    $    ⇑
 ```
 
-A period `.` that directly follows a name or variable, without space, and is directly followed by a
-lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path` select a field or a column label. Every
-other `.` ends an item.
+A period `.` that directly follows a name, a variable or a closing parenthesis `)`, without space, and
+is directly followed by a lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path`, `(tc g).path`
+select a field or a column label. Every other `.` ends an item.
+
+Parentheses `( )`, brackets `[ ]` and braces `{ }` are pairs. It is an error ([E0005](errors/E0005.md))
+if an item ends before an opening one is closed.
 
 `⇑` (U+21D1) is the lift of [staging](meta/staging.md); `$` starts a splice or a
 [hole](reflection.md#holes).

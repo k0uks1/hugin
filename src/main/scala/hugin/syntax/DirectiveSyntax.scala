@@ -24,10 +24,15 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
     def directive(args: DirArgs) = Directive(name, args)(spanFrom(start), d.span)
     name match
       case "infix" =>
-        val a = expect(Tok.Name)
+        def next(k: Tok, what: String): Option[Token] =
+          if at(k) then Some(advance())
+          else
+            expected(List(Expect.Thing(what)), Some(context))
+            None
+        val a = next(Tok.Name, "`left`, `right` or `none`")
         for a <- a if !Set("left", "right", "none")(a.text) do error(SyntaxError.UnknownAssociativity(a.text, a.span))
-        val p = a.flatMap(_ => expect(Tok.IntLit))
-        val n = p.flatMap(_ => expect(Tok.Name))
+        val p = a.flatMap(_ => next(Tok.IntLit, "a precedence (an integer)"))
+        val n = p.flatMap(_ => next(Tok.Name, "the name of the operator"))
         val ok = endItem(context, List(Expect.period))
         (a, p, n) match
           case (Some(a), Some(p), Some(n)) if ok =>
@@ -48,7 +53,8 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
             directive(DirArgs.Apply(args.toList, Some(Ident(tok.text)(tok.span)))) :: parseItem()
           case _ =>
             val ok = endItem(context, List(Expect.period, Expect.Thing("an argument")))
-            val args1 = if ok then args.toList else if args.isEmpty then List(ErrorTree(Nil)(insertionPoint)) else args.toList.init :+ damaged(args.last)
+            val args1 = if ok then args.toList
+            else if args.isEmpty then List(ErrorTree(Nil)(insertionPoint)) else args.toList.init :+ damaged(args.last)
             List(directive(DirArgs.Apply(args1, None)))
 
   /** Mode items `+e -t +`: `+` an input, `-` an output, each optionally naming the column's label. */

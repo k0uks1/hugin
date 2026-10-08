@@ -112,9 +112,13 @@ private[syntax] trait ExprSyntax extends ParserBase:
     while at(Tok.Select) do
       advance()
       // the lexer makes `.` a selector only before a lowercase letter: a name or a keyword
-      t = expect(Tok.Name) match
-        case Some(n) => Select(t, n.text)(t.span.to(n.span), n.span)
-        case None => damaged(t)
+      t =
+        if at(Tok.Name) then
+          val n = advance()
+          Select(t, n.text)(t.span.to(n.span), n.span)
+        else
+          expected(List(Expect.label))
+          damaged(t)
     t
 
   private def parsePrimary(): Tree =

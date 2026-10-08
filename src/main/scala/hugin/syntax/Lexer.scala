@@ -36,16 +36,16 @@ object Lexer:
   )
 
   def describe(t: Tok): String = t match
-    case Tok.Var => "variable"
-    case Tok.Name => "name"
-    case Tok.RuleName => "rule name"
-    case Tok.Directive => "directive"
-    case Tok.IntLit => "integer literal"
-    case Tok.FloatLit => "float literal"
-    case Tok.StrLit => "string literal"
+    case Tok.Var => "a variable"
+    case Tok.Name => "a name"
+    case Tok.RuleName => "a rule name"
+    case Tok.Directive => "a directive"
+    case Tok.IntLit => "an integer"
+    case Tok.FloatLit => "a float"
+    case Tok.StrLit => "a string literal"
     case Tok.EOF => "end of file"
     case Tok.Period => "`.`"
-    case Tok.Select => "selector `.`"
+    case Tok.Select => "a selector `.`"
     case other => symbolText.getOrElse(other, other.toString.toLowerCase.stripPrefix("kw")) match
         case s => s"`$s`"
 

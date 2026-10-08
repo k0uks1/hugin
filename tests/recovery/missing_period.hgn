@@ -1,0 +1,12 @@
+(* A missing period before the next item is inserted: the item is elaborated as usual, so the rules that
+   use `road` are checked (and the unresolved `rod` in the last rule is still reported). *)
+city : type.  berlin : city.  paris : city.  rome : city.
+road : city -> city -> rel (*~ E0001 *)
+path : city -> city -> rel.
+road berlin paris.
+road paris rome (*~ E0001 *)
+path X Y :- road X Y.
+path X Z :- road X Y, path Y Z.
+far : city -> rel.
+far X :- rod berlin X. (*~ E0101 *)
+%output path.

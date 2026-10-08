@@ -1,0 +1,15 @@
+(* An error inside an item that spans several lines has a label at the start of the item; an unclosed
+   parenthesis is closed at the end of the last line of its item. *)
+edge : int -> int -> rel.
+edge 1 2.  edge 2 3.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+path X Z :-
+  edge X Y,
+  path Y Z ] (*~ E0001 *)
+  .
+reach : int -> rel.
+reach Y :-
+  path 1 Y,
+  not edge (Y 1 (*~ E0005 *)
+?- reach Y.

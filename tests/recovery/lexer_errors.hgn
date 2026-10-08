@@ -1,0 +1,8 @@
+(* An unterminated string is reported by the lexer; the parser adds no error of its own for it. *)
+name : string -> rel.
+name "ann".
+name "bob. (*~ E0002 *)
+name "cy".
+greeting : string -> rel.
+greeting G :- name N, G = "hello " ^ N.
+%output greeting.

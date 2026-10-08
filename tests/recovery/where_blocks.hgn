@@ -1,0 +1,14 @@
+(* An error in a `where` binding drops the clause; the function's uses are not reported. *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+add : nat -> nat -> nat.
+add zero M = M.
+add (suc N) M = suc r
+  where r = add (N M. (*~ E0005 *)
+two = add (suc zero) (suc zero).
+plus : nat -> nat -> nat.
+plus zero M = M.
+plus (suc N) M = suc r
+  where r = plus N M.
+three = plus (suc zero) (suc (suc zero)).

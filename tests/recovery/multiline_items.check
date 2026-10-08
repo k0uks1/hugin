@@ -1,0 +1,25 @@
+error[E0001]: expected `.`, found `]`
+ --> tests/recovery/multiline_items.hgn:9:12
+  |
+7 | path X Z :-
+  | ---- this rule starts here
+...
+9 |   path Y Z ] (*~ E0001 *)
+  |            ^ expected `.`
+
+error[E0005]: unclosed `(`
+  --> tests/recovery/multiline_items.hgn:14:16
+   |
+14 |   not edge (Y 1 (*~ E0005 *)
+   |            -   ^ expected `)` here
+   |            this `(` is never closed
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+edge : int -> int -> rel.
+edge 1 2.
+edge 2 3.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+reach : int -> rel.
+?- reach Y.

@@ -1,0 +1,19 @@
+error[E0001]: expected a precedence (an integer), found `high`
+ --> tests/recovery/directives.hgn:2:13
+  |
+2 | %infix left high plus. (*~ E0001 *)
+  |             ^^^^ expected a precedence (an integer)
+
+error[E0001]: expected `.` or an argument, found `)`
+ --> tests/recovery/directives.hgn:6:11
+  |
+6 | %output p ) . (*~ E0001 *)
+  |           ^ expected `.` or an argument
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+e : int -> int -> rel.
+%input e.
+p : int -> rel.
+p X :- e X _.
+%output p.

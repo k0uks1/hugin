@@ -1,0 +1,26 @@
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/broken_bodies.hgn:6:12
+  |
+6 | q X :- p X,. (*~ E0001 *)
+  |            ^ expected an expression
+
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/broken_bodies.hgn:7:17
+  |
+7 | q X :- p X, X > . (*~ E0001 *)
+  |                 ^ expected an expression
+
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/broken_bodies.hgn:9:9
+  |
+9 | ?- q X, . (*~ E0001 *)
+  |         ^ expected an expression
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+p : int -> rel.
+q : int -> rel.
+p 1.
+p 2.
+q X :- p Y, X = Y + 1.
+?- q X.

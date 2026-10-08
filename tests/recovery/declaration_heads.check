@@ -1,0 +1,33 @@
+error[E0001]: expected `:` in a declaration, found `::`
+ --> tests/recovery/declaration_heads.hgn:3:3
+  |
+3 | f :: int -> int. (*~ E0001 *)
+  |   ^^ expected `:`
+  |
+  = note: `::` is the list constructor of the meta level
+  = help: declarations are written `name : type.`
+
+error[E0001]: expected a type, found `=`
+ --> tests/recovery/declaration_heads.hgn:5:4
+  |
+5 | x := 5. (*~ E0001 *)
+  |    ^ expected a type
+  |
+  = help: a definition without a declared type is written `name = expr.`
+
+error[E0004]: malformed parameter
+ --> tests/recovery/declaration_heads.hgn:7:3
+  |
+7 | q x : int -> rel. (*~ E0004 *)
+  |   ^ expected `X` or `(name : type)`
+  |
+  = help: a parameter is a variable `X` or a typed parameter `(x : type)`
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+f : int -> int.
+  f X = X + 1.
+x : int = 5.
+y : int = f x.
+r : int -> rel.
+?- r X.

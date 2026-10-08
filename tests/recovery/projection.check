@@ -1,0 +1,16 @@
+error[E0001]: expected a label, found `type`
+ --> tests/recovery/projection.hgn:9:14
+  |
+9 | bad X :- (g).type X. (*~ E0001 *)
+  |              ^^^^ expected a label
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+city : type.
+berlin : city.
+road : city -> city -> rel.
+g : graph = { node = ⟨city⟩, edge = ⟨road⟩ }.
+fine : city -> rel.
+fine X :- road X berlin.
+bad : city -> rel.

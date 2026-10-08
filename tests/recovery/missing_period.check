@@ -1,0 +1,42 @@
+error[E0001]: expected `.` after the declaration, found `path`
+ --> tests/recovery/missing_period.hgn:4:27
+  |
+4 | road : city -> city -> rel (*~ E0001 *)
+  |                           ^ expected `.` here
+5 | path : city -> city -> rel.
+  | ---- next item starts here
+  |
+  = help: every item ends with a period
+
+error[E0001]: expected `.` after the fact, found `path`
+ --> tests/recovery/missing_period.hgn:7:16
+  |
+7 | road paris rome (*~ E0001 *)
+  |                ^ expected `.` here
+8 | path X Y :- road X Y.
+  | ---- next item starts here
+  |
+  = help: every item ends with a period
+
+error[E0101]: unresolved name `rod`
+  --> tests/recovery/missing_period.hgn:11:10
+   |
+11 | far X :- rod berlin X. (*~ E0101 *)
+   |          ^^^ not found in this scope
+   |
+   = help: a declaration with a similar name exists: `road`
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+city : type.
+berlin : city.
+paris : city.
+rome : city.
+road : city -> city -> rel.
+path : city -> city -> rel.
+road berlin paris.
+road paris rome.
+path X Y :- road X Y.
+path X Z :- road X Y, path Y Z.
+far : city -> rel.
+%output path.

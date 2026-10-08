@@ -1,0 +1,7 @@
+edge : int -> int -> rel.
+edge 1 2.  edge 2 3.
+reach : int -> int -> rel.
+reach X Y :- edge X (Y).
+reach X Z :- edge X Y, reach Y Z.
+total : int -> rel.
+total N :- N = count { X | edge X _} .

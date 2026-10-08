@@ -1,0 +1,8 @@
+(* Malformed directives: the directive is dropped; the declarations around it are elaborated. *)
+%infix left high plus. (*~ E0001 *)
+e : int -> int -> rel.
+%input e.
+p : int -> rel.
+%output p ) . (*~ E0001 *)
+p X :- e X _.
+%output p.

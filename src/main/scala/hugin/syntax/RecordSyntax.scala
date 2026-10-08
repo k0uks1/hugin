@@ -41,7 +41,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
       error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
       damaged(ModuleBody(items)(spanFrom(open.span.start)))
 
-  private def unexpectedInBody(t: Token): SyntaxError = SyntaxError.Expected(List(Expect.item, Expect.Token(Tok.RBrace)), found, t.span, None)
+  private def unexpectedInBody(t: Token): SyntaxError =
+    SyntaxError.Expected(List(Expect.item, Expect.Token(Tok.RBrace)), found, t.span, None)
 
   /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =
@@ -69,7 +70,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
   /** A field's label and its separator (`:` in a record type, `=` in a record value; the other one is
    *  reported with a suggestion). None (after an error) if there is no label. */
   private def labelAnd(sep: Tok, inType: Boolean): Option[(Ident, Boolean)] =
-    expect(Tok.Name).map { l =>
+    if !at(Tok.Name) then expected(List(Expect.label))
+    Option.when(at(Tok.Name))(advance()).map { l =>
       val ok =
         if at(sep) then { advance(); true }
         else if at(if inType then Tok.Eq else Tok.Colon) then
@@ -91,7 +93,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
     while more do
       if at(Tok.Directive) && tok.text == "%complete" then
         val d = advance()
-        expect(Tok.Name) match
+        if !at(Tok.Name) then expected(List(Expect.label))
+        Option.when(at(Tok.Name))(advance()) match
           case Some(l) => entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
           case None => ok = false
       else

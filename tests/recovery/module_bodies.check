@@ -1,0 +1,28 @@
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/module_bodies.hgn:9:27
+  |
+9 |   step X Y :- g.edge X Y, . (*~ E0001 *)
+  |                           ^ expected an expression
+
+error[E0005]: unclosed `{`
+  --> tests/recovery/module_bodies.hgn:18:39
+   |
+16 | loose (g : graph) = {
+   |                     - this `{` is never closed
+...
+18 |   twice X Z :- g.edge X Y, g.edge Y Z. (*~ E0005 *)
+   |                                       ^ expected `}` here
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+tc : (g : graph) -> { path : ⇑($(g.node) -> $(g.node) -> rel), step : ⇑($(g.node) -> $(g.node) -> rel) } = [g] { path, step }.
+city : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+road berlin paris.
+roads : { path : ⇑(city -> city -> rel), step : ⇑(city -> city -> rel) } = tc { node = ⟨city⟩, edge = ⟨road⟩ }.
+%output roads.path.
+reached : city -> rel.
+reached Y :- roads.path berlin Y.

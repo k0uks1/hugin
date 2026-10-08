@@ -1,0 +1,10 @@
+(* `=` in a record type and `:` in a record value; an entry without a label. *)
+graph : Type = { node : type, edge = node -> node -> rel }. (*~ E0001 *)
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+}.
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y : 0 }. (*~ E0001 *)
+unit : point = { x = 1, , y = 0 }. (*~ E0001 *)
+diag : point = { x = 1, y = 1 }.
