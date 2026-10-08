@@ -5,7 +5,7 @@ import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 
 /** Object items: rules and queries, whose (uppercase) variables are bound implicitly at stage 0 with
- *  unknown object types, and directives. */
+ *  unknown object types (directives are [[Directives]]). */
 trait ObjectItems:
   self: Elaborator =>
   import core.*
@@ -21,7 +21,10 @@ trait ObjectItems:
     }
     (c, out)
 
-  def elabRule(r: Rule): Unit = if !elabSpliceItem(r) then items += ruleItem(Cxt.empty, r)
+  def elabRule(r: Rule): Unit =
+    if !elabSpliceItem(r) then
+      items += ruleItem(Cxt.empty, r)
+      recordPart(ModulePart.Source(r))
 
   /** A rule in the context `base` (a module body's environment and members, or empty); `lint` is false for
    *  generated rules. */
@@ -78,58 +81,11 @@ trait ObjectItems:
       case other =>
         fail(TypeProblem.InvalidHead(show(c, other), h.span))
 
-  def elabQuery(q: Query): Unit = items += queryItem(Cxt.empty, q)
+  def elabQuery(q: Query): Unit =
+    items += queryItem(Cxt.empty, q)
+    recordPart(ModulePart.Source(q))
 
   def queryItem(base: Cxt, q: Query): CoreItem =
     val (c, vars) = bindRuleVarsFrom(base, List(q.body))
     val body = check(c, q.body, Val.PropT, Stage.S0)
     CoreItem.QueryItem(vars, body, q.span)
-
-  def elabDirective(d: Directive): Unit = items ++= directiveItem(Cxt.empty, d)
-
-  def directiveItem(base: Cxt, d: Directive): Option[CoreItem] =
-    directive(base, d).map((dir, tgt) => CoreItem.DirectiveItem(dir, tgt, d.span))
-
-  /** A directive with its target; `None` for `%infix` (handled by the parser). */
-  private def directive(base: Cxt, d: Directive): Option[(CoreDirective, Option[Tm])] =
-    def target(t: Tree) = Some(relationTarget(base, t, s"%${d.kind}"))
-    d.args match
-      case DirArgs.Mode(Ident(n), ms) if formulaFunction(base, n).isDefined =>
-        Some((CoreDirective.FormulaMode(formulaFunction(base, n).get, ms.map(_.input)), None))
-      case DirArgs.Mode(t, ms) => Some((CoreDirective.Mode(ms.map(m => (m.input, m.label.map(_.name), m.span))), target(t)))
-      case DirArgs.TerminatesLabel(ls, t) => Some((CoreDirective.TerminatesLabel(ls.map(_.name)), target(t)))
-      case DirArgs.TerminatesVar(vs, t, args) =>
-        val (c, vars) = bindRuleVarsFrom(base, args)
-        Some((CoreDirective.TerminatesVar(vs.map(_.name), vars, args.map(inferS(c, _, Stage.S0)._1)), target(t)))
-      case DirArgs.Target(RuleRef(rn)) => Some((CoreDirective.DerivationsRule(rn), None))
-      case DirArgs.Target(t) =>
-        val kind = d.kind match
-          case "open" => CoreDirective.Open
-          case "input" => CoreDirective.Input
-          case "output" => CoreDirective.Output
-          case "derivations" => CoreDirective.Derivations
-          case other => fail(ElabProblem.UnknownDirective(other, d.kindSpan))
-        Some((kind, target(t)))
-      case DirArgs.NameHint(t, v) => Some((CoreDirective.NameHint(v.name), target(t)))
-      case DirArgs.Infix(_, _, _) => None
-
-  /** The formula function a top-level name denotes. */
-  private def formulaFunction(base: Cxt, n: Name): Option[Int] =
-    if base.scope.contains(n) then None
-    else scope.get(n).filter(id => globals(id).stage == Stage.S1 && force(telescope(globals(id).ty)._2) == Val.Lift(Val.PropT))
-
-  /** The relation a directive is about: an object relation, fact constructor or struct, or meta code of a
-   *  relation type. */
-  private def relationTarget(base: Cxt, t: Tree, what: String): Tm =
-    val (tm, ty, st) = infer(base, t)
-    tm match
-      case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => tm // applies to each instance
-      case _ => relationTargetCode(base, t, what, tm, ty, st)
-
-  private def relationTargetCode(base: Cxt, t: Tree, what: String, tm: Tm, ty: Val, st: Stage): Tm =
-    val (code, codeTy) = force(ty) match
-      case Val.Lift(x) if st == Stage.S1 => (Tm.splice(tm), force(x))
-      case other => (tm, other)
-    dataConstructorOf(code).foreach(dataUsedAsRelation(_, t.span, s"`$what` expects a relation"))
-    if !isFactConstantType(codeTy) then fail(ElabProblem.NotARelation(what, t.span))
-    zonk(base.env, base.lvl, code)

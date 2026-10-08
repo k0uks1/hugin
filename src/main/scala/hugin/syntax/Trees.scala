@@ -155,17 +155,10 @@ object Trees:
   sealed trait Item:
     def span: Span
 
-  /** `name param* : type [<: sup] [= defn].`, `%abbrev` and `%fact` (a fact constructor or struct). */
-  final case class Decl(
-      name: Ident,
-      params: List[Param],
-      tpe: Tree,
-      sup: Option[Tree],
-      defn: Option[Tree],
-      abbrev: Boolean,
-      fact: Boolean = false
-  )(val span: Span)
-      extends Item
+  /** `name param* : type [<: sup] [= defn].`, or with `%fact` (a fact constructor or struct). */
+  final case class Decl(name: Ident, params: List[Param], tpe: Tree, sup: Option[Tree], defn: Option[Tree], fact: Boolean = false)(
+      val span: Span
+  ) extends Item
 
   /** `name param* = expr.` */
   final case class Def(name: Ident, params: List[Param], rhs: Tree)(val span: Span) extends Item
@@ -178,19 +171,20 @@ object Trees:
   final case class SubEdge(sub: Tree, sup: Tree)(val span: Span) extends Item
   final case class Rule(name: Option[Ident], heads: List[Tree], body: Option[Tree])(val span: Span) extends Item
   final case class Query(body: Tree)(val span: Span) extends Item
+
+  /** A directive `%kind …` (REDESIGN §7). `kindSpan` is the span of `%kind`. */
   final case class Directive(kind: String, args: DirArgs)(val span: Span, val kindSpan: Span) extends Item
 
   enum DirArgs:
+    /** `%d a₁ … aₙ.`: the application of the meta function `d`; with `decl`, the prefix form `%d a₁ … aₙ`
+     *  attached to the declaration of `decl` that follows it. */
+    case Apply(args: List[Tree], decl: Option[Ident])
+
+    /** `%mode r +l -m` (until `%demand` replaces it, REDESIGN C3). */
     case Mode(target: Tree, modes: List[ModeItem])
 
-    /** `%terminates X (c ...)` or, lexicographically, `%terminates (X, Y) (c ...)`. */
-    case TerminatesVar(vs: List[VarRef], target: Tree, args: List[Tree])
-
-    /** `%terminates l c` or, lexicographically, `%terminates (l, m) c`. */
-    case TerminatesLabel(labels: List[Ident], target: Tree)
-    case Target(target: Tree) // %open %input %output %derivations
+    /** `%infix assoc p name`: handled by the parser. */
     case Infix(assoc: String, prec: Int, name: Ident)
-    case NameHint(target: Tree, v: VarRef)
 
   final case class Program(items: List[Item], span: Span)
 

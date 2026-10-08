@@ -16,10 +16,10 @@ class CodeRegistrySuite extends munit.FunSuite:
     for (phase, cs) <- Code.byPhase do assertEquals(cs.map(_.number), cs.map(_.number).sorted, s"phase $phase")
   }
 
-  test("error codes lie in their phase's block, and none in the block reserved for user directives") {
+  test("error codes lie in their phase's block, and only directives' in the block of user directives") {
     for c <- codes if c.lint.isEmpty do
       assertEquals(c.number / 100, c.phase.block, s"${c.id} is not in the block of ${c.phase}")
-      assert(!Code.userDirectiveNumbers.contains(c.number), s"${c.id} lies in the range reserved for user directives")
+      assert(!Code.userDirectiveNumbers.contains(c.number) || c.phase == Phase.UserDirectives, s"${c.id} lies in the block of directives")
   }
 
   test("warnings are lints with distinct names, and lints are warnings") {

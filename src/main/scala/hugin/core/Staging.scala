@@ -56,6 +56,7 @@ final class Staging(core: Core, reporter: Reporter):
     case q: CoreItem.QueryItem => positionOf(q.span)
     case e: CoreItem.EdgeItem => positionOf(e.span)
     case d: CoreItem.DirectiveItem => positionOf(d.span)
+    case d: CoreItem.DeclItem => positionOf(d.span)
 
   /** The staged program: declarations, definitions (as elaborated, with inserted quotes, splices and
    *  implicit arguments), and object items after staging. */
@@ -84,13 +85,18 @@ final class Staging(core: Core, reporter: Reporter):
       if objectCode(names, b, span) then List(s"?- ${showTm(names, b)}.") else Nil
     case CoreItem.EdgeItem(sub, sup, _) => List(s"${showTm(Nil, nf(Nil, sub))} <: ${showTm(Nil, nf(Nil, sup))}.")
     case CoreItem.DirectiveItem(d, target, _) =>
-      List((s"%${directiveName(d)}" :: target.map(t => showTm(Nil, nf(Nil, t))).toList).mkString(" ") + ".")
+      val name = d match
+        case CoreDirective.Mode(_) => "mode" // the target follows; modes are shown by the object level
+        case CoreDirective.FormulaMode(f, _) => s"mode ${globals(f).name}"
+      List((s"%$name" :: target.map(t => showTm(Nil, nf(Nil, t))).toList).mkString(" ") + ".")
+    case d: CoreItem.DeclItem => declaration(d)
   }
 
-  private def directiveName(d: CoreDirective): String = d match
-    case CoreDirective.DerivationsRule(r) => s"derivations @$r"
-    case CoreDirective.Mode(_) => "mode" // the target follows; modes are shown by the object level
-    case CoreDirective.TerminatesLabel(_) | CoreDirective.TerminatesVar(_, _, _) => "terminates"
-    case CoreDirective.NameHint(_) => "name"
-    case CoreDirective.FormulaMode(f, _) => s"mode ${globals(f).name}"
-    case other => other.toString.toLowerCase
+  /** The attributes a local directive attaches, one directive each (`%input r.`). */
+  private def declaration(d: CoreItem.DeclItem): List[String] =
+    try
+      DeclAttributes(core).decode(eval(Nil, d.decl), d.span) match
+        case DeclValue.Constant(id, attrs, _) => attrs.map(a => s"${a.directive} ${globals(id).name}.")
+        case DeclValue.NamedRule(n, attrs) => attrs.map(a => s"${a.directive} @$n.")
+        case DeclValue.Rejected(_) => Nil
+    catch case _: OpenDeclData => Nil

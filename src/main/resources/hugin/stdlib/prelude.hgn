@@ -108,6 +108,10 @@ horn : seq formula -> seq formula -> rule.
 item : Type.
 irule : rule -> item.
 iquery : seq formula -> item.
+(* a rule with a name `@n` *)
+inamed : string -> rule -> item.
+(* an error reported where the items are reflected (a directive rejecting its arguments) *)
+ierror : string -> item.
 
 module : Type = seq item.
 
@@ -136,3 +140,48 @@ openF K W (fnot F) = fnot (openF K W F).
 openF K W (fconj F G) = fconj (openF K W F) (openF K W G).
 openF K W (fdisj F G) = fdisj (openF K W F) (openF K W G).
 openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isuc K) W F).
+
+(* Directives (docs/REDESIGN.md §7): `%d a₁ … aₙ.` applies the meta function `d`, and the type of the
+   application says what it changes. A directive returning a `decl` changes the declaration of an object
+   constant (local: `%input r.`; in the prefix form `%d a₁ … aₙ` before a declaration, `d a₁ … aₙ` has type
+   `decl -> decl` and is applied to it); one of type `module -> module` rewrites the file's rules and
+   queries (module-wide); one returning items (`seq item`, `item`, `rule`, `seq rule`) adds them. Where a
+   `decl` is expected, the name of an object constant (or a rule name `@r`) is quoted as its
+   declaration. *)
+
+(* What directives attach to a declaration; the compiler implements them *)
+measure : Type.
+mvars : seq string -> measure.        (* `%terminates X (r X _)`, `%terminates (X, Y) (r X Y)` *)
+mlabels : seq string -> measure.      (* `%terminates n r`, `%terminates (n, m) r` *)
+
+attr : Type.
+ainput : attr.
+aoutput : attr.
+aopen : attr.
+aderivations : attr.
+(* a measure, with the arguments of the call pattern for a measure of variables *)
+aterminates : measure -> seq term -> attr.
+
+decl : Type.
+dconst : sym -> seq attr -> decl.     (* an object constant (relation, constructor, type) *)
+drule : string -> seq attr -> decl.   (* a named rule `@r` *)
+derror : string -> decl.              (* an error, reported at the directive *)
+
+attach : attr -> decl -> decl.
+attach A (dconst S As) = dconst S (sappend As [A]).
+attach A (drule N As) = drule N (sappend As [A]).
+attach A (derror M) = derror M.
+
+(* The primitive directives (§7.2) *)
+input : decl -> decl.
+input D = attach ainput D.
+output : decl -> decl.
+output D = attach aoutput D.
+open : decl -> decl.
+open D = attach aopen D.
+derivations : decl -> decl.
+derivations D = attach aderivations D.
+
+terminates : measure -> formula -> decl.
+terminates M (fatom S Ts) = dconst S [aterminates M Ts].
+terminates M F = derror "`%terminates` expects a relation or a call pattern `(r t̄)` after the measure".

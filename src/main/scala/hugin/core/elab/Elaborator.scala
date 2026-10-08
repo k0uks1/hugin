@@ -55,6 +55,9 @@ final class ElabState:
    *  drop the items using them without further errors. */
   val erroneous: mutable.Set[Name] = mutable.HashSet.empty
 
+  /** What the object items elaborated so far contribute to the module (for module-wide directives). */
+  val parts: mutable.ListBuffer[ModulePart] = mutable.ListBuffer.empty
+
   /** The globals that names resolved to (for W0003, unused definitions). */
   val used: mutable.Set[Int] = mutable.HashSet.empty
 
@@ -135,6 +138,8 @@ class Elaborator(
     with Quotes
     with QuotedPatterns
     with Reflection
+    with Directives
+    with ModuleDirectives
     with Tooling:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =

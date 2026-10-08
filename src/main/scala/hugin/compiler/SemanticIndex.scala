@@ -87,15 +87,19 @@ final class SemanticIndex:
   /** The names of the program's top level and of the prelude (where no recorded extent applies). */
   var topLevel: List[Sym] = Nil
 
+  /** While set, references and variables are not recorded (code elaborated again, whose references were
+   *  recorded the first time: the module that a module-wide directive rewrites). */
+  var muted: Boolean = false
+
   def reference(span: Span, sym: Sym, detail: Option[String] = None, isUse: Boolean = true): Unit =
-    if span.exists && sym.kind != SymKind.BaseType then
+    if span.exists && sym.kind != SymKind.BaseType && !muted then
       refs += Reference(span, sym, detail, isUse)
       syms += sym
 
   def declare(sym: Sym): Unit = if sym.span.exists then syms += sym
 
   def variable(span: Span, name: String, display: String, tpe: String, item: Span): Unit =
-    if span.exists then vars += VarOccurrence(span, name, display, tpe, item)
+    if span.exists && !muted then vars += VarOccurrence(span, name, display, tpe, item)
 
   def describe(sym: Sym, text: String): Unit = descriptions(sym) = text
 

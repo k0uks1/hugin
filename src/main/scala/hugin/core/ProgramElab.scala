@@ -41,7 +41,9 @@ final class ElaboratedItem(
     val diagnostics: List[Diagnostic],
     val index: SemanticIndex,
     val used: Set[Int],
-    val portable: Boolean
+    val portable: Boolean,
+    /** What the item contributes to the module that module-wide directives rewrite. */
+    val parts: List[elab.ModulePart] = Nil
 )
 
 /** The elaboration of a program in parts, each a function of the parts before it, so that a query
@@ -109,14 +111,19 @@ object ProgramElab:
     val e = decls.elaborator.fork(core, reporter, SemanticIndex())
     e.elabItemReporting(item)
     val items = e.items.toList
-    ElaboratedItem(item, core, items, reporter.diagnostics, e.index, e.state.used.toSet, portable(decls.core, core, items))
+    val parts = e.state.parts.toList
+    ElaboratedItem(item, core, items, reporter.diagnostics, e.index, e.state.used.toSet, portable(decls.core, core, items, parts), parts)
 
   /** Whether the items elaborated in `fork` (of `base`) can be moved into another fork of `base`. */
-  private def portable(base: Core, fork: Core, items: List[CoreItem]): Boolean =
+  private def portable(base: Core, fork: Core, items: List[CoreItem], parts: List[elab.ModulePart]): Boolean =
     val levels = base.levels.count
+    val partTerms = parts.collect {
+      case d: elab.ModulePart.Data => d.data
+      case r: elab.ModulePart.Rewrite => r.fn
+    }
     fork.moduleInstances.length == base.moduleInstances.length &&
     (base.globals.length until fork.globals.length).forall(id => fork.globals(id).instanceOf.isDefined) &&
-    items.flatMap(CoreItem.terms).forall(t =>
+    (items.flatMap(CoreItem.terms) ++ partTerms).forall(t =>
       !Tm.exists(t) {
         case Tm.Module(_, _) => true
         case Tm.U1(l) => !l.isConst && l.v >= levels
@@ -126,7 +133,9 @@ object ProgramElab:
 
   /** A program assembled from its declarations and its object items (in source order): the items are
    *  moved into a fork of the declarations' core (an item that is not portable is elaborated again
-   *  there), then the checks across items run. */
+   *  there), then the checks across items run. If the items contain a module-wide directive, their rules
+   *  and queries are replaced by the expansion of the module (REDESIGN §7.1): every rule and query then
+   *  depends on the expansion, while the items of local directives are kept as elaborated. */
   def assemble(decls: ElaboratedDeclarations, results: List[ElaboratedItem]): (Elaborated, List[Diagnostic], SemanticIndex) =
     val core = decls.core.fork()
     results.map(_.item.span).filter(_.exists).foreach(sp => core.rankFile(sp.source.path))
@@ -136,17 +145,28 @@ object ProgramElab:
     index.include(decls.index)
     val e = decls.elaborator.fork(core, reporter, index)
     val diagnostics = mutable.ListBuffer.from(decls.base.diagnostics ++ decls.diagnostics)
-    val objectItems = results.flatMap { r =>
+    val parts = mutable.ListBuffer.empty[elab.ModulePart]
+    val elaborated = results.flatMap { r =>
       if r.portable then
         diagnostics ++= r.diagnostics
         index.include(r.index)
         e.state.used ++= r.used
-        Moved(decls.core, r.fork, core).items(r.items)
+        val moved = Moved(decls.core, r.fork, core)
+        parts ++= r.parts.map(moved.part)
+        moved.items(r.items)
       else
-        val before = e.items.length
+        val (beforeItems, beforeParts) = (e.items.length, e.state.parts.length)
         e.elabItemReporting(r.item)
-        e.items.drop(before).toList
+        parts ++= e.state.parts.drop(beforeParts)
+        e.items.drop(beforeItems).toList
     }
+    val objectItems =
+      if !e.rewrites(parts) then elaborated
+      else
+        elaborated.filter {
+          case _: CoreItem.RuleItem | _: CoreItem.QueryItem => false
+          case _ => true
+        } ++ e.expandModule(parts.toList)
     e.finish()
     diagnostics ++= reporter.diagnostics
     val programItems = decls.items ++ objectItems
@@ -161,6 +181,8 @@ private final class Moved(base: Core, from: Core, to: Core):
   private val metas = mutable.HashMap.empty[Int, Int]
 
   def items(items: List[CoreItem]): List[CoreItem] = items.map(CoreItem.map(_, term, global))
+
+  def part(p: elab.ModulePart): elab.ModulePart = elab.ModulePart.map(p, term)
 
   private def term(t: Tm): Tm = Tm.rename(t, global, meta)
 

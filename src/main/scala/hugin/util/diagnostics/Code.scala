@@ -18,8 +18,10 @@ enum Phase(val title: String, val block: Int):
   /** The meta level (`hugin.core`, redesign Phase B). */
   case Elaboration extends Phase("meta level", 9)
 
-  /** Diagnostics that user-defined directives report (redesign C2). The block E1000–E1099 is reserved for
-   *  them; they are reported through the same [[Problem]] API as the compiler's own. */
+  /** Directives as meta functions (redesign C2): what a directive reports itself (E1000, an `ierror` or
+   *  `derror` in its result) and what the compiler reports about a directive's application (E1001 on).
+   *  The block E1000–E1099 is theirs; they are reported through the same [[Problem]] API as the
+   *  compiler's own. */
   case UserDirectives extends Phase("user directives", 10)
 
   /** The tools around the compiler (the REPL, the language server): their own messages, which no program
@@ -132,6 +134,11 @@ enum Code(
   case E0916 extends Code(916, Phase.Elaboration, "type binder used in a definition")
   case E0917 extends Code(917, Phase.Elaboration, "invalid quoted syntax")
   case E0918 extends Code(918, Phase.Elaboration, "reflection failure")
+  // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
+  case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
+  case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")
+  case E1002 extends Code(1002, Phase.UserDirectives, "directive not applicable to a declaration")
+  case E1003 extends Code(1003, Phase.UserDirectives, "directive changed the declaration it is attached to")
   // tools
   case E1101 extends Code(1101, Phase.Tools, "invalid REPL command")
   case E1102 extends Code(1102, Phase.Tools, "internal compiler error")
@@ -157,7 +164,7 @@ enum Code(
   def explanationPath: String = s"docs/errors/$id.md"
 
 object Code:
-  /** The codes reserved for diagnostics reported by user-defined directives (see [[Phase.UserDirectives]]). */
+  /** The block of the codes of directives (see [[Phase.UserDirectives]]). */
   val userDirectiveNumbers: Range = 1000 until 1100
 
   /** A code by its id, case-insensitively. */

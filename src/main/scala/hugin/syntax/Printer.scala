@@ -61,8 +61,8 @@ object Printer:
     case Param.Typed(n, t, _) => s"(${show(n)} : ${show(t)})"
 
   def showItem(i: Item): String = i match
-    case Decl(n, ps, t, sup, d, ab, fact) =>
-      val pre = (if ab then "%abbrev " else "") + (if fact then "%fact " else "")
+    case Decl(n, ps, t, sup, d, fact) =>
+      val pre = if fact then "%fact " else ""
       s"$pre${(n.name :: ps.map(showParam)).mkString(" ")} : ${show(t)}${sup.map(s => " <: " + show(s)).getOrElse("")}${d.map(x => " = " + show(x)).getOrElse("")}."
     case Def(n, ps, r) => s"${(n.name :: ps.map(showParam)).mkString(" ")} = ${show(r)}."
     case SubEdge(a, b) => s"${show(a)} <: ${show(b)}."
@@ -71,15 +71,11 @@ object Printer:
     case Query(b) => s"?- ${show(b)}."
     case Clause(l, r, Nil) => s"${show(l)} = ${show(r)}."
     case Clause(l, r, wh) => s"${show(l)} = ${show(r)}\n  where ${wh.map(showItem).mkString("\n        ")}"
-    case d @ Directive(k, args) =>
-      val a = args match
-        case DirArgs.Mode(t, ms) => (show(t) :: ms.map(showMode)).mkString(" ")
-        case DirArgs.TerminatesVar(vs, t, as) => s"${measure(vs.map(_.name))} (${(show(t) :: as.map(showArg)).mkString(" ")})"
-        case DirArgs.TerminatesLabel(ls, t) => s"${measure(ls.map(_.name))} ${show(t)}"
-        case DirArgs.Target(t) => show(t)
-        case DirArgs.Infix(a, p, n) => s"$a $p ${n.name}"
-        case DirArgs.NameHint(t, v) => s"${show(t)} ${v.name}"
-      s"%$k $a."
+    case Directive(k, args) =>
+      args match
+        case DirArgs.Mode(t, ms) => s"%$k ${(show(t) :: ms.map(showMode)).mkString(" ")}."
+        case DirArgs.Infix(a, p, n) => s"%$k $a $p ${n.name}."
+        case DirArgs.Apply(as, decl) => (s"%$k" :: as.map(showArg)).mkString(" ") + decl.fold(".")(_ => "") // the declaration follows
 
   /** A `%terminates` measure: one name, or a parenthesised tuple. */
   def measure(names: List[String]): String = names match
