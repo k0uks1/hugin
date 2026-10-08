@@ -59,14 +59,14 @@ enum CheckError extends Problem:
       val cycle = (e :: path).map(x => (if x.negative then "not " else "") + x.to.name)
       List(
         msg"cycle: ${Lit(e.from.name)} -> ${Lit(cycle.mkString(" -> "))}",
-        msg"negation and aggregation must not occur in a recursive cycle (Section 6.4)"
+        msg"negation and aggregation must not occur in a recursive cycle"
       ) ++ reasons.map(_.note(e))
     case NegatedIncomplete(_, _, site, why) =>
       List(
         why.explain,
         site match
-          case NegSite.InRule => msg"the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)"
-          case NegSite.InQuery => msg"queries may mention incomplete relations only positively (Section 8.5)"
+          case NegSite.InRule => msg"the absence of a fact of an incomplete relation means unknown, not false"
+          case NegSite.InQuery => msg"queries may mention incomplete relations only positively"
       )
 
   override def helps: List[Msg] = this match
@@ -85,7 +85,7 @@ enum CycleReason:
   def note(e: Dependency): Msg = this match
     case HeadAssertion(h, c) =>
       val head = h.fold(msg"`?`")(r => msg"$r")
-      msg"a rule of $head asserts facts of $c in its head, so $c depends on what the rule reads (Proposition 8.8, see docs/NOTES.md)"
+      msg"a rule of $head asserts facts of $c in its head, so $c depends on what the rule reads"
     case AggregateDisjunction(aux) =>
       msg"$aux stands for a disjunction inside an aggregate; its demand needs the disjunction's outer variables, which are bound only by relations that depend on ${e.from}"
 

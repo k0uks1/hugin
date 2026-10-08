@@ -4,7 +4,7 @@ error[E0001]: `%partial` has been removed
 3 | %partial nat.
   | ^^^^^^^^ removed directive
   |
-  = note: every accepted program terminates; there are no round budgets (docs/REDESIGN.md §4.6)
+  = note: every accepted program terminates; there are no round budgets
   = help: let an argument decrease along the recursion, bound it by a guard, or use a bound column (`min int` / `max int`)
 
 error[E0603]: growing component without a termination argument

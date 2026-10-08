@@ -18,3 +18,11 @@ object NewMeta:
     val elaborator = elab.Elaborator(core, reporter)
     elaborator.elabProgram(items)
     Elaborated(core, elaborator)
+
+  /** The diagnostics of parsing a file in the new syntax, elaborating it and staging its object items
+   *  (without the object-level phases). */
+  def check(src: SourceFile): List[Diagnostic] =
+    val reporter = Reporter()
+    val prog = hugin.syntax.Parser.parseMeta2(src, reporter)
+    if !reporter.hasErrors then elaborate(prog.items, reporter).render(reporter)
+    reporter.sorted

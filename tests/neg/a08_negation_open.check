@@ -5,6 +5,6 @@ error[E0602]: negation or aggregation over the incomplete relation `active`
    |                        ^^^^^^^^^^^^ incomplete relation used negatively
    |
    = note: `active` depends positively on `login`; `login` is declared %open
-   = note: the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)
+   = note: the absence of a fact of an incomplete relation means unknown, not false
 
 1 error found

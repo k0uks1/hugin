@@ -266,7 +266,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
           rel
         else
           val margs = args.map(monoType(_, span, r.origin))
-          // polymorphic recursion (Definition 4.2)
+          // polymorphic recursion
           val recursive = family.exists { (f, ts) =>
             if component.get(rel) == component.get(f) && margs != ts then
               ok = false
@@ -347,7 +347,7 @@ final class Monomorphizer(p: ObjProgram)(using Context):
       s"`${g.name}` used at [${us.map(_.show).mkString(", ")}] while instantiating `${f.name}` at [${ts.map(_.show).mkString(", ")}]"
     )
       .withNote(
-        "within a recursive component every relation must be used at exactly the type parameters of the rule family (Definition 4.2)"
+        "within a recursive component every relation must be used at exactly the type parameters of the rule family"
       )
       .withOrigin(origin))
 

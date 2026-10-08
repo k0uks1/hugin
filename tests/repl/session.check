@@ -61,7 +61,7 @@ error[E0601]: stratification cycle through negation
  ::> <input 18>:1:24: `p` depends on `q`
   |
   = note: cycle: q -> not p -> q
-  = note: negation and aggregation must not occur in a recursive cycle (Section 6.4)
+  = note: negation and aggregation must not occur in a recursive cycle
 
 hugin> :type path
 relation path : node -> node -> rel
@@ -125,9 +125,35 @@ yes.
 hugin> :stats off
 statistics: off
 hugin> :explain W0005
-W0005: formula function without clauses
+# W0005: formula function without clauses
 
-A formula function is declared without clauses or definition; it is always false.
+A formula function is declared without clauses or definition.
+
+## Example
+
+```hugin
+never : int -> prop.
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, never X.
+```
+
+## Why this is reported
+
+A formula function without clauses is always false, so every rule using it never fires. Lint name:
+`empty_formula_functions`.
+
+## How to fix it
+
+```hugin
+small : int -> prop.
+small X :- X < 10.
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, small X.
+```
 hugin> :lod x
 error: unknown command `:lod`
   = help: did you mean `:load`?

@@ -5,7 +5,7 @@ error[E0602]: negation or aggregation over the incomplete relation `e`
    |                           ^^^^^^^^^^^^^^ incomplete relation used negatively
    |
    = note: `e` is declared %open
-   = note: the absence of a fact of an incomplete relation means unknown, not false (Definition 6.6)
+   = note: the absence of a fact of an incomplete relation means unknown, not false
 note: in application of `iso`
   --> tests/neg/requirements.hgn:16:5
    |

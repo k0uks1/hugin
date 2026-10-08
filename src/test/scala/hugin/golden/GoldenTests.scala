@@ -12,6 +12,7 @@ import scala.jdk.CollectionConverters.*
  *  - `tests/neg/X.hgn`: must fail to compile (or, with `X.facts`, to load its input); the rendered
  *    diagnostics must equal `X.check`.
  *  - `tests/pos/X.hgn`: must compile without errors.
+ *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/repl/X.in`: a REPL session, run by `hugin repl --batch --echo`; the transcript (inputs after
  *    their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds extra options (e.g.
  *    files to load).
@@ -65,6 +66,12 @@ class GoldenTests extends munit.FunSuite:
       val cmd = if Files.exists(facts) then List("run", p.toString, "--facts", facts.toString) else List("check", p.toString)
       val (code, _, err) = runMain(cmd ++ flags(p))
       assertEquals(code, 1, s"expected errors in $p")
+      compare(p, err)
+    }
+
+  for p <- files("json") do
+    test(s"json/${p.getFileName}") {
+      val (_, _, err) = runMain(List("check", p.toString, "--error-format=json") ++ flags(p))
       compare(p, err)
     }
 

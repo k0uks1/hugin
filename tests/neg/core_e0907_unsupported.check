@@ -4,6 +4,6 @@ error[E0907]: module bodies are not supported by the new meta level yet
 2 | m = { p : int -> rel. }.
   |     ^^^^^^^^^^^^^^^^^^^ not supported yet
   |
-  = note: the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md §10; the rest is ported in B3
+  = note: the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md; the rest is ported in B3
 
 1 error found

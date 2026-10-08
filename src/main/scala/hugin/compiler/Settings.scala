@@ -23,6 +23,8 @@ final case class Display(
     /** Render diagnostics with ANSI colours. */
     color: Boolean = false,
     /** Show warnings. */
-    warnings: Boolean = true
+    warnings: Boolean = true,
+    /** Print diagnostics as JSON lines (`--error-format=json`) instead of rendering them. */
+    json: Boolean = false
 ):
   def shown(ds: List[Diagnostic]): List[Diagnostic] = if warnings then ds else ds.filter(_.severity != Severity.Warning)

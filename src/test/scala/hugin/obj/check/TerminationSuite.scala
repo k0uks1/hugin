@@ -25,7 +25,7 @@ class TerminationSuite extends munit.FunSuite:
     val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0603))
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.contains("component {s}")), d.head.notes)
-    assert(d.head.notes.exists(_.contains("Proposition 8.8")), d.head.notes)
+    assert(d.head.notes.exists(_.contains("is also evaluated in")), d.head.notes)
   }
 
   test("a fact constructor of an earlier component is a finite source") {

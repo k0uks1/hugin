@@ -11,7 +11,7 @@ error[E0209]: compile-time arithmetic failure
   |              ^^^^^^^ `9223372036854775807 + 1` is undefined
   |
   = note: 64-bit integer overflow
-  = note: at the meta level an undefined primitive operation is a compile-time error (Section 3.3)
+  = note: at the meta level an undefined primitive operation is a compile-time error
 
 error[E0209]: compile-time arithmetic failure
  --> tests/neg/a11_stage_overflow.hgn:5:12
@@ -20,6 +20,6 @@ error[E0209]: compile-time arithmetic failure
   |            ^^^^^^^ `9223372036854775807 * 2` is undefined
   |
   = note: 64-bit integer overflow
-  = note: at the meta level an undefined primitive operation is a compile-time error (Section 3.3)
+  = note: at the meta level an undefined primitive operation is a compile-time error
 
 2 errors, 1 warning found

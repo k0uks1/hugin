@@ -136,7 +136,7 @@ enum SyntaxError extends Problem:
       List(msg"declarations have the form `name param* : type.` and definitions `name param* = expr.`")
     case _: UnknownDirective =>
       List(msg"directives are %mode %terminates %open %derivations %input %output %infix %name %abbrev %fact")
-    case _: RemovedPartial => List(msg"every accepted program terminates; there are no round budgets (docs/REDESIGN.md §4.6)")
+    case _: RemovedPartial => List(msg"every accepted program terminates; there are no round budgets")
     case _ => Nil
 
   override def helps: List[Msg] = this match
