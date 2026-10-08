@@ -1,0 +1,248 @@
+(* bench: the meta level at scale: functors, families, %demand, reflection and a module-wide
+   directive, repeated over many relations *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+city : type.  c0 : city.  c1 : city.  c2 : city.  c3 : city.
+name : type = string.
+expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.
+               app : expr -> expr -> expr.
+typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
+ctx  : type.   empty : ctx.   bind : ctx -> name -> typ -> ctx.
+box A : type.
+put : A -> box A.
+edge : city -> city -> rel.
+edge c0 c1.
+mirror : module -> module.
+mirror [] = [].
+mirror ((edge $X $Y :- $..B) :: Rest) = (edge $X $Y :- $..B) :: (edge $Y $X :- $..B) :: mirror Rest.
+mirror (I :: Rest) = I :: mirror Rest.
+road0 : city -> city -> rel.
+road0 c0 c1.  road0 c1 c2.  road0 c2 c3.
+r0 = tc { node = city, edge = road0 }.
+%output r0.path.
+edge c0 c1 :- road0 c0 c1.
+boxed0 : box int -> box string -> rel.
+boxed0 (put 0) (put "x0").
+%output boxed0.
+lookup0 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup0 +g +x -t.
+lookup0 (bind _ X T) X T.
+lookup0 (bind G Y _) X T :- lookup0 G X T, X <> Y.
+typed0 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed0 +e +g -t.
+typed0 (ref X) G T :- lookup0 G X T.
+typed0 (lam X T1 B) G (arrow T1 T2) :- typed0 B (bind G X T1) T2.
+typed0 (app F A) G T1 :- typed0 F G (arrow T0 T1), typed0 A G T0.
+prog0 : expr -> rel.
+prog0 (lam "x" (base "i") (ref "x")).
+prog0 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result0 : expr -> typ -> rel.
+result0 E T :- prog0 E, typed0 E empty T.
+%output result0.
+num0 : int -> rel.
+data0 : module = [ (num0 0 :-), (num0 M :- num0 N, N < 3, M = N + 1) ].
+$data0.
+%output num0.
+
+road1 : city -> city -> rel.
+road1 c0 c1.  road1 c1 c2.  road1 c2 c3.
+r1 = tc { node = city, edge = road1 }.
+%output r1.path.
+edge c1 c2 :- road1 c0 c1.
+boxed1 : box int -> box string -> rel.
+boxed1 (put 1) (put "x1").
+%output boxed1.
+lookup1 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup1 +g +x -t.
+lookup1 (bind _ X T) X T.
+lookup1 (bind G Y _) X T :- lookup1 G X T, X <> Y.
+typed1 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed1 +e +g -t.
+typed1 (ref X) G T :- lookup1 G X T.
+typed1 (lam X T1 B) G (arrow T1 T2) :- typed1 B (bind G X T1) T2.
+typed1 (app F A) G T1 :- typed1 F G (arrow T0 T1), typed1 A G T0.
+prog1 : expr -> rel.
+prog1 (lam "x" (base "i") (ref "x")).
+prog1 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result1 : expr -> typ -> rel.
+result1 E T :- prog1 E, typed1 E empty T.
+%output result1.
+num1 : int -> rel.
+data1 : module = [ (num1 1 :-), (num1 M :- num1 N, N < 4, M = N + 1) ].
+$data1.
+%output num1.
+
+road2 : city -> city -> rel.
+road2 c0 c1.  road2 c1 c2.  road2 c2 c3.
+r2 = tc { node = city, edge = road2 }.
+%output r2.path.
+edge c2 c3 :- road2 c0 c1.
+boxed2 : box int -> box string -> rel.
+boxed2 (put 2) (put "x2").
+%output boxed2.
+lookup2 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup2 +g +x -t.
+lookup2 (bind _ X T) X T.
+lookup2 (bind G Y _) X T :- lookup2 G X T, X <> Y.
+typed2 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed2 +e +g -t.
+typed2 (ref X) G T :- lookup2 G X T.
+typed2 (lam X T1 B) G (arrow T1 T2) :- typed2 B (bind G X T1) T2.
+typed2 (app F A) G T1 :- typed2 F G (arrow T0 T1), typed2 A G T0.
+prog2 : expr -> rel.
+prog2 (lam "x" (base "i") (ref "x")).
+prog2 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result2 : expr -> typ -> rel.
+result2 E T :- prog2 E, typed2 E empty T.
+%output result2.
+num2 : int -> rel.
+data2 : module = [ (num2 2 :-), (num2 M :- num2 N, N < 5, M = N + 1) ].
+$data2.
+%output num2.
+
+road3 : city -> city -> rel.
+road3 c0 c1.  road3 c1 c2.  road3 c2 c3.
+r3 = tc { node = city, edge = road3 }.
+%output r3.path.
+edge c3 c0 :- road3 c0 c1.
+boxed3 : box int -> box string -> rel.
+boxed3 (put 3) (put "x3").
+%output boxed3.
+lookup3 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup3 +g +x -t.
+lookup3 (bind _ X T) X T.
+lookup3 (bind G Y _) X T :- lookup3 G X T, X <> Y.
+typed3 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed3 +e +g -t.
+typed3 (ref X) G T :- lookup3 G X T.
+typed3 (lam X T1 B) G (arrow T1 T2) :- typed3 B (bind G X T1) T2.
+typed3 (app F A) G T1 :- typed3 F G (arrow T0 T1), typed3 A G T0.
+prog3 : expr -> rel.
+prog3 (lam "x" (base "i") (ref "x")).
+prog3 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result3 : expr -> typ -> rel.
+result3 E T :- prog3 E, typed3 E empty T.
+%output result3.
+num3 : int -> rel.
+data3 : module = [ (num3 3 :-), (num3 M :- num3 N, N < 6, M = N + 1) ].
+$data3.
+%output num3.
+
+road4 : city -> city -> rel.
+road4 c0 c1.  road4 c1 c2.  road4 c2 c3.
+r4 = tc { node = city, edge = road4 }.
+%output r4.path.
+edge c0 c1 :- road4 c0 c1.
+boxed4 : box int -> box string -> rel.
+boxed4 (put 4) (put "x4").
+%output boxed4.
+lookup4 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup4 +g +x -t.
+lookup4 (bind _ X T) X T.
+lookup4 (bind G Y _) X T :- lookup4 G X T, X <> Y.
+typed4 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed4 +e +g -t.
+typed4 (ref X) G T :- lookup4 G X T.
+typed4 (lam X T1 B) G (arrow T1 T2) :- typed4 B (bind G X T1) T2.
+typed4 (app F A) G T1 :- typed4 F G (arrow T0 T1), typed4 A G T0.
+prog4 : expr -> rel.
+prog4 (lam "x" (base "i") (ref "x")).
+prog4 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result4 : expr -> typ -> rel.
+result4 E T :- prog4 E, typed4 E empty T.
+%output result4.
+num4 : int -> rel.
+data4 : module = [ (num4 4 :-), (num4 M :- num4 N, N < 7, M = N + 1) ].
+$data4.
+%output num4.
+
+road5 : city -> city -> rel.
+road5 c0 c1.  road5 c1 c2.  road5 c2 c3.
+r5 = tc { node = city, edge = road5 }.
+%output r5.path.
+edge c1 c2 :- road5 c0 c1.
+boxed5 : box int -> box string -> rel.
+boxed5 (put 5) (put "x5").
+%output boxed5.
+lookup5 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup5 +g +x -t.
+lookup5 (bind _ X T) X T.
+lookup5 (bind G Y _) X T :- lookup5 G X T, X <> Y.
+typed5 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed5 +e +g -t.
+typed5 (ref X) G T :- lookup5 G X T.
+typed5 (lam X T1 B) G (arrow T1 T2) :- typed5 B (bind G X T1) T2.
+typed5 (app F A) G T1 :- typed5 F G (arrow T0 T1), typed5 A G T0.
+prog5 : expr -> rel.
+prog5 (lam "x" (base "i") (ref "x")).
+prog5 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result5 : expr -> typ -> rel.
+result5 E T :- prog5 E, typed5 E empty T.
+%output result5.
+num5 : int -> rel.
+data5 : module = [ (num5 5 :-), (num5 M :- num5 N, N < 8, M = N + 1) ].
+$data5.
+%output num5.
+
+road6 : city -> city -> rel.
+road6 c0 c1.  road6 c1 c2.  road6 c2 c3.
+r6 = tc { node = city, edge = road6 }.
+%output r6.path.
+edge c2 c3 :- road6 c0 c1.
+boxed6 : box int -> box string -> rel.
+boxed6 (put 6) (put "x6").
+%output boxed6.
+lookup6 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup6 +g +x -t.
+lookup6 (bind _ X T) X T.
+lookup6 (bind G Y _) X T :- lookup6 G X T, X <> Y.
+typed6 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed6 +e +g -t.
+typed6 (ref X) G T :- lookup6 G X T.
+typed6 (lam X T1 B) G (arrow T1 T2) :- typed6 B (bind G X T1) T2.
+typed6 (app F A) G T1 :- typed6 F G (arrow T0 T1), typed6 A G T0.
+prog6 : expr -> rel.
+prog6 (lam "x" (base "i") (ref "x")).
+prog6 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result6 : expr -> typ -> rel.
+result6 E T :- prog6 E, typed6 E empty T.
+%output result6.
+num6 : int -> rel.
+data6 : module = [ (num6 6 :-), (num6 M :- num6 N, N < 9, M = N + 1) ].
+$data6.
+%output num6.
+
+road7 : city -> city -> rel.
+road7 c0 c1.  road7 c1 c2.  road7 c2 c3.
+r7 = tc { node = city, edge = road7 }.
+%output r7.path.
+edge c3 c0 :- road7 c0 c1.
+boxed7 : box int -> box string -> rel.
+boxed7 (put 7) (put "x7").
+%output boxed7.
+lookup7 : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+%demand lookup7 +g +x -t.
+lookup7 (bind _ X T) X T.
+lookup7 (bind G Y _) X T :- lookup7 G X T, X <> Y.
+typed7 : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+%demand typed7 +e +g -t.
+typed7 (ref X) G T :- lookup7 G X T.
+typed7 (lam X T1 B) G (arrow T1 T2) :- typed7 B (bind G X T1) T2.
+typed7 (app F A) G T1 :- typed7 F G (arrow T0 T1), typed7 A G T0.
+prog7 : expr -> rel.
+prog7 (lam "x" (base "i") (ref "x")).
+prog7 (app (lam "f" (arrow (base "i") (base "i")) (ref "f")) (lam "y" (base "i") (ref "y"))).
+result7 : expr -> typ -> rel.
+result7 E T :- prog7 E, typed7 E empty T.
+%output result7.
+num7 : int -> rel.
+data7 : module = [ (num7 7 :-), (num7 M :- num7 N, N < 10, M = N + 1) ].
+$data7.
+%output num7.
+
+%mirror.
+%output edge.

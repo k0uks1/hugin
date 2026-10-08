@@ -87,49 +87,76 @@ trait SizeChange:
 
   // ---------------------------------------------------------------- the size-change principle
 
-  private type Graph = (Int, Int, Vector[Vector[Option[Rel]]])
+  private type Matrix = Vector[Vector[Option[Rel]]]
+  private type Graph = (Int, Int, Matrix)
 
-  private def compose(a: Vector[Vector[Option[Rel]]], b: Vector[Vector[Option[Rel]]]): Vector[Vector[Option[Rel]]] =
+  private val someLt: Option[Rel] = Some(Rel.Lt)
+  private val someLe: Option[Rel] = Some(Rel.Le)
+
+  /** The graph of a call to `b`'s caller followed by `b`: an arc `i → j` through some `m`, strict if one
+   *  of the two arcs is (the strongest such arc). */
+  private def compose(a: Matrix, b: Matrix): Matrix =
     val k = b.headOption.map(_.length).getOrElse(0)
     a.map { row =>
-      (0 until k).map { j =>
-        row.indices.flatMap { m =>
-          (row(m), b.lift(m).flatMap(_.lift(j)).flatten) match
-            case (Some(x), Some(y)) => Some(if x == Rel.Lt || y == Rel.Lt then Rel.Lt else Rel.Le)
-            case _ => None
-        }.maxByOption(r => if r == Rel.Lt then 1 else 0)
-      }.toVector
+      Vector.tabulate(k) { j =>
+        var best: Option[Rel] = None
+        var m = 0
+        while m < row.length && !best.contains(Rel.Lt) do
+          row(m) match
+            case Some(x) if m < b.length && j < b(m).length =>
+              b(m)(j) match
+                case Some(y) => best = if x == Rel.Lt || y == Rel.Lt then someLt else someLe
+                case None =>
+            case _ =>
+          m += 1
+        best
+      }
     }
 
   private val rejected = mutable.Set.empty[Int]
 
+  /** The number of recorded calls already checked by [[checkTermination]]. */
+  private var checkedCalls = 0
+
   /** Checks the calls recorded so far; reports E0912 for each function that may not terminate (once) and
    *  removes its case tree, so that it never reduces. Run after each function's case tree is installed,
    *  before anything can evaluate it: a function only reduces once its call cycles are known to
-   *  terminate (cycles through functions elaborated later are stuck until those are checked). */
+   *  terminate (cycles through functions elaborated later are stuck until those are checked).
+   *
+   *  Only calls inside a strongly connected component of the call graph can be on a cycle, and the
+   *  verdict for a component depends only on the calls inside it. Calls are only ever added, so a
+   *  component without a call recorded since the last check has exactly the calls it had then (a
+   *  component that grew, by merging, contains the new call that merged it): its verdict is the one
+   *  already acted on, and only the components with new calls are checked again. */
   def checkTermination(): Unit =
     val base = calls.toList
-    // only calls inside a strongly connected component of the call graph can be on a cycle
+    val fresh = base.drop(checkedCalls)
+    checkedCalls = base.length
+    if fresh.isEmpty then return
     val nodes = base.flatMap(c => List(c.caller, c.callee)).distinct
     val succ = base.groupMap(_.caller)(_.callee)
     val component = Graphs.components(nodes, n => succ.getOrElse(n, Nil)).zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
-    val cyclic = base.filter(c => component(c.caller) == component(c.callee))
-    val closure = mutable.LinkedHashSet.from(cyclic.map(c => (c.caller, c.callee, c.m): Graph))
-    var frontier = closure.toList
-    while frontier.nonEmpty do
-      val next =
-        for
-          (f, g, a) <- frontier
-          (g2, h, b) <- closure.toList if g2 == g
-          composed = (f, h, compose(a, b))
-          if !closure.contains(composed)
-        yield composed
-      closure ++= next
-      frontier = next.distinct
-    val bad = closure.toList.collect {
+    val changed = fresh.filter(c => component(c.caller) == component(c.callee)).map(c => component(c.caller)).toSet
+    val cyclic = base.filter(c => component(c.caller) == component(c.callee) && changed(component(c.caller)))
+    val bad = closure(cyclic).collect {
       case (f, g, m) if f == g && compose(m, m) == m && !m.indices.exists(i => m(i)(i).contains(Rel.Lt)) => f
     }.distinct
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = base.find(c => c.caller == f && c.callee == f).orElse(base.find(_.caller == f))
       reporter.report(ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown))).toDiagnostic)
+
+  /** The size-change graphs of all paths of calls: the calls closed under composition. A path is
+   *  extended at its end by one call at a time, so each new graph is composed with the calls of its
+   *  callee only. */
+  private def closure(cyclic: List[Call]): List[Graph] =
+    val result = mutable.LinkedHashSet.from(cyclic.map(c => (c.caller, c.callee, c.m): Graph))
+    val from = cyclic.groupMap(_.caller)(c => (c.callee, c.m)).withDefaultValue(Nil)
+    var frontier = result.toList
+    while frontier.nonEmpty do
+      val next = mutable.ListBuffer.empty[Graph]
+      for (f, g, a) <- frontier; (h, b) <- from(g) do
+        val composed = (f, h, compose(a, b))
+        if result.add(composed) then next += composed
+      frontier = next.toList
+    result.toList

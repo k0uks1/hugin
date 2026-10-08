@@ -1,0 +1,12 @@
+(* bench: transitive closure over a chain with random forward edges (semi-naive evaluation, joins) *)
+node : type = int.
+edge : node -> node -> rel.
+%input edge.
+path : node -> node -> rel.
+path X Y :- edge X Y.
+path X Z :- path X Y, edge Y Z.
+reach : node -> int -> rel.
+reach X N :- edge X _, N = count { Y | path X Y }.
+total : int -> rel.
+total S :- S = sum { N | reach _ N }.
+%output total.

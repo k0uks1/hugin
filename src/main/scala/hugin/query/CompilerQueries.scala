@@ -11,9 +11,9 @@ import scala.collection.mutable
 object SourceText extends Input[String, String]("sourceText"):
   override def default(path: String): Option[String] = SourceLoader.read(path)
 
-/** Parses a file. */
+/** Parses a file (a file of the standard library once per process and text, [[StdlibCache]]). */
 object Parse extends Query[String, Parsed]("parse"):
-  def compute(path: String)(using db: Database): Parsed = Parsed(SourceFile.virtual(path, db.get(SourceText, path)))
+  def compute(path: String)(using db: Database): Parsed = StdlibCache.parsed(path, db.get(SourceText, path))
 
 /** Parses the slice of one top-level item of a file on its own ([[hugin.syntax.Slices]]), keyed by its
  *  text: an item whose text did not change is the same tree, with the same item-relative spans, after any

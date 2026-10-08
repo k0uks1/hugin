@@ -26,6 +26,16 @@ object MetaLevel:
       index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()
   ): Elaborated =
     val base0 = prelude.fold(ProgramElab.empty(builtinNames))(ProgramElab.prelude(_, builtinNames))
+    elaborateOn(base0, program, libraries, reporter, index)
+
+  /** Elaborates `program` with the imported files `libraries` on the prelude's (or an empty) base. */
+  private def elaborateOn(
+      base0: ElabBase,
+      program: SourceItems,
+      libraries: List[SourceItems],
+      reporter: Reporter,
+      index: hugin.compiler.SemanticIndex
+  ): Elaborated =
     val base = libraries.foldLeft(base0)(ProgramElab.library)
     val (decls, objectItems) = ProgramElab.split(program.items)
     val declarations = ProgramElab.declarations(base, program.path, ProgramElab.files(program.path, decls), decls)
@@ -35,19 +45,25 @@ object MetaLevel:
     elaborated
 
   /** Elaborates the program `program` (the file `root`) with the files of its import graph, read with
-   *  `items`. */
+   *  `load`. The prelude comes from [[hugin.compiler.StdlibCache]]. */
   def elaborateProgram(
       root: String,
       program: hugin.syntax.Program,
       graph: hugin.compiler.ImportGraph,
       prelude: Boolean,
-      items: String => List[Item]
+      load: String => Option[hugin.compiler.Parsed]
   ): hugin.compiler.ProgramElaboration =
     val reporter = Reporter()
     val index = hugin.compiler.SemanticIndex()
-    val preludeFile = graph.files.find(_ == hugin.compiler.SourceLoader.PreludePath).map(p => SourceItems(p, "", items(p)))
+    def items(path: String) = load(path).fold(Nil)(_.program.items)
+    val base0 = graph.files.find(_ == hugin.compiler.SourceLoader.PreludePath) match
+      case None => ProgramElab.empty(prelude)
+      case Some(p) =>
+        load(p) match
+          case Some(parsed) => hugin.compiler.StdlibCache.prelude(parsed, prelude)
+          case None => ProgramElab.prelude(SourceItems(p, "", Nil), prelude)
     val libraries = hugin.compiler.Library.qualified(graph.files).map((p, q) => SourceItems(p, q, items(p)))
-    val e = elaborate(SourceItems(root, "", program.items), preludeFile, libraries, reporter, prelude, index)
+    val e = elaborateOn(base0, SourceItems(root, "", program.items), libraries, reporter, index)
     hugin.compiler.ProgramElaboration(e, reporter.diagnostics, index)
 
   /** Elaborates a single file without prelude and imports. */
