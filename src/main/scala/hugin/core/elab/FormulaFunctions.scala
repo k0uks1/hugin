@@ -44,7 +44,7 @@ trait FormulaFunctions:
     try Some(a)
     catch
       case e: ElabError =>
-        reporter.report(e.diag)
+        report(e)
         None
 
   /** One clause `f t̄ :- ψ` in the context of the parameters: `fresh X̄. x̄ = t̄, ψ`. */

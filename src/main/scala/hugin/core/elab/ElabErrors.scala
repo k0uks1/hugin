@@ -18,6 +18,9 @@ trait ElabErrors:
 
   def fail(p: Problem): Nothing = throw ElabError(p.toDiagnostic)
 
+  /** Reports the error of an item (unless it follows from an error reported already). */
+  def report(e: ElabError): Unit = if !e.silent then reporter.report(e.diag)
+
   /** Unifies an inferred type with an expected one, reporting a mismatch at `span`. */
   def unifyAt(c: Cxt, span: Span, expected: Val, found: Val): Unit =
     try unify(c.lvl, found, expected)
@@ -27,6 +30,12 @@ trait ElabErrors:
     val e = show(c, expected)
     val fo = show(c, found)
     f match
+      case UnifyFailure.MissingField(_) | UnifyFailure.Field(_, _, _) =>
+        val note = f match
+          case UnifyFailure.MissingField(l) => s"missing field `$l`"
+          case UnifyFailure.Field(l, fo, ex) => s"field `$l`: expected `${show(c, ex)}`, found `${show(c, fo)}`"
+          case _ => ""
+        ElabProblem.SignatureMismatch(e, note, span).toDiagnostic
       case UnifyFailure.Universe =>
         Legacy.error(DiagCode.E0904, "universe inconsistency", span, s"expected `$e`, found `$fo`")
           .withNote("universe levels are inferred: `Type₀ : Type₁ : …`, and a type in `Typeᵢ` is also in `Typeⱼ` for i ≤ j")

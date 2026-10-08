@@ -43,6 +43,14 @@ enum ElabProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+
+  /** A module (record) does not match the signature (record type) `expected` it is checked against. */
+  case SignatureMismatch(expected: String, note: String, at: Span)
+  case MissingSignatureField(label: String, expected: String, at: Span)
+  case CyclicRefinement(name: String, at: Span)
+
+  /** A cycle of type definitions closed by the reference at `at` to `name`, declared at `declared`. */
+  case CyclicTypeDefinition(name: String, at: Span, declared: Span)
   case UnresolvedName(name: String, at: Span, similar: Option[String], replaceable: Boolean)
   case ObjectArity(name: String, expected: Int, found: Int, at: Span, declared: Span)
 
@@ -80,6 +88,9 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
+    case _: CyclicRefinement => Code.E0404
+    case _: CyclicTypeDefinition => Code.E0104
     case _: UnresolvedName => Code.E0101
     case _: ObjectArity => Code.E0207
     case _: IncompleteFieldParameter | _: IncompleteRelationParameter => Code.E0210
@@ -115,6 +126,10 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case SignatureMismatch(_, _, s) => s
+    case MissingSignatureField(_, _, s) => s
+    case CyclicRefinement(_, s) => s
+    case CyclicTypeDefinition(_, s, _) => s
     case UnresolvedName(_, s, _, _) => s
     case ObjectArity(_, _, _, s, _) => s
     case IncompleteFieldParameter(_, _, _, s, _, _) => s
@@ -151,6 +166,10 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case _: SignatureMismatch => msg"signature mismatch"
+    case MissingSignatureField(l, _, _) => msg"signature mismatch: missing field ${Src(l)}"
+    case CyclicRefinement(n, _) => msg"cyclic refinement ${Src(n)}"
+    case CyclicTypeDefinition(n, _, _) => msg"cyclic type definition ${Src(n)}"
     case UnresolvedName(n, _, _, _) => msg"unresolved name ${Src(n)}"
     case ObjectArity(n, e, f, _, _) => msg"${Src(n)} expects $e argument${Lit(if e == 1 then "" else "s")}, found $f"
     case IncompleteFieldParameter(w, p, l, _, _, _) =>
@@ -160,8 +179,7 @@ enum ElabProblem extends Problem:
     case FormulaOutputsUnbound(n, _, os, _) =>
       msg"formula function ${Src(n)} does not bind its output argument${Lit(if os.length > 1 then "s" else "")}"
     case UnknownRequirementField(l, _) => msg"no field ${Src(l)} in the signature"
-    case NotAFactConstructor(n, l, _) =>
-      msg"signature mismatch: field ${Src(l)} must be a fact constructor, but ${Src(n)} is a data constructor"
+    case _: NotAFactConstructor => msg"signature mismatch"
     case ClauseArity(n, a, p, _) => msg"clause of ${Src(n)} has $a arguments, but the function takes $p"
 
   override def primaryLabel: Msg = this match
@@ -177,6 +195,9 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
+    case MissingSignatureField(l, _, _) => msg"field ${Src(l)} is required"
+    case _: CyclicTypeDefinition => msg"refers back to the definition"
     case _: UnresolvedName => msg"not found in this scope"
     case ObjectArity(_, _, f, _, _) => msg"$f argument${Lit(if f == 1 then "" else "s")} given"
     case IncompleteFieldParameter(_, p, l, _, _, _) => msg"${Src(s"$p.$l")} may be bound to an incomplete relation"
@@ -197,6 +218,7 @@ enum ElabProblem extends Problem:
     case DataAsRelation(_, w, _, _, d, _, _) if d.exists => List(d -> msg"declared here as a ${Lit(w)}")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
     case DuplicateMember(_, _, first) => List(first -> msg"first declared here")
+    case CyclicTypeDefinition(_, _, d) => List(d -> msg"type definition declared here")
     case ObjectArity(_, _, _, _, d) if d.exists => List(d -> msg"declared here")
     case IncompleteFieldParameter(_, p, _, _, d, _) => List(d -> msg"parameter ${Src(p)} declared here")
     case IncompleteRelationParameter(_, p, _, d) => List(d -> msg"parameter ${Src(p)} declared here")
@@ -208,6 +230,12 @@ enum ElabProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case SignatureMismatch(_, n, _) => List(Msg.text(n))
+    case NotAFactConstructor(_, l, _) =>
+      List(msg"field ${Src(l)}: a data constructor where a fact constructor is expected (declare the constructor with `%fact`)")
+    case MissingSignatureField(_, e, _) => List(msg"expected signature ${Src(e)}")
+    case _: CyclicTypeDefinition =>
+      List(msg"type definitions are unfolded and must not form a cycle; declare an open type or struct instead")
     case FormulaOutputsUnbound(_, _, os, _) =>
       List(msg"argument${Lit(if os.length > 1 then "s" else "")} ${Lit(os.mkString(", "))} must be bound by the body")
     case DataFieldAsRelation(_, l, _) => List(msg"the field ${Src(l)} is a data constructor: its values are data, not facts of a relation")

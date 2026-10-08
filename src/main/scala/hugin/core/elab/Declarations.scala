@@ -155,7 +155,15 @@ trait Declarations:
   def declDefinition(c: Cxt, d: Decl, e: Tree): (Tm, Tm) =
     val (c2, imps, ps) = declContext(d, c)
     val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1)))
-    (ty, check(c, asLambda(d.params, e), ev(c, ty), Stage.S1))
+    val tyV = ev(c, ty)
+    (ty, ascribed(tyV, e.span, check(c, asLambda(d.params, e), tyV, Stage.S1)))
+
+  /** A module ascribed a signature with `%fact` fields (`m : sig = e.`) must pass fact constructors for
+   *  them ([[Tm.Require]]; the other requirements concern functor applications). */
+  private def ascribed(ty: Val, span: Span, t: Tm): Tm = force(ty) match
+    case rt: Val.RecTy if rt.reqs.exists(_.isInstanceOf[SigReq.Fact]) =>
+      Tm.Require(rt.reqs.filter(_.isInstanceOf[SigReq.Fact]), span, t)
+    case _ => t
 
   def define(name: Ident, ty: Tm, tm: Tm): Int =
     val ztm = zonk(Nil, 0, tm)

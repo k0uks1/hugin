@@ -36,6 +36,7 @@ trait Names:
   /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
    *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
+    if state.erroneous(n) then throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
     val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
       .filter(k => k != n && k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
     val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance

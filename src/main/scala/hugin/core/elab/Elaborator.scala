@@ -6,7 +6,7 @@ import scala.collection.mutable
 
 /** An elaboration error: reported, and the item it occurred in is dropped. `unresolved` names the name
  *  whose resolution failed, for errors that a later declaration may fix. */
-final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None)
+final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None, val silent: Boolean = false)
     extends Exception(diag.message, null, false, false)
 
 /** The module value of an imported file: a record of its declarations (closed terms). */
@@ -45,6 +45,9 @@ final class ElabState:
 
   /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
   var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
+
+  /** Names whose definitions were dropped without an error of their own (see [[Imports]]). */
+  val erroneous: mutable.Set[Name] = mutable.HashSet.empty
 
   /** The globals that names resolved to (for W0003, unused definitions). */
   val used: mutable.Set[Int] = mutable.HashSet.empty

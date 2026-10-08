@@ -112,8 +112,10 @@ trait Coercions:
     var e = rt2.env
     for (lb, ty) <- rt2.labels.zip(rt2.tys) do
       val expected = eval(e, ty)
-      val found = fromFields.getOrElse(lb, throw UnifyError(UnifyFailure.Mismatch))
-      val ft = coeOpt(c, Tm.Proj(t, lb), found, s, expected, s2)
+      val found = fromFields.getOrElse(lb, throw UnifyError(UnifyFailure.MissingField(lb)))
+      val ft =
+        try coeOpt(c, Tm.Proj(t, lb), found, s, expected, s2)
+        catch case _: UnifyError => throw UnifyError(UnifyFailure.Field(lb, found, expected))
       if ft.isDefined then changed = true
       val tm = ft.getOrElse(Tm.Proj(t, lb))
       val v = ev(c, tm)

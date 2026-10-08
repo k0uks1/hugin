@@ -10,6 +10,12 @@ enum UnifyFailure:
   case Universe
   case NonPattern
 
+  /** A record lacks a field of the expected record type (a module lacks a member of its signature). */
+  case MissingField(label: Name)
+
+  /** A field does not coerce to the expected record type's field. */
+  case Field(label: Name, found: Val, expected: Val)
+
 final class UnifyError(val failure: UnifyFailure) extends Exception(failure.toString, null, false, false)
 
 /** Higher-order pattern unification with pruning and the occurs check, after elaboration-zoo

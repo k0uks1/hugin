@@ -75,7 +75,7 @@ trait Records:
       )
     }
     rt.labels.find(l => !byLabel.contains(l)).foreach { l =>
-      error(DiagCode.E0906, s"missing field `$l`", t.span, s"the field `$l` is missing")
+      fail(ElabProblem.MissingSignatureField(l, show(c, rt), t.span))
     }
     var e = rt.env
     Tm.Rec(rt.labels.zip(rt.tys).map { (lb, ty) =>

@@ -34,7 +34,7 @@ trait ModuleBodies:
     try Some(a)
     catch
       case e: ElabError =>
-        reporter.report(e.diag)
+        report(e)
         None
 
   /** Elaborates the members in dependency order (as the top level's declarations). */
@@ -57,7 +57,7 @@ trait ModuleBodies:
           case e: ElabError =>
             if e.unresolved.exists(later) then true
             else
-              reporter.report(e.diag)
+              report(e)
               false
       }
       progress = pending.length < before

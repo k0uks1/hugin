@@ -14,8 +14,14 @@ trait Imports:
 
   def inferImport(imp: Import): (Tm, Val, Stage) =
     val path = hugin.compiler.ImportsPhase.resolve(imp, file.path)
-    val m = file.imports.getOrElse(path, ImportedModule(Tm.Rec(Nil), Tm.RecTy(Nil)))
-    (m.value, eval(Nil, m.ty), Stage.S1)
+    file.imports.get(path) match
+      case Some(m) => (m.value, eval(Nil, m.ty), Stage.S1)
+      case None => erroneous(imp.span)
+
+  /** A missing or cyclic import was reported (E0108); the item using it, and the items using what it
+   *  defines, are dropped without further errors. */
+  private def erroneous(span: hugin.util.Span): Nothing =
+    throw ElabError(ElabProblem.UnresolvedName("%import", span, None, false).toDiagnostic, silent = true)
 
   /** The module value of the file elaborated by this elaborator: its declarations in order. */
   def moduleValue: ImportedModule =

@@ -40,19 +40,42 @@ trait Items:
     case _ => None
 
   /** Elaborates items in source order, except that an item referring to a name declared by a later item
-   *  is retried after it (object declarations may be written in any order); a cycle of such references is
-   *  reported as unresolved names. */
+   *  is retried after it (object declarations may be written in any order); the items left form cycles of
+   *  such references ([[reportCycles]]). */
   private def elabInDependencyOrder(items: List[Item]): Unit =
-    var pending = items
+    var pending = items.map(i => (i, Option.empty[ElabError]))
     var progress = true
     while pending.nonEmpty && progress do
       val before = pending.length
-      pending = pending.filter { item =>
-        val later = pending.filter(_ ne item).flatMap(declares).toSet
-        attemptItem(item).exists(e => e.unresolved.exists(later) || { reporter.report(e.diag); false })
+      pending = pending.flatMap { (item, _) =>
+        val later = pending.map(_._1).filter(_ ne item).flatMap(declares).toSet
+        attemptItem(item) match
+          case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
+          case Some(e) =>
+            report(e)
+            // a name defined by an item dropped silently (an erroneous import) is erroneous too
+            if e.silent then declares(item).foreach(state.erroneous += _)
+            None
+          case None => None
       }
       progress = pending.length < before
-    pending.foreach(elabItemReporting)
+    reportCycles(pending.collect { case (item, Some(e)) => (item, e) })
+
+  /** Items that refer to each other in a cycle: refinements (E0404) and type definitions (E0104, once per
+   *  cycle, at the reference that closes it) as the old typer reported them; others as unresolved names. */
+  private def reportCycles(stuck: List[(Item, ElabError)]): Unit =
+    val byName = stuck.flatMap((item, e) => declares(item).map(_ -> (item, e))).toMap
+    def target(item: Item, e: ElabError) = e.unresolved.flatMap(byName.get)
+    def isTypeDefinition(item: Item) = item match
+      case Decl(_, Nil, Keyword(Kw.Type), None, Some(_), _, _) => true
+      case _ => false
+    for (item, e) <- stuck do
+      (item, target(item, e)) match
+        case (d: Decl, _) if d.sup.isDefined => reporter.report(ElabProblem.CyclicRefinement(d.name.name, d.span).toDiagnostic)
+        case (d: Decl, Some((t: Decl, _))) if isTypeDefinition(d) && isTypeDefinition(t) =>
+          if t.span.start < d.span.start then
+            reporter.report(ElabProblem.CyclicTypeDefinition(t.name.name, e.diag.labels.head.span, t.name.span).toDiagnostic)
+        case _ => report(e)
 
   /** Elaborates an item; on an error, undoes its effects on metas and returns the error. */
   private def attemptItem(item: Item): Option[ElabError] =
@@ -81,9 +104,10 @@ trait Items:
       case GlobalKind.Definition(_, _) => true
       case _ => false
     )
+    // module values, signatures and type definitions are exempt
     definition && (force(g.ty) match
       case Val.RecTy(_, _, _, _) | Val.U1(_) => false
-      case _ => true
+      case _ => force(telescope(g.ty)._2) != Val.Lift(Val.U0)
     )
 
   /** The function an item is a clause of: `f p̄ = e.`, or `f X̄ = e.` after a declaration `f : A.`. */
@@ -104,7 +128,7 @@ trait Items:
           elabFunction(id, group.flatMap(surfaceClause))
           checkSolved(start)
         }
-      catch case e: ElabError => reporter.report(e.diag)
+      catch case e: ElabError => report(e)
 
   private def declaredFunction(n: Name, first: Item): Int =
     scope.get(n) match
@@ -148,7 +172,7 @@ trait Items:
         elabItem(item)
         checkSolved(start)
       }
-    catch case e: ElabError => reporter.report(e.diag)
+    catch case e: ElabError => report(e)
 
   /** Runs `f`; if it fails, the items and names it added are removed (an item with an error is dropped). */
   private def itemTransaction[A](f: => A): A =
