@@ -44,6 +44,9 @@ enum ElabProblem extends Problem:
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
 
+  /** A family's type argument (`what`: "type argument `A` of family `nil`") that nothing determines. */
+  case UndeterminedTypeArgument(what: String, at: Span)
+
   /** A module (record) does not match the signature (record type) `expected` it is checked against. */
   case SignatureMismatch(expected: String, note: String, at: Span)
   case MissingSignatureField(label: String, expected: String, at: Span)
@@ -88,6 +91,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
     case _: CyclicRefinement => Code.E0404
     case _: CyclicTypeDefinition => Code.E0104
@@ -126,6 +130,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case UndeterminedTypeArgument(_, s) => s
     case SignatureMismatch(_, _, s) => s
     case MissingSignatureField(_, _, s) => s
     case CyclicRefinement(_, s) => s
@@ -166,6 +171,7 @@ enum ElabProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
     case _: SignatureMismatch => msg"signature mismatch"
     case MissingSignatureField(l, _, _) => msg"signature mismatch: missing field ${Src(l)}"
     case CyclicRefinement(n, _) => msg"cyclic refinement ${Src(n)}"
@@ -195,6 +201,7 @@ enum ElabProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case _: UndeterminedTypeArgument => msg"type not determined"
     case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
     case MissingSignatureField(l, _, _) => msg"field ${Src(l)} is required"
     case _: CyclicTypeDefinition => msg"refers back to the definition"
@@ -259,6 +266,7 @@ enum ElabProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
+    case _: UndeterminedTypeArgument => List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")
     case IncompleteFieldParameter(_, p, l, _, _, _) => List(msg"add ${Src(s"%complete $l")} to the signature of ${Src(p)}")
     case _: IncompleteRelationParameter =>

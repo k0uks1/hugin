@@ -19,7 +19,10 @@ trait Applications:
     while more do
       force(ty) match
         case Val.Pi(x, Icit.Impl, a, cl) =>
-          val m = freshMeta(c, a, Stage.S1, span, s"the implicit argument `$x`")
+          val what = Tm.unloc(r._1) match
+            case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => s"type argument `$x` of family `${globals(id).name}`"
+            case _ => s"the implicit argument `$x`"
+          val m = freshMeta(c, a, Stage.S1, span, what)
           t = Tm.App(t, m, Icit.Impl)
           ty = inst(cl, ev(c, m))
         case _ => more = false
