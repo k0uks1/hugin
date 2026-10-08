@@ -26,6 +26,10 @@ enum GlobalKind:
   /** A constructor of the family `family`. */
   case Constructor(family: Int)
 
+  /** `Sym`, the builtin meta type of references to object constants (reflection, REDESIGN §6.8): its
+   *  values are quoted object constants `⟨r⟩`, compared by identity (`Sym : Type = %builtin symbol.`). */
+  case Symbols
+
   /** A function defined by clauses: its case tree over its first `arity` arguments (both known once its
    *  clauses are elaborated; arity -1 before). */
   case Function(arity: Int, tree: Option[CaseTree])

@@ -88,7 +88,10 @@ final class ElabState:
  *  - [[Inductives]]: inductive families, constructors, positivity, nat literals; [[Patterns]],
  *    [[Clauses]], [[IndexUnifier]]: functions defined by clauses, elaborated into case trees with
  *    coverage checking; [[SizeChange]]: their termination;
- *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
+ *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics;
+ *  - [[Reflective]], [[Quotes]], [[QuotedPatterns]], [[Reflection]]: object syntax as data (REDESIGN
+ *    §6.8–6.9): the prelude's reflective types, reification of quoted syntax in expressions and
+ *    patterns, reflection of data back into object code.
  */
 class Elaborator(
     val core: Core,
@@ -123,6 +126,10 @@ class Elaborator(
     with Imports
     with CompleteParameters
     with ObjectItems
+    with Reflective
+    with Quotes
+    with QuotedPatterns
+    with Reflection
     with Tooling:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =

@@ -41,3 +41,98 @@ bounded (g : graph) (limit : int) = {
   hop X Y 1 :- g.edge X Y.
   hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
 }.
+
+(* Reflection (docs/REDESIGN.md §6.8-6.9): object syntax as data. Object syntax written where one of
+   these types is expected is quoted (`[ (p X :- q X) ]`); in a pattern it is a quoted pattern with holes
+   `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the program. *)
+seq : Type -> Type.
+snil : seq A.
+scons : A -> seq A -> seq A.
+
+sappend : seq A -> seq A -> seq A.
+sappend snil Ys = Ys.
+sappend (scons X Xs) Ys = scons X (sappend Xs Ys).
+
+(* References to object constants, compared by identity *)
+sym : Type = %builtin symbol.
+
+(* De Bruijn indices of the variables bound by aggregates (locally nameless) *)
+index : Type.
+izero : index.
+isuc : index -> index.
+
+arith_op : Type.
+oadd : arith_op.
+osub : arith_op.
+omul : arith_op.
+odiv : arith_op.
+ocat : arith_op.
+
+cmp_op : Type.
+ceq : cmp_op.
+cne : cmp_op.
+clt : cmp_op.
+cle : cmp_op.
+cgt : cmp_op.
+cge : cmp_op.
+
+agg_op : Type.
+acount : agg_op.
+asum : agg_op.
+amin : agg_op.
+amax : agg_op.
+
+term : Type.
+tvar : string -> term.
+tbound : index -> term.
+twild : term.
+tint : int -> term.
+tfloat : float -> term.
+tstr : string -> term.
+tapp : sym -> seq term -> term.
+tarith : arith_op -> term -> term -> term.
+tneg : term -> term.
+
+formula : Type.
+fatom : sym -> seq term -> formula.
+fcmp : cmp_op -> term -> term -> formula.
+fnot : formula -> formula.
+fconj : formula -> formula -> formula.
+fdisj : formula -> formula -> formula.
+(* `X = k { t | φ }`: `t` and `φ` are under one binder, the variable `t` names *)
+fagg : agg_op -> term -> term -> formula -> formula.
+
+rule : Type.
+horn : seq formula -> seq formula -> rule.
+
+item : Type.
+irule : rule -> item.
+iquery : seq formula -> item.
+
+module : Type = seq item.
+
+(* Instantiating the variable bound at index K by W (what a higher-order hole `$F[V]` abstracts) *)
+pick : index -> index -> term -> term -> term.
+pick izero izero W B = W.
+pick izero (isuc J) W B = B.
+pick (isuc K) izero W B = B.
+pick (isuc K) (isuc J) W B = pick K J W B.
+
+openT : index -> term -> term -> term.
+openT K W (tbound J) = pick K J W (tbound J).
+openT K W (tapp S Ts) = tapp S (openTs K W Ts).
+openT K W (tarith O A B) = tarith O (openT K W A) (openT K W B).
+openT K W (tneg A) = tneg (openT K W A).
+openT K W T = T.
+
+openTs : index -> term -> seq term -> seq term.
+openTs K W snil = snil.
+openTs K W (scons T Ts) = scons (openT K W T) (openTs K W Ts).
+
+openF : index -> term -> formula -> formula.
+openF K W (fatom S Ts) = fatom S (openTs K W Ts).
+openF K W (fcmp C A B) = fcmp C (openT K W A) (openT K W B).
+openF K W (fnot F) = fnot (openF K W F).
+openF K W (fconj F G) = fconj (openF K W F) (openF K W G).
+openF K W (fdisj F G) = fdisj (openF K W F) (openF K W G).
+openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isuc K) W F).

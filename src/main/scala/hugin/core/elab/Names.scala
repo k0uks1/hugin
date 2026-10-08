@@ -27,12 +27,16 @@ trait Names:
           case Some(id) =>
             state.used += id
             recordUse(span, id)
-            val g = globals(id)
-            (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
+            globalRef(id)
           case None =>
             builtinTypes.get(n).filter(_ => file.builtinNames) match
               case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
               case None => unresolved(c, n, span)
+
+  /** A global, already resolved. */
+  def globalRef(id: Int): (Tm, Val, Stage) =
+    val g = globals(id)
+    (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
 
   /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
    *  a third of the name's length). */

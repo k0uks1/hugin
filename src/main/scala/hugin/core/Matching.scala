@@ -39,13 +39,29 @@ trait Matching:
     case CaseTree.Leaf(body, size, order, _, _) =>
       Option.when(env.length == size)(eval(order.reverseIterator.map(env).toList, body))
     case CaseTree.Split(level, branches) =>
-      force(env(level)) match
+      forceData(env(level)) match
         case Rigid(Head.Glob(c), csp) =>
           branches.find(_.ctor == c).flatMap { b =>
             val args = csp.reverse.collect { case Elim.EApp(a, _) => a }
             if args.length == b.arity then runTree(b.tree, env ++ args) else None
           }
         case _ => None
+    case CaseTree.SplitAtom(level, branches, default) =>
+      atomKey(env(level)).flatMap(k => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env))
+
+  /** A value forced, without the positions around it (reflected data carries the positions of the object
+   *  syntax it was reified from, REDESIGN §6.8). */
+  def forceData(v: Val): Val = force(Val.unloc(force(v)))
+
+  /** The key of a canonical atom (a reference to an object constant, a meta literal), as split on by
+   *  [[CaseTree.SplitAtom]]; `None` for a value that is not one (yet). */
+  def atomKey(v: Val): Option[Tm] = forceData(v) match
+    case Lit(l, Stage.S1) => Some(Tm.Lit(l, Stage.S1))
+    case Quote(t) =>
+      forceData(t) match
+        case Rigid(Head.Glob(id), Nil) => Some(Tm.Quote(Tm.Global(id)))
+        case _ => None
+    case _ => None
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
   def closedKey(args: List[Val]): Option[List[Tm]] =
@@ -57,6 +73,7 @@ trait Matching:
     case Tm.App(f, a, _) => closed(f) && closed(a)
     case Tm.Rec(fs) => fs.forall(f => closed(f._2))
     case Tm.Quote(a) => closedObject(a)
+    case Tm.Obj(ObjForm.Loc(_), List(a)) => closed(a)
     case Tm.Arith(_, a, b, _) => closed(a) && closed(b)
     case _ => false
 

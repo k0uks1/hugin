@@ -1,6 +1,6 @@
 package hugin.core
 
-import hugin.util.Span
+import hugin.util.{Origin, Span}
 
 /** What one item of a module elaborated to. Object items are kept as elaborated (with the meta code they
  *  splice); the handover to the object level stages them ([[hugin.core.handover]]). */
@@ -10,9 +10,20 @@ enum CoreItem:
   /** An object rule: its variables (with their object types, possibly unsolved metas) bind in the heads
    *  and the body. A `generic` rule has unsolved object types among the implicit arguments of the
    *  families it uses (`len nil 0.`): it is a family of rules, instantiated at every instance of its
-   *  head's family ([[handover.Generics]]). */
-  case RuleItem(name: Option[Name], vars: List[(Name, Tm)], heads: List[Tm], body: Option[Tm], span: Span, generic: Boolean = false)
-  case QueryItem(vars: List[(Name, Tm)], body: Tm, span: Span)
+   *  head's family ([[handover.Generics]]). `origin` is its expansion chain if it is generated (reflected,
+   *  REDESIGN §6.8). */
+  case RuleItem(
+      name: Option[Name],
+      vars: List[(Name, Tm)],
+      heads: List[Tm],
+      body: Option[Tm],
+      span: Span,
+      generic: Boolean = false,
+      origin: Origin = Origin.Source
+  )
+
+  /** A query; `origin` is its expansion chain if it is generated (reflected, REDESIGN §6.8). */
+  case QueryItem(vars: List[(Name, Tm)], body: Tm, span: Span, origin: Origin = Origin.Source)
 
   /** `τ <: a.`: closed object types. */
   case EdgeItem(sub: Tm, sup: Tm, span: Span)

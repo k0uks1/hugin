@@ -12,6 +12,8 @@ enum Tok:
     Bar, Eq, Lt, Gt, Plus, Minus, Star, Slash, Caret, LParen, RParen, LBrace, RBrace, LBrack, RBrack
   // the meta level's `$` (splice, REDESIGN §6.9), `⇑` (lift) and `where`
   case Dollar, Up, KwWhere
+  // `::`, the meta level's list constructor (reflection, REDESIGN §6.9)
+  case ColonColon
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -75,6 +77,7 @@ object Lexer:
     Tok.LBrack -> "[",
     Tok.RBrack -> "]",
     Tok.Dollar -> "$",
+    Tok.ColonColon -> "::",
     Tok.Up -> "⇑",
     Tok.KwWhere -> "where",
     Tok.KwType -> "type",
@@ -175,6 +178,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
       def sym(k: Tok, n: Int): Token = { pos += n; mk(k, start, space) }
       c match
         case ':' if peek(1) == '-' => sym(Tok.Turnstile, 2)
+        case ':' if peek(1) == ':' => sym(Tok.ColonColon, 2)
         case ':' => sym(Tok.Colon, 1)
         case '?' if peek(1) == '-' => sym(Tok.Query, 2)
         case '-' if peek(1) == '>' => sym(Tok.Arrow, 2)

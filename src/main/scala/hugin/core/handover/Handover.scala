@@ -131,11 +131,13 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
     staged(r.vars, r.heads ++ r.body.toList, r.span, base) { (terms, normal) =>
       val heads = normal.take(r.heads.length).map(terms.term(_))
       val body = normal.drop(r.heads.length).flatMap(terms.formulas(_))
-      obj.Rule(r.name.map(qualify(prefix, _)), heads, body)(r.span, origin)
+      obj.Rule(r.name.map(qualify(prefix, _)), heads, body)(r.span, Origin(r.origin.frames ++ origin.frames))
     }
 
   private def query(q: CoreItem.QueryItem, base: List[Val] = Nil, origin: Origin = Origin.Source): Option[obj.Query] =
-    staged(q.vars, List(q.body), q.span, base)((terms, normal) => obj.Query(terms.formulas(normal.head))(q.span, origin))
+    staged(q.vars, List(q.body), q.span, base)((terms, normal) =>
+      obj.Query(terms.formulas(normal.head))(q.span, Origin(q.origin.frames ++ origin.frames))
+    )
 
   private def edge(e: CoreItem.EdgeItem, base: List[Val] = Nil, origin: Origin = Origin.Source): Option[obj.Edge] =
     Tm.unloc(nf(base, e.sup)) match

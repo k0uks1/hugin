@@ -13,6 +13,11 @@ trait Coercions:
   /** Coerces `t : a` (stage `s`) to `a2` (stage `s2`), inserting quotes, splices, lifts and record
    *  coercions; falls back to unification. */
   def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
+    reflectiveKind(a).filter(k => s == Stage.S1 && s2 == Stage.S0 && (k == RKind.Formula || k == RKind.Term)) match
+      case Some(k) => reflectCode(c, t, k, span, Some(a2))._1
+      case None => coeStaged(c, span, t, a, s, a2, s2)
+
+  private def coeStaged(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
     try
       if s2 == Stage.S0 && isObjectData(a2) then
         // object data is coerced softly (the object typer decides), also a persisted meta primitive
@@ -147,12 +152,19 @@ trait Coercions:
     val (at, aty, s) = infer(c, a)
     if s == Stage.S0 then
       fail(TypeProblem.SpliceOfObjectCode(a.span))
+    reflectiveKind(aty).filter(k => k == RKind.Formula || k == RKind.Term) match
+      case Some(k) =>
+        val (tm, ty) = reflectCode(c, at, k, span, None)
+        (tm, ty, Stage.S0)
+      case None => splicedCode(c, at, aty, a.span, span)
+
+  private def splicedCode(c: Cxt, at: Tm, aty: Val, argSpan: Span, span: Span): (Tm, Val, Stage) =
     force(aty) match
       case Val.Lift(x) => (Tm.splice(at), x, Stage.S0)
       case Val.Base(b, Stage.S1) => (Tm.Persist(at), Val.Base(b, Stage.S0), Stage.S0)
       case other =>
         val m = ev(c, freshMeta(c, Val.U0, Stage.S0, span, "the object type of a splice"))
-        unifyAt(c, a.span, Val.Lift(m), other)
+        unifyAt(c, argSpan, Val.Lift(m), other)
         (Tm.splice(at), m, Stage.S0)
 
   /** Moves an inferred term to another stage. */

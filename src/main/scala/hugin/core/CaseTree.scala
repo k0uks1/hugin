@@ -14,4 +14,9 @@ enum CaseTree:
   case Leaf(body: Tm, size: Int, order: Vector[Int], names: Vector[Name], patterns: List[Tm])
   case Split(level: Int, branches: List[CaseBranch])
 
+  /** A split on a variable of a type with decidable equality but no constructors (the references to
+   *  object constants `Sym`, meta literals in quoted patterns): a branch per value the clauses name
+   *  (`value` is closed and normal), and `default` for every other value. */
+  case SplitAtom(level: Int, branches: List[(Tm, CaseTree)], default: CaseTree)
+
 final case class CaseBranch(ctor: Int, arity: Int, tree: CaseTree)

@@ -21,11 +21,12 @@ trait ObjectItems:
     }
     (c, out)
 
-  def elabRule(r: Rule): Unit = items += ruleItem(Cxt.empty, r)
+  def elabRule(r: Rule): Unit = if !elabSpliceItem(r) then items += ruleItem(Cxt.empty, r)
 
-  /** A rule in the context `base` (a module body's environment and members, or empty). */
-  def ruleItem(base: Cxt, r: Rule): CoreItem =
-    warnSingletons(r.heads ++ r.body.toList)
+  /** A rule in the context `base` (a module body's environment and members, or empty); `lint` is false for
+   *  generated rules. */
+  def ruleItem(base: Cxt, r: Rule, lint: Boolean = true): CoreItem =
+    if lint then warnSingletons(r.heads ++ r.body.toList)
     val start = metas.length
     val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
     val heads = r.heads.map(h => elabHead(c, h))
