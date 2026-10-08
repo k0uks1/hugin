@@ -41,6 +41,7 @@ enum ObjectProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+  case ObjectArity(name: String, expected: Int, found: Int, at: Span, declared: Span)
 
   /** A functor negates or aggregates over (`what`) the field `label` of its parameter `param` without the
    *  signature requiring `%complete label`; the requirement would be inserted at `insertAt`. */
@@ -76,6 +77,7 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: ObjectArity => Code.E0207
     case _: IncompleteFieldParameter | _: IncompleteRelationParameter => Code.E0210
     case _: FormulaModeArity => Code.E0701
     case _: FormulaOutputsUnbound => Code.E0501
@@ -109,6 +111,7 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case ObjectArity(_, _, _, s, _) => s
     case IncompleteFieldParameter(_, _, _, s, _, _) => s
     case IncompleteRelationParameter(_, _, s, _) => s
     case FormulaModeArity(_, _, _, s) => s
@@ -143,6 +146,7 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case ObjectArity(n, e, f, _, _) => msg"${Src(n)} expects $e argument${Lit(if e == 1 then "" else "s")}, found $f"
     case IncompleteFieldParameter(w, p, l, _, _, _) =>
       msg"the functor ${Lit(w)} the relation parameter ${Src(s"$p.$l")} without requiring ${Src(s"%complete $l")}"
     case IncompleteRelationParameter(w, p, _, _) => msg"the function ${Lit(w)} the relation parameter ${Src(p)}"
@@ -167,6 +171,7 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case ObjectArity(_, _, f, _, _) => msg"$f argument${Lit(if f == 1 then "" else "s")} given"
     case IncompleteFieldParameter(_, p, l, _, _, _) => msg"${Src(s"$p.$l")} may be bound to an incomplete relation"
     case IncompleteRelationParameter(_, p, _, _) => msg"${Src(p)} may be bound to an incomplete relation"
     case FormulaOutputsUnbound(_, m, _, _) => msg"mode ${Lit(m)}"
@@ -185,6 +190,7 @@ enum ObjectProblem extends Problem:
     case DataAsRelation(_, w, _, _, d, _, _) if d.exists => List(d -> msg"declared here as a ${Lit(w)}")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
     case DuplicateMember(_, _, first) => List(first -> msg"first declared here")
+    case ObjectArity(_, _, _, _, d) if d.exists => List(d -> msg"declared here")
     case IncompleteFieldParameter(_, p, _, _, d, _) => List(d -> msg"parameter ${Src(p)} declared here")
     case IncompleteRelationParameter(_, p, _, d) => List(d -> msg"parameter ${Src(p)} declared here")
     case _ => Nil

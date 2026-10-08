@@ -2,7 +2,7 @@ package hugin.core
 package elab
 
 import hugin.syntax.{Tree, TreeOps}
-import hugin.syntax.Trees.RecordLit
+import hugin.syntax.Trees.{Apply, RecordLit}
 import hugin.util.*
 import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
@@ -72,6 +72,19 @@ trait Applications:
       Tm.Trace(TraceFrame(s"in application of `${hugin.syntax.Printer.show(TreeOps.flattenApp(f)._1)}`", span), t)
     case _ => t
 
+  /** The number of columns an object relation or constructor of type `ty` still takes (if any). */
+  def missingColumns(ty: Val): Option[Int] =
+    def go(t: Val, n: Int): Int = force(t) match
+      case Val.Pi(_, _, d, cl) if stageOfType(d) == Stage.S0 => go(inst(cl, Val.Wild), n + 1)
+      case _ => n
+    Option.when(isFactConstantType(ty))(go(ty, 0)).filter(_ > 0)
+
+  /** E0207: the relation or constructor `head` (elaborated in `t`) applied to `found` instead of
+   *  `expected` arguments. */
+  def objectArity(head: Tree, t: Tm, expected: Int, found: Int, span: Span): Nothing =
+    val declared = objectHead(t).map(globals(_).span).getOrElse(Span.NoSpan)
+    fail(ObjectProblem.ObjectArity(hugin.syntax.Printer.show(head), expected, found, span, declared))
+
   /** The codomain of an object arrow (object arrows are not dependent). */
   private def objectCodomain(ty: Val): Val = force(ty) match
     case Val.Pi(_, _, _, cl) => inst(cl, Val.Wild)
@@ -102,6 +115,9 @@ trait Applications:
 
   private def notAFunction(c: Cxt, f: Tree, a: Tree, ty: Val, ft: Tm): Nothing =
     requireDeclared(ft)
+    if force(ty) == Val.RelT then
+      val (head, args) = TreeOps.flattenApp(Apply(f, a)(f.span.to(a.span)))
+      objectArity(head, ft, args.length - 1, args.length, f.span.to(a.span))
     val why = ty match
       case Val.RelT | Val.PropT => "it is already a complete atom: too many arguments"
       case _ => s"its type `${show(c, ty)}` is not a function type"
