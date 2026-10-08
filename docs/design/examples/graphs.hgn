@@ -1,0 +1,61 @@
+(* Today's two definitions of reachability (issue #52). At the object level, reachability is the least
+   fixed point of two rules over the facts of `road`. At the meta level, a function must be structurally
+   recursive, so the same closure is computed by iterating a step a bounded number of times (the number
+   of edges suffices), with explicit set operations. The two definitions do not share their structure:
+   one is a fixed point, the other a fold with fuel. *)
+
+(* The object definition: the prelude's functor `tc`. *)
+road : int -> int -> rel.
+road 1 2. road 2 3. road 3 1. road 4 5.
+roads = tc { node = int, edge = road }.
+
+(* The meta definition over a graph known at compile time. *)
+medge : Type.
+me : int -> int -> medge.
+
+nat : Type.  zero : nat.  suc : nat -> nat.
+
+size : seq medge -> nat.
+size [] = zero.
+size (E :: Es) = suc (size Es).
+
+mem : int -> seq int -> bool.
+mem X [] = false.
+mem X (Y :: Ys) = bor (same X Y) (mem X Ys).
+
+addNew : int -> seq int -> seq int.
+addNew X Ys = addIf (mem X Ys) X Ys.
+
+addIf : bool -> int -> seq int -> seq int.
+addIf true X Ys = Ys.
+addIf false X Ys = X :: Ys.
+
+(* One step: add the target of every edge whose source is reached. *)
+step : seq medge -> seq int -> seq int.
+step [] R = R.
+step (me A B :: Es) R = step Es (stepEdge (mem A R) B R).
+
+stepEdge : bool -> int -> seq int -> seq int.
+stepEdge true B R = addNew B R.
+stepEdge false B R = R.
+
+iter : nat -> seq medge -> seq int -> seq int.
+iter zero G R = R.
+iter (suc N) G R = iter N G (step G R).
+
+(* the nodes reachable from X by a path of at least one edge *)
+reach : seq medge -> int -> seq int.
+reach G X = iter (size G) G (step G [X]).
+
+mroads : seq medge = [me 1 2, me 2 3, me 3 1, me 4 5].
+
+howmany : seq int -> int.
+howmany [] = 0.
+howmany (X :: Xs) = howmany Xs + 1.
+
+static_reach : int -> rel.
+static_reach (howmany (reach mroads 1)).
+dynamic_reach : int -> rel.
+dynamic_reach N :- N = count { Y | roads.path 1 Y }.
+%output static_reach.
+%output dynamic_reach.
