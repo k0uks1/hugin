@@ -6,7 +6,7 @@ import hugin.syntax.Trees.*
 import hugin.util.*
 
 /** Universes and sorts: `type` (object types, U₀), `Type` (meta types, levels inferred and cumulative,
- *  REDESIGN §11 Q1), the object sorts `rel` and `prop`, builtin base types; elaborating types and the
+ *  reference: meta/universes), the object sorts `rel` and `prop`, builtin base types; elaborating types and the
  *  stage of a type's values. */
 trait Universes:
   self: Elaborator =>

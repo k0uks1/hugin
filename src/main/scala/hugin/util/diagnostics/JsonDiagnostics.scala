@@ -7,7 +7,8 @@ import hugin.util.{Diagnostic, Origin, Span}
  *
  *  {{{
  *  {"version":1,
- *   "code":{"id":"<id>","title":"...","explanation":"docs/errors/<id>.md"} | null,
+ *   "code":{"id":"<id>","title":"...","explanation":"docs/errors/<id>.md",
+ *           "url":"<site-url>errors/<id>.html"} | null,
  *   "level":"error"|"warning"|"note", "message":"...",
  *   "spans":[{"file","start":{"line","col"},"end":{"line","col"},"primary","label"}],
  *   "notes":["..."], "helps":["..."],
@@ -16,8 +17,10 @@ import hugin.util.{Diagnostic, Origin, Span}
  *   "rendered":"error[E0602]: ..."}
  *  }}}
  *
- *  Lines and columns are 1-based; columns count code points; `end` is exclusive. Spans without a source
- *  position are left out of `spans`. `rendered` is the terminal rendering without colour. */
+ *  `explanation` is the explanation's path in the repository, `url` its page in the error index of the
+ *  published language reference (`<site-url>` is `reference/site-url.txt`). Lines and columns are
+ *  1-based; columns count code points; `end` is exclusive. Spans without a source position are left out of
+ *  `spans`. `rendered` is the terminal rendering without colour. */
 object JsonDiagnostics:
   val Version = 1
 
@@ -36,7 +39,12 @@ object JsonDiagnostics:
     )
 
   private def code(c: Code): Json =
-    Json.obj("id" -> Json.str(c.id), "title" -> Json.str(c.title), "explanation" -> Json.str(c.explanationPath))
+    Json.obj(
+      "id" -> Json.str(c.id),
+      "title" -> Json.str(c.title),
+      "explanation" -> Json.str(c.explanationPath),
+      "url" -> Json.str(c.explanationUrl)
+    )
 
   private def position(sp: Span, offset: Int): Json =
     val src = sp.source

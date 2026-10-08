@@ -10,7 +10,7 @@ enum PatternTerm:
   case Literal(value: hugin.syntax.Literal)
   case Other
 
-/** An attribute of a declaration (REDESIGN §7.2): what the primitive directives attach. */
+/** An attribute of a declaration (reference: directives): what the primitive directives attach. */
 enum Attribute(val directive: String):
   case Input extends Attribute("%input")
   case Output extends Attribute("%output")
@@ -30,7 +30,7 @@ enum DeclValue:
 /** Data of type `decl` that is not closed: the value as shown, and its position. */
 final class OpenDeclData(val shown: String, val span: Span) extends Exception(shown, null, false, false)
 
-/** Reads the values of the prelude's type `decl` (REDESIGN §7.1): `dconst ⟨c⟩ attrs`, `drule "r" attrs`
+/** Reads the values of the prelude's type `decl` (reference: directives): `dconst ⟨c⟩ attrs`, `drule "r" attrs`
  *  and `derror "message"`, with the attributes `ainput`, `aoutput`, `aopen`, `aderivations` and
  *  `aterminates m t̄`. The data must be closed (normalised in a closed environment); constructors are
  *  recognised by name, which is safe since the data has the prelude's type. */

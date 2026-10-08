@@ -165,7 +165,7 @@ object ProgramGen:
       if chance(0.4) then boundColumns(decls, facts, rules, derived)
       Generated(decls.toVector, facts.toVector, rules.toVector, inputs.toVector, derived.map(_.name).toVector, demand)
 
-    /** Relations with bound columns (docs/REDESIGN.md §5.2) over a small weighted graph `wg` with seeds
+    /** Relations with bound columns (reference: object/bound-columns) over a small weighted graph `wg` with seeds
      *  `ws`: `w0` keeps the best value per node (`min` or `max`), propagated along edges by type-consistent
      *  rules (a positive multiple of the value plus the weight, guards in the improving direction), so
      *  cycles may diverge to `∞`; sometimes `w1` of the other kind mirrors `w0` with a negative

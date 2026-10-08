@@ -6,7 +6,7 @@ import hugin.obj.DirKind
 import hugin.core.elab.{DirectiveProblem, ReflectionProblem}
 import hugin.util.*
 
-/** The attributes that local directives attach to declarations (REDESIGN §7.1–7.2), staged: the `decl`
+/** The attributes that local directives attach to declarations (reference: directives), staged: the `decl`
  *  value of a [[CoreItem.DeclItem]] is evaluated (in a module instance's environment, or closed) and read
  *  ([[DeclAttributes]]), and each attribute becomes an object directive of the relation (or rule) it
  *  describes. What the data does not allow is reported: a target that is not a relation (E0701, E0406),

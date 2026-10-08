@@ -1,0 +1,19 @@
+(* A.2 (7), rewritten after %partial and round budgets were removed (reference: object/bound-columns):
+   recursion through arithmetic that nothing bounds terminates when the value is a bound column. `cost`
+   keeps the least cost per node; the cycle b -> c -> b has a negative total, so the costs on and after
+   it improve forever and become -∞, while `a` keeps its finite value. Without the bound column the same
+   rules are rejected (a07_unbounded). *)
+node : type.
+a : node. b : node. c : node. d : node.
+edge : node -> node -> int -> rel.
+edge a b 1.
+edge b c 2.
+edge c b (-3).
+edge c d 1.
+start : node -> rel.
+start a.
+
+cost : (v : node) -> (d : min int) -> rel.
+cost S 0 :- start S.
+cost W (D + C) :- cost V D, edge V W C.
+%output cost.

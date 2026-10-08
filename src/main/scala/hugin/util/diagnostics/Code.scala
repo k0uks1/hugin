@@ -160,8 +160,12 @@ enum Code(
   /** The explanation, packaged as a resource (from `docs/errors/<id>.md`). */
   def explanationResource: String = s"/hugin/errors/$id.md"
 
-  /** The explanation's path in the repository (used as a link by JSON output and the LSP). */
+  /** The explanation's path in the repository. */
   def explanationPath: String = s"docs/errors/$id.md"
+
+  /** The explanation's page in the error index of the published language reference
+   *  (`<site-url>errors/<id>.html`), linked by `hugin explain`, the JSON output and the LSP. */
+  def explanationUrl: String = s"${Explanations.siteUrl}errors/$id.html"
 
 object Code:
   /** The block of the codes of directives (see [[Phase.UserDirectives]]). */

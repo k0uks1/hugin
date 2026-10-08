@@ -134,7 +134,7 @@ object ProgramElab:
   /** A program assembled from its declarations and its object items (in source order): the items are
    *  moved into a fork of the declarations' core (an item that is not portable is elaborated again
    *  there), then the checks across items run. If the items contain a module-wide directive, their rules
-   *  and queries are replaced by the expansion of the module (REDESIGN §7.1): every rule and query then
+   *  and queries are replaced by the expansion of the module (reference: directives): every rule and query then
    *  depends on the expansion, while the items of local directives are kept as elaborated. */
   def assemble(decls: ElaboratedDeclarations, results: List[ElaboratedItem]): (Elaborated, List[Diagnostic], SemanticIndex) =
     val core = decls.core.fork()

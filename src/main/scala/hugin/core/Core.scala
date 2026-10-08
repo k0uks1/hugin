@@ -26,7 +26,7 @@ enum GlobalKind:
   /** A constructor of the family `family`. */
   case Constructor(family: Int)
 
-  /** `Sym`, the builtin meta type of references to object constants (reflection, REDESIGN §6.8): its
+  /** `Sym`, the builtin meta type of references to object constants (reference: reflection): its
    *  values are quoted object constants `⟨r⟩`, compared by identity (`Sym : Type = %builtin symbol.`). */
   case Symbols
 
@@ -39,7 +39,7 @@ enum GlobalKind:
    *  `scons`). */
   case Primitive(op: PrimOp, ctors: List[Int])
 
-/** What an object constant declares (REDESIGN §3.1). The core only needs to know that it is an object
+/** What an object constant declares (reference: object/index). The core only needs to know that it is an object
  *  constant; the handover to the object level ([[hugin.core.handover]]) needs the rest. */
 enum ObjDecl:
   /** `a : type.` */
@@ -51,7 +51,7 @@ enum ObjDecl:
   /** `r : τ̄ -> rel.` */
   case Relation
 
-  /** `c : τ̄ -> a.`: a fact constructor (REDESIGN §3.2), also the relation of its facts. */
+  /** `c : τ̄ -> a.`: a fact constructor (reference: object/facts), also the relation of its facts. */
   case Constructor
 
   /** `s : type = { l : τ, … }.`: a relation whose fact type is `s`. */

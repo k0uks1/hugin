@@ -148,7 +148,7 @@ final class SemanticIndex:
   def scopes: Seq[ScopeExtent] = scopeExtents.toSeq
 
 object SemanticIndex:
-  /** The staging of object code inside meta code (REDESIGN §6.9). */
+  /** The staging of object code inside meta code (reference: meta/staging). */
   enum Stage:
     /** Object code passed where meta code is expected becomes a code value `⟨t⟩`. */
     case Quoted

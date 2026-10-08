@@ -5,7 +5,7 @@ import hugin.syntax.Trees
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Module bodies `{ items }` (REDESIGN §6.7): record values whose object members are generative.
+/** Module bodies `{ items }` (reference: modules): record values whose object members are generative.
  *
  *  The declarations and definitions of a body are its *members*, elaborated in the context of the body
  *  (the enclosing variables, such as a functor's parameters) and of the members before them; each member

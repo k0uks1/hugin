@@ -7,7 +7,7 @@ import hugin.util.*
 import scala.collection.mutable
 
 /** What an object item of a file contributes to the module that module-wide directives rewrite
- *  (REDESIGN §7.1). The terms are closed. */
+ *  (reference: directives). The terms are closed. */
 enum ModulePart:
   /** A rule or query as written: its data is reified from its syntax. */
   case Source(item: Item)
@@ -24,7 +24,7 @@ object ModulePart:
     case r: Rewrite => r.copy(fn = f(r.fn))
     case s: Source => s
 
-/** Module-wide directives (`module -> module`, REDESIGN §7.1) rewrite the rules and queries of the file.
+/** Module-wide directives (`module -> module`, reference: directives) rewrite the rules and queries of the file.
  *  The elaboration of each object item records what it contributes ([[ModulePart]]); if a module-wide
  *  directive is among them, [[expandModule]] replaces the rules and queries elaborated item by item with
  *  the expansion: in source order, the rules, queries and splices are the module's data, an additive

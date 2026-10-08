@@ -1,6 +1,13 @@
 # Hugin redesign: Datalog∃! below, a total dependent meta level above
 
-Status: **accepted direction, not yet implemented.** This document is the reference for the redesign. It
+> **Status: completed plan, kept as the record.** Phases A, B and C (C1–C3) are done; Phase D
+> (consolidation) is in progress ([issue #40](https://github.com/k0uks1/hugin/issues/40)). The language is
+> now specified by the [language reference](https://k0uks1.github.io/hugin/); where this plan and the
+> reference differ, the reference applies. Deviations from the plan are recorded in the status notes of
+> §10 and in `docs/NOTES.md`; the notes this plan replaced are in `docs/history/`. The text below is the
+> plan as it was accepted and carried out; it is not updated any more except for these status notes.
+
+Original status: accepted direction, not yet implemented. This document was the reference for the redesign. It
 is written so that someone who has not followed the design discussion can start implementing it. It
 records the decisions taken, the reasons for them, what they replace in the current implementation, an
 ordered implementation plan with acceptance criteria, and the questions that are still open.
@@ -935,6 +942,11 @@ an answer of its relation mixes (A) and (B) in one component, rejected) are in d
 the prelude (redesign Phase C3)").
 
 ### Phase D — consolidation
+
+*Status: in progress.* The language reference (issue #49) replaces this plan and `docs/NOTES.md` as the
+specification; the README is rewritten (#51) with the developer material in `CONTRIBUTING.md`;
+superseded notes moved to `docs/history/`; the conformance tests of Appendix A.2 are checked against the
+new semantics.
 
 Rewrite `docs/NOTES.md`, the README language summary and the conformance tests (Appendix A.2) for the new
 semantics; update `docs/LIBRARIES.md` and the prelude; close the redesign in issue #1.

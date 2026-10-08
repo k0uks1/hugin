@@ -45,3 +45,13 @@ Compile / resourceGenerators += Def.task {
     target
   }
 }.taskValue
+
+// the URL of the published language reference (reference/site-url.txt, its single source) is the resource
+// `/hugin/site-url.txt`: the base of the links to the error index printed by `hugin explain`, sent by the
+// language server (`codeDescription`) and included in the JSON diagnostics
+Compile / resourceGenerators += Def.task {
+  val source = (ThisBuild / baseDirectory).value / "reference" / "site-url.txt"
+  val target = (Compile / resourceManaged).value / "hugin" / "site-url.txt"
+  IO.copyFile(source, target)
+  Seq(target)
+}.taskValue

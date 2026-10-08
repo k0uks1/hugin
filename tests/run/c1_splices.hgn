@@ -1,4 +1,4 @@
-(* Reflection in object code (docs/REDESIGN.md §6.8): a meta value of type `formula` or `term` stands for
+(* Reflection in object code (reference: reflection): a meta value of type `formula` or `term` stands for
    the formula or term, with or without `$`; its variables are those of the rule with the same names. *)
 p : int -> rel.
 q : int -> rel.

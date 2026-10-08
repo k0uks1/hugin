@@ -1,7 +1,9 @@
 # Libraries, imports and the prelude
 
 This note describes how a Hugin program is split over several files, how the standard library is
-provided, and how this relates to the module system of Section 4. It addresses issue #6.
+provided, and how this relates to the module system of Section 4 of the definition draft. It addresses
+issue #6. The normative description is the reference chapter [Modules, functors and libraries](https://k0uks1.github.io/hugin/modules.html)
+and [The prelude](https://k0uks1.github.io/hugin/prelude.html); this note records the design and its implementation.
 
 ## Files are module bodies
 
@@ -85,14 +87,16 @@ another name for the same base type. Base types are printed by their builtin nam
 | names | what |
 |---|---|
 | `int`, `float`, `string` | base types |
-| `list A`, `nil`, `cons`, `len` | lists (fact constructors) and their length: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3, REDESIGN §7.4) |
+| `list A`, `nil`, `cons`, `len` | lists (fact constructors) and their length: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3; reference: [directives](https://k0uks1.github.io/hugin/directives.html)) |
 | `option A`, `none`, `some` | optional values |
 | `pair A B` | a struct family with labels `fst`, `snd` |
 | `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
 | `seq A`, `snil`, `scons`, `sappend` | meta lists, written `[]`, `[a, b]` and `x :: xs` |
-| `sym`, `term`, `formula`, `rule`, `item`, `module` | reflection (docs/REDESIGN.md §6.8): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, `inamed`, `ierror`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
-| `decl`, `attr`, `measure`, `attach` | declarations as data, with the attributes the primitive directives attach (docs/REDESIGN.md §7; docs/NOTES.md, "Directives") |
+| `sym`, `term`, `formula`, `rule`, `item`, `module`, `index`, `arith_op`, `cmp_op`, `agg_op`, `column` | reflection (reference: [reflection](https://k0uks1.github.io/hugin/reflection.html)): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, `inamed`, `ierror`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
+| `decl`, `attr`, `measure`, `attach` | declarations as data, with the attributes the primitive directives attach (reference: [directives](https://k0uks1.github.io/hugin/directives.html); docs/NOTES.md, "Directives") |
 | `input`, `output`, `open`, `derivations`, `terminates` | the primitive directives (`%input r.`, …): meta functions returning a `decl` |
+| `bool`, `same`, `labels`, `derive`, `derived` | meta booleans and the primitives on object constants that library directives use |
+| `modes`, `demand` | `%demand r +a -b.`: the demand transformation as a library directive, `demand : (r : sym) -> modes (labels r) -> module -> module` (its helpers are named `d…`; docs/NOTES.md, "Demand in the prelude") |
 
 ## Diagnostics
 
@@ -104,7 +108,7 @@ call chain as before; a call chain may cross files.
 
 Imported files are read through the `SourceText` input of the query database, so they are parsed once
 and an edit to a library invalidates exactly the programs that import it. The prelude and imported files
-are also named and elaborated by queries (`NameLibrary`, `ElabLibrary`), once per database revision:
+are also elaborated by queries (`ElabLibrary`), once per database revision:
 compilations in the same database (the REPL's inputs, the files open in the language server) share
 them, and editing a program does not elaborate its libraries again. Their results are frozen and read by
 the importing compilations; only the evaluation of the meta level runs per compilation. A `SourceText`
@@ -147,7 +151,7 @@ s : shapes_sig = %import "lib/shapes".
 * **Separate compilation.** Every process elaborates the prelude and the imported files from source
   (once, when they are first used).
   The interface of a compiled library would be its signature, its object declarations, and its families
-  as generic templates (monomorphization must happen in the client so that family instances are shared,
+  as generic templates (instances must be created in the client so that family instances are shared,
   Section 4.6). Within one process the query database already shares parsing and elaboration.
 * **Build manifest.** A project file with source roots, dependencies and default facts; a search path for
   imports of installed libraries (`%import "std/graphs"`).

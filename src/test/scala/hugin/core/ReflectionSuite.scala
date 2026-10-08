@@ -8,7 +8,7 @@ import hugin.syntax.{Parser, Printer}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Reflection (docs/REDESIGN.md §6.8–6.9): the syntax of quotes and holes, round trips between object
+/** Reflection (reference: reflection): the syntax of quotes and holes, round trips between object
  *  syntax and reflective data, quoted patterns (symbols, coverage, termination), higher-order holes. */
 class ReflectionSuite extends munit.FunSuite:
   private def show(code: String): String =

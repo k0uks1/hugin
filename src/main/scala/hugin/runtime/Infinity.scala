@@ -2,7 +2,7 @@ package hugin.runtime
 
 import hugin.obj.ArithOp
 
-/** The values `+∞` and `-∞` of integer columns (docs/REDESIGN.md §5.2): the value of a bound column whose
+/** The values `+∞` and `-∞` of integer columns (reference: object/bound-columns): the value of a bound column whose
  *  key improves without limit (Kaminski et al.'s `∞` of limit predicates, with the sign of the column's
  *  direction). Ordered `-∞ < k < +∞` for every integer `k`. */
 enum Infinity:

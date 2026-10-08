@@ -6,7 +6,7 @@ import hugin.obj
 import hugin.util.*
 import scala.collection.mutable
 
-/** Generic rules (REDESIGN §6.7): a rule over the instances of families whose type arguments nothing
+/** Generic rules (reference: meta/families): a rule over the instances of families whose type arguments nothing
  *  determines (`len nil 0.`, `len (cons _ L) M :- len L N, …`) is a family of rules. It is staged at
  *  every instance of its head's family that the staged program uses, by solving its unknowns so that its
  *  head is that instance (by unification, then undone), until no new instances are used. This replaces

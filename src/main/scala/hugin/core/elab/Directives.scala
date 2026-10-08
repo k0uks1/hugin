@@ -5,7 +5,7 @@ import hugin.syntax.{Literal, Printer, Tree}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** What a directive may change, read from the type of its application (REDESIGN §7.1). */
+/** What a directive may change, read from the type of its application (reference: directives). */
 enum Footprint:
   /** `decl`: the declaration of one object constant (or rule); per-item incrementality is kept. */
   case Local
@@ -16,7 +16,7 @@ enum Footprint:
   /** `module -> module`: the file's rules and queries, rewritten. */
   case ModuleWide
 
-/** Directives are meta functions (REDESIGN §7): `%d a₁ … aₙ.` resolves `d` like any name, elaborates the
+/** Directives are meta functions (reference: directives): `%d a₁ … aₙ.` resolves `d` like any name, elaborates the
  *  arguments against `d`'s parameter types (with stage inference and reification: where a `decl` is
  *  expected, a name is quoted as the declaration of its object constant), and the type of the
  *  application gives its footprint ([[Footprint]]). In the prefix form `%d a₁ … aₙ DECL`, `d a₁ … aₙ` must

@@ -68,6 +68,9 @@ class LanguageServerSuite extends munit.FunSuite:
     open(s, uri, "p : int -> rel.\np X :- q X.\n")
     val d = c.published(uri).loneElement
     assertEquals(d.getCode.getLeft, "E0101")
+    // the code links to its page in the error index of the published reference (reference/site-url.txt)
+    val site = Files.readString(Path.of("reference/site-url.txt")).trim
+    assertEquals(d.getCodeDescription.getHref, s"${site.stripSuffix("/")}/errors/E0101.html")
     assertEquals(d.getSeverity, DiagnosticSeverity.Error)
     assertEquals(d.getRange.getStart, Position(1, 7))
     assertEquals(d.getRange.getEnd, Position(1, 8))

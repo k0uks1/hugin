@@ -12,7 +12,7 @@ enum MemberKind:
   case Object(decl: ObjDecl)
   case Defined(value: Tm)
 
-/** A module body `{ items }` (REDESIGN §6.7): its members (a telescope, whose types and definitions see
+/** A module body `{ items }` (reference: modules): its members (a telescope, whose types and definitions see
  *  the body's environment and the members before them) and its object items (rules, queries,
  *  directives, edges, in the context of the environment, the members and their own variables). */
 final case class ModuleBody(id: Int, span: Span, members: List[Member], items: List[CoreItem])
@@ -21,7 +21,7 @@ final case class ModuleBody(id: Int, span: Span, members: List[Member], items: L
  *  the names of its object constants. */
 final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String, placedAt: Span, origin: hugin.util.Origin)
 
-/** Module bodies are **generative** (REDESIGN §6.7): evaluating a body creates fresh object constants for
+/** Module bodies are **generative** (reference: modules): evaluating a body creates fresh object constants for
  *  its object members, and its object items are staged for them ([[handover.Handover]]). To give each
  *  evaluation in the source one instance although normalisation by evaluation may evaluate a term
  *  several times, instances are memoised per body, closed environment and *site*, the top-level item

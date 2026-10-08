@@ -3,7 +3,7 @@ package check
 
 import hugin.compiler.*
 
-/** Phase: bound columns (docs/REDESIGN.md §5.2). Checks the declarations of bound columns (E0605) and that
+/** Phase: bound columns (reference: object/bound-columns). Checks the declarations of bound columns (E0605) and that
  *  every rule reading a bound relation of its own component is type-consistent (E0606,
  *  [[TypeConsistency]]), so that evaluation with best values per key computes the limit semantics. */
 final class BoundColumnsPhase extends Phase:

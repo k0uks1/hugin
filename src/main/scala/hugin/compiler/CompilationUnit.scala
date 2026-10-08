@@ -27,7 +27,7 @@ final class CompilationUnit(val source: SourceFile):
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
-  /** Signature requirements (REDESIGN §6.7) recorded by staging, checked by `directives`. */
+  /** Signature requirements (reference: modules) recorded by staging, checked by `directives`. */
   var requirements: List[RequirementCheck] = Nil
 
   /** Relations that may be incomplete (Section 6.5), computed by `completeness`. */

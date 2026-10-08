@@ -6,7 +6,7 @@ import hugin.syntax.Bound
 import hugin.obj.typing.Moding
 
 /** Type-consistency of a rule over bound columns (Kaminski et al., IJCAI 2017; Berent et al., Def. 4;
- *  docs/REDESIGN.md §5.2), E0606.
+ *  reference: object/bound-columns), E0606.
  *
  *  The *limit variables* of a rule are the variables in the bound column of its positive body atoms over
  *  bound relations of the head's component (`inC`); relations of earlier components are complete, so

@@ -2,7 +2,7 @@ package hugin.core
 
 import scala.collection.mutable
 
-/** Families of object constants (REDESIGN §6.7): `list A : type.` is the meta function `list : ⇑type ->
+/** Families of object constants (reference: meta/families): `list A : type.` is the meta function `list : ⇑type ->
  *  ⇑type`, `nil : list A.` the meta constant `nil : {A : ⇑type} -> ⇑$(list A)`. An application to closed
  *  object types reduces to an *instance*: an object constant created once per family and normalised
  *  arguments (memoised, which gives applicative sharing: one `len[int]` per program), named after the

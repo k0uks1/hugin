@@ -1,6 +1,6 @@
 package hugin.core
 
-/** The compiled pattern match of a meta function defined by clauses (REDESIGN §6.4).
+/** The compiled pattern match of a meta function defined by clauses (reference: meta/clauses).
  *
  *  It works on a growing vector of variables, by level: first the function's arguments (implicit ones
  *  included), then the arguments of each constructor matched so far. A [[CaseTree.Split]] inspects one

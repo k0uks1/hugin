@@ -5,7 +5,7 @@ import hugin.obj
 import hugin.obj.ObjProgram
 import hugin.util.*
 
-/** The handover of an elaborated program to the object level (REDESIGN §10, B3). The object items are
+/** The handover of an elaborated program to the object level (redesign step B3). The object items are
  *  staged — normalised, which runs the meta code they splice ([[Staging]]) — and translated to an
  *  [[ObjProgram]], which the object-level phases (object typing, moding, transformations, checks,
  *  lowering) then process. An item whose staged code is not object code is reported and left out. */

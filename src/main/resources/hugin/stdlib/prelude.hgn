@@ -41,7 +41,7 @@ bounded (g : graph) (limit : int) = {
   hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
 }.
 
-(* Reflection (docs/REDESIGN.md §6.8-6.9): object syntax as data. Object syntax written where one of
+(* Reflection (reference: reflection): object syntax as data. Object syntax written where one of
    these types is expected is quoted (`[ (p X :- q X) ]`); in a pattern it is a quoted pattern with holes
    `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the program. *)
 seq : Type -> Type.
@@ -147,7 +147,7 @@ openF K W (fconj F G) = fconj (openF K W F) (openF K W G).
 openF K W (fdisj F G) = fdisj (openF K W F) (openF K W G).
 openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isuc K) W F).
 
-(* Directives (docs/REDESIGN.md §7): `%d a₁ … aₙ.` applies the meta function `d`, and the type of the
+(* Directives (reference: directives): `%d a₁ … aₙ.` applies the meta function `d`, and the type of the
    application says what it changes. A directive returning a `decl` changes the declaration of an object
    constant (local: `%input r.`; in the prefix form `%d a₁ … aₙ` before a declaration, `d a₁ … aₙ` has type
    `decl -> decl` and is applied to it); one of type `module -> module` rewrites the file's rules and
@@ -178,7 +178,7 @@ attach A (dconst S As) = dconst S (sappend As [A]).
 attach A (drule N As) = drule N (sappend As [A]).
 attach A (derror M) = derror M.
 
-(* The primitive directives (§7.2) *)
+(* The primitive directives (reference: directives) *)
 input : decl -> decl.
 input D = attach ainput D.
 output : decl -> decl.
@@ -192,7 +192,7 @@ terminates : measure -> formula -> decl.
 terminates M (fatom S Ts) = dconst S [aterminates M Ts].
 terminates M F = derror "`%terminates` expects a relation or a call pattern `(r t̄)` after the measure".
 
-(* Demand (docs/REDESIGN.md §7.4): `%demand r +e +g -t.` makes `r` demand-driven, by the magic-sets
+(* Demand (reference: directives): `%demand r +e +g -t.` makes `r` demand-driven, by the magic-sets
    transformation written as ordinary rules. A relation `r.check` over the input columns of `r` is the
    demand: every rule of `r` is guarded by it (`r … :- r.check …, body`), and every call of `r` (in any
    rule or query of the module) passes its inputs as demand, from the conjuncts before it
@@ -323,7 +323,7 @@ ddemand : bool -> sym -> seq sym -> modes Ls -> seq formula -> seq term -> seq r
 ddemand true R Cs M Pre Ts = [horn [fatom (derive R "check") (dinputs M Ts)] (dprefix Cs (dinputs M Ts) Pre)].
 ddemand false R Cs M Pre Ts = [].
 
-(* The formulas a demand rule keeps of the prefix of a call with inputs `Is` (docs/REDESIGN.md §8.1-8.2):
+(* The formulas a demand rule keeps of the prefix of a call with inputs `Is` (reference: directives):
    demand rules are positive and do not wait for answers they do not need. A negation is dropped; a call
    of a demand-driven relation (with a demand relation among `Cs`) or an aggregate is kept only if it
    binds a variable that the inputs or the kept formulas need and that they do not bind themselves. So

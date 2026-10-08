@@ -43,7 +43,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Term.Ascr(x, _) => expr(x)
       case other => throw IllegalStateException(s"cannot lower term ${ObjPrinter.term(other)}")
 
-    /** The value side of a binding equation `X = t` (REDESIGN §3.3). A constructor term is an existence
+    /** The value side of a binding equation `X = t` (reference: object/facts). A constructor term is an existence
      *  check, read as `(c t̄ as X)`: [[BodyOp.Lookup]] fails if `c t̄` is not a fact. So
      *  every fact-constructor subterm of a bound value is a fact. An ascription of a constructor term
      *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to

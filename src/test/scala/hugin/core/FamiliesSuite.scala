@@ -2,7 +2,7 @@ package hugin.core
 
 import StagedTesting.*
 
-/** Families as memoised meta functions (REDESIGN §6.7): instances per normalised arguments, generic rules
+/** Families as memoised meta functions (reference: meta/families): instances per normalised arguments, generic rules
  *  staged at the instances used, polymorphic recursion. */
 class FamiliesSuite extends munit.FunSuite:
   test("an instance per family and normalised arguments, named after them") {

@@ -5,7 +5,7 @@ import hugin.syntax.Literal
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Inductive families (REDESIGN §6.2–6.3). A meta declaration without clauses is classified by its
+/** Inductive families (reference: meta/families). A meta declaration without clauses is classified by its
  *  type: `T : Δ -> Type.` declares an inductive family, `c : Δ -> T ū.` (for a family `T` of the module)
  *  one of its constructors; anything else is a postulate. Constructors are checked for strict positivity
  *  and predicativity (their arguments live in the family's universe). All arguments of a family are

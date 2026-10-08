@@ -7,7 +7,7 @@ import hugin.util.{Diagnostic, Span}
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** Problems of the termination check (E0603, E0604; docs/REDESIGN.md §4): a growing component without a
+/** Problems of the termination check (E0603, E0604; reference: object/termination): a growing component without a
  *  termination argument, and the ways a measure of guarded induction (B), declared by `%terminates` or
  *  tried by the inference, can fail. Reasons are data (the invention site, the cycle, why each direction
  *  fails, the missing guard); the wording is here only.

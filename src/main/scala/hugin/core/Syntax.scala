@@ -3,7 +3,7 @@ package hugin.core
 import hugin.obj.{ArithOp, BaseType}
 import hugin.syntax.Literal
 
-/** Core syntax of the meta level (docs/REDESIGN.md §6): a two-level type theory in the style of
+/** Core syntax of the meta level (reference: meta/index): a two-level type theory in the style of
  *  Kovács, *Staged Compilation with Two-Level Type Theory* (ICFP 2022), with de Bruijn indices.
  *
  *  Stage 0 (`S0`) is the object level (Datalog terms, relations and formulas), stage 1 (`S1`) the meta
@@ -36,7 +36,7 @@ enum Icit:
 
 /** A universe level `v + k` of the meta hierarchy `Type₀ : Type₁ : …`. `v` is a level variable (an index
  *  into [[Levels]]), or [[Level.NoVar]] for the constant `k`. Levels are inferred and never written
- *  (REDESIGN §11, Q1). */
+ *  (reference: meta/universes; redesign question Q1). */
 final case class Level(v: Int, k: Int):
   def succ: Level = Level(v, k + 1)
   def isConst: Boolean = v == Level.NoVar
@@ -114,7 +114,7 @@ enum Tm:
 
   /** `fresh X̄. t`: object variables local to the object code `t` (the variables of a formula function's
    *  clause that are not its parameters). Evaluation binds them to fresh named object variables
-   *  (`X#k`), so every application of a formula function gets its own (hygiene, REDESIGN §6.7). */
+   *  (`X#k`), so every application of a formula function gets its own (hygiene, reference: modules). */
   case Fresh(names: List[Name], body: Tm)
 
   /** A module body with its environment given explicitly (`env`, innermost first: the terms its free

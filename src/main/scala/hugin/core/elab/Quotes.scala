@@ -28,7 +28,7 @@ enum Q:
   /** Data built directly (a declaration's empty attributes, a measure): only in expressions. */
   case Raw(tm: Tm, span: Span)
 
-/** Reification (REDESIGN §6.8–6.9): object syntax written where a reflective type is expected denotes
+/** Reification (reference: reflection): object syntax written where a reflective type is expected denotes
  *  data, with `$x` holes for meta values of reflective types and `$..xs` for sequences. Names of object
  *  constants resolve to their symbols. A plain uppercase variable is an object variable (in a pattern:
  *  any object variable); the variable an aggregate's term names is bound by it (locally nameless).

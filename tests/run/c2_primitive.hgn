@@ -1,4 +1,4 @@
-(* The primitive directives are meta functions of the prelude (docs/REDESIGN.md §7.2): their
+(* The primitive directives are meta functions of the prelude (reference: directives): their
    applications have type `decl`, the declaration of an object constant with its attributes, which the
    compiler attaches. Where a `decl` is expected, a name is quoted as its declaration (`@r` as that of
    a rule). The prefix form `%d a₁ … aₙ` before a declaration applies a `decl -> decl` directive to it;

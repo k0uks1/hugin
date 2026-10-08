@@ -5,7 +5,7 @@ import hugin.TestSupport
 import hugin.fuzz.Fuzz
 import org.scalacheck.{Gen, Prop}
 
-/** The termination check is sound on random integer recursion (docs/REDESIGN.md §4.2): every program it
+/** The termination check is sound on random integer recursion (reference: object/termination): every program it
  *  accepts — by descent along derivations (A) or by guarded induction (B) with an inferred measure —
  *  reaches its fixed point. Rules permute, shift and halve the arguments of one or two mutually recursive
  *  relations under random guards, so many are rejected, and the accepted ones cover both directions. */

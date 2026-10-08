@@ -1,7 +1,9 @@
 # Diagnostics: survey and design
 
-Status: proposal for [issue #41](https://github.com/k0uks1/hugin/issues/41). Documentation only; no code
-has changed yet. It interacts with the redesign ([`docs/REDESIGN.md`](REDESIGN.md), issue #40): the new
+Status: **implemented** (steps M1–M5 and the retirements of M6, see [§3.12](#312-migration-plan); the
+wording review of M6 remains). Written as the proposal for [issue #41](https://github.com/k0uks1/hugin/issues/41)
+and kept as the record of the design; Part 2 describes the code before M1. The explanations are published as
+the [error index](https://k0uks1.github.io/hugin/errors/index.html) of the language reference. It interacts with the redesign ([`docs/REDESIGN.md`](REDESIGN.md), issue #40): the new
 meta elaborator (Phase B) and the size-change termination checker (Phase A1) will add many diagnostics,
 so the typed core described here should land **before Phase B3 and Phase C**.
 
@@ -844,7 +846,7 @@ tools can rely on it (GHC's practice), and modelled on rustc's:
 
 ```json
 {"version":1,"code":{"id":"E0602","title":"negation or aggregation over an incomplete relation",
- "explanation":"docs/errors/E0602.md"},"level":"error",
+ "explanation":"docs/errors/E0602.md","url":"https://k0uks1.github.io/hugin/errors/E0602.html"},"level":"error",
  "message":"query negates or aggregates over the incomplete relation `n`",
  "spans":[{"file":"q.hgn","start":{"line":7,"col":20},"end":{"line":7,"col":23},"byteStart":91,"byteEnd":94,
            "primary":true,"label":"used negatively"},
@@ -862,7 +864,7 @@ lines are also the format for CI annotations and for any future build-tool integ
 | LSP field | from |
 |---|---|
 | `code` | `code.id` |
-| `codeDescription.href` | the explanation's URL: `https://github.com/k0uks1/hugin/blob/<branch>/docs/errors/E0602.md`, configurable for a future docs site |
+| `codeDescription.href` | the explanation's page in the error index of the language reference, `<site-url>errors/E0602.html` (implemented: `site-url` is `reference/site-url.txt`, packaged at build time; `url` in the JSON, the last line of `hugin explain`) |
 | `message` | message, then the primary label; notes and helps follow as now (LSP has no structure for them) |
 | `tags` | `Unnecessary` from `code.unnecessary`, replacing the hard-coded set in `Features.scala`; `Deprecated` when a lint says so |
 | `relatedInformation` | secondary labels, then the expansion chain (as now) |
