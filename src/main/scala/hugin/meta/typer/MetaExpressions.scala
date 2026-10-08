@@ -3,6 +3,7 @@ package typer
 
 import hugin.syntax.TreeOps.flattenApp
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy, Applicability}
 import hugin.syntax.*
 import hugin.syntax.Trees.*
 import hugin.compiler.*
@@ -83,7 +84,7 @@ private[meta] trait MetaExpressions extends TyperBase:
         case (Prim(a), Prim(b)) if a == b && (if aop == ArithOp.Concat then a == BaseType.StringT else a != BaseType.StringT) =>
           (Op(aop, ml, mr, t.span), tl)
         case _ =>
-          ctx.report(Diagnostic.error("E0203", s"operator `$op` cannot be applied to `${showMT(tl)}` and `${showMT(tr)}`", t.span)
+          ctx.report(Legacy.error(DiagCode.E0203, s"operator `$op` cannot be applied to `${showMT(tl)}` and `${showMT(tr)}`", t.span)
             .withNote("`+ - * /` apply to two ints or two floats, `^` to two strings"))
           (MExpr.Err, MType.Err)
     case _: Ident | _: VarRef | _: Select | _: Apply =>
@@ -105,12 +106,12 @@ private[meta] trait MetaExpressions extends TyperBase:
             case Head.Meta(m, mt) =>
               if args.isEmpty then (m, mt) else elabApp(m, mt, args, sc, null, t.span, head)
     case RecordLit(fields, rest) =>
-      if rest then err("E0001", "`..` is only allowed in named patterns", t.span)
+      if rest then err(DiagCode.E0001, "`..` is only allowed in named patterns", t.span)
       val seen = mutable.HashSet.empty[String]
       val fieldScope = localKey()
       val fs = fields.flatMap { f =>
         if !seen.add(f.label.name) then
-          err("E0307", s"duplicate field `${f.label.name}`", f.label.span); None
+          err(DiagCode.E0307, s"duplicate field `${f.label.name}`", f.label.span); None
         else
           val (m, mt) = inferM(f.value, sc)
           val fsym = newParamIn(f.label.name, f.label.span, sc, fieldScope)
@@ -126,7 +127,7 @@ private[meta] trait MetaExpressions extends TyperBase:
           (Ref(s), syms.mtype(s).get)
         case None => (MExpr.Err, MType.Err)
     case b: Builtin =>
-      err("E0103", s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
+      err(DiagCode.E0103, s"`%builtin ${b.name.name}` is only allowed as the definition of a base type", b.span, "not a type declaration")
       (MExpr.Err, MType.Err)
     case mb: ModuleBody =>
       val bsc = Scope(Some(sc), "module body", moduleKey())
@@ -145,7 +146,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       val pi = Pi(ps, dom, cod, isImplicit = false)
       coll.foldRight((lam: MExpr, pi: MType))((a, acc) => (Lam(a, acc._1), Pi(a, TypeU, acc._2, isImplicit = true)))
     case Lambda(p, None, _) =>
-      ctx.report(Diagnostic.error("E0206", s"cannot infer the type of lambda parameter `${paramName(p)}`", p.span, "type needed")
+      ctx.report(Legacy.error(DiagCode.E0206, s"cannot infer the type of lambda parameter `${paramName(p)}`", p.span, "type needed")
         .withHelp(s"annotate it, `[${paramName(p)} : T] ...`, or declare the type of the definition"))
       (MExpr.Err, MType.Err)
     case _: RecordType | _: Keyword | _: Arrow =>
@@ -156,7 +157,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       val rc = RuleCtx(allowVars = true)
       (QuoteFormula(elabFormula(t, sc, rc)), PropT)
     case other =>
-      err("E0202", "expected a meta expression", other.span, "this is object-level syntax")
+      err(DiagCode.E0202, "expected a meta expression", other.span, "this is object-level syntax")
       (MExpr.Err, MType.Err)
 
   private[meta] def paramName(p: Tree): String = p match
@@ -191,15 +192,17 @@ private[meta] trait MetaExpressions extends TyperBase:
               noteUse(sel.nameSpan, f, Some(describeAt(f, Printer.show(sel), tpe)))
               (Proj(mq, sel.name), tpe)
           case None =>
-            var d = Diagnostic.error("E0101", s"`${Printer.show(sel.qual)}` has no member `${sel.name}`", sel.nameSpan, "unknown member")
+            var d = Legacy.error(DiagCode.E0101, s"`${Printer.show(sel.qual)}` has no member `${sel.name}`", sel.nameSpan, "unknown member")
               .withNote(s"available members: ${fields.map(_._1.name).mkString(", ")}")
             val sugg = fields.map(_._1.name).filter(n => editDistance(n, sel.name) <= (sel.name.length / 3).max(1))
-            sugg.headOption.foreach(s => d = d.withHelp(s"did you mean `$s`?").withSuggestion(s"replace with `$s`", sel.nameSpan, s))
+            sugg.headOption.foreach(s =>
+              d = d.withHelp(s"did you mean `$s`?").withSuggestion(s"replace with `$s`", sel.nameSpan, s, Applicability.MaybeIncorrect)
+            )
             ctx.report(d)
             (MExpr.Err, MType.Err)
       case other =>
-        ctx.report(Diagnostic.error(
-          "E0107",
+        ctx.report(Legacy.error(
+          DiagCode.E0107,
           s"`${Printer.show(sel.qual)}` is not a module",
           sel.qual.span,
           s"has meta type `${showMT(other)}`"
@@ -255,7 +258,7 @@ private[meta] trait MetaExpressions extends TyperBase:
                 case Code(_) if rc != null => quoteArg(a, sc, rc)
                 case _ if rc != null && objectVar(a, sc).isDefined =>
                   val v = objectVar(a, sc).get
-                  ctx.report(Diagnostic.error("E0201", "runtime value used at compile time", v.span, s"object variable `${v.name}`")
+                  ctx.report(Legacy.error(DiagCode.E0201, "runtime value used at compile time", v.span, s"object variable `${v.name}`")
                     .withNote(
                       s"this argument of `${Printer.show(headTree)}` has meta type `${showMT(domS)}` and must be known at compile time"
                     ))
@@ -266,13 +269,13 @@ private[meta] trait MetaExpressions extends TyperBase:
           cur = substMT(cod, Map(x -> am))
         case MType.Err => ok = false
         case other =>
-          ctx.report(Diagnostic.error("E0207", s"too many arguments for `${Printer.show(headTree)}`", a.span, "unexpected argument")
+          ctx.report(Legacy.error(DiagCode.E0207, s"too many arguments for `${Printer.show(headTree)}`", a.span, "unexpected argument")
             .withNote(s"`${Printer.show(headTree)}` has meta type `${showMT(ft)}`"))
           ok = false
     if !ok then return (MExpr.Err, MType.Err)
     val unsolved = solved.collect { case (k, None) => k }
     for u <- unsolved if mentions(cur, u) do
-      ctx.report(Diagnostic.error("E0206", s"cannot infer implicit type parameter `${u.name}` of `${Printer.show(headTree)}`", span)
+      ctx.report(Legacy.error(DiagCode.E0206, s"cannot infer implicit type parameter `${u.name}` of `${Printer.show(headTree)}`", span)
         .withNote("implicit parameters are inferred by first-order matching of the argument types"))
     val sol = solved.map((k, v) => k -> QuoteType(v.getOrElse(OType.Err))).toMap
     val result = spine.foldLeft(fm) {
@@ -305,7 +308,7 @@ private[meta] trait MetaExpressions extends TyperBase:
   private[meta] def argInfer(a: Tree, sc: Scope, rc: RuleCtx | Null): (MExpr, MType) =
     a match
       case VarRef(n) if rc != null && !sc.lookup(n).exists(capturesVar) =>
-        err("E0201", s"runtime value used at compile time", a.span, s"object variable `$n` cannot be a meta argument here")
+        err(DiagCode.E0201, s"runtime value used at compile time", a.span, s"object variable `$n` cannot be a meta argument here")
         (MExpr.Err, MType.Err)
       case _ => inferM(a, sc)
 
@@ -377,7 +380,12 @@ private[meta] trait MetaExpressions extends TyperBase:
       for (f, ft) <- sfields do
         fields.find(_.label.name == f.name) match
           case None =>
-            ctx.report(Diagnostic.error("E0204", s"signature mismatch: missing field `${f.name}`", t.span, s"field `${f.name}` is required")
+            ctx.report(Legacy.error(
+              DiagCode.E0204,
+              s"signature mismatch: missing field `${f.name}`",
+              t.span,
+              s"field `${f.name}` is required"
+            )
               .withNote(s"expected signature `${showMT(expected)}`"))
           case Some(fld) =>
             val m = checkM(fld.value, substMT(ft, s), sc, rc)
@@ -397,7 +405,7 @@ private[meta] trait MetaExpressions extends TyperBase:
       if reason.isDefined && dataAsRelation(m, mt, expected, t.span) then return MExpr.Err
       reason.foreach { r =>
         if expected.isInstanceOf[Sig] || mt.isInstanceOf[Sig] then
-          var d = Diagnostic.error("E0204", "signature mismatch", t.span, s"expected `${showMT(expected)}`")
+          var d = Legacy.error(DiagCode.E0204, "signature mismatch", t.span, s"expected `${showMT(expected)}`")
             .withNote(s"found `${showMT(mt)}`")
           if !r.startsWith("expected") then d = d.withNote(r)
           ctx.report(d)
@@ -413,7 +421,7 @@ private[meta] trait MetaExpressions extends TyperBase:
    *  Object-level types (columns, results) are checked after elaboration, as for all code types. */
   private[meta] def ascribe(m: MExpr, have: Sig, want: Sig, span: Span): MExpr =
     def mismatch(why: String): MExpr =
-      ctx.report(Diagnostic.error("E0204", "signature mismatch", span, s"expected `${showMT(want)}`").withNote(why))
+      ctx.report(Legacy.error(DiagCode.E0204, "signature mismatch", span, s"expected `${showMT(want)}`").withNote(why))
       MExpr.Err
     val self = newParam("self", Span.NoSpan, localScope(None, "signature"))
     val haveSubst = have.fields.map((f, _) => f -> Proj(Ref(self), f.name)).toMap

@@ -500,8 +500,8 @@ E0501 (moding) by `MetaEval`.
    `TyperBase.scala:117` but "did you mean `x`?" in `MetaExpressions.scala:197`. The second is the form
    rustc's style guide advises against.
 4. **Reasons are preformatted strings.** For example, `Completeness` builds ``"`a` depends positively on
-   `b`; `b` is declared %partial"`` as a `String`. The diagnostic cannot point a secondary label at the
-   `%partial` directive or the dependency edge, and the LSP cannot link to them.
+   `b`; `b` is declared %open"`` as a `String`. The diagnostic cannot point a secondary label at the
+   `%open` directive or the dependency edge, and the LSP cannot link to them.
 5. **There is no inventory.** "Which diagnostics can the completeness check produce?" or "what data does
    E0604 carry?" can only be answered by grep. The catalog's explanations are one or two sentences without
    examples, and they cite spec sections ("Section 6.4", "Definition 6.6"). Section references also appear
@@ -702,7 +702,7 @@ object DiagArg:
   given DiagArg[Sym]    = s => Seg.Code(s.name)
   given DiagArg[OType]  = t => Seg.Type(t.show)
   given DiagArg[Int]    = n => Seg.Text(n.toString)
-  given DiagArg[Src]    = c => Seg.Code(c.text)    // program text that is not a symbol: `%partial`
+  given DiagArg[Src]    = c => Seg.Code(c.text)    // program text that is not a symbol: `%open`
   given DiagArg[Lit]    = l => Seg.Text(l.text)    // explicit opt-in for plain words
   // no instance for String: a bare string must say whether it is code or prose
 
@@ -803,9 +803,8 @@ A rule or query negates or aggregates over a relation whose facts may be incompl
 
 ```hugin fail=E0602
 n : int -> rel.
-%partial n.
+%open n.
 n 0.
-n M :- n N, M = N + 1.
 ?- C = count { X | n X }.
 ```
 
@@ -819,7 +818,6 @@ The absence of a fact of an incomplete relation means "unknown", not "false" ...
 ```hugin
 n : int -> rel.
 n 0.
-n M :- n N, N < 10, M = N + 1.
 ?- C = count { X | n X }.
 ```
 
@@ -849,7 +847,7 @@ tools can rely on it (GHC's practice), and modelled on rustc's:
  "spans":[{"file":"q.hgn","start":{"line":7,"col":20},"end":{"line":7,"col":23},"byteStart":91,"byteEnd":94,
            "primary":true,"label":"used negatively"},
           {"file":"q.hgn","start":{"line":2,"col":1},"end":{"line":2,"col":11},"primary":false,
-           "label":"`n` is declared %partial here"}],
+           "label":"`n` is declared %open here"}],
  "notes":["queries may mention incomplete relations only positively"],"helps":[],
  "suggestions":[],"origin":[],"rendered":"error[E0602]: ..."}
 ```
@@ -973,9 +971,9 @@ and Elm's tone. This section is normative for new diagnostics.
 |---|---|---|---|
 | headline (`message`) | *what* is wrong, specific to this instance | lowercase, no final period, a statement; names in code style | ``negation over the incomplete relation `n` `` |
 | primary label | what is wrong *at this span* | short noun phrase or clause, no period | `used negatively` |
-| secondary label | why another place matters | refers back: "declared here", "first declared here", "required by this signature" | `` `n` is declared %partial here `` |
+| secondary label | why another place matters | refers back: "declared here", "first declared here", "required by this signature" | `` `n` is declared %open here `` |
 | note | a fact that explains *why* it is an error | a sentence without final period; no instructions | `the absence of a fact of an incomplete relation means unknown, not false` |
-| help | *what to do* | imperative, or "X exists: `y`"; never "did you mean"; ideally paired with a suggestion | ``remove `%partial n` if `n` is finite`` |
+| help | *what to do* | imperative, or "X exists: `y`"; never "did you mean"; ideally paired with a suggestion | ``remove `%open n` if all facts of `n` are known`` |
 | suggestion message | the edit, as a command | imperative verb first | ``add `%complete n` to the signature`` |
 | explanation | the concept, with examples | Markdown document | `docs/errors/E0602.md` |
 
@@ -1142,7 +1140,7 @@ error[E0602]: query negates or aggregates over the incomplete relation `n`
 7 | ?- C = count { X | n X }.
   |                    ^^^ used negatively
   |
-  = note: `n` is declared %partial
+  = note: `n` is declared %open
   = note: queries may mention incomplete relations only positively (Section 8.5)
 ```
 
@@ -1152,7 +1150,6 @@ error[E0602]: query negates or aggregates over the incomplete relation `n`
 /** Why a relation is incomplete: the chain of positive dependencies ending at a declaration. */
 enum Incompleteness:
   case Open(rel: RelSym, decl: Span)
-  case Partial(rel: RelSym, decl: Span)
   case Via(rel: RelSym, dep: RelSym, edge: Span, next: Incompleteness)
 
   def origin: Incompleteness = this match
@@ -1201,14 +1198,12 @@ enum CheckError extends Problem:
 
   override def helps = this match
     case NegatedIncomplete(_, _, _, _, why) => why.origin match
-      case Incompleteness.Partial(o, _) => List(msg"if $o is finite, remove ${Src("%partial")} and let the termination checker prove it")
       case Incompleteness.Open(o, _) => List(msg"open relations are never complete; negate a closed relation instead")
       case _ => Nil
     case _ => Nil
 
   /** Each step of the reason becomes a secondary label at the declaration or the dependency edge. */
   private def chain(w: Incompleteness): List[(Span, Msg)] = w match
-    case Incompleteness.Partial(r, d) => List(d -> msg"$r is declared ${Src("%partial")} here")
     case Incompleteness.Open(r, d) => List(d -> msg"$r is declared ${Src("%open")} here")
     case Incompleteness.Via(r, dep, e, next) => (e -> msg"$r depends on $dep here") :: chain(next)
 ```
@@ -1225,20 +1220,20 @@ Rendered:
 error[E0602]: aggregation over the incomplete relation `n`
  --> tests/neg/completeness_query.hgn:7:20
   |
-2 | %partial n.
-  | ----------- `n` is declared `%partial` here
+2 | %open n.
+  | -------- `n` is declared `%open` here
 ...
 7 | ?- C = count { X | n X }.
   |                    ^^^ aggregated over here
   |
   = note: the absence of a fact of an incomplete relation means unknown, not false
   = note: queries may mention incomplete relations only positively
-  = help: if `n` is finite, remove `%partial` and let the termination checker prove it
+  = help: open relations are never complete; negate a closed relation instead
 ```
 
 The test gains `(*~ E0602 *)` on line 7, and `docs/errors/E0602.md` (shown in
 [§3.9](#39-explanations-with-compiled-examples)) gets a failing and a fixed example, both compiled by
-`ExplanationsSuite`. With a chain (`a :- not b`, `b :- c`, `%partial c`), the rendering points at both the
+`ExplanationsSuite`. With a chain (`a :- not b`, `b :- c`, `%open c`), the rendering points at both the
 dependency edge and the directive, which the string `why` could not do.
 
 ---

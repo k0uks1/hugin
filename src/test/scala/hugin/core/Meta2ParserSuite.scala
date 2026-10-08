@@ -2,6 +2,7 @@ package hugin.core
 
 import hugin.syntax.*
 import hugin.util.*
+import hugin.util.diagnostics.Code
 
 /** The syntax of the new meta level (`meta2` parsing) and that the old syntax is unchanged. */
 class Meta2ParserSuite extends munit.FunSuite:
@@ -36,7 +37,7 @@ class Meta2ParserSuite extends munit.FunSuite:
 
   test("the old syntax does not know `$`, `⇑` or clauses") {
     assert(parse("p X :- q $X.", meta2 = false)._2.nonEmpty)
-    assert(parse("plus (suc M) N = N.", meta2 = false)._2.exists(_.code.contains("E0004")))
+    assert(parse("plus (suc M) N = N.", meta2 = false)._2.exists(_.code.contains(Code.E0004)))
   }
 
   test("where blocks: layout by column") {

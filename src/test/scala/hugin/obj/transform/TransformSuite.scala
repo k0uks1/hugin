@@ -2,6 +2,7 @@ package hugin.obj.transform
 
 import hugin.TestSupport
 import hugin.obj.ObjPrinter
+import hugin.util.diagnostics.Code
 
 /** The object-level transformations of Section 7. */
 class TransformSuite extends munit.FunSuite:
@@ -93,7 +94,7 @@ class TransformSuite extends munit.FunSuite:
 
   test("a cycle through negation that copies do not break is reported on the shared transformation") {
     val c = TestSupport.compile(lists + "b : list int -> int -> rel. b L N :- e L, not b L 0, len L N.")
-    val d = c.reporter.diagnostics.filter(_.code.contains("E0601"))
+    val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0601))
     assertEquals(d.length, 1)
     assert(!d.head.notes.exists(_.contains("#")), d.head.notes)
     assertEquals(copies(c), Nil)

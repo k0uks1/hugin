@@ -5,6 +5,7 @@ import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
+import hugin.util.diagnostics.Code
 
 /** Per-item elaboration (step 8 of `docs/INCREMENTALITY.md`) of items parsed from their own slices (step
  *  9): editing an item elaborates that item again, and the items whose inputs changed (those that use an
@@ -165,7 +166,7 @@ class ItemQueriesSuite extends munit.FunSuite:
     // a name that items look up and do not find (they fall through to the prelude) is a dependency too
     edit("r X :- p X, X < limit.", "r X :- p X, X < limit, X < lim.")
     assertEquals(elaborated, 1)
-    assert(compile.diagnostics.exists(_.code.contains("E0101")))
+    assert(compile.diagnostics.exists(_.code.contains(Code.E0101)))
     edit("limit2 : int = 3.\n", "limit2 : int = 3.\nlim : int = 4.\n")
     assertEquals(elaborated, 1)
     assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
@@ -175,7 +176,7 @@ class ItemQueriesSuite extends munit.FunSuite:
     val text = program.replace("?- r X.", "?- r X.\nu : int -> rel.\nu X :- p X, X < late.\nlate : int = 2.")
     given db: Database = setup(text)
     compile
-    assertEquals(compile.diagnostics.flatMap(_.code), List("E0105"))
+    assertEquals(compile.diagnostics.flatMap(_.code).map(_.id), List("E0105"))
     // moving the definition before the rule: the order changed, the rule is elaborated again
     edit("late : int = 2.\n", "")
     edit("limit : int = 5.\n", "limit : int = 5.\nlate : int = 2.\n")
@@ -190,7 +191,7 @@ class ItemQueriesSuite extends munit.FunSuite:
     compile
     db.set(SourceText, path, late)
     val compiled = compile
-    assertEquals(compiled.diagnostics.flatMap(_.code), List("E0105"))
+    assertEquals(compiled.diagnostics.flatMap(_.code).map(_.id), List("E0105"))
     assertEquals(rendered(observe(late)), rendered(fresh(late)))
     db.set(SourceText, path, program)
     assert(!compile.hasErrors, compile.diagnostics)

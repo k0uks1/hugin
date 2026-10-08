@@ -5,6 +5,7 @@ import hugin.obj.BaseType
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Applicability, Code as DiagCode, Legacy}
 
 /** Name resolution: bound variables, top-level names, builtin base types; implicitly bound variables. */
 trait Names:
@@ -37,15 +38,22 @@ trait Names:
       .filter(k => k != n && org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(k, n) <= 2)
       .sorted
       .headOption
-    var d = Diagnostic.error("E0101", s"unresolved name `$n`", span, "not found in this scope")
-    similar.foreach(s => d = d.withHelp(s"a name with a similar spelling exists: `$s`").withSuggestion(s"replace with `$s`", span, s))
+    var d = Legacy.error(DiagCode.E0101, s"unresolved name `$n`", span, "not found in this scope")
+    similar.foreach(s =>
+      d = d.withHelp(s"a name with a similar spelling exists: `$s`").withSuggestion(
+        s"replace with `$s`",
+        span,
+        s,
+        Applicability.MaybeIncorrect
+      )
+    )
     throw ElabError(d, unresolved = Some(n))
 
   def paramName(p: Tree): Name = p match
     case VarRef(n) => n
     case Ident(n) => n
     case Wildcard() => "_"
-    case other => error("E0001", "expected a parameter name", other.span)
+    case other => error(DiagCode.E0001, "expected a parameter name", other.span)
 
   def nameOf(t: Tree): Name = t match
     case Ident(n) => n

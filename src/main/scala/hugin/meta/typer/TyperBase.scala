@@ -2,6 +2,7 @@ package hugin.meta
 package typer
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy, Applicability}
 import hugin.syntax.Trees.*
 import hugin.compiler.*
 import hugin.obj.{TParam, Expansion}
@@ -99,8 +100,8 @@ private[meta] trait TyperBase:
   private[meta] def newParamIn(name: String, span: Span, owner: Scope, scope: ScopeKey): Sym =
     Sym(name, SymKind.MetaParam, span, owner, SymKey(scope, name), context.unit.symKeys)
 
-  private[meta] def err(code: String, msg: String, span: Span, label: String = ""): Unit =
-    ctx.error(code, msg, span, label)
+  private[meta] def err(code: Code, msg: String, span: Span, label: String = ""): Unit =
+    ctx.report(Legacy.error(code, msg, span, label))
 
   // ======================================================================= names
 
@@ -112,10 +113,10 @@ private[meta] trait TyperBase:
     cands.map(n => (editDistance(n, name), n)).filter(_._1 <= (name.length / 3).max(1)).sortBy(_._1).headOption.map(_._2)
 
   private[meta] def unresolved(name: String, span: Span, sc: Scope, what: String = "name"): Unit =
-    var d = Diagnostic.error("E0101", s"unresolved $what `$name`", span, "not found in this scope")
+    var d = Legacy.error(Code.E0101, s"unresolved $what `$name`", span, "not found in this scope")
     suggestion(name, sc).foreach { s =>
       d = d.withHelp(s"a declaration with a similar name exists: `$s`")
-      if span.text == name then d = d.withSuggestion(s"replace with `$s`", span, s)
+      if span.text == name then d = d.withSuggestion(s"replace with `$s`", span, s, Applicability.MaybeIncorrect)
     }
     ctx.report(d)
 
@@ -140,12 +141,12 @@ private[meta] trait TyperBase:
       syms.state(s) match
         case ElabState.Done => syms.mtype(s).isDefined
         case ElabState.InProgress =>
-          ctx.report(Diagnostic.error("E0105", s"`${s.name}` refers to itself", span, "recursive reference")
+          ctx.report(Legacy.error(Code.E0105, s"`${s.name}` refers to itself", span, "recursive reference")
             .withLabel(s.span, "while elaborating this definition")
             .withNote("the meta level has no recursion; definitions may only refer to earlier definitions"))
           false
         case ElabState.Pending =>
-          ctx.report(Diagnostic.error("E0105", s"`${s.name}` is used before its definition", span, "used here")
+          ctx.report(Legacy.error(Code.E0105, s"`${s.name}` is used before its definition", span, "used here")
             .withLabel(s.span, "defined later here")
             .withNote("meta definitions may only refer to earlier definitions (Section 2.3)"))
           false

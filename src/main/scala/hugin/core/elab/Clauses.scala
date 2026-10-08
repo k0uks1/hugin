@@ -2,6 +2,7 @@ package hugin.core
 package elab
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 import scala.collection.mutable
 
 /** Elaboration of functions defined by clauses into case trees (REDESIGN §6.4–6.5), after Cockx & Abel,
@@ -44,11 +45,11 @@ trait Clauses:
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
     val n = clauses.head.pats.length
     clauses.find(_.pats.length != n).foreach { cl =>
-      error("E0915", s"all clauses of `${g.name}` must have the same number of patterns", cl.span, s"expected $n pattern(s)")
+      error(DiagCode.E0915, s"all clauses of `${g.name}` must have the same number of patterns", cl.span, s"expected $n pattern(s)")
     }
     if n > explicitPositions.length then
       error(
-        "E0915",
+        DiagCode.E0915,
         s"too many patterns for `${g.name}`",
         clauses.head.span,
         s"`${g.name}` has ${explicitPositions.length} explicit argument(s)"
@@ -62,7 +63,7 @@ trait Clauses:
     checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) do
       reporter.report(
-        Diagnostic.warning("W0006", s"unreachable clause of `${g.name}`", cl.span, "this clause is never used")
+        Legacy.warning(DiagCode.W0006, s"unreachable clause of `${g.name}`", cl.span, "this clause is never used")
           .withNote("the clauses before it cover all the cases it matches")
       )
 
@@ -110,7 +111,7 @@ trait Clauses:
       e.pat match
         case v: Pat.PVar =>
           if !v.implicitBinder && binds.exists((b, _, _) => b.name == v.name && !b.implicitBinder) then
-            error("E0915", s"the variable `${v.name}` is bound twice in this clause", v.span, "bound again here")
+            error(DiagCode.E0915, s"the variable `${v.name}` is bound twice in this clause", v.span, "bound again here")
           binds = binds :+ (v, e.term, e.ty)
         case Pat.PWild(_) =>
         case Pat.PLit(n, span) =>
@@ -120,7 +121,7 @@ trait Clauses:
               pending = e.copy(pat = q) :: pending
             case None =>
               error(
-                "E0915",
+                DiagCode.E0915,
                 "literal patterns are only supported for nat-like types",
                 span,
                 s"a pattern of type `${showVal(p.names.toList.reverse, e.ty)}`"
@@ -133,7 +134,7 @@ trait Clauses:
             case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => stuck += e
             case other =>
               fail(
-                Diagnostic.error("E0915", "cannot match on this argument", span, "constructor pattern")
+                Legacy.error(DiagCode.E0915, "cannot match on this argument", span, "constructor pattern")
                   .withNote(
                     s"the argument is `${showVal(p.names.toList.reverse, other)}`, which is neither a variable nor a constructor application"
                   )
@@ -181,7 +182,7 @@ trait Clauses:
             case IndexUnification.Conflict => None
             case IndexUnification.Stuck(a, b) =>
               fail(
-                Diagnostic.error("E0915", s"cannot decide whether `${globals(c).name}` applies here", span, "in this pattern")
+                Legacy.error(DiagCode.E0915, s"cannot decide whether `${globals(c).name}` applies here", span, "in this pattern")
                   .withNote(
                     s"unifying the indices of its type requires `${showVal(p1.names.toList.reverse, a)} = ${showVal(p1.names.toList.reverse, b)}`, which is neither solvable nor impossible"
                   )
@@ -194,7 +195,7 @@ trait Clauses:
         CaseTree.Split(x, branches)
       case other =>
         fail(
-          Diagnostic.error("E0915", "cannot match on a value of this type", span, "constructor pattern")
+          Legacy.error(DiagCode.E0915, "cannot match on a value of this type", span, "constructor pattern")
             .withNote(s"the argument has type `${showVal(p.names.toList.reverse, other)}`, which is not an inductive type")
         )
 
@@ -274,7 +275,7 @@ trait Clauses:
     val pats = f.explicit.map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
     val shown = (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
     fail(
-      Diagnostic.error("E0911", s"the clauses of `${f.name}` do not cover all cases", globals(f.id).span, s"missing: `$shown`")
+      Legacy.error(DiagCode.E0911, s"the clauses of `${f.name}` do not cover all cases", globals(f.id).span, s"missing: `$shown`")
         .withNote("meta functions are total: every argument must match a clause")
         .withHelp(s"add a clause `$shown = ….`")
     )

@@ -4,14 +4,15 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Diagnostics of elaboration: unification failures as type, stage and universe errors; unsupported constructs. */
 trait ElabErrors:
   self: Elaborator =>
   import core.*
 
-  def error(code: String, msg: String, span: Span, label: String = ""): Nothing =
-    throw ElabError(Diagnostic.error(code, msg, span, label))
+  def error(code: DiagCode, msg: String, span: Span, label: String = ""): Nothing =
+    throw ElabError(Legacy.error(code, msg, span, label))
 
   def fail(d: Diagnostic): Nothing = throw ElabError(d)
 
@@ -25,12 +26,12 @@ trait ElabErrors:
     val fo = show(c, found)
     f match
       case UnifyFailure.Universe =>
-        Diagnostic.error("E0904", "universe inconsistency", span, s"expected `$e`, found `$fo`")
+        Legacy.error(DiagCode.E0904, "universe inconsistency", span, s"expected `$e`, found `$fo`")
           .withNote("universe levels are inferred: `Type₀ : Type₁ : …`, and a type in `Typeᵢ` is also in `Typeⱼ` for i ≤ j")
           .withNote("`Type : Type` is excluded: it would make the meta level inconsistent and non-terminating")
       case _ =>
         stageError(c, span, expected, sExp, found, sFound).getOrElse {
-          var d = Diagnostic.error("E0901", "mismatched types", span, s"expected `$e`, found `$fo`")
+          var d = Legacy.error(DiagCode.E0901, "mismatched types", span, s"expected `$e`, found `$fo`")
           if e == fo then d = d.withNote(s"the expected type is at the ${sExp.show} level, the found one at the ${sFound.show} level")
           f match
             case UnifyFailure.Occurs(m) =>
@@ -57,7 +58,7 @@ trait ElabErrors:
     (sFound, sExp) match
       case (Stage.S0, Stage.S1) if !isLiftOrFlex(expected) && !isUniverse(expected) =>
         Some(
-          Diagnostic.error("E0902", "object code used where a compile-time value is needed", span, s"object code of type `$fo`")
+          Legacy.error(DiagCode.E0902, "object code used where a compile-time value is needed", span, s"object code of type `$fo`")
             .withNote(s"a meta value of type `$e` is expected here")
             .withNote(
               "object terms (rule variables, constructor terms, formulas) only exist at run time; the meta level computes at compile time"
@@ -66,7 +67,7 @@ trait ElabErrors:
         )
       case (Stage.S1, Stage.S0) if !isLiftOrFlex(found) && isMetaPrimOrData(found) =>
         Some(
-          Diagnostic.error("E0902", "compile-time value used as object code", span, s"a meta value of type `$fo`")
+          Legacy.error(DiagCode.E0902, "compile-time value used as object code", span, s"a meta value of type `$fo`")
             .withNote(s"object code of type `$e` is expected here")
             .withNote("only object code (of type `⇑A`) and primitive values (`int`, `float`, `string`) can be spliced into object code")
         )
@@ -92,6 +93,6 @@ trait ElabErrors:
 
   def unsupportedAt(span: Span, what: String): Nothing =
     fail(
-      Diagnostic.error("E0907", s"$what are not supported by the new meta level yet", span, "not supported yet")
+      Legacy.error(DiagCode.E0907, s"$what are not supported by the new meta level yet", span, "not supported yet")
         .withNote("the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md §10; the rest is ported in B3")
     )

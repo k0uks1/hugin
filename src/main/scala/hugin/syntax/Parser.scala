@@ -1,6 +1,8 @@
 package hugin.syntax
 
 import hugin.util.*
+import hugin.util.diagnostics.{Msg, msg}
+import scala.language.implicitConversions
 import scala.collection.mutable
 
 /** Recursive-descent / precedence-climbing parser for Figure 1.
@@ -48,33 +50,30 @@ final class Parser(
 
   final class ParseError extends Exception(null, null, false, false)
 
-  private def fail(msg: String, label: String = "", help: Option[String] = None): Nothing =
+  private def fail(p: SyntaxError): Nothing =
     if kind == Tok.Error then throw new ParseError // already reported by the lexer
-    var d = Diagnostic.error("E0001", msg, tok.span, label)
-    help.foreach(h => d = d.withHelp(h))
-    reporter.report(d)
+    reporter.report(p)
     throw new ParseError
 
-  private def found: String =
-    if kind == Tok.EOF then "end of file" else s"`${tok.text}`"
+  /** Reports that `what` was expected at the current token, and abandons the item. */
+  private def failExpected(what: Msg, label: Msg = Msg.empty, help: Option[Msg] = None): Nothing =
+    fail(SyntaxError.Expected(what, found, tok.span, label, help))
+
+  private def found: Found =
+    if kind == Tok.EOF then Found.EndOfFile else Found.Token(tok.text)
 
   private def expect(k: Tok, what: String = ""): Token =
     if kind == k then advance()
     else if kind == Tok.Error then throw new ParseError
     else
-      val w = if what.nonEmpty then what else Lexer.describe(k)
+      val w = Msg.text(if what.nonEmpty then what else Lexer.describe(k))
       if k == Tok.Period && i > 0 && tok.span.startLine > toks(i - 1).span.startLine then
         // the item probably ends on the previous line
         val prev = toks(i - 1).span
-        reporter.report(
-          Diagnostic.error("E0001", s"expected $w, found $found", Span(src, prev.end, prev.end), "expected `.` here")
-            .withLabel(tok.span, "next item starts here")
-            .withHelp("every item ends with a period")
-            .withSuggestion("add `.`", Span(src, prev.end, prev.end), ".")
-        )
+        reporter.report(SyntaxError.MissingPeriod(w, found, Span(src, prev.end, prev.end), tok.span))
         // recover by accepting the item as if the period were present
         return Token(Tok.Period, ".", Span(src, prev.end, prev.end), false)
-      fail(s"expected $w, found $found", s"expected $w")
+      failExpected(w, msg"expected $w")
 
   // ---------------------------------------------------------------- infix prescan
 
@@ -110,7 +109,7 @@ final class Parser(
     val items = mutable.ListBuffer.empty[Item]
     while kind != Tok.EOF do
       if kind == Tok.RBrace then
-        reporter.report(Diagnostic.error("E0001", "unmatched `}`", tok.span, "no module body to close"))
+        reporter.report(SyntaxError.UnmatchedBrace(tok.span))
         advance()
       else parseItemRecovering().foreach(items += _)
     Program(items.toList, Span(src, 0, src.content.length))
@@ -208,11 +207,7 @@ final class Parser(
       else None
     if kind != Tok.Period then
       if kind == Tok.Colon && name.isDefined then
-        fail(
-          "a rule name cannot start a declaration",
-          "unexpected `:`",
-          Some("rule names are written `@name head :- body.`; declarations have no `@`")
-        )
+        fail(SyntaxError.RuleNameOnDeclaration(tok.span))
       expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
     else advance()
     Rule(name, heads.toList, body)(spanFrom(start))
@@ -227,7 +222,7 @@ final class Parser(
     while kind != Tok.EOF && kind != Tok.RBrace && (items.isEmpty || tok.span.startCol > col) do
       parseItemRecovering().foreach(items += _)
     if items.isEmpty then
-      reporter.report(Diagnostic.error("E0001", "empty `where` block", w.span, "expected local definitions"))
+      reporter.report(SyntaxError.EmptyWhere(w.span))
     items.toList
 
   /** Whether `lhs` has the shape of a definition head `name param*` (see [[declHead]]). */
@@ -247,18 +242,13 @@ final class Parser(
     val name = hd match
       case id: Ident => id
       case other =>
-        reporter.report(
-          Diagnostic.error("E0004", "malformed declaration head", other.span, "expected a lowercase name")
-            .withNote("declarations have the form `name param* : type.` and definitions `name param* = expr.`")
-        )
+        reporter.report(SyntaxError.MalformedDeclarationHead(other.span))
         throw new ParseError
     val params = args.map {
       case v: VarRef => Param.VarParam(v)
       case a @ Ascribe(n @ (_: Ident | _: VarRef), t) => Param.Typed(n, t, a.span)
       case other =>
-        reporter.report(
-          Diagnostic.error("E0004", "malformed parameter", other.span, "expected `X` or `(name : type)`")
-        )
+        reporter.report(SyntaxError.MalformedParameter(other.span))
         throw new ParseError
     }
     (name, params)
@@ -269,7 +259,7 @@ final class Parser(
     val t = advance()
     if t.kind != Tok.Name then
       i -= 1
-      fail(s"expected a name, found $found", "expected a relation or path")
+      failExpected(msg"a name", msg"expected a relation or path")
     var p: Tree = Ident(t.text)(t.span)
     while kind == Tok.Select do
       advance()
@@ -306,10 +296,10 @@ final class Parser(
         // `%fact c : τ̄ -> a.`: a modifier of a constructor or struct declaration
         val lhs = parseExpr(LvlHead)
         if kind != Tok.Colon then
-          fail(
-            s"expected `:` after the name of a `%fact` declaration, found $found",
-            "expected `:`",
-            Some("`%fact` marks a constructor or struct declaration: `%fact c : int -> t.`")
+          failExpected(
+            msg"`:` after the name of a `%fact` declaration",
+            msg"expected `:`",
+            Some(msg"`%fact` marks a constructor or struct declaration: `%fact c : int -> t.`")
           )
         return parseDeclRest(lhs, start, fact = true)
       case "mode" =>
@@ -328,7 +318,7 @@ final class Parser(
             expect(Tok.RParen, "`)` after the measure")
             b.toList
           else if kind == Tok.Var || kind == Tok.Name then List(advance())
-          else fail(s"expected a variable, a label or a parenthesised measure after %terminates, found $found")
+          else failExpected(msg"a variable, a label or a parenthesised measure after %terminates")
         if measure.head.kind == Tok.Var then
           expect(Tok.LParen, "`(` followed by a call pattern")
           val p = parsePath()
@@ -339,9 +329,7 @@ final class Parser(
         else DirArgs.TerminatesLabel(measure.map(l => Ident(l.text)(l.span)), parsePath())
       case "open" | "input" | "output" => DirArgs.Target(parsePath())
       case "partial" =>
-        reporter.report(Diagnostic.error("E0001", "`%partial` has been removed", d.span, "removed directive")
-          .withNote("every accepted program terminates; there are no round budgets (docs/REDESIGN.md §4.6)")
-          .withHelp("let an argument decrease along the recursion, bound it by a guard, or use a bound column (`min int` / `max int`)"))
+        reporter.report(SyntaxError.RemovedPartial(d.span))
         throw new ParseError
       case "derivations" =>
         if kind == Tok.RuleName then
@@ -351,7 +339,7 @@ final class Parser(
       case "infix" =>
         val a = expect(Tok.Name, "`left`, `right` or `none`")
         if !Set("left", "right", "none")(a.text) then
-          reporter.report(Diagnostic.error("E0001", s"unknown associativity `${a.text}`", a.span, "expected `left`, `right` or `none`"))
+          reporter.report(SyntaxError.UnknownAssociativity(a.text, a.span))
         val p = expect(Tok.IntLit, "a precedence")
         val n = expect(Tok.Name, "an operator name")
         DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span))
@@ -360,12 +348,10 @@ final class Parser(
         val v = expect(Tok.Var)
         DirArgs.NameHint(p, VarRef(v.text)(v.span))
       case "complete" =>
-        reporter.report(Diagnostic.error("E0004", "`%complete` may only occur in a signature", d.span, "not allowed here")
-          .withHelp("write it inside a record type, e.g. `{ edge : node -> node -> rel, %complete edge }`"))
+        reporter.report(SyntaxError.CompleteOutsideSignature(d.span))
         throw new ParseError
       case other =>
-        reporter.report(Diagnostic.error("E0001", s"unknown directive `%$other`", d.span, "unknown directive")
-          .withNote("directives are %mode %terminates %open %derivations %input %output %infix %name %abbrev %fact"))
+        reporter.report(SyntaxError.UnknownDirective(other, d.span))
         throw new ParseError
     expect(Tok.Period, "`.` after directive")
     Directive(kindName, args)(spanFrom(start), d.span)
@@ -399,7 +385,7 @@ final class Parser(
       infixAt(tok) match
         case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) =>
           if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
-            fail(s"operator `$op` is non-associative", "cannot chain this operator", Some("add parentheses"))
+            fail(SyntaxError.NonAssociativeChain(op, tok.span))
           val opTok = advance()
           val rhsMin = assoc match
             case Assoc.Right => lvl
@@ -444,7 +430,7 @@ final class Parser(
         val param: Tree = p.kind match
           case Tok.Var => advance(); VarRef(p.text)(p.span)
           case Tok.Name => advance(); Ident(p.text)(p.span)
-          case _ => fail(s"expected a lambda parameter, found $found", "expected a name or variable")
+          case _ => failExpected(msg"a lambda parameter", msg"expected a name or variable")
         val tpe = if kind == Tok.Colon then { advance(); Some(parseType()) }
         else None
         expect(Tok.RBrack)
@@ -495,7 +481,7 @@ final class Parser(
             if b == BigInt(Long.MaxValue) + 1 && i >= 2 && toks(i - 2).kind == Tok.Minus then
               Lit(Literal.IntL(Long.MinValue))(t.span) // negated again by unary minus: -MinValue == MinValue
             else
-              reporter.report(Diagnostic.error("E0003", "integer literal out of range", t.span, "does not fit into a 64-bit integer"))
+              reporter.report(SyntaxError.IntegerOutOfRange(t.span))
               Lit(Literal.IntL(0))(t.span)
           case _ => Lit(Literal.IntL(0))(t.span)
       case Tok.FloatLit => advance(); Lit(Literal.FloatL(t.value.asInstanceOf[Double]))(t.span)
@@ -543,7 +529,7 @@ final class Parser(
         LiftE(arg)(spanFrom(start))
       case Tok.Error => throw new ParseError
       case _ =>
-        fail(s"expected an expression, found $found", "expected an expression")
+        failExpected(msg"an expression", msg"expected an expression")
 
   private def parseParens(): Tree =
     val start = tok.span.start
@@ -551,15 +537,15 @@ final class Parser(
     if kind == Tok.Var && peekTok(1).kind == Tok.KwWith then
       val v = advance()
       advance()
-      if kind != Tok.LBrace then fail(s"expected `{` after `with`, found $found")
+      if kind != Tok.LBrace then failExpected(msg"`{` after `with`")
       val fields = parseBraces() match
         case RecordLit(fs, false) => fs
         case RecordLit(fs, true) =>
-          reporter.report(Diagnostic.error("E0001", "`..` is not allowed in an update", tok.span))
+          reporter.report(SyntaxError.RestInUpdate(tok.span))
           fs
         case ModuleBody(Nil) => Nil
         case other =>
-          reporter.report(Diagnostic.error("E0001", "expected fields `{ l = t, ... }` after `with`", other.span))
+          reporter.report(SyntaxError.ExpectedUpdateFields(other.span))
           Nil
       expect(Tok.RParen)
       return With(VarRef(v.text)(v.span), fields)(spanFrom(start))
@@ -606,7 +592,7 @@ final class Parser(
       while kind != Tok.RBrace && kind != Tok.EOF do
         parseItemRecovering().foreach(items += _)
       if kind == Tok.EOF then
-        reporter.report(Diagnostic.error("E0001", "unclosed module body", Span(src, start, start + 1), "this `{` is never closed"))
+        reporter.report(SyntaxError.UnclosedModuleBody(Span(src, start, start + 1)))
         throw new ParseError
       advance()
       ModuleBody(items.toList)(spanFrom(start))

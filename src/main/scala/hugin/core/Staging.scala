@@ -1,6 +1,7 @@
 package hugin.core
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Staging: object items are evaluated by normalisation, which runs all meta code they splice
  *  (`$⟨t⟩ = t`); what remains must be pure object code. Since the meta level is total, this terminates.
@@ -9,7 +10,7 @@ final class Staging(core: Core, reporter: Reporter):
   import core.*
 
   private def stuck(span: Span, msg: String, label: String, note: String): Unit =
-    reporter.report(Diagnostic.error("E0909", msg, span, label).withNote(note))
+    reporter.report(Legacy.error(DiagCode.E0909, msg, span, label).withNote(note))
 
   /** Checks that a normal form is object code; reports what is not. */
   def objectCode(names: List[Name], t: Tm, span: Span): Boolean =

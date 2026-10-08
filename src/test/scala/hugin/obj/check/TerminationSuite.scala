@@ -2,6 +2,7 @@ package hugin.obj
 package check
 
 import hugin.TestSupport
+import hugin.util.diagnostics.Code
 
 /** Termination (Section 10) and the split rules of Proposition 8.8 (see docs/NOTES.md). */
 class TerminationSuite extends munit.FunSuite:
@@ -21,7 +22,7 @@ class TerminationSuite extends munit.FunSuite:
       d : t -> rel.
       d (s (s N)) :- s N.
     """)
-    val d = c.reporter.diagnostics.filter(_.code.contains("E0603"))
+    val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0603))
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.contains("component {s}")), d.head.notes)
     assert(d.head.notes.exists(_.contains("Proposition 8.8")), d.head.notes)

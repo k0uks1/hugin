@@ -3,6 +3,7 @@ package elab
 
 import hugin.syntax.{Tree, TreeOps}
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Lambdas, applications and the insertion of implicit applications (elaboration-zoo `04-implicit-args`):
  *  an inferred term whose type starts with implicit Π binders is applied to fresh metas for them. */
@@ -41,7 +42,7 @@ trait Applications:
   def checkLambda(c: Cxt, t: Tree, param: Tree, ann: Option[Tree], body: Tree, pi: Val.Pi, st: Stage): Tm =
     if st == Stage.S0 then
       fail(
-        Diagnostic.error("E0908", "object-level functions cannot be defined", t.span, "a function at the object level")
+        Legacy.error(DiagCode.E0908, "object-level functions cannot be defined", t.span, "a function at the object level")
           .withNote("the object level is first order; functions are meta-level code (formula functions, functors)")
       )
     val name = paramName(param)
@@ -79,7 +80,7 @@ trait Applications:
       case Val.RelT | Val.PropT => "it is already a complete atom: too many arguments"
       case _ => s"its type `${show(c, ty)}` is not a function type"
     fail(
-      Diagnostic.error("E0905", "not a function", f.span, "applied to an argument here")
+      Legacy.error(DiagCode.E0905, "not a function", f.span, "applied to an argument here")
         .withLabel(a.span, "argument")
         .withNote(s"`${TreeOps.headName(f).map(_.name).getOrElse("this")}` cannot be applied: $why")
     )

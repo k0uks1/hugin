@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Object items: rules and queries, whose (uppercase) variables are bound implicitly at stage 0 with
  *  unknown object types; directives (only their targets are resolved for now). */
@@ -34,13 +35,13 @@ trait ObjectItems:
       case Val.RelT | Val.PropT => tm
       case Val.Pi(_, _, _, _) =>
         fail(
-          Diagnostic.error("E0910", "incomplete rule head", h.span, "missing arguments")
+          Legacy.error(DiagCode.E0910, "incomplete rule head", h.span, "missing arguments")
             .withNote("a rule head must apply a relation (or a constructor) to all of its columns")
         )
       case other if stageOfType(other) == Stage.S0 && !isUniverse(other) => tm // a constructor term: asserts the fact
       case other =>
         fail(
-          Diagnostic.error("E0910", "invalid rule head", h.span, s"this has type `${show(c, other)}`")
+          Legacy.error(DiagCode.E0910, "invalid rule head", h.span, s"this has type `${show(c, other)}`")
             .withNote("a rule head is an atom of a relation or a constructor term")
         )
 

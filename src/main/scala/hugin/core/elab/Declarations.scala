@@ -4,6 +4,7 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Declarations and definitions (REDESIGN §6.2, §6.4):
  *
@@ -25,7 +26,7 @@ trait Declarations:
   def declare(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind): Int =
     if scope.contains(name.name) then
       fail(
-        Diagnostic.error("E0102", s"duplicate declaration of `${name.name}`", name.span, "declared again here")
+        Legacy.error(DiagCode.E0102, s"duplicate declaration of `${name.name}`", name.span, "declared again here")
           .withLabel(globals(scope(name.name)).span, "first declared here")
       )
     val id = addGlobal(GlobalEntry(name.name, eval(Nil, ty), ty, stage, kind, name.span))
@@ -108,7 +109,7 @@ trait Declarations:
         if inferred then
           val (b, s, _) = inferU(c2, d.tpe)
           if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b)) then
-            error("E0901", "not the type of an object constant", d.tpe.span)
+            error(DiagCode.E0901, "not the type of an object constant", d.tpe.span)
           (b, s)
         else (checkType(c2, d.tpe, Stage.S1), Stage.S1)
       if imps.isEmpty && ps.isEmpty then (body, st)

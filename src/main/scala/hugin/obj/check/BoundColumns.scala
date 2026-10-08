@@ -2,6 +2,7 @@ package hugin.obj
 package check
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code, Legacy}
 import hugin.compiler.*
 
 /** Phase: bound columns (docs/REDESIGN.md §5.2). Checks the declarations of bound columns (E0605) and that
@@ -25,7 +26,7 @@ final class BoundColumnsPhase extends Phase:
   private def checkDeclaration(r: RelSym)(using Context): Unit =
     val bounds = r.cols.zipWithIndex.collect { case (c, i) if c.bound.isDefined => (c, i) }
     def report(msg: String, label: String, help: String) =
-      ctx.report(Diagnostic.error("E0605", msg, r.span, label).withHelp(help))
+      ctx.report(Legacy.error(Code.E0605, msg, r.span, label).withHelp(help))
     for (c, i) <- bounds do
       val k = c.bound.get.show
       if r.kind != RelKind.Plain then

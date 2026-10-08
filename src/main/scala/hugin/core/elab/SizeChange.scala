@@ -2,6 +2,7 @@ package hugin.core
 package elab
 
 import hugin.util.*
+import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 import scala.collection.mutable
 
 /** Termination of meta functions (REDESIGN §6.5) by the size-change principle (Lee, Jones & Ben-Amram,
@@ -127,7 +128,7 @@ trait SizeChange:
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = base.find(c => c.caller == f && c.callee == f).orElse(base.find(_.caller == f))
-      var d = Diagnostic.error("E0912", s"cannot show that `${globals(f).name}` terminates", globals(f).span, "possibly non-terminating")
+      var d = Legacy.error(DiagCode.E0912, s"cannot show that `${globals(f).name}` terminates", globals(f).span, "possibly non-terminating")
         .withNote(
           "meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls"
         )
