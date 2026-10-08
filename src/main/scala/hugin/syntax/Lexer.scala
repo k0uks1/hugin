@@ -10,6 +10,8 @@ enum Tok:
   // symbols
   case Turnstile, Query, Arrow, SubT, Neq, Le, Ge, DotDot, Period, Select, Comma, Semi, Colon,
     Bar, Eq, Lt, Gt, Plus, Minus, Star, Slash, Caret, LParen, RParen, LBrace, RBrace, LBrack, RBrack
+  // only in the syntax of the new meta level (`meta2`): `$` (splice, REDESIGN §6.9) and `⇑` (lift)
+  case Dollar, Up, KwWhere
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -73,6 +75,9 @@ object Lexer:
     Tok.RBrace -> "}",
     Tok.LBrack -> "[",
     Tok.RBrack -> "]",
+    Tok.Dollar -> "$",
+    Tok.Up -> "⇑",
+    Tok.KwWhere -> "where",
     Tok.KwType -> "type",
     Tok.KwMod -> "mod",
     Tok.KwRel -> "rel",
@@ -86,8 +91,9 @@ object Lexer:
     Tok.KwMax -> "max"
   )
 
-/** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. */
-final class Lexer(src: SourceFile, reporter: Reporter):
+/** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. With `meta2`, the tokens of
+ *  the new meta level's syntax (`$`, `⇑`) are recognised (docs/REDESIGN.md §6). */
+final class Lexer(src: SourceFile, reporter: Reporter, meta2: Boolean = false):
   private val s = src.content
   private var pos = 0
   private val out = mutable.ArrayBuffer.empty[Token]
@@ -153,6 +159,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
       while isIdent(peek()) do pos += 1
       val text = s.substring(start, pos)
       if c.isUpper || c == '_' then mk(Tok.Var, start, space)
+      else if meta2 && text == "where" then mk(Tok.KwWhere, start, space)
       else
         Lexer.keywords.get(text) match
           case Some(kw) => mk(kw, start, space)
@@ -202,6 +209,8 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case '}' => sym(Tok.RBrace, 1)
         case '[' => sym(Tok.LBrack, 1)
         case ']' => sym(Tok.RBrack, 1)
+        case '$' if meta2 => sym(Tok.Dollar, 1)
+        case '⇑' if meta2 => sym(Tok.Up, 1)
         case _ =>
           val cp = s.codePointAt(pos)
           pos += Character.charCount(cp)

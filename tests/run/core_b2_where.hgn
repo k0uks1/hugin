@@ -1,0 +1,32 @@
+(* The new meta level: `where` blocks (local definitions, local functions, pattern bindings). *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+pair : Type -> Type -> Type.
+mkPair : A -> B -> pair A B.
+
+shape : Type.
+rect : int -> int -> shape.
+area : shape -> int.
+area (rect W H) = w * h
+  where w = W + 0.
+        h = H * 1.
+
+fibPair : nat -> pair int int.
+fibPair zero = mkPair 0 1.
+fibPair (suc N) = mkPair b (a + b)
+  where mkPair a b = fibPair N.          (* irrefutable pattern binding *)
+
+fst : pair int int -> int.
+fst (mkPair X _) = X.
+
+addTo : int -> nat -> int.
+addTo K M = go M
+  where go : nat -> int.
+        go zero = K.
+        go (suc N) = go N + 1.
+
+answer : int -> rel.
+answer (area (rect 6 7)).
+answer (fst (fibPair 20)).
+answer (addTo 40 2).

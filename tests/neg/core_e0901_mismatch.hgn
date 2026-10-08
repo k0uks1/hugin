@@ -1,0 +1,4 @@
+(* new meta level: a term of the wrong type *)
+nat : Type.
+zero : nat.
+n : int = zero.

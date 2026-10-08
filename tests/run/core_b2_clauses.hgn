@@ -1,0 +1,44 @@
+(* The new meta level (redesign Phase B2, `--new-meta`): inductive families, functions defined by
+   clauses, dependent pattern matching, compile-time evaluation (docs/REDESIGN.md §6.4, §8.2). The
+   output shows each function's clauses as compiled (one line per leaf of its case tree) and the staged
+   object items. *)
+
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc (plus M N).
+
+vec : Type -> nat -> Type.
+vnil  : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+
+head : vec A (suc N) -> A.          (* coverage: vnil is impossible here *)
+head (vcons X _) = X.
+
+append : vec A N -> vec A M -> vec A (plus N M).
+append vnil YS = YS.
+append (vcons X XS) YS = vcons X (append XS YS).
+
+(* compile-time Fibonacci; 90 : nat by literal overloading *)
+fibm : nat -> int.
+fibm zero = 0.
+fibm (suc zero) = 1.
+fibm (suc (suc N)) = fibm N + fibm (suc N).
+
+fib : int -> int -> rel.
+fib 90 (fibm 90).                  (* stage inference splices the compile-time value *)
+
+sumAll : vec int N -> int.
+sumAll vnil = 0.
+sumAll (vcons X XS) = X + sumAll XS.
+total : int -> rel.
+total (sumAll (append (vcons 1 (vcons 2 vnil)) (vcons 39 vnil))).
+
+(* an unreachable clause is a warning *)
+isZero : nat -> int.
+isZero zero = 1.
+isZero N = 0.
+isZero (suc N) = 0.

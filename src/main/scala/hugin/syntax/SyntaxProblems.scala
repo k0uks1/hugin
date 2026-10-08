@@ -49,6 +49,9 @@ enum SyntaxError extends Problem:
   /** `%partial`, which the redesign removed (every accepted program terminates). */
   case RemovedPartial(at: Span)
 
+  /** A `where` keyword not followed by local definitions. */
+  case EmptyWhere(at: Span)
+
   def code: Code = this match
     case _: UnterminatedComment | _: UnterminatedString => Code.E0002
     case _: InvalidUnicodeEscape | _: InvalidEscape | _: IntegerOutOfRange => Code.E0003
@@ -77,6 +80,7 @@ enum SyntaxError extends Problem:
     case MalformedParameter(s) => s
     case CompleteOutsideSignature(s) => s
     case RemovedPartial(s) => s
+    case EmptyWhere(s) => s
 
   def message: Msg = this match
     case _: UnterminatedComment => msg"unterminated comment"
@@ -100,6 +104,7 @@ enum SyntaxError extends Problem:
     case _: MalformedParameter => msg"malformed parameter"
     case _: CompleteOutsideSignature => msg"`%complete` may only occur in a signature"
     case _: RemovedPartial => msg"`%partial` has been removed"
+    case _: EmptyWhere => msg"empty `where` block"
 
   override def primaryLabel: Msg = this match
     case _: UnterminatedComment => msg"comment starts here"
@@ -119,6 +124,7 @@ enum SyntaxError extends Problem:
     case _: MalformedParameter => msg"expected `X` or `(name : type)`"
     case _: CompleteOutsideSignature => msg"not allowed here"
     case _: RemovedPartial => msg"removed directive"
+    case _: EmptyWhere => msg"expected local definitions"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match

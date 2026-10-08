@@ -1,0 +1,4 @@
+(* new meta level: an atom applied to too many arguments *)
+edge : int -> int -> rel.
+p : rel.
+p :- edge 1 2 3.

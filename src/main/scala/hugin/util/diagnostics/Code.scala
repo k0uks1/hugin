@@ -15,9 +15,12 @@ enum Phase(val title: String, val block: Int):
   case Directives extends Phase("directives", 7)
   case Input extends Phase("input facts", 8)
 
-  /** Diagnostics that user-defined directives report (redesign C2). The block E0900–E0999 is reserved for
+  /** The new meta level (`hugin.core`, redesign B1–B3). */
+  case Elaboration extends Phase("new meta level", 9)
+
+  /** Diagnostics that user-defined directives report (redesign C2). The block E1000–E1099 is reserved for
    *  them; they are reported through the same [[Problem]] API as the compiler's own. */
-  case UserDirectives extends Phase("user directives", 9)
+  case UserDirectives extends Phase("user directives", 10)
   case Lints extends Phase("lints", -1)
 
 /** The default level of a code. Lints may be re-levelled from the command line once lint flags exist. */
@@ -106,6 +109,22 @@ enum Code(
   case E0701 extends Code(701, Phase.Directives, "invalid directive")
   // input facts
   case E0801 extends Code(801, Phase.Input, "invalid input fact")
+  // the new meta level
+  case E0901 extends Code(901, Phase.Elaboration, "mismatched types")
+  case E0902 extends Code(902, Phase.Elaboration, "stage error")
+  case E0903 extends Code(903, Phase.Elaboration, "cannot infer")
+  case E0904 extends Code(904, Phase.Elaboration, "universe inconsistency")
+  case E0905 extends Code(905, Phase.Elaboration, "not a function")
+  case E0906 extends Code(906, Phase.Elaboration, "unknown or missing field")
+  case E0907 extends Code(907, Phase.Elaboration, "not supported by the new meta level yet")
+  case E0908 extends Code(908, Phase.Elaboration, "object-level function")
+  case E0909 extends Code(909, Phase.Elaboration, "staging failure")
+  case E0910 extends Code(910, Phase.Elaboration, "invalid rule head")
+  case E0911 extends Code(911, Phase.Elaboration, "non-covering clauses")
+  case E0912 extends Code(912, Phase.Elaboration, "possibly non-terminating meta function")
+  case E0913 extends Code(913, Phase.Elaboration, "non-positive occurrence")
+  case E0914 extends Code(914, Phase.Elaboration, "invalid inductive declaration")
+  case E0915 extends Code(915, Phase.Elaboration, "invalid pattern")
   // lints
   case W0001
       extends Code(1, Phase.Lints, "undefined constant expression", Level.Warning, lint = Some("undefined_constant_expressions"))
@@ -114,6 +133,7 @@ enum Code(
   case W0003 extends Code(3, Phase.Lints, "unused definition", Level.Warning, lint = Some("unused_definitions"), unnecessary = true)
   case W0005
       extends Code(5, Phase.Lints, "formula function without clauses", Level.Warning, lint = Some("empty_formula_functions"))
+  case W0006 extends Code(6, Phase.Lints, "unreachable clause", Level.Warning, lint = Some("unreachable_clauses"), unnecessary = true)
 
   /** The code as users see it: `E0602`, `W0002`. */
   def id: String = (if lint.isDefined then "W" else "E") + f"$number%04d"
@@ -128,7 +148,7 @@ enum Code(
 
 object Code:
   /** The codes reserved for diagnostics reported by user-defined directives (see [[Phase.UserDirectives]]). */
-  val userDirectiveNumbers: Range = 900 until 1000
+  val userDirectiveNumbers: Range = 1000 until 1100
 
   /** A code by its id, case-insensitively. */
   def parse(s: String): Option[Code] = values.find(_.id.equalsIgnoreCase(s.trim))

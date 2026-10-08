@@ -1,0 +1,9 @@
+error[E0906]: no field `z`
+ --> tests/neg/core_e0906_field.hgn:4:12
+  |
+4 | z = origin.z.
+  |            ^ unknown field
+  |
+  = note: `{ x : int, y : int }` has the fields `x`, `y`
+
+1 error found

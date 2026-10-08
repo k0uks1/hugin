@@ -1,0 +1,6 @@
+(* new meta level: a pattern variable bound twice *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+same : nat -> nat -> nat.
+same N N = N.

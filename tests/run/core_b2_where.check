@@ -1,0 +1,20 @@
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+pair : Type -> Type -> Type₁.
+mkPair : {A : Type} -> {B : Type} -> A -> B -> pair A B.
+shape : Type.
+rect : int -> int -> shape.
+area : shape -> int.
+  area (rect W H) = (W + 0) * (H * 1).
+fibPair : nat -> pair int int.
+  fibPair zero = mkPair 0 1.
+  fibPair (suc N) = mkPair (fibPair.b N (fibPair N)) (fibPair.a N (fibPair N) + fibPair.b N (fibPair N)).
+fst : pair int int -> int.
+  fst (mkPair X _) = X.
+addTo : int -> nat -> int.
+  addTo K M = addTo.go K M M.
+answer : int -> rel.
+answer 42.
+answer 6765.
+answer 42.

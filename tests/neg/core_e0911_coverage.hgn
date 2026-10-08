@@ -1,0 +1,6 @@
+(* new meta level: the clauses do not cover `pred zero` *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+pred : nat -> nat.
+pred (suc N) = N.

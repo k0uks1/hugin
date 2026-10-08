@@ -9,11 +9,20 @@ import scala.collection.mutable
  *
  *  Precedence levels (Section 2.2) are scaled by 10; an operator declared with `%infix assoc p name`
  *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
+ *
+ *  With `meta2`, the parser accepts the syntax of the new meta level (docs/REDESIGN.md §6): equational
+ *  clauses `f p̄ = e.` ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and
+ *  lifts `⇑t`. Without it, the parser behaves exactly as before.
  */
-final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String, (Parser.Assoc, Int)]] = None):
+final class Parser(
+    src: SourceFile,
+    reporter: Reporter,
+    infix: Option[Map[String, (Parser.Assoc, Int)]] = None,
+    meta2: Boolean = false
+):
   import Parser.*
 
-  private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
+  private val toks: Vector[Token] = Lexer(src, reporter, meta2).tokenize()
   private var i = 0
   private val infixOps = mutable.HashMap.empty[String, (Assoc, Int)]
 
@@ -138,6 +147,7 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
 
   private def parseItem(): Item =
     val start = tok.span.start
+    val startCol = tok.span.startCol
     kind match
       case Tok.Directive => parseDirective()
       case Tok.Query =>
@@ -153,6 +163,15 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         val lhs = parseExpr(LvlHead)
         kind match
           case Tok.Colon => parseDeclRest(lhs, start, fact = false)
+          case Tok.Eq if meta2 =>
+            advance()
+            val rhs = parseExpr(LvlSemi)
+            val where = if kind == Tok.KwWhere then parseWhere(startCol) else Nil
+            if where.isEmpty then expect(Tok.Period, "`.` after clause")
+            if where.isEmpty && isDeclHead(lhs) then
+              val (name, params) = declHead(lhs)
+              Def(name, params, rhs)(spanFrom(start))
+            else Clause(lhs, rhs, where)(spanFrom(start))
           case Tok.Eq =>
             advance()
             val (name, params) = declHead(lhs)
@@ -192,6 +211,28 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
       expect(Tok.Period, if body.isEmpty then "`.`, `,` or `:-`" else "`.` after rule body")
     else advance()
     Rule(name, heads.toList, body)(spanFrom(start))
+
+  /** `where b₁. … bₙ.` after the right-hand side of a clause starting at column `col`. Layout: the block
+   *  consists of the items that follow and start at a column greater than `col`; it ends before the first
+   *  item at column `col` or less (so a top-level clause's block ends at the next item at column 0), at a
+   *  `}`, or at the end of the file. The last binding's period ends the clause. */
+  private def parseWhere(col: Int): List[Item] =
+    val w = advance()
+    val items = mutable.ListBuffer.empty[Item]
+    while kind != Tok.EOF && kind != Tok.RBrace && (items.isEmpty || tok.span.startCol > col) do
+      parseItemRecovering().foreach(items += _)
+    if items.isEmpty then
+      reporter.report(SyntaxError.EmptyWhere(w.span))
+    items.toList
+
+  /** Whether `lhs` has the shape of a definition head `name param*` (see [[declHead]]). */
+  private def isDeclHead(lhs: Tree): Boolean =
+    val (hd, args) = TreeOps.flattenApp(lhs)
+    hd.isInstanceOf[Ident] && args.forall {
+      case _: VarRef => true
+      case Ascribe(_: Ident | _: VarRef, _) => true
+      case _ => false
+    }
 
   private def declHead(lhs: Tree): (Ident, List[Param]) =
     def flatten(t: Tree, acc: List[Tree]): (Tree, List[Tree]) = t match
@@ -357,6 +398,8 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
             case "|" => Union(lhs, rhs)(sp)
             case "->" =>
               lhs match
+                case ImplicitBinder(ns, t) if meta2 => ImplicitPi(ns, t, rhs)(sp)
+                case RecordType(List(SigEntry.FieldDecl(l, t, false))) if meta2 => ImplicitPi(List(l), t, rhs)(sp)
                 case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
                 case _ => Arrow(None, lhs, rhs)(sp)
             case _ if opTok.kind == Tok.Name =>
@@ -400,6 +443,7 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
 
   private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
+    case Tok.Dollar | Tok.Up => meta2
     case Tok.Name => !infixOps.contains(t.text)
     case _ => false
   )
@@ -475,6 +519,14 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         val p = expect(Tok.StrLit, "a file path in quotes")
         Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
+      case Tok.Dollar if meta2 =>
+        advance()
+        val arg = parsePostfix()
+        SpliceE(arg)(spanFrom(start))
+      case Tok.Up if meta2 =>
+        advance()
+        val arg = parsePostfix()
+        LiftE(arg)(spanFrom(start))
       case Tok.Error => throw new ParseError
       case _ =>
         failExpected(msg"an expression", msg"expected an expression")
@@ -521,6 +573,15 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
     if k0 == Tok.DotDot then
       advance(); expect(Tok.RBrace)
       RecordLit(Nil, rest = true)(spanFrom(start))
+    else if meta2 && k0 == Tok.Var && implicitBinderAhead then
+      val names = mutable.ListBuffer.empty[Tree]
+      while kind == Tok.Var || kind == Tok.Name do
+        val n = advance()
+        names += (if n.kind == Tok.Var then VarRef(n.text)(n.span) else Ident(n.text)(n.span))
+      expect(Tok.Colon)
+      val tpe = parseType()
+      expect(Tok.RBrace, "`}` after implicit binder")
+      ImplicitBinder(names.toList, tpe)(spanFrom(start))
     else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok
         .Directive && (tok.text == "%complete" || tok.text == "%fact" && k1 == Tok.Name && peekTok(2).kind == Tok.Colon))) && !periodFirst
     then
@@ -535,6 +596,12 @@ final class Parser(src: SourceFile, reporter: Reporter, infix: Option[Map[String
         throw new ParseError
       advance()
       ModuleBody(items.toList)(spanFrom(start))
+
+  /** At `{A B ... :` (after the brace): implicit binders of the new meta level. */
+  private def implicitBinderAhead: Boolean =
+    var k = i
+    while toks(k).kind == Tok.Var || toks(k).kind == Tok.Name do k += 1
+    k > i && toks(k).kind == Tok.Colon
 
   /** Brace disambiguation (refines Section 2.2): a module body is recognised by a period at depth 0
    *  before the first `,` or the closing `}`; otherwise `l :` starts a record type and `l =` a record. */
@@ -606,6 +673,9 @@ object Parser:
   val LvlMul = 70
 
   def parse(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter).parseProgram()
+
+  /** Parses a file in the syntax of the new meta level (docs/REDESIGN.md §6). */
+  def parseMeta2(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter, meta2 = true).parseProgram()
 
   /** The `%infix` operators of a file, which every part of it is parsed with. */
   def infixOperators(src: SourceFile): Map[String, (Assoc, Int)] = Parser(src, Reporter()).infixOperators

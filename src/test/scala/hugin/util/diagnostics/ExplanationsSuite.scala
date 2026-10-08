@@ -8,10 +8,11 @@ import scala.jdk.CollectionConverters.*
 /** The explanations `docs/errors/<id>.md`: one per code, each with examples that compile as documented.
  *  A ` ```hugin fail=<id> ` block must report `<id>` as its first error; a plain ` ```hugin ` block (the fix) must compile
  *  without errors and without that code. A ` ```facts ` block right after a `hugin` block is loaded as its
- *  input facts. Blocks of retired codes are tagged `ignore` and skipped. */
+ *  input facts. Blocks tagged `new-meta` are elaborated by the new meta level (`hugin.core`, `--new-meta`).
+ *  Blocks of retired codes are tagged `ignore` and skipped. */
 class ExplanationsSuite extends munit.FunSuite:
   /** A code block of an explanation: the program, its expected code (for a failing example) and facts. */
-  final case class Example(program: String, fails: Option[String], facts: Option[String], ignored: Boolean)
+  final case class Example(program: String, fails: Option[String], facts: Option[String], ignored: Boolean, newMeta: Boolean)
 
   private val dir = Path.of("docs/errors")
   private val fence = "(?ms)^```(\\w+)([^\\n]*)\\n(.*?)^```\\s*$".r
@@ -21,11 +22,16 @@ class ExplanationsSuite extends munit.FunSuite:
     blocks.zipAll(blocks.drop(1).map(Some(_)), null, None).collect {
       case ((("hugin", attrs, body)), next) =>
         val facts = next.collect { case ("facts", _, f) => f }
-        Example(body, "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1)), facts, attrs.contains("ignore"))
+        val fails = "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1))
+        Example(body, fails, facts, attrs.contains("ignore"), attrs.contains("new-meta"))
     }
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */
   private def diagnostics(e: Example): List[Diagnostic] =
+    if e.newMeta then hugin.core.NewMeta.elaborate(SourceFile.virtual("test.hgn", e.program)).diagnostics
+    else compiled(e)
+
+  private def compiled(e: Example): List[Diagnostic] =
     val c = TestSupport.compile(e.program)
     val compiled = c.reporter.diagnostics
     e.facts match
