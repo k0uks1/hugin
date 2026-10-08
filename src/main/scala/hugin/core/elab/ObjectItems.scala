@@ -58,7 +58,7 @@ trait ObjectItems:
   def warnSingletons(trees: List[Tree]): Unit =
     val occurrences = TreeOps.nodes(trees).collect { case v: VarRef => v }.filterNot(_.name.startsWith("_")).toList
     for (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start) do
-      reporter.report(ObjectProblem.SingletonVariable(name, v.span).toDiagnostic)
+      reporter.report(ElabProblem.SingletonVariable(name, v.span).toDiagnostic)
 
   private def elabHead(c: Cxt, h: Tree): Tm =
     state.objectHead = true
@@ -110,7 +110,7 @@ trait ObjectItems:
           case "input" => CoreDirective.Input
           case "output" => CoreDirective.Output
           case "derivations" => CoreDirective.Derivations
-          case other => fail(ObjectProblem.UnknownDirective(other, d.kindSpan))
+          case other => fail(ElabProblem.UnknownDirective(other, d.kindSpan))
         Some((kind, target(t)))
       case DirArgs.NameHint(t, v) => Some((CoreDirective.NameHint(v.name), target(t)))
       case DirArgs.Infix(_, _, _) => None
@@ -133,5 +133,5 @@ trait ObjectItems:
       case Val.Lift(x) if st == Stage.S1 => (Tm.splice(tm), force(x))
       case other => (tm, other)
     dataConstructorOf(code).foreach(dataUsedAsRelation(_, t.span, s"`$what` expects a relation"))
-    if !isFactConstantType(codeTy) then fail(ObjectProblem.NotARelation(what, t.span))
+    if !isFactConstantType(codeTy) then fail(ElabProblem.NotARelation(what, t.span))
     zonk(base.env, base.lvl, code)

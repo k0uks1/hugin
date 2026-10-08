@@ -38,11 +38,11 @@ trait NamedPatterns:
     Tm.apps(ft, args.map((_, Icit.Expl)))
 
   private def checkFields(rel: String, declared: Span, labels: List[Name], rl: RecordLit): Unit =
-    if rl.rest && state.objectHead then fail(ObjectProblem.RestInHead(rl.span))
+    if rl.rest && state.objectHead then fail(ElabProblem.RestInHead(rl.span))
     dupLabels(rl.fields.map(_.label))
     for f <- rl.fields if !labels.contains(f.label.name) do
-      fail(ObjectProblem.UnknownLabel(rel, f.label.name, labels.filter(_ != "_"), f.label.span, declared))
+      fail(ElabProblem.UnknownLabel(rel, f.label.name, labels.filter(_ != "_"), f.label.span, declared))
     val missing = labels.filter(l => l != "_" && !rl.fields.exists(_.label.name == l))
     if missing.nonEmpty && !rl.rest && !labels.contains("_") then
-      fail(ObjectProblem.MissingLabels(rel, missing, state.objectHead, rl.span, rl.fields.lastOption.map(_.value.span.endPoint)))
-    if labels.contains("_") then fail(ObjectProblem.UnlabelledColumns(rel, rl.span))
+      fail(ElabProblem.MissingLabels(rel, missing, state.objectHead, rl.span, rl.fields.lastOption.map(_.value.span.endPoint)))
+    if labels.contains("_") then fail(ElabProblem.UnlabelledColumns(rel, rl.span))

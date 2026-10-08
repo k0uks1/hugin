@@ -18,7 +18,7 @@ trait Records:
     val seen = scala.collection.mutable.HashMap.empty[Name, Span]
     for l <- ls do
       seen.get(l.name) match
-        case Some(first) => fail(ObjectProblem.DuplicateLabel(l.name, l.span, first))
+        case Some(first) => fail(ElabProblem.DuplicateLabel(l.name, l.span, first))
         case None => seen(l.name) = l.span
 
   /** `{ l₁ : A₁, … }` checked against `Type l`: every field type is in `Type l`. A field whose type is
@@ -52,7 +52,7 @@ trait Records:
     case SigEntry.ModeReq(lb, ms, sp) => Some(SigReq.HasMode(knownLabel(labels, lb), ms.map(_.input).toVector, sp))
 
   private def knownLabel(labels: List[Name], lb: Ident): Name =
-    if !labels.contains(lb.name) then fail(ObjectProblem.UnknownRequirementField(lb.name, lb.span))
+    if !labels.contains(lb.name) then fail(ElabProblem.UnknownRequirementField(lb.name, lb.span))
     lb.name
 
   /** A record value with an inferred (non-dependent) record type. */

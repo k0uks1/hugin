@@ -22,9 +22,9 @@ trait CompleteParameters:
           force(b.ty) match
             case rt: Val.RecTy if !rt.reqs.exists { case SigReq.Complete(`l`, _) => true; case _ => false } =>
               val insertAt = signatureOf(tpe).flatMap(_.entries.lastOption).map(entryEnd)
-              reporter.report(ObjectProblem.IncompleteFieldParameter(what, b.name, l, span, declared, insertAt).toDiagnostic)
+              reporter.report(ElabProblem.IncompleteFieldParameter(what, b.name, l, span, declared, insertAt).toDiagnostic)
             case _ =>
-        case None => reporter.report(ObjectProblem.IncompleteRelationParameter(what, b.name, span, declared).toDiagnostic)
+        case None => reporter.report(ElabProblem.IncompleteRelationParameter(what, b.name, span, declared).toDiagnostic)
     }
 
   /** The parameter (and the field of its signature) whose relation the atom applies: `$(x.l) t̄` or

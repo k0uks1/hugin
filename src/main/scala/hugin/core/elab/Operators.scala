@@ -55,7 +55,7 @@ trait Operators:
   private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match
     case (v: VarRef, agg: Agg) if op == CmpOp.Eq => inferAggregate(c, v, agg)
     case _ if isAggregate(l) || isAggregate(r) =>
-      fail(ObjectProblem.UnboundAggregate(l.span.to(r.span)))
+      fail(ElabProblem.UnboundAggregate(l.span.to(r.span)))
     case _ => inferPlainComparison(c, op, l, r)
 
   private def inferPlainComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) =

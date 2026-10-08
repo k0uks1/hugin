@@ -1,7 +1,7 @@
 package hugin.core
 package handover
 
-import hugin.core.elab.ObjectProblem
+import hugin.core.elab.ElabProblem
 import hugin.obj.ProgramFacts
 import hugin.obj.typing.Moding
 import hugin.util.*
@@ -18,7 +18,7 @@ final class FormulaModes(core: Core, symbols: ObjectSymbols, reporter: Reporter)
     val (applied, params) = applyToArguments(g.ty, globalValue(f))
     val modeText = mode.map(b => if b then "+" else "-").mkString
     if mode.length != params.length then
-      reporter.report(ObjectProblem.FormulaModeArity(g.name, mode.length, params.length, span).toDiagnostic)
+      reporter.report(ElabProblem.FormulaModeArity(g.name, mode.length, params.length, span).toDiagnostic)
     else
       try
         val body = ObjectTerms(core, symbols, Nil, span).formulas(quote(0, applied))
@@ -34,7 +34,7 @@ final class FormulaModes(core: Core, symbols: ObjectSymbols, reporter: Reporter)
           case Right((_, bound)) =>
             val outs = params.zip(mode).collect { case (p, false) => p }.filterNot(bound)
             if outs.nonEmpty then
-              reporter.report(ObjectProblem.FormulaOutputsUnbound(g.name, modeText, outs.map(_.drop(3)), span).toDiagnostic)
+              reporter.report(ElabProblem.FormulaOutputsUnbound(g.name, modeText, outs.map(_.drop(3)), span).toDiagnostic)
       catch case e: NotObjectCode => reporter.report(e.diagnostic)
 
   /** The formula function applied to fresh variables for its explicit parameters (and placeholders for

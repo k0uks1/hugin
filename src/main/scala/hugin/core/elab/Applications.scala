@@ -83,7 +83,7 @@ trait Applications:
    *  `expected` arguments. */
   def objectArity(head: Tree, t: Tm, expected: Int, found: Int, span: Span): Nothing =
     val declared = objectHead(t).map(globals(_).span).getOrElse(Span.NoSpan)
-    fail(ObjectProblem.ObjectArity(hugin.syntax.Printer.show(head), expected, found, span, declared))
+    fail(ElabProblem.ObjectArity(hugin.syntax.Printer.show(head), expected, found, span, declared))
 
   /** The codomain of an object arrow (object arrows are not dependent). */
   private def objectCodomain(ty: Val): Val = force(ty) match

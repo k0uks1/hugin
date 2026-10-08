@@ -5,10 +5,12 @@ import hugin.util.Span
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** Problems of object code and object declarations found by the new meta level (redesign B3): the shape
- *  of object items (named patterns, atoms, directives), the data/fact split, declarations of object
- *  constants. Object *typing* problems are the object typer's (`obj/typing/TypingProblems`). */
-enum ObjectProblem extends Problem:
+/** Problems found by the new meta level that are reported as typed problems (docs/DIAGNOSTICS.md): the
+ *  shape of object items (named patterns, atoms, directives), the data/fact split, object declarations,
+ *  module bodies, signatures and their requirements, formula functions, names. (The diagnostics of B1/B2
+ *  are still built by `ElabErrors` through `Legacy`.) Object *typing* problems are the object typer's
+ *  (`obj/typing/TypingProblems`). */
+enum ElabProblem extends Problem:
   /** An aggregate that is not the right-hand side of `X = k { … }`. */
   case UnboundAggregate(at: Span)
 
@@ -41,6 +43,7 @@ enum ObjectProblem extends Problem:
 
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
+  case UnresolvedName(name: String, at: Span, similar: Option[String], replaceable: Boolean)
   case ObjectArity(name: String, expected: Int, found: Int, at: Span, declared: Span)
 
   /** A functor negates or aggregates over (`what`) the field `label` of its parameter `param` without the
@@ -77,6 +80,7 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
     case _: UnusedDefinition => Code.W0003
+    case _: UnresolvedName => Code.E0101
     case _: ObjectArity => Code.E0207
     case _: IncompleteFieldParameter | _: IncompleteRelationParameter => Code.E0210
     case _: FormulaModeArity => Code.E0701
@@ -111,6 +115,7 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
     case UnusedDefinition(_, s) => s
+    case UnresolvedName(_, s, _, _) => s
     case ObjectArity(_, _, _, s, _) => s
     case IncompleteFieldParameter(_, _, _, s, _, _) => s
     case IncompleteRelationParameter(_, _, s, _) => s
@@ -146,6 +151,7 @@ enum ObjectProblem extends Problem:
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case UnresolvedName(n, _, _, _) => msg"unresolved name ${Src(n)}"
     case ObjectArity(n, e, f, _, _) => msg"${Src(n)} expects $e argument${Lit(if e == 1 then "" else "s")}, found $f"
     case IncompleteFieldParameter(w, p, l, _, _, _) =>
       msg"the functor ${Lit(w)} the relation parameter ${Src(s"$p.$l")} without requiring ${Src(s"%complete $l")}"
@@ -171,6 +177,7 @@ enum ObjectProblem extends Problem:
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
     case _: UnusedDefinition => msg"never referenced"
+    case _: UnresolvedName => msg"not found in this scope"
     case ObjectArity(_, _, f, _, _) => msg"$f argument${Lit(if f == 1 then "" else "s")} given"
     case IncompleteFieldParameter(_, p, l, _, _, _) => msg"${Src(s"$p.$l")} may be bound to an incomplete relation"
     case IncompleteRelationParameter(_, p, _, _) => msg"${Src(p)} may be bound to an incomplete relation"
@@ -224,6 +231,7 @@ enum ObjectProblem extends Problem:
         case None => msg"declare ${Src(n)} with `%fact` to read its facts"
       )
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
+    case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")
     case IncompleteFieldParameter(_, p, l, _, _, _) => List(msg"add ${Src(s"%complete $l")} to the signature of ${Src(p)}")
     case _: IncompleteRelationParameter =>
       List(msg"pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`")
@@ -246,6 +254,8 @@ enum ObjectProblem extends Problem:
       List(Suggestion.replace(d.startPoint, "%fact ", msg"declare it with `%fact`", Applicability.MachineApplicable))
     case IncompleteFieldParameter(_, _, l, _, _, Some(at)) =>
       List(Suggestion.replace(at, s", %complete $l", msg"add ${Src(s"%complete $l")}", Applicability.MachineApplicable))
+    case UnresolvedName(_, at, Some(s), true) =>
+      List(Suggestion.replace(at, s, msg"replace with ${Src(s)}", Applicability.MaybeIncorrect))
     case SingletonVariable(n, at) =>
       List(
         Suggestion.replace(at, "_", msg"replace ${Src(n)} with `_`", Applicability.MachineApplicable),

@@ -28,7 +28,7 @@ trait FormulaFunctions:
       val g = globals(id)
       val (params, result) = telescope(g.ty)
       if force(result) == Val.Lift(Val.PropT) then
-        if clauses.isEmpty then reporter.report(ObjectProblem.FormulaFunctionWithoutClauses(name, g.span).toDiagnostic)
+        if clauses.isEmpty then reporter.report(ElabProblem.FormulaFunctionWithoutClauses(name, g.span).toDiagnostic)
         var c = Cxt.empty
         for (x, _, ty) <- params.zipWithIndex.map((p, i) => (s"$name#${i + 1}", p._2, p._3)) do c = bind(c, x, ty, Stage.S1)
         val alts = clauses.flatMap(cl => reporting(clause(c, name, params.map(_._3), cl)))
@@ -52,7 +52,7 @@ trait FormulaFunctions:
     val head = cl.heads.head
     val args = TreeOps.flattenApp(head)._2
     if args.length != domains.length then
-      fail(ObjectProblem.ClauseArity(name, args.length, domains.length, head.span))
+      fail(ElabProblem.ClauseArity(name, args.length, domains.length, head.span))
     warnSingletons(cl.heads ++ cl.body.toList)
     val (cv, vars) = bindRuleVarsFrom(c, cl.heads ++ cl.body.toList)
     val eqs = args.zip(domains).zipWithIndex.map { case ((a, dom), i) =>

@@ -47,10 +47,10 @@ trait ObjectDecls:
     val entries = d.defn.get.asInstanceOf[RecordType].entries
     val fields = entries.map {
       case SigEntry.FieldDecl(l, t, fact) =>
-        if fact then fail(ObjectProblem.StructFieldFact(l.span))
+        if fact then fail(ElabProblem.StructFieldFact(l.span))
         (l, t)
-      case SigEntry.Complete(_, sp) => fail(ObjectProblem.StructRequirement(sp))
-      case SigEntry.ModeReq(_, _, sp) => fail(ObjectProblem.StructRequirement(sp))
+      case SigEntry.Complete(_, sp) => fail(ElabProblem.StructRequirement(sp))
+      case SigEntry.ModeReq(_, _, sp) => fail(ElabProblem.StructRequirement(sp))
     }
     dupLabels(fields.map(_._1))
     columnsType(c, fields.map((l, t) => (l.name, t)), Tm.RelT)
@@ -77,7 +77,7 @@ trait ObjectDecls:
         val base = check(Cxt.empty, d.sup.get, Val.U0, Stage.S0)
         declare(d.name, Tm.U0, Stage.S0, GlobalKind.Object(ObjDecl.Refinement(zonk(Nil, 0, base))), d.span)
       case _ =>
-        fail(ObjectProblem.RefinementOfNonType(d.sup.get.span))
+        fail(ElabProblem.RefinementOfNonType(d.sup.get.span))
 
   /** `τ <: a.`: the object type `τ` (an object type, a relation's or constructor's fact type) becomes a
    *  subtype of the open type `a`. */
@@ -89,8 +89,8 @@ trait ObjectDecls:
     force(ev(c, sup)) match
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind == GlobalKind.Object(ObjDecl.OpenType) =>
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).stage == Stage.S0 =>
-        fail(ObjectProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
-      case _ => fail(ObjectProblem.EdgeTarget(e.sup.span))
+        fail(ElabProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
+      case _ => fail(ElabProblem.EdgeTarget(e.sup.span))
     CoreItem.EdgeItem(zonk(c.env, c.lvl, sub), zonk(c.env, c.lvl, sup), e.span)
 
   // ------------------------------------------------------------------ cycles between object declarations
@@ -148,5 +148,5 @@ trait ObjectDecls:
     head(t) match
       case Tm.Global(id) if globals(id).pending =>
         val name = scope.collectFirst { case (n, i) if i == id => n }.getOrElse(globals(id).name)
-        throw ElabError(ObjectProblem.UsedBeforeDeclaration(name, globals(id).span).toDiagnostic, Some(name))
+        throw ElabError(ElabProblem.UsedBeforeDeclaration(name, globals(id).span).toDiagnostic, Some(name))
       case _ =>

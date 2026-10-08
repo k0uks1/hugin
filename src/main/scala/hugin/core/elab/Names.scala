@@ -5,7 +5,7 @@ import hugin.obj.BaseType
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Applicability, Code as DiagCode, Legacy}
+import hugin.util.diagnostics.Code as DiagCode
 
 /** Name resolution: bound variables, top-level names, builtin base types; implicitly bound variables. */
 trait Names:
@@ -33,22 +33,15 @@ trait Names:
               case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
               case None => unresolved(c, n, span)
 
+  /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
+   *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
     val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
-    val similar = candidates
-      .filter(k => k != n && org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(k, n) <= 2)
-      .sorted
-      .headOption
-    var d = Legacy.error(DiagCode.E0101, s"unresolved name `$n`", span, "not found in this scope")
-    similar.foreach(s =>
-      d = d.withHelp(s"a name with a similar spelling exists: `$s`").withSuggestion(
-        s"replace with `$s`",
-        span,
-        s,
-        Applicability.MaybeIncorrect
-      )
-    )
-    throw ElabError(d, unresolved = Some(n))
+      .filter(k => k != n && k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
+    val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
+    val similar =
+      candidates.map(k => (distance.apply(k, n).intValue, k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1).headOption.map(_._2)
+    throw ElabError(ElabProblem.UnresolvedName(n, span, similar, span.text == n).toDiagnostic, unresolved = Some(n))
 
   def paramName(p: Tree): Name = p match
     case VarRef(n) => n

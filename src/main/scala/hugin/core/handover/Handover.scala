@@ -46,7 +46,7 @@ final class Handover(core: Core, reporter: Reporter):
         case SigReq.Complete(l, sp) => Some(obj.RequirementCheck(obj.Requirement.Complete(l, sp), rel, u.use, u.origin))
         case SigReq.HasMode(l, ins, sp) => Some(obj.RequirementCheck(obj.Requirement.HasMode(l, obj.Mode(ins), sp), rel, u.use, u.origin))
         case SigReq.Fact(l) =>
-          if rel.isData then reporter.report(elab.ObjectProblem.NotAFactConstructor(rel.name, l, u.use).toDiagnostic)
+          if rel.isData then reporter.report(elab.ElabProblem.NotAFactConstructor(rel.name, l, u.use).toDiagnostic)
           None
     }
   }

@@ -3,7 +3,7 @@ package handover
 
 import hugin.obj
 import hugin.obj.{Formula, RelRef, Term}
-import hugin.core.elab.ObjectProblem
+import hugin.core.elab.ElabProblem
 import hugin.util.*
 import hugin.util.diagnostics.Problem
 
@@ -24,7 +24,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
 
   private def bad(problem: Problem): Nothing = throw NotObjectCode(problem.toDiagnostic)
 
-  private def expected(what: String, t: Tm, span: Span): Nothing = bad(ObjectProblem.NotObjectShape(what, showTm(names, t), span))
+  private def expected(what: String, t: Tm, span: Span): Nothing = bad(ElabProblem.NotObjectShape(what, showTm(names, t), span))
 
   private def variable(t: Tm, span: Span): String = Tm.unloc(t) match
     case Tm.Var(ix) => names(ix)
@@ -71,7 +71,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     case Tm.Obj(ObjForm.Not, List(a)) =>
       formulas(a, span) match
         case List(atom: Formula.Atom) => List(Formula.Not(atom)(span))
-        case _ => bad(ObjectProblem.NotAnAtom("not", spanOf(a, span)))
+        case _ => bad(ElabProblem.NotAnAtom("not", spanOf(a, span)))
     case Tm.Obj(ObjForm.Compare(op), List(a, b)) => List(Formula.Cmp(op, term(a, span), term(b, span))(span))
     case Tm.Obj(ObjForm.Agg(kind), List(x, a, b)) =>
       val res = variable(x, span)
@@ -80,7 +80,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
     case Tm.Obj(ObjForm.As, List(a, x)) =>
       formulas(a, span) match
         case List(atom: Formula.Atom) if atom.as.isEmpty => List(Formula.Atom(atom.rel, atom.args, Some(variable(x, span)))(span))
-        case _ => bad(ObjectProblem.NotAnAtom("as", span))
+        case _ => bad(ElabProblem.NotAnAtom("as", span))
     case Tm.App(_, _, _) | Tm.Global(_) =>
       val (head, args) = spine(t, Nil)
       List(Formula.Atom(RelRef.Sym(relation(head, span)), args.map(term(_, span)), None)(span))

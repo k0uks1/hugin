@@ -73,7 +73,7 @@ trait Items:
   def finish(): Unit =
     if file.lintUnused then
       for (n, id) <- scope if !state.used(id) && isDefinitionToLint(id) do
-        reporter.report(ObjectProblem.UnusedDefinition(n, globals(id).span).toDiagnostic)
+        reporter.report(ElabProblem.UnusedDefinition(n, globals(id).span).toDiagnostic)
 
   private def isDefinitionToLint(id: Int): Boolean =
     val g = globals(id)

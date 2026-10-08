@@ -64,7 +64,7 @@ trait ModuleBodies:
     pending.foreach(item => reportingErrors(member(cb, item)))
     (cb, members.toList)
 
-  private def duplicate(m: Member, first: Member): Nothing = fail(ObjectProblem.DuplicateMember(m.name, m.span, first.span))
+  private def duplicate(m: Member, first: Member): Nothing = fail(ElabProblem.DuplicateMember(m.name, m.span, first.span))
 
   private def memberName(item: Item): Option[Name] = item match
     case d: Decl => Some(d.name.name)

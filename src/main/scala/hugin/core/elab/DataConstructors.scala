@@ -55,7 +55,7 @@ trait DataConstructors:
 
   /** E0406 for the constructor field `label` of a parameter, named `shown`, used as a relation. */
   def dataFieldUsedAsRelation(shown: String, label: Name, span: Span): Nothing =
-    fail(ObjectProblem.DataFieldAsRelation(shown, label, span))
+    fail(ElabProblem.DataFieldAsRelation(shown, label, span))
 
   /** E0406 for the data constructor `id` used as a relation at `span`. */
   def dataUsedAsRelation(id: Int, span: Span, label: String): Nothing =
@@ -65,4 +65,4 @@ trait DataConstructors:
       case _ => "data constructor"
     val decl = Option.when(g.declSpan.exists)((g.declSpan, g.declSpan.text))
     val local = g.declSpan.exists && g.declSpan.source.path == span.source.path
-    fail(ObjectProblem.DataAsRelation(g.name, what, label, span, g.span, decl, local))
+    fail(ElabProblem.DataAsRelation(g.name, what, label, span, g.span, decl, local))

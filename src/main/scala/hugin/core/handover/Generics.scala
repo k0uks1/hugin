@@ -1,7 +1,7 @@
 package hugin.core
 package handover
 
-import hugin.core.elab.ObjectProblem
+import hugin.core.elab.ElabProblem
 import hugin.obj
 import hugin.util.*
 import scala.collection.mutable
@@ -55,7 +55,7 @@ final class Generics(core: Core, symbols: ObjectSymbols, reporter: Reporter, han
 
   private def locals(n: Int): List[Val] = (0 until n).reverse.map(Val.local).toList
 
-  private def instantiate(g: Generic, inst: Int): Either[ObjectProblem, Option[obj.Rule]] = tentatively {
+  private def instantiate(g: Generic, inst: Int): Either[ElabProblem, Option[obj.Rule]] = tentatively {
     val key = globals(inst).instanceOf.get._2
     val n = g.rule.vars.length
     val unified =
@@ -71,7 +71,7 @@ final class Generics(core: Core, symbols: ObjectSymbols, reporter: Reporter, han
   }
 
   /** A use of the rule's family at other arguments than the instance's (`nest X :- nest (put X).`). */
-  private def polymorphicUse(g: Generic, key: List[Tm]): Option[ObjectProblem] =
+  private def polymorphicUse(g: Generic, key: List[Tm]): Option[ElabProblem] =
     val env = locals(g.rule.vars.length)
     val names = g.rule.vars.map(_._1).reverse
     def uses(t: Tm, span: Span): List[(Int, Span)] = t match
@@ -82,5 +82,5 @@ final class Generics(core: Core, symbols: ObjectSymbols, reporter: Reporter, han
       case (id, span) if globals(id).instanceOf.exists((f, as) => f == g.family && as != key) =>
         val fam = globals(g.family).name
         def show(as: List[Tm]) = as.map(a => showTm(names, a match { case Tm.Quote(u) => u; case u => u })).mkString("[", ", ", "]")
-        ObjectProblem.PolymorphicRecursion(fam, show(globals(id).instanceOf.get._2), show(key), span)
+        ElabProblem.PolymorphicRecursion(fam, show(globals(id).instanceOf.get._2), show(key), span)
     }

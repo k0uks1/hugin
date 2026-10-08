@@ -106,5 +106,5 @@ final class ObjectSymbols(core: Core, reporter: Reporter):
     case other => notAnObjectType(other, span)
 
   private def notAnObjectType(t: Tm, span: Span): OType =
-    reporter.report(elab.ObjectProblem.StuckObjectType(showTm(Nil, t), span).toDiagnostic)
+    reporter.report(elab.ElabProblem.StuckObjectType(showTm(Nil, t), span).toDiagnostic)
     OType.Err
