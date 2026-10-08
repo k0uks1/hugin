@@ -14,7 +14,8 @@ scope; the interpreter is meant to make programs runnable and results comparable
 > **Redesign in progress.** The language is moving to a Datalog∃! object level (every constructor a
 > fact, termination by size-change, bound arithmetic columns) under a total, dependently typed meta
 > level in clause syntax, where directives such as `%demand`/`%mode` are meta functions. The meta level
-> (Phase B) is done; see `docs/REDESIGN.md` for the decisions and the implementation plan.
+> (Phase B), reflection (C1) and directives as meta functions (C2) are done; see `docs/REDESIGN.md` for
+> the decisions and the implementation plan.
 
 ```
 $ bin/hugin run examples/typechecker.hgn --facts examples/typechecker.facts
@@ -200,8 +201,16 @@ the prelude but not the program that imports it. Its object declarations are nam
 The prelude, [`prelude.hgn`](src/main/resources/hugin/stdlib/prelude.hgn), is ordinary Hugin source
 bundled with the compiler and included in every program (unless `--no-prelude`). It declares the base
 types (`int : type = %builtin int.`), lists with `len`, `option`, `pair`, the signature `graph` and the
-functors `tc` and `bounded` of Section 13.1. Its names can be shadowed by the program. The design and its
+functors `tc` and `bounded` of Section 13.1, the reflective types of object syntax, and the primitive
+directives. Its names can be shadowed by the program. The design and its
 relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).
+
+A directive `%d a₁ … aₙ.` applies the meta function `d` (docs/REDESIGN.md §7): `%input r.` is the
+prelude's `input` applied to the declaration of `r`, and a program can define directives of its own, such
+as `symmetric R = [ R Y X :- R X Y ].` for `%symmetric friend.` The type of the application says what a
+directive changes: a declaration (`decl`), the items added in its place (`seq item`) or all rules of the
+file (`module -> module`). Written without `.` before a declaration (`%output path : node -> rel.`), it
+applies to that declaration. `%mode` and `%infix` have a syntax of their own.
 
 ## Dependencies
 

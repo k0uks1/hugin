@@ -1124,7 +1124,103 @@ and patterns), splits by identity in case trees, and reflection (data → syntax
 * **For C2.** `Reflection.reflectedItems(v, kind, span)` turns a closed `module`/`seq item` value into
   syntax, `elabSpliceItem` elaborates it with provenance; `reify(c, tree, kind)` quotes syntax (a
   directive's arguments). Missing: `Decl` (declarations as data), reflection inside module bodies,
-  reflecting rule names.
+  reflecting rule names. (C2 added `decl` and rule names, `inamed`; reflection in module bodies is
+  still E0907, see "Directives".)
+
+## Directives (redesign Phase C2)
+
+Directives are meta functions (REDESIGN §7): `%d a₁ … aₙ.` resolves `d` like any name, elaborates the
+application `d a₁ … aₙ`, and its type says what it changes (the *footprint*).
+
+| file | contents |
+|---|---|
+| `syntax/DirectiveSyntax.scala` | `%d a₁ … aₙ.` (arguments are atoms), the prefix form, and the forms with a grammar of their own (`%mode`, `%infix`, `%fact`) |
+| `core/elab/Directives.scala` | resolution, the application, the footprint; `%mode` (until C3) |
+| `core/elab/ModuleDirectives.scala` | module parts and the expansion of module-wide directives |
+| `core/DeclAttributes.scala`, `core/handover/DeclData.scala` | `decl` values read back, and their attributes attached as object directives |
+| `core/elab/DirectiveProblems.scala` | E0101 (unknown directive), E1000–E1003, E0701 |
+
+### Declarations as data (prelude)
+
+| type | constructors |
+|---|---|
+| `decl` | `dconst sym (seq attr)` (an object constant), `drule string (seq attr)` (a rule `@r`), `derror string` |
+| `attr` | `ainput`, `aoutput`, `aopen`, `aderivations`, `aterminates measure (seq term)` |
+| `measure` | `mvars (seq string)` (`X`, `(X, Y)`), `mlabels (seq string)` (`n`, `(n, m)`) |
+| `item` (new constructors) | `inamed string rule` (a rule `@r`), `ierror string` |
+
+`attach : attr -> decl -> decl` adds an attribute; the primitive directives are prelude functions:
+`input D = attach ainput D.` (likewise `output`, `open`, `derivations`) and
+`terminates : measure -> formula -> decl` (`%terminates X (r X _)`, `%terminates n r`).
+
+### Decisions (C2)
+
+* **Footprints by type.** The application `d a₁ … aₙ` (implicit arguments inserted) of type `decl` is
+  *local*; `seq item`, `item`, `rule`, `seq rule` are *additive*; a function `module -> module` is
+  *module-wide*; anything else is E1001. In the prefix form `%d a₁ … aₙ DECL`, `d a₁ … aₙ` must have type
+  `decl -> decl` (E1002) and is applied to the declaration; the result must describe that declaration
+  (E1003). REDESIGN §7.1 calls the standalone local form "`Decl -> Decl` ... rewrites the declaration it
+  names"; here the name is the directive's last argument, quoted as a `decl` (`%input r.` is `input r`
+  with `r : decl`), so both forms end in a `decl`.
+* **What a declaration is as data.** A `decl` is an object constant (by symbol) or a rule name with its
+  *attributes*; the declaration's type is not data (untyped reflection, Q5), so a local directive cannot
+  change a type, only attach what the primitive directives attach. Where a `decl` is expected, an object
+  constant (also a path `m.r`, a family, or in a module body a member) is quoted as `dconst ⟨r⟩ []` and a
+  rule name `@r` as `drule "r" []`; where a `measure` is expected, the measure syntax of `%terminates` is
+  quoted. Attributes accumulate: a local directive is given the declaration without the attributes of
+  earlier directives (it cannot remove them), which keeps every local directive independent of the
+  others, so they are elaborated item by item (see incrementality). C3 adds what `%demand` needs to
+  *declare* constants (`r.check`).
+* **Local directives are evaluated by the handover.** A local directive becomes a `CoreItem.DeclItem`
+  (its `decl` term); the handover evaluates it — at the top level closed, in a module instance in the
+  instance's environment — reads it back (`DeclAttributes`) and attaches the attributes as object
+  directives (`DeclData`). So a directive in a module body may name the body's constants (the prelude's
+  `bounded` has `%terminates N (hop _ _ N).`), and functions by clauses declared after the module body
+  that uses them are available. Errors of the data (not a relation, E0701/E0406; another declaration,
+  E1003; not closed, E0918; the directive's own `derror`, E1000) are reported there. An attribute of a
+  family applies to each instance, as before.
+* **Additive directives** are reflected in place like an item `$e.` (provenance "in expansion of
+  `%symmetric friend`"); **module-wide** ones need the whole module: every object item records what it
+  contributes (`ModulePart`: a rule or query as written, the data of a splice or an additive directive, a
+  rewrite), and if there is a rewrite, the rules and queries elaborated item by item are replaced by the
+  expansion: in source order, the rules, queries and splices are the module's data (rules reified from
+  their syntax, named rules as `inamed`), an additive directive adds its items at its place, and a
+  module-wide directive replaces all data so far with its result, so each directive sees the output of
+  the ones before it. The result is reflected and elaborated; an item the directive passed on unchanged
+  keeps its place and provenance, a new one is placed at the directive and notes it. Items with errors
+  are not part of the module. Both are top level only: in a module body they are E0907 (the body's items
+  would have to be reflected over its members, whose values exist only per instance).
+* **Symbols by meta code.** In quoted syntax, a head that is meta code of a relation (or fact
+  constructor) type — a clause's variable `R : ⇑(A -> A -> rel)`, a functor's parameter `g.edge`, a
+  body's member — is a symbol (§8.5 writes `symmetric R = [ R Y X :- R X Y ].`). Symbols in reified data
+  carry the position of their name, so errors about them point there.
+* **User-defined errors** (DIAGNOSTICS.md, Q3): a directive rejects its input by returning `derror "…"`
+  or an item `ierror "…"`; the message is reported as E1000 at the directive. Codes chosen by the user
+  are not supported; the block E1000–E1099 holds E1000 and the machinery's codes E1001–E1003.
+* **Resolution.** `%d` is E0101 ("unknown directive") if no `d` is in scope, with a similar name among
+  the directives in scope (meta functions of a directive type, not the constructors of reflective data)
+  as a suggestion. Without the prelude only `%mode` and `%infix` exist. A program's own `output` shadows
+  the prelude's (then `%output` is E1001). A directive in a module body whose function is declared later
+  in the file retries the definition after it, as other declarations do.
+* **Removed.** The parser's, the core's and the handover's dispatch on directive names; `%name` (never
+  used by any phase) and `%abbrev` (retired in B3, still parsed and ignored).
+* **Parsing.** The prefix form is recognised by the declaration's `:` before the directive's end; the
+  name before it (with its parameters) starts the declaration. A prefix directive and its declaration
+  are two items; the directive is parsed from a slice that includes the declaration.
+* **Tooling.** Hover over `%d` shows `d`'s declaration and footprint ("directive, local: it changes a
+  declaration"); completion after `%` lists the directives in scope and those with their own syntax.
+* **Incrementality.** Local and additive directives are object items of their own (a local directive's
+  result does not depend on other items), so editing one elaborates that item only. With a module-wide
+  directive the items are still elaborated one by one (for their diagnostics and index), but the
+  program's rules are those of the expansion, which runs when the program is assembled
+  (`ItemQueriesSuite`).
+* **Goldens.** `run/c2_symmetric` (§8.5, with `⇑` and with `sym`), `run/c2_module_wide` (source order),
+  `run/c2_primitive` (prefix form, composition, labels and variables, families, module bodies, rules);
+  `neg/c2_directives`. Changed `.check` files: `neg/syntax_recovery` (`%frobnicate` is an elaboration
+  error now, which a file with syntax errors does not reach; moved to `neg/c2_directives`),
+  `neg/core_e0901_occurs` (meta numbers: the prelude elaborates differently), `lsp/navigation` (completion
+  after `%` shows the directive's declaration, and a new hover over `%output`). `run/f_infix_abbrev` and
+  `neg/typedefs` no longer use `%abbrev` (same output).
 
 ## Bound columns (redesign A2)
 

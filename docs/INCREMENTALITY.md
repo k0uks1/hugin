@@ -25,6 +25,13 @@ follow (see *Status* at the end). This note records the plan for finer-grained q
 step is one PR that keeps all tests green; `IncrementalSuite` (incremental = from scratch on every golden
 program under edits) is the safety net for all of them.
 
+> **Directives (C2)** are object items like rules: a local directive (`%input r.`, one returning a
+> `decl`) and an additive one (returning items) are elaborated on their own, so editing one elaborates
+> that item only. A module-wide directive (`module -> module`) makes the file's rules and queries depend
+> on its expansion, which runs when the program is assembled (`ElabProgram`); the items are still
+> elaborated one by one for their diagnostics and index. A prefix directive is parsed from a slice that
+> includes the declaration it is attached to (docs/NOTES.md, "Directives").
+
 ## Obstacles (state shared across items)
 
 * `Sym` carried typing results (`mtype`, `static`, `sigValue`, `state`, `tparams`, `typeDef*`, `used`,
