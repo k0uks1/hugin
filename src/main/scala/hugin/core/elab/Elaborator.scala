@@ -41,6 +41,10 @@ final class ElabState:
    *  [[Declarations.declType]]). */
   var unknownTypesAre: Stage = Stage.S1
 
+  /** The names the file's declarations and definitions declare (they shadow the prelude's in the whole
+   *  file, also before their declarations). */
+  var declaredHere: Set[Name] = Set.empty
+
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
@@ -67,6 +71,7 @@ final class ElabState:
     val s = ElabState()
     s.scope ++= scope
     s.functionNames = functionNames
+    s.declaredHere = declaredHere
     s.signatures = signatures
     s.erroneous ++= erroneous
     s.used ++= used

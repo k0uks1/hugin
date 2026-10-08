@@ -38,6 +38,7 @@ trait Quotes:
   /** Whether `t`, expected of kind `k`, is quoted object syntax rather than meta code. */
   def quotedSyntax(t: Tree, k: RKind, c: Cxt = Cxt.empty): Boolean = (t, k) match
     case (Parens(i), _) => quotedSyntax(i, k, c)
+    case (_: SpliceSeq, _) => true
     case (_, RKind.List(_)) => false
     case (_: SpliceE | _: SpliceHO, _) => true
     case (_, RKind.Sym) => objectConstant(c, t).isDefined
@@ -54,7 +55,7 @@ trait Quotes:
   /** The object constant (relation, constructor, type, or family of them) a head denotes. */
   def objectConstant(c: Cxt, h: Tree): Option[Int] = h match
     case Parens(i) => objectConstant(c, i)
-    case Ident(n) if !c.scope.contains(n) => scope.get(n).orElse(file.parent.get(n)).filter(isObjectConstant)
+    case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).filter(isObjectConstant)
     case SymRef(id, _) => Some(id).filter(isObjectConstant)
     case s: Select =>
       try undoOnFailure(constantOf(ev(c, infer(c, s)._1)))
@@ -94,6 +95,7 @@ trait Quotes:
         Q.Con("fagg", parts, true, sp)
       case (RKind.Formula, Infix(op, l, r)) if quotedCmp.contains(op) =>
         Q.Con("fcmp", List(Q.Con(cmpCtor(quotedCmp(op)), Nil, false, sp), q(l, RKind.Term), q(r, RKind.Term)), true, sp)
+      case (RKind.Formula, Wildcard()) => Q.Hole(t, k, sp)
       case (RKind.Formula, _: Agg) => fail(ReflectionProblem.Unsupported("an aggregate without `X =`", "a formula", sp))
       case (RKind.Formula, _) => application(c, t, "fatom", bound)
       case (RKind.Term, VarRef(n)) =>

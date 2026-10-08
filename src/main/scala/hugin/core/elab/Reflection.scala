@@ -116,6 +116,10 @@ trait Reflection:
     case ("scons", List(x, xs), s) => (x, s) :: elements(xs, s, t)
     case (_, _, s) => malformed("not a list", s)
 
+  /** The rules and queries that the closed value `v` of kind `k` (`rule`, `item` or a `seq` of them)
+   *  describes, as syntax at `span` (where the data has no positions of its own). */
+  def reflectedItems(v: Val, k: RKind, span: Span): List[Item] = reflectItems(v, k, Target(None, span))
+
   private def reflectItems(v: Val, k: RKind, t: Target): List[Item] = k match
     case RKind.List(e) => elements(v, t.fallback, t).flatMap((x, s) => reflectItems(x, e, t.copy(fallback = s)))
     case RKind.Rule => List(rule(v, t.fallback, t))
@@ -159,9 +163,20 @@ trait Reflection:
     case ("tneg", List(a), s) => Neg(term(a, s, names, t))(s)
     case (_, _, s) => malformed("not a term", s)
 
-  private def variable(n: Name, s: Span, t: Target): Tree = t.c match
-    case Some(c) if !c.scope.contains(n) => NamedVar(n)(s)
-    case _ => VarRef(n)(s)
+  private def variable(n: Name, s: Span, t: Target): Tree =
+    variablesUsed.foreach(_ += n)
+    t.c match
+      case Some(c) if !c.scope.contains(n) => NamedVar(n)(s)
+      case _ => VarRef(n)(s)
+
+  private var variablesUsed: Option[scala.collection.mutable.Set[Name]] = None
+
+  /** Runs `f`, adding the names of the object variables that code reflected by it uses to `used`. */
+  def reflectingVariables[A](used: scala.collection.mutable.Set[Name])(f: => A): A =
+    val saved = variablesUsed
+    variablesUsed = Some(used)
+    try f
+    finally variablesUsed = saved
 
   private def application(sym: Val, ts: Val, s: Span, names: List[Name], t: Target): Tree =
     val head: Tree = peel(sym, s)._1 match

@@ -1,0 +1,10 @@
+(* Reflective data that cannot become object code (E0918): data that is not known at compile time, a
+   variable without a name, a rule without heads. *)
+p : int -> rel.
+
+opaque : formula.
+$[(p 1 :- $opaque)]. (*~ E0918 *)
+
+unnamed : rule = horn [fatom p [tvar ""]] [].
+$[unnamed]. (*~ E0918 *)
+$[horn [] []]. (*~ E0918 *)

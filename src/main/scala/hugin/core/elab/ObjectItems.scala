@@ -26,13 +26,17 @@ trait ObjectItems:
   /** A rule in the context `base` (a module body's environment and members, or empty); `lint` is false for
    *  generated rules. */
   def ruleItem(base: Cxt, r: Rule, lint: Boolean = true): CoreItem =
-    if lint then warnSingletons(r.heads ++ r.body.toList)
-    val start = metas.length
-    val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
-    val heads = r.heads.map(h => elabHead(c, h))
-    val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
-    val generic = generalize(start) || openFamilyHead(c, heads)
-    CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
+    val reflected = scala.collection.mutable.Set.empty[Name]
+    try reflectingVariables(reflected) {
+      val start = metas.length
+      val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
+      val heads = r.heads.map(h => elabHead(c, h))
+      val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
+      val generic = generalize(start) || openFamilyHead(c, heads)
+      CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
+    }
+    // a variable that reflected code uses as well is not a singleton
+    finally if lint then warnSingletons(r.heads ++ r.body.toList, reflected.toSet)
 
   /** Whether metas created since `start` are unknown object types (implicit arguments of families that
    *  nothing determines, or the object types they were solved with): the item is then generic over them;
@@ -54,8 +58,9 @@ trait ObjectItems:
     result == Val.Lift(Val.U0) || result == Val.U0
 
   /** W0002: object variables that occur only once in a rule (names starting with `_` are exempt). */
-  def warnSingletons(trees: List[Tree]): Unit =
-    val occurrences = TreeOps.nodes(trees).collect { case v: VarRef => v }.filterNot(_.name.startsWith("_")).toList
+  def warnSingletons(trees: List[Tree], exempt: Set[Name] = Set.empty): Unit =
+    val occurrences =
+      TreeOps.nodes(trees).collect { case v: VarRef => v }.filterNot(v => v.name.startsWith("_") || exempt(v.name)).toList
     for (name, List(v)) <- occurrences.groupBy(_.name).toList.sortBy(_._2.head.span.start) do
       reporter.report(ElabProblem.SingletonVariable(name, v.span).toDiagnostic)
 

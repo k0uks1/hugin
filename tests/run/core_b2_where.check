@@ -2,7 +2,7 @@
 nat : Type.
 zero : nat.
 suc : nat -> nat.
-pair : Type -> Type -> Type₁.
+pair : Type -> Type -> Type.
 mkPair : {A : Type} -> {B : Type} -> A -> B -> pair A B.
 shape : Type.
 rect : int -> int -> shape.

@@ -1,0 +1,4 @@
+(* Without the prelude, object syntax cannot be quoted: the reflective types are not in scope. *)
+a : Type.
+x : a -> a.
+y = x []. (*~ E0917 *)

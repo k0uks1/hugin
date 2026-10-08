@@ -1,0 +1,21 @@
+(* Quoted syntax that has no reflective representation, and holes in the wrong places (E0917). *)
+p : int -> rel.
+q : int -> int -> rel.
+f : int -> int.
+
+asRule : rule = (p X :- (q X Y as F)). (*~ E0917 *)
+ascription : rule = (p X :- p (X : int)). (*~ E0917 *)
+projection : rule = (p X :- q X Y, p Y.l). (*~ E0917 *)
+misplaced : formula = $..Xs. (*~ E0917 *)
+
+firstArgs : formula -> seq term.
+firstArgs (q $..Xs $Y) = Xs. (*~ E0917 *)
+firstArgs _ = [].
+
+hole : formula -> int.
+hole (p $(f 1)) = 1. (*~ E0917 *)
+hole _ = 0.
+
+higher : formula -> int.
+higher (p $F[X]) = 1. (*~ E0917 *)
+higher _ = 0.

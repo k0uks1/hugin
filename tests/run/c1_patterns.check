@@ -1,0 +1,8 @@
+back b a.
+back c c.
+edge a b.
+edge b a.
+edge c c.
+m.edge a c.
+m.edge b c.
+weight c 3.

@@ -14,7 +14,9 @@ trait Names:
   val builtinTypes: Map[String, BaseType] =
     Map("int" -> BaseType.IntT, "float" -> BaseType.FloatT, "string" -> BaseType.StringT)
 
-  private def lookupGlobal(n: Name): Option[Int] = scope.get(n).orElse(file.parent.get(n))
+  /** A top-level name: the file's, or the enclosing scope's (the prelude's) unless the file declares the
+   *  name (also later in the file: a declaration shadows the prelude's in the whole file). */
+  def lookupGlobal(n: Name): Option[Int] = scope.get(n).orElse(if state.declaredHere(n) then None else file.parent.get(n))
 
   def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
     c.scope.get(n) match

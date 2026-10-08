@@ -103,8 +103,8 @@ trait Patterns:
     Option.when(!Tm.exists(quote(l, a)) { case Tm.Var(_) => true; case _ => false })(a)
 
   private def constructorNamed(n: Name, span: Span): Int =
-    scope.get(n).orElse(file.parent.get(n)).filter(isConstructor) match
+    lookupGlobal(n).filter(isConstructor) match
       case Some(c) => c
       case None =>
-        val what = scope.get(n).orElse(file.parent.get(n)).map(id => s"`$n` is not a constructor").getOrElse(s"unresolved name `$n`")
+        val what = lookupGlobal(n).map(id => s"`$n` is not a constructor").getOrElse(s"unresolved name `$n`")
         fail(ClauseProblem.NotAConstructor(what, span))

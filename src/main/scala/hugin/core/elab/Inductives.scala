@@ -25,7 +25,7 @@ trait Inductives:
       val (binders, result) = telescope(ty)
       force(result) match
         case Val.U1(_) => GlobalKind.Inductive(Nil)
-        case Val.Rigid(Head.Glob(fam), sp) if isFamily(fam) =>
+        case Val.Rigid(Head.Glob(fam), sp) if isFamily(fam) && scope.get(globals(fam).name).contains(fam) =>
           checkConstructor(d, fam, binders, sp)
           GlobalKind.Constructor(fam)
         case Val.Base(b, _) if binders.isEmpty =>

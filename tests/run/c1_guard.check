@@ -1,0 +1,27 @@
+(* ---------------- after stage ---------------- *)
+expr : type.
+ctx : type.
+typ : type.
+ref : string -> expr.
+app : expr -> expr -> expr.
+emp : ctx.
+bind : string -> typ -> ctx -> ctx.
+base : string -> typ.
+arr : typ -> typ -> typ.
+typed : expr -> ctx -> typ -> rel.
+typed_check : expr -> ctx -> rel.
+lookup : ctx -> string -> typ -> rel.
+%mode lookup + + -.
+typed (ref X) G T :- typed_check (ref X) G, lookup G X T.
+typed (app F A) G T :- typed_check (app F A) G, typed F G (arr S T), typed A G S.
+typed_check F G :- typed_check (app F A) G.
+typed_check A G :- typed_check (app F A) G.
+lookup (bind X T _) X T.
+lookup (bind Y _ G) X T :- lookup G X T, X <> Y.
+typed_check (app (ref "f") (ref "x")) G :- G = bind "f" (arr (base "i") (base "b")) (bind "x" (base "i") emp).
+?- typed E _ T.
+
+?- typed E _ T.
+E = app (ref "f") (ref "x"), T = base "b".
+E = ref "f", T = arr (base "i") (base "b").
+E = ref "x", T = base "i".

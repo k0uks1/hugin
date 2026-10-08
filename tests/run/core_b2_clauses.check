@@ -15,7 +15,7 @@ suc : nat -> nat.
 plus : nat -> nat -> nat.
   plus zero N = N.
   plus (suc M) N = suc (plus M N).
-vec : Type -> nat -> Type₁.
+vec : Type -> nat -> Type.
 vnil : {A : Type} -> vec A zero.
 vcons : {A : Type} -> {N : nat} -> A -> vec A N -> vec A (suc N).
 head : {A : Type} -> {N : nat} -> vec A (suc N) -> A.
