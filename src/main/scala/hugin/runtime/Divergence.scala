@@ -4,7 +4,7 @@ import hugin.ir.{CompiledRule, Id}
 import hugin.syntax.Bound
 import scala.collection.mutable
 
-/** Divergence of bound columns (docs/REDESIGN.md §5.2): the value propagation graph of Kaminski et al.
+/** Divergence of bound columns (reference: object/bound-columns): the value propagation graph of Kaminski et al.
  *  (IJCAI 2017, "Tractability of Entailment: Stability") over the current values of a component, and the
  *  replacement of every value that would improve forever by `∞`.
  *

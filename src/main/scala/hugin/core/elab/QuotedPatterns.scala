@@ -6,7 +6,7 @@ import hugin.syntax.Trees.*
 import hugin.util.*
 import scala.collection.mutable
 
-/** Quoted patterns (REDESIGN §6.9): object syntax in a pattern of a reflective type elaborates to a
+/** Quoted patterns (reference: reflection): object syntax in a pattern of a reflective type elaborates to a
  *  constructor pattern over the reflective types, so that coverage, termination and index unification
  *  apply unchanged. `$X` binds a meta variable, `$_` matches anything, `$..Xs` the rest of a sequence; a
  *  plain variable matches any object variable and `_` the object wildcard; object constants and literals

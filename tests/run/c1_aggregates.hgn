@@ -1,4 +1,4 @@
-(* Higher-order holes (docs/REDESIGN.md §6.9): `$F[V]` matches the body of an aggregate, which may
+(* Higher-order holes (reference: reflection): `$F[V]` matches the body of an aggregate, which may
    mention the variable `V` the aggregate binds; `F` is then a function `term -> formula`. Here a count
    is restricted to the members that are not excluded; the bound variable gets a fresh name when the
    rule is reflected. *)

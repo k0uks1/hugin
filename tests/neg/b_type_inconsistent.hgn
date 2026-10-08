@@ -1,4 +1,4 @@
-(* E0606: rules over a bound column of their own component must be type-consistent (docs/REDESIGN.md §5.2) *)
+(* E0606: rules over a bound column of their own component must be type-consistent (reference: object/bound-columns) *)
 node : type = string.
 edge : node -> node -> int -> rel.
 source : node -> rel.

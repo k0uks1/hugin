@@ -5,7 +5,7 @@ import scala.collection.mutable
 
 import hugin.obj.typing.Moding
 
-/** Direction (A) of the termination check, *descent along derivations* (docs/REDESIGN.md §4.2,
+/** Direction (A) of the termination check, *descent along derivations* (reference: object/termination,
  *  docs/NOTES.md "Termination"): the size-change principle of Lee, Jones and Ben-Amram (POPL 2001) applied
  *  to derivation chains of a recursive component.
  *
@@ -117,7 +117,7 @@ object SizeChange:
     }
 
   /** The arguments with their positions, without a bound column: its values are not invented (they are
-   *  kept finite per key by evaluation, docs/REDESIGN.md §5.2), so they take no part in size change. */
+   *  kept finite per key by evaluation, reference: object/bound-columns), so they take no part in size change. */
   private def keys(r: RelSym, args: List[Term]): List[(Term, Int)] =
     val all = args.zipWithIndex
     if r.boundColumn.isDefined then all.init else all

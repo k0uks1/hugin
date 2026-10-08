@@ -7,7 +7,7 @@ import hugin.util.Span
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** Problems of bound columns (docs/REDESIGN.md §5.2): invalid declarations (E0605) and rules over a
+/** Problems of bound columns (reference: object/bound-columns): invalid declarations (E0605) and rules over a
  *  bound relation of their own component that are not type-consistent (E0606, [[TypeConsistency]]). */
 enum BoundColumnError extends Problem:
   /** A constructor declares a bound column. */

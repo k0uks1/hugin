@@ -2,7 +2,7 @@ package hugin.syntax
 
 import scala.collection.mutable
 
-/** The grammar of directives (docs/REDESIGN.md §7), mixed into [[Parser]]. A directive is the application
+/** The grammar of directives (reference: directives), mixed into [[Parser]]. A directive is the application
  *  of a meta function, `%d a₁ … aₙ.`; its arguments are atoms (names, paths, variables, literals, rule
  *  names `@r`, parenthesised expressions) and mode items `+e -t` (one argument for a run of them,
  *  [[ModeArgs]], elaborated to the prelude's `modes` data: `%demand typed +e +g -t.`). In the prefix form

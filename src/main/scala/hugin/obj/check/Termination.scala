@@ -3,7 +3,7 @@ package check
 
 import hugin.compiler.*
 
-/** Phase: termination check (Section 10; docs/REDESIGN.md §4; docs/NOTES.md, "Termination").
+/** Phase: termination check (Section 10; reference: object/termination; docs/NOTES.md, "Termination").
  *
  *  A recursive component with a constructive rule (Definition 10.1) needs one of
  *  the two directions of the size-change criterion:

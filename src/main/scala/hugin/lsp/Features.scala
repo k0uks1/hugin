@@ -287,7 +287,6 @@ final class Features(using db: Database):
     Option.when(targets.forall(_.isDefined))(WorkspaceEdit(targets.flatten.toMap.asJava))
 
 object Features:
-  /** The link of a code's explanation (LSP `codeDescription`): its path in the repository, after the base
-   *  `HUGIN_DOCS_BASE` from the environment (empty by default, so the link is repo-relative; set it to a
-   *  docs site or a repository URL ending in `/`). */
-  def explanationLink(c: Code): String = sys.env.getOrElse("HUGIN_DOCS_BASE", "") + c.explanationPath
+  /** The link of a code's explanation (LSP `codeDescription`): its page in the error index of the published
+   *  language reference. */
+  def explanationLink(c: Code): String = c.explanationUrl

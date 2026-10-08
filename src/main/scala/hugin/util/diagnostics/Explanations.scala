@@ -5,6 +5,13 @@ import scala.util.Using
 
 /** The long explanations of the codes: `docs/errors/<id>.md`, packaged as resources (see `build.sbt`). */
 object Explanations:
+  /** The URL of the published language reference, ending in `/`: `reference/site-url.txt`, packaged as the
+   *  resource `/hugin/site-url.txt` (see `build.sbt`). */
+  lazy val siteUrl: String =
+    val in = Option(getClass.getResourceAsStream("/hugin/site-url.txt")).getOrElse(sys.error("resource /hugin/site-url.txt is missing"))
+    val url = Using.resource(in)(s => String(s.readAllBytes(), UTF_8)).trim
+    if url.endsWith("/") then url else url + "/"
+
   /** The Markdown explanation of a code, if one is packaged. */
   def markdown(code: Code): Option[String] =
     Option(getClass.getResourceAsStream(code.explanationResource)).map(in => Using.resource(in)(s => String(s.readAllBytes(), UTF_8)))
@@ -13,8 +20,9 @@ object Explanations:
    *  attributes of its code blocks (` ```hugin fail=E0001 ` becomes ` ```hugin `). */
   def forTerminal(code: Code): Option[String] = markdown(code).map(_.replaceAll("(?m)^```(\\w+) .*$", "```$1").stripTrailing)
 
-  /** The explanation of a code given by its id (case-insensitively). */
-  def explain(id: String): Option[String] = Code.parse(id).flatMap(forTerminal)
+  /** The explanation of a code given by its id (case-insensitively), as printed by `hugin explain` and
+   *  `:explain`: [[forTerminal]] followed by the link to its page in the error index. */
+  def explain(id: String): Option[String] = Code.parse(id).flatMap(c => forTerminal(c).map(text => s"$text\n\nOnline: ${c.explanationUrl}"))
 
   /** The registry by phase, as printed by `hugin explain --list`. */
   def inventory: String =

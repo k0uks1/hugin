@@ -113,7 +113,7 @@ trait Coercions:
       case _ => justUnify(c, t, a, s, a2, s2)
 
   /** A constructor application of an object type, used as a formula: an atom of the constructor's
-   *  relation (in Datalog∃! every constructor is a relation, REDESIGN §3.2). */
+   *  relation (in Datalog∃! every constructor is a relation, reference: object/facts). */
   private def isConstructorAtom(t: Tm, ty: Val): Boolean =
     def application(t: Tm): Boolean = Tm.unloc(t) match
       case Tm.App(_, _, _) | Tm.Splice(_) | Tm.Global(_) => true
@@ -145,7 +145,7 @@ trait Coercions:
   def inferLift(c: Cxt, a: Tree): (Tm, Val, Stage) =
     (Tm.Lift(check(c, a, Val.U0, Stage.S0)), Val.U1(Level.zero), Stage.S1)
 
-  /** `$t`, the explicit splice (REDESIGN §6.9): `t` must be meta code of type `⇑A`, or a meta primitive
+  /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta primitive
    *  value (persisted as a literal). */
   def inferSplice(c: Cxt, a: Tree, span: Span): (Tm, Val, Stage) =
     val (at, aty, s) = infer(c, a)

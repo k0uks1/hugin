@@ -6,7 +6,7 @@ import hugin.syntax.{AggKind, Literal, Printer, Tree}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Reflection (REDESIGN §6.8): reflective data turned back into object code. The data must be closed (it
+/** Reflection (reference: reflection): reflective data turned back into object code. The data must be closed (it
  *  is evaluated during elaboration); it becomes surface syntax whose object constants are already
  *  resolved ([[SymRef]]) and which is elaborated and checked like hand-written code, so reflected code is
  *  re-checked by the core and then by the object level (typing, stratification, termination).

@@ -1,4 +1,4 @@
-(* A.2 (7), after %partial was removed (docs/REDESIGN.md §4.6): the directive is an error *)
+(* A.2 (7), after %partial was removed (reference: object/termination): the directive is an error *)
 nat : int -> rel.
 %partial nat. (*~ E0001 *)
 nat 0.

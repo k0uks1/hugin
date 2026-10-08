@@ -2,7 +2,7 @@ package hugin.core
 
 import StagedTesting.*
 
-/** Module bodies, functors, signatures and their requirements, imports (REDESIGN §6.7). */
+/** Module bodies, functors, signatures and their requirements, imports (reference: modules). */
 class ModulesSuite extends munit.FunSuite:
   private val graph = "n : type. a : n. b : n.\nnext : n -> n -> rel.\nnext a b.\n"
 

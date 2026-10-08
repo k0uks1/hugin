@@ -60,7 +60,7 @@
       {
         "code": "W0002",
         "codeDescription": {
-          "href": "docs/errors/W0002.md"
+          "href": "https://k0uks1.github.io/hugin/errors/W0002.html"
         },
         "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
         "range": {
@@ -82,7 +82,7 @@
       {
         "code": "E0301",
         "codeDescription": {
-          "href": "docs/errors/E0301.md"
+          "href": "https://k0uks1.github.io/hugin/errors/E0301.html"
         },
         "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
         "range": {
@@ -101,7 +101,7 @@
       {
         "code": "E0101",
         "codeDescription": {
-          "href": "docs/errors/E0101.md"
+          "href": "https://k0uks1.github.io/hugin/errors/E0101.html"
         },
         "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
         "range": {
@@ -130,7 +130,7 @@
         {
           "code": "W0002",
           "codeDescription": {
-            "href": "docs/errors/W0002.md"
+            "href": "https://k0uks1.github.io/hugin/errors/W0002.html"
           },
           "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
           "range": {
@@ -178,7 +178,7 @@
         {
           "code": "W0002",
           "codeDescription": {
-            "href": "docs/errors/W0002.md"
+            "href": "https://k0uks1.github.io/hugin/errors/W0002.html"
           },
           "message": "variable `Y` occurs only once in this rule\nsingleton variable\nhelp: use `_` or `_Y` if this is intended",
           "range": {
@@ -233,7 +233,7 @@
         {
           "code": "E0301",
           "codeDescription": {
-            "href": "docs/errors/E0301.md"
+            "href": "https://k0uks1.github.io/hugin/errors/E0301.html"
           },
           "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
           "range": {
@@ -278,7 +278,7 @@
         {
           "code": "E0301",
           "codeDescription": {
-            "href": "docs/errors/E0301.md"
+            "href": "https://k0uks1.github.io/hugin/errors/E0301.html"
           },
           "message": "missing label in named pattern for `p`\nmissing `b`\nhelp: add the missing labels, or end the pattern with `..` to ignore them",
           "range": {
@@ -330,7 +330,7 @@
         {
           "code": "E0101",
           "codeDescription": {
-            "href": "docs/errors/E0101.md"
+            "href": "https://k0uks1.github.io/hugin/errors/E0101.html"
           },
           "message": "unresolved name `rod`\nnot found in this scope\nhelp: a declaration with a similar name exists: `road`",
           "range": {

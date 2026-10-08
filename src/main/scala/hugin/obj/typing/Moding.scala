@@ -5,8 +5,8 @@ import hugin.util.*
 import hugin.compiler.*
 import scala.collection.mutable
 
-/** Binding steps, canonical order and range restriction (Section 6.3). Relations have no modes (REDESIGN
- *  §3.5): an atom binds all its variables. */
+/** Binding steps, canonical order and range restriction (Section 6.3). Relations have no modes (reference:
+ *  object/rules): an atom binds all its variables. */
 object Moding:
   def vars(t: Term): Set[String] = t match
     case Term.Var(n) => Set(n)

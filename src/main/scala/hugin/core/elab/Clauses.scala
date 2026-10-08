@@ -4,7 +4,7 @@ package elab
 import hugin.util.*
 import scala.collection.mutable
 
-/** Elaboration of functions defined by clauses into case trees (REDESIGN §6.4–6.5), after Cockx & Abel,
+/** Elaboration of functions defined by clauses into case trees (reference: meta/clauses), after Cockx & Abel,
  *  *Elaborating dependent (co)pattern matching* (ICFP 2018), without copatterns:
  *
  *  A problem is a split context ([[SplitProblem]]), the target type and the clauses that may still apply,

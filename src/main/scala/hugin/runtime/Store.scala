@@ -32,7 +32,7 @@ final class IntBuf:
  *    relations) interned means asserted: every tuple is a fact, tuples are kept in assertion
  *    order, so the old/delta/full windows of semi-naive evaluation are ranges of identities, and hash
  *    indexes on bound columns hold identities.
- *  - For a relation with a bound column (docs/REDESIGN.md §5.2) only the best tuple per key is current;
+ *  - For a relation with a bound column (reference: object/bound-columns) only the best tuple per key is current;
  *    replaced tuples stay in the table (so windows remain identity ranges) but are invisible. */
 final class Relation(val tag: Int, val sym: RelSym, val arity: Int, indexCols: Set[Vector[Int]]):
   val tuples: mutable.ArrayBuffer[Array[Any]] = mutable.ArrayBuffer.empty

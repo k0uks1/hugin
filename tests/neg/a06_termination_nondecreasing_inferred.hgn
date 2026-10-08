@@ -1,0 +1,12 @@
+(* A.2 (6), rewritten for termination without annotations: the non-decreasing variant of `len` of
+   a06_termination_nondecreasing, without `%terminates`. No measure is declared, so the check tries
+   descent (A) and an inferred measure (B); both fail and the component is rejected. *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+len : list A -> int -> rel.
+len nil 0.
+len (cons X L) M :- cons X L, len (cons X L) N, M = N + 1. (*~ E0603 *)
+nums : list int -> rel.
+nums (cons 1 nil).
+?- nums L, len L N.

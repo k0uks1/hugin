@@ -10,8 +10,8 @@ import scala.collection.mutable
  *  applying all of its rules to the full relations until nothing changes, with no deltas, no indexes and
  *  no identities. Words are structural: literals or [[NaiveEvaluator.Fact]]s (terms of any constructor),
  *  so interning is equality. A rule application adds `subfact_F` of its head: the head fact and its
- *  constructor subterms (every constructor is a fact constructor, REDESIGN §3.2).
- *  A relation with a bound column (docs/REDESIGN.md §5.2) keeps one fact per key, the best; after every
+ *  constructor subterms (every constructor is a fact constructor, reference: object/facts).
+ *  A relation with a bound column (reference: object/bound-columns) keeps one fact per key, the best; after every
  *  round the values on positive-weight cycles of the value propagation graph become `∞` (Kaminski et
  *  al.'s Algorithm 1, literally: every round, cycles found by Floyd–Warshall).
  *  Written independently of [[hugin.runtime.Engine]] (it shares only the primitive operations, including

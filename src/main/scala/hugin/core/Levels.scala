@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 /** Universe level variables and constraints `a ≤ b` between levels `v + k` (difference constraints).
  *
- *  Levels are inferred (REDESIGN §11, Q1): every `Type` written by the user gets a fresh level variable,
+ *  Levels are inferred (reference: meta/universes; redesign question Q1): every `Type` written by the user gets a fresh level variable,
  *  cumulativity and formation rules add constraints, and the constraints must have a solution in the
  *  natural numbers. The set is kept consistent incrementally: [[le]] adds a constraint only if the result
  *  still has a solution (no cycle of positive weight, no level forced above an upper bound), and the

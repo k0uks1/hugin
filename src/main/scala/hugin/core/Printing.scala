@@ -3,7 +3,7 @@ package hugin.core
 import hugin.obj.ArithOp
 
 /** Printing of core terms in Hugin's surface notation: `[x] e` lambdas, `(x : A) -> B` and `{x : A} -> B`
- *  Π types, `⇑A`, quotes `⟨t⟩` and splices `$t` (REDESIGN §6.9). Unsolved metas print as `?n`. */
+ *  Π types, `⇑A`, quotes `⟨t⟩` and splices `$t` (reference: meta/staging). Unsolved metas print as `?n`. */
 trait Printing:
   self: Core =>
 

@@ -3,7 +3,7 @@ package hugin.core
 import hugin.compiler.*
 import hugin.util.Reporter
 
-/** Phase: elaborate the program with the meta level (REDESIGN §6): names, types, stages, implicit
+/** Phase: elaborate the program with the meta level (reference: meta/index): names, types, stages, implicit
  *  arguments, totality of meta functions; with the prelude and the imported files (loaded here, in
  *  dependency order; missing and cyclic imports are E0108). */
 final class ElaboratePhase extends Phase:

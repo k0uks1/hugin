@@ -78,7 +78,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     s.used = used
     s
 
-/** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
+/** Bidirectional elaboration of surface trees into the core (reference: meta/index), following Kovács's
  *  elaboration-zoo and his staged elaborator. The concerns are split into traits:
  *
  *  - [[Bidirectional]]: `check`/`infer` dispatch; [[PiTypes]]: object arrows, meta and implicit Π;
@@ -95,8 +95,8 @@ final class ElabState(val scope: NameScope = NameScope()):
  *    [[Clauses]], [[IndexUnifier]]: functions defined by clauses, elaborated into case trees with
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics;
- *  - [[Reflective]], [[Quotes]], [[QuotedPatterns]], [[Reflection]]: object syntax as data (REDESIGN
- *    §6.8–6.9): the prelude's reflective types, reification of quoted syntax in expressions and
+ *  - [[Reflective]], [[Quotes]], [[QuotedPatterns]], [[Reflection]]: object syntax as data (reference:
+ *    reflection): the prelude's reflective types, reification of quoted syntax in expressions and
  *    patterns, reflection of data back into object code.
  */
 class Elaborator(

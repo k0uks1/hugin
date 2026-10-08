@@ -5,7 +5,7 @@ import hugin.util.Span
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** The problems of directives as meta functions (REDESIGN §7): resolution (E0101), the type of the
+/** The problems of directives as meta functions (reference: directives): resolution (E0101), the type of the
  *  application (E1001, E1002), what the application returns (E1000, E1003), and the primitive
  *  attributes it attaches (E0701). */
 enum DirectiveProblem extends Problem:

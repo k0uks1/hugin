@@ -5,13 +5,13 @@ import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** The forms of object code that have no meta-level counterpart (REDESIGN §3.1): `as`, ascriptions,
+/** The forms of object code that have no meta-level counterpart (reference: object/index): `as`, ascriptions,
  *  projections and updates of facts, aggregates, unions, wildcards; and positions.
  *
  *  **Object typing is deferred.** The core types object code by unification only, which is enough to
  *  stage it and to solve implicit arguments; the object level's own typing (subtyping, unions,
  *  refinements, fact types of relations, labels of projections) is the object typer's
- *  (`obj/typing/ObjTyper`, REDESIGN §3.4), which sees the staged program. So the core never rejects
+ *  (`obj/typing/ObjTyper`, reference: object/index), which sees the staged program. So the core never rejects
  *  object code for its object types: where two object types do not unify, the term is kept as it is
  *  ([[Coercions.coe]]), and the forms below get the types they would have without subtyping, or unknown
  *  ones. Only the *shape* of object code is the core's business: stages, arities, labels of named

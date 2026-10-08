@@ -5,7 +5,7 @@ import hugin.util.Span
 import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
-/** The problems of reflection (REDESIGN §6.8–6.9): object syntax that cannot be quoted, holes in the
+/** The problems of reflection (reference: reflection): object syntax that cannot be quoted, holes in the
  *  wrong places (E0917), and reflective data that cannot become object code (E0918). */
 enum ReflectionProblem extends Problem:
   /** The reflective types of the prelude are not in scope (`--no-prelude`). */
