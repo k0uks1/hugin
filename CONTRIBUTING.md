@@ -240,8 +240,9 @@ implementation or something no library does adequately:
 
 Kept hand-written, deliberately:
 
-- **Lexer and parser.** Error recovery (resynchronising at item boundaries, accepting an item with a
-  missing period, layout-aware hints) and rustc-quality messages are the main requirement; parser
+- **Lexer and parser.** Resilient error recovery (error nodes in the trees, one error per mistake,
+  inserted delimiters and periods, layout-aware heuristics; `docs/PARSER.md`) and rustc-quality messages
+  are the main requirement; parser
   combinator libraries (fastparse, cats-parse, parsley) give little control over recovery. Production
   compilers such as rustc and dotty use hand-written parsers for the same reason.
 - **Snippet layout of diagnostics.** There is no maintained JVM counterpart of Rust's ariadne/miette;
@@ -262,7 +263,7 @@ the phase started from, or the reference chapter ("ref.").
 
 | phase | section | what it does |
 |---|---|---|
-| `parser` | 2 | hand-written lexer and precedence-climbing parser with error recovery; `%infix` operators are resolved into applications |
+| `parser` | 2 | hand-written lexer and resilient recursive-descent parser (precedence climbing for operators; error nodes instead of discarded items, see `docs/PARSER.md`); `%infix` operators are resolved into applications |
 | `elaborate` | ref. meta | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
 | `stage` | ref. meta/staging | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); hands the object program over to the object level |
 | `directives` | Fig. 2 | attaches `%terminates %open %input %output %derivations` to relations |
@@ -293,8 +294,10 @@ Source layout:
 src/main/resources/hugin/stdlib/prelude.hgn   the prelude
 src/main/scala/hugin/
   util/            sources, slices and spans, rustc-style diagnostics, error-code catalog, graph algorithms (JGraphT)
-  syntax/          lexer, parser (ParserPhase), surface trees, printer, generic tree operations (TreeOps),
-                   item slices of a file (Slices)
+  syntax/          lexer; the parser (Parser, assembled from ParserBase: cursor, errors and recovery
+                   primitives; ItemSyntax, ExprSyntax, RecordSyntax, QuoteSyntax, DirectiveSyntax; the
+                   design is in docs/PARSER.md); surface trees with error nodes, printer, generic tree
+                   operations (TreeOps), item slices of a file (Slices), ParserPhase
   compiler/        Settings and Display, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase
                    plan, libraries (the prelude and imported files, the import graph), the semantic index for
                    tooling (SemanticIndex)
@@ -443,9 +446,10 @@ CI packages the extension on every push (job `vscode`); the `.vsix` is the workf
 
 ## Diagnostics
 
-Diagnostics are collected, never thrown: the parser resynchronises at item boundaries, the elaborator
-drops an item at its first error (and does not report the errors that follow from it), and object-level
-phases drop ill-formed rules. Every diagnostic
+Diagnostics are collected, never thrown: the parser reports each syntax error once and keeps the item
+with an error node in place of what is missing or damaged (the elaborator drops such an item silently and
+does not report uses of the names it declares), the elaborator drops an item at its first error (and does
+not report the errors that follow from it), and object-level phases drop ill-formed rules. Every diagnostic
 has a code (`hugin explain E0401`) and is rendered in the style of rustc, with primary and secondary
 labels, notes and help. Errors in code generated at the meta level carry the meta-level call chain
 (Appendix A.1):
@@ -482,7 +486,7 @@ path of the Markdown source).
 Three kinds of tests, all run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
-  (precedence, braces, `%infix`, recovery), tree operations, the meta level (`core`: evaluation,
+  (precedence, braces, `%infix`, error nodes, recovery and messages), tree operations, the meta level (`core`: evaluation,
   unification, universes, inductive families and clauses, elaboration errors, families, modules, formula
   functions, staging and the handover), shared primitive semantics, type operations (subtyping, members, meets), moding,
   stratification, completeness, interval reasoning, lowering, the command-line parser and exit codes,
@@ -498,6 +502,10 @@ Three kinds of tests, all run by `sbt test`:
     `(*~^ E0603 *)` for the line above) state the codes independently of the wording: a file with
     annotations must account for exactly the diagnostics reported in it.
   - `tests/pos/X.hgn` — must compile without errors.
+  - `tests/recovery/X.hgn` — programs with syntax errors: they must fail, their (required) annotations
+    must account for exactly the diagnostics, so an error that follows from a syntax error fails the test,
+    and `X.check` holds the diagnostics and the program after `elaborate` (the items around the errors are
+    elaborated).
   - `tests/fix/X.hgn` — `hugin fix` applied to a copy must give `X.fixed`, which must compile without
     errors and be a fixed point (one test per kind of machine-applicable suggestion).
   - `tests/json/X.hgn` — checked with `--error-format=json`; the JSON lines must equal `X.check`.
@@ -523,6 +531,10 @@ The fuzz suites are ScalaCheck properties (issue #7); a failing input is shrunk 
   file, diagnostics render (with and without colours), `run` exits with 0 or 1. A mutant is
   compiled as if it were in the directory of its original (so relative `%import`s find the same
   libraries) inside a scratch copy of the corpus; imports that resolve outside it are never read.
+- **Recovery** (`RecoveryFuzzSuite`, issue #53): one token of a valid corpus program is deleted or
+  inserted; where that gives a syntax error, there must be no crash, at most 2 syntax errors, no
+  unresolved name outside the damaged line (the names of a broken item are erroneous), and the items from
+  the next one in column 0 on must parse unchanged (`docs/PARSER.md`, §7).
 - **Generated programs** (`ProgramGen`, `GeneratedFuzzSuite`): well-typed, stratified, terminating
   programs over a small vocabulary — base relations with facts (some `%input`, loaded from a facts file),
   derived relations in strata with recursion, negation, aggregates (with disjunctions inside), comparisons,

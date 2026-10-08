@@ -1,0 +1,11 @@
+(* Common mistakes in declaration headers: `::` for `:`, `:=` for `=` (both repaired, so the items are
+   elaborated), a lowercase parameter (the declaration is dropped; uses of it are not reported). *)
+f :: int -> int. (*~ E0001 *)
+f X = X + 1.
+x := 5. (*~ E0001 *)
+y = f x.
+q x : int -> rel. (*~ E0004 *)
+q 1.
+r : int -> rel.
+r X :- q X.
+?- r X.

@@ -1,0 +1,18 @@
+(* Stray tokens at the end of a line do not take the next item: an opening parenthesis that is never
+   closed, a `$` without an expression, text after an item's period (which damages that item, since its
+   period may be the mistake), a second period (reported, but the item before it is intact). *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+p : int -> rel.
+p 1. ( (*~ E0005 *)
+p 2.
+q : int -> rel.
+q X :- p X. $ (*~ E0001 *)
+q 3.
+count2 : nat -> int.
+count2 zero = 0.
+count2 (suc N) = count2 N + 1. -> int. (*~ E0001 *)
+r : int -> rel.
+r 1. . (*~ E0001 *)
+?- p X, q X, r X.

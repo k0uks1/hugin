@@ -1,0 +1,24 @@
+error[E0001]: expected an expression, found `.`
+  --> tests/recovery/module_bodies.hgn:10:27
+   |
+10 |   step X Y :- g.edge X Y, . (*~ E0001 *)
+   |                           ^ expected an expression
+
+error[E0005]: unclosed `{`
+  --> tests/recovery/module_bodies.hgn:19:39
+   |
+17 | loose (g : graph) = {
+   |                     - this `{` is never closed
+...
+19 |   twice X Z :- g.edge X Y, g.edge Y Z. (*~ E0005 *)
+   |                                       ^ expected `}` here
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+city : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+road berlin paris.
+reached : city -> rel.

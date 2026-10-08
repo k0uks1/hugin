@@ -1,0 +1,17 @@
+error[E0005]: unclosed `(`
+ --> tests/recovery/where_blocks.hgn:8:21
+  |
+8 |   where r = add (N M. (*~ E0005 *)
+  |                 -   ^ expected `)` here
+  |                 this `(` is never closed
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+add : nat -> nat -> nat.
+plus : nat -> nat -> nat.
+  plus zero M = M.
+  plus (suc N) M = suc (plus N M).
+three : nat = plus (suc zero) (suc (suc zero)).

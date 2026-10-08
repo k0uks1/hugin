@@ -36,16 +36,16 @@ object Lexer:
   )
 
   def describe(t: Tok): String = t match
-    case Tok.Var => "variable"
-    case Tok.Name => "name"
-    case Tok.RuleName => "rule name"
-    case Tok.Directive => "directive"
-    case Tok.IntLit => "integer literal"
-    case Tok.FloatLit => "float literal"
-    case Tok.StrLit => "string literal"
+    case Tok.Var => "a variable"
+    case Tok.Name => "a name"
+    case Tok.RuleName => "a rule name"
+    case Tok.Directive => "a directive"
+    case Tok.IntLit => "an integer"
+    case Tok.FloatLit => "a float"
+    case Tok.StrLit => "a string literal"
     case Tok.EOF => "end of file"
     case Tok.Period => "`.`"
-    case Tok.Select => "selector `.`"
+    case Tok.Select => "a selector `.`"
     case other => symbolText.getOrElse(other, other.toString.toLowerCase.stripPrefix("kw")) match
         case s => s"`$s`"
 
@@ -191,9 +191,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case '>' => sym(Tok.Gt, 1)
         case '.' if peek(1) == '.' => sym(Tok.DotDot, 2)
         case '.' =>
-          // selector iff immediately preceded by an identifier/variable and followed by a lowercase identifier
-          val prevIdent = start > 0 && isIdent(s.charAt(start - 1)) && !space &&
-            out.nonEmpty && (out.last.kind == Tok.Var || out.last.kind == Tok.Name) && out.last.span.end == start
+          // selector iff immediately preceded by an identifier, a variable or `)` and followed by a lowercase
+          // identifier: `g.edge`, `(r).a`
+          val prevIdent = !space && out.nonEmpty && out.last.span.end == start &&
+            (out.last.kind == Tok.Var || out.last.kind == Tok.Name || out.last.kind == Tok.RParen)
           val nextLower = peek(1).isLetter && peek(1).isLower && peek(1) < 128
           if prevIdent && nextLower then sym(Tok.Select, 1) else sym(Tok.Period, 1)
         case ',' => sym(Tok.Comma, 1)

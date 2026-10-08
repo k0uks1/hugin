@@ -1,0 +1,31 @@
+error[E0005]: unclosed `(`
+ --> tests/recovery/several_errors.hgn:8:36
+  |
+8 | cyclic X :- path X X, not edge (X X. (*~ E0005 *)
+  |                                -   ^ expected `)` here
+  |                                this `(` is never closed
+
+error[E0001]: operator `>` is non-associative
+  --> tests/recovery/several_errors.hgn:12:26
+   |
+12 | big X :- path X Y, Y > 1 > 0. (*~ E0001 *)
+   |                          ^ cannot chain this operator
+   |
+   = help: add parentheses
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+edge : int -> int -> rel.
+edge 1 2.
+edge 2 3.
+edge 3 1.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
+cyclic : int -> rel.
+sizes : int -> rel.
+sizes N :- N = count { X | path X _ }.
+big : int -> rel.
+?- path 1 X.
+?- cyclic X.
+?- sizes N.

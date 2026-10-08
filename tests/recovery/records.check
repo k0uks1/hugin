@@ -1,0 +1,26 @@
+error[E0001]: expected `:`, found `=`
+ --> tests/recovery/records.hgn:2:36
+  |
+2 | graph : Type = { node : type, edge = node -> node -> rel }. (*~ E0001 *)
+  |                                    ^ expected `:`
+  |
+  = help: a record type declares its fields with `:`, a record value gives them with `=`
+
+error[E0001]: expected `=`, found `:`
+ --> tests/recovery/records.hgn:8:29
+  |
+8 | origin : point = { x = 0, y : 0 }. (*~ E0001 *)
+  |                             ^ expected `=`
+  |
+  = help: a record value gives its fields with `=`, a record type declares them with `:`
+
+error[E0001]: expected a label, found `,`
+ --> tests/recovery/records.hgn:9:25
+  |
+9 | unit : point = { x = 1, , y = 0 }. (*~ E0001 *)
+  |                         ^ expected a label
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+point : Type = { x : int, y : int }.
+diag : point = { x = 1, y = 1 }.

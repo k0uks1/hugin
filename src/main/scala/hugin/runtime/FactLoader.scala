@@ -56,7 +56,8 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
   def load(src: SourceFile): Int =
     val prog0 = Parser.parse(src, reporter)
     var count = 0
-    for item <- prog0.items do
+    // a fact with a syntax error is not loaded (the parser reported it)
+    for item <- prog0.items if !hugin.syntax.TreeOps.hasSyntaxErrors(item) do
       try
         item match
           case Rule(_, List(head), None) =>

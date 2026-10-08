@@ -1,0 +1,10 @@
+(* Missing operands in rule bodies and queries: one error each; the rule is dropped without further
+   errors, and the rest of the file is checked. *)
+p : int -> rel.
+q : int -> rel.
+p 1.  p 2.
+q X :- p X,. (*~ E0001 *)
+q X :- p X, X > . (*~ E0001 *)
+q X :- p Y, X = Y + 1.
+?- q X, . (*~ E0001 *)
+?- q X.

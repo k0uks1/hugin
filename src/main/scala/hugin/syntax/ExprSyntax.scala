@@ -1,8 +1,5 @@
 package hugin.syntax
 
-import hugin.util.diagnostics.msg
-import scala.language.implicitConversions
-
 /** Expressions (reference: lexical-structure, operators and precedence), mixed into [[Parser]]: a
  *  precedence-climbing loop over the binary operators, prefix operators (`not`, unary `-`, lambdas
  *  `[x] e`), application by juxtaposition, selection `e.l` and the primary expressions. Precedence levels
@@ -35,12 +32,16 @@ private[syntax] trait ExprSyntax extends ParserBase:
     var lhs = parsePrefix(minLevel)
     var continue = true
     var lastNonAssoc = -1
+    var chained = false
     while continue do
       infixAt(tok) match
         case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) =>
           if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
-            fail(SyntaxError.NonAssociativeChain(op, tok.span))
+            error(SyntaxError.NonAssociativeChain(op, tok.span))
+            chained = true
           val opTok = advance()
+          // a separator of a rule body: the conjuncts and disjuncts are recovery regions
+          if opTok.kind == Tok.Comma || opTok.kind == Tok.Semi then resync()
           val rhsMin = assoc match
             case Assoc.Right => lvl
             case _ => lvl + 1
@@ -63,7 +64,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
             case _ => Infix(op, lhs, rhs)(sp, opTok.span)
           lastNonAssoc = if assoc == Assoc.NonAssoc then lvl else -1
         case _ => continue = false
-    lhs
+    checked(lhs, !chained)
 
   private def parsePrefix(minLevel: Int): Tree =
     val start = tok.span.start
@@ -76,24 +77,22 @@ private[syntax] trait ExprSyntax extends ParserBase:
         advance()
         val arg = parseApp()
         arg match
-          case l @ Lit(Literal.IntL(v)) => Lit(Literal.IntL(-v))(spanFrom(start))
-          case l @ Lit(Literal.FloatL(v)) => Lit(Literal.FloatL(-v))(spanFrom(start))
+          case Lit(Literal.IntL(v)) => Lit(Literal.IntL(-v))(spanFrom(start))
+          case Lit(Literal.FloatL(v)) => Lit(Literal.FloatL(-v))(spanFrom(start))
           case other => Neg(other)(spanFrom(start))
       case Tok.LBrack if !listAhead =>
-        advance()
-        val p = tok
-        val param: Tree = p.kind match
-          case Tok.Var => advance(); VarRef(p.text)(p.span)
-          case Tok.Name => advance(); Ident(p.text)(p.span)
-          case _ => failExpected(msg"a lambda parameter", msg"expected a name or variable")
-        val tpe = if kind == Tok.Colon then { advance(); Some(parseType()) }
+        // a lambda `[x] e` / `[x : A] e` (the shape is checked by `listAhead`)
+        val open = advance()
+        val p = advance()
+        val param: Tree = if p.kind == Tok.Var then VarRef(p.text)(p.span) else Ident(p.text)(p.span)
+        val tpe = if at(Tok.Colon) then { advance(); Some(parseType()) }
         else None
-        expectTok(Tok.RBrack)
+        val ok = close(open, Tok.RBrack)
         val body = parseExpr(minLevel.max(LvlSemi))
-        Lambda(param, tpe, body)(spanFrom(start))
+        checked(Lambda(param, tpe, body)(spanFrom(start)), ok)
       case _ => parseApp()
 
-  private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
+  private def startsArg(t: Token): Boolean = !atColumn0(i) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Dollar | Tok.Up => true
     case Tok.LBrack => listAhead
@@ -110,16 +109,22 @@ private[syntax] trait ExprSyntax extends ParserBase:
 
   protected def parsePostfix(): Tree =
     var t = parsePrimary()
-    while kind == Tok.Select do
+    while at(Tok.Select) do
       advance()
-      val n = expectTok(Tok.Name, "a label after `.`")
-      t = Select(t, n.text)(t.span.to(n.span), n.span)
+      // the lexer makes `.` a selector only before a lowercase letter: a name or a keyword
+      t =
+        if at(Tok.Name) then
+          val n = advance()
+          Select(t, n.text)(t.span.to(n.span), n.span)
+        else
+          expected(List(Expect.label))
+          damaged(t)
     t
 
   private def parsePrimary(): Tree =
     val t = tok
     val start = t.span.start
-    t.kind match
+    kind match
       case Tok.Var =>
         advance()
         if t.text == "_" then Wildcard()(t.span) else VarRef(t.text)(t.span)
@@ -134,7 +139,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
             if b == BigInt(Long.MaxValue) + 1 && i >= 2 && toks(i - 2).kind == Tok.Minus then
               Lit(Literal.IntL(Long.MinValue))(t.span) // negated again by unary minus: -MinValue == MinValue
             else
-              reporter.report(SyntaxError.IntegerOutOfRange(t.span))
+              report(SyntaxError.IntegerOutOfRange(t.span))
               Lit(Literal.IntL(0))(t.span)
           case _ => Lit(Literal.IntL(0))(t.span)
       case Tok.FloatLit => advance(); Lit(Literal.FloatL(t.value.asInstanceOf[Double]))(t.span)
@@ -147,29 +152,19 @@ private[syntax] trait ExprSyntax extends ParserBase:
         advance()
         val tpe = parseApp()
         BoundType(if t.kind == Tok.KwMin then Bound.Min else Bound.Max, tpe)(spanFrom(start))
-      case Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax =>
-        advance()
-        val k = t.kind match
-          case Tok.KwCount => AggKind.Count
-          case Tok.KwSum => AggKind.Sum
-          case Tok.KwMin => AggKind.Min
-          case _ => AggKind.Max
-        expectTok(Tok.LBrace, "`{` after aggregate")
-        val term = parseExpr(LvlCmp)
-        expectTok(Tok.Bar, "`|` separating the aggregated term from the body")
-        val body = parseExpr(LvlSemi)
-        expectTok(Tok.RBrace)
-        Agg(k, term, body)(spanFrom(start))
+      case Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax => parseAggregate()
       case Tok.LParen => parseParens()
       case Tok.LBrace => parseBraces()
       case Tok.Directive if t.text == "%builtin" =>
         advance()
-        val n = expectTok(Tok.Name, "the name of a base type")
-        Builtin(Ident(n.text)(n.span))(spanFrom(start))
+        expect(Tok.Name) match
+          case Some(n) => Builtin(Ident(n.text)(n.span))(spanFrom(start))
+          case None => ErrorTree(Nil)(spanFrom(start))
       case Tok.Directive if t.text == "%import" =>
         advance()
-        val p = expectTok(Tok.StrLit, "a file path in quotes")
-        Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
+        expect(Tok.StrLit) match
+          case Some(p) => Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
+          case None => ErrorTree(Nil)(spanFrom(start))
       case Tok.LBrack if listAhead => parseList()
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
       case Tok.Dollar =>
@@ -177,43 +172,84 @@ private[syntax] trait ExprSyntax extends ParserBase:
         parseDollar(start)
       case Tok.Up =>
         advance()
-        val arg = parsePostfix()
+        // the operand does not start in column 0 (it would be the next item)
+        val arg = if atColumn0(position) then missing(Expect.tpe) else parsePostfix()
         LiftE(arg)(spanFrom(start))
-      case Tok.Error => throw new ParseError
-      case _ =>
-        failExpected(msg"an expression", msg"expected an expression")
+      case _ => missing(if inType then Expect.tpe else Expect.expression)
+
+  /** `count { t | b }`, `sum`, `min`, `max`, at the keyword. */
+  private def parseAggregate(): Tree =
+    val kw = advance()
+    val start = kw.span.start
+    val k = kw.kind match
+      case Tok.KwCount => AggKind.Count
+      case Tok.KwSum => AggKind.Sum
+      case Tok.KwMin => AggKind.Min
+      case _ => AggKind.Max
+    expect(Tok.LBrace) match
+      case None => ErrorTree(Nil)(spanFrom(start))
+      case Some(open) =>
+        val term = parseExpr(LvlCmp)
+        val bar = expect(Tok.Bar).isDefined
+        val body = if bar then parseExpr(LvlSemi) else ErrorTree(Nil)(insertionPoint)
+        val closed = close(open, Tok.RBrace)
+        checked(Agg(k, term, body)(spanFrom(start)), bar && closed)
+
+  /** A variable after `as` or before `with`; a lowercase name there is reported (and taken as the variable). */
+  private def variable(): Option[VarRef] =
+    if at(Tok.Var) then
+      val v = advance()
+      Some(VarRef(v.text)(v.span))
+    else if at(Tok.Name) then
+      val n = tok
+      error(SyntaxError.Expected(List(Expect.variable), found, n.span, None, Some(SyntaxHelp.LowercaseVariable(n.text, n.span))))
+      advance()
+      None
+    else
+      expected(List(Expect.variable))
+      None
 
   private def parseParens(): Tree =
-    val start = tok.span.start
-    advance()
-    if kind == Tok.Var && peekTok(1).kind == Tok.KwWith then
-      val v = advance()
+    val open = advance()
+    val start = open.span.start
+    if strayOpener(Tok.RParen) then
+      error(SyntaxError.Unclosed(open.text, open.span, ")", insertionPoint, found, tok.span))
+      return ErrorTree(Nil)(open.span)
+    if (at(Tok.Var) || at(Tok.Name)) && peekTok(1).kind == Tok.KwWith then
+      val v = variable()
       advance()
-      if kind != Tok.LBrace then failExpected(msg"`{` after `with`")
-      val fields = parseBraces() match
-        case RecordLit(fs, false) => fs
-        case RecordLit(fs, true) =>
-          reporter.report(SyntaxError.RestInUpdate(tok.span))
-          fs
-        case ModuleBody(Nil) => Nil
-        case other =>
-          reporter.report(SyntaxError.ExpectedUpdateFields(other.span))
-          Nil
-      expectTok(Tok.RParen)
-      return With(VarRef(v.text)(v.span), fields)(spanFrom(start))
+      val (fields, ok) =
+        if !at(Tok.LBrace) then
+          expected(List(Expect.Token(Tok.LBrace)))
+          (Nil, false)
+        else
+          parseBraces() match
+            case RecordLit(fs, false) => (fs, true)
+            case RecordLit(fs, true) =>
+              report(SyntaxError.RestInUpdate(tok.span))
+              (fs, true)
+            case ModuleBody(Nil) => (Nil, true)
+            case other =>
+              error(SyntaxError.ExpectedUpdateFields(other.span))
+              (Nil, false)
+      val closed = close(open, Tok.RParen)
+      val tree = With(v.getOrElse(VarRef("_")(open.span)), fields)(spanFrom(start))
+      return checked(tree, v.isDefined && ok && closed)
     val inner = parseNonType(LvlSemi)
     kind match
       case Tok.KwAs =>
         advance()
-        val v = expectTok(Tok.Var, "a variable after `as`")
-        expectTok(Tok.RParen)
-        As(inner, VarRef(v.text)(v.span))(spanFrom(start))
+        val v = variable()
+        val closed = close(open, Tok.RParen)
+        v match
+          case Some(v) => checked(As(inner, v)(spanFrom(start)), closed)
+          case None => ErrorTree(List(inner))(spanFrom(start))
       case Tok.Colon =>
         advance()
         val t = parseType()
-        expectTok(Tok.RParen)
-        Ascribe(inner, t)(spanFrom(start))
-      case Tok.Turnstile => ruleQuoteRest(start, inner)
+        val closed = close(open, Tok.RParen)
+        checked(Ascribe(inner, t)(spanFrom(start)), closed)
+      case Tok.Turnstile => ruleQuoteRest(open, inner)
       case _ =>
-        expectTok(Tok.RParen, "`)`")
-        Parens(inner)(spanFrom(start))
+        val closed = close(open, Tok.RParen)
+        checked(Parens(inner)(spanFrom(start)), closed)

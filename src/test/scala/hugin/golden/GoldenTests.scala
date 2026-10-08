@@ -12,6 +12,10 @@ import scala.jdk.CollectionConverters.*
  *  - `tests/neg/X.hgn`: must fail to compile (or, with `X.facts`, to load its input); the rendered
  *    diagnostics must equal `X.check`. Inline annotations `(*~ E0603 *)`, if the file has any, must match
  *    the codes and lines reported (see [[Annotations]]).
+ *  - `tests/recovery/X.hgn`: programs with syntax errors (issue #53). They must fail to compile; their
+ *    inline annotations (required) must account for exactly the diagnostics reported, so that an error
+ *    that follows from a syntax error (a cascading error) fails the test; `X.check` holds the diagnostics
+ *    and the program after `elaborate`, which shows that the items around the errors are elaborated.
  *  - `tests/pos/X.hgn`: must compile without errors.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
@@ -72,6 +76,16 @@ class GoldenTests extends munit.FunSuite:
       val expected = Annotations.expected(Files.readString(p))
       if expected.nonEmpty then assertEquals(Annotations.reported(err, p.toString), expected, s"annotations of $p")
       compare(p, err)
+    }
+
+  for p <- files("recovery") do
+    test(s"recovery/${p.getFileName}") {
+      val (code, out, err) = runMain(List("check", p.toString, "--print-after", "elaborate") ++ flags(p))
+      assertEquals(code, 1, s"expected errors in $p")
+      val expected = Annotations.expected(Files.readString(p))
+      assert(expected.nonEmpty, s"$p has no annotations")
+      assertEquals(Annotations.reported(err, p.toString), expected, s"annotations of $p")
+      compare(p, err + out)
     }
 
   for p <- files("json") do

@@ -52,6 +52,7 @@ trait Declarations:
       val (n, ty, origin) = p match
         case Param.VarParam(v) => (v.name, untyped(cc, v), BinderOrigin.Plain)
         case Param.Typed(n, t, _) => (nameOf(n), checkType(cc, t, Stage.S1), BinderOrigin.Param(n.span, t))
+        case Param.Malformed(t) => syntaxError(t.span)
       cc = bind(cc, n, ev(cc, ty), Stage.S1, origin)
       (n, ty)
     }
@@ -249,6 +250,7 @@ trait Declarations:
     p match
       case Param.VarParam(v) => Lambda(v, None, acc)(v.span.to(acc.span))
       case Param.Typed(n, t, sp) => Lambda(n, Some(t), acc)(sp.to(acc.span))
+      case Param.Malformed(t) => syntaxError(t.span)
   }
 
   /** The constructors primitive `op` of type `ty` builds; E0103 if `ty` is not its type

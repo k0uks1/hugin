@@ -1,0 +1,25 @@
+error[E0001]: expected an item, found `)`
+ --> tests/recovery/stray_tokens.hgn:4:1
+  |
+4 | ) p 1. (*~ E0001 *)
+  | ^ expected an item
+
+error[E0001]: unmatched `}`
+ --> tests/recovery/stray_tokens.hgn:6:1
+  |
+6 | } (*~ E0001 *)
+  | ^ no module body to close
+
+error[E0001]: expected `.`, found `)`
+ --> tests/recovery/stray_tokens.hgn:9:12
+  |
+9 | q X :- p X ) , p 1. (*~ E0001 *)
+  |            ^ expected `.`
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+p : int -> rel.
+p 2.
+p 3.
+q : int -> rel.
+q X :- p X.

@@ -1,0 +1,10 @@
+(* Tokens that cannot start an item are skipped with the rest of their item; a `}` without a module body
+   is skipped by itself. *)
+p : int -> rel.
+) p 1. (*~ E0001 *)
+p 2.
+} (*~ E0001 *)
+p 3.
+q : int -> rel.
+q X :- p X ) , p 1. (*~ E0001 *)
+q X :- p X.

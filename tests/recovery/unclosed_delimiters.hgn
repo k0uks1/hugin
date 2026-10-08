@@ -1,0 +1,12 @@
+(* Unclosed parentheses and brackets are reported once, at the end of the item, with a label on the
+   opening delimiter. The item is kept (with what parsed) but not elaborated; the others are. *)
+edge : int -> int -> rel.
+edge 1 2.  edge 2 3.
+reach : int -> int -> rel.
+reach X Y :- edge (X Y. (*~ E0005 *)
+reach X Z :- edge X Y, reach Y Z.
+total : int -> rel.
+total N :- N = count { X | edge X _ . (*~ E0005 *)
+?- reach 1 Y.
+listed = [1, 2, 3. (*~ E0005 *)
+%output reach.

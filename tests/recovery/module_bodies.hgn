@@ -1,0 +1,22 @@
+(* A module body with a broken member: the module is not elaborated (its type would lack the member), and
+   uses of it are not reported. An unclosed body whose items are indented ends before the next item in
+   column 0. *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+  step : g.node -> g.node -> rel.
+  step X Y :- g.edge X Y, . (*~ E0001 *)
+}.
+city : type.  berlin : city.  paris : city.
+road : city -> city -> rel.
+road berlin paris.
+roads = tc { node = city, edge = road }.
+%output roads.path.
+loose (g : graph) = {
+  twice : g.node -> g.node -> rel.
+  twice X Z :- g.edge X Y, g.edge Y Z. (*~ E0005 *)
+again = loose { node = city, edge = road }.
+reached : city -> rel.
+reached Y :- roads.path berlin Y.

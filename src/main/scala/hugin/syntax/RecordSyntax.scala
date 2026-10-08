@@ -8,34 +8,45 @@ import scala.collection.mutable
 private[syntax] trait RecordSyntax extends ParserBase:
   /** `{ … }`, at `{`: disambiguated by its first tokens. */
   protected def parseBraces(): Tree =
-    val start = tok.span.start
-    advance()
+    val open = advance()
+    val start = open.span.start
     val k0 = kind
     val k1 = peekTok(1).kind
     if k0 == Tok.DotDot then
-      advance(); expectTok(Tok.RBrace)
-      RecordLit(Nil, rest = true)(spanFrom(start))
+      advance()
+      checked(RecordLit(Nil, rest = true)(spanFrom(start)), close(open, Tok.RBrace))
     else if k0 == Tok.Var && implicitBinderAhead then
       val names = mutable.ListBuffer.empty[Tree]
-      while kind == Tok.Var || kind == Tok.Name do
+      while at(Tok.Var) || at(Tok.Name) do
         val n = advance()
         names += (if n.kind == Tok.Var then VarRef(n.text)(n.span) else Ident(n.text)(n.span))
-      expectTok(Tok.Colon)
+      advance() // the `:` found by `implicitBinderAhead`
       val tpe = parseType()
-      expectTok(Tok.RBrace, "`}` after implicit binder")
-      ImplicitBinder(names.toList, tpe)(spanFrom(start))
+      checked(ImplicitBinder(names.toList, tpe)(spanFrom(start)), close(open, Tok.RBrace))
     else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
-      parseRecordType(start)
-    else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(start)
-    else
-      val items = mutable.ListBuffer.empty[Item]
-      while kind != Tok.RBrace && kind != Tok.EOF do
-        parseItemRecovering().foreach(items += _)
-      if kind == Tok.EOF then
-        reporter.report(SyntaxError.UnclosedModuleBody(hugin.util.Span(src, start, start + 1)))
-        throw new ParseError
+      parseRecordType(open)
+    else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(open)
+    else parseModuleBody(open)
+
+  /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file if
+   *  its first item is in column 0 of a line of its own, and otherwise before the first item in column 0
+   *  (`docs/PARSER.md`, §4.3). */
+  private def parseModuleBody(open: Token): Tree =
+    val column0Members = atColumn0(position)
+    bodies += 1
+    val (items, clean) =
+      try parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody)
+      finally bodies -= 1
+    if at(Tok.RBrace) then
       advance()
-      ModuleBody(items.toList)(spanFrom(start))
+      checked(ModuleBody(items)(spanFrom(open.span.start)), clean)
+    else
+      resync() // a mistake of its own, also after one in the last item
+      error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
+      damaged(ModuleBody(items)(spanFrom(open.span.start)))
+
+  private def unexpectedInBody(t: Token): SyntaxError =
+    SyntaxError.Expected(List(Expect.item, Expect.Token(Tok.RBrace)), found, t.span, None)
 
   /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =
@@ -60,35 +71,69 @@ private[syntax] trait RecordSyntax extends ParserBase:
       k += 1
     false
 
-  /** `{ entries }` after the `{` at `start`: a record type. */
-  protected def parseRecordType(start: Int): Tree =
-    val entries = mutable.ListBuffer.empty[SigEntry]
-    var continue = true
-    while continue do
-      if kind == Tok.Directive && tok.text == "%complete" then
-        val d = advance()
-        val l = expectTok(Tok.Name, "a label")
-        entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
-      else
-        val l = expectTok(Tok.Name, "a label")
-        expectTok(Tok.Colon, "`:` in record type")
-        entries += SigEntry.FieldDecl(Ident(l.text)(l.span), parseType())
-      if kind == Tok.Comma then advance() else continue = false
-    expectTok(Tok.RBrace, "`,` or `}`")
-    RecordType(entries.toList)(spanFrom(start))
+  /** A field's label and its separator (`:` in a record type, `=` in a record value; the other one is
+   *  reported with a suggestion). None (after an error) if there is no label. */
+  private def labelAnd(sep: Tok, inType: Boolean): Option[(Ident, Boolean)] =
+    if !at(Tok.Name) then expected(List(Expect.label))
+    Option.when(at(Tok.Name))(advance()).map { l =>
+      val ok =
+        if at(sep) then { advance(); true }
+        else if at(if inType then Tok.Eq else Tok.Colon) then
+          error(SyntaxError.Expected(List(Expect.Token(sep)), found, tok.span, None, Some(SyntaxHelp.RecordSeparator(tok.span, inType))))
+          advance()
+          false
+        else
+          expected(List(Expect.Token(sep)))
+          false
+      (Ident(l.text)(l.span), ok)
+    }
 
-  /** `{ l = e, … }` (possibly ending in `..`) after the `{` at `start`. */
-  protected def parseRecordLit(start: Int): Tree =
+  /** `{ entries }` after the `{` `open`: a record type. An entry without a label ends the entries; the
+   *  closing brace recovers. */
+  protected def parseRecordType(open: Token): Tree =
+    val entries = mutable.ListBuffer.empty[SigEntry]
+    var ok = true
+    var more = true
+    while more do
+      if at(Tok.Directive) && tok.text == "%complete" then
+        val d = advance()
+        if !at(Tok.Name) then expected(List(Expect.label))
+        Option.when(at(Tok.Name))(advance()) match
+          case Some(l) => entries += SigEntry.Complete(Ident(l.text)(l.span), d.span.to(l.span))
+          case None => ok = false
+      else
+        labelAnd(Tok.Colon, inType = true) match
+          case Some((l, sepOk)) =>
+            val t = parseType()
+            entries += SigEntry.FieldDecl(l, checked(t, sepOk))
+          case None => ok = false
+      if ok && at(Tok.Comma) then
+        advance()
+        resync()
+      else more = false
+    val closed = close(open, Tok.RBrace)
+    checked(RecordType(entries.toList)(spanFrom(open.span.start)), ok && closed)
+
+  /** `{ l = e, … }` (possibly ending in `..`) after the `{` `open`. */
+  protected def parseRecordLit(open: Token): Tree =
     val fields = mutable.ListBuffer.empty[Field]
     var rest = false
-    var continue = true
-    while continue do
-      if kind == Tok.DotDot then
-        advance(); rest = true; continue = false
+    var ok = true
+    var more = true
+    while more do
+      if at(Tok.DotDot) then
+        advance()
+        rest = true
+        more = false
       else
-        val l = expectTok(Tok.Name, "a label")
-        expectTok(Tok.Eq, "`=` in record")
-        fields += Field(Ident(l.text)(l.span), parseNonType(Parser.LvlArrow))
-        if kind == Tok.Comma then advance() else continue = false
-    expectTok(Tok.RBrace, if rest then "`}` after `..`" else "`,` or `}`")
-    RecordLit(fields.toList, rest)(spanFrom(start))
+        labelAnd(Tok.Eq, inType = false) match
+          case Some((l, sepOk)) =>
+            val v = parseNonType(Parser.LvlArrow)
+            fields += Field(l, checked(v, sepOk))
+          case None => ok = false
+        if ok && at(Tok.Comma) then
+          advance()
+          resync()
+        else more = false
+    val closed = close(open, Tok.RBrace)
+    checked(RecordLit(fields.toList, rest)(spanFrom(open.span.start)), ok && closed)

@@ -649,7 +649,7 @@ The package layout follows the phases (inventory files are named `*Problems.scal
 
 | file | enum | codes |
 |---|---|---|
-| `syntax/SyntaxProblems.scala` | `SyntaxError` | E0001–E0004 |
+| `syntax/SyntaxProblems.scala` | `SyntaxError` | E0001–E0005 |
 | `meta/NameProblems.scala` | `NameError` | E0101–E0108 |
 | `core/…Problems.scala` (new elaborator, B1–B3) | `ElabError`, `StageError`, `TotalityError` | E02xx, new codes |
 | `obj/typing/TypingProblems.scala` | `ObjTypeError`, `RecordError` | E03xx, E04xx |

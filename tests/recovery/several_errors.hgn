@@ -1,0 +1,15 @@
+(* Several independent mistakes in one file: each is reported once, and nothing else. *)
+edge : int -> int -> rel.
+edge 1 2.  edge 2 3.  edge 3 1.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
+cyclic : int -> rel.
+cyclic X :- path X X, not edge (X X. (*~ E0005 *)
+sizes : int -> rel.
+sizes N :- N = count { X | path X _ }.
+big : int -> rel.
+big X :- path X Y, Y > 1 > 0. (*~ E0001 *)
+?- path 1 X.
+?- cyclic X.
+?- sizes N.

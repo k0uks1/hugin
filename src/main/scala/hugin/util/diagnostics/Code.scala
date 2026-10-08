@@ -65,6 +65,7 @@ enum Code(
   case E0002 extends Code(2, Phase.Syntax, "unterminated comment or string")
   case E0003 extends Code(3, Phase.Syntax, "invalid literal")
   case E0004 extends Code(4, Phase.Syntax, "malformed item")
+  case E0005 extends Code(5, Phase.Syntax, "unclosed delimiter")
   // names and imports
   case E0101 extends Code(101, Phase.Names, "unresolved name")
   case E0102 extends Code(102, Phase.Names, "duplicate declaration")

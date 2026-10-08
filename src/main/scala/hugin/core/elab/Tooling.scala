@@ -107,6 +107,7 @@ trait Tooling:
   private def paramText(p: Param): String = p match
     case Param.VarParam(v) => v.name
     case Param.Typed(n, _, _) => nameOf(n)
+    case Param.Malformed(_) => "_"
 
   /** The labels of a relation's or constructor's columns (the names of its Π binders). */
   private def labelsOf(ty: Val): List[String] =

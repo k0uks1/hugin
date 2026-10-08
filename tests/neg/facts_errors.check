@@ -30,7 +30,7 @@ error[E0801]: unknown relation `nope`
 5 | nope 1 2.
   | ^^^^ not declared in the program
 
-error[E0001]: expected `.`, `,` or `:-`, found `edge`
+error[E0001]: expected `.` after the fact, found `edge`
  --> tests/neg/facts_errors.facts:6:9
   |
 6 | edge 1 2

@@ -224,7 +224,11 @@ trait Quotes:
           case _ =>
         q
       case Some(q) => q
-      case None => fail(ReflectionProblem.NotObjectSyntax(what, h.span))
+      case None =>
+        h match
+          // a name whose declaration has a syntax error
+          case Ident(n) if state.erroneous(n) || state.unelaborated(n) => syntaxError(h.span)
+          case _ => fail(ReflectionProblem.NotObjectSyntax(what, h.span))
 
   private def unsupportedForm(t: Tree): Option[String] = t match
     case _: As => Some("`as`")

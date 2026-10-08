@@ -1,0 +1,22 @@
+error[E0005]: unclosed `(`
+ --> tests/recovery/broken_definitions.hgn:8:37
+  |
+8 | double (suc N) = suc (suc (double N). (*~ E0005 *)
+  |                      -              ^ expected `)` here
+  |                      this `(` is never closed
+
+error[E0001]: expected an expression, found `)`
+  --> tests/recovery/broken_definitions.hgn:10:28
+   |
+10 | two : nat = suc (suc zero +). (*~ E0001 *)
+   |                            ^ expected an expression
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+double : nat -> nat.
+one : nat = suc zero.
+five : nat = suc (suc (suc one)).
+six : nat = suc five.

@@ -1,0 +1,9 @@
+(* `(e).l` is a projection; a missing label after a selector is reported. *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+city : type.  berlin : city.
+road : city -> city -> rel.
+g : graph = { node = city, edge = road }.
+fine : city -> rel.
+fine X :- (g).edge X berlin.
+bad : city -> rel.
+bad X :- (g).type X. (*~ E0001 *)

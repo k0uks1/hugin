@@ -109,9 +109,12 @@ The remaining tokens are:
 +    -    *    /    ^    (    )    {    }    [    ]    $    ⇑
 ```
 
-A period `.` that directly follows a name or variable, without space, and is directly followed by a
-lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path` select a field or a column label. Every
-other `.` ends an item.
+A period `.` that directly follows a name, a variable or a closing parenthesis `)`, without space, and
+is directly followed by a lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path`, `(tc g).path`
+select a field or a column label. Every other `.` ends an item.
+
+Parentheses `( )`, brackets `[ ]` and braces `{ }` are pairs. It is an error ([E0005](errors/E0005.md))
+if an item ends before an opening one is closed.
 
 `⇑` (U+21D1) is the lift of [staging](meta/staging.md); `$` starts a splice or a
 [hole](reflection.md#holes).
@@ -131,9 +134,10 @@ The productions of the items are given in the chapters that define them:
 [rules](object/rules.md), [queries](object/io.md#queries), [definitions and clauses](meta/clauses.md)
 and [directives](directives.md). Several items may share a line.
 
-An argument of an application cannot start in column 0 of a line. So a missing period at the end of a
-line is reported where the next item starts, and that item is still parsed. It is an error
-([E0001](errors/E0001.md)) if an item does not end with a period.
+An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
+of `$` or `⇑`. So
+a missing period at the end of a line is reported where the next item starts, and that item is still
+parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
 
 The following program declares a relation and gives it two facts on one line.
 

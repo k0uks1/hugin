@@ -45,6 +45,7 @@ object Printer:
     case SymRef(_, n) => n
     case NamedVar(n) => n
     case ModeArgs(ms) => ms.map(showMode).mkString(" ")
+    case ErrorTree(parts) => parts.map(show).mkString("<error: ", " ", ">")
 
   private def showArg(t: Tree): String = t match
     case _: Apply | _: Not | _: Lambda | _: Conj | _: Neg => s"(${show(t)})"
@@ -59,6 +60,7 @@ object Printer:
   def showParam(p: Param): String = p match
     case Param.VarParam(v) => v.name
     case Param.Typed(n, t, _) => s"(${show(n)} : ${show(t)})"
+    case Param.Malformed(t) => s"<error: ${show(t)}>"
 
   def showItem(i: Item): String = i match
     case Decl(n, ps, t, sup, d) =>
