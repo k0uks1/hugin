@@ -1,0 +1,44 @@
+(* The primitive directives are meta functions of the prelude (docs/REDESIGN.md §7.2): their
+   applications have type `decl`, the declaration of an object constant with its attributes, which the
+   compiler attaches. Where a `decl` is expected, a name is quoted as its declaration (`@r` as that of
+   a rule). The prefix form `%d a₁ … aₙ` before a declaration applies a `decl -> decl` directive to it;
+   directives compose like functions. *)
+node : type.
+a : node. b : node. c : node.
+
+%input
+edge : node -> node -> rel.
+%output path : node -> node -> rel.
+path X Y :- edge X Y.
+@step path X Z :- path X Y, edge Y Z.
+%derivations @step.
+
+(* a directive of the program: input and output at once *)
+io : decl -> decl.
+io D = input (output D).
+%io marked : node -> rel.
+
+(* a measure of variables with a call pattern, and a measure of labels *)
+steps : int -> rel.
+%terminates N (steps N).
+steps 0.
+steps M :- steps N, N < 3, M = N + 1.
+down : (n : int) -> (k : int) -> rel.
+%terminates n down.
+%mode down +n -k.
+down N N :- N <= 0.
+down N K :- N > 0, M = N - 1, down M K.
+
+(* attributes of a family apply to its instances; in a module body, to the body's constants *)
+%output len.
+bounds = bounded { node = node, edge = edge } 2.
+%output bounds.hop.
+(* in a functor's body, a directive refers to the body's constants *)
+reach (g : graph) = {
+  %output
+  r : g.node -> g.node -> rel.
+  r X Y :- g.edge X Y.
+  r X Z :- r X Y, g.edge Y Z.
+}.
+reached = reach { node = node, edge = edge }.
+?- steps X, down X 0, len (cons a nil) L.

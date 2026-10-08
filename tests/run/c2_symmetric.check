@@ -1,0 +1,6 @@
+friend ann bob.
+friend bob ann.
+friend bob cid.
+friend cid bob.
+knows ann cid.
+knows cid ann.

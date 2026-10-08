@@ -99,16 +99,27 @@ trait Directives:
 
   /** Whether a type is a directive's: a function whose result (after all its parameters) is a `decl` or
    *  items (`module -> module` ends in `module`). */
-  def isDirectiveType(ty: Val): Boolean =
-    reflectiveKind(telescope(ty)._2).exists {
-      case RKind.Decl | RKind.Item | RKind.Rule | RKind.List(RKind.Item) | RKind.List(RKind.Rule) => true
-      case _ => false
+  def isDirectiveType(ty: Val): Boolean = directiveFootprint(ty).isDefined
+
+  /** A global meant to be applied as a directive: not a constructor of reflective data. */
+  private def isDirectiveGlobal(id: Int): Boolean =
+    !globals(id).kind.isInstanceOf[GlobalKind.Constructor] && isDirectiveType(globals(id).ty)
+
+  /** The footprint of a directive of type `ty` (applied to all its arguments), described for tooling. */
+  def directiveFootprint(ty: Val): Option[String] =
+    val (binders, result) = telescope(ty)
+    reflectiveKind(result).collect {
+      case RKind.Decl => "local: it changes a declaration"
+      case RKind.List(RKind.Item)
+          if binders.lastOption.exists((_, i, a) => i == Icit.Expl && reflectiveKind(a).contains(RKind.List(RKind.Item))) =>
+        "module-wide: it rewrites the module"
+      case RKind.Item | RKind.Rule | RKind.List(RKind.Item) | RKind.List(RKind.Rule) => "additive: it adds items"
     }
 
   /** E0101, with a directive in scope of a similar name. */
   private def unknownDirective(c: Cxt, d: Directive): Nothing =
     val globalNames =
-      (scope.keys ++ file.parent.keys).toList.distinct.filter(n => lookupGlobal(n).exists(id => isDirectiveType(globals(id).ty)))
+      (scope.keys ++ file.parent.keys).toList.distinct.filter(n => lookupGlobal(n).exists(isDirectiveGlobal))
     // a later declaration may declare it (the items of module bodies are elaborated with the declarations)
     throw ElabError(DirectiveProblem.UnknownDirective(d.kind, d.kindSpan, similarName(d.kind, globalNames)).toDiagnostic, Some(d.kind))
 

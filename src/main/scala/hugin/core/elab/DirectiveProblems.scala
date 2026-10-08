@@ -94,4 +94,5 @@ enum DirectiveProblem extends Problem:
   override def suggestions: List[Suggestion] = this match
     case UnknownDirective(_, at, Some(s)) =>
       List(Suggestion.replace(at, "%" + s, msg"replace with ${Src("%" + s)}", Applicability.MaybeIncorrect))
+    case NotAttachable(_, _, at, _) => List(Suggestion.replace(at.endPoint, ".", msg"add `.`", Applicability.MaybeIncorrect))
     case _ => Nil

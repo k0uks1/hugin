@@ -346,7 +346,7 @@
   "jsonrpc": "2.0",
   "result": [
     {
-      "detail": "%output",
+      "detail": "meta definition output : decl -> decl\n(directive, local: it changes a declaration)",
       "kind": 14,
       "label": "output"
     }
@@ -569,6 +569,17 @@
       3,
       0
     ]
+  }
+}
+--> {"id":7,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":3,"line":10},"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "id": 7,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition output : decl -> decl\n(directive, local: it changes a declaration)\n```"
+    }
   }
 }
 --> {"id":6,"jsonrpc":"2.0","method":"shutdown"}

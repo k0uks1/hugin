@@ -168,7 +168,11 @@ object Ide:
     def matching(items: Seq[CompletionItem]) =
       items.filter(_.label.startsWith(prefix)).distinctBy(_.label).sortBy(_.label).toList
     if start > 0 && text.charAt(start - 1) == '%' then
-      matching(directives.map(d => CompletionItem(d, "directive", s"%$d")))
+      // the directives with a syntax of their own, and the meta functions in scope that are directives
+      val functions = scopeAt(ix, path, offset).filter(ix.isDirective).map(s =>
+        CompletionItem(s.name, "directive", ix.description(s).getOrElse("directive"))
+      )
+      matching(directives.map(d => CompletionItem(d, "directive", s"%$d")) ++ functions)
     else if start > 0 && text.charAt(start - 1) == '.' then
       // members of the module before the selector: the symbol the compiler resolved it to, or, in an item
       // that did not get that far, the one its name finds in the scope around the offset
@@ -190,8 +194,7 @@ object Ide:
           val typed = itemVariables(source, start, offset).map(v => CompletionItem(v, "variable", "variable"))
           matching((vars ++ typed).filterNot(_.label == "_") ++ names)
 
-  private val directives =
-    List("mode", "terminates", "open", "derivations", "input", "output", "infix", "name", "abbrev", "fact", "import", "builtin")
+  private val directives = List("mode", "infix", "fact", "import", "builtin")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 

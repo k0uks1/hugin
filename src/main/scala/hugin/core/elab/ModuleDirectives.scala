@@ -81,8 +81,10 @@ trait ModuleDirectives:
         None
     finally index.muted = saved
 
-  /** A rule or query as written, as data of type `item`. */
-  def reifyItem(item: Item): Tm = item match
+  /** A rule or query as written, as data of type `item` (at the item's position). */
+  def reifyItem(item: Item): Tm = Tm.loc(item.span, reifyAt(item))
+
+  private def reifyAt(item: Item): Tm = item match
     case Rule(name, heads, body) =>
       val rule = reify(Cxt.empty, RuleQuote(heads, body)(item.span), RKind.Rule)
       name match
@@ -102,13 +104,25 @@ trait ModuleDirectives:
 
   private def rewrite(fn: Tm, module: List[Entry], frame: TraceFrame, span: Span): List[Entry] =
     try
-      val data = listData(kindType(RKind.Item), module.map(e => Left(quote(0, e.value))))
+      val quoted = module.map(e => quote(0, e.value))
+      val before = quoted.map(stripPositions).zip(module).toMap
+      val data = listData(kindType(RKind.Item), quoted.map(Left(_)))
       val result = eval(Nil, Tm.App(fn, data, Icit.Expl))
-      listValues(result, span).map(Entry(_, Origin(List(frame)), span))
+      // an item the directive passed on unchanged keeps its place and provenance; a new one is placed at
+      // the directive and notes its expansion
+      listValues(result, span).map { v =>
+        before.get(stripPositions(quote(0, v))) match
+          case Some(e) => e.copy(value = v)
+          case None => Entry(v, Origin(List(frame)), placeOf(v).getOrElse(span))
+      }
     catch
       case e: ElabError =>
         report(e)
         module
+
+  private def placeOf(v: Val): Option[Span] = force(v) match
+    case Val.Obj(ObjForm.Loc(s), _) if s.exists => Some(s)
+    case _ => None
 
   private def elabEntry(e: Entry): List[CoreItem] =
     try reflectedItems(e.value, RKind.Item, e.span).map(elabGenerated(_, e.origin))
