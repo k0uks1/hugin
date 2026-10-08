@@ -144,6 +144,9 @@ final class Handover(core: Core, reporter: Reporter):
       case CoreDirective.Mode(inputs) => withTarget(DirKind.ModeD(ModeSpec(inputs)))
       case CoreDirective.TerminatesLabel(ls) => withTarget(DirKind.TerminatesLabel(ls))
       case CoreDirective.NameHint(v) => withTarget(DirKind.NameHint(v))
+      case CoreDirective.FormulaMode(f, inputs) =>
+        FormulaModes(core, symbols, reporter).check(f, inputs, d.span)
+        None
       case CoreDirective.TerminatesVar(vs, vars, args) =>
         staged(vars, args, d.span, base)((terms, normal) => normal.map(terms.term(_)))
           .flatMap(ts => withTarget(DirKind.TerminatesVar(vs, ts)))

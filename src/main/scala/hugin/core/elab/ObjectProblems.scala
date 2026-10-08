@@ -40,6 +40,9 @@ enum ObjectProblem extends Problem:
   case StuckObjectType(shown: String, at: Span)
 
   case DuplicateMember(name: String, at: Span, first: Span)
+  case UnusedDefinition(name: String, at: Span)
+  case FormulaModeArity(name: String, items: Int, params: Int, at: Span)
+  case FormulaOutputsUnbound(name: String, mode: String, outputs: List[String], at: Span)
   case UnknownRequirementField(label: String, at: Span)
 
   /** A data constructor passed for a `%fact` field of a signature. */
@@ -67,6 +70,9 @@ enum ObjectProblem extends Problem:
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
+    case _: UnusedDefinition => Code.W0003
+    case _: FormulaModeArity => Code.E0701
+    case _: FormulaOutputsUnbound => Code.E0501
     case _: UnknownRequirementField => Code.E0906
     case _: NotAFactConstructor => Code.E0204
     case _: ClauseArity => Code.E0207
@@ -96,6 +102,9 @@ enum ObjectProblem extends Problem:
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
+    case UnusedDefinition(_, s) => s
+    case FormulaModeArity(_, _, _, s) => s
+    case FormulaOutputsUnbound(_, _, _, s) => s
     case UnknownRequirementField(_, s) => s
     case NotAFactConstructor(_, _, s) => s
     case ClauseArity(_, _, _, s) => s
@@ -125,6 +134,10 @@ enum ObjectProblem extends Problem:
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"duplicate declaration of ${Src(n)}"
+    case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
+    case FormulaModeArity(n, m, p, _) => msg"mode for ${Src(n)} has $m items but the function takes $p arguments"
+    case FormulaOutputsUnbound(n, _, os, _) =>
+      msg"formula function ${Src(n)} does not bind its output argument${Lit(if os.length > 1 then "s" else "")}"
     case UnknownRequirementField(l, _) => msg"no field ${Src(l)} in the signature"
     case NotAFactConstructor(n, l, _) =>
       msg"signature mismatch: field ${Src(l)} must be a fact constructor, but ${Src(n)} is a data constructor"
@@ -142,6 +155,8 @@ enum ObjectProblem extends Problem:
     case _: DataFieldAsRelation => msg"not a relation: it has no facts to read"
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"declared again here"
+    case _: UnusedDefinition => msg"never referenced"
+    case FormulaOutputsUnbound(_, m, _, _) => msg"mode ${Lit(m)}"
     case _: NotARelation => msg"not a relation"
     case _: BoundOutsideRelation => msg"a bound column is only allowed as the last column of a relation declaration"
     case _: NotOpenType => msg"edge target must be open"
@@ -165,9 +180,11 @@ enum ObjectProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case DataAsRelation(n, w, _, _, _, _, _) => List(msg"${Src(n)} is a ${Lit(w)}: it builds values, which are not facts of a relation")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
+    case FormulaOutputsUnbound(_, _, os, _) =>
+      List(msg"argument${Lit(if os.length > 1 then "s" else "")} ${Lit(os.mkString(", "))} must be bound by the body")
     case DataFieldAsRelation(_, l, _) => List(msg"the field ${Src(l)} is a data constructor: its values are data, not facts of a relation")
     case _: PolymorphicRecursion =>
-      List(msg"a rule over a family must use the family at the arguments it is instantiated at, or it would create ever larger instances")
+      List(msg"within a recursive component every relation must be used at exactly the type parameters of the rule family")
     case _ => Nil
 
   override def helps: List[Msg] = this match

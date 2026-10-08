@@ -29,7 +29,8 @@ object NewMeta:
       imports += lib.path -> e.moduleValue
       e
     }
-    val main = elabFile(core, reporter, program, elab.FileEnv(program.path, program.qualifier, Set.empty, parent, imports))
+    val main =
+      elabFile(core, reporter, program, elab.FileEnv(program.path, program.qualifier, Set.empty, parent, imports, lintUnused = true))
     val all = (preludeElab.toList ++ libElabs :+ main).flatMap(_.items.toList)
     Elaborated(core, all, main.items.toList)
 

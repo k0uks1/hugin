@@ -104,4 +104,5 @@ final class Staging(core: Core, reporter: Reporter):
     case CoreDirective.Mode(_) => "mode" // the target follows; modes are shown by the object level
     case CoreDirective.TerminatesLabel(_) | CoreDirective.TerminatesVar(_, _, _) => "terminates"
     case CoreDirective.NameHint(_) => "name"
+    case CoreDirective.FormulaMode(f, _) => s"mode ${globals(f).name}"
     case other => other.toString.toLowerCase

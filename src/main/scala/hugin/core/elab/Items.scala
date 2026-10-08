@@ -57,15 +57,33 @@ trait Items:
   private def attemptItem(item: Item): Option[ElabError] =
     val start = metas.length
     try
-      undoOnFailure {
-        elabItem(item)
-        checkSolved(start)
+      itemTransaction {
+        undoOnFailure {
+          elabItem(item)
+          checkSolved(start)
+        }
       }
       None
     catch case e: ElabError => Some(e)
 
-  /** Called after all items: checks across items. */
-  def finish(): Unit = ()
+  /** Called after all items: checks across items. W0003: a meta definition or formula function of the
+   *  program that nothing refers to (module values and signatures are exempt: a module emits its rules
+   *  even when unreferenced). */
+  def finish(): Unit =
+    if file.lintUnused then
+      for (n, id) <- scope if !state.used(id) && isDefinitionToLint(id) do
+        reporter.report(ObjectProblem.UnusedDefinition(n, globals(id).span).toDiagnostic)
+
+  private def isDefinitionToLint(id: Int): Boolean =
+    val g = globals(id)
+    val definition = g.stage == Stage.S1 && (g.kind match
+      case GlobalKind.Definition(_, _) => true
+      case _ => false
+    )
+    definition && (force(telescope(g.ty)._2) match
+      case Val.RecTy(_, _, _, _) | Val.U1(_) => false
+      case _ => true
+    )
 
   /** The function an item is a clause of: `f p̄ = e.`, or `f X̄ = e.` after a declaration `f : A.`. */
   private def clauseName(item: Item, declared: Set[Name]): Option[Name] = item match
@@ -125,9 +143,22 @@ trait Items:
   def elabItemReporting(item: Item): Unit =
     val start = metas.length
     try
-      elabItem(item)
-      checkSolved(start)
+      itemTransaction {
+        elabItem(item)
+        checkSolved(start)
+      }
     catch case e: ElabError => reporter.report(e.diag)
+
+  /** Runs `f`; if it fails, the items and names it added are removed (an item with an error is dropped). */
+  private def itemTransaction[A](f: => A): A =
+    val count = items.length
+    val names = scope.keySet.toSet
+    try f
+    catch
+      case e: ElabError =>
+        items.dropRightInPlace(items.length - count)
+        scope.filterInPlace((n, _) => names(n))
+        throw e
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
    *  object typer infers). */

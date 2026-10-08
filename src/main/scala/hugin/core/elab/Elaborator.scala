@@ -21,7 +21,9 @@ final case class FileEnv(
     qualifier: String = "",
     shadowed: Set[Name] = Set.empty,
     parent: Map[Name, Int] = Map.empty,
-    imports: Map[String, ImportedModule] = Map.empty
+    imports: Map[String, ImportedModule] = Map.empty,
+    /** Whether unused definitions are reported (W0003, in the program, not in libraries). */
+    lintUnused: Boolean = false
 ):
   /** The name of an object constant declared as `n`. */
   def objectName(n: Name): Name =
@@ -40,6 +42,9 @@ final class ElabState:
 
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
+
+  /** The globals that names resolved to (for W0003, unused definitions). */
+  val used: mutable.Set[Int] = mutable.HashSet.empty
 
   /** Whether a type (rather than a term) is being elaborated: a struct family is a type family in a type
    *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */

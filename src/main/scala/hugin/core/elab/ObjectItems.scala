@@ -32,17 +32,27 @@ trait ObjectItems:
     val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
     val heads = r.heads.map(h => elabHead(c, h))
     val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
-    val generic = generalize(start)
+    val generic = generalize(start) || openFamilyHead(c, heads)
     CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
 
   /** Whether metas created since `start` are unknown object types (implicit arguments of families that
-   *  nothing determines): the item is then generic over them; they are allowed to stay unsolved. */
+   *  nothing determines, or the object types they were solved with): the item is then generic over them;
+   *  they are allowed to stay unsolved. */
   private def generalize(start: Int): Boolean =
     val open = (start until metas.length).filter(m => metas(m).solution.isEmpty && isObjectTypeUnknown(m))
     open.foreach(m => metas(m).allowUnsolved = true)
-    open.nonEmpty
+    open.exists(m => force(telescope(metas(m).ty)._2) == Val.Lift(Val.U0))
 
-  private def isObjectTypeUnknown(m: Int): Boolean = force(telescope(metas(m).ty)._2) == Val.Lift(Val.U0)
+  /** Whether the head of a rule is an instance of a family at unknown types (`len (cons X L) M`). */
+  private def openFamilyHead(c: Cxt, heads: List[Tm]): Boolean = heads.headOption.exists { h =>
+    force(Val.unloc(ev(c, h))) match
+      case Val.Rigid(Head.Glob(f), sp) if globals(f).kind.isInstanceOf[GlobalKind.Family] => true
+      case _ => false
+  }
+
+  private def isObjectTypeUnknown(m: Int): Boolean =
+    val result = force(telescope(metas(m).ty)._2)
+    result == Val.Lift(Val.U0) || result == Val.U0
 
   /** W0002: object variables that occur only once in a rule (names starting with `_` are exempt). */
   def warnSingletons(trees: List[Tree]): Unit =
@@ -86,6 +96,8 @@ trait ObjectItems:
   private def directive(base: Cxt, d: Directive): Option[(CoreDirective, Option[Tm])] =
     def target(t: Tree) = Some(relationTarget(base, t, s"%${d.kind}"))
     d.args match
+      case DirArgs.Mode(Ident(n), ms) if formulaFunction(base, n).isDefined =>
+        Some((CoreDirective.FormulaMode(formulaFunction(base, n).get, ms.map(_.input)), None))
       case DirArgs.Mode(t, ms) => Some((CoreDirective.Mode(ms.map(m => (m.input, m.label.map(_.name), m.span))), target(t)))
       case DirArgs.TerminatesLabel(ls, t) => Some((CoreDirective.TerminatesLabel(ls.map(_.name)), target(t)))
       case DirArgs.TerminatesVar(vs, t, args) =>
@@ -102,6 +114,11 @@ trait ObjectItems:
         Some((kind, target(t)))
       case DirArgs.NameHint(t, v) => Some((CoreDirective.NameHint(v.name), target(t)))
       case DirArgs.Infix(_, _, _) => None
+
+  /** The formula function a top-level name denotes. */
+  private def formulaFunction(base: Cxt, n: Name): Option[Int] =
+    if base.scope.contains(n) then None
+    else scope.get(n).filter(id => globals(id).stage == Stage.S1 && force(telescope(globals(id).ty)._2) == Val.Lift(Val.PropT))
 
   /** The relation a directive is about: an object relation, fact constructor or struct, or meta code of a
    *  relation type. */

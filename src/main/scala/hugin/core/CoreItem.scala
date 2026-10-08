@@ -31,3 +31,7 @@ enum CoreDirective:
    *  `args`. */
   case TerminatesVar(measure: List[Name], vars: List[(Name, Tm)], args: List[Tm])
   case NameHint(variable: Name)
+
+  /** `%mode f m̄` on a formula function `f`: its body must be well-moded for the mode
+   *  ([[handover.FormulaModes]]). */
+  case FormulaMode(fn: Int, inputs: List[Boolean])

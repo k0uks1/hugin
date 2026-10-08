@@ -25,6 +25,7 @@ trait Names:
       case None =>
         lookupGlobal(n) match
           case Some(id) =>
+            state.used += id
             val g = globals(id)
             (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
           case None =>
