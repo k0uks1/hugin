@@ -195,8 +195,9 @@ the prelude but not the program that imports it. Its object declarations are nam
 (`geo.here`). Missing and cyclic imports are errors (E0108).
 
 The prelude, [`prelude.hgn`](src/main/resources/hugin/stdlib/prelude.hgn), is ordinary Hugin source
-bundled with the compiler and included in every program (unless `--no-prelude`). It declares the base
-types (`int : type = %builtin int.`), lists with `len`, `option`, `pair`, the signature `graph` and the
+bundled with the compiler and included in every program (unless `--no-prelude`). The base types
+`int`, `float` and `string` are not declared there: they are built-in names (`builtinTypes` in
+`core/elab/Names.scala`), found when no declaration of the name is in scope. The prelude declares lists with `len`, `option`, `pair`, the signature `graph` and the
 functors `tc` and `bounded` of Section 13.1, the reflective types of object syntax, and the primitive
 directives. Its names can be shadowed by the program. The design and its
 relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).

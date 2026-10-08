@@ -27,9 +27,11 @@ object ModulePart:
 /** Module-wide directives (`module -> module`, reference: directives) rewrite the rules and queries of the file.
  *  The elaboration of each object item records what it contributes ([[ModulePart]]); if a module-wide
  *  directive is among them, [[expandModule]] replaces the rules and queries elaborated item by item with
- *  the expansion: in source order, the rules, queries and splices are the module's data, an additive
- *  directive adds its items at its place, and a module-wide directive replaces all the data so far with
- *  its result (so each directive sees the output of those before it). The result is reflected and
+ *  the expansion: the rules, queries and splices of the whole file are the module's data (in source
+ *  order); then, in source order, an additive directive adds its items at its place and a module-wide
+ *  directive replaces the module with its result. So a module-wide directive sees every rule, query and
+ *  splice of the file (also later ones) and the items of earlier additive and module-wide directives;
+ *  only the items of later additive directives are not seen. The result is reflected and
  *  elaborated like hand-written code, with the directive's frame as provenance. Items with errors are not
  *  part of the module (they were reported). Local directives keep their items. */
 trait ModuleDirectives:

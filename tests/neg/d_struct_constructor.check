@@ -1,0 +1,19 @@
+error[E0103]: cannot classify the declaration of `c`
+ --> tests/neg/d_struct_constructor.hgn:3:5
+  |
+3 | c : int -> s. (*~ E0103 *)
+  |     ^^^^^^^^ result is `s`, which is not an open type
+  |
+  = note: a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type
+  = help: to define a compile-time constant, write `c : s = ...`.
+
+error[E0103]: cannot classify the declaration of `d`
+ --> tests/neg/d_struct_constructor.hgn:5:5
+  |
+5 | d : int -> e. (*~ E0103 *)
+  |     ^^^^^^^^ result is `e`, which is not an open type
+  |
+  = note: a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type
+  = help: to define a compile-time constant, write `d : e = ...`.
+
+2 errors found

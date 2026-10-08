@@ -17,11 +17,18 @@ trait ObjectDecls:
   def objectDecl(d: Decl, ty: Val): ObjDecl = force(ty) match
     case Val.U0 => ObjDecl.OpenType
     case other =>
+      dupLabels(hugin.syntax.TreeOps.flattenArrow(d.tpe)._1.flatMap(_._1))
       if isRelationType(other) then ObjDecl.Relation
       else
         constructorResult(other) match
           case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind.isInstanceOf[GlobalKind.Object] && !isOpen(id) =>
             fail(ElabProblem.Unclassifiable(d.name.name, globals(id).name, false, d.tpe.span))
+          case Val.FactTy(r) =>
+            // the fact type of a struct or relation is closed: its values are the facts
+            val name = force(r) match
+              case Val.Rigid(Head.Glob(id), _) => globals(id).name
+              case _ => hugin.syntax.TreeOps.codomain(d.tpe).span.text
+            fail(ElabProblem.Unclassifiable(d.name.name, name, false, d.tpe.span))
           case _ => ObjDecl.Constructor
 
   private def constructorResult(ty: Val): Val = force(ty) match

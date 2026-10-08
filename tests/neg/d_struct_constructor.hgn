@@ -1,0 +1,7 @@
+(* E0103: a constructor's result is an open type; the fact type of a struct or relation is not *)
+s : type = { x : int }.
+c : int -> s. (*~ E0103 *)
+e : (a : int) -> rel.
+d : int -> e. (*~ E0103 *)
+t : type.
+k : int -> t.

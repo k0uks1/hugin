@@ -10,6 +10,6 @@ need B :- need N, N > 1, B = N - 2.
 fib : (n : int) -> (f : int) -> rel.
 fib 0 0.
 fib 1 1.
-fib N F :- need N, N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.   (* (B) on n *)
+fib N F :- need N, N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.   (* (A) on n *)
 ?- fib 90 F.
 ?- fib 10 F.
