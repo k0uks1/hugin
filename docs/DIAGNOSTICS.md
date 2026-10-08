@@ -784,8 +784,10 @@ mapping, so that `hugin explain` works offline.
 
 The four warnings become lints: `W0001 undefined_constant_expressions`, `W0002 singleton_variables`,
 `W0003 unused_definitions`, `W0005 empty_formula_functions`. Each has a default level in its `Code`.
-Command-line flags `-W name`, `-A name` and `-D name` (warn, allow, deny), plus `-D warnings`, change the
-level. `--no-warnings` stays as an alias of "allow all". An in-source attribute (`%allow
+Command-line flags `-W name`, `-A name` and `-D name` (warn, allow, deny), plus `--deny-warnings`, change the
+level (*as built in M5*: `enum Lint` in `util/diagnostics/Lints.scala`, `LintLevels`; `--no-warnings` was
+removed rather than kept as an alias; every shown lint carries a note naming it and the origin of its
+level). An in-source attribute (`%allow
 singleton_variables.` on an item) is left for the redesign's directive work (C2), where directives become
 meta functions. New warnings, for example from the size-change checker, are declared as lints from the
 start.
@@ -961,6 +963,11 @@ in issue #41.
 * *Accept*: the legacy count is 0, `Problem.Legacy` is deleted, and `Diagnostic.code` becomes `Code`, no
   longer an `Option`, except for internal compiler errors, which get a code of their own (`F0001`). Every
   machine-applicable suggestion has a fix test.
+* *Done so far* (#41): lints, `-W`/`-A`/`-D`/`--deny-warnings`, `hugin fix` (`util/diagnostics/Fixes.scala`,
+  `cli/Fix.scala`) and `tests/fix` with one test per machine-applicable suggestion. The stable phases
+  have no `Legacy` use left; the remaining 163 are in the old meta typer (deleted by B3) and in the new
+  elaborator (`core/`, migrated with M4), so deleting `Problem.Legacy` and making `Diagnostic.code`
+  non-optional wait for those.
 
 **M6 — Consolidation** (with Phase D). Retire E0406 and E0504 when C3 deletes the data/fact split. Review
 the wording of the whole inventory against the style guide, phase by phase, as one PR per phase.

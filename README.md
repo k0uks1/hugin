@@ -80,8 +80,9 @@ Commands come first, options after them (`hugin <command> [options] <args>`):
 ```
 hugin run <file.hgn>      compile and evaluate; print output relations and query answers
 hugin check <file.hgn>    compile only and report diagnostics
+hugin fix <file.hgn>      apply the machine-applicable suggestions to the file, until none is left
 hugin phases              list the compiler phases
-hugin explain <code>      explain a diagnostic code (e.g. E0401)
+hugin explain <code>      explain a diagnostic code (e.g. E0401); --list lists all codes and lints
 hugin query <file.hgn> <request> [<line>:<col>]
                           ask the compiler: hover, definition, references, completions
                           (at a position), symbols, diagnostics
@@ -95,10 +96,30 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --stats                 print compiler phase timings and evaluation statistics
   --all-relations         print the facts of every relation (including fact constructors and demand relations)
   --color / --no-color    colour diagnostics
-  --no-warnings           suppress warnings
+  --error-format human|json
+                          rendered diagnostics (default) or JSON lines
+  -W, --warn <lint>       report the lint as a warning (repeatable, as are -A and -D)
+  -A, --allow <lint>      allow the lint: do not report it
+  -D, --deny <lint>       deny the lint: report it as an error
+  --deny-warnings         report every lint without a flag that warns by default as an error
   --explain-termination   print the termination argument of every recursive component
   --no-prelude            do not include the standard prelude
 ```
+
+### Lints and fixes
+
+Every warning is a named *lint* (`hugin explain --list` shows the names next to the `W` codes):
+`undefined_constant_expressions` (W0001), `singleton_variables` (W0002), `unused_definitions` (W0003),
+`empty_formula_functions` (W0005), `unreachable_clauses` (W0006). A lint is given by its name or its code;
+the last flag for a lint wins, and an explicit `-W` keeps a lint a warning under `--deny-warnings`. A denied
+lint is reported as an error (`error[W0002]`) and makes the command fail. Each reported lint has a note
+saying where its level comes from (`` `-W singleton_variables` is on by default ``). The launcher script
+of `sbt stage` passes arguments starting with `-D` to the JVM, so with it write `--deny <lint>`.
+
+`hugin fix FILE` applies the suggestions marked machine-applicable (adding a missing `.`, replacing a
+singleton variable by `_`, adding missing labels as `_`, `%complete`, `%fact`, `%abbrev`, a missing
+`%mode`) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
+does. Suggestions that are guesses (a similar name) are only shown, and lints at `-A` are not fixed.
 
 ## The REPL
 
@@ -462,6 +483,9 @@ Three kinds of tests, all run by `sbt test`:
     `(*~^ E0603 *)` for the line above) state the codes independently of the wording: a file with
     annotations must account for exactly the diagnostics reported in it.
   - `tests/pos/X.hgn` — must compile without errors.
+  - `tests/fix/X.hgn` — `hugin fix` applied to a copy must give `X.fixed`, which must compile without
+    errors and be a fixed point (one test per kind of machine-applicable suggestion).
+  - `tests/json/X.hgn` — checked with `--error-format=json`; the JSON lines must equal `X.check`.
   - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
     their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.
 - **Fuzz suites** (`src/test/scala/hugin/fuzz`), a short deterministic run; see below.
