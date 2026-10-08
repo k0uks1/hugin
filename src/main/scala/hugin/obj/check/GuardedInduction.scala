@@ -36,7 +36,7 @@ final class GuardedInduction(rc: RecursiveComponent):
   /** The candidate measures of the inference for guarded induction (B): one integer or structural argument
    *  per relation, or a lexicographic pair for a single relation. */
   private def candidates: Iterator[Map[RelSym, List[Int]]] =
-    val rels = comp.map(base).distinct.filter(c => c.kind == RelKind.Plain && c.arity > 0)
+    val rels = comp.distinct.filter(c => c.kind == RelKind.Plain && c.arity > 0)
     def positions(c: RelSym) = (0 until c.arity - (if c.boundColumn.isDefined then 1 else 0)).toList
     val singles: Iterator[Map[RelSym, List[Int]]] =
       if rels.isEmpty || rels.length > 4 then Iterator.empty
@@ -61,36 +61,11 @@ final class GuardedInduction(rc: RecursiveComponent):
   def inductionFailure: Option[TerminationError] =
     candidates.map(check).collectFirst { case Left(f) if f.error.isAnchor => f.error }
 
-  /** Checks the component with the given measures; the explanation, or the first violation.
-   *
-   *  A moded component is checked per strongly connected component of its *demand* graph (an edge `c → e`
-   *  for every demand rule `e^d … :- c^d …`): demands only flow along that graph, so a call from one group
-   *  into another (`typed` calling `lookup`, which never calls back) needs no decrease; the pair (rank of
-   *  the group in the acyclic demand graph, measure) decreases lexicographically along every demand. The
-   *  dependency graph may still join such groups into one component through answers (`typed` reads
-   *  `lookup`, whose demands come from `typed`'s). Measures are compared, and need the same shape, only
-   *  within a group. */
-  def check(measures: Map[RelSym, List[Int]]): Either[Rejection, List[String]] =
-    val groups =
-      if !measures.keys.exists(facts.hasModes) then List(measures.keys.toList)
-      else
-        val measured = measures.keys.toList.sortBy(_.name)
-        def demandBase(x: RelSym) = x.kind match
-          case RelKind.Demand(of, _) if measures.contains(of) => Some(of)
-          case _ => None
-        val edges = allRules.flatMap { r =>
-          for
-            e <- headRel(r).flatMap(demandBase)
-            c <- r.body.collectFirst { case Formula.Atom(RelRef.Sym(x), _, _) if x.isDemand => x }.flatMap(demandBase)
-          yield c -> e
-        }
-        hugin.util.Graphs.components(measured, c => edges.collect { case (`c`, e) => e }.distinct)
-    groups.foldLeft[Either[Rejection, List[String]]](Right(Nil)) { (acc, g) =>
-      acc.flatMap(lines => checkGroup(measures.filter((c, _) => g.contains(c)), measures).map(lines ++ _))
-    }
+  /** Checks the component with the given measures; the explanation, or the first violation. */
+  def check(measures: Map[RelSym, List[Int]]): Either[Rejection, List[String]] = checkGroup(measures, measures)
 
-  /** Checks one group of relations whose measures are compared with each other (see [[check]]); `all` are
-   *  the measures of the whole component. */
+  /** Checks relations whose measures are compared with each other; `all` are the measures of the whole
+   *  component. */
   def checkGroup(measures: Map[RelSym, List[Int]], all: Map[RelSym, List[Int]]): Either[Rejection, List[String]] =
     val measured = measures.keys.toList.sortBy(_.name)
     def declared(c: RelSym) = facts(c).terminates.map(_._2)
@@ -110,7 +85,7 @@ final class GuardedInduction(rc: RecursiveComponent):
     val slots = (0 until n).toList.map(i => slotNumeric(first, measures(first)(i)))
     val ctx = MeasureCtx(measures, slots, all, facts, comp)
     shapeError.toLeft(()).flatMap { _ =>
-      if measured.exists(facts.hasModes) then DemandDriven(rc).check(ctx) else bottomUp(ctx)
+      bottomUp(ctx)
     }.map { lines =>
       val ms = measured.map(c =>
         s"  measure of `${c.name}`: ${showPositions(c, measures(c))}${if n > 1 then " (lexicographic)" else ""}"

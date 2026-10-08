@@ -95,7 +95,7 @@ trait ModuleBodies:
   private def objectMember(c: Cxt, d: Decl): (Cxt, Member) =
     if d.sup.isDefined || d.params.nonEmpty then unsupportedAt(d.span, "refinements and families in module bodies")
     val (ty, decl) =
-      if isStructDecl(d) then (structType(c, d), ObjDecl.Struct(d.fact))
+      if isStructDecl(d) then (structType(c, d), ObjDecl.Struct)
       else
         val (t, st) = declType(d, c)
         if st != Stage.S0 then unsupportedAt(d.span, "meta-level declarations without definition in module bodies")

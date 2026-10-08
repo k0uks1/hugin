@@ -25,9 +25,9 @@ object DepGraph:
     case Formula.Disj(alts) => alts.flatten.flatMap(mentioned)
     case Formula.Cmp(_, l, r) => relsIn(l) ++ relsIn(r)
 
-  /** The fact-constructor subterms of a term (descending through data and fact constructors). */
+  /** The constructor subterms of a term (every constructor is a fact constructor). */
   def factTerms(t: Term): List[Term.App] = t match
-    case a @ Term.App(r, as) => (if r.sym.isData then Nil else List(a)) ++ as.flatMap(factTerms)
+    case a @ Term.App(_, as) => a :: as.flatMap(factTerms)
     case Term.As(x, _) => factTerms(x)
     case Term.Ascr(x, _) => factTerms(x)
     case Term.Arith(_, l, r) => factTerms(l) ++ factTerms(r)
@@ -38,12 +38,10 @@ object DepGraph:
    *  before it): the relations of its atoms, and the fact-constructor terms of the value side of binding
    *  equations, which are existence checks (`X = c t̄` reads as `(c t̄ as X)`). Constructor patterns nested
    *  in atoms or on the pattern side of an equation match values structurally, and comparisons and
-   *  aggregate terms are structural (see docs/NOTES.md, "Data and fact constructors"): they read no facts.
+   *  aggregate terms are structural (REDESIGN §3.3): they read no facts.
    *  Which side of an equation binds follows the canonical order (Lemma 6.4); if the body has none (it is
    *  ill-moded, reported elsewhere), every fact-constructor term of an equation counts. */
-  def occurrences(body: List[Formula], neg: Boolean = false, bound: Set[String] = Set.empty)(using
-      ProgramFacts
-  ): List[(RelSym, Boolean, Span)] =
+  def occurrences(body: List[Formula], neg: Boolean = false, bound: Set[String] = Set.empty): List[(RelSym, Boolean, Span)] =
     val (ordered, moded) = Moding.canonical(body, bound) match
       case Right((o, _)) => (o, true)
       case Left(_) => (body, false)
@@ -76,9 +74,8 @@ object DepGraph:
       case _ => Nil
     }.toSet
 
-  /** Constructor terms (data and fact) strictly inside the head's arguments that are not matched in the
-   *  body: the terms a rule builds (for termination, Definition 10.1). The heads of demand rules are the
-   *  inputs of moded calls, so terms built there count too. With `withHead`, the head itself counts too
+  /** Constructor terms strictly inside the head's arguments that are not matched in the body: the terms a
+   *  rule builds (for termination, Definition 10.1). With `withHead`, the head itself counts too
    *  if its relation is a fact constructor or fact struct: its fact is a term, so a rule `s (s N) :- s N`
    *  builds `s (s N)` although its argument is matched (a split rule of Proposition 8.8 has this shape,
    *  see `StratifyPhase.splitRules`). */
@@ -98,30 +95,11 @@ object DepGraph:
     }
 
   /** A fact constructor or fact struct: a relation whose facts are constructor terms. */
-  def isFactCtor(c: RelSym): Boolean = (c.isCtor || c.kind == RelKind.Struct) && !c.isData
+  def isFactCtor(c: RelSym): Boolean = c.isCtor || c.kind == RelKind.Struct
 
-  /** The input columns of the head of a rule of a moded relation guarded by the demand of mode `m` (by
-   *  the demand transformation): they are patterns, matched against the demand, not constructions. Their
-   *  fact-constructor subterms are facts already (no moded input builds one, E0504), so asserting them
-   *  again adds nothing. */
-  def guardedInputs(r: Rule): Set[Int] =
-    r.heads.headOption match
-      case Some(Term.App(RelRef.Sym(h), _)) =>
-        r.body
-          .collectFirst { case Formula.Atom(RelRef.Sym(d), _, _) if d.isDemand => d.kind }
-          .collect { case RelKind.Demand(`h`, m) => m.inputs.zipWithIndex.collect { case (true, i) => i }.toSet }
-          .getOrElse(Set.empty)
-      case _ => Set.empty
-
-  /** The fact-constructor terms a rule's head asserts besides its own fact (`subfact_F`): new fact terms
-   *  outside the guarded input columns. Data constructors never assert. */
-  def assertedHeadConstructors(r: Rule): List[Term.App] =
-    val guarded = guardedInputs(r)
-    val asserting = r.withParts(heads = r.heads.map {
-      case a @ Term.App(c, as) => Term.App(c, as.zipWithIndex.filterNot((_, i) => guarded(i)).map(_._1))(a.span)
-      case other => other
-    })
-    newHeadConstructors(asserting).filterNot(_.rel.sym.isData)
+  /** The fact-constructor terms a rule's head asserts besides its own fact (`subfact_F`): the constructor
+   *  terms of its arguments that the body does not match. */
+  def assertedHeadConstructors(r: Rule): List[Term.App] = newHeadConstructors(r)
 
   def edges(p: ObjProgram)(using ProgramFacts): List[DepEdge] =
     p.rules.toList.flatMap { r =>

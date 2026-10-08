@@ -105,11 +105,7 @@ final case class Rule(name: Option[String], heads: List[Term], body: List[Formul
 final case class Query(body: List[Formula])(val span: Span, val origin: Origin, val expansions: List[Expansion] = Nil):
   def withBody(b: List[Formula]): Query = Query(b)(span, origin, expansions)
 
-final case class ModeSpec(inputs: List[(Boolean, Option[String], Span)])
-
 enum DirKind:
-  case ModeD(spec: ModeSpec)
-
   /** The measure variables (several for a lexicographic measure) and the call pattern. */
   case TerminatesVar(vs: List[String], args: List[Term])
 
@@ -128,9 +124,6 @@ final case class Edge(sub: OType, sup: TypeSym)(val span: Span, val origin: Orig
 enum Requirement:
   /** `%complete label`: the relation is not open. */
   case Complete(label: String, span: Span)
-
-  /** `%mode label m`: the relation has mode `m`. */
-  case HasMode(label: String, mode: Mode, span: Span)
 
   def label: String
   def span: Span

@@ -58,10 +58,10 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
         for (fam, args) <- g.instanceOf if d == ObjDecl.OpenType do closeInstance(fam, args)
         t
       case _ =>
-        val r = RelSym(objectName(id), relKind(d), g.declSpan, Origin.Source, fact(d))
+        val r = RelSym(objectName(id), relKind(d), g.declSpan, Origin.Source)
         rels(id) = r
         for (fam, _) <- g.instanceOf do
-          r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(objectName(fam), r.kind, r.span, Origin.Source, r.fact)), Nil))
+          r.instanceOf = Some((familyRels.getOrElseUpdate(fam, RelSym(objectName(fam), r.kind, r.span, Origin.Source)), Nil))
         fillRelation(id, r)
         r
 
@@ -85,7 +85,7 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
       case _ => 0
     globals.indices.toList.filter { c =>
       globals(c).kind match
-        case GlobalKind.Family(ObjDecl.Constructor(_), `arity`) => resultIsFamily(c, fam, arity)
+        case GlobalKind.Family(ObjDecl.Constructor, `arity`) => resultIsFamily(c, fam, arity)
         case _ => false
     }
 
@@ -121,14 +121,9 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
       case None => if fromPrelude(g) && ownNames(g.name) then s"prelude.${g.name}" else g.name
 
   private def relKind(d: ObjDecl): RelKind = d match
-    case ObjDecl.Constructor(_) => RelKind.Ctor
-    case ObjDecl.Struct(_) => RelKind.Struct
+    case ObjDecl.Constructor => RelKind.Ctor
+    case ObjDecl.Struct => RelKind.Struct
     case _ => RelKind.Plain
-
-  private def fact(d: ObjDecl): Boolean = d match
-    case ObjDecl.Constructor(f) => f
-    case ObjDecl.Struct(f) => f
-    case _ => false
 
   private def fillType(id: Int, t: TypeSym): Unit = globals(id).kind match
     case GlobalKind.Object(ObjDecl.Refinement(base)) => t.kind = TypeKind.Refinement(otype(nf(Nil, base), t.span))

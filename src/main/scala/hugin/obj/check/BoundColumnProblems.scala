@@ -19,8 +19,6 @@ enum BoundColumnError extends Problem:
   /** The bound column of `rel` has the non-integer type `tpe`. */
   case NotInteger(rel: RelSym, bound: Bound, tpe: OType)
 
-  /** `rel` has a bound column and a mode (the demand transformation would drop the column). */
-  case Moded(rel: RelSym)
 
   /** E0606: a rule violates type-consistency at `at`; `boundBy` is the atom binding the offending limit
    *  variable, with the kind of its bound column, if one is known. */
@@ -34,21 +32,18 @@ enum BoundColumnError extends Problem:
     case InConstructor(r, _) => r.span
     case NotLast(r, _, _) => r.span
     case NotInteger(r, _, _) => r.span
-    case Moded(r) => r.span
     case Inconsistent(s, _, _) => s
 
   def message: Msg = this match
     case InConstructor(r, k) => msg"$k column in the constructor $r"
     case NotLast(r, k, _) => msg"$k column of $r is not the last column"
     case NotInteger(r, k, _) => msg"$k column of $r is not an integer column"
-    case Moded(r) => msg"$r has a bound column and a `%mode`"
     case Inconsistent(_, why, _) => msg"type-inconsistent rule: " ++ why.message
 
   override def primaryLabel: Msg = this match
     case _: InConstructor => msg"constructors have no bound columns"
     case NotLast(r, k, i) => msg"column ${i + 1} of ${r.arity} is a $k column"
     case NotInteger(_, _, t) => msg"has type $t"
-    case _: Moded => msg"moded relation with a bound column"
     case Inconsistent(_, why, _) => why.label
 
   override def labels: List[(Span, Msg)] = this match
@@ -66,7 +61,6 @@ enum BoundColumnError extends Problem:
     case _: InConstructor => List(msg"declare a relation with a bound last column instead, e.g. `best : key -> (v : min int) -> rel.`")
     case _: NotLast => List(msg"move the bound column to the end")
     case NotInteger(_, k, _) => List(msg"use ${Src(s"${k.show} int")}")
-    case _: Moded => List(msg"remove the `%mode` directive")
     case Inconsistent(_, why, _) => List(why.help)
 
 /** Where a value from a bound column is used although it must not be. */

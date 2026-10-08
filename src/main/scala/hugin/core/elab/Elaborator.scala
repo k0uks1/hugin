@@ -128,7 +128,6 @@ class Elaborator(
     with ObjectDecls
     with ObjectCode
     with NamedPatterns
-    with DataConstructors
     with FormulaFunctions
     with ModuleBodies
     with Imports

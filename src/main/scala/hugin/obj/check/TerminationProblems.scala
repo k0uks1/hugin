@@ -64,11 +64,7 @@ enum TerminationError extends Problem:
   /** A demand of `rel` from outside the component reads values that depend on `rel`'s answers. */
   case InfiniteDemand(rel: RelSym, demanded: Term, directive: Option[Span])
 
-  /** `rel` has a measure but no mode, while `moded` of the same component is moded. */
-  case NoMode(rel: RelSym, at: Span, moded: RelSym)
 
-  /** Measured argument `arg` (0-based) of `rel` is not an input of its mode `mode` (declared at `at`). */
-  case NotAnInput(rel: RelSym, mode: Mode, at: Span, arg: Int, directive: Option[Span])
 
   /** The measures of `rel` (declared at `at`) and `first` (at `firstAt`) have different lengths. */
   case MeasureLengths(comp: List[RelSym], rel: RelSym, length: Int, at: Span, first: RelSym, firstLength: Int, firstAt: Option[Span])
@@ -104,8 +100,6 @@ enum TerminationError extends Problem:
     case p: NoAnchor => p.at
     case p: UnboundedDemand => p.at
     case p: InfiniteDemand => p.demanded.span
-    case p: NoMode => p.at
-    case p: NotAnInput => p.at
     case p: MeasureLengths => p.at
     case p: MeasureTypes => p.at
     case p: UnmeasuredConstructive => p.invention.at
@@ -113,7 +107,6 @@ enum TerminationError extends Problem:
   def message: Msg = this match
     case _: NoArgument => msg"growing component without a termination argument"
     case p: UnmeasuredCall => msg"${p.caller} calls ${p.callee}, which has no measure"
-    case p: NoMode => msg"${p.rel} has a measure but no `%mode`"
     case p: MeasureLengths => msg"measures of different lengths in the component ${component(p.comp)}"
     case p: MeasureTypes => msg"measures of different types in the component ${component(p.comp)}"
     case p: UnmeasuredConstructive => msg"constructive rule for ${p.rel}, which has no measure"
@@ -127,8 +120,6 @@ enum TerminationError extends Problem:
     case p: UnboundedDemand =>
       msg"no anchor: ${p.measure.component(p.slot)}the body does not bound the demanded ${p.demanded} from below"
     case p: InfiniteDemand => msg"the demanded ${p.demanded} may take infinitely many values"
-    case _: NoMode => msg"measure declared here"
-    case p: NotAnInput => msg"argument ${p.arg + 1} is not an input of mode ${Lit(p.mode.show)}"
     case p: MeasureLengths => msg"${p.rel} is measured by ${Lit(Termination.plural(p.length))}"
     case p: MeasureTypes => msg"component ${p.slot + 1} of ${p.rel}'s measure is ${Lit(Termination.kind(p.numeric))}"
     case p: UnmeasuredConstructive => p.invention.describe
@@ -162,8 +153,6 @@ enum TerminationError extends Problem:
       List(
         msg"this call demands ${p.rel} with values read from relations that depend on the answers of ${p.rel}, so the demands could grow without bound"
       )
-    case p: NoMode => List(msg"${p.moded} in the same component is moded, so the component is evaluated by demand")
-    case _: NotAnInput => List(msg"in a moded component the measure is checked on the demands, which consist of the input arguments")
     case _: MeasureLengths => List(msg"measures of mutually recursive relations are compared with each other, so they need the same shape")
     case _: MeasureTypes => Nil
     case p: UnmeasuredConstructive => List(msg"${p.rel} is in the recursive component ${component(p.comp)}")
@@ -177,9 +166,6 @@ enum TerminationError extends Problem:
       val u = ObjPrinter.term(p.demanded)
       List(msg"add a lower bound, e.g. ${Src(s"$u >= 0")}, or bound the caller's argument (`N > 0` with ${Src(s"$u = N - 1")})")
     case p: InfiniteDemand => List(msg"bind the argument by a relation that does not depend on the answers of ${p.rel}")
-    case p: NoMode =>
-      val all = Mode(Vector.fill(p.rel.arity)(true))
-      List(msg"declare a mode for ${p.rel}, e.g. ${Src(s"%mode ${p.rel.name} ${all.show}.")}")
     case p: UnmeasuredConstructive => List(msg"give ${p.rel} a `%terminates` measure with the same shape")
     case _ => Nil
 
@@ -189,7 +175,6 @@ enum TerminationError extends Problem:
     case p: NoAnchor => Some(p.measure.rel)
     case p: UnboundedDemand => Some(p.measure.rel)
     case p: InfiniteDemand => Some(p.rel)
-    case p: NotAnInput => Some(p.rel)
     case _ => None
 
   private def directive: Option[Span] = this match
@@ -198,7 +183,6 @@ enum TerminationError extends Problem:
     case p: NoAnchor => p.directive
     case p: UnboundedDemand => p.directive
     case p: InfiniteDemand => p.directive
-    case p: NotAnInput => p.directive
     case p: UnmeasuredConstructive => p.directive
     case _ => None
 

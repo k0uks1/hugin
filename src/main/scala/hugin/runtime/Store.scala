@@ -13,13 +13,10 @@ final class Key(val ws: Array[Any]):
 
 /** The interned tuples of one relation symbol (Section 9.4): tuple `n` has the identity `(tag, n)`.
  *
- *  - For a relation of F (plain relations, fact constructors and fact structs, demand, auxiliary and
- *    derivation relations) interned means asserted: every tuple is a fact, tuples are kept in assertion
+ *  - For a relation of F (plain relations, constructors and structs, auxiliary and derivation
+ *    relations) interned means asserted: every tuple is a fact, tuples are kept in assertion
  *    order, so the old/delta/full windows of semi-naive evaluation are ranges of identities, and hash
  *    indexes on bound columns hold identities.
- *  - For a data constructor or data struct the table is only a hash-cons table of values: it is never
- *    scanned, has no indexes and no windows, and its contents are not facts. Interning a data value (in a
- *    head, a comparison or a binding equation) has no observable effect.
  *  - For a relation with a bound column (docs/REDESIGN.md §5.2) only the best tuple per key is current;
  *    replaced tuples stay in the table (so windows remain identity ranges) but are invisible. */
 final class Relation(val tag: Int, val sym: RelSym, val arity: Int, indexCols: Set[Vector[Int]]):
@@ -27,9 +24,6 @@ final class Relation(val tag: Int, val sym: RelSym, val arity: Int, indexCols: S
   private val interned = mutable.HashMap.empty[Key, Int]
   private val indexes: Map[Vector[Int], mutable.HashMap[Key, mutable.ArrayBuffer[Int]]] =
     indexCols.map(c => c -> mutable.HashMap.empty[Key, mutable.ArrayBuffer[Int]]).toMap
-
-  /** Whether the tuples are values only (a data constructor or data struct), not facts. */
-  val isData: Boolean = sym.isData
 
   /** The bound column of the relation (its last column), if it has one: then [[intern]] keeps one tuple
    *  per key, the one with the best value; a better value is appended as a new tuple and the old one is

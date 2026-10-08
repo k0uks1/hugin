@@ -46,30 +46,18 @@ final case class Column(label: Option[String], tpe: OType, bound: Option[hugin.s
 enum RelKind:
   case Plain, Ctor, Struct
 
-  /** Demand relation d^c_m of Section 7.3. */
-  case Demand(of: RelSym, mode: Mode)
-
   /** Derivation relation @r#i of Section 7.4. */
   case Derivation(rule: String)
 
   /** Auxiliary relation introduced by the compiler, e.g. for a disjunction inside an aggregate. */
   case Auxiliary(purpose: String)
 
-/** A mode: `true` = input (+), `false` = output (-). */
-final case class Mode(inputs: Vector[Boolean]):
-  def show: String = inputs.map(b => if b then "+" else "-").mkString
-  def arity: Int = inputs.length
-object Mode:
-  def allOut(n: Int): Mode = Mode(Vector.fill(n)(false))
-
 /** An object relation (plain relation, constructor or struct). The fact type has the same name. Its
  *  declaration (`cols`, `result`, `instanceOf`) is filled in when the symbol is created, by the handover
  *  from the meta level or the phase that introduces it; what later phases learn about it is in
- *  [[ProgramFacts]] (directives) and the core IR (runtime tags).
- *
- *  @param fact whether a constructor or struct is declared `%fact` (a fact constructor); otherwise it is a
- *              data constructor, which is not read as a relation */
-final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin, val fact: Boolean = false):
+ *  [[ProgramFacts]] (directives) and the core IR (runtime tags). Every constructor and struct is a fact
+ *  constructor (REDESIGN §3.2), also the relation of its facts. */
+final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin):
   val id: Int = SymIds.next()
   var cols: Vector[Column] = Vector.empty
 
@@ -85,9 +73,6 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
     if kind == RelKind.Ctor || kind == RelKind.Struct then None else cols.lastOption.flatMap(_.bound)
   def isCtor: Boolean = kind == RelKind.Ctor
 
-  /** A data constructor or data struct (not `%fact`): its values are data, not facts of a relation. */
-  def isData: Boolean = (kind == RelKind.Ctor || kind == RelKind.Struct) && !fact
-  def isDemand: Boolean = kind match { case RelKind.Demand(_, _) => true; case _ => false }
   def isDerivation: Boolean = kind match { case RelKind.Derivation(_) => true; case _ => false }
 
   /** Source name used in output: qualified, without type arguments. */

@@ -53,9 +53,8 @@ trait CompleteParameters:
     case _ => None
 
   private def entryEnd(e: SigEntry): Span = e match
-    case SigEntry.FieldDecl(_, tpe, _) => tpe.span.endPoint
+    case SigEntry.FieldDecl(_, tpe) => tpe.span.endPoint
     case SigEntry.Complete(_, sp) => sp.endPoint
-    case SigEntry.ModeReq(_, _, sp) => sp.endPoint
 
   /** The atoms an aggregate's body (or a negation) reads directly. */
   def atomsOf(t: Tm): List[(Tm, Span)] =

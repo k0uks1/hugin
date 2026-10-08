@@ -34,6 +34,11 @@ enum GlobalKind:
    *  clauses are elaborated; arity -1 before). */
   case Function(arity: Int, tree: Option[CaseTree])
 
+  /** A primitive operation of the prelude (`eqsym : sym -> sym -> bool = %builtin eqsym.`), reduced by
+   *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `snil`,
+   *  `scons`). */
+  case Primitive(op: PrimOp, ctors: List[Int])
+
 /** What an object constant declares (REDESIGN §3.1). The core only needs to know that it is an object
  *  constant; the handover to the object level ([[hugin.core.handover]]) needs the rest. */
 enum ObjDecl:
@@ -46,11 +51,11 @@ enum ObjDecl:
   /** `r : τ̄ -> rel.` */
   case Relation
 
-  /** `c : τ̄ -> a.`; `fact` if declared `%fact` (a fact constructor, readable as a relation). */
-  case Constructor(fact: Boolean)
+  /** `c : τ̄ -> a.`: a fact constructor (REDESIGN §3.2), also the relation of its facts. */
+  case Constructor
 
   /** `s : type = { l : τ, … }.`: a relation whose fact type is `s`. */
-  case Struct(fact: Boolean)
+  case Struct
 
 /** A top-level entity. `ty` is its type (closed), `stage` the stage of its type's universe, `span` the
  *  position of its name and `declSpan` that of its whole declaration.
@@ -85,7 +90,7 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
 final class Core private (val levels: Levels) extends Evaluation with Matching with Families with Modules with Requirements
-    with Readback with Renaming with Unification with Printing:
+    with Readback with Renaming with Unification with Printing with Primitives:
   def this() = this(Levels())
 
   val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty
@@ -107,6 +112,7 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
     c.copyModules(this)
     c.copyRequirements(this)
     c.copyEvaluation(this)
+    c.copyPrimitives(this)
     c
 
   def addGlobal(e: GlobalEntry): Int =

@@ -43,9 +43,9 @@ final class Engine(prog: CoreProgram):
 
   /** Evaluates an expression in one of three modes (see [[Expr.Make]]): [[Dry]] builds nothing (a
    *  constructor term is a placeholder; used to check that a head's arithmetic is defined before anything
-   *  is interned, and for aggregate terms, which are of base type or only counted); [[InBody]] hash-conses
-   *  data terms and looks up fact-constructor terms ([[NonFact]] if absent); [[InHead]] interns every
-   *  constructor term, which asserts the fact-constructor ones (`subfact_F`). */
+   *  is interned, and for aggregate terms, which are of base type or only counted); [[InBody]] looks up
+   *  constructor terms ([[NonFact]] if absent); [[InHead]] interns every constructor term, which asserts
+   *  it (`subfact_F`). */
   private def eval(e: Expr, regs: Array[Any], mode: Int): Option[Any] = e match
     case Expr.Reg(r) => Some(regs(r))
     case Expr.Const(w) => Some(w)
@@ -69,7 +69,6 @@ final class Engine(prog: CoreProgram):
         val r = store(rel)
         if mode == InHead then Some(Id(rel, r.intern(vs)))
         else if nonFact then Some(NonFact(rel, vs.toVector))
-        else if r.isData then Some(Id(rel, r.intern(vs)))
         else
           val n = r.lookup(vs)
           Some(if n >= 0 then Id(rel, n) else NonFact(rel, vs.toVector))
@@ -323,8 +322,7 @@ final class Engine(prog: CoreProgram):
     case i: Infinity => if nested && i == Infinity.Neg then s"(${i.show})" else i.show
     case other => other.toString
 
-  /** The facts of a relation, printed and sorted; none for a data constructor (its values are not facts).
-   *  For a relation with a bound column, the current (best) tuple of each key. */
+  /** The facts of a relation, printed and sorted. For a relation with a bound column, the current (best) tuple of each key. */
   def facts(rel: Int): List[String] =
     val r = store(rel)
-    if r.isData then Nil else r.tuples.indices.filter(r.current).map(n => show(Id(rel, n)) + ".").toList.sorted
+    r.tuples.indices.filter(r.current).map(n => show(Id(rel, n)) + ".").toList.sorted

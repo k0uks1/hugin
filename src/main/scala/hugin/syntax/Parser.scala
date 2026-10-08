@@ -173,7 +173,7 @@ final class Parser(
       case _ =>
         val lhs = parseExpr(LvlHead)
         kind match
-          case Tok.Colon => parseDeclRest(lhs, start, fact = false)
+          case Tok.Colon => parseDeclRest(lhs, start)
           case Tok.Eq =>
             advance()
             val rhs = parseExpr(LvlSemi)
@@ -191,7 +191,7 @@ final class Parser(
           case _ => parseRuleRest(None, start, lhs)
 
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:`. */
-  protected def parseDeclRest(lhs: Tree, start: Int, fact: Boolean): Item =
+  protected def parseDeclRest(lhs: Tree, start: Int): Item =
     expect(Tok.Colon)
     val (name, params) = declHead(lhs)
     val tpe = parseType()
@@ -200,7 +200,7 @@ final class Parser(
     val defn = if kind == Tok.Eq then { advance(); Some(parseNonType(LvlSemi)) }
     else None
     expect(Tok.Period, "`.` after declaration")
-    Decl(name, params, tpe, sup, defn, fact)(spanFrom(start))
+    Decl(name, params, tpe, sup, defn)(spanFrom(start))
 
   private def parseRuleRest(name: Option[Ident], start: Int, first: Tree): Item =
     val heads = mutable.ListBuffer(first)
@@ -303,7 +303,7 @@ final class Parser(
             case "->" =>
               lhs match
                 case ImplicitBinder(ns, t) => ImplicitPi(ns, t, rhs)(sp)
-                case RecordType(List(SigEntry.FieldDecl(l, t, false))) => ImplicitPi(List(l), t, rhs)(sp)
+                case RecordType(List(SigEntry.FieldDecl(l, t))) => ImplicitPi(List(l), t, rhs)(sp)
                 case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
                 case _ => Arrow(None, lhs, rhs)(sp)
             case _ if opTok.kind == Tok.Name =>
@@ -487,9 +487,7 @@ final class Parser(
       val tpe = parseType()
       expect(Tok.RBrace, "`}` after implicit binder")
       ImplicitBinder(names.toList, tpe)(spanFrom(start))
-    else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok
-        .Directive && (tok.text == "%complete" || tok.text == "%fact" && k1 == Tok.Name && peekTok(2).kind == Tok.Colon))) && !periodFirst
-    then
+    else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
       parseRecordType(start)
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(start)
     else

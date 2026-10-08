@@ -155,11 +155,39 @@ trait Reflection:
               List(Rule(Some(Ident(name)(s)), rl.heads, rl.body)(rl.span))
             case _ => malformed("a rule name that is not a name", s)
         case ("ierror", List(m), s) => fail(DirectiveProblem.Rejected(message(m, s, t), t.fallback))
+        case ("irelation", List(sym, cols), s) =>
+          declareRelation(sym, cols, s, t)
+          Nil
         case ("iquery", List(fs), s) => List(Query(conj(elements(fs, s, t).map((f, fs2) => formula(f, fs2, Nil, t))).getOrElse(malformed(
             "an empty query",
             s
           )))(t.fallback))
         case (_, _, s) => malformed("not an item", s)
+
+  /** `irelation S cols`: declares the derived constant `S` (pending since `derive` created it) as the
+   *  relation over the columns `cols` (each a column of an object constant, with its label and type). */
+  private def declareRelation(sym: Val, cols: Val, s: Span, t: Target): Unit =
+    val id = symbolId(sym, s, t)
+    val columns = elements(cols, s, t).map { (c, cs) =>
+      ctorApp(c, cs, t) match
+        case ("colof", List(of, k), s2) =>
+          val owner = symbolId(of, s2, t)
+          if globals(owner).kind.isInstanceOf[GlobalKind.Family] then
+            malformed(s"a column of the family `${globals(owner).name}` (derived relations of families are not supported)", s2)
+          objectColumns(globals(owner).ty).lift(index(k, s2, t)).getOrElse(malformed("a column index out of range", s2))
+        case (_, _, s2) => malformed("not a column", s2)
+    }
+    val ty = columns.foldRight(Tm.RelT: Tm)((col, acc) => Tm.Pi(col._1, Icit.Expl, quote(0, col._2), acc))
+    if !declareDerived(id, ty, t.fallback) then
+      if derivedFrom(id).isEmpty then malformed(s"`${globals(id).name}` is not a derived constant (`derive`)", s)
+      else malformed(s"`${globals(id).name}` is declared twice", s)
+
+  private def symbolId(v: Val, s: Span, t: Target): Int = peel(v, s)._1 match
+    case Val.Quote(x) =>
+      peel(x, s)._1 match
+        case Val.Rigid(Head.Glob(id), Nil) => id
+        case other => notClosed(other, s, t)
+    case other => notClosed(other, s, t)
 
   private def rule(v: Val, sp: Span, t: Target): Rule = ctorApp(v, sp, t) match
     case ("horn", List(hs, bs), s) =>
@@ -214,6 +242,8 @@ trait Reflection:
     val head: Tree = peel(sym, s)._1 match
       case Val.Quote(x) =>
         peel(x, s)._1 match
+          case Val.Rigid(Head.Glob(id), Nil) if globals(id).pending =>
+            malformed(s"`${globals(id).name}` is not declared (a constant from `derive` is declared by an item `irelation`)", s)
           case Val.Rigid(Head.Glob(id), Nil) => SymRef(id, globals(id).name)(s)
           case other => notClosed(other, s, t)
       case other => notClosed(other, s, t)

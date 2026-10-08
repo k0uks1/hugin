@@ -54,11 +54,10 @@ object ObjPrinter:
     val res = r.result.map(_.show).getOrElse("rel")
     val kind = r.kind match
       case RelKind.Struct => "  (* struct *)"
-      case RelKind.Demand(c, m) => s"  (* demand of ${c.name} at ${m.show} *)"
       case RelKind.Derivation(rn) => s"  (* derivations of @$rn *)"
       case RelKind.Auxiliary(purpose) => s"  (* $purpose *)"
       case _ => ""
-    s"${if r.fact then "%fact " else ""}${r.name} : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
+    s"${r.name} : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
 
   def typeDecl(t: TypeSym): String =
     t.kind match
@@ -68,7 +67,6 @@ object ObjPrinter:
   def directive(d: Directive): String =
     val tgt = d.target.map(_.show).orElse(d.rule.map("@" + _)).getOrElse("?")
     d.kind match
-      case DirKind.ModeD(spec) => s"%mode $tgt ${spec.inputs.map((b, l, _) => (if b then "+" else "-") + l.getOrElse("")).mkString(" ")}."
       case DirKind.TerminatesVar(vs, args) => s"%terminates ${hugin.syntax.Printer.measure(vs)} ($tgt ${args.map(arg).mkString(" ")})."
       case DirKind.TerminatesLabel(ls) => s"%terminates ${hugin.syntax.Printer.measure(ls)} $tgt."
       case DirKind.Open => s"%open $tgt."

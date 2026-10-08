@@ -72,7 +72,6 @@ trait ObjectItems:
     val (tm, ty) =
       try inferS(c, h, Stage.S0)
       finally state.objectHead = false
-    dataConstructorOf(tm).foreach(dataUsedAsRelation(_, TreeOps.flattenApp(h)._1.span, "a rule head derives facts of a relation"))
     force(ty) match
       case Val.RelT | Val.PropT => tm
       case Val.Pi(_, _, _, _) =>

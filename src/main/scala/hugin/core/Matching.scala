@@ -29,6 +29,10 @@ trait Matching:
           for k <- key; v <- r do memo(k) = v
           r
         }.map(appSp(_, later))
+    case GlobalKind.Primitive(op, ctors) if sp.count(_.isInstanceOf[Elim.EApp]) >= op.arity =>
+      val (later, first) = sp.splitAt(sp.length - op.arity)
+      val args = first.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }
+      if args.length != op.arity then None else reducePrimitive(op, ctors, args).map(appSp(_, later))
     case GlobalKind.Family(_, arity) if sp.length >= arity =>
       val (later, first) = sp.splitAt(sp.length - arity)
       val args = first.reverse.collect { case Elim.EApp(a, _) => a }

@@ -17,11 +17,9 @@ enum Stage:
     case S1 => "meta"
 
 /** A requirement of a signature on the relation passed for one of its fields: `%complete l` (it is not
- *  open), `%mode l m̄` (it has the mode), `%fact l : …` (a fact constructor, readable as a relation). */
+ *  open). */
 enum SigReq:
   case Complete(label: String, span: hugin.util.Span)
-  case HasMode(label: String, inputs: Vector[Boolean], span: hugin.util.Span)
-  case Fact(label: String)
 
   def label: String
 

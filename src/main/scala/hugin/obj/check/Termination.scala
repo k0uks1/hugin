@@ -13,7 +13,7 @@ import hugin.compiler.*
  *  - (B) guarded induction: a measure — a tuple of argument positions per relation, compared
  *    lexicographically, integers by `<` and terms by the proper-subterm relation — decreases from the
  *    head to every recursive call, and the head's measure lies in a finite set (bound by a guard atom
- *    outside the component, or by intervals). Moded components are checked on their demands instead.
+ *    outside the component, or by intervals).
  *
  *  `%terminates` names the measure of (B) as a checked hint; without it (A) is tried first, then (B) with
  *  an inferred measure. Decreases and bounds are derived by interval reasoning over the linear
@@ -71,8 +71,7 @@ object Termination:
    *  the split rules of Proposition 8.8. */
   def verdict(rc: RecursiveComponent, split: Rule => Boolean): Verdict =
     val constructiveRules = rc.rules.flatMap(r => Constructive.constructive(r, rc.inC).map(r -> _))
-    // a component of demand relations only is measured by the relations they are demands of
-    lazy val declared = rc.comp.map(base).flatMap(c => rc.facts(c).terminates.map(t => c -> t._1)).toMap
+    lazy val declared = rc.comp.flatMap(c => rc.facts(c).terminates.map(t => c -> t._1)).toMap
     lazy val induction = GuardedInduction(rc)
     if constructiveRules.isEmpty then Verdict.Finite
     else if declared.nonEmpty then
@@ -101,7 +100,7 @@ object Termination:
   ): TerminationError =
     val head = headRel(r)
     val guard = descent.chain.toList.flatMap(_.steps.flatMap(_.hints)).headOption.map(MissingGuard.of)
-    val measurable = rc.comp.map(base).find(c => c.kind == RelKind.Plain || DepGraph.isFactCtor(c))
+    val measurable = rc.comp.find(c => c.kind == RelKind.Plain || DepGraph.isFactCtor(c))
     TerminationError.NoArgument(
       rc.comp,
       invention,
@@ -116,11 +115,6 @@ object Termination:
   def where(r: Rule): String = s"rule at ${r.span.show}"
 
   def headRel(r: Rule): Option[RelSym] = r.heads.headOption.collect { case Term.App(RelRef.Sym(c), _) => c }
-
-  /** The relation a demand relation belongs to, or the relation itself. */
-  def base(c: RelSym): RelSym = c.kind match
-    case RelKind.Demand(of, _) => of
-    case _ => c
 
   def showComponent(comp: List[RelSym]): String = comp.map(_.name).mkString("{", ", ", "}")
 

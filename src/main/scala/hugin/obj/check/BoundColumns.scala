@@ -29,6 +29,5 @@ final class BoundColumnsPhase extends Phase:
         if r.kind != RelKind.Plain then Some(BoundColumnError.InConstructor(r, k))
         else if i != r.arity - 1 then Some(BoundColumnError.NotLast(r, k, i))
         else if !Termination.isInt(c.tpe) then Some(BoundColumnError.NotInteger(r, k, c.tpe))
-        else if ctx.unit.facts.hasModes(r) then Some(BoundColumnError.Moded(r))
         else None
       problem.foreach(p => ctx.report(p))

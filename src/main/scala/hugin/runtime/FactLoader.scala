@@ -8,7 +8,7 @@ import hugin.obj.{OType, RelSym, BaseType}
 import hugin.obj.typing.TypeOps
 
 /** Loads ground facts of input relations (Section 9.6). Loading interns them: the fact and its nested
- *  fact-constructor terms are asserted (`subfact_F`), nested data values are only hash-consed. */
+ *  constructor terms are asserted (`subfact_F`). */
 final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter: Reporter):
   private val byName: Map[String, Vector[RelSym]] = prog.rels.groupBy(_.displayName)
 

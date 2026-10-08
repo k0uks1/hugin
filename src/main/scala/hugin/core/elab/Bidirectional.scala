@@ -117,8 +117,6 @@ trait Bidirectional:
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
       val (head, args) = TreeOps.flattenApp(t)
       missingColumns(ty).foreach(n => objectArity(head, tm, args.length + n, args.length, t.span))
-      dataConstructorOf(tm).foreach(dataUsedAsRelation(_, head.span, "not a relation: it has no facts to read"))
-      dataFieldOf(c, tm).foreach(l => dataFieldUsedAsRelation(hugin.syntax.Printer.show(head), l, head.span))
       coe(c, t.span, tm, ty, s, a, st)
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))

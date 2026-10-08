@@ -55,7 +55,6 @@ final class Staging(core: Core, reporter: Reporter):
     case r: CoreItem.RuleItem => positionOf(r.span)
     case q: CoreItem.QueryItem => positionOf(q.span)
     case e: CoreItem.EdgeItem => positionOf(e.span)
-    case d: CoreItem.DirectiveItem => positionOf(d.span)
     case d: CoreItem.DeclItem => positionOf(d.span)
 
   /** The staged program: declarations, definitions (as elaborated, with inserted quotes, splices and
@@ -84,11 +83,6 @@ final class Staging(core: Core, reporter: Reporter):
       val b = nf(env, body)
       if objectCode(names, b, span) then List(s"?- ${showTm(names, b)}.") else Nil
     case CoreItem.EdgeItem(sub, sup, _) => List(s"${showTm(Nil, nf(Nil, sub))} <: ${showTm(Nil, nf(Nil, sup))}.")
-    case CoreItem.DirectiveItem(d, target, _) =>
-      val name = d match
-        case CoreDirective.Mode(_) => "mode" // the target follows; modes are shown by the object level
-        case CoreDirective.FormulaMode(f, _) => s"mode ${globals(f).name}"
-      List((s"%$name" :: target.map(t => showTm(Nil, nf(Nil, t))).toList).mkString(" ") + ".")
     case d: CoreItem.DeclItem => declaration(d)
   }
 

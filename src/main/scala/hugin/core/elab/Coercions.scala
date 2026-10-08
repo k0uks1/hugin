@@ -30,7 +30,6 @@ trait Coercions:
     catch
       case e: UnifyError =>
         expectedRelation(a2).foreach { r =>
-          dataConstructorOf(t).foreach(dataUsedAsRelation(_, span, s"expected a relation `⇑(${show(c, r)})`"))
         }
         fail(mismatch(c, span, a2, s2, a, s, e.failure))
 

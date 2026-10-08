@@ -43,20 +43,17 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case Term.Ascr(x, _) => expr(x)
       case other => throw IllegalStateException(s"cannot lower term ${ObjPrinter.term(other)}")
 
-    /** The value side of a binding equation `X = t` (Section "Data and fact constructors" of
-     *  docs/NOTES.md). A data term is built (hash-consed) and denotes its value; a fact-constructor term
-     *  is an existence check, read as `(c t̄ as X)`: [[BodyOp.Lookup]] fails if `c t̄` is not a fact. So
+    /** The value side of a binding equation `X = t` (REDESIGN §3.3). A constructor term is an existence
+     *  check, read as `(c t̄ as X)`: [[BodyOp.Lookup]] fails if `c t̄` is not a fact. So
      *  every fact-constructor subterm of a bound value is a fact. An ascription of a constructor term
      *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to
      *  it), so it is dropped. */
     def bindingValue(t: Term, out: mutable.ListBuffer[BodyOp]): Expr = t match
       case Term.App(RelRef.Sym(c), as) =>
         val args = as.map(bindingValue(_, out)).toArray
-        if c.isData then Expr.Make(c.tag, args)
-        else
-          val y = fresh()
-          out += BodyOp.Lookup(y, c.tag, args)
-          Expr.Reg(y)
+        val y = fresh()
+        out += BodyOp.Lookup(y, c.tag, args)
+        Expr.Reg(y)
       case Term.Ascr(x: Term.App, _) => bindingValue(x, out)
       case other => expr(other)
 
@@ -255,7 +252,6 @@ final class LowerPhase extends Phase:
     val low = Lowering(p, ops)
     val rules = p.rules.map(low.lowerRule)
     val queries = p.queries.map(low.lowerQuery)
-    // data constructors have no facts, so they take no part in evaluation (only their hash-cons tables)
-    val comps = ctx.unit.components.map(_.filterNot(_.isData)).filter(_.nonEmpty).map(_.map(low.tagOf).toVector).toVector
+    val comps = ctx.unit.components.filter(_.nonEmpty).map(_.map(low.tagOf).toVector).toVector
     ctx.unit.core = CoreProgram(p.rels, p.rels.map(ctx.unit.facts(_)), comps, rules, queries, low.indexes.view.mapValues(_.toSet).toMap)
   override def show(using Context): String = IRPrinter.show(ctx.unit.core.nn)

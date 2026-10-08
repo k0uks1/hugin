@@ -191,7 +191,8 @@ trait Quotes:
 
   /** An object constant (or a hole) applied to terms: an atom (`fatom`) or a term (`tapp`). */
   private def application(c: Cxt, t: Tree, ctor: Name, bound: List[Name]): Q =
-    val (h, args) = TreeOps.flattenApp(t)
+    val (h, written) = TreeOps.flattenApp(t)
+    val args = namedArguments(c, h, written).getOrElse(written)
     unsupportedForm(t).foreach(w =>
       fail(ReflectionProblem.Unsupported(w, kindName(if ctor == "fatom" then RKind.Formula else RKind.Term), t.span))
     )
@@ -200,6 +201,18 @@ trait Quotes:
       case SpliceE(x) => Q.Hole(x, RKind.Sym, h.span)
       case _ => symbol(c, h, if ctor == "fatom" then "a formula" else "a term")
     Q.Con(ctor, List(sym, sequence(c, args, RKind.Term, bound, t.span)), true, t.span)
+
+  /** `r { l₁ = e₁, … }` (a named pattern, Section 2.4) as the positional arguments of `r` (a column not
+   *  named is `_` with `..`); `None` if the arguments are not one record or `r` has no such labels. */
+  private def namedArguments(c: Cxt, h: Tree, args: List[Tree]): Option[List[Tree]] = args match
+    case List(rl: RecordLit) =>
+      objectConstant(c, h).flatMap { id =>
+        val labels = objectColumns(globals(id).ty).map(_._1)
+        val byLabel = rl.fields.map(f => f.label.name -> f.value).toMap
+        Option.when(labels.nonEmpty && !labels.contains("_") && byLabel.keySet.subsetOf(labels.toSet) &&
+          (rl.rest || labels.forall(byLabel.contains)))(labels.map(l => byLabel.getOrElse(l, Wildcard()(rl.span))))
+      }
+    case _ => None
 
   private def symbol(c: Cxt, h: Tree, what: String): Q =
     symbolOf(c, h) match

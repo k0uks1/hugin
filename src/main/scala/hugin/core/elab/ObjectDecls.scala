@@ -22,7 +22,7 @@ trait ObjectDecls:
         constructorResult(other) match
           case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind.isInstanceOf[GlobalKind.Object] && !isOpen(id) =>
             fail(ElabProblem.Unclassifiable(d.name.name, globals(id).name, false, d.tpe.span))
-          case _ => ObjDecl.Constructor(d.fact)
+          case _ => ObjDecl.Constructor
 
   private def constructorResult(ty: Val): Val = force(ty) match
     case Val.Pi(_, _, _, cl) => constructorResult(inst(cl, Val.Wild))
@@ -50,19 +50,16 @@ trait ObjectDecls:
     else
       val (c, ps) = bindParams(Cxt.empty, d.params, (_, _) => Tm.Lift(Tm.U0))
       val ty = pis(ps, Icit.Expl, Tm.Lift(structType(c, d)))
-      declare(d.name, ty, Stage.S1, GlobalKind.Family(ObjDecl.Struct(d.fact), ps.length), d.span)
+      declare(d.name, ty, Stage.S1, GlobalKind.Family(ObjDecl.Struct, ps.length), d.span)
 
   private def elabPlainStruct(d: Decl): Unit =
-    declare(d.name, structType(Cxt.empty, d), Stage.S0, GlobalKind.Object(ObjDecl.Struct(d.fact)), d.span)
+    declare(d.name, structType(Cxt.empty, d), Stage.S0, GlobalKind.Object(ObjDecl.Struct), d.span)
 
   def structType(c: Cxt, d: Decl): Tm =
     val entries = d.defn.get.asInstanceOf[RecordType].entries
     val fields = entries.map {
-      case SigEntry.FieldDecl(l, t, fact) =>
-        if fact then fail(ElabProblem.StructFieldFact(l.span))
-        (l, t)
+      case SigEntry.FieldDecl(l, t) => (l, t)
       case SigEntry.Complete(_, sp) => fail(ElabProblem.StructRequirement(sp))
-      case SigEntry.ModeReq(_, _, sp) => fail(ElabProblem.StructRequirement(sp))
     }
     dupLabels(fields.map(_._1))
     columnsType(c, fields.map((l, t) => (l.name, t)), Tm.RelT)
@@ -130,12 +127,12 @@ trait ObjectDecls:
 
   /** The kind of object constant a declaration declares, if its syntax tells. */
   private def shapeOf(d: Decl, objectTypes: Set[Name]): Option[ObjDecl] =
-    if isStructDecl(d) then Some(ObjDecl.Struct(d.fact))
+    if isStructDecl(d) then Some(ObjDecl.Struct)
     else if d.defn.isDefined || d.sup.isDefined then None
     else if endsInRel(d.tpe) then Some(ObjDecl.Relation)
     else
       hugin.syntax.TreeOps.flattenArrow(d.tpe) match
-        case (_ :: _, Ident(n)) if objectTypes(n) => Some(ObjDecl.Constructor(d.fact))
+        case (_ :: _, Ident(n)) if objectTypes(n) => Some(ObjDecl.Constructor)
         case _ => None
 
   /** Sets the type of a pending global, now that its declaration is elaborated. */

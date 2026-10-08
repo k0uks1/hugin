@@ -16,7 +16,6 @@ object DiagArgs:
   given DiagArg[ArithOp] = DiagArg(op => Seg.Code(op.show))
   given DiagArg[CmpOp] = DiagArg(op => Seg.Code(op.show))
   given DiagArg[AggKind] = DiagArg(k => Seg.Code(k.show))
-  given DiagArg[Mode] = DiagArg(m => Seg.Code(m.show))
   given DiagArg[Bound] = DiagArg(b => Seg.Code(b.show))
 
   /** Terms and formulas as printed by [[ObjPrinter]]. */
