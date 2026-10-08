@@ -9,12 +9,12 @@ import scala.collection.mutable
  *  Applications to closed arguments are memoised by their normal forms: meta functions are total and
  *  pure, so this is sound, and it makes naive recursion such as `fibm (suc (suc N)) = fibm N + fibm
  *  (suc N)` linear instead of exponential (REDESIGN §6.7 plans memoisation by normalised arguments for
- *  families anyway). */
+ *  families anyway). The keys are hash-consed ids of the normal forms ([[MemoKeys]]). */
 trait Matching:
   self: Core =>
   import Val.*
 
-  private val memo = mutable.HashMap.empty[(Int, List[Tm]), Val]
+  private val memo = mutable.HashMap.empty[(Int, List[Int]), Val]
 
   /** The result of applying global `id` to the spine, if it is a function that reduces. */
   def reduceFunction(id: Int, sp: Spine): Option[Val] = globals(id).kind match
@@ -23,7 +23,7 @@ trait Matching:
       val args = first.reverse.collect { case Elim.EApp(a, _) => a }
       if args.length != arity then None
       else
-        val key = closedKey(args).map((id, _))
+        val key = closedKeyIds(args).map((id, _))
         key.flatMap(memo.get).orElse {
           val r = runTree(tree, args.toVector)
           for k <- key; v <- r do memo(k) = v
@@ -66,27 +66,3 @@ trait Matching:
         case Rigid(Head.Glob(id), Nil) => Some(Tm.Quote(Tm.Global(id)))
         case _ => None
     case _ => None
-
-  /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
-  def closedKey(args: List[Val]): Option[List[Tm]] =
-    val tms = args.map(quote(0, _))
-    Option.when(tms.forall(closed))(tms)
-
-  private def closed(t: Tm): Boolean = t match
-    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
-    case Tm.App(f, a, _) => closed(f) && closed(a)
-    case Tm.Rec(fs) => fs.forall(f => closed(f._2))
-    case Tm.Quote(a) => closedObject(a)
-    case Tm.Obj(ObjForm.Loc(_), List(a)) => closed(a)
-    case Tm.Arith(_, a, b, _) => closed(a) && closed(b)
-    case _ => false
-
-  /** Closed object code (no variables or metas). */
-  private def closedObject(t: Tm): Boolean = t match
-    case Tm.Var(_) | Tm.Meta(_) | Tm.AppPruning(_, _) | Tm.Lam(_, _, _) | Tm.Splice(_) => false
-    case Tm.App(f, a, _) => closedObject(f) && closedObject(a)
-    case Tm.Arith(_, a, b, _) => closedObject(a) && closedObject(b)
-    case Tm.Obj(_, as) => as.forall(closedObject)
-    case Tm.Negate(a, _) => closedObject(a)
-    case Tm.Proj(a, _) => closedObject(a)
-    case _ => true

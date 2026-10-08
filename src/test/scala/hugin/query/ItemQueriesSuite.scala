@@ -1,6 +1,6 @@
 package hugin.query
 
-import hugin.compiler.{Compiler, Parsed, Settings, SourceLoader}
+import hugin.compiler.{Compiler, Settings, SourceLoader, StdlibCache}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 import java.nio.file.{Files, Path}
@@ -256,7 +256,8 @@ class ItemQueriesSuite extends munit.FunSuite:
 
   /** Compiles without a database (every part of the program in sequence): rendered diagnostics. */
   private def direct(text: String): List[String] =
-    val loader: SourceLoader = p => (if p == path then Some(text) else SourceLoader.read(p)).map(t => Parsed(SourceFile.virtual(p, t)))
+    // the standard library's parse is the process's shared one (`StdlibCache`), as in `SourceLoader.files`
+    val loader: SourceLoader = p => (if p == path then Some(text) else SourceLoader.read(p)).map(t => StdlibCache.parsed(p, t))
     val renderer = DiagnosticRenderer(color = false)
     Compiler.compileParsed(loader.load(path).get, settings, loader, _ => ()).reporter.sorted.map(renderer.render)
 
