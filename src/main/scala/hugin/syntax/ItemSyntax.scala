@@ -54,8 +54,9 @@ private[syntax] trait ItemSyntax extends ParserBase:
   private def parseDeclRest(lhs: Tree, first: Token): List[Item] =
     val colon = advance()
     val head = declHead(lhs)
-    if at(Tok.Eq) && colon.kind == Tok.Colon then
-      // `x := e`: a definition with a `:` too many
+    if at(Tok.Eq) && colon.kind == Tok.Colon && !tok.spaceBefore then
+      // `x := e`: a definition with a `:` too many (repaired; with a space between them, `x : = e` is
+      // only an error: a missing type)
       error(SyntaxError.Expected(List(Expect.tpe), found, tok.span, None, Some(SyntaxHelp.ColonEquals(colon.span))))
       return List(parseDefRest(lhs, first))
     val tpe = parseType()

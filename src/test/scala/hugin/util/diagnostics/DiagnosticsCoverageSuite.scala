@@ -9,10 +9,13 @@ class DiagnosticsCoverageSuite extends munit.FunSuite:
   private def files(dir: String, ext: String): List[Path] =
     Files.walk(Path.of(dir)).iterator.asScala.filter(_.toString.endsWith(ext)).toList.sortBy(_.toString)
 
-  /** The codes reported in the rendered diagnostics of the negative golden tests. */
+  /** The codes reported in the rendered diagnostics of the negative golden tests (also the recovery
+   *  tests of syntax errors). */
   private lazy val reportedInGoldens: Set[String] =
     val pattern = "(?:error|warning)\\[([EW]\\d{4})\\]".r
-    files("tests/neg", ".check").flatMap(p => pattern.findAllMatchIn(Files.readString(p)).map(_.group(1))).toSet
+    (files("tests/neg", ".check") ++ files("tests/recovery", ".check")).flatMap(p =>
+      pattern.findAllMatchIn(Files.readString(p)).map(_.group(1))
+    ).toSet
 
   /** A lint may instead be pinned by a run golden (`// warning[W…]` lines): a warning does not fail. */
   private def lintInRunGoldens(c: Code): Boolean =

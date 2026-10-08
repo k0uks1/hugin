@@ -33,6 +33,8 @@ trait Items:
     val (_, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     prog.partition {
+      // dropped with the declarations, which record the names they might declare ([[elabDeclarations]])
+      case item if hasSyntaxErrors(item) => true
       case r: Rule => clauseName(r, declared).isDefined || clauseOf(formulaFunctions)(r).isDefined
       case _: Query | _: Directive => false
       case _ => true
@@ -47,6 +49,9 @@ trait Items:
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    // the names that items with syntax errors might declare: their uses are not reported (if no other
+    // item declares them); the items are dropped silently by `elabItem`
+    state.erroneous ++= prog.filter(hasSyntaxErrors).flatMap(mightDeclare)
     // a function with a clause with a syntax error is not defined, and its uses are not elaborated
     state.unelaborated = clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)).toSet ++
       formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
@@ -56,6 +61,17 @@ trait Items:
     elabClauseGroups(clauses)
     for f <- formulaFunctions if !state.unelaborated(f) do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
+
+  /** The names an item with a syntax error might have been meant to declare: its name, or the name of
+   *  the head of a rule (a declaration whose `:` is missing is a rule). */
+  private def mightDeclare(item: Item): List[Name] =
+    def head(t: hugin.syntax.Tree): Option[Name] = t match
+      case ErrorTree(parts) => parts.headOption.flatMap(head)
+      case other => hugin.syntax.TreeOps.headName(other).map(_.name)
+    item match
+      case r: Rule => r.heads.flatMap(head)
+      case cl: Clause => head(cl.lhs).toList
+      case other => declares(other).toList
 
   /** The name an item declares. */
   private def declares(item: Item): Option[Name] = declaresIdent(item).map(_.name)

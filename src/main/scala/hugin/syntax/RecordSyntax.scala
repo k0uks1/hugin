@@ -28,11 +28,12 @@ private[syntax] trait RecordSyntax extends ParserBase:
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(open)
     else parseModuleBody(open)
 
-  /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file, or,
-   *  if its items are indented, before the first item in column 0 (`docs/PARSER.md`, §4.3). */
+  /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file if
+   *  its first item is in column 0 of a line of its own, and otherwise before the first item in column 0
+   *  (`docs/PARSER.md`, §4.3). */
   private def parseModuleBody(open: Token): Tree =
-    val indented = !at(Tok.RBrace) && startsLine(position) && tok.span.startCol > 0
-    val items = parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && !(indented && atColumn0(position)), unexpectedInBody)
+    val column0Members = atColumn0(position)
+    val items = parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody)
     if at(Tok.RBrace) then
       advance()
       ModuleBody(items)(spanFrom(open.span.start))

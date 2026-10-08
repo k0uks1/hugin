@@ -149,7 +149,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   protected def checked(t: Tree, ok: Boolean): Tree = if ok then t else damaged(t)
 
   /** The index of `closer` at depth 0 ahead, within the current item: not past a period at depth 0, a token
-   *  in column 0, another closing delimiter at depth 0 or the end of the file; -1 if there is none. */
+   *  in column 0 or the end of the file; -1 if there is none. */
   private def closerAhead(closer: Tok): Int =
     var k = i
     var depth = 0
@@ -159,8 +159,10 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
       t match
         case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
         case Tok.RParen | Tok.RBrack | Tok.RBrace =>
-          if depth == 0 then return (if t == closer then k else -1)
-          depth -= 1
+          // another closing delimiter at depth 0 is stray, or closes an enclosing construct, whose end
+          // is then found by the period or the column-0 token after it
+          if depth == 0 && t == closer then return k
+          depth = (depth - 1).max(0)
         case Tok.Period if depth == 0 => return -1
         case _ =>
       k += 1
