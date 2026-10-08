@@ -28,7 +28,7 @@ trait MemoKeys:
 
   private val readBack = java.util.IdentityHashMap[Val, Tm]()
   private val termIds = java.util.IdentityHashMap[Tm, Integer]()
-  private val nodeIds = mutable.HashMap.empty[(Int, List[Any]), Int]
+  private val nodeIds = mutable.HashMap.empty[Any, Int]
   private val closedIds = mutable.HashMap.empty[Int, Boolean]
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
@@ -93,12 +93,20 @@ trait MemoKeys:
     if cached != null then cached
     else
       // the case and the fields, with every subterm replaced by its id: equal exactly when the terms are
+      // (the frequent cases of data without the generic traversal of their fields)
       def shape(x: Any): Any = x match
         case u: Tm => TermId(termId(u))
         case xs: List[?] => xs.map(shape)
         case (a, b) => (shape(a), shape(b))
         case other => other
-      val id = nodeIds.getOrElseUpdate((t.ordinal, t.productIterator.map(shape).toList), nodeIds.size)
+      val node: Any = t match
+        case Tm.App(f, a, i) => AppNode(termId(f), termId(a), i)
+        case Tm.Global(id) => GlobalNode(id)
+        case Tm.Lit(l, st) => LitNode(l, st)
+        case Tm.Quote(a) => QuoteNode(termId(a))
+        case Tm.Obj(f, as) => ObjNode(f, as.map(termId))
+        case _ => (t.ordinal, t.productIterator.map(shape).toList)
+      val id = nodeIds.getOrElseUpdate(node, nodeIds.size)
       termIds.put(t, id)
       id
 
@@ -134,3 +142,11 @@ trait MemoKeys:
 
 /** A subterm in the shape of a term (see [[MemoKeys.termId]]): distinct from every other field value. */
 private final case class TermId(id: Int)
+
+/** The shapes of the most frequent terms of keys (see [[MemoKeys.termId]]); each its own class, so they
+ *  are never equal to the generic shapes. */
+private final case class AppNode(f: Int, a: Int, i: Icit)
+private final case class GlobalNode(id: Int)
+private final case class LitNode(l: hugin.syntax.Literal, st: Stage)
+private final case class QuoteNode(a: Int)
+private final case class ObjNode(f: ObjForm, as: List[Int])

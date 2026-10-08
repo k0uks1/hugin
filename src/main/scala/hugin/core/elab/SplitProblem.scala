@@ -24,7 +24,10 @@ final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: V
    *  mention later variables, so level order is not a telescope any more): a stable topological sort. */
   def telescopeOrder(core: Core): Vector[Int] =
     val free = (0 until size).filter(isFree).toVector
-    val deps = free.map(l => l -> free.filter(x => x != l && core.occurs(size - x - 1, core.quote(size, types(l)))).toSet).toMap
+    val deps = free.map { l =>
+      val ty = core.quote(size, types(l))
+      l -> free.filter(x => x != l && core.occurs(size - x - 1, ty)).toSet
+    }.toMap
     val out = scala.collection.mutable.ArrayBuffer.empty[Int]
     while out.length < free.length do
       out += free.find(l => !out.contains(l) && deps(l).forall(out.contains)).getOrElse(free.find(!out.contains(_)).get)
