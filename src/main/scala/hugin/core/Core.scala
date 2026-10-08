@@ -84,8 +84,20 @@ final class GlobalEntry(
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).
  *  `what` describes it for diagnostics; metas with `allowUnsolved` (the types of object variables, which
  *  the object typer infers) may stay unsolved. */
-final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: String, var allowUnsolved: Boolean):
-  var solution: Option[Val] = None
+final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: String, initiallyAllowUnsolved: Boolean):
+  private var solved: Option[Val] = None
+  private var allowed = initiallyAllowUnsolved
+  def solution: Option[Val] = solved
+  def allowUnsolved: Boolean = allowed
+
+  /** Only [[Core]] changes entries (it copies an entry shared with a fork first). */
+  private[core] def solution_=(v: Option[Val]): Unit = solved = v
+  private[core] def allowUnsolved_=(b: Boolean): Unit = allowed = b
+
+  private[core] def copy(): MetaEntry =
+    val e = MetaEntry(ty, stage, span, what, allowed)
+    e.solved = solved
+    e
 
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
@@ -98,22 +110,37 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
 
   /** A copy of this core that can be extended independently (the elaboration of one item against the
    *  declarations of its program, [[ProgramElab]]). The globals are shared: an elaboration only changes
-   *  the globals it declares (a fork's own), so the entries of this core stay as they are. Metas are
-   *  copied, since an elaboration may solve them. */
+   *  the globals it declares (a fork's own), so the entries of this core stay as they are. The metas are
+   *  shared copy-on-write ([[ownMeta]]): both cores copy an entry before they change it, so neither sees
+   *  the other's solutions, as with a full copy, at the cost of the entries changed. */
   def fork(): Core =
     val c = Core(levels.copy())
     c.globals ++= globals
-    c.metas ++= metas.map(m =>
-      val e = MetaEntry(m.ty, m.stage, m.span, m.what, m.allowUnsolved)
-      e.solution = m.solution
-      e
-    )
+    c.metas ++= metas
+    sharedBelow = metas.length
+    owned.clear()
+    c.sharedBelow = metas.length
     c.copyFamilies(this)
     c.copyModules(this)
     c.copyRequirements(this)
     c.copyEvaluation(this)
     c.copyPrimitives(this)
     c
+
+  /** The metas below this index may be shared with forks (or with the core this one was forked from),
+   *  except those in [[owned]], already copied by this core. */
+  private var sharedBelow = 0
+  private val owned = mutable.BitSet.empty
+
+  /** The entry of meta `m`, copied first if it is shared: the entry this core may change. */
+  private def ownMeta(m: Int): MetaEntry =
+    if m < sharedBelow && !owned(m) then
+      metas(m) = metas(m).copy()
+      owned += m
+    metas(m)
+
+  /** Lets meta `m` stay unsolved (the unknown types of object variables). */
+  def allowUnsolved(m: Int): Unit = ownMeta(m).allowUnsolved = true
 
   def addGlobal(e: GlobalEntry): Int =
     globals += e
@@ -123,30 +150,58 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
     metas += MetaEntry(ty, st, span, what, allowUnsolved)
     metas.length - 1
 
-  def solveMeta(m: Int, v: Val): Unit = metas(m).solution = Some(v)
+  def solveMeta(m: Int, v: Val): Unit =
+    if openCheckpoints > 0 then trail += ((m, metas(m).solution))
+    ownMeta(m).solution = Some(v)
+
+  // ------------------------------------------------------------------ backtracking
+
+  /** The solutions changed since the oldest open checkpoint, with their values before: undoing them
+   *  restores the metas (a trail, as in Prolog's WAM and Lean 4's restorable meta context; a snapshot of
+   *  every solution cost the number of metas at every checkpoint). */
+  private val trail = mutable.ArrayBuffer.empty[(Int, Option[Val])]
+  private var openCheckpoints = 0
+
+  private final class Checkpoint(val metaCount: Int, val at: Int, val levels: Levels.Checkpoint)
+
+  private def checkpoint(): Checkpoint =
+    openCheckpoints += 1
+    Checkpoint(metas.length, trail.length, levels.checkpoint())
+
+  /** Returns to the state at `c`: metas created since are removed, solutions found since undone. */
+  private def rollback(c: Checkpoint): Unit =
+    while trail.length > c.at do
+      val (m, old) = trail.remove(trail.length - 1)
+      if m < c.metaCount then ownMeta(m).solution = old
+    metas.dropRightInPlace(metas.length - c.metaCount)
+    owned.filterInPlace(_ < c.metaCount)
+    levels.rollback(c.levels)
+    close()
+
+  private def commit(c: Checkpoint): Unit =
+    levels.commit(c.levels)
+    close()
+
+  private def close(): Unit =
+    openCheckpoints -= 1
+    if openCheckpoints == 0 then trail.clear()
 
   /** Runs `f` and restores the metas and universe levels afterwards, whatever happens: for staging a
    *  generic item at an instance (its unknowns are solved for the instance only). */
   def tentatively[A](f: => A): A =
-    val count = metas.length
-    val solutions = metas.map(_.solution).toVector
-    val lv = levels.snapshot()
+    val c = checkpoint()
     try f
-    finally
-      metas.dropRightInPlace(metas.length - count)
-      metas.zip(solutions).foreach((m, s) => m.solution = s)
-      levels.restore(lv)
+    finally rollback(c)
 
   /** Runs `f`; if it throws, the metas and universe levels are restored to their state before (metas
    *  created by `f` are removed, solutions it found are undone), and the exception is rethrown. */
   def undoOnFailure[A](f: => A): A =
-    val count = metas.length
-    val solutions = metas.map(_.solution).toVector
-    val lv = levels.snapshot()
-    try f
-    catch
-      case e: Throwable =>
-        metas.dropRightInPlace(metas.length - count)
-        metas.zip(solutions).foreach((m, s) => m.solution = s)
-        levels.restore(lv)
-        throw e
+    val c = checkpoint()
+    val result =
+      try f
+      catch
+        case e: Throwable =>
+          rollback(c)
+          throw e
+    commit(c)
+    result

@@ -13,9 +13,9 @@ import scala.collection.mutable
  *  - **Read-back cached per value object** for *stable data*: a value whose normal form cannot change
  *    while the core lives — literals, base types and sorts, applications of heads that never reduce
  *    ([[stableHead]]: constructors, inductive types, object constants, partially applied families) to
- *    stable data, object code over stable data, and records and quotes of it. No forcing is involved in reading them back (no metas, whose solutions may
- *    be undone, no function or definition that a later declaration may make reduce), so the cached term
- *    is exactly what `quote(0, v)` gives at any time. Any other value is read back with `quote` as
+ *    stable data, object code over stable data, and records and quotes of it. No forcing is involved in
+ *    reading them back (no metas, whose solutions may be undone, no function or definition that a later
+ *    declaration may make reduce), so the cached term is exactly what `quote(0, v)` gives at any time. Any other value is read back with `quote` as
  *    before, uncached.
  *  - **Hash-consed ids** of the normal forms: a term gets an id from its case and the ids of its
  *    subterms (other fields as they are), cached per term object, so equal terms get the same id and

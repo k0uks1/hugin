@@ -201,14 +201,20 @@ trait Items:
   private def itemTransaction[A](f: => A): A =
     val count = items.length
     val partCount = state.parts.length
-    val names = scope.keySet.toSet
-    try f
-    catch
-      case e: ElabError =>
-        items.dropRightInPlace(items.length - count)
-        state.parts.dropRightInPlace(state.parts.length - partCount)
-        scope.filterInPlace((n, _) => names(n))
-        throw e
+    val names = scope.begin()
+    val result =
+      try f
+      catch
+        case e: ElabError =>
+          items.dropRightInPlace(items.length - count)
+          state.parts.dropRightInPlace(state.parts.length - partCount)
+          scope.rollback(names)
+          throw e
+        case e: Throwable =>
+          scope.commit(names)
+          throw e
+    scope.commit(names)
+    result
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
    *  object typer infers). */

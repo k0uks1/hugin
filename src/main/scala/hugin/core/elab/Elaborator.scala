@@ -32,8 +32,7 @@ final case class FileEnv(
     if qualifier.isEmpty then n else s"$qualifier.$n"
 
 /** What an elaboration has produced so far: the top-level names in scope and the elaborated items. */
-final class ElabState:
-  val scope: mutable.LinkedHashMap[Name, Int] = mutable.LinkedHashMap.empty
+final class ElabState(val scope: NameScope = NameScope()):
   val items: mutable.ListBuffer[CoreItem] = mutable.ListBuffer.empty
 
   /** What a term whose type is still unknown denotes when it is used as a type: a meta type (the
@@ -53,13 +52,13 @@ final class ElabState:
 
   /** Names whose declarations were dropped for an error (reported, or an erroneous import): their uses
    *  drop the items using them without further errors. */
-  val erroneous: mutable.Set[Name] = mutable.HashSet.empty
+  var erroneous: Set[Name] = Set.empty
 
   /** What the object items elaborated so far contribute to the module (for module-wide directives). */
   val parts: mutable.ListBuffer[ModulePart] = mutable.ListBuffer.empty
 
   /** The globals that names resolved to (for W0003, unused definitions). */
-  val used: mutable.Set[Int] = mutable.HashSet.empty
+  var used: Set[Int] = Set.empty
 
   /** Whether a type (rather than a term) is being elaborated: a struct family is a type family in a type
    *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */
@@ -69,15 +68,14 @@ final class ElabState:
   var objectHead: Boolean = false
 
   /** A copy for the elaboration of one item against the declarations elaborated so far (its own items
-   *  start empty). */
+   *  start empty). The names and sets are persistent, so a copy is cheap (issue #60). */
   def fork(): ElabState =
-    val s = ElabState()
-    s.scope ++= scope
+    val s = ElabState(scope.copy())
     s.functionNames = functionNames
     s.declaredHere = declaredHere
     s.signatures = signatures
-    s.erroneous ++= erroneous
-    s.used ++= used
+    s.erroneous = erroneous
+    s.used = used
     s
 
 /** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
@@ -143,5 +141,5 @@ class Elaborator(
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =
     Elaborator(core, reporter, file, index, state.fork())
-  def scope: mutable.LinkedHashMap[Name, Int] = state.scope
+  def scope: NameScope = state.scope
   def items: mutable.ListBuffer[CoreItem] = state.items

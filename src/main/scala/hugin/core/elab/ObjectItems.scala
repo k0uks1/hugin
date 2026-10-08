@@ -46,7 +46,7 @@ trait ObjectItems:
    *  they are allowed to stay unsolved. */
   private def generalize(start: Int): Boolean =
     val open = (start until metas.length).filter(m => metas(m).solution.isEmpty && isObjectTypeUnknown(m))
-    open.foreach(m => metas(m).allowUnsolved = true)
+    open.foreach(allowUnsolved)
     open.exists(m => force(telescope(metas(m).ty)._2) == Val.Lift(Val.U0))
 
   /** Whether the head of a rule is an instance of a family at unknown types (`len (cons X L) M`). */

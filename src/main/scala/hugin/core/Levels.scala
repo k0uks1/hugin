@@ -21,6 +21,40 @@ final class Levels:
     out += Nil
     Level(sol.length - 1, 0)
 
+  // ------------------------------------------------------------------ backtracking
+
+  /** The writes made since the oldest open [[checkpoint]], to undo them ([[rollback]]): the node and its
+   *  value and edges before the write. A trail (as in Prolog's WAM, and Lean 4's restorable meta context)
+   *  makes backtracking cost the changes made, where a snapshot of the whole graph costs its size. */
+  private final class Write(val node: Int, val sol: Int, val out: List[(Int, Int)])
+  private val trail = mutable.ArrayBuffer.empty[Write]
+  private var open = 0
+
+  /** Opens a checkpoint; it must be closed by [[rollback]] or [[commit]], innermost first. */
+  def checkpoint(): Levels.Checkpoint =
+    open += 1
+    Levels.Checkpoint(sol.length, trail.length)
+
+  /** Returns to the state at `c` and closes it. */
+  def rollback(c: Levels.Checkpoint): Unit =
+    while trail.length > c.at do
+      val w = trail.remove(trail.length - 1)
+      sol(w.node) = w.sol
+      out(w.node) = w.out
+    sol.dropRightInPlace(sol.length - c.nodes)
+    out.dropRightInPlace(out.length - c.nodes)
+    commit(c)
+
+  /** Closes `c`, keeping the changes since (an enclosing checkpoint can still undo them). */
+  def commit(c: Levels.Checkpoint): Unit =
+    open -= 1
+    if open == 0 then trail.clear()
+
+  private def write(n: Int, value: Int, edges: List[(Int, Int)]): Unit =
+    if open > 0 then trail += Write(n, sol(n), out(n))
+    sol(n) = value
+    out(n) = edges
+
   /** The value of a level in the current least solution. */
   def value(l: Level): Int = if l.isConst then l.k else sol(l.v) + l.k
 
@@ -32,10 +66,12 @@ final class Levels:
     addEdge(node(a), node(b), a.k - b.k)
 
   def eq(a: Level, b: Level): Boolean =
-    val saved = snapshot()
-    if le(a, b) && le(b, a) then true
+    val saved = checkpoint()
+    if le(a, b) && le(b, a) then
+      commit(saved)
+      true
     else
-      restore(saved)
+      rollback(saved)
       false
 
   /** `a < b`. */
@@ -50,8 +86,9 @@ final class Levels:
     l.restore(snapshot())
     l
 
+  /** The whole state (for tests). */
   def snapshot(): (Vector[Int], Vector[List[(Int, Int)]]) = (sol.toVector, out.toVector)
-  def restore(s: (Vector[Int], Vector[List[(Int, Int)]])): Unit =
+  private def restore(s: (Vector[Int], Vector[List[(Int, Int)]])): Unit =
     sol.clear(); sol ++= s._1
     out.clear(); out ++= s._2
 
@@ -61,7 +98,7 @@ final class Levels:
       val changed = mutable.HashMap.empty[Int, Int]
       def bump(n: Int, v: Int): Unit =
         if !changed.contains(n) then changed(n) = sol(n)
-        sol(n) = v
+        write(n, v, out(n))
       var ok = true
       if sol(w) < sol(u) + c then
         if w == 0 then ok = false
@@ -76,8 +113,12 @@ final class Levels:
                 bump(m, sol(n) + d)
                 work.enqueue(m)
       if ok then
-        out(u) = (w, c) :: out(u)
+        write(u, sol(u), (w, c) :: out(u))
         true
       else
-        for (n, v) <- changed do sol(n) = v
+        for (n, v) <- changed do write(n, v, out(n))
         false
+
+object Levels:
+  /** A state to return to ([[Levels.checkpoint]]): the number of nodes and the length of the trail. */
+  final class Checkpoint private[Levels] (private[Levels] val nodes: Int, private[Levels] val at: Int)
