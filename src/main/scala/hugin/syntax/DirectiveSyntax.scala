@@ -13,18 +13,7 @@ import scala.collection.mutable
  *  - `%infix assoc p name` (operators are resolved while parsing);
  *  - `%partial` (removed) and `%complete` (only in signatures, [[RecordSyntax]]).
  */
-private[syntax] trait DirectiveSyntax extends RecordSyntax:
-  protected def report(e: SyntaxError): Unit
-  protected def fail(e: SyntaxError): Nothing
-  protected def expectPeriod(what: String): Unit
-
-  /** The index of the current token, and the token at an index. */
-  protected def position: Int
-  protected def tokenAt(k: Int): Token
-
-  /** Parses the item at the current token (the declaration a directive is attached to). */
-  protected def parseAttached(): Trees.Item
-
+private[syntax] trait DirectiveSyntax extends ParserBase:
   /** Items parsed along with the current one (the declaration after a prefix directive). */
   protected val followingItems: mutable.ListBuffer[Trees.Item] = mutable.ListBuffer.empty
 
@@ -52,7 +41,7 @@ private[syntax] trait DirectiveSyntax extends RecordSyntax:
           case Some(_) =>
             val decl = Ident(tok.text)(tok.span)
             val dir = directive(DirArgs.Apply(args.toList, Some(decl)))
-            followingItems += parseAttached()
+            followingItems += parseItem()
             dir
           case None =>
             expectPeriod("`.` after directive")
