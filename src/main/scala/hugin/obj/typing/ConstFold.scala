@@ -37,7 +37,6 @@ final class ConstFold extends MiniPhase:
     case n @ Formula.Not(a) => Formula.Not(foldF(a, warn).asInstanceOf[Formula.Atom])(n.span)
     case g @ Formula.Agg(res, k, t, b) => Formula.Agg(res, k, fold(t, warn), b.map(foldF(_, warn)))(g.span)
     case d @ Formula.Disj(alts) => Formula.Disj(alts.map(_.map(foldF(_, warn))))(d.span)
-    case other => other
 
   def start(using Context): MiniPhase.Transformer = Folder
 

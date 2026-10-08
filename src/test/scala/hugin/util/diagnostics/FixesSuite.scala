@@ -9,7 +9,7 @@ class FixesSuite extends munit.FunSuite:
 
   private def edit(from: Int, until: Int, text: String, src: SourceFile = file) = Edit(Span(src, from, until), text)
   private def sugg(app: Applicability, edits: Edit*) = Suggestion("s", edits.toList, app)
-  private def diag(ss: Suggestion*) = Diagnostic(Severity.Warning, Some(Code.W0002), "m", suggestions = ss.toList)
+  private def diag(ss: Suggestion*) = Diagnostic(Severity.Warning, Code.W0002, "m", suggestions = ss.toList)
 
   test("only machine-applicable suggestions within the file are taken") {
     val ok = sugg(Applicability.MachineApplicable, edit(11, 12, "_"))

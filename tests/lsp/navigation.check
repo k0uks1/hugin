@@ -50,7 +50,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"graph2 : mod = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n","uri":"untitled:t.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"graph2 : Type = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n","uri":"untitled:t.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
 <-- {
   "jsonrpc": "2.0",
@@ -65,13 +65,66 @@
   "jsonrpc": "2.0",
   "result": [
     {
-      "children": [],
+      "children": [
+        {
+          "children": [],
+          "detail": "object type",
+          "kind": 5,
+          "name": "node",
+          "range": {
+            "end": {
+              "character": 29,
+              "line": 0
+            },
+            "start": {
+              "character": 18,
+              "line": 0
+            }
+          },
+          "selectionRange": {
+            "end": {
+              "character": 22,
+              "line": 0
+            },
+            "start": {
+              "character": 18,
+              "line": 0
+            }
+          }
+        },
+        {
+          "children": [],
+          "detail": "relation",
+          "kind": 12,
+          "name": "edge",
+          "range": {
+            "end": {
+              "character": 57,
+              "line": 0
+            },
+            "start": {
+              "character": 31,
+              "line": 0
+            }
+          },
+          "selectionRange": {
+            "end": {
+              "character": 35,
+              "line": 0
+            },
+            "start": {
+              "character": 31,
+              "line": 0
+            }
+          }
+        }
+      ],
       "detail": "meta definition",
       "kind": 2,
       "name": "graph2",
       "range": {
         "end": {
-          "character": 59,
+          "character": 60,
           "line": 0
         },
         "start": {
@@ -311,25 +364,15 @@
       0,
       1,
       0,
-      17,
+      18,
       4,
-      6,
+      1,
       1,
       0,
       13,
       4,
-      6,
+      3,
       1,
-      0,
-      7,
-      4,
-      6,
-      0,
-      0,
-      8,
-      4,
-      6,
-      0,
       1,
       0,
       3,
@@ -358,7 +401,7 @@
       0,
       2,
       4,
-      6,
+      1,
       0,
       0,
       8,
@@ -368,9 +411,54 @@
       0,
       2,
       4,
-      6,
+      1,
       0,
       1,
+      7,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      0,
+      5,
+      1,
+      6,
+      0,
+      0,
+      2,
+      4,
+      3,
+      0,
+      0,
+      5,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      1,
+      7,
+      1,
+      7,
+      0,
+      0,
+      2,
+      1,
+      7,
+      0,
+      0,
+      5,
+      1,
+      6,
+      0,
+      0,
       2,
       4,
       3,
@@ -386,67 +474,7 @@
       7,
       0,
       0,
-      5,
-      1,
-      6,
-      0,
-      0,
-      2,
-      4,
-      6,
-      0,
-      0,
-      5,
-      1,
-      7,
-      0,
-      0,
-      2,
-      1,
-      7,
-      0,
-      1,
-      2,
-      4,
-      3,
-      0,
-      0,
-      5,
-      1,
-      7,
-      0,
-      0,
-      2,
-      1,
-      7,
-      0,
-      0,
-      5,
-      1,
-      6,
-      0,
-      0,
-      2,
-      4,
-      6,
-      0,
-      0,
-      5,
-      1,
-      7,
-      0,
-      0,
-      2,
-      1,
-      7,
-      0,
-      0,
-      3,
-      4,
-      3,
-      0,
-      0,
-      5,
+      8,
       1,
       7,
       0,

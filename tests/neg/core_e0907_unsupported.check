@@ -1,9 +1,9 @@
-error[E0907]: module bodies are not supported by the new meta level yet
- --> tests/neg/core_e0907_unsupported.hgn:2:5
+error[E0907]: refinements and families in module bodies are not supported by the meta level
+ --> tests/neg/core_e0907_unsupported.hgn:2:7
   |
-2 | m = { p : int -> rel. }.
-  |     ^^^^^^^^^^^^^^^^^^^ not supported yet
+2 | m = { small : type <: int. }.
+  |       ^^^^^^^^^^^^^^^^^^^^ not supported
   |
-  = note: the new meta level (`--new-meta`) implements steps B1 and B2 of docs/REDESIGN.md; the rest is ported in B3
+  = note: see the open issues of the redesign in docs/NOTES.md
 
 1 error found

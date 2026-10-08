@@ -136,7 +136,6 @@ object TypeConsistency:
       case Formula.Not(a) => formulaTainted(a)
       case Formula.Agg(_, _, t, b) => isTainted(t) || b.exists(formulaTainted)
       case Formula.Disj(alts) => alts.flatten.exists(formulaTainted)
-      case _ => false
 
     /** `=` and `<>` tests (other than the binding equations of [[definitions]]) are not monotone. */
     private def tests: Option[BoundColumnError] =

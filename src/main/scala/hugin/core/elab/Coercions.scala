@@ -3,7 +3,6 @@ package elab
 
 import hugin.syntax.Tree
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Stage inference and subtyping by coercion (Kovács, ICFP 2022, §4): `coe` inserts quotes, splices,
  *  lifts, persistence of primitives and record coercions, and falls back to unification. */
@@ -14,8 +13,42 @@ trait Coercions:
   /** Coerces `t : a` (stage `s`) to `a2` (stage `s2`), inserting quotes, splices, lifts and record
    *  coercions; falls back to unification. */
   def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
-    try coeOpt(c, t, a, s, a2, s2).getOrElse(t)
-    catch case e: UnifyError => fail(mismatch(c, span, a2, s2, a, s, e.failure))
+    try
+      if s2 == Stage.S0 && isObjectData(a2) then
+        // object data is coerced softly (the object typer decides), also a persisted meta primitive
+        val moved = if s == Stage.S1 && isMetaPrim(a).isDefined then adjustStage(c, t, a, s, s2) else None
+        moved match
+          case Some((t1, a1)) => coeObjectData(c, t1, a1, a2)
+          case None if s == Stage.S0 && isObjectData(a) => coeObjectData(c, t, a, a2)
+          case None => coeOpt(c, t, a, s, a2, s2).getOrElse(t)
+      else coeOpt(c, t, a, s, a2, s2).getOrElse(t)
+    catch
+      case e: UnifyError =>
+        expectedRelation(a2).foreach { r =>
+          dataConstructorOf(t).foreach(dataUsedAsRelation(_, span, s"expected a relation `⇑(${show(c, r)})`"))
+        }
+        fail(mismatch(c, span, a2, s2, a, s, e.failure))
+
+  private def expectedRelation(a: Val): Option[Val] = force(a) match
+    case Val.Lift(x) => Option.when(isRelationType(x))(x)
+    case other => Option.when(isRelationType(other))(other)
+
+  /** Object data between object types: unified if possible (which solves implicit arguments and the
+   *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */
+  private def coeObjectData(c: Cxt, t: Tm, a: Val, a2: Val): Tm =
+    try undoOnFailure(unify(c.lvl, dataType(c, t, a), a2))
+    catch case _: UnifyError => ()
+    t
+
+  /** The type of object data `t : a`; a fact term of a relation or struct (`pair 1 "x"`, of type `rel`) is
+   *  of the relation's fact type. */
+  private def dataType(c: Cxt, t: Tm, a: Val): Val = force(a) match
+    case Val.RelT =>
+      def head(t: Tm): Tm = Tm.unloc(t) match
+        case Tm.App(f, _, Icit.Expl) => head(f)
+        case other => other
+      Val.FactTy(ev(c, head(t)))
+    case other => other
 
   private def adjustStage(c: Cxt, t: Tm, a: Val, s: Stage, s2: Stage): Option[(Tm, Val)] =
     (s, s2) match
@@ -58,8 +91,8 @@ trait Coercions:
             val body = coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2)
             Some(Tm.Lam(if x2 == "_" then x else x2, i, body.getOrElse(Tm.App(tw, cv, i))))
       case (Val.U0, Val.U1(_)) => Some(liftType(c, t))
-      case (rel, Val.U0) if isRelationType(rel) => Some(Tm.FactTy(t))
-      case (rel, Val.U1(_)) if isRelationType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
+      case (rel, Val.U0) if isFactConstantType(rel) => Some(Tm.FactTy(t))
+      case (rel, Val.U1(_)) if isFactConstantType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
       case (Val.U1(l), Val.U1(l2)) =>
         if !levels.le(l, l2) then throw UnifyError(UnifyFailure.Universe)
         None
@@ -78,12 +111,10 @@ trait Coercions:
   /** A constructor application of an object type, used as a formula: an atom of the constructor's
    *  relation (in Datalog∃! every constructor is a relation, REDESIGN §3.2). */
   private def isConstructorAtom(t: Tm, ty: Val): Boolean =
-    def head(t: Tm): Tm = t match
-      case Tm.App(f, _, _) => head(f)
-      case other => other
-    head(t) match
-      case Tm.Global(id) => globals(id).stage == Stage.S0 && stageOfType(ty) == Stage.S0 && !isUniverse(ty)
+    def application(t: Tm): Boolean = Tm.unloc(t) match
+      case Tm.App(_, _, _) | Tm.Splice(_) | Tm.Global(_) => true
       case _ => false
+    application(t) && stageOfType(ty) == Stage.S0 && !isUniverse(ty)
 
   /** Record subtyping by coercion: every field of the expected record type must be present (width) and
    *  coerce to the expected field type (depth). */
@@ -95,8 +126,10 @@ trait Coercions:
     var e = rt2.env
     for (lb, ty) <- rt2.labels.zip(rt2.tys) do
       val expected = eval(e, ty)
-      val found = fromFields.getOrElse(lb, throw UnifyError(UnifyFailure.Mismatch))
-      val ft = coeOpt(c, Tm.Proj(t, lb), found, s, expected, s2)
+      val found = fromFields.getOrElse(lb, throw UnifyError(UnifyFailure.MissingField(lb)))
+      val ft =
+        try coeOpt(c, Tm.Proj(t, lb), found, s, expected, s2)
+        catch case _: UnifyError => throw UnifyError(UnifyFailure.Field(lb, found, expected))
       if ft.isDefined then changed = true
       val tm = ft.getOrElse(Tm.Proj(t, lb))
       val v = ev(c, tm)
@@ -113,10 +146,7 @@ trait Coercions:
   def inferSplice(c: Cxt, a: Tree, span: Span): (Tm, Val, Stage) =
     val (at, aty, s) = infer(c, a)
     if s == Stage.S0 then
-      fail(
-        Legacy.error(DiagCode.E0902, "splice of object code", a.span, "this is already object code")
-          .withNote("`$t` splices meta code of type `⇑A` into object code")
-      )
+      fail(TypeProblem.SpliceOfObjectCode(a.span))
     force(aty) match
       case Val.Lift(x) => (Tm.splice(at), x, Stage.S0)
       case Val.Base(b, Stage.S1) => (Tm.Persist(at), Val.Base(b, Stage.S0), Stage.S0)

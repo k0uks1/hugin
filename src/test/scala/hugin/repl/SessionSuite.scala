@@ -37,7 +37,7 @@ class SessionSuite extends munit.FunSuite:
     val s = session(graph*)
     val before = s.text
     val r = s.execute("path X Y :- edg X Y.")
-    assertEquals(errors(r).flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(errors(r).map(_.code).map(_.id), List("E0101"))
     assertEquals(s.text, before)
     // the rejected rule did not become part of the session: the corrected one is accepted
     assertEquals(s.execute("path X Y :- edge Y X.").diagnostics, Nil)
@@ -58,7 +58,7 @@ class SessionSuite extends munit.FunSuite:
     val r = s.execute("reach : node -> rel.")
     assertEquals(r.diagnostics, Nil)
     val d = errors(s.execute(input)).head
-    assertEquals(d.code.map(_.id), Some("E0101"))
+    assertEquals(d.code.id, "E0101")
     val span = d.primarySpan
     assertEquals(span.source.path, "<input 8>")
     assertEquals(span.source.content, input)
@@ -70,7 +70,7 @@ class SessionSuite extends munit.FunSuite:
   test("errors caused by an input in earlier text point to the earlier input") {
     val s = session("p : rel. q : rel.", "p :- q.")
     val d = errors(s.execute("q :- not p.")).head
-    assertEquals(d.code.map(_.id), Some("E0601"))
+    assertEquals(d.code.id, "E0601")
     val sources = d.labels.map(_.span.source.path).toSet
     assert(sources.subsetOf(Set("<input 2>", "<input 3>")), sources)
   }
@@ -79,7 +79,7 @@ class SessionSuite extends munit.FunSuite:
     val s = session(graph*)
     val r = s.execute("never : node -> prop.")
     assert(!r.hasErrors)
-    assertEquals(r.diagnostics.flatMap(_.code).map(_.id), List("W0005"))
+    assertEquals(r.diagnostics.map(_.code).map(_.id), List("W0005"))
     assertEquals(r.diagnostics.head.primarySpan.source.path, "<input 7>")
     assertEquals(s.execute("to : node -> rel. to Y :- edge _ Y.").diagnostics, Nil)
   }
@@ -110,7 +110,7 @@ class SessionSuite extends munit.FunSuite:
   test("a query with errors is rejected") {
     val s = session(graph*)
     val before = s.text
-    assertEquals(errors(s.execute("?- path a X, nope X.")).flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(errors(s.execute("?- path a X, nope X.")).map(_.code).map(_.id), List("E0101"))
     assertEquals(s.text, before)
   }
 
@@ -128,10 +128,10 @@ class SessionSuite extends munit.FunSuite:
       List("tc { node = node, edge = edge } : { path : ⇑(node -> node -> rel) }")
     )
     val d = errors(s.execute(":type cons nothing nil")).head
-    assertEquals(d.code.map(_.id), Some("E0101"))
+    assertEquals(d.code.id, "E0101")
     assertEquals((d.primarySpan.source.path, d.primarySpan.start, d.primarySpan.text), ("<input>", 5, "nothing"))
     // probes do not change the session
-    assertEquals(s.execute(":type nothing").diagnostics.flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(s.execute(":type nothing").diagnostics.map(_.code).map(_.id), List("E0101"))
     assert(!s.text.contains("repl"))
   }
 
@@ -190,7 +190,7 @@ class SessionSuite extends munit.FunSuite:
     // an input imports relative to the working directory
     assertEquals(errors(s.execute("y = %import \"lib/geo\".")).flatMap(_.notes), List("resolved to `lib/geo.hgn`"))
     val d = errors(s.load(dir.resolve("bad.hgn").toString)).head
-    assertEquals(d.code.map(_.id), Some("E0108"))
+    assertEquals(d.code.id, "E0108")
     assertEquals(
       (d.primarySpan.source.path, d.primarySpan.startLine, d.primarySpan.text),
       (dir.resolve("bad.hgn").toString, 1, "\"lib/nowhere\"")
@@ -215,7 +215,7 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.execute("?- l.near X.").output, List("X = base.elsewhere.", "X = base.here."))
     // a reload with errors in an imported file is rejected: the session keeps the files as they were
     Files.writeString(dir.resolve("base.hgn"), "place : typ.\n")
-    assertEquals(errors(s.execute(":reload")).flatMap(_.code).map(_.id).distinct, List("E0101"))
+    assertEquals(errors(s.execute(":reload")).map(_.code).map(_.id).distinct, List("E0101"))
     assertEquals(s.execute("?- l.near X.").output, List("X = base.elsewhere.", "X = base.here."))
     // a file imported only by the reloaded text is read too
     Files.writeString(dir.resolve("base.hgn"), geo + "elsewhere : place.\n")
@@ -231,7 +231,7 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.execute(s":facts $good").output, List(s"loaded facts from $good"))
     assertEquals(s.execute("?- edge X Y.").output, List("X = a, Y = b."))
     val bad = tempFile("bad.facts", "edge a z.")
-    assertEquals(errors(s.execute(s":facts $bad")).flatMap(_.code).map(_.id), List("E0801"))
+    assertEquals(errors(s.execute(s":facts $bad")).map(_.code).map(_.id), List("E0801"))
     assertEquals(s.facts, List(good.toString))
   }
 
@@ -239,7 +239,7 @@ class SessionSuite extends munit.FunSuite:
     val s = session(graph*)
     assertEquals(s.execute(":reset").output, List("session cleared"))
     assertEquals(s.text, "")
-    assertEquals(errors(s.execute("?- path a X.")).flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(errors(s.execute("?- path a X.")).map(_.code).map(_.id), List("E0101"))
     assertEquals(s.execute(graph.head).diagnostics, Nil)
   }
 
@@ -313,7 +313,7 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(c.text, "p.\n     \nq.")
   }
 
-  test("queries and probes are elaborated as extra items: the session's items are not elaborated again") {
+  test("queries and object probes are elaborated as extra items: the session's items are not elaborated again") {
     val s = session(graph*)
     val db = s.database
     def elaborated = db.stats.computedBy("elabItem")
@@ -323,18 +323,18 @@ class SessionSuite extends munit.FunSuite:
     assertEquals((elaborated, signatures), (1, 0)) // the query
     db.stats.reset()
     assertEquals(s.execute(":type path").output, List("relation path : node -> node -> rel"))
-    assertEquals(elaborated, 0) // the probe is a definition, elaborated with the declarations
+    // the probe is a definition: the declarations are elaborated again with it, and the object items
+    assertEquals(signatures, 1)
     db.stats.reset()
     assertEquals(s.execute(":type cons a nil").output, List("cons a nil : cons[node]"))
-    assertEquals(elaborated, 1) // the object probe `?- It'repl = cons a nil.`
-    db.stats.reset()
     assertEquals(s.complete("?- pat", 6), List("path"))
-    assertEquals(elaborated, 1)
-    // probes leave the session as it was: a new input elaborates its own items only
+    // probes leave the session as it was: a new input of object items elaborates its own items only
     db.stats.reset()
-    assertEquals(s.execute("r : node -> rel. r X :- path a X."), Reply())
-    assertEquals(elaborated, 1)
-    assertEquals(s.execute("?- r X.").output, List("X = b.", "X = c."))
+    assertEquals(s.execute("p2 : node -> rel."), Reply())
+    db.stats.reset()
+    assertEquals(s.execute("p2 X :- path a X."), Reply())
+    assertEquals((elaborated, signatures), (1, 0))
+    assertEquals(s.execute("?- p2 X.").output, List("X = b.", "X = c."))
     assertEquals(db.stats.computedBy("elabLibrary"), 0)
   }
 

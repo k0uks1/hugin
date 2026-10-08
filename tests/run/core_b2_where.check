@@ -1,3 +1,4 @@
+(* ---------------- after elaborate ---------------- *)
 nat : Type.
 zero : nat.
 suc : nat -> nat.
@@ -18,3 +19,5 @@ answer : int -> rel.
 answer 42.
 answer 6765.
 answer 42.
+answer 42.
+answer 6765.

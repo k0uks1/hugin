@@ -3,7 +3,7 @@
    variables, and a constant also serves as a value field. A `%fact` field requires a fact constructor,
    whose facts can be read; a fact constructor also matches a data-constructor field, which only builds
    terms. *)
-shapes_sig : mod = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
+shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
 s : shapes_sig = %import "lib/shapes".
 
 sizes : int -> rel.
@@ -18,9 +18,9 @@ small s.dot.
 small (s.square 2).
 ?- small X, s.area X A.
 
-marks_sig : mod = { shape : type, %fact mark : int -> shape, plain : int -> shape }.
+marks_sig : Type = { shape : type, %fact mark : int -> shape, plain : int -> shape }.
 m : marks_sig = %import "lib/marks".
-data_sig : mod = { shape : type, mark : int -> shape }.
+data_sig : Type = { shape : type, mark : int -> shape }.
 d : data_sig = %import "lib/marks".
 marked : int -> rel.
 marked N :- m.mark N.

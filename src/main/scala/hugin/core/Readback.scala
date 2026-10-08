@@ -9,13 +9,14 @@ trait Readback:
     case Flex(m, sp) => quoteSp(l, Tm.Meta(m), sp)
     case Rigid(Head.Local(x), sp) => quoteSp(l, Tm.Var(l - x - 1), sp)
     case Rigid(Head.Glob(id), sp) => quoteSp(l, Tm.Global(id), sp)
+    case Rigid(Head.Module(b, env), sp) => quoteSp(l, Tm.Module(b, env.map(quote(l, _))), sp)
     case Lam(x, i, cl) => Tm.Lam(x, i, quote(l + 1, inst(cl, Val.local(l))))
     case Pi(x, i, a, cl) => Tm.Pi(x, i, quote(l, a), quote(l + 1, inst(cl, Val.local(l))))
     case U0 => Tm.U0
     case U1(k) => Tm.U1(k)
     case Lift(a) => Tm.Lift(quote(l, a))
     case Quote(t) => Tm.Quote(quote(l, t))
-    case RecTy(ls, env, tys) =>
+    case RecTy(ls, env, tys, rs, ds) =>
       var e = env
       var lv = l
       val qs = tys.map { ty =>
@@ -24,7 +25,7 @@ trait Readback:
         lv += 1
         q
       }
-      Tm.RecTy(ls.zip(qs))
+      Tm.RecTy(ls.zip(qs), rs, ds)
     case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, quote(l, v))))
     case Lit(x, st) => Tm.Lit(x, st)
     case Base(b, st) => Tm.Base(b, st)
@@ -32,11 +33,7 @@ trait Readback:
     case PropT => Tm.PropT
     case Arith(op, a, b, st) => Tm.Arith(op, quote(l, a), quote(l, b), st)
     case Negate(a, st) => Tm.Negate(quote(l, a), st)
-    case Compare(op, a, b) => Tm.Compare(op, quote(l, a), quote(l, b))
-    case And(a, b) => Tm.And(quote(l, a), quote(l, b))
-    case Or(a, b) => Tm.Or(quote(l, a), quote(l, b))
-    case Not(a) => Tm.Not(quote(l, a))
-    case Wild => Tm.Wild
+    case Obj(f, as) => Tm.Obj(f, as.map(quote(l, _)))
     case Persist(t) => Tm.Persist(quote(l, t))
     case FactTy(r) => Tm.FactTy(quote(l, r))
 
@@ -70,23 +67,30 @@ trait Readback:
           case Tm.Lift(a) => Tm.Lift(zonk(env, l, a))
           case Tm.Quote(a) => Tm.quote(zonk(env, l, a))
           case Tm.Splice(a) => Tm.splice(zonk(env, l, a))
-          case Tm.RecTy(fs) =>
+          case Tm.Require(rs, u, a) => Tm.Require(rs, u, zonk(env, l, a))
+          case Tm.Trace(f, a) => Tm.Trace(f, zonk(env, l, a))
+          case Tm.RecTy(fs, rs, ds) =>
             var e = env
             var lv = l
-            Tm.RecTy(fs.map { (n, ty) =>
-              val z = zonk(e, lv, ty)
-              e = Val.local(lv) :: e
-              lv += 1
-              (n, z)
-            })
+            Tm.RecTy(
+              fs.map { (n, ty) =>
+                val z = zonk(e, lv, ty)
+                e = Val.local(lv) :: e
+                lv += 1
+                (n, z)
+              },
+              rs,
+              ds
+            )
           case Tm.Rec(fs) => Tm.Rec(fs.map((n, x) => (n, zonk(env, l, x))))
           case Tm.Proj(a, lb) => Tm.Proj(zonk(env, l, a), lb)
           case Tm.Arith(op, a, b, st) => Tm.Arith(op, zonk(env, l, a), zonk(env, l, b), st)
           case Tm.Negate(a, st) => Tm.Negate(zonk(env, l, a), st)
-          case Tm.Compare(op, a, b) => Tm.Compare(op, zonk(env, l, a), zonk(env, l, b))
-          case Tm.And(a, b) => Tm.And(zonk(env, l, a), zonk(env, l, b))
-          case Tm.Or(a, b) => Tm.Or(zonk(env, l, a), zonk(env, l, b))
-          case Tm.Not(a) => Tm.Not(zonk(env, l, a))
+          case Tm.Obj(f, as) => Tm.Obj(f, as.map(zonk(env, l, _)))
+          case Tm.Module(b, menv) => Tm.Module(b, menv.map(zonk(env, l, _)))
+          case Tm.Fresh(ns, b) =>
+            val locals = ns.indices.map(i => Val.local(l + i)).reverse.toList
+            Tm.Fresh(ns, zonk(locals ++ env, l + ns.length, b))
           case Tm.Persist(a) => Tm.Persist(zonk(env, l, a))
           case Tm.FactTy(a) => Tm.FactTy(zonk(env, l, a))
           case other => other

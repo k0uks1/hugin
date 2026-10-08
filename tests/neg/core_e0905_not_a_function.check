@@ -1,10 +1,10 @@
 error[E0905]: not a function
- --> tests/neg/core_e0905_not_a_function.hgn:4:6
+ --> tests/neg/core_e0905_not_a_function.hgn:3:9
   |
-4 | p :- edge 1 2 3.
-  |      ^^^^^^^^ - argument
-  |      applied to an argument here
+3 | twice = limit 2.
+  |         ^^^^^ - argument
+  |         applied to an argument here
   |
-  = note: `edge` cannot be applied: it is already a complete atom: too many arguments
+  = note: `limit` cannot be applied: its type `int` is not a function type
 
 1 error found

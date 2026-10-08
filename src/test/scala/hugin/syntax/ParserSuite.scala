@@ -26,13 +26,13 @@ class ParserSuite extends munit.FunSuite:
 
   test("comparison operators are non-associative") {
     val (_, r) = parse("p X :- 1 < X < 3.")
-    assertEquals(r.diagnostics.flatMap(_.code).map(_.id), List("E0001"))
+    assertEquals(r.diagnostics.map(_.code).map(_.id), List("E0001"))
   }
 
   test("braces: record type, record value, named pattern and module body") {
     assertEquals(
-      item("g : mod = { node : type, edge : node -> node -> rel }."),
-      "g : mod = { node : type, edge : (node -> (node -> rel)) }."
+      item("g : Type = { node : type, edge : node -> node -> rel }."),
+      "g : Type = { node : type, edge : (node -> (node -> rel)) }."
     )
     assertEquals(item("r = tc { node = city, edge = road }."), "r = tc { node = city, edge = road }.")
     assertEquals(item("b N :- abs { name = N, .. }."), "b N :- abs { name = N, .. }.")
@@ -52,6 +52,6 @@ class ParserSuite extends munit.FunSuite:
 
   test("recovery: every syntax error is reported and later items are still parsed") {
     val (p, r) = parse("a : int -> rel\nb : int -> rel.\nc X :- a X,.\nd : rel.")
-    assertEquals(r.diagnostics.flatMap(_.code).map(_.id), List("E0001", "E0001"))
+    assertEquals(r.diagnostics.map(_.code).map(_.id), List("E0001", "E0001"))
     assertEquals(p.items.collect { case d: Decl => d.name.name }, List("a", "b", "d"))
   }

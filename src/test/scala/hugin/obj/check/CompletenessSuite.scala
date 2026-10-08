@@ -7,7 +7,7 @@ import hugin.util.diagnostics.Code
 /** The completeness discipline (Section 6.5, Definition 6.6). */
 class CompletenessSuite extends munit.FunSuite:
   private def errors(code: String) =
-    TestSupport.compile(code).reporter.diagnostics.filter(_.code.contains(Code.E0602))
+    TestSupport.compile(code).reporter.diagnostics.filter(_.code == Code.E0602)
 
   test("negating a complete relation is accepted") {
     assertEquals(

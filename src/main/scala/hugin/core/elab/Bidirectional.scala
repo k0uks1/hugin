@@ -2,10 +2,8 @@ package hugin.core
 package elab
 
 import hugin.obj.BaseType
-import hugin.syntax.{Literal, Tree}
+import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
-import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** The bidirectional core: `infer` and `check` dispatch on the surface tree to the construct families
  *  (universes, functions, records, operators, staging); `inferS` infers with a known stage. */
@@ -20,7 +18,7 @@ trait Bidirectional:
     case VarRef("Type") if !c.scope.contains("Type") => inferMetaUniverse()
     case VarRef(n) => resolve(c, n, t.span)
     case k: Keyword => inferKeyword(k)
-    case Builtin(n) => inferBuiltin(n)
+    case b @ Builtin(n) => inferBuiltin(n, b.span)
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     case s: Select => inferSelect(c, s)
@@ -30,29 +28,34 @@ trait Bidirectional:
       val l = levels.fresh()
       (checkImplicitPi(c, names, dom, cod, l), Val.U1(l), Stage.S1)
     case ImplicitBinder(_, _) =>
-      error(DiagCode.E0001, "implicit binders must be followed by `->`", t.span, "expected `{A : T} -> B`")
+      fail(TypeProblem.ImplicitBinderAlone(t.span))
     case LiftE(a) => inferLift(c, a)
     case SpliceE(a) => inferSplice(c, a, t.span)
     case RecordType(entries) =>
       val l = levels.fresh()
       (checkRecordType(c, entries, l), Val.U1(l), Stage.S1)
     case RecordLit(fields, false) => inferRecord(c, fields)
+    case mb: ModuleBody => inferModuleBody(c, mb)
+    case imp: Import => inferImport(imp)
     case Ascribe(e, a) =>
       val (at, s, _) = inferU(c, a)
-      val av = ev(c, at)
-      (check(c, e, av, s), av, s)
+      if s == Stage.S0 then objectAscription(c, e, at)
+      else
+        val av = ev(c, at)
+        (check(c, e, av, s), av, s)
     case Lambda(param, ann, body) => inferLambda(c, param, ann, body)
     case Infix(op, l, r) => inferInfix(c, op, l, r, t.span, None)
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
-      fail(
-        Legacy.error(DiagCode.E0903, "cannot infer the type of `_`", t.span, "type annotations needed")
-          .withNote("`_` stands for an unknown meta value or, in object code, for a wildcard")
-      )
-    case other => unsupported(other)
+      fail(TypeProblem.CannotInferWildcard(t.span))
+    case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
-  def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
+  def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) =
+    val (tm, ty) = inferAt(c, t, st)
+    (located(t.span, tm, ty, st), ty)
+
+  private def inferAt(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
     case Parens(i) => inferS(c, i, st)
     case Lit(l) => (Tm.Lit(l, st), Val.Base(BaseType.of(l), st))
     case Wildcard() if st == Stage.S0 =>
@@ -65,12 +68,22 @@ trait Bidirectional:
       val (tm, ty, _) = inferInfix(c, op, l, r, t.span, Some(st))
       (tm, ty)
     case _ =>
-      val (tm, ty, s) = infer(c, t)
+      // implicit arguments first: a constructor of a family (`nil`) is object code once applied
+      val (tm, ty, s) = if st == Stage.S0 then insert(c, t.span, infer(c, t)) else infer(c, t)
       adjust(c, t.span, tm, ty, s, st)
 
   /** Checks a term against a type at a stage. */
-  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
+  def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
+    val saved = state.typePosition
+    state.typePosition = isUniverse(a)
+    try located(t.span, checkAt(c, t, a, st), a, st)
+    finally state.typePosition = saved
+
+  private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (Parens(i), _) => check(c, i, a, st)
+    case (Lit(l), ty) if st == Stage.S0 =>
+      // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
+      coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)
     case (Lambda(param, ann, body), pi @ Val.Pi(_, Icit.Expl, _, _)) => checkLambda(c, t, param, ann, body, pi, st)
     case (_, Val.Pi(x, Icit.Impl, dom, cl)) =>
       // an implicit Π is introduced by an inserted implicit lambda
@@ -90,6 +103,13 @@ trait Bidirectional:
       val (tm, ty) = inferS(c, t, st)
       val (tm2, ty2, _) = insert(c, t.span, (tm, ty, st))
       coe(c, t.span, tm2, ty2, st, a, st)
+    case (_, Val.PropT) if st == Stage.S0 =>
+      val (tm, ty, s) = insert(c, t.span, infer(c, t))
+      val (head, args) = TreeOps.flattenApp(t)
+      missingColumns(ty).foreach(n => objectArity(head, tm, args.length + n, args.length, t.span))
+      dataConstructorOf(tm).foreach(dataUsedAsRelation(_, head.span, "not a relation: it has no facts to read"))
+      dataFieldOf(c, tm).foreach(l => dataFieldUsedAsRelation(hugin.syntax.Printer.show(head), l, head.span))
+      coe(c, t.span, tm, ty, s, a, st)
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
       coe(c, t.span, tm, ty, s, a, st)

@@ -162,13 +162,14 @@ trait Renaming:
         case None => fail(UnifyFailure.Escape(x))
         case Some(v) => psubstSp(psub, quote(psub.dom, v), sp)
     case Rigid(Head.Glob(id), sp) => psubstSp(psub, Tm.Global(id), sp)
+    case Rigid(Head.Module(b, env), sp) => psubstSp(psub, Tm.Module(b, env.map(psubst(psub, _))), sp)
     case Lam(x, i, cl) => Tm.Lam(x, i, psubst(psub.lift, inst(cl, Val.local(psub.cod))))
     case Pi(x, i, a, cl) => Tm.Pi(x, i, psubst(psub, a), psubst(psub.lift, inst(cl, Val.local(psub.cod))))
     case U0 => Tm.U0
     case U1(l) => Tm.U1(l)
     case Lift(a) => Tm.Lift(psubst(psub, a))
     case Quote(t) => Tm.Quote(psubst(psub, t))
-    case RecTy(ls, env, tys) =>
+    case RecTy(ls, env, tys, rs, ds) =>
       var e = env
       var p = psub
       val qs = tys.map { ty =>
@@ -177,7 +178,7 @@ trait Renaming:
         p = p.lift
         q
       }
-      Tm.RecTy(ls.zip(qs))
+      Tm.RecTy(ls.zip(qs), rs, ds)
     case Rec(fs) => Tm.Rec(fs.map((n, x) => (n, psubst(psub, x))))
     case Lit(l, st) => Tm.Lit(l, st)
     case Base(b, st) => Tm.Base(b, st)
@@ -185,10 +186,6 @@ trait Renaming:
     case PropT => Tm.PropT
     case Arith(op, a, b, st) => Tm.Arith(op, psubst(psub, a), psubst(psub, b), st)
     case Negate(a, st) => Tm.Negate(psubst(psub, a), st)
-    case Compare(op, a, b) => Tm.Compare(op, psubst(psub, a), psubst(psub, b))
-    case And(a, b) => Tm.And(psubst(psub, a), psubst(psub, b))
-    case Or(a, b) => Tm.Or(psubst(psub, a), psubst(psub, b))
-    case Not(a) => Tm.Not(psubst(psub, a))
-    case Wild => Tm.Wild
+    case Obj(f, as) => Tm.Obj(f, as.map(psubst(psub, _)))
     case Persist(t) => Tm.Persist(psubst(psub, t))
     case FactTy(r) => Tm.FactTy(psubst(psub, r))

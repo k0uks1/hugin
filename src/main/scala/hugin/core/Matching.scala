@@ -29,6 +29,10 @@ trait Matching:
           for k <- key; v <- r do memo(k) = v
           r
         }.map(appSp(_, later))
+    case GlobalKind.Family(_, arity) if sp.length >= arity =>
+      val (later, first) = sp.splitAt(sp.length - arity)
+      val args = first.reverse.collect { case Elim.EApp(a, _) => a }
+      if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
     case _ => None
 
   private def runTree(tree: CaseTree, env: Vector[Val]): Option[Val] = tree match
@@ -44,12 +48,12 @@ trait Matching:
         case _ => None
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
-  private def closedKey(args: List[Val]): Option[List[Tm]] =
+  def closedKey(args: List[Val]): Option[List[Tm]] =
     val tms = args.map(quote(0, _))
     Option.when(tms.forall(closed))(tms)
 
   private def closed(t: Tm): Boolean = t match
-    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT | Tm.Wild => true
+    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
     case Tm.App(f, a, _) => closed(f) && closed(a)
     case Tm.Rec(fs) => fs.forall(f => closed(f._2))
     case Tm.Quote(a) => closedObject(a)
@@ -61,10 +65,7 @@ trait Matching:
     case Tm.Var(_) | Tm.Meta(_) | Tm.AppPruning(_, _) | Tm.Lam(_, _, _) | Tm.Splice(_) => false
     case Tm.App(f, a, _) => closedObject(f) && closedObject(a)
     case Tm.Arith(_, a, b, _) => closedObject(a) && closedObject(b)
-    case Tm.Compare(_, a, b) => closedObject(a) && closedObject(b)
-    case Tm.And(a, b) => closedObject(a) && closedObject(b)
-    case Tm.Or(a, b) => closedObject(a) && closedObject(b)
-    case Tm.Not(a) => closedObject(a)
+    case Tm.Obj(_, as) => as.forall(closedObject)
     case Tm.Negate(a, _) => closedObject(a)
     case Tm.Proj(a, _) => closedObject(a)
     case _ => true

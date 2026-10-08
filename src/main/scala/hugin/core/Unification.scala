@@ -10,6 +10,12 @@ enum UnifyFailure:
   case Universe
   case NonPattern
 
+  /** A record lacks a field of the expected record type (a module lacks a member of its signature). */
+  case MissingField(label: Name)
+
+  /** A field does not coerce to the expected record type's field. */
+  case Field(label: Name, found: Val, expected: Val)
+
 final class UnifyError(val failure: UnifyFailure) extends Exception(failure.toString, null, false, false)
 
 /** Higher-order pattern unification with pruning and the occurs check, after elaboration-zoo
@@ -82,6 +88,7 @@ trait Unification:
       val hty = h match
         case Head.Local(x) => types.lift(x)
         case Head.Glob(id) => Some(globals(id).ty)
+        case Head.Module(_, _) => None
       hty.flatMap(t => spineType(t, Rigid(h, Nil), sp)).map(force) match
         case Some(U1(k)) => List(k)
         case _ => Nil
@@ -160,7 +167,9 @@ trait Unification:
     case (Lift(a), Lift(b)) => unify(l, a, b)
     case (Quote(a), Quote(b)) => unify(l, a, b)
     case (Rigid(h, sp), Rigid(h2, sp2)) if h == h2 => unifySp(l, sp, sp2)
-    case (RecTy(ls, e, ts), RecTy(ls2, e2, ts2)) if ls == ls2 =>
+    case (Rigid(Head.Glob(i), sp), Rigid(Head.Glob(f), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp, sp2)
+    case (Rigid(Head.Glob(f), sp), Rigid(Head.Glob(i), sp2)) if isInstanceOf(i, f) => unifyInstance(l, i, sp2, sp)
+    case (RecTy(ls, e, ts, _, _), RecTy(ls2, e2, ts2, _, _)) if ls == ls2 =>
       var env1 = e
       var env2 = e2
       var lv = l
@@ -174,15 +183,13 @@ trait Unification:
       fs.zip(fs2).foreach((a, b) => unify(l, a._2, b._2))
     case (Lit(a, s), Lit(b, s2)) if a == b && s == s2 =>
     case (Base(a, s), Base(b, s2)) if a == b && s == s2 =>
-    case (RelT, RelT) | (PropT, PropT) | (Wild, Wild) =>
+    case (RelT, RelT) | (PropT, PropT) =>
     case (Arith(op, a, b, s), Arith(op2, a2, b2, s2)) if op == op2 && s == s2 =>
       unify(l, a, a2); unify(l, b, b2)
     case (Negate(a, s), Negate(b, s2)) if s == s2 => unify(l, a, b)
-    case (Compare(op, a, b), Compare(op2, a2, b2)) if op == op2 =>
-      unify(l, a, a2); unify(l, b, b2)
-    case (And(a, b), And(a2, b2)) => unify(l, a, a2); unify(l, b, b2)
-    case (Or(a, b), Or(a2, b2)) => unify(l, a, a2); unify(l, b, b2)
-    case (Not(a), Not(b)) => unify(l, a, b)
+    case (Obj(ObjForm.Loc(_), List(a)), u1) => unify(l, a, u1)
+    case (t1, Obj(ObjForm.Loc(_), List(b))) => unify(l, t1, b)
+    case (Obj(f, as), Obj(f2, bs)) if f == f2 && as.length == bs.length => as.zip(bs).foreach((a, b) => unify(l, a, b))
     case (Persist(a), Persist(b)) => unify(l, a, b)
     case (FactTy(a), FactTy(b)) => unify(l, a, b)
     case (Lam(_, _, c), Lam(_, _, c2)) => unify(l + 1, inst(c, Val.local(l)), inst(c2, Val.local(l)))
@@ -192,6 +199,9 @@ trait Unification:
       if m == m2 then intersect(l, m, sp, sp2) else flexFlex(l, m, sp, m2, sp2)
     case (Flex(m, sp), u1) => solve(l, m, sp, u1)
     case (t1, Flex(m, sp)) => solve(l, m, sp, t1)
+    // η for code: ⟨t⟩ = u iff t = $u
+    case (Quote(a), u1 @ Rigid(_, _)) => unify(l, a, vSplice(u1))
+    case (t1 @ Rigid(_, _), Quote(b)) => unify(l, vSplice(t1), b)
     case (Rec(fs), u1) => fs.foreach((lb, v) => unify(l, v, proj(u1, lb)))
     case (t1, Rec(fs)) => fs.foreach((lb, v) => unify(l, proj(t1, lb), v))
     case _ => fail()

@@ -42,10 +42,7 @@ final case class Options(
     command: Command,
     settings: Settings,
     run: RunOptions,
-    display: Display = Display(),
-    /** Use the new meta level (docs/REDESIGN.md, Phase B) instead of the compiler pipeline: `check`
-     *  elaborates, `run` prints the elaborated and staged program. Hidden while it is being developed. */
-    newMeta: Boolean = false
+    display: Display = Display()
 )
 
 /** Command-line parsing with scopt. `parse` is pure: scopt's effects are interpreted here, so nothing is
@@ -192,10 +189,6 @@ object CommandLine:
       opt[Unit]("no-prelude")
         .text("do not include the standard prelude (base types must then be declared with %builtin)")
         .action((_, o) => o.copy(settings = o.settings.copy(prelude = false))),
-      opt[Unit]("new-meta")
-        .hidden()
-        .text("elaborate with the new meta level (redesign Phase B, in development)")
-        .action((_, o) => o.copy(newMeta = true)),
       opt[Unit]("explain-termination")
         .text("print the termination argument of every recursive component (Section 10)")
         .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),

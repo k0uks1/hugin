@@ -1,2 +1,2 @@
-(* new meta level: module bodies are ported in step B3 *)
-m = { p : int -> rel. }.
+(* new meta level: refinements in module bodies are not supported yet *)
+m = { small : type <: int. }.

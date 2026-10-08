@@ -184,7 +184,7 @@ final class Session(settings: Settings = Settings(), initialStats: Boolean = fal
     catch case _: java.nio.file.InvalidPathException => None
 
   private def error(message: String, helps: String*): Reply =
-    Reply(diagnostics = List(Diagnostic(Severity.Error, None, message, helps = helps.toList)))
+    Reply(diagnostics = List(Diagnostic(Severity.Error, Code.E1101, message, helps = helps.toList)))
 
   // ------------------------------------------------------------------------------------------ commands
 
@@ -388,7 +388,7 @@ object Session:
 
   /** What identifies a diagnostic across compilations: the source files of a session are parsed again
    *  when their text is set again, so spans are compared by path and offsets. */
-  private type Identity = (Severity, Option[Code], String, List[(String, Int, Int)])
+  private type Identity = (Severity, Code, String, List[(String, Int, Int)])
   private def identity(d: Diagnostic): Identity =
     (d.severity, d.code, d.message, d.labels.map(l => (l.span.source.path, l.span.start, l.span.end)))
 
@@ -397,7 +397,7 @@ object Session:
   private val probeVar = "It'repl"
 
   /** Diagnostics that the session does not report: W0003 (unused definition). */
-  private def silenced(d: Diagnostic): Boolean = d.code.contains(Code.W0003)
+  private def silenced(d: Diagnostic): Boolean = d.code == Code.W0003
 
   /** Whether a text is a name or a module path `a.b.c`. */
   private def isPath(text: String): Boolean = text.split('.').forall(_.matches("[A-Za-z_][A-Za-z0-9_']*"))

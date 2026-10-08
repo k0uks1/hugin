@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 /** The explanations `docs/errors/<id>.md`: one per code, each with examples that compile as documented.
  *  A ` ```hugin fail=<id> ` block must report `<id>` as its first error; a plain ` ```hugin ` block (the fix) must compile
  *  without errors and without that code. A ` ```facts ` block right after a `hugin` block is loaded as its
- *  input facts. Blocks tagged `new-meta` are elaborated by the new meta level (`hugin.core`, `--new-meta`).
+ *  input facts. Blocks tagged `elaborate` are only elaborated and staged, without the prelude.
  *  Blocks of retired codes are tagged `ignore` and skipped. */
 class ExplanationsSuite extends munit.FunSuite:
   /** A code block of an explanation: the program, its expected code (for a failing example) and facts. */
@@ -23,12 +23,12 @@ class ExplanationsSuite extends munit.FunSuite:
       case ((("hugin", attrs, body)), next) =>
         val facts = next.collect { case ("facts", _, f) => f }
         val fails = "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1))
-        Example(body, fails, facts, attrs.contains("ignore"), attrs.contains("new-meta"))
+        Example(body, fails, facts, attrs.contains("ignore"), attrs.contains("elaborate"))
     }
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */
   private def diagnostics(e: Example): List[Diagnostic] =
-    if e.newMeta then hugin.core.NewMeta.elaborate(SourceFile.virtual("test.hgn", e.program)).diagnostics
+    if e.newMeta then hugin.core.MetaLevel.check(SourceFile.virtual("test.hgn", e.program))
     else compiled(e)
 
   private def compiled(e: Example): List[Diagnostic] =
@@ -52,7 +52,8 @@ class ExplanationsSuite extends munit.FunSuite:
       val text = Files.readString(file(c))
       assert(text.startsWith(s"# ${c.id}: ${c.title}\n"), s"${c.id}.md must start with `# ${c.id}: ${c.title}`")
       val all = examples(text).filterNot(_.ignored)
-      if c.isActive then
+      // the codes of the tools are not reported for programs: their explanations have no examples
+      if c.isActive && c.phase != Phase.Tools then
         assert(all.exists(_.fails.contains(c.id)), s"${c.id}.md has no failing example")
         assert(all.exists(_.fails.isEmpty), s"${c.id}.md has no fixed example")
       for e <- all do
@@ -60,9 +61,9 @@ class ExplanationsSuite extends munit.FunSuite:
         e.fails match
           case Some(id) =>
             // the example shows this problem first: no other error comes before it
-            val first = ds.find(d => d.severity == Severity.Error || d.code.exists(_.id == id))
-            assertEquals(first.flatMap(_.code).map(_.id), Some(id), s"the first diagnostic of\n${e.program}\nis ${first.map(_.message)}")
+            val first = ds.find(d => d.severity == Severity.Error || d.code.id == id)
+            assertEquals(first.map(_.code).map(_.id), Some(id), s"the first diagnostic of\n${e.program}\nis ${first.map(_.message)}")
           case None =>
-            val errors = ds.filter(d => d.severity == Severity.Error || d.code.contains(c))
-            assertEquals(errors.map(d => s"${d.code.fold("")(_.id)}: ${d.message}"), Nil, s"in the fixed example\n${e.program}")
+            val errors = ds.filter(d => d.severity == Severity.Error || d.code == c)
+            assertEquals(errors.map(d => s"${d.code.id}: ${d.message}"), Nil, s"in the fixed example\n${e.program}")
     }

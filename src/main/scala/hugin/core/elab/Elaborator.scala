@@ -6,8 +6,30 @@ import scala.collection.mutable
 
 /** An elaboration error: reported, and the item it occurred in is dropped. `unresolved` names the name
  *  whose resolution failed, for errors that a later declaration may fix. */
-final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None)
+final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None, val silent: Boolean = false)
     extends Exception(diag.message, null, false, false)
+
+/** The module value of an imported file: a record of its declarations (closed terms); `dropped` are the
+ *  names whose declarations were dropped for an error in the file (their uses are not reported again). */
+final case class ImportedModule(value: Tm, ty: Tm, dropped: Set[Name] = Set.empty)
+
+/** Where the items of a file are elaborated: its path, the qualifier of its object constants' names
+ *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names of
+ *  the enclosing scope (the prelude's), and the module values of the files it may import. */
+final case class FileEnv(
+    path: String = "",
+    qualifier: String = "",
+    parent: Map[Name, Int] = Map.empty,
+    imports: Map[String, ImportedModule] = Map.empty,
+    /** Whether unused definitions are reported (W0003, in the program, not in libraries). */
+    lintUnused: Boolean = false,
+    /** Whether `int`, `float` and `string` are in scope without a declaration: in core tests, not in a
+     *  compilation without the prelude (which declares them). */
+    builtinNames: Boolean = true
+):
+  /** The name of an object constant declared as `n`. */
+  def objectName(n: Name): Name =
+    if qualifier.isEmpty then n else s"$qualifier.$n"
 
 /** What an elaboration has produced so far: the top-level names in scope and the elaborated items. */
 final class ElabState:
@@ -21,6 +43,34 @@ final class ElabState:
 
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
+
+  /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
+  var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
+
+  /** Names whose declarations were dropped for an error (reported, or an erroneous import): their uses
+   *  drop the items using them without further errors. */
+  val erroneous: mutable.Set[Name] = mutable.HashSet.empty
+
+  /** The globals that names resolved to (for W0003, unused definitions). */
+  val used: mutable.Set[Int] = mutable.HashSet.empty
+
+  /** Whether a type (rather than a term) is being elaborated: a struct family is a type family in a type
+   *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */
+  var typePosition: Boolean = false
+
+  /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
+  var objectHead: Boolean = false
+
+  /** A copy for the elaboration of one item against the declarations elaborated so far (its own items
+   *  start empty). */
+  def fork(): ElabState =
+    val s = ElabState()
+    s.scope ++= scope
+    s.functionNames = functionNames
+    s.signatures = signatures
+    s.erroneous ++= erroneous
+    s.used ++= used
+    s
 
 /** Bidirectional elaboration of surface trees into the core (docs/REDESIGN.md §6), following Kovács's
  *  elaboration-zoo and his staged elaborator. The concerns are split into traits:
@@ -40,8 +90,13 @@ final class ElabState:
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
  */
-class Elaborator(val core: Core, val reporter: Reporter)
-    extends Contexts
+class Elaborator(
+    val core: Core,
+    val reporter: Reporter,
+    val file: FileEnv = FileEnv(),
+    val index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex(),
+    val state: ElabState = ElabState()
+) extends Contexts
     with ElabErrors
     with Names
     with Coercions
@@ -59,7 +114,18 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with Clauses
     with SizeChange
     with Where
-    with ObjectItems:
-  val state: ElabState = ElabState()
+    with ObjectDecls
+    with ObjectCode
+    with NamedPatterns
+    with DataConstructors
+    with FormulaFunctions
+    with ModuleBodies
+    with Imports
+    with CompleteParameters
+    with ObjectItems
+    with Tooling:
+  /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
+  def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =
+    Elaborator(core, reporter, file, index, state.fork())
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope
   def items: mutable.ListBuffer[CoreItem] = state.items

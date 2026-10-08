@@ -77,7 +77,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nformula function cheap : ⇑int -> ⇑prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here"
+      "value": "```hugin\nformula function cheap : int -> prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here"
     }
   }
 }
@@ -99,7 +99,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nmeta parameter I : ⇑int\n```\n\nspliced: the meta-level code `X` is inserted here"
+      "value": "spliced: the meta-level code `X` is inserted here"
     }
   }
 }

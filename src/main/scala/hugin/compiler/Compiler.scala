@@ -6,11 +6,8 @@ import hugin.util.*
 object Compiler:
   def phasePlan: List[List[Phase]] = List(
     List(hugin.syntax.ParserPhase()),
-    List(ImportsPhase()),
-    List(hugin.meta.NamerPhase()),
-    List(hugin.meta.typer.TyperPhase()),
-    List(hugin.meta.MetaEvalPhase()),
-    List(hugin.meta.MonomorphizePhase()),
+    List(hugin.core.ElaboratePhase()),
+    List(hugin.core.StagePhase()),
     List(hugin.obj.typing.DirectivesPhase()),
     List(hugin.obj.typing.ConstFold()),
     List(hugin.obj.typing.ObjTyperPhase()),

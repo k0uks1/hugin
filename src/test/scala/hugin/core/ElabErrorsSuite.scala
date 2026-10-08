@@ -11,11 +11,11 @@ class ElabErrorsSuite extends munit.FunSuite:
     fragments.foreach(f => assert(text.contains(f), s"`$f` not in\n$text"))
 
   test("E0101 unresolved name, with a suggestion") {
-    assertError("E0101", "nat : Type.\nx : nta.\n", "unresolved name `nta`", "`nat`")
+    assertError("E0101", "nat : Type.\nx : natt.\n", "unresolved name `natt`", "`nat`")
   }
 
   test("E0102 duplicate declaration") {
-    assertError("E0102", "nat : Type.\nnat : Type.\n", "duplicate declaration of `nat`", "first declared here")
+    assertError("E0102", "nat : Type.\nnat : Type.\n", "`nat` is declared twice in this scope", "first declared here")
   }
 
   test("E0901 mismatched types") {
@@ -29,7 +29,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   test("E0902 stage errors in both directions") {
     assertError(
       "E0902",
-      "q : int -> rel.\nlimit : int -> prop = [n] q n.\nr : int -> rel.\nr X :- limit X.\n",
+      "q : int -> rel.\nscale : int -> int = [n] n * 2.\nr : int -> rel.\nr X :- q X, q (scale X).\n",
       "object code used where a compile-time value is needed"
     )
     assertError("E0902", "nat : Type.\nz : nat.\nq : int -> rel.\nq z.\n", "compile-time value used as object code")
@@ -44,7 +44,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0905 not a function") {
-    assertError("E0905", "q : int -> rel.\nr : rel.\nr :- q 1 2.\n", "not a function", "too many arguments")
+    assertError("E0905", "limit : int = 3.\ntwice = limit 2.\n", "not a function", "is not a function type")
   }
 
   test("E0906 unknown field") {
@@ -52,8 +52,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0907 not supported yet") {
-    assertError("E0907", "graph : mod = { node : type }.\n", "`mod` is not part of the new meta level")
-    assertError("E0907", "m = { p : int -> rel. }.\n", "module bodies are not supported")
+    assertError("E0907", "m = { small : type <: int. }.\n", "refinements and families in module bodies are not supported")
   }
 
   test("E0908 object-level functions") {
@@ -71,4 +70,24 @@ class ElabErrorsSuite extends munit.FunSuite:
 
   test("E0910 invalid rule head") {
     assertError("E0910", "q : int -> int -> rel.\nq 1.\n", "incomplete rule head")
+  }
+
+  test("E0103 declarations that are neither relations nor constructors") {
+    assertError("E0103", "limit : int.\n", "cannot classify the declaration of `limit`", "result is the base type `int`")
+    assertError("E0103", "f : int -> type.\n", "a function returning `type`", "`f A : type.`")
+  }
+
+  test("E0103 `%builtin` only as the definition of a base type") {
+    assertError("E0103", "num : type = %builtin integer.\n", "unknown base type `integer`")
+    assertError("E0103", "n = %builtin int.\n", "only allowed as the definition of a base type")
+  }
+
+  test("E0105 a definition referring to itself") {
+    assertError("E0105", "self : int = self + 1.\n", "`self` refers to itself", "while elaborating this definition")
+  }
+
+  test("E0406 a data constructor passed where a relation is expected") {
+    val program =
+      "shape : type.\nsquare : int -> shape.\nuse (r : shape -> shape -> rel) = { p : shape -> shape -> rel. p X Y :- r X Y. }.\nm = use square.\n"
+    assertError("E0406", program, "data constructor `square` used as a relation", "expected a relation")
   }

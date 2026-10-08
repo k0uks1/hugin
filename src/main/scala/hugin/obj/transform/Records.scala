@@ -31,7 +31,6 @@ final class Records extends MiniPhase:
     case Formula.Not(a) => projectedF(a, acc)
     case Formula.Agg(_, _, t, b) => projected(t, acc); b.foreach(projectedF(_, acc))
     case Formula.Disj(alts) => alts.flatten.foreach(projectedF(_, acc))
-    case _ =>
 
   private def zName(x: String, c: RelSym, k: Int): String =
     s"$x.${c.cols(k).label.getOrElse((k + 1).toString)}"
@@ -82,7 +81,6 @@ final class Records extends MiniPhase:
         ).map(x => guardFor(x, choice(x), g.span))
         Formula.Agg(res, k, rw(t, choice), inner ++ extra)(g.span)
       case d @ Formula.Disj(alts) => Formula.Disj(alts.map(rwBody(_, choice, d.span)))(d.span)
-      case other => other
     }
     rewritten ++ here.toList.filter(choice.contains).map(x => guardFor(x, choice(x), span))
 

@@ -206,7 +206,6 @@ final class DemandPhase extends ObjProgramPhase:
       val k = copies.length + 1
       val copy = RelSym(s"${c.name}#$k", c.kind, c.span, c.origin)
       copy.cols = c.cols
-      copy.tparams = c.tparams
       copy.instanceOf = c.instanceOf
       copies += copy
       ctx.unit.facts = ctx.unit.facts.updated(copy)(_ =>

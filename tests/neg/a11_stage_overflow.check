@@ -6,22 +6,12 @@ warning[W0003]: unused definition `next`
   |
   = note: `-W unused_definitions` is on by default
 
-error[E0209]: compile-time arithmetic failure
- --> tests/neg/a11_stage_overflow.hgn:3:14
-  |
-3 | next : int = big + 1.
-  |              ^^^^^^^ `9223372036854775807 + 1` is undefined
-  |
-  = note: 64-bit integer overflow
-  = note: at the meta level an undefined primitive operation is a compile-time error
-
-error[E0209]: compile-time arithmetic failure
- --> tests/neg/a11_stage_overflow.hgn:5:12
+error[E0909]: cannot compute a primitive value at compile time
+ --> tests/neg/a11_stage_overflow.hgn:5:1
   |
 5 | r X :- X = big * 2.
-  |            ^^^^^^^ `9223372036854775807 * 2` is undefined
+  | ^^^^^^^^^^^^^^^^^^^ `9223372036854775807 * 2` does not evaluate to a literal
   |
-  = note: 64-bit integer overflow
-  = note: at the meta level an undefined primitive operation is a compile-time error
+  = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
 
-2 errors, 1 warning found
+1 error, 1 warning found

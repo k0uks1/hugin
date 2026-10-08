@@ -40,19 +40,25 @@ class StagingSuite extends munit.FunSuite:
     val e = ok("k : int = 6 * 7.\nq : int -> rel.\nq k.\nq $k.\nq (k + 1).\n")
     assertEquals(e.nfOf("k"), "42")
     assert(e.output.contains("q 42."), e.output.mkString("\n"))
-    assert(e.output.contains("q (42 + 1)."), e.output.mkString("\n"))
+    assert(e.output.contains("q 43."), e.output.mkString("\n"))
   }
 
   test("meta int and object int: `int` in a meta position is the meta primitive, `⇑int` object code") {
     val e = ok(
-      "q : int -> rel.\nsmall : ⇑int -> prop = [x] x < 10.\nlimit : int -> ⇑int -> prop = [n] [x] x < n.\nr : int -> rel.\nr X :- q X, small X, limit 5 X.\n"
+      "q : int -> rel.\nsmall : ⇑int -> prop = [x] x < 10.\nscale : int -> int = [n] n * 2.\nr : int -> rel.\nr X :- q X, small X, q (scale 21).\n"
     )
-    assertEquals(e.typeOf("limit"), "int -> ⇑int -> ⇑prop")
-    assert(e.output.contains("r X :- q X, X < 10, X < 5."), e.output.mkString("\n"))
+    assertEquals(e.typeOf("scale"), "int -> int")
+    assert(e.output.contains("r X :- q X, X < 10, q 42."), e.output.mkString("\n"))
+  }
+
+  test("formula functions: object types of their parameters are object code, base types included") {
+    val e = ok("q : int -> rel.\nlimit : int -> int -> prop = [n] [x] x < n.\nr : int -> rel.\nr X :- q X, limit 5 X.\n")
+    assertEquals(e.typeOf("limit"), "⇑int -> ⇑int -> ⇑prop")
+    assert(e.output.contains("r X :- q X, X < 5."), e.output.mkString("\n"))
   }
 
   test("object code where a compile-time value is needed is a stage error") {
-    assertEquals(errors("q : int -> rel.\nlimit : int -> prop = [n] q n.\nr : int -> rel.\nr X :- limit X.\n"), List("E0902"))
+    assertEquals(errors("q : int -> rel.\nscale : int -> int = [n] n * 2.\nr : int -> rel.\nr X :- q X, q (scale X).\n"), List("E0902"))
   }
 
   test("object types computed at compile time are spliced") {

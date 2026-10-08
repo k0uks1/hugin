@@ -1,6 +1,6 @@
 (* Signature requirements (Section 4.4) and negation over parameters (Section 11). *)
-g : mod = { node : type, edge : node -> node -> rel, %complete edge }.
-m : mod = { node : type, edge : node -> node -> rel, %mode edge + - }.
+g : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
 iso (x : g) = {
   lonely : x.node -> rel.
   lonely N :- x.edge N _, not x.edge _ N.

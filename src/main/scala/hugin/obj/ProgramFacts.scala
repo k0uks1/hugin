@@ -22,7 +22,7 @@ object RelDirectives:
 /** What the object-level phases know about the relations of a monomorphic program, keyed by symbol: the
  *  directives attached by `directives`, and those of the relations later phases introduce (the mode of an
  *  auxiliary relation, `%output` of a derivation relation). The value is immutable; a phase that learns
- *  more replaces the compilation unit's value, so symbols are never changed after monomorphization. */
+ *  more replaces the compilation unit's value, so symbols are never changed after staging. */
 final class ProgramFacts private (private val byRel: Map[RelSym, RelDirectives]):
   def apply(r: RelSym): RelDirectives = byRel.getOrElse(r, RelDirectives.none)
   def updated(r: RelSym)(f: RelDirectives => RelDirectives): ProgramFacts = ProgramFacts(byRel.updated(r, f(apply(r))))

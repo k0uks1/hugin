@@ -28,7 +28,7 @@ closure (g : { node : type, edge : node -> node -> rel }) = {
   reach : g.node -> g.node -> rel.
   reach X Y :- g.edge X Y.
 }.
-pair_sig : mod = { node : type, link : int -> node }.
+pair_sig : Type = { node : type, link : int -> node }.
 scan (p : pair_sig) = {
   linked : int -> rel.
   linked X :- p.link X.

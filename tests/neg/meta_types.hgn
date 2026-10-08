@@ -1,5 +1,5 @@
 (* Meta typing: signature mismatch, wrong arguments, stage errors. *)
-graph : mod = { node : type, edge : node -> node -> rel }.
+graph : Type = { node : type, edge : node -> node -> rel }.
 tc (g : graph) = {
   path : g.node -> g.node -> rel.
   path X Y :- g.edge X Y.

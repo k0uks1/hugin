@@ -1,7 +1,7 @@
 // Document symbols, completion after a module path and after `%`, and semantic tokens.
 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
 {"jsonrpc": "2.0", "method": "initialized", "params": {}}
-{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "graph2 : mod = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n"}}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "graph2 : Type = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n"}}}
 {"jsonrpc": "2.0", "id": 2, "method": "textDocument/documentSymbol", "params": {"textDocument": {"uri": "untitled:t.hgn"}}}
 {"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "position": {"line": 10, "character": 14}}}
 {"jsonrpc": "2.0", "id": 4, "method": "textDocument/completion", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "position": {"line": 10, "character": 4}}}

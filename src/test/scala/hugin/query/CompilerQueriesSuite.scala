@@ -2,7 +2,7 @@ package hugin.query
 
 class CompilerQueriesSuite extends munit.FunSuite:
   private val program =
-    """graph : mod = { node : type, edge : node -> node -> rel }.
+    """graph : Type = { node : type, edge : node -> node -> rel }.
       |tc (g : graph) = {
       |  path : g.node -> g.node -> rel.
       |  path X Y :- g.edge X Y.
@@ -54,7 +54,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     db.set(SourceText, "bad.hgn", "p : int -> rel.\np X :- q X.\n")
     val diags = Ide.diagnostics(CompileKey("bad.hgn"))
-    assertEquals(diags.flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(diags.map(_.code).map(_.id), List("E0101"))
     assertEquals(diags.head.primarySpan.startLine, 1)
   }
 
@@ -95,7 +95,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     db.set(SourceText, "s.hgn", "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y, e X _Z.\n")
     val diags = Ide.diagnostics(CompileKey("s.hgn"))
-    assertEquals(diags.map(d => (d.code.map(_.id), d.primarySpan.text)), List((Some("W0002"), "Y")))
+    assertEquals(diags.map(d => (d.code.id, d.primarySpan.text)), List(("W0002", "Y")))
   }
 
   test("hover through a module path shows the type instantiated at that path") {
@@ -121,7 +121,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     val text =
       """item : (name : string) -> (price : int) -> rel.
-        |graph : mod = { node : type, edge : node -> node -> rel }.
+        |graph : Type = { node : type, edge : node -> node -> rel }.
         |road : int -> int -> rel.
         |mk (g : graph) = { reach : g.node -> rel. reach X :- g.edge X _. }.
         |r = mk { node = int, edge = road }.

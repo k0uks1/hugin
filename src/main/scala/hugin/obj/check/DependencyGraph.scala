@@ -24,7 +24,6 @@ object DepGraph:
     case Formula.Agg(_, _, t, b) => relsIn(t) ++ b.flatMap(mentioned)
     case Formula.Disj(alts) => alts.flatten.flatMap(mentioned)
     case Formula.Cmp(_, l, r) => relsIn(l) ++ relsIn(r)
-    case _ => Nil
 
   /** The fact-constructor subterms of a term (descending through data and fact constructors). */
   def factTerms(t: Term): List[Term.App] = t match

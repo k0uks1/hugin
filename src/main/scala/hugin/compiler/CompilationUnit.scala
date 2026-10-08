@@ -2,7 +2,6 @@ package hugin.compiler
 
 import hugin.util.SourceFile
 import hugin.syntax.Program
-import hugin.meta.{MExpr, Scope, ScopeKey, SymKeys, TypingResults}
 import hugin.obj.*
 import scala.collection.mutable
 
@@ -16,25 +15,10 @@ final class CompilationUnit(val source: SourceFile):
   /** Resolved paths of imports that were not found. */
   val missingImports: mutable.Set[String] = mutable.HashSet.empty
 
-  var rootScope: Scope | Null = null
+  /** The program elaborated by the meta level (filled by `elaborate`). */
+  var elaborated: hugin.core.Elaborated | Null = null
 
-  /** The program's top level after naming (its scope is `rootScope`). */
-  var named: NamedProgram | Null = null
-
-  /** Scopes of nested module bodies, in elaboration order. */
-  val scopes: mutable.LinkedHashMap[ScopeKey, Scope] = mutable.LinkedHashMap.empty
-
-  /** The keys of all meta-level symbols created so far, to check that they are unique. */
-  val symKeys: SymKeys = SymKeys()
-  var elab: MExpr | Null = null
-
-  /** Typing results of the meta level (filled by the typer). */
-  var symbols: TypingResults = TypingResults.empty
-
-  /** Object program after meta evaluation (may still contain families). */
-  var generic: ObjProgram | Null = null
-
-  /** The object program, transformed in place by the object-level phases. */
+  /** The object program, transformed in place by the object-level phases (from `stage` on). */
   var prog: ObjProgram | Null = null
 
   /** Directives of the relations of `prog` (from `directives` on; see [[ProgramFacts]]). */
@@ -43,7 +27,7 @@ final class CompilationUnit(val source: SourceFile):
   /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
-  /** Signature requirements (Section 4.4) recorded by `metaEval`, checked by `directives`. */
+  /** Signature requirements (REDESIGN §6.7) recorded by staging, checked by `directives`. */
   var requirements: List[RequirementCheck] = Nil
 
   /** Relations that may be incomplete (Section 6.5), computed by `completeness`. */

@@ -41,6 +41,15 @@ final class Levels:
   /** `a < b`. */
   def lt(a: Level, b: Level): Boolean = le(a.succ, b)
 
+  /** The number of level variables (and the constant node). */
+  def count: Int = sol.length
+
+  /** A copy (for a fork of the core). */
+  def copy(): Levels =
+    val l = Levels()
+    l.restore(snapshot())
+    l
+
   def snapshot(): (Vector[Int], Vector[List[(Int, Int)]]) = (sol.toVector, out.toVector)
   def restore(s: (Vector[Int], Vector[List[(Int, Int)]])): Unit =
     sol.clear(); sol ++= s._1

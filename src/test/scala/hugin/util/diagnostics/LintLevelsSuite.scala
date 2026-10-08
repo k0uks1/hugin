@@ -4,8 +4,8 @@ import hugin.util.{Diagnostic, Label, Severity, Span}
 
 /** Lint levels: flags per lint, `--deny-warnings`, and the note naming the lint. */
 class LintLevelsSuite extends munit.FunSuite:
-  private def warning(code: Code) = Diagnostic(Severity.Warning, Some(code), "w", List(Label(Span.NoSpan, "", primary = true)))
-  private val error = Diagnostic(Severity.Error, Some(Code.E0501), "e")
+  private def warning(code: Code) = Diagnostic(Severity.Warning, code, "w", List(Label(Span.NoSpan, "", primary = true)))
+  private val error = Diagnostic(Severity.Error, Code.E0501, "e")
   private val singleton = warning(Code.W0002)
 
   test("every lint has exactly one code, and every warning code one lint") {

@@ -676,12 +676,13 @@ component as its answer relation, which happens when demand depends on answers; 
 
 ## New meta level (redesign Phase B)
 
-The new meta level of `docs/REDESIGN.md` §6 is developed in `hugin.core` alongside the current one and is
-not part of the compiler pipeline yet: `hugin check --new-meta f.hgn` elaborates a file, `hugin run
---new-meta f.hgn` prints the elaborated program (meta definitions with the inserted quotes `⟨⟩`, splices
-`$` and implicit arguments) followed by the staged object items. The flag is hidden. Golden tests use it
-through `.flags` files (`tests/run/core_*`, `tests/neg/core_*`); the mutation fuzzer leaves these files
-out of its corpus, since the compiler pipeline does not accept the new syntax.
+The meta level of `docs/REDESIGN.md` §6 is `hugin.core`; since B3c it is the only one. The phases
+`elaborate` (the core elaborator, with the prelude and the imported files) and `stage` (the handover of
+the staged object items to the object level) come after `parser`, and every object-level phase from
+`directives` on runs unchanged. `--print-after elaborate` prints the elaborated program (meta definitions
+with the inserted quotes `⟨⟩`, splices `$` and implicit arguments) followed by the staged object items.
+(While it was developed, B1–B3b, the old meta level was the default and this one ran behind the hidden
+flag `--new-meta`; the decisions below that mention the flag or "the old pipeline" describe that time.)
 
 ### Architecture
 
@@ -698,9 +699,11 @@ elaborator for two-level type theory (*Staged Compilation with Two-Level Type Th
 | `core/Levels.scala` | universe level constraints (difference constraints, least solution) |
 | `core/Core.scala` | the state: globals, metas, levels; `undoOnFailure` |
 | `core/Printing.scala` | printing in surface notation |
-| `core/Staging.scala`, `NewMeta.scala` | staging of object items, the driver |
+| `core/Staging.scala`, `NewMeta.scala`, `CorePhases.scala` | staging of object items, the driver, the compiler phases `elaborate` and `stage` |
+| `core/ObjForm.scala` | the forms of object syntax (one inert core node `Obj`): formulas, `as`, ascriptions, projections, updates, aggregates, unions, bound columns, positions |
+| `core/handover/*` | B3: staged object items to `obj.Trees` (`ObjectSymbols`: object constants to `TypeSym`/`RelSym`; `ObjectTerms`: terms and formulas; `Handover`: the `ObjProgram`) |
 | `core/CaseTree.scala`, `Matching.scala` | case trees of functions defined by clauses, their reduction with memoisation |
-| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
+| `core/elab/*` | the elaborator, one trait per concern: `Bidirectional` (dispatch), `Universes`, `PiTypes`, `Applications` (implicit insertion), `Records`, `Operators`, `Coercions` (stage inference), `Names`, `Contexts`, `Declarations`, `Items`, `ObjectItems`, `ElabErrors`; for B3 `ObjectDecls` (structs, refinements, edges, cycles), `ObjectCode` (object-only forms, positions, deferred object typing), `NamedPatterns`, `DataConstructors`, `ObjectProblems` (typed diagnostics); for B2 `Inductives`, `Patterns`, `SplitProblem` (split contexts, index unification), `Clauses` (case trees, coverage), `SizeChange` (termination) |
 
 Every elaboration error is a diagnostic (`E09xx`, plus `E0101`/`E0102`/`E0307`); an item with an error is
 dropped and elaboration continues with the next one.
@@ -821,6 +824,191 @@ dropped and elaboration continues with the next one.
   with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
   otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
   has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
+
+### Decisions (B3a: the handover to the object level)
+
+* **Object syntax is one core node.** `Tm.Obj(form, args)` / `Val.Obj` (`core/ObjForm.scala`) hold the
+  object-only forms: formulas (`,` `;` `not`, comparisons), `_`, `as`, ascriptions, projections and
+  updates of facts, aggregates, union types, bound column types, and positions. Evaluation, read-back,
+  unification and renaming treat all forms alike (object code is inert data), so the B3 forms added no
+  cases to the core's algorithms; the former `Compare`/`And`/`Or`/`Not`/`Wild` nodes were folded into it.
+* **Positions.** An object term or formula elaborated from a tree is wrapped in `Obj(Loc(span), t)`
+  (`ObjectCode.located`; types, relations and constructors are not). Evaluation keeps positions, so the
+  staged program carries them into `obj.Trees` and the object-level diagnostics point where the old
+  pipeline pointed (also into the bodies of meta functions that produced the code). Unification and
+  application look through positions; the innermost position wins (`(X)` has the position of `X`).
+* **Object typing is deferred** (the risk noted for B3). The core unifies object types where it can
+  (that solves implicit arguments and the types of rule variables) but never rejects object code for its
+  object types: between two object data types that do not unify, `Coercions.coe` keeps the term
+  (`coeObjectData`); literals in object code are object literals of any type; arithmetic operand types
+  are not checked at stage 0; projections get the column's type if the fact type is known, otherwise an
+  unknown one. Subtyping, unions, refinements, fact types of relations, labels of projections are the
+  object typer's (`ObjTyper`), which sees the staged program. What the core does check is the *shape* of
+  object code: stages, arities (a relation applied as a function), labels of named patterns (they need
+  the columns), data constructors used as relations (E0406, until C3 removes the data/fact split).
+* **Object declarations.** `GlobalKind.Object(ObjDecl)` classifies object constants (open type,
+  refinement `a : type <: b.`, relation, constructor with its `%fact` flag, struct `s : type = { … }.`, a
+  relation whose fact type is `s`); `τ <: a.` is an `EdgeItem`. A constructor or struct used as a type
+  denotes its fact type, as a relation does. Bound column types `min τ` / `max τ` are allowed in the columns
+  of relations and constructors (the object level's `BoundColumns` validates them), elsewhere E0605.
+* **Cycles between object declarations** (`abs : (body : term) -> rel.  term : type = var | abs.`):
+  relations, structs and constructors (whose result is a `: type` declaration of the module) are declared
+  *pending* before the declarations are elaborated (`ObjectDecls.predeclare`): a pending constant can be
+  used as a type (its fact type) but not applied, which retries the item after the declaration. This is
+  the only mutable part of a global (`GlobalEntry.ty`), and only during the declaration phase.
+* **Compile-time arithmetic in object code.** Arithmetic whose operands are both meta primitives (and not
+  both literals) is computed at compile time and persisted (`k = 42.  q (k + 1).` stages to `q 43.`), as
+  the old typer did; an undefined result reaching object code is E0909 (the old pipeline reported E0209
+  at the meta definition already; meta definitions are values, evaluated where they are used).
+* **The handover** (`core/handover`): object symbols are created in source order (the object level
+  orders members of closed types by symbol id), then their columns are translated; rules, queries,
+  edges and directives are staged (`nf`, checked by `Staging.objectCode`) and translated. Wildcards
+  become `_#1`, `_#2`, … per item in order of occurrence, as the old typer named them. An item whose
+  staged code does not have the shape of an object item is reported (E0202, E0909) and left out.
+* **Diagnostics** of object code found by the core are typed problems (`ElabProblem`, docs/DIAGNOSTICS.md)
+  with the old typer's wording where the old typer reported the same concept (W0002, E0301, E0302, E0306,
+  E0307, E0406, E0605, E0701, E0404); an item stops at its first error (the old typer reported all errors
+  of a rule).
+* **Acceptance.** `PipelineParitySuite` runs every golden program of `tests/run` and `tests/neg` through
+  both pipelines; 63 programs produce the same output (results, diagnostics, exit code). The others use
+  families, modules, functors, formula functions or imports (B3b) or diagnostics of the old typer that
+  the new meta level reports differently; each is listed with its reason.
+
+### Decisions (B3b: families, modules, formula functions, imports)
+
+* **Families are memoised.** A declaration with type parameters (`list A : type = nil | cons A (list A).`,
+  `len A : list A -> int -> rel.`) is a `GlobalKind.Family`; an application to closed object types is
+  normalised (positions stripped) and memoised to one *instance*, a global named after its arguments
+  (`len[int]`, `cons[list[int]]`), so the object level sees the same names as before. Unification relates
+  a family application with its instance (`core/Families.scala`). Rules over a family's parameters are
+  *generic* (`RuleItem.generic`) and staged once per instance used, through a worklist that also follows
+  instances used by other instances (`handover/Generics.scala`); a rule whose recursion needs a new
+  instance of its own family is polymorphic recursion (E0205). Struct families take their type arguments
+  explicitly in types and implicitly in terms (`pair 1 "x"`).
+* **Formula functions** (`cheap : item -> prop = [I] I.price < 10.`, or clauses) are meta functions
+  into `⇑prop`; their object-typed and base-typed parameters are object code (`int -> prop` is
+  `⇑int -> ⇑prop`). Clauses become one disjunction `[x̄] ⟨(x̄ = t̄₁, ψ₁) ; …⟩`. Variables local to a
+  clause are bound by `Tm.Fresh`, which evaluation renames per use (`X#1`, `X#2`): hygiene. `%mode` on a
+  formula function is E0501 (it has no extension of its own); a formula function without clauses is
+  always false (W0005).
+* **Modules are generative records.** A body `{ items }` is `Tm.Module(body, env)`: its declarations
+  and definitions are members, its object items are elaborated in the context of all members. Evaluating
+  a body whose environment is closed creates fresh object constants for its object members — once per
+  (body, closed environment, item that evaluates it) — and the handover stages its items (`Modules.scala`,
+  `ModuleInstance`). Instances are named after the definition that created them (`hops.r`), `_m1` for an
+  anonymous one, with `#k` suffixes when a name repeats. A definition is evaluated once, so all uses of
+  `m = f x.` share the instance; two applications `f x` in two definitions are two instances
+  (generativity). A functor application records its origin (`Tm.Trace`) for diagnostics ("in
+  application of `f`").
+* **Signatures are record types with requirements.** `%complete r`, `%mode r …` and `%fact c` in a
+  signature are `SigReq`s of `Tm.RecTy`. Ascription is transparent (the record type is the type; the
+  value keeps its members). A requirement is recorded where a functor is applied (`Tm.Require`, evaluated
+  to a `RequirementUse`) and checked by the object level on the staged program (E0208), except `%fact`,
+  which the core checks (E0204). Negation over a parameter's relation needs `%complete` (E0210).
+* **Imports.** `%import "f"` is the record of `f`'s declarations (`ImportedModule`); its object constants
+  are qualified by the file's qualifier (`shapes.shape`). Libraries are elaborated in import order (since
+  B3c as a memoised chain); the prelude (then `<stdlib>/prelude-core.hgn`, the old prelude in the new
+  syntax; the prelude since B3c) is the parent scope of every file. Without the prelude, `int`, `float`
+  and `string` are not in scope.
+* **`mod`** was accepted as an alias of `Type` (signatures are record types in `Type`) until B3c removed
+  it and rewrote the tests that used it.
+* **Diagnostics that changed** (with `--new-meta`; the `.check` files change when B3c makes the new meta
+  level the default):
+  * `run/a10_meta_applicative`: the program is printed after `stage`; there is no `monomorphize` phase.
+  * `run/f_demand_per_call`, `run/t_termination_explain`, `run/t_termination_len_callers`: positions in
+    the prelude were `<stdlib>/prelude-core.hgn` until B3c made it the prelude (same lines; unchanged now).
+  * `neg/a11_stage_overflow`: meta definitions are values; an overflow is reported where the value reaches
+    object code (E0909), not at the unused definition (E0209 retired for the new meta level).
+  * `neg/classification`: `r : int -> rel = 5.` is a type mismatch (E0901): a meta definition of a
+    relation-valued type is allowed (`r : int -> rel = m.r.`).
+  * `neg/names`: definitions are elaborated in dependency order, so a forward reference is accepted; only
+    a self-reference is E0105.
+  * `neg/typedefs`, `fix/abbrev`: type definitions with parameters are meta functions; strictness (E0106)
+    and `%abbrev` are retired.
+  * `neg/interfaces`, `neg/meta_types`: signature and meta type errors in the new meta level's words
+    (E0204 naming the field, E0906 for a missing member, E0901/E0905 for argument mismatches); signatures
+    are printed as record types (`{ node : ⇑type, edge : ⇑($node -> $node -> rel) }`).
+  * `neg/stage`: E0902 replaces E0201; `not` over a formula function's expansion is E0202 with a note.
+  * `neg/f_nil_ascription_help`, `neg/polymorphic_recursion`: E0206 has a generic help.
+  * `neg/f_data_ctor_relation`: the label at a functor parameter's declaration is not shown.
+  * `repl/*`: REPL sessions are composite programs, routed through the new meta level in B3c.
+* **Acceptance.** With `HUGIN_NEW_META=1` every golden passes except the ones listed above;
+  `PipelineParitySuite` compares the two pipelines on all other golden programs (the listed ones are
+  excluded with their reasons).
+
+### Decisions (B3c: the switch)
+
+* **One meta level, one syntax.** The parser always accepts the meta level's syntax (clauses, `$`, `⇑`,
+  implicit binders, `where`); `mod` is gone (signatures are record types in `Type`); the prelude is the
+  former `prelude-core.hgn` (`<stdlib>/prelude.hgn`, same lines as before the redesign). Deleted: the
+  namer, the typer (`meta/typer/*`), MetaEval, Monomorphize, the meta trees and symbol tables, the
+  imports phase (the import graph is loaded by `elaborate`), and in the object level the forms that only
+  existed before meta evaluation (`Splice` terms, formulas and types, type parameters `TParam`, `OType.Param`
+  and `OType.Meta`); `RelSym.instanceOf` stays, for the display names of instances (`len` for `len[int]`).
+* **Elaboration in parts** (`core/ProgramElab`). A `Core` can be *forked*: a copy sharing the globals
+  (an elaboration only adds globals, it never changes the ones it was forked from), with copies of the
+  metas, universe levels and memo tables. The prelude and the imported files form a chain, each elaborated
+  in a fork of the core before it; the program's declarations (everything but rules, queries and
+  directives) in a fork of the chain's; each object item on its own in a fork of the declarations'; the
+  program is assembled in a last fork, where the items are moved in: the family instances an item
+  created are the instances at the same arguments there (`Tm.rename` maps the ids), the metas it left
+  (the types of object variables) are created again. An item that created module instances or universe
+  levels of its own is elaborated again in the assembled core instead. The direct compilation and the
+  query database run the same parts, so incremental results equal those from scratch by construction.
+* **Positions are spans.** What the core used to compute eagerly from positions (where a module instance's
+  constants and items are placed) is kept as a span (`GlobalEntry.placedAt`, `ModuleInstance.placedAt`)
+  and turned into a position at the handover, so results computed for an item stay valid when the item
+  moves. Files are ranked explicitly (`Core.rankFile`): the prelude, the imported files, the program's
+  files in the order of their declarations, then those of the object items.
+* **Prelude names.** A prelude object constant that the program redeclares is named `prelude.n` by the
+  handover (`ObjectSymbols.objectName`), no longer by the elaboration of the prelude, so the prelude's
+  elaboration does not depend on the program.
+* **Tooling** reads a new `SemanticIndex` (symbols are `compiler.Sym`: name, kind, the span of the name
+  and of the declaration): the elaborator records references (names, parameters, fields through paths:
+  record types carry the positions of their fields' declarations, `Tm.RecTy.decls`), declarations with
+  their descriptions, members, column labels and scopes (`elab/Tooling`); staging records quotes, splices
+  and persisted values (an observer in `eval`, active while the handover stages items) and family
+  instances. Hover descriptions show declared types as written and inferred types in the printer's
+  *plain* mode, which shows splices of names and paths as the names and `⇑type` as `type`.
+* **Closed type instances.** An instance of an open type family comes with the instances of its
+  constructors at the same arguments (`option[int]` with `none[int]`, `some[int]`), so input facts can use
+  constructors the program never applies, as monomorphization did.
+* **Diagnostics.** Every diagnostic is a typed problem (`ElabProblem`, `TypeProblem`, `ClauseProblem`);
+  `Legacy` is gone and `Diagnostic.code` is a `Code`. The REPL's own errors are E1101, a crash reported
+  by the language server E1102. An item stops at its first error; uses of a name whose declaration was
+  dropped (also in an imported file) are not reported again. Classification (E0103: a declaration whose
+  result is a base type or `type`, `%builtin` outside the definition of a base type), self-reference
+  (E0105), a data constructor passed for a relation (E0406), duplicate declarations (E0102) keep the old
+  pipeline's wording. New: E0916, the binders of a declared type used in its definition
+  (`f : (x : A) -> B = e.`), with a machine-applicable rewriting to `f (x : A) : B = e.`; an untyped
+  parameter of a definition `f X : A = e.` has an inferred type (of a type definition, an object type).
+* **Aggregates.** The result of `count` is an `int` and that of `sum`/`min`/`max` has the aggregated
+  term's type in the core already, so implicit type arguments that depend on it are solved (found by the
+  generated fuzz suite: `V = cons N nil` with `N = count { … }`).
+* **Changed `.check` files** (all reviewed): those listed for B3b, now with the final prelude path, plus
+  `run/a10_meta_applicative` (`--print-after stage`; `put[int]` is listed where `box[int]` is first
+  used), `neg/labels`, `neg/requirements` and `neg/f_data_ctor_relation` (columns moved by `mod` →
+  `Type`), `neg/core_e0906_field` and `repl/imports` (a help naming a similar field), `neg/core_e0907_unsupported`
+  (the final wording), `repl/files`, `repl/session` (REPL errors have the code E1101), the `core_*`
+  goldens without the flag; `fix/abbrev` is deleted (E0106 and `%abbrev` retired), `fix/type_binder_params`
+  and `neg/e0916_type_binder` are new.
+* **Tests.** Deleted with the old meta level: its unit suites (`meta/*`), the parity suite (two pipelines
+  no longer exist). Rewritten: the incrementality suites (`ItemQueriesSuite`, `LibraryQueriesSuite`, the
+  REPL's counts) for the granularity above; tests that relied on forward-reference errors (E0105) now
+  check that a definition may come after its uses.
+
+### Open issues (after Phase B, for Phase C)
+
+* Finer incrementality: an object item depends on all declarations of its file; per-declaration
+  dependencies would need item results that survive a re-elaboration of the declarations (globals keyed
+  by stable names rather than ids).
+* Not supported (E0907): refinements and families in module bodies, inline module bodies in object
+  items are re-elaborated at assembly (correct, not incremental).
+* An implicit type argument that only the object typer could determine (the type of an object variable
+  constrained by nothing in the core) stays unknown and is reported at staging (E0909), not as E0206.
+* E0202's concepts (shape, stage, unbound aggregate) still share a code; "no member" is E0906.
+* Phase C: reflection (§6.8), quoted patterns and `$`/`$..` holes (§6.9), directives as meta functions
+  (C2), `%demand` in the prelude and the removal of relation modes and the data/fact split (C3).
 
 ## Bound columns (redesign A2)
 

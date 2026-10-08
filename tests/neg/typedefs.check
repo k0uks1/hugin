@@ -8,12 +8,4 @@ error[E0104]: cyclic type definition `a`
   |
   = note: type definitions are unfolded and must not form a cycle; declare an open type or struct instead
 
-error[E0106]: type definition `first` is not strict
- --> tests/neg/typedefs.hgn:5:1
-  |
-5 | first A B : type = A.
-  | ^^^^^^^^^^^^^^^^^^^^^ parameter `B` not used
-  |
-  = help: mark it `%abbrev first A B : type = A.` to have it always expanded
-
-2 errors found
+1 error found

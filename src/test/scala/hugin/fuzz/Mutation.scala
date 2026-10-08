@@ -7,9 +7,7 @@ import org.scalacheck.{Gen, Shrink}
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
 
-/** The seed corpus: the `.hgn` files under `examples` and `tests`, with their `.facts` files. Programs in
- *  the syntax of the new meta level (run with `--new-meta`, see their `.flags`) are not part of it: the
- *  compiler pipeline does not accept that syntax yet. */
+/** The seed corpus: the `.hgn` files under `examples` and `tests`, with their `.facts` files. */
 object Corpus:
   final case class Entry(path: String, program: Program)
 
@@ -17,7 +15,6 @@ object Corpus:
     val roots = List(Path.of("examples"), Path.of("tests"))
     roots
       .flatMap(r => Files.walk(r).iterator().asScala.filter(_.toString.endsWith(".hgn")))
-      .filterNot(newMeta)
       .sortBy(_.toString)
       .map { p =>
         val facts = Path.of(p.toString.stripSuffix(".hgn") + ".facts")
@@ -25,10 +22,6 @@ object Corpus:
         Entry(p.toString, program)
       }
       .toVector
-
-  private def newMeta(p: Path): Boolean =
-    val flags = Path.of(p.toString.stripSuffix(".hgn") + ".flags")
-    Files.exists(flags) && Files.readString(flags).contains("--new-meta")
 
 /** A token of a mutated program together with the layout (white space, comments) before it. */
 final case class Piece(gap: String, text: String, kind: Tok = Tok.Error):

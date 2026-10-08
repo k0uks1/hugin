@@ -5,11 +5,11 @@ import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
-import hugin.util.diagnostics.Code
 
-/** Per-item elaboration (step 8 of `docs/INCREMENTALITY.md`) of items parsed from their own slices (step
- *  9): editing an item elaborates that item again, and the items whose inputs changed (those that use an
- *  edited declaration), not the others, also not the items the edit moved; the results equal those of a
+/** Per-item elaboration (step 8 of `docs/INCREMENTALITY.md`, with the meta level of the redesign: a
+ *  program's declarations together, each object item on its own) of items parsed from their own slices
+ *  (step 9): editing an object item elaborates that item again, editing a declaration the declarations and
+ *  every object item, an edit never the items it only moved; the results equal those of a
  *  compilation from scratch, with the positions of the current text. */
 class ItemQueriesSuite extends munit.FunSuite:
   private val settings = Settings(printAfter = Set("lower"))
@@ -127,20 +127,16 @@ class ItemQueriesSuite extends munit.FunSuite:
         assert(hugin.syntax.Slices.congruent(parsed.program.items, whole), p.toString)
   }
 
-  test("editing a meta definition elaborates the items that use it") {
+  test("editing a declaration elaborates the declarations and every object item again") {
     given db: Database = setup()
     compile
     edit("limit : int = 5.", "limit : int = 7.")
     assertEquals(signatures, 1)
-    assertEquals(elaborated, 1) // the rule of `r`
-  }
-
-  test("editing an object declaration elaborates the items that use it") {
-    given db: Database = setup()
-    compile
+    assertEquals(elaborated, items)
     edit("q : n1 -> rel.", "q : n2 -> rel.")
     assertEquals(signatures, 1)
-    assertEquals(elaborated, 2) // `q 3.` and the rule of `s`
+    assertEquals(elaborated, items)
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
   }
 
   test("an edit that moves lines elaborates only the edited item") {
@@ -155,49 +151,16 @@ class ItemQueriesSuite extends munit.FunSuite:
     assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
   }
 
-  test("adding a declaration elaborates no item; adding a meta definition only the items using its name") {
-    given db: Database = setup()
-    compile
-    edit("t : int -> rel.\n", "t : int -> rel.\nu : int -> rel.\n")
-    assertEquals(elaborated, 0)
-    // the rule of `r` uses `limit` (from the top level); a new `X` would not change it, a shadowing `p` would
-    edit("u : int -> rel.\n", "u : int -> rel.\nlimit2 : int = 3.\n")
-    assertEquals(elaborated, 0)
-    // a name that items look up and do not find (they fall through to the prelude) is a dependency too
-    edit("r X :- p X, X < limit.", "r X :- p X, X < limit, X < lim.")
-    assertEquals(elaborated, 1)
-    assert(compile.diagnostics.exists(_.code.contains(Code.E0101)))
-    edit("limit2 : int = 3.\n", "limit2 : int = 3.\nlim : int = 4.\n")
-    assertEquals(elaborated, 1)
-    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
-  }
-
-  test("a meta definition after an item is hidden from it (E0105) until it moves before it") {
-    val text = program.replace("?- r X.", "?- r X.\nu : int -> rel.\nu X :- p X, X < late.\nlate : int = 2.")
-    given db: Database = setup(text)
-    compile
-    assertEquals(compile.diagnostics.flatMap(_.code).map(_.id), List("E0105"))
-    // moving the definition before the rule: the order changed, the rule is elaborated again
-    edit("late : int = 2.\n", "")
-    edit("limit : int = 5.\n", "limit : int = 5.\nlate : int = 2.\n")
-    assertEquals(elaborated, 1)
-    assertEquals(compile.diagnostics, Nil)
-    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
-  }
-
-  test("a meta definition after a rule is used before its definition (E0105), also incrementally") {
+  test("a meta definition may come after the items using it") {
     val late = program.replace("limit : int = 5.\n", "") + "limit : int = 5.\n"
     given db: Database = setup()
     compile
     db.set(SourceText, path, late)
-    val compiled = compile
-    assertEquals(compiled.diagnostics.flatMap(_.code).map(_.id), List("E0105"))
-    assertEquals(rendered(observe(late)), rendered(fresh(late)))
-    db.set(SourceText, path, program)
     assert(!compile.hasErrors, compile.diagnostics)
+    assertEquals(rendered(observe(late)), rendered(fresh(late)))
   }
 
-  test("a program made of several files (a REPL session) elaborates only the items of a new part") {
+  test("a program made of several files (a REPL session): a new part with only object items elaborates only them") {
     given db: Database = Database()
     db.set(SourceText, "in1.hgn", "p : int -> rel.\np 1.\np 2.\n")
     db.set(SourceText, "in2.hgn", "q : int -> rel.\nq X :- p X.\n")
@@ -208,8 +171,9 @@ class ItemQueriesSuite extends munit.FunSuite:
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn")))
     db.stats.reset()
     assert(!db(Compile, key).hasErrors)
-    // the new declaration does not change the names the other items use: only the new rule is elaborated
-    assertEquals(elaborated, 1)
+    // a new declaration: the declarations and every object item are elaborated again
+    assertEquals(signatures, 1)
+    assertEquals(elaborated, 4)
     db.set(SourceText, "in4.hgn", "?- r X.\n")
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn"), Part("in4.hgn")))
     db.stats.reset()
@@ -329,5 +293,5 @@ class ItemQueriesSuite extends munit.FunSuite:
     db.collect()
     val items = db(ParseProgram, path).program.items.length
     assertEquals(db.memoCount(ParseItem), items)
-    assertEquals(db.memoCount(ItemOf), items - db(ScopeOf, ProgramKey(path, true)).declarations.length)
+    assertEquals(db.memoCount(ItemOf), items - db(DeclarationsOf, ProgramKey(path, true)).items.length)
   }

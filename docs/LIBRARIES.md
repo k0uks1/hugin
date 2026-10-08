@@ -67,8 +67,9 @@ evaluated only when applied.
 
 ### Base types
 
-`int`, `float` and `string` are no longer built into the name resolution of the compiler. The prelude
-binds them:
+`int`, `float` and `string` are built into the meta level (docs/REDESIGN.md Q2): they are in scope in
+every file that is compiled with the prelude. A program compiled without the prelude (`--no-prelude`)
+declares the base types it uses:
 
 ```
 int : type = %builtin int.
@@ -77,7 +78,7 @@ int : type = %builtin int.
 `%builtin b` names a base type provided by the implementation. It is allowed only as the definition of
 a type declaration (E0103 otherwise); the declared name is free, so `num : type = %builtin int.` declares
 another name for the same base type. Base types are printed by their builtin names. Keywords (`type`,
-`rel`, `prop`, `mod`), primitive formulas and aggregates remain part of the language.
+`rel`, `prop`, `Type`), primitive formulas and aggregates remain part of the language.
 
 ### Contents
 
@@ -112,7 +113,7 @@ A file needs no interface: `geo = %import "lib/geo".` exposes everything the fil
 an import is ascribed a signature, which is checked like any ascription of a module value:
 
 ```
-shapes_sig : mod = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
+shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.
 s : shapes_sig = %import "lib/shapes".
 ```
 

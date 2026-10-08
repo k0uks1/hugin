@@ -1,6 +1,6 @@
 package hugin.lsp
 
-import hugin.meta.SymKind
+import hugin.compiler.SymKind
 import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
 import hugin.util.diagnostics.{Code, Suggestion}
@@ -65,7 +65,7 @@ final class Features(using db: Database):
     catch
       case NonFatal(e) =>
         // a compiler crash must not take the other documents' diagnostics with it
-        val crash = HDiagnostic(Severity.Error, None, s"internal compiler error: $e", notes = List("please report this as a bug"))
+        val crash = HDiagnostic(Severity.Error, Code.E1102, s"internal compiler error: $e", notes = List("please report this as a bug"))
         List(FileDiagnostics(path, List(crash)))
 
   /** The compiler's diagnostics for a document, including those in the files it imports. */
@@ -95,11 +95,9 @@ final class Features(using db: Database):
       d.notes.map("note: " + _) ++ d.helps.map("help: " + _)
     val range = primary.map(l => Positions.range(l.span)).getOrElse(Range(Position(0, 0), Position(0, 0)))
     val out = Diagnostic(range, text.mkString("\n"), severity(d.severity), "hugin")
-    d.code.foreach { c =>
-      out.setCode(c.id)
-      out.setCodeDescription(DiagnosticCodeDescription(Features.explanationLink(c)))
-    }
-    if d.code.exists(_.unnecessary) then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
+    out.setCode(d.code.id)
+    out.setCodeDescription(DiagnosticCodeDescription(Features.explanationLink(d.code)))
+    if d.code.unnecessary then out.setTags(List(DiagnosticTag.Unnecessary).asJava)
     val secondary =
       for
         l <- d.labels if !l.primary

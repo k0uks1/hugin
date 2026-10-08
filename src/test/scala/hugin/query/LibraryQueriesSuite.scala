@@ -1,11 +1,12 @@
 package hugin.query
 
-import hugin.compiler.{Compiler, LibraryKey, Parsed, Settings, SourceLoader}
+import hugin.compiler.{Compiler, Parsed, Settings, SourceLoader}
 import hugin.util.*
 
-/** Libraries as queries (step 7 of `docs/INCREMENTALITY.md`): the prelude and imported files are named and
- *  elaborated once per database revision and shared by every compilation, an edit invalidates only what
- *  depends on the edited file, and the results equal those of a compilation from scratch. */
+/** Libraries as queries: the prelude and the imported files are elaborated as a chain, each file on top of
+ *  the files before it (in dependency order), once per database revision and shared by the compilations
+ *  whose chains share it; an edit invalidates the edited file and the files after it in the chain, and the
+ *  results equal those of a compilation from scratch. */
 class LibraryQueriesSuite extends munit.FunSuite:
   private val settings = Settings(printAfter = Set("lower"))
   private val main = "proj/main.hgn"
@@ -65,7 +66,6 @@ class LibraryQueriesSuite extends munit.FunSuite:
     viaDb
 
   private def elaborations(using db: Database): Int = db.stats.computedBy("elabLibrary")
-  private def namings(using db: Database): Int = db.stats.computedBy("nameLibrary")
 
   test("the libraries compile as before") {
     given db: Database = setup()
@@ -73,10 +73,9 @@ class LibraryQueriesSuite extends munit.FunSuite:
     assert(!compiled.hasErrors, compiled.diagnostics)
     assertEquals(compiled.context.unit.libraries.keys.toList, List(SourceLoader.PreludePath, geo, routes, other))
     assertEquals(elaborations, 4)
-    assertEquals(namings, 4)
   }
 
-  test("editing the program does not name or elaborate the prelude or the libraries again") {
+  test("editing the program does not elaborate the prelude or the libraries again") {
     given db: Database = setup()
     db(Compile, CompileKey(main, settings))
     db.stats.reset()
@@ -84,22 +83,19 @@ class LibraryQueriesSuite extends munit.FunSuite:
     db(Compile, CompileKey(main, settings))
     assertEquals(db.stats.computedBy("compile"), 1)
     assertEquals(elaborations, 0)
-    assertEquals(namings, 0)
   }
 
-  test("editing an imported file elaborates it and its dependants only") {
+  test("editing an imported file elaborates it and the files after it in the chain only") {
     given db: Database = setup()
     db(Compile, CompileKey(main, settings))
     db.stats.reset()
     db.set(SourceText, geo, files(geo) + "elsewhere : place.\n")
     db(Compile, CompileKey(main, settings))
-    // geo and routes (which imports geo); not the prelude, not `other`
-    assertEquals(namings, 1)
-    assertEquals(elaborations, 2)
+    // geo and the files after it (routes, other); not the prelude
+    assertEquals(elaborations, 3)
     db.stats.reset()
     db.set(SourceText, other, files(other) + "blue : colour.\n")
     db(Compile, CompileKey(main, settings))
-    assertEquals(namings, 1)
     assertEquals(elaborations, 1)
   }
 
@@ -110,26 +106,17 @@ class LibraryQueriesSuite extends munit.FunSuite:
     val second = db(Compile, CompileKey("proj/second.hgn", settings))
     assert(!second.hasErrors, second.diagnostics)
     assertEquals(elaborations, 0)
-    assertEquals(namings, 0)
     // a program with other settings (no printing) reuses them too
     db(Compile, CompileKey("proj/second.hgn"))
     assertEquals(elaborations, 0)
   }
 
-  test("library results are frozen: their scopes cannot be entered into") {
-    given db: Database = setup()
-    val lib = db(ElabLibrary, LibraryKey(geo, prelude = true))
-    intercept[IllegalStateException](lib.named.scope.claim("fresh"))
-  }
-
-  test("diagnostics of an imported file are reported once and accumulated by its queries") {
+  test("diagnostics of an imported file are reported once, in its file") {
     val broken = files + (other -> "colour : type.\nbad : colour -> rel.\nbad X :- undefined X.\n")
     given db: Database = setup(broken)
     val diags = db(Compile, CompileKey(main, settings)).diagnostics
-    assertEquals(diags.flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(diags.map(_.code).map(_.id), List("E0101"))
     assertEquals(diags.head.primarySpan.source.path, other)
-    val acc = db.accumulated(LibraryDiagnostics, ElabLibrary, LibraryKey(other, prelude = true))
-    assertEquals(acc.flatMap(_.code).map(_.id), Vector("E0101"))
     assertEquals(observe(main), fromScratch(broken, main))
   }
 

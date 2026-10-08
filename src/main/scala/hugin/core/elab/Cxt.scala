@@ -2,8 +2,16 @@ package hugin.core
 package elab
 
 /** One variable of an elaboration context. `tyTm` is its type quoted at its own level (used to close
- *  the types of fresh metas, as elaboration-zoo's `Path`); `defn` the definition of a let-bound one. */
-final case class Binder(name: Name, ty: Val, tyTm: Tm, stage: Stage, defn: Option[Tm] = None)
+ *  the types of fresh metas, as elaboration-zoo's `Path`); `defn` the definition of a let-bound one;
+ *  `origin` what declared it, for diagnostics. */
+final case class Binder(name: Name, ty: Val, tyTm: Tm, stage: Stage, defn: Option[Tm] = None, origin: BinderOrigin = BinderOrigin.Plain)
+
+/** What declared a variable: a parameter (of a definition or functor, with the position of its name and
+ *  its type as written), a member of a module body, or anything else. */
+enum BinderOrigin:
+  case Plain
+  case Param(span: hugin.util.Span, tpe: hugin.syntax.Tree)
+  case Member
 
 /** An elaboration context: the environment for evaluation (innermost first), the bound variables with
  *  their types and stages, the source names in scope (name → level) and the pruning that applies fresh

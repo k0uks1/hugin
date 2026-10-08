@@ -5,7 +5,6 @@ import hugin.obj.BaseType
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Applicability, Code as DiagCode, Legacy}
 
 /** Name resolution: bound variables, top-level names, builtin base types; implicitly bound variables. */
 trait Names:
@@ -15,45 +14,46 @@ trait Names:
   val builtinTypes: Map[String, BaseType] =
     Map("int" -> BaseType.IntT, "float" -> BaseType.FloatT, "string" -> BaseType.StringT)
 
-  private def lookupGlobal(n: Name): Option[Int] = scope.get(n)
+  private def lookupGlobal(n: Name): Option[Int] = scope.get(n).orElse(file.parent.get(n))
 
   def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
     c.scope.get(n) match
       case Some(l) =>
         val b = c.binder(l)
+        recordParamUse(c, span, b)
         (Tm.Var(c.lvl - l - 1), b.ty, b.stage)
       case None =>
         lookupGlobal(n) match
           case Some(id) =>
+            state.used += id
+            recordUse(span, id)
             val g = globals(id)
-            (Tm.Global(id), g.ty, g.stage)
+            (Tm.Global(id), if state.typePosition then g.ty else termType(g), g.stage)
           case None =>
-            builtinTypes.get(n) match
+            builtinTypes.get(n).filter(_ => file.builtinNames) match
               case Some(b) => (Tm.Base(b, Stage.S0), Val.U0, Stage.S0)
               case None => unresolved(c, n, span)
 
+  /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
+   *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
-    val candidates = (c.scope.keys ++ scope.keys).toList.distinct
-    val similar = candidates
-      .filter(k => k != n && org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(k, n) <= 2)
-      .sorted
-      .headOption
-    var d = Legacy.error(DiagCode.E0101, s"unresolved name `$n`", span, "not found in this scope")
-    similar.foreach(s =>
-      d = d.withHelp(s"a name with a similar spelling exists: `$s`").withSuggestion(
-        s"replace with `$s`",
-        span,
-        s,
-        Applicability.MaybeIncorrect
-      )
-    )
-    throw ElabError(d, unresolved = Some(n))
+    if state.erroneous(n) then throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
+    val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
+      .filter(k => k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
+    val similar = similarName(n, candidates)
+    throw ElabError(ElabProblem.UnresolvedName(n, span, similar, span.text == n).toDiagnostic, unresolved = Some(n))
+
+  /** The candidate most similar to `n` (edit distance at most a third of its length), if any. */
+  def similarName(n: Name, candidates: List[Name]): Option[Name] =
+    val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
+    candidates.filter(_ != n).map(k => (distance.apply(k, n).intValue, k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1)
+      .headOption.map(_._2)
 
   def paramName(p: Tree): Name = p match
     case VarRef(n) => n
     case Ident(n) => n
     case Wildcard() => "_"
-    case other => error(DiagCode.E0001, "expected a parameter name", other.span)
+    case other => fail(TypeProblem.NotAParameterName(other.span))
 
   def nameOf(t: Tree): Name = t match
     case Ident(n) => n
@@ -78,3 +78,13 @@ trait Names:
     case p: Product => p.productIterator.toList.flatMap(freeVarsIn(_, bound))
     case it: Iterable[?] => it.toList.flatMap(freeVarsIn(_, bound))
     case _ => Nil
+
+  /** The type of a global used in a term: a struct family takes its type arguments implicitly there
+   *  (`pair 1 "x"` for `pair A B : type = { … }.`). */
+  private def termType(g: GlobalEntry): Val = g.kind match
+    case GlobalKind.Family(ObjDecl.Struct(_), _) => core.eval(Nil, implicitBinders(g.tyTm))
+    case _ => g.ty
+
+  private def implicitBinders(t: Tm): Tm = t match
+    case Tm.Pi(x, _, a, b) => Tm.Pi(x, Icit.Impl, a, implicitBinders(b))
+    case other => other

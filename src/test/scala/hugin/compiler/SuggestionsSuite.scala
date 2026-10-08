@@ -1,8 +1,8 @@
 package hugin.compiler
 
-import hugin.TestSupport
+import hugin.{TestDiagnostics, TestSupport}
 import hugin.util.*
-import hugin.util.diagnostics.{Applicability, Code, Legacy, Suggestion}
+import hugin.util.diagnostics.{Applicability, Code, Suggestion}
 
 /** Machine-applicable suggestions: applying the edit makes the diagnostic go away. */
 class SuggestionsSuite extends munit.FunSuite:
@@ -10,7 +10,7 @@ class SuggestionsSuite extends munit.FunSuite:
 
   /** The suggestions of the diagnostic with `code`. */
   private def suggestions(text: String, code: String): List[Suggestion] =
-    val d = diagnostics(text).find(_.code.exists(_.id == code)).getOrElse(fail(s"no $code in ${diagnostics(text)}"))
+    val d = diagnostics(text).find(_.code.id == code).getOrElse(fail(s"no $code in ${diagnostics(text)}"))
     d.suggestions
 
   /** Applies the edits of a suggestion, from the last to the first, so that offsets stay valid. */
@@ -23,7 +23,7 @@ class SuggestionsSuite extends munit.FunSuite:
   /** Applies the `n`-th suggestion of the diagnostic `code`; the result no longer has that diagnostic. */
   private def fix(text: String, code: String, n: Int = 0): String =
     val fixed = apply(text, suggestions(text, code)(n))
-    assert(!diagnostics(fixed).exists(_.code.exists(_.id == code)), s"$code remains after the fix:\n$fixed")
+    assert(!diagnostics(fixed).exists(_.code.id == code), s"$code remains after the fix:\n$fixed")
     fixed
 
   test("a singleton variable: `_` first, or a name starting with `_`") {
@@ -57,14 +57,14 @@ class SuggestionsSuite extends munit.FunSuite:
 
   test("a functor negating over a relation parameter: add `%complete` to a named signature") {
     val text =
-      """g : mod = { node : type, edge : node -> node -> rel }.
+      """g : Type = { node : type, edge : node -> node -> rel }.
         |iso (x : g) = {
         |  lonely : x.node -> rel.
         |  lonely N :- x.edge N _, not x.edge _ N.
         |}.
         |""".stripMargin
     assertEquals(suggestions(text, "E0210").map(_.message), List("add `%complete edge`"))
-    assert(fix(text, "E0210").startsWith("g : mod = { node : type, edge : node -> node -> rel, %complete edge }."))
+    assert(fix(text, "E0210").startsWith("g : Type = { node : type, edge : node -> node -> rel, %complete edge }."))
   }
 
   test("a signature of the prelude is not edited") {
@@ -91,7 +91,7 @@ class SuggestionsSuite extends munit.FunSuite:
 
   test("a missing mode: declare it before the relation, indented like it") {
     val text =
-      """m : mod = { node : type, edge : node -> node -> rel, %mode edge + - }.
+      """m : Type = { node : type, edge : node -> node -> rel, %mode edge + - }.
         |deg (x : m) = {
         |  out : x.node -> x.node -> rel.
         |  out A B :- x.edge A B.
@@ -104,12 +104,7 @@ class SuggestionsSuite extends munit.FunSuite:
     assert(fix(text, "E0208").contains("%mode f + -.\nf : v -> v -> rel."))
   }
 
-  test("a type definition that is not strict can be marked `%abbrev`") {
-    val text = "t A : type = int.\n"
-    assertEquals(fix(text, "E0106"), "%abbrev t A : type = int.\n")
-  }
-
   test("generated code has no span, so no suggestion") {
-    val d = Legacy.warning(Code.W0002, "x", Span.NoSpan).withSuggestion("m", Span.NoSpan, "_", Applicability.MachineApplicable)
+    val d = TestDiagnostics.warning(Code.W0002, "x", Span.NoSpan).withSuggestion("m", Span.NoSpan, "_", Applicability.MachineApplicable)
     assertEquals(d.suggestions, Nil)
   }

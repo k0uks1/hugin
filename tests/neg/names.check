@@ -27,16 +27,6 @@ warning[W0003]: unused definition `twice`
   |
   = note: `-W unused_definitions` is on by default
 
-error[E0105]: `once` is used before its definition
-  --> tests/neg/names.hgn:9:15
-   |
- 9 | twice : int = once * 2.
-   |               ^^^^ used here
-10 | once : int = 1.
-   | ---- defined later here
-   |
-   = note: meta definitions may only refer to earlier definitions
-
 error[E0105]: `self` refers to itself
   --> tests/neg/names.hgn:11:14
    |
@@ -44,6 +34,6 @@ error[E0105]: `self` refers to itself
    | ----         ^^^^ recursive reference
    | while elaborating this definition
    |
-   = note: the meta level has no recursion; definitions may only refer to earlier definitions
+   = note: only a function declared with its type and defined by clauses may be recursive
 
-5 errors, 1 warning found
+4 errors, 1 warning found

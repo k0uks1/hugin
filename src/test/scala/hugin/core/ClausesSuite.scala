@@ -65,7 +65,7 @@ class ClausesSuite extends munit.FunSuite:
 
   test("unreachable clauses are warned about") {
     val e = ok(nat + "isZero : nat -> nat.\nisZero zero = 1.\nisZero N = 0.\nisZero (suc N) = 0.\n")
-    assert(e.diagnostics.exists(_.code.contains(Code.W0006)))
+    assert(e.diagnostics.exists(_.code == Code.W0006))
   }
 
   test("pattern errors") {
@@ -92,5 +92,5 @@ class ClausesSuite extends munit.FunSuite:
                        |near : node -> node -> rel.
                        |near X Y :- path 2 X Y.
                        |""".stripMargin)
-    assert(e.output.contains("near X Y :- edge X Y ; (edge X Y ; edge X Y)."), e.output.mkString("\n"))
+    assert(e.output.contains("near X Y :- edge X Y ; edge X Y ; edge X Y."), e.output.mkString("\n"))
   }

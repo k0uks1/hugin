@@ -11,7 +11,7 @@ relation roads.path : city -> city -> rel
 hugin> :type short.hop
 relation short.hop : city -> city -> int -> rel
 hugin> :type tc
-meta definition tc : (g : { node : type, edge : ⇑(node -> node -> rel) }) -> { path : ⇑(g.node -> g.node -> rel) }
+meta definition tc : (g : graph) -> { path : ⇑(g.node -> g.node -> rel) }
 hugin> :kind tc
 tc : meta definition
 hugin> :type tc { node = city, edge = road }
@@ -23,10 +23,10 @@ rule  @q from_berlin C :- roads.path berlin C.
   Deref r0 berlin
   Insert from_berlin(r1)
 hugin> :load examples/graphs.hgn
-error: `examples/graphs.hgn` is already loaded; use :reload to read it again
+error[E1101]: `examples/graphs.hgn` is already loaded; use :reload to read it again
 
 hugin> :load no/such/file.hgn
-error: no such file `no/such/file.hgn`
+error[E1101]: no such file `no/such/file.hgn`
 
 hugin> :reload
 reloaded 1 file(s)
@@ -39,6 +39,6 @@ hugin> ?- result (lam X T B) Ty.
 X = "f", T = arrow (base "int") (base "bool"), B = lam "x" (base "int") (app (ref "f") (ref "x")), Ty = arrow (arrow (base "int") (base "bool")) (arrow (base "int") (base "bool")).
 X = "x", T = base "int", B = ref "x", Ty = arrow (base "int") (base "int").
 hugin> :facts no/such.facts
-error: no such facts file `no/such.facts`
+error[E1101]: no such facts file `no/such.facts`
 
 hugin> :quit

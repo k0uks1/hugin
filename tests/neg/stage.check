@@ -1,18 +1,20 @@
-error[E0201]: runtime value used at compile time
+error[E0902]: object code used where a compile-time value is needed
  --> tests/neg/stage.hgn:7:30
   |
 7 | bad P :- listed I, P = scale I.price.
-  |                              ^ object variable `I`
+  |                              ^^^^^^^ object code of type `int`
   |
-  = note: this argument of `scale` has meta type `int` and must be known at compile time
+  = note: a meta value of type `int` is expected here
+  = note: object terms (rule variables, constructor terms, formulas) only exist at run time; the meta level computes at compile time
+  = help: to take object code as an argument, declare the parameter with an object type (`⇑int` at the meta level)
 
 error[E0202]: `not` applies only to relation atoms
  --> tests/neg/stage.hgn:9:24
   |
 9 | neg I :- listed I, not cheap I.
-  |                        ^^^^^^^ this is a formula function use
+  |                        ^^^^^^^ not a relation atom
   |
-  = note: formula functions may expand to arbitrary formulas; declare a relation for the negated condition
+  = note: a formula function use may expand to an arbitrary formula; declare a relation for the negated condition
 
 error[E0207]: `item` expects 2 arguments, found 0
   --> tests/neg/stage.hgn:11:22

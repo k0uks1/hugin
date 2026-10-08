@@ -1,5 +1,20 @@
 # Per-item incrementality: plan (issue #4)
 
+> **Since the redesign (step B3c of docs/REDESIGN.md)** the meta level is `hugin.core`, and its
+> elaboration is incremental in parts (`core/ProgramElab`, memoised by `query/ProgramQueries`): the
+> prelude and the imported files form a chain, each file elaborated in a fork of the core of the files
+> before it (`ElabLibrary`); the program's declarations (declarations, definitions, clauses, edges) are
+> elaborated together in a fork of the chain's core (`Signatures`, cut off by the fingerprints of the
+> declaration items, `DeclarationsOf`); each object item (rule, query, directive) is elaborated on its own
+> in a fork of the declarations' core (`ElabItem`, keyed by its tree and occurrence, cut off by its
+> fingerprint); the program is assembled from the parts (`ElabProgram`): the family instances an item
+> created are recreated in the assembled core, an item that created module instances or universe levels
+> is elaborated again there. So editing an object item elaborates that item, editing a declaration the
+> declarations and every object item (the old per-declaration dependencies, `DeclSig`, `ScopeName`, are
+> not ported: the meta level's declarations are dependently typed and refer to each other by value), and
+> moving items elaborates nothing. The sections below describe the plan as it was carried out for the
+> meta level before the redesign; the names in them (`Sym`, `SymTable`, `ScopeOf`, MetaEval) are gone.
+
 Today `Compile` runs the whole pipeline per file: every edit, also whitespace, recompiles the program;
 since step 7 the prelude and imported files are named and elaborated once per database revision and
 shared by all compilations, and since step 8 the items of the program are elaborated one by one, so an

@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Π types. Three surface forms are distinguished:
  *
@@ -50,19 +49,18 @@ trait PiTypes:
     case Parens(i) => objectArrow(c, i)
     case Arrow(label, dom, cod) =>
       val (ns, d) = binders(label, dom)
-      val dt = check(c, d, Val.U0, Stage.S0)
+      val dt = columnType(c, d)
       if force(ev(c, dt)) == Val.U0 then
-        fail(
-          Legacy.error(DiagCode.E0908, "relations and constructors cannot take object types as arguments", d.span, "a type")
-            .withNote("the object level is first order; families of relations are meta functions returning relations")
-        )
+        fail(TypeProblem.ObjectTypeArgument(d.span))
       piChain(c, ns.map(_._1), Icit.Expl, dt, Stage.S0, scoped = false)(objectArrow(_, cod))
     case other => check(c, other, Val.U0, Stage.S0)
 
   /** An arrow whose type is inferred: the stage follows from its parts. */
   def inferArrow(c: Cxt, label: Option[Ident], dom: Tree, cod: Tree, span: Span): (Tm, Val, Stage) =
     val (ns, d) = binders(label, dom)
-    val (dt, sd, ud) = metaBinderOverTypes(c, inferU(c, d))
+    val (dt, sd, ud) = d match
+      case _: BoundType => (columnType(c, d), Stage.S0, Val.U0) // validated at the object level
+      case _ => metaBinderOverTypes(c, inferU(c, d))
     def go(cc: Cxt, rest: List[Name]): (Tm, Stage, Val) = rest match
       case Nil => inferU(cc, cod)
       case n :: more =>
@@ -84,7 +82,7 @@ trait PiTypes:
     if sd == Stage.S0 && sb == Stage.S0 then (Tm.Pi(n, Icit.Expl, dom, body), Stage.S0, Val.U0)
     else
       if sd == Stage.S0 && occurs(0, body) then
-        fail(Legacy.error(DiagCode.E0902, "a meta type cannot depend on object code", span, s"`$n` is object code"))
+        fail(TypeProblem.DependsOnObject(n, span))
       val l = levels.fresh()
       requireLe(c, span, ud, l)
       requireLe(c, span, ub, l)
@@ -95,8 +93,21 @@ trait PiTypes:
   /** An arrow checked against `Type l`: domains and codomain are meta types. */
   def checkMetaArrow(c: Cxt, label: Option[Ident], dom: Tree, cod: Tree, l: Level): Tm =
     val (ns, d) = binders(label, dom)
-    val dt = check(c, d, Val.U1(l), Stage.S1)
+    val dt = if endsInProp(cod) then formulaParam(c, d, l) else check(c, d, Val.U1(l), Stage.S1)
     piChain(c, ns.map(_._1), Icit.Expl, dt, Stage.S1, scoped = true)(check(_, cod, Val.U1(l), Stage.S1))
+
+  /** `A₁ -> … -> prop`: the type of a formula function. */
+  def endsInProp(t: Tree): Boolean = t match
+    case Arrow(_, _, cod) => endsInProp(cod)
+    case Parens(i) => endsInProp(i)
+    case Keyword(Kw.Prop) => true
+    case _ => false
+
+  /** A parameter of a formula function: an object type is object code (`int -> prop` is `⇑int ->
+   *  ⇑prop`, base types included, unlike other meta function types); other types are meta types. */
+  private def formulaParam(c: Cxt, d: Tree, l: Level): Tm =
+    val (t, s, _) = inferU(c, d)
+    if s == Stage.S0 then Tm.Lift(t) else check(c, d, Val.U1(l), Stage.S1)
 
   /** `{A B : T} -> B` checked against `Type l`. */
   def checkImplicitPi(c: Cxt, names: List[Tree], dom: Tree, cod: Tree, l: Level): Tm =

@@ -10,19 +10,17 @@ import scala.collection.mutable
  *  Precedence levels (Section 2.2) are scaled by 10; an operator declared with `%infix assoc p name`
  *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
  *
- *  With `meta2`, the parser accepts the syntax of the new meta level (docs/REDESIGN.md §6): equational
- *  clauses `f p̄ = e.` ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and
- *  lifts `⇑t`. Without it, the parser behaves exactly as before.
+ *  The meta level's syntax (docs/REDESIGN.md §6) includes equational clauses `f p̄ = e.`
+ *  ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and lifts `⇑t`.
  */
 final class Parser(
     src: SourceFile,
     reporter: Reporter,
-    infix: Option[Map[String, (Parser.Assoc, Int)]] = None,
-    meta2: Boolean = false
+    infix: Option[Map[String, (Parser.Assoc, Int)]] = None
 ):
   import Parser.*
 
-  private val toks: Vector[Token] = Lexer(src, reporter, meta2).tokenize()
+  private val toks: Vector[Token] = Lexer(src, reporter).tokenize()
   private var i = 0
   private val infixOps = mutable.HashMap.empty[String, (Assoc, Int)]
 
@@ -163,7 +161,7 @@ final class Parser(
         val lhs = parseExpr(LvlHead)
         kind match
           case Tok.Colon => parseDeclRest(lhs, start, fact = false)
-          case Tok.Eq if meta2 =>
+          case Tok.Eq =>
             advance()
             val rhs = parseExpr(LvlSemi)
             val where = if kind == Tok.KwWhere then parseWhere(startCol) else Nil
@@ -172,12 +170,6 @@ final class Parser(
               val (name, params) = declHead(lhs)
               Def(name, params, rhs)(spanFrom(start))
             else Clause(lhs, rhs, where)(spanFrom(start))
-          case Tok.Eq =>
-            advance()
-            val (name, params) = declHead(lhs)
-            val rhs = parseExpr(LvlSemi)
-            expect(Tok.Period, "`.` after definition")
-            Def(name, params, rhs)(spanFrom(start))
           case Tok.SubT =>
             advance()
             val sup = parseExpr(LvlBar)
@@ -398,8 +390,8 @@ final class Parser(
             case "|" => Union(lhs, rhs)(sp)
             case "->" =>
               lhs match
-                case ImplicitBinder(ns, t) if meta2 => ImplicitPi(ns, t, rhs)(sp)
-                case RecordType(List(SigEntry.FieldDecl(l, t, false))) if meta2 => ImplicitPi(List(l), t, rhs)(sp)
+                case ImplicitBinder(ns, t) => ImplicitPi(ns, t, rhs)(sp)
+                case RecordType(List(SigEntry.FieldDecl(l, t, false))) => ImplicitPi(List(l), t, rhs)(sp)
                 case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
                 case _ => Arrow(None, lhs, rhs)(sp)
             case _ if opTok.kind == Tok.Name =>
@@ -443,7 +435,7 @@ final class Parser(
 
   private def startsArg(t: Token): Boolean = !atLineStart(t) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
-    case Tok.Dollar | Tok.Up => meta2
+    case Tok.Dollar | Tok.Up => true
     case Tok.Name => !infixOps.contains(t.text)
     case _ => false
   )
@@ -487,7 +479,6 @@ final class Parser(
       case Tok.FloatLit => advance(); Lit(Literal.FloatL(t.value.asInstanceOf[Double]))(t.span)
       case Tok.StrLit => advance(); Lit(Literal.StrL(t.value.asInstanceOf[String]))(t.span)
       case Tok.KwType => advance(); Keyword(Kw.Type)(t.span)
-      case Tok.KwMod => advance(); Keyword(Kw.Mod)(t.span)
       case Tok.KwRel => advance(); Keyword(Kw.Rel)(t.span)
       case Tok.KwProp => advance(); Keyword(Kw.Prop)(t.span)
       case Tok.KwMin | Tok.KwMax if peekTok(1).kind != Tok.LBrace =>
@@ -519,11 +510,11 @@ final class Parser(
         val p = expect(Tok.StrLit, "a file path in quotes")
         Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
       case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
-      case Tok.Dollar if meta2 =>
+      case Tok.Dollar =>
         advance()
         val arg = parsePostfix()
         SpliceE(arg)(spanFrom(start))
-      case Tok.Up if meta2 =>
+      case Tok.Up =>
         advance()
         val arg = parsePostfix()
         LiftE(arg)(spanFrom(start))
@@ -573,7 +564,7 @@ final class Parser(
     if k0 == Tok.DotDot then
       advance(); expect(Tok.RBrace)
       RecordLit(Nil, rest = true)(spanFrom(start))
-    else if meta2 && k0 == Tok.Var && implicitBinderAhead then
+    else if k0 == Tok.Var && implicitBinderAhead then
       val names = mutable.ListBuffer.empty[Tree]
       while kind == Tok.Var || kind == Tok.Name do
         val n = advance()
@@ -597,7 +588,7 @@ final class Parser(
       advance()
       ModuleBody(items.toList)(spanFrom(start))
 
-  /** At `{A B ... :` (after the brace): implicit binders of the new meta level. */
+  /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =
     var k = i
     while toks(k).kind == Tok.Var || toks(k).kind == Tok.Name do k += 1
@@ -673,9 +664,6 @@ object Parser:
   val LvlMul = 70
 
   def parse(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter).parseProgram()
-
-  /** Parses a file in the syntax of the new meta level (docs/REDESIGN.md §6). */
-  def parseMeta2(src: SourceFile, reporter: Reporter): Program = Parser(src, reporter, meta2 = true).parseProgram()
 
   /** The `%infix` operators of a file, which every part of it is parsed with. */
   def infixOperators(src: SourceFile): Map[String, (Assoc, Int)] = Parser(src, Reporter()).infixOperators

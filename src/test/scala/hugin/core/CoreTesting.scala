@@ -2,11 +2,11 @@ package hugin.core
 
 import hugin.util.*
 
-/** Helpers for the tests of the new meta level: elaborating programs given as strings, and building core
+/** Helpers for the tests of the meta level: elaborating programs given as strings, and building core
  *  terms directly. */
 object CoreTesting:
   final case class Elaborated(core: Core, elab: hugin.core.elab.Elaborator, diagnostics: List[Diagnostic], output: List[String]):
-    def errors: List[String] = diagnostics.filter(_.severity == Severity.Error).flatMap(_.code).map(_.id)
+    def errors: List[String] = diagnostics.filter(_.severity == Severity.Error).map(_.code).map(_.id)
     def global(n: String): GlobalEntry = core.globals(elab.scope(n))
 
     /** The declared type of a global, printed. */
@@ -26,7 +26,7 @@ object CoreTesting:
     def eval(expr: String): String =
       val src = SourceFile.virtual("expr.hgn", s"it = $expr.")
       val r = Reporter()
-      val items = hugin.syntax.Parser.parseMeta2(src, r).items
+      val items = hugin.syntax.Parser.parse(src, r).items
       items.foreach(elab.elabItemReporting)
       assert(!r.hasErrors && !reporterErrors, s"errors in $expr: ${elab.reporter.diagnostics.map(_.message)}")
       val v = global("it").kind match
@@ -39,7 +39,7 @@ object CoreTesting:
 
   def elaborate(code: String): Elaborated =
     val reporter = Reporter()
-    val prog = hugin.syntax.Parser.parseMeta2(SourceFile.virtual("test.hgn", code), reporter)
+    val prog = hugin.syntax.Parser.parse(SourceFile.virtual("test.hgn", code), reporter)
     val core = Core()
     val elab = hugin.core.elab.Elaborator(core, reporter)
     if !reporter.hasErrors then elab.elabProgram(prog.items)

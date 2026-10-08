@@ -3,17 +3,18 @@
 A reference implementation of **Hugin**, the two-level typed Datalog with first-class facts described in
 *Hugin: A Two-Level Typed Datalog with First-Class Facts — Formal Language Definition (Draft, revision 7)*.
 
-It implements the whole pipeline of the definition: parsing, stage inference and meta typing, meta
-evaluation (modules, functors, formula functions, type definitions), monomorphization of families,
-object-level typing and moding, object-level elaboration (records, disjunction, demand transformation,
-derivations), the stratification / completeness / termination checks, compilation to the core IR of
+It implements the whole pipeline of the definition: parsing, the meta level of the redesign (a
+dependently typed two-level type theory elaborated by normalisation by evaluation, with modules,
+functors, formula functions, families of object constants and functions defined by clauses), staging into
+a monomorphic object program, object-level typing and moding, object-level elaboration (records,
+disjunction, demand transformation, derivations), the stratification / completeness / termination checks, compilation to the core IR of
 Section 9.3, and a semi-naive interpreter over an interning store. An efficient Datalog engine is out of
 scope; the interpreter is meant to make programs runnable and results comparable.
 
 > **Redesign in progress.** The language is moving to a Datalog∃! object level (every constructor a
 > fact, termination by size-change, bound arithmetic columns) under a total, dependently typed meta
-> level in clause syntax, where directives such as `%demand`/`%mode` are meta functions. See
-> `docs/REDESIGN.md` for the decisions and the implementation plan.
+> level in clause syntax, where directives such as `%demand`/`%mode` are meta functions. The meta level
+> (Phase B) is done; see `docs/REDESIGN.md` for the decisions and the implementation plan.
 
 ```
 $ bin/hugin run examples/typechecker.hgn --facts examples/typechecker.facts
@@ -117,8 +118,8 @@ saying where its level comes from (`` `-W singleton_variables` is on by default 
 of `sbt stage` passes arguments starting with `-D` to the JVM, so with it write `--deny <lint>`.
 
 `hugin fix FILE` applies the suggestions marked machine-applicable (adding a missing `.`, replacing a
-singleton variable by `_`, adding missing labels as `_`, `%complete`, `%fact`, `%abbrev`, a missing
-`%mode`) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
+singleton variable by `_`, adding missing labels as `_`, `%complete`, `%fact`, a missing `%mode`, the
+binders of a declared type as parameters of the definition) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
 does. Suggestions that are guesses (a similar name) are only shown, and lints at `-A` are not fixed.
 
 ## The REPL
@@ -249,11 +250,8 @@ only on error-free programs.
 | phase | section | what it does |
 |---|---|---|
 | `parser` | 2 | hand-written lexer and precedence-climbing parser with error recovery; `%infix` operators are resolved into applications |
-| `imports` | — | loads the prelude and, transitively, every `%import`ed file (in dependency order); missing and cyclic imports |
-| `namer` | 2.3, 2.5 | scopes, duplicate declarations, classification of items by stage, collection of formula-function clauses |
-| `typer` | 3, 4.2–4.4, 4.7, 4.8 | bidirectional stage inference and meta typing: inserts quotes `⟨·⟩` and splices `~(·)`, signature matching, implicit type parameters, named patterns → positional, type definitions (unfolded), arity and label checks |
-| `metaEval` | 4.5 | call-by-value evaluation of the meta level; module bodies with fresh prefixes (`roads.path`), hygienic expansion of formula functions, cross-stage persistence, deferred checks of `%complete`/`%mode` requirements |
-| `monomorphize` | 4.6 | infers family type arguments by first-order matching, instantiates families and rule families by worklist (`len[int]`), rejects polymorphic recursion |
+| `elaborate` | REDESIGN §6 | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
+| `stage` | REDESIGN §6.9 | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); hands the object program over to the object level |
 | `directives` | Fig. 2 | attaches `%mode %terminates %open %input %output %derivations %name` to relations |
 | `constFold` | 3.3 | folds literal arithmetic (Prop. 3.1); undefined folds are warnings (the rule never fires) |
 | `objTyper` | 5, 6.1, 6.2 | well-formed declarations, subtyping/members, best typing contexts by meets, subsumption checks, projections/updates/joins, ascriptions as checked downcasts |
@@ -286,19 +284,13 @@ src/main/scala/hugin/
   syntax/          lexer, parser (ParserPhase), surface trees, printer, generic tree operations (TreeOps),
                    item slices of a file (Slices)
   compiler/        Settings and Display, CompilationUnit, Context, Phase / MiniPhase / MegaPhase, the phase
-                   plan, libraries (the prelude and imported files: Libraries, ImportsPhase), the per-item
-                   elaboration of a program (ProgramElab), the semantic index for tooling (SemanticIndex)
-  meta/            symbols and scopes (Symbols), the typer's symbol table (SymTable), stable keys of items,
-                   scopes and symbols (Keys), namer, elaborated trees and their printer, evaluator (MetaEval),
-                   monomorphization
-  meta/typer/      the typer, split into traits mixed into one class:
-                     TyperBase (state, names), Normalization (substitution, static normal forms),
-                     Declarations (object declarations, type definitions), TypeElaboration (object and
-                     meta types, signatures, meta subtyping), MetaExpressions (inference, checking,
-                     application), ObjectCode (stage inference for terms and formulas), Typer (items, bodies)
-  core/            the new meta level of the redesign (docs/REDESIGN.md Phase B, in development behind the
-                   hidden flag `--new-meta`): core syntax and values, normalisation by evaluation, pattern
-                   unification, universe levels, staging; core/elab/ is the bidirectional elaborator
+                   plan, libraries (the prelude and imported files, the import graph), the semantic index for
+                   tooling (SemanticIndex)
+  core/            the meta level (docs/REDESIGN.md Phase B): core syntax and values, normalisation by
+                   evaluation, pattern unification, universe levels, families and modules, staging, the
+                   elaboration of a program in parts (ProgramElab, MetaLevel); core/elab/ is the
+                   bidirectional elaborator (one trait per concern, mixed into Elaborator), core/handover/
+                   stages the object items into the object program
   obj/             object-level AST: types and symbols, directives of relations (ProgramFacts), terms and
                    formulas, primitives, printer
   obj/typing/      type operations, directives, constant folding, object typer, moding
@@ -332,7 +324,7 @@ src/main/scala/hugin/
   without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
   their items form one module body, and each item keeps its file for diagnostics and for resolving its
   `%import`s.
-- `SemanticIndex`, filled by the typer and the object typer, records which symbol every name resolves
+- `SemanticIndex`, filled by the elaborator, staging and the object typer, records which symbol every name resolves
   to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
   `g.edge` to the field of the signature), a description of every symbol, and the inferred type of
   every object variable.
@@ -354,12 +346,13 @@ $ hugin query examples/graphs.hgn hover 18:16
 variable C : city
 ```
 
-Incrementality is per item for the elaboration: libraries are named and elaborated once and shared by
-all programs, the items of a program are parsed from their own text and elaborated one by one, an item
-depends on the names and declarations it uses, `FileDiagnostics` gives a compilation's diagnostics by
-file from the queries that computed them, and memos no recent demand reaches are evicted. Meta
-evaluation and the object-level phases still run on the whole program after an edit. See
-`docs/INCREMENTALITY.md` (issue #4).
+Incrementality is per item for the elaboration: the prelude and the imported files are elaborated as a
+chain, each file once per revision of the files before it, shared by the programs whose chains share
+it; the items of a program are parsed from their own text; its declarations are elaborated together and
+each object item (rule, query, directive) on its own against them, so editing a rule elaborates only that
+rule, editing a declaration the declarations and the object items, and moving items nothing. Memos no
+recent demand reaches are evicted. Staging and the object-level phases still run on the whole program
+after an edit. See `docs/INCREMENTALITY.md` (issue #4).
 
 ## Editor support
 
@@ -383,13 +376,13 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 
-- *staging* (recorded by the meta evaluator): object code passed where meta code is expected is
+- *staging* (recorded when the object items are staged): object code passed where meta code is expected is
   *quoted* (`p X` passes the code `⟨X⟩` to the formula function `p`), meta code used in object code is
   *spliced* (`I.price < 10` in the body of `cheap` inserts the code bound to `I`), and a compile-time
   primitive in object code is *persisted* as a literal (`X = k` with `k : int = 6 * 7` embeds `42`).
   Code in a functor or a formula function is evaluated once per application; every value is shown.
   The innermost staged piece of code around the position is described;
-- *family instances* (recorded by monomorphization): a use of `cons`, `len` or `list` shows the
+- *family instances* (recorded when the object items are staged): a use of `cons`, `len` or `list` shows the
   instance it resolved to (`len[int]`; a use in the body of a family rule may resolve to several), a
   family's declaration lists all of its instances.
 
@@ -409,7 +402,8 @@ preferred. They exist for singleton variables (`_` or `_X`), missing labels of a
 or `..`), a functor that negates over a parameter whose signature lacks `%complete edge` (added to the
 signature, inline or named, unless it is in the prelude), a relation without a mode a signature requires
 (`%mode f + -.` before its declaration), a name with a similar declaration, a missing period at the end of
-a line, and a type definition that is not strict (`%abbrev`).
+a line, and the binders of a declared type used in the definition (`f : (x : A) -> B = e.` becomes
+`f (x : A) : B = e.`).
 
 Positions are converted between the protocol's 0-based lines and UTF-16 columns and the compiler's
 character offsets in `lsp/Positions`. Facts files (`.facts`) get syntax diagnostics only.
@@ -438,8 +432,9 @@ CI packages the extension on every push (job `vscode`); the `.vsix` is the workf
 
 ## Diagnostics
 
-Diagnostics are collected, never thrown: the parser resynchronises at item boundaries, the typer
-continues after errors with error types, and object-level phases drop ill-formed rules. Every diagnostic
+Diagnostics are collected, never thrown: the parser resynchronises at item boundaries, the elaborator
+drops an item at its first error (and does not report the errors that follow from it), and object-level
+phases drop ill-formed rules. Every diagnostic
 has a code (`hugin explain E0401`) and is rendered in the style of rustc, with primary and secondary
 labels, notes and help. Errors in code generated at the meta level carry the meta-level call chain
 (Appendix A.1):
@@ -460,16 +455,18 @@ note: in application of `iso`
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-The diagnostic classes of Appendix A.1 are all distinguished; see `src/main/scala/hugin/util/ErrorCodes.scala`
-or `hugin explain <code>`.
+The diagnostic classes of Appendix A.1 are all distinguished; every diagnostic is a typed problem with a
+code (`src/main/scala/hugin/util/diagnostics/Code.scala`, explained in `docs/errors/<code>.md` and by
+`hugin explain <code>`).
 
 ## Tests
 
 Three kinds of tests, all run by `sbt test`:
 
 - **Unit suites** (`src/test/scala/hugin/...`, mirroring the main packages): lexer and parser
-  (precedence, braces, `%infix`, recovery), tree operations, stable keys, meta evaluation,
-  monomorphization, shared primitive semantics, type operations (subtyping, members, meets), moding,
+  (precedence, braces, `%infix`, recovery), tree operations, the meta level (`core`: evaluation,
+  unification, universes, inductive families and clauses, elaboration errors, families, modules, formula
+  functions, staging and the handover), shared primitive semantics, type operations (subtyping, members, meets), moding,
   stratification, completeness, interval reasoning, lowering, the command-line parser and exit codes,
   rendering of diagnostics,
   differential tests of the engine (random graphs against a naive fixpoint,

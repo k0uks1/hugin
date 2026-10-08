@@ -13,7 +13,7 @@ final class DiagnosticRenderer(color: Boolean):
 
   def render(d: Diagnostic): String =
     val sb = new StringBuilder
-    val head = d.severity.label + d.code.map(c => s"[${c.id}]").getOrElse("")
+    val head = d.severity.label + s"[${d.code.id}]"
     sb ++= sevColor(d.severity, head) ++= bold(s": ${d.message}") += '\n'
     val labels = d.labels.filter(_.span.exists)
     val gutterWidth =

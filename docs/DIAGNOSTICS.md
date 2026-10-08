@@ -955,6 +955,12 @@ in issue #41.
 * *Accept*: the new elaborator has zero `Legacy` uses; when B3 deletes `meta/typer`, `MetaEval` and
   `Monomorphize`, the legacy count drops by those files' share, and the bound is lowered in the same PR;
   B3's "same goldens" criterion is met with every changed `.check` reviewed.
+* *Done* (with B3): the meta level reports typed problems only (`core/elab/ElabProblems`,
+  `TypeProblems`, `ClauseProblems`; staging uses `TypeProblem.NotStaged`). The old meta typer, MetaEval
+  and Monomorphize are deleted; E0106, E0201, E0203 and E0209 are retired (their concepts are E0901,
+  E0902 and E0909 of the meta level, or gone), E0105 names a self-referential definition, E0916 the
+  binders of a declared type used in its definition. Not done: E0202's concepts are not split, "no
+  member" stays E0906 (the meta level's "no field") rather than a new code.
 
 **M5 — Stable phases and tools.**
 * Migrate `syntax/`, `obj/typing/` (`ObjTyper`, `Moding`, `Directives`, `ConstFold`), `compiler/Libraries`
@@ -968,6 +974,10 @@ in issue #41.
   have no `Legacy` use left; the remaining 163 are in the old meta typer (deleted by B3) and in the new
   elaborator (`core/`, migrated with M4), so deleting `Problem.Legacy` and making `Diagnostic.code`
   non-optional wait for those.
+* *Done* (with B3): `Problem.Legacy` is deleted and `Diagnostic.code` is a `Code`. The messages of the
+  tools have codes of their own in the phase `Tools`: E1101 (an invalid REPL command) and E1102 (an
+  internal compiler error, reported by the language server; this replaces the planned `F0001`). Codes of
+  `Tools` are exempt from golden tests and from examples in their explanations.
 
 **M6 — Consolidation** (with Phase D). Retire E0406 and E0504 when C3 deletes the data/fact split. Review
 the wording of the whole inventory against the style guide, phase by phase, as one PR per phase.

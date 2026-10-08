@@ -1,0 +1,4 @@
+(* E0916: the binders of a declared type do not scope over the definition *)
+double : (x : int) -> int = x * 2.
+r : int -> rel.
+r (double 21).

@@ -233,14 +233,13 @@ object Lowering:
       case Term.With(x, fs) => term(x); fs.foreach(f => term(f._2))
       case Term.Arith(_, l, r) => term(l); term(r)
       case Term.Neg(x) => term(x)
-      case Term.Lit(_) | Term.Splice(_) =>
+      case Term.Lit(_) =>
     def formula(f: Formula): Unit = f match
       case Formula.Atom(_, as, v) => as.foreach(term); v.foreach(out += _)
       case Formula.Cmp(_, l, r) => term(l); term(r)
       case Formula.Not(a) => formula(a)
       case Formula.Agg(res, _, t, b) => out += res; term(t); b.foreach(formula)
       case Formula.Disj(alts) => alts.foreach(_.foreach(formula))
-      case Formula.Splice(_) =>
     body.foreach(formula)
     out.result()
 

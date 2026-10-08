@@ -2,8 +2,8 @@ package hugin.core
 package elab
 
 import hugin.syntax.{Tree, TreeOps}
+import hugin.syntax.Trees.{Apply, RecordLit}
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Lambdas, applications and the insertion of implicit applications (elaboration-zoo `04-implicit-args`):
  *  an inferred term whose type starts with implicit Π binders is applied to fresh metas for them. */
@@ -18,7 +18,10 @@ trait Applications:
     while more do
       force(ty) match
         case Val.Pi(x, Icit.Impl, a, cl) =>
-          val m = freshMeta(c, a, Stage.S1, span, s"the implicit argument `$x`")
+          val what = Tm.unloc(r._1) match
+            case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => s"type argument `$x` of family `${globals(id).name}`"
+            case _ => s"the implicit argument `$x`"
+          val m = freshMeta(c, a, Stage.S1, span, what)
           t = Tm.App(t, m, Icit.Impl)
           ty = inst(cl, ev(c, m))
         case _ => more = false
@@ -41,10 +44,7 @@ trait Applications:
 
   def checkLambda(c: Cxt, t: Tree, param: Tree, ann: Option[Tree], body: Tree, pi: Val.Pi, st: Stage): Tm =
     if st == Stage.S0 then
-      fail(
-        Legacy.error(DiagCode.E0908, "object-level functions cannot be defined", t.span, "a function at the object level")
-          .withNote("the object level is first order; functions are meta-level code (formula functions, functors)")
-      )
+      fail(TypeProblem.ObjectFunction(t.span))
     val name = paramName(param)
     ann.foreach { an =>
       val at = checkType(c, an, Stage.S1)
@@ -54,17 +54,54 @@ trait Applications:
 
   def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
     val (ft, fty, fs) = objectFunction(insertAll(c, f.span, infer(c, f)))
+    (a, namedColumns(fty)) match
+      case (rl: RecordLit, Some(cols)) if fs == Stage.S0 =>
+        (namedPattern(c, f, ft, cols, rl), cols.foldLeft(fty)((t, _) => objectCodomain(t)), Stage.S0)
+      case _ => inferPositionalApp(c, f, a, span, ft, fty, fs)
+
+  /** A record passed for a signature with requirements records them when evaluated ([[Tm.Require]]). */
+  private def withRequirements(dom: Val, span: Span, t: Tm): Tm = force(dom) match
+    case Val.RecTy(_, _, _, reqs, _) if reqs.nonEmpty => Tm.Require(reqs, span, t)
+    case _ => t
+
+  /** The application of a functor (a function returning a module) records its frame for the module
+   *  instances it creates ([[Tm.Trace]]). */
+  private def functorApplication(f: Tree, span: Span, t: Tm, resTy: Val): Tm = force(resTy) match
+    case _: Val.RecTy =>
+      Tm.Trace(TraceFrame(s"in application of `${hugin.syntax.Printer.show(TreeOps.flattenApp(f)._1)}`", span), t)
+    case _ => t
+
+  /** The number of columns an object relation or constructor of type `ty` still takes (if any). */
+  def missingColumns(ty: Val): Option[Int] =
+    def go(t: Val, n: Int): Int = force(t) match
+      case Val.Pi(_, _, d, cl) if stageOfType(d) == Stage.S0 => go(inst(cl, Val.Wild), n + 1)
+      case _ => n
+    Option.when(isFactConstantType(ty))(go(ty, 0)).filter(_ > 0)
+
+  /** E0207: the relation or constructor `head` (elaborated in `t`) applied to `found` instead of
+   *  `expected` arguments. */
+  def objectArity(head: Tree, t: Tm, expected: Int, found: Int, span: Span): Nothing =
+    val declared = objectHead(t).map(globals(_).span).getOrElse(Span.NoSpan)
+    fail(ElabProblem.ObjectArity(hugin.syntax.Printer.show(head), expected, found, span, declared))
+
+  /** The codomain of an object arrow (object arrows are not dependent). */
+  private def objectCodomain(ty: Val): Val = force(ty) match
+    case Val.Pi(_, _, _, cl) => inst(cl, Val.Wild)
+    case other => other
+
+  private def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>
-        val at = check(c, a, dom, fs)
-        (Tm.App(ft, at, Icit.Expl), inst(cl, ev(c, at)), fs)
+        val at = withRequirements(dom, span, check(c, a, dom, fs))
+        val resTy = inst(cl, ev(c, at))
+        (functorApplication(f, span, Tm.App(ft, at, Icit.Expl), resTy), resTy, fs)
       case Val.Flex(_, _) =>
         val dom = ev(c, freshType(c, fs, a.span, "the type of an argument"))
         val cod = freshType(bind(c, "x", dom, fs), fs, span, "the type of an application")
         unifyAt(c, f.span, Val.Pi("x", Icit.Expl, dom, Closure(c.env, cod)), fty)
         val at = check(c, a, dom, fs)
         (Tm.App(ft, at, Icit.Expl), eval(ev(c, at) :: c.env, cod), fs)
-      case other => notAFunction(c, f, a, other)
+      case other => notAFunction(c, f, a, other, ft)
 
   /** Meta code of an object function type `⇑(A -> B)` (a relation or constructor passed around at the
    *  meta level) is applied at the object level: it is spliced. */
@@ -75,12 +112,12 @@ trait Applications:
         case _ => r
     case _ => r
 
-  private def notAFunction(c: Cxt, f: Tree, a: Tree, ty: Val): Nothing =
+  private def notAFunction(c: Cxt, f: Tree, a: Tree, ty: Val, ft: Tm): Nothing =
+    requireDeclared(ft)
+    if force(ty) == Val.RelT then
+      val (head, args) = TreeOps.flattenApp(Apply(f, a)(f.span.to(a.span)))
+      objectArity(head, ft, args.length - 1, args.length, f.span.to(a.span))
     val why = ty match
       case Val.RelT | Val.PropT => "it is already a complete atom: too many arguments"
       case _ => s"its type `${show(c, ty)}` is not a function type"
-    fail(
-      Legacy.error(DiagCode.E0905, "not a function", f.span, "applied to an argument here")
-        .withLabel(a.span, "argument")
-        .withNote(s"`${TreeOps.headName(f).map(_.name).getOrElse("this")}` cannot be applied: $why")
-    )
+    fail(TypeProblem.NotAFunction(TreeOps.headName(f).map(_.name).getOrElse("this"), why, f.span, a.span))

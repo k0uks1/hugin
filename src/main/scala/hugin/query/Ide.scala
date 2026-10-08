@@ -1,8 +1,7 @@
 package hugin.query
 
-import hugin.compiler.SemanticIndex
+import hugin.compiler.{SemanticIndex, Sym, SymKind}
 import hugin.compiler.SemanticIndex.Stage
-import hugin.meta.{Scope, Sym, SymKind, TypingResults}
 import hugin.syntax.{Lexer, Tok, Token}
 import hugin.util.*
 
@@ -139,8 +138,8 @@ object Ide:
   /** The declarations of a file, each with its enclosing definition (for nested module bodies). */
   def symbols(key: CompileKey)(using db: Database): List[DocumentSymbol] =
     val syms = index(key).symbols.filter(s => outlineKinds(s.kind) && s.span.exists && s.span.source.path == key.path)
-    def extent(s: Sym) = s.decl.map(_.span).filter(_.exists).getOrElse(s.span)
-    val containers = syms.filter(s => s.kind == SymKind.MetaDef && s.decl.isDefined).map(s => (s, extent(s)))
+    def extent(s: Sym) = if s.extent.exists then s.extent else s.span
+    val containers = syms.filter(s => s.kind == SymKind.MetaDef && s.extent.exists).map(s => (s, extent(s)))
     syms.toList
       .sortBy(_.span.start)
       .map { s =>
@@ -171,15 +170,19 @@ object Ide:
     if start > 0 && text.charAt(start - 1) == '%' then
       matching(directives.map(d => CompletionItem(d, "directive", s"%$d")))
     else if start > 0 && text.charAt(start - 1) == '.' then
-      // members of the module before the selector
+      // members of the module before the selector: the symbol the compiler resolved it to, or, in an item
+      // that did not get that far, the one its name finds in the scope around the offset
       val qualEnd = start - 1
       val use = ix.references.filter(r => r.span.source.path == path && r.span.end == qualEnd).sortBy(r => size(r.span)).headOption
-      matching(use.toList.flatMap(r => members(ix, db(Compile, key).symbols, r.sym)))
+      val qualStart = Iterator.iterate(qualEnd)(_ - 1).find(i => i <= 0 || !isIdentChar(text.charAt(i - 1))).get
+      val qual = text.substring(qualStart, qualEnd)
+      val module = use.map(_.sym).orElse(scopeAt(ix, path, offset).find(_.name == qual))
+      matching(module.toList.flatMap(m => ix.membersOf(m).map(item(ix, _))))
     else
-      enclosingNamedPattern(source, start).flatMap(name => labels(ix, key, path, name, offset)) match
+      enclosingNamedPattern(source, start).flatMap(name => labels(ix, path, name, offset)) match
         case Some(ls) => matching(ls)
         case None =>
-          val names = scopeAt(ix, key, path, offset).toList.flatMap(inScope(ix, _))
+          val names = scopeAt(ix, path, offset).map(item(ix, _))
           val vars = ix.variables
             .filter(v => covers(v.item, path, offset))
             .map(v => CompletionItem(v.display, "variable", v.tpe))
@@ -192,25 +195,14 @@ object Ide:
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 
-  /** The innermost scope around an offset; outside every recorded extent (e.g. in a part of a program
-   *  made of several files), the program's scope. */
-  private def scopeAt(ix: SemanticIndex, key: CompileKey, path: String, offset: Int)(using db: Database): Option[Scope] =
-    val scopes = ix.scopes.filter((sp, _) => covers(sp, path, offset)).sortBy((sp, _) => size(sp)).map(_._2)
-    scopes.headOption.orElse(Option(db(Compile, key).context.unit.rootScope))
+  /** The names in scope at an offset: those of the innermost recorded extent (a module body) around it,
+   *  then the top level's (also outside every extent, e.g. in a part of a program made of several files). */
+  private def scopeAt(ix: SemanticIndex, path: String, offset: Int): List[Sym] =
+    val inner = ix.scopes.filter(s => covers(s.extent, path, offset)).sortBy(s => size(s.extent)).headOption
+    inner.toList.flatMap(_.names) ++ ix.topLevel
 
   private def item(ix: SemanticIndex, s: Sym): CompletionItem =
     CompletionItem(s.name, s.kind.describe, ix.description(s).getOrElse(s.kind.describe))
-
-  /** The names visible in a scope, innermost first (shadowed names are dropped by `matching`). */
-  private def inScope(ix: SemanticIndex, sc: Scope): List[CompletionItem] =
-    Iterator.iterate(Option(sc))(_.flatMap(_.parent)).takeWhile(_.isDefined).flatten.toList
-      .flatMap(_.decls.values.toList.map(item(ix, _)))
-
-  /** The exported members of a module-valued symbol, from its meta type. */
-  private def members(ix: SemanticIndex, syms: TypingResults, s: Sym): List[CompletionItem] =
-    syms.mtype(s) match
-      case Some(hugin.meta.MType.Sig(fields, _)) => fields.map((f, _) => item(ix, f))
-      case _ => Nil
 
   /** The variables written in the item around an offset (from the period ending the previous item to the
    *  one ending this item), except the one being typed (from `start` to `offset`). */
@@ -251,21 +243,14 @@ object Ide:
   /** The labels of the relation or constructor named by the token `name` (at an offset in `path`): the
    *  symbol the compiler resolved it to, or, in an item that does not compile, the one its name finds in
    *  the scope around the offset. None if the name is not a relation. */
-  private def labels(ix: SemanticIndex, key: CompileKey, path: String, name: Token, offset: Int)(using
-      db: Database
-  ): Option[List[CompletionItem]] =
+  private def labels(ix: SemanticIndex, path: String, name: Token, offset: Int): Option[List[CompletionItem]] =
     val resolved = ix.references
       .filter(r => r.span.exists && r.span.source.path == path && r.span.start == name.span.start && r.sym.name == name.text)
       .sortBy(r => size(r.span))
       .headOption
       .map(_.sym)
-    resolved.orElse(scopeAt(ix, key, path, offset).flatMap(_.lookup(name.text))).filter(s => relationKinds(s.kind)).map { s =>
-      db(Compile, key).symbols.mtype(s) match
-        case Some(hugin.meta.MType.RelT(cols, _)) =>
-          cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
-        case Some(hugin.meta.MType.CtorT(cols, _)) =>
-          cols.flatMap(c => c.label.map(l => CompletionItem(l, "label", s"column of ${s.name}")))
-        case _ => Nil
+    resolved.orElse(scopeAt(ix, path, offset).find(_.name == name.text)).filter(s => relationKinds(s.kind)).map { s =>
+      ix.labelsOf(s).map(l => CompletionItem(l, "label", s"column of ${s.name}"))
     }
 
   def diagnostics(key: CompileKey)(using db: Database): List[Diagnostic] = db(Compile, key).diagnostics

@@ -22,7 +22,7 @@ class TerminationSuite extends munit.FunSuite:
       d : t -> rel.
       d (s (s N)) :- s N.
     """)
-    val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0603))
+    val d = c.reporter.diagnostics.filter(_.code == Code.E0603)
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.contains("component {s}")), d.head.notes)
     assert(d.head.notes.exists(_.contains("is also evaluated in")), d.head.notes)

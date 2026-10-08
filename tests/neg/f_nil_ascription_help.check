@@ -4,6 +4,6 @@ error[E0206]: cannot infer type argument `A` of family `nil`
 4 | ?- e X, nil = nil.
   |         ^^^ type not determined
   |
-  = help: ascribe the constructor term with its result type, e.g. `(nil : list A)`, with `A` replaced by the intended type
+  = help: ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined
 
 1 error found

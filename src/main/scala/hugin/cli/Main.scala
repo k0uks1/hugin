@@ -60,8 +60,6 @@ object Main:
         case None =>
           err(s"error: unknown diagnostic code `$code`")
           ExitCode.Usage
-    case Command.Check(file) if opts.newMeta => newMeta(file, opts, out, err, print = false)
-    case Command.Run(file) if opts.newMeta => newMeta(file, opts, out, err, print = true)
     case Command.Check(file) => compileAndRun(file, opts, out, err, evaluate = false)
     case Command.Fix(file) => fix(file, opts, err)
     case Command.Run(file) => compileAndRun(file, opts, out, err, evaluate = true)
@@ -107,19 +105,6 @@ object Main:
       val summary = renderer.summary(r)
       if summary.nonEmpty then err(summary)
     LintLevels.hasErrors(diags)
-
-  /** The new meta level (redesign Phase B): elaborates the file; `print` writes the elaborated program
-   *  with its object items staged. */
-  private def newMeta(file: String, opts: Options, out: String => Unit, err: String => Unit, print: Boolean): Int =
-    val path = Path.of(file)
-    if !Files.isRegularFile(path) then
-      err(s"error: no such file `$file`")
-      ExitCode.Usage
-    else
-      val result = hugin.core.NewMeta.elaborate(SourceFile(file, Files.readString(path)))
-      if print then result.output.foreach(out)
-      val errors = render(result.diagnostics, opts.display, err)
-      if errors then ExitCode.Errors else ExitCode.Ok
 
   private def compileAndRun(file: String, opts: Options, out: String => Unit, err: String => Unit, evaluate: Boolean): Int =
     withProgram(file, err) {

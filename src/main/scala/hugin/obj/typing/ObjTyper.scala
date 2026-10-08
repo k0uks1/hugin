@@ -54,7 +54,6 @@ final class ObjTyperPhase extends Phase:
       case Formula.Not(a) => formula(a)
       case Formula.Agg(_, _, t, b) => term(t); b.foreach(formula)
       case Formula.Disj(alts) => alts.flatten.foreach(formula)
-      case _ =>
     heads.foreach(term)
     body.foreach(formula)
 

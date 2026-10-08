@@ -43,7 +43,7 @@ trait Problem:
   final def toDiagnostic: Diagnostic =
     Diagnostic(
       severity,
-      Some(code),
+      code,
       message.plain,
       Label(primary, primaryLabel.plain, primary = true) :: labels.map((s, m) => Label(s, m.plain, primary = false)),
       notes.map(_.plain),
@@ -51,13 +51,3 @@ trait Problem:
       origin,
       suggestions.filter(_.isApplicable)
     )
-
-/** The escape hatch for call sites that are not migrated to a problem enum yet: a diagnostic built from
- *  strings, still under a registered [[Code]]. Its uses are counted by `DiagnosticsCoverageSuite`, and the
- *  recorded bound may only go down; new code reports [[Problem]]s instead. */
-object Legacy:
-  def error(code: Code, message: String, span: Span, label: String = ""): Diagnostic =
-    Diagnostic(Severity.Error, Some(code), message, List(Label(span, label, primary = true)))
-
-  def warning(code: Code, message: String, span: Span, label: String = ""): Diagnostic =
-    Diagnostic(Severity.Warning, Some(code), message, List(Label(span, label, primary = true)))
