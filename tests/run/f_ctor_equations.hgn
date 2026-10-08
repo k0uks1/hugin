@@ -1,4 +1,4 @@
-(* Binding equations and comparisons with constructor terms (docs/REDESIGN.md §3.3). Every constructor
+(* Binding equations and comparisons with constructor terms (reference: object/facts). Every constructor
    is a fact constructor and bodies never create facts: `X = c t̄` is an existence check, read as
    `(c t̄ as X)`, also for the subterms of a nested term. Comparisons are structural: a constructor term
    that is not a fact differs from every value and equals a term of the same structure, without becoming

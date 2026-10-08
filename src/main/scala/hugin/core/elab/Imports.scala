@@ -3,7 +3,7 @@ package elab
 
 import hugin.syntax.Trees.Import
 
-/** Imports (REDESIGN §6.7, docs/LIBRARIES.md): `%import "f"` is the module value of the file `f`, a
+/** Imports (reference: modules, docs/LIBRARIES.md): `%import "f"` is the module value of the file `f`, a
  *  record of its declarations, elaborated once per compilation (so every import of a file denotes the
  *  same object constants). Its type is the record type of the declarations' types; since they refer to
  *  the file's constants themselves, ascribing a signature (`s : sig = %import "f".`) is transparent. A

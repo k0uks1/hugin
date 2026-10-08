@@ -1,4 +1,4 @@
-(* A.2 (7), after %partial was removed (docs/REDESIGN.md §4.6): a counter with an upper bound needs no
+(* A.2 (7), after %partial was removed (reference: object/termination): a counter with an upper bound needs no
    annotation; it terminates by descent along derivations (A), read upwards: `M` is larger than `N` and
    bounded by the guard `N < 6`. *)
 step : int -> rel.

@@ -10,7 +10,7 @@ import scala.collection.mutable
  *  Precedence levels (Section 2.2) are scaled by 10; an operator declared with `%infix assoc p name`
  *  gets level `10*p + 5`, i.e. it binds tighter than builtin level p and looser than level p+1.
  *
- *  The meta level's syntax (docs/REDESIGN.md §6) includes equational clauses `f p̄ = e.`
+ *  The meta level's syntax (reference: meta/index) includes equational clauses `f p̄ = e.`
  *  ([[Trees.Clause]]), implicit Π types `{A : T} -> B`, explicit splices `$t` and lifts `⇑t`; the syntax
  *  of reflection (holes, lists, rules as expressions) is in [[QuoteSyntax]], records and signatures in
  *  [[RecordSyntax]].

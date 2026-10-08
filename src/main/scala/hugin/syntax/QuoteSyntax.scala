@@ -2,7 +2,7 @@ package hugin.syntax
 
 import scala.collection.mutable
 
-/** The grammar of reflection (docs/REDESIGN.md §6.8–6.9), mixed into [[Parser]]:
+/** The grammar of reflection (reference: reflection), mixed into [[Parser]]:
  *
  *  - holes `$x`, sequence holes `$..xs` and higher-order holes `$f[t̄]` (the `[` directly after `f`);
  *  - meta lists `[]`, `[e₁, …, eₙ]` and `e :: es`. A `[` starts a list unless it has the shape of a

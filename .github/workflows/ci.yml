@@ -22,6 +22,8 @@ jobs:
       - uses: sbt/setup-sbt@v1
       - name: Check formatting (scalafmt)
         run: sbt -batch scalafmtCheckAll scalafmtSbtCheck
+      - name: Check that sources cite the language reference, not REDESIGN.md sections
+        run: scripts/check-refs.sh
 
   test:
     name: Build and test (JDK ${{ matrix.java }})

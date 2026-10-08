@@ -4,10 +4,10 @@ import hugin.obj.{ArithOp, CmpOp, Rule, Query, RelDirectives, RelSym}
 import hugin.syntax.AggKind
 
 /** Words (Section 9.1): literals (java.lang.Long, java.lang.Double, String), identities, or the infinite
- *  values of integer columns (`hugin.runtime.Infinity`, docs/REDESIGN.md §5.2). */
+ *  values of integer columns (`hugin.runtime.Infinity`, reference: object/bound-columns). */
 final case class Id(rel: Int, n: Int)
 
-/** The value, in a comparison, of a constructor term that is not a fact (REDESIGN §3.3: bodies never
+/** The value, in a comparison, of a constructor term that is not a fact (reference: object/facts: bodies never
  *  create facts). Every value bound in a satisfying valuation has only facts as constructor subterms, so such a term differs from every bound value; two of them are
  *  equal if they have the same structure. Comparisons are therefore structural without asserting or
  *  interning the term. It occurs only as an operand of a test, never in a register binding or a fact. */

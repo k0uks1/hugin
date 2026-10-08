@@ -38,7 +38,7 @@ enum AggKind:
   case Count, Sum, Min, Max
   def show: String = toString.toLowerCase
 
-/** The kind of a bound column (`min τ` / `max τ`, docs/REDESIGN.md §5.2): it keeps the least (greatest)
+/** The kind of a bound column (`min τ` / `max τ`, reference: object/bound-columns): it keeps the least (greatest)
  *  value per key. */
 enum Bound:
   case Min, Max
@@ -89,9 +89,9 @@ object Trees:
   /** `%import "path"`: the module value of another source file (Section 4.3, M-Body). */
   final case class Import(path: String)(val span: Span, val pathSpan: Span) extends Tree
 
-  // ---- the meta level's own syntax (docs/REDESIGN.md §6)
+  // ---- the meta level's own syntax (reference: meta/index)
 
-  /** `$t`: an explicit splice (REDESIGN §6.9); normally inferred. */
+  /** `$t`: an explicit splice (reference: meta/staging); normally inferred. */
   final case class SpliceE(arg: Tree)(val span: Span) extends Tree
 
   /** `⇑t`: the lift of an object type to the meta level; normally inferred. */
@@ -103,7 +103,7 @@ object Trees:
   /** `{A B : T} -> B`: an implicit Π type. */
   final case class ImplicitPi(names: List[Tree], dom: Tree, cod: Tree)(val span: Span) extends Tree
 
-  // ---- reflection (docs/REDESIGN.md §6.8–6.9)
+  // ---- reflection (reference: reflection)
 
   /** `[e₁, …, eₙ]`: a meta list (`[]` is the empty one). */
   final case class ListLit(elems: List[Tree])(val span: Span) extends Tree
@@ -130,7 +130,7 @@ object Trees:
   final case class NamedVar(name: String)(val span: Span) extends Tree
 
   /** `+e -t +`: mode items as a directive argument (`%demand typed +e +g -t.`), elaborated to the prelude's
-   *  `modes` data (REDESIGN §7.4). */
+   *  `modes` data (reference: directives). */
   final case class ModeArgs(items: List[ModeItem])(val span: Span) extends Tree
 
   final case class Field(label: Ident, value: Tree)
@@ -167,7 +167,7 @@ object Trees:
   final case class Def(name: Ident, params: List[Param], rhs: Tree)(val span: Span) extends Item
 
   /** `f p̄ = e.` with patterns that are not all variables, or with a `where` block of local definitions:
-   *  an equational clause of a meta function (REDESIGN §6.4). */
+   *  an equational clause of a meta function (reference: meta/clauses). */
   final case class Clause(lhs: Tree, rhs: Tree, where: List[Item] = Nil)(val span: Span) extends Item
 
   /** `type <: type.` */
@@ -175,7 +175,7 @@ object Trees:
   final case class Rule(name: Option[Ident], heads: List[Tree], body: Option[Tree])(val span: Span) extends Item
   final case class Query(body: Tree)(val span: Span) extends Item
 
-  /** A directive `%kind …` (REDESIGN §7). `kindSpan` is the span of `%kind`. */
+  /** A directive `%kind …` (reference: directives). `kindSpan` is the span of `%kind`. */
   final case class Directive(kind: String, args: DirArgs)(val span: Span, val kindSpan: Span) extends Item
 
   enum DirArgs:

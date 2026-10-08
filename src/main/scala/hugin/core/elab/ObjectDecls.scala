@@ -5,7 +5,7 @@ import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Declarations of object constants beyond `x : A.` (REDESIGN §3.1): structs `s : type = { l : τ, … }.`,
+/** Declarations of object constants beyond `x : A.` (reference: object/index): structs `s : type = { l : τ, … }.`,
  *  refinements `a : type <: b.`, subtyping edges `τ <: a.`, and the classification of a declared object
  *  constant ([[ObjDecl]]). The core records what they declare; whether the subtyping makes sense is
  *  checked by the object typer on the staged program. */
@@ -72,7 +72,7 @@ trait ObjectDecls:
       val dt = columnType(c, t)
       Tm.Pi(l, Icit.Expl, dt, columnsType(newBinder(c, l, ev(c, dt), Stage.S0), rest, result))
 
-  /** The type of a column: an object type, or a bound column type `min τ` / `max τ` (REDESIGN §5.2,
+  /** The type of a column: an object type, or a bound column type `min τ` / `max τ` (reference: object/bound-columns,
    *  validated at the object level by `obj/check/BoundColumns`). */
   def columnType(c: Cxt, t: Tree): Tm = t match
     case Parens(i) => columnType(c, i)

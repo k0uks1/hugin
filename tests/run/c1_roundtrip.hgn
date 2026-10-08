@@ -1,4 +1,4 @@
-(* Round trip (docs/REDESIGN.md §6.8): rules quoted as data and reflected back are the rules written
+(* Round trip (reference: reflection): rules quoted as data and reflected back are the rules written
    directly, up to the names of aggregate variables (`ReflectionSuite` compares them). Every form of
    reflective data occurs. *)
 n : type.

@@ -43,7 +43,7 @@ object Constructive:
 
   /** The arguments of a head that can invent values: all but a bound column. The values of a bound column
    *  are kept finite per key by evaluation (the best value, or `∞` when it would improve forever,
-   *  docs/REDESIGN.md §5.2), so a component whose invention is only through bound columns terminates
+   *  reference: object/bound-columns), so a component whose invention is only through bound columns terminates
    *  when its keys do. */
   def keyArgs(head: Term): List[Term] = head match
     case Term.App(RelRef.Sym(h), as) if h.boundColumn.isDefined => as.init

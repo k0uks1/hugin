@@ -16,7 +16,7 @@ enum Pat:
 
   /** A value of a type without constructors (a reference to an object constant, a meta literal): `key` is
    *  its closed normal form, as [[hugin.core.Matching.atomKey]] computes it. Only quoted patterns produce
-   *  it (REDESIGN §6.9). */
+   *  it (reference: reflection). */
   case PAtom(key: Tm, span: Span)
 
 /** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function), with its `where` block. */

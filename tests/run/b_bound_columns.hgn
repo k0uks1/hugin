@@ -1,4 +1,4 @@
-(* Bound columns (docs/REDESIGN.md §5.2): best values per key, linear arithmetic, comparisons in the
+(* Bound columns (reference: object/bound-columns): best values per key, linear arithmetic, comparisons in the
    improving direction, `min` and `max` relations feeding each other, and bound relations of earlier
    components read as plain values. *)
 item : type = string.

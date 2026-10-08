@@ -38,7 +38,7 @@ object DepGraph:
    *  before it): the relations of its atoms, and the fact-constructor terms of the value side of binding
    *  equations, which are existence checks (`X = c t̄` reads as `(c t̄ as X)`). Constructor patterns nested
    *  in atoms or on the pattern side of an equation match values structurally, and comparisons and
-   *  aggregate terms are structural (REDESIGN §3.3): they read no facts.
+   *  aggregate terms are structural (reference: object/facts): they read no facts.
    *  Which side of an equation binds follows the canonical order (Lemma 6.4); if the body has none (it is
    *  ill-moded, reported elsewhere), every fact-constructor term of an equation counts. */
   def occurrences(body: List[Formula], neg: Boolean = false, bound: Set[String] = Set.empty): List[(RelSym, Boolean, Span)] =

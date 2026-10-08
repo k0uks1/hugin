@@ -1,5 +1,5 @@
 (* The meta level (redesign Phase B2): inductive families, functions defined by
-   clauses, dependent pattern matching, compile-time evaluation (docs/REDESIGN.md §6.4, §8.2). The
+   clauses, dependent pattern matching, compile-time evaluation (reference: meta/clauses). The
    output shows each function's clauses as compiled (one line per leaf of its case tree) and the staged
    object items. *)
 

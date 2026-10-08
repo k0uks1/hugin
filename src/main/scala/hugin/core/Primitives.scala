@@ -4,7 +4,7 @@ import hugin.syntax.Literal
 import hugin.util.Span
 import scala.collection.mutable
 
-/** The primitive operations of the prelude on reflective data (REDESIGN §7.4, C3): what a directive needs
+/** The primitive operations of the prelude on reflective data (reference: directives, C3): what a directive needs
  *  to know about object constants that their data does not say (reflection is untyped, Q5).
  *
  *  - `same : A -> A -> bool`: whether two atoms (meta literals, symbols: the values with decidable

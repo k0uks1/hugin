@@ -5,7 +5,7 @@ import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** `where` blocks of clauses: local definitions, Haskell-style (designer addition to REDESIGN §6.4).
+/** `where` blocks of clauses: local definitions, Haskell-style (reference: meta/where; a designer addition to the redesign plan).
  *
  *  The bindings of a block are elaborated in order in the context of the clause's right-hand side (its
  *  pattern variables and the earlier bindings), and the right-hand side sees all of them. No new core

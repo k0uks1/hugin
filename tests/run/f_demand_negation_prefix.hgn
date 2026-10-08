@@ -1,4 +1,4 @@
-(* Demand rules are positive (docs/REDESIGN.md §7.4): `b`'s call of the demand-driven `size` has the
+(* Demand rules are positive (reference: directives): `b`'s call of the demand-driven `size` has the
    prefix `e L, not a L 1`, and `a` calls `size`; a demand rule `size.check L :- e L, not a L 1` would
    make `size.check` depend negatively on `a`, which depends on `size` and so on `size.check` (a cycle
    through negation, E0601), although the program is stratified. `%demand` leaves the negation out of the

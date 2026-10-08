@@ -4,7 +4,7 @@ package elab
 import hugin.util.*
 import scala.collection.mutable
 
-/** Termination of meta functions (REDESIGN §6.5) by the size-change principle (Lee, Jones & Ben-Amram,
+/** Termination of meta functions (reference: meta/coverage) by the size-change principle (Lee, Jones & Ben-Amram,
  *  POPL 2001) over the constructor-subterm order:
  *
  *  - every call `g ā` in the right-hand side of a clause of `f` gives a size-change graph from `f`'s

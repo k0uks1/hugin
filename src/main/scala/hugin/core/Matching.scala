@@ -8,7 +8,7 @@ import scala.collection.mutable
  *
  *  Applications to closed arguments are memoised by their normal forms: meta functions are total and
  *  pure, so this is sound, and it makes naive recursion such as `fibm (suc (suc N)) = fibm N + fibm
- *  (suc N)` linear instead of exponential (REDESIGN §6.7 plans memoisation by normalised arguments for
+ *  (suc N)` linear instead of exponential (the redesign plan has memoisation by normalised arguments for
  *  families anyway). The keys are hash-consed ids of the normal forms ([[MemoKeys]]). */
 trait Matching:
   self: Core =>
@@ -54,7 +54,7 @@ trait Matching:
       atomKey(env(level)).flatMap(k => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env))
 
   /** A value forced, without the positions around it (reflected data carries the positions of the object
-   *  syntax it was reified from, REDESIGN §6.8). */
+   *  syntax it was reified from, reference: reflection). */
   def forceData(v: Val): Val = force(Val.unloc(force(v)))
 
   /** The key of a canonical atom (a reference to an object constant, a meta literal), as split on by

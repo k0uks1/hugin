@@ -8,7 +8,7 @@ import hugin.util.Span
  *  [[Tm.Obj]] / [[Val.Obj]] (a form and its subterms): object code is inert data for evaluation,
  *  unification and read-back, which treat every form alike, so a new object form needs no new case in
  *  the core's algorithms. Object typing proper (subtyping, unions, refinements, projections, updates) is
- *  not the core's business: it is done by `obj/typing/ObjTyper` on the staged program (REDESIGN §3.4).
+ *  not the core's business: it is done by `obj/typing/ObjTyper` on the staged program (reference: object/index).
  *
  *  The subterms of each form, in order:
  *
@@ -25,7 +25,7 @@ import hugin.util.Span
  *  - [[Union]] `[A₁, …, Aₙ]`: the object union type `A₁ | … | Aₙ`.
  *  - [[Named]] `[]`: an object variable by name (see [[Tm.Fresh]]).
  *  - [[And]] and [[Or]] take any number of subterms (`Or` of none is the empty disjunction, false).
- *  - [[BoundCol]] `[A]`: the column type `min A` / `max A` of a bound column (REDESIGN §5.2).
+ *  - [[BoundCol]] `[A]`: the column type `min A` / `max A` of a bound column (reference: object/bound-columns).
  */
 enum ObjForm:
   case Loc(span: Span)

@@ -5,7 +5,7 @@ import hugin.obj.{ArithOp, CmpOp}
 import hugin.syntax.AggKind
 import hugin.util.*
 
-/** The reflective types of the prelude (REDESIGN §6.8) and their constructors, by global id. */
+/** The reflective types of the prelude (reference: reflection) and their constructors, by global id. */
 final case class ReflectiveGlobals(
     list: Int,
     snil: Int,
@@ -29,12 +29,12 @@ final case class ReflectiveGlobals(
 enum RKind:
   case Sym, Term, Formula, Rule, Item
 
-  /** A declaration with its attributes (what local directives change, REDESIGN §7.1) and the measure
+  /** A declaration with its attributes (what local directives change, reference: directives) and the measure
    *  of `%terminates`. */
   case Decl, Measure
   case List(elem: RKind)
 
-/** The reflective embedding (REDESIGN §6.8): the prelude's types `term`, `formula`, `rule`, `item` (and
+/** The reflective embedding (reference: reflection): the prelude's types `term`, `formula`, `rule`, `item` (and
  *  `seq` of them, `module = seq item`), found by name in the prelude (or, without it, in the file),
  *  how expected types are classified, and the constructors of reflective data. */
 trait Reflective:

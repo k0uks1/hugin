@@ -1,4 +1,4 @@
-(* Reflection (docs/REDESIGN.md §6.9): the core step of %demand for one relation, written with quoted
+(* Reflection (reference: reflection): the core step of %demand for one relation, written with quoted
    patterns. `guard` adds the demand relation to the rules of `typed` and `propagate` passes demand to
    the recursive calls; the rules are reflected back into the program by the item `$guardAll rules.`
    (`typed_check` stands for `typed.check`, which Phase C3 names). The generated rules are shown with

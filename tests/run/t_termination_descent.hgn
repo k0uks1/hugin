@@ -1,4 +1,4 @@
-(* Descent along derivations (A, docs/REDESIGN.md §4.2): size-change graphs from a premise to the derived
+(* Descent along derivations (A, reference: object/termination): size-change graphs from a premise to the derived
    fact, without annotations *)
 
 (* data terms: every derived numeral is a proper subterm of its premise *)

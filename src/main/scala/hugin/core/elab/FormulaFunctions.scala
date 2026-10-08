@@ -5,7 +5,7 @@ import hugin.obj.CmpOp
 import hugin.syntax.TreeOps
 import hugin.syntax.Trees.*
 
-/** Formula functions defined by clauses (REDESIGN §6.7): `f : τ̄ -> prop.` with rules `f t̄ⱼ :- ψⱼ.` as its
+/** Formula functions defined by clauses (reference: modules): `f : τ̄ -> prop.` with rules `f t̄ⱼ :- ψⱼ.` as its
  *  clauses defines `f = [x̄] ⟨(x̄ = t̄₁, ψ₁) ; … ; (x̄ = t̄ₖ, ψₖ)⟩`. The variables of a clause are local to
  *  it: they are bound by `fresh` ([[Tm.Fresh]]), so that each application gets its own (hygiene). A
  *  formula function without clauses is false (W0005). */

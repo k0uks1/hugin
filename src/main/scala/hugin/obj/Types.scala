@@ -56,7 +56,7 @@ enum RelKind:
  *  declaration (`cols`, `result`, `instanceOf`) is filled in when the symbol is created, by the handover
  *  from the meta level or the phase that introduces it; what later phases learn about it is in
  *  [[ProgramFacts]] (directives) and the core IR (runtime tags). Every constructor and struct is a fact
- *  constructor (REDESIGN §3.2), also the relation of its facts. */
+ *  constructor (reference: object/facts), also the relation of its facts. */
 final class RelSym(val name: String, val kind: RelKind, val span: Span, val origin: Origin):
   val id: Int = SymIds.next()
   var cols: Vector[Column] = Vector.empty
@@ -65,13 +65,13 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
   var result: Option[OType] = None
   var instanceOf: Option[(RelSym, List[OType])] = None
 
-  /** For a relation derived from another by a directive (`typed.check` from `typed`, REDESIGN §7.4): the
+  /** For a relation derived from another by a directive (`typed.check` from `typed`, reference: directives): the
    *  display name of that relation. Provenance for diagnostics only. */
   var derivedFrom: Option[String] = None
 
   def arity: Int = cols.length
 
-  /** The kind of the relation's bound column (`min τ` / `max τ`, docs/REDESIGN.md §5.2), which is its last
+  /** The kind of the relation's bound column (`min τ` / `max τ`, reference: object/bound-columns), which is its last
    *  column; `None` for constructors (bound columns are only allowed on relations, E0605). */
   def boundColumn: Option[hugin.syntax.Bound] =
     if kind == RelKind.Ctor || kind == RelKind.Struct then None else cols.lastOption.flatMap(_.bound)

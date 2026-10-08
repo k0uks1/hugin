@@ -1,4 +1,4 @@
-(* Quoted patterns (docs/REDESIGN.md §6.9): `flip` swaps the arguments of binary atoms; names in patterns
+(* Quoted patterns (reference: reflection): `flip` swaps the arguments of binary atoms; names in patterns
    resolve to symbols, so a pattern on `edge` does not match the relation `edge` of a module, which
    shadows it in the module's own body; literals and the object wildcard are matched as written. *)
 node : type.

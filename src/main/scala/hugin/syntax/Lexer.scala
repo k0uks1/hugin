@@ -10,9 +10,9 @@ enum Tok:
   // symbols
   case Turnstile, Query, Arrow, SubT, Neq, Le, Ge, DotDot, Period, Select, Comma, Semi, Colon,
     Bar, Eq, Lt, Gt, Plus, Minus, Star, Slash, Caret, LParen, RParen, LBrace, RBrace, LBrack, RBrack
-  // the meta level's `$` (splice, REDESIGN §6.9), `⇑` (lift) and `where`
+  // the meta level's `$` (splice, reference: meta/staging), `⇑` (lift) and `where`
   case Dollar, Up, KwWhere
-  // `::`, the meta level's list constructor (reflection, REDESIGN §6.9)
+  // `::`, the meta level's list constructor (reference: reflection)
   case ColonColon
   case EOF, Error
 

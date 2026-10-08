@@ -8,7 +8,7 @@ import hugin.util.*
 /** Records: record types with dependent fields (a telescope: later fields may mention earlier labels),
  *  record values, projections — also of object facts by column label (`I.price` for `I : item` where
  *  `item : (name : string) -> (price : int) -> rel`). Modules will be record values and signatures record
- *  types (REDESIGN §6.7). */
+ *  types (reference: modules). */
 trait Records:
   self: Elaborator =>
   import core.*

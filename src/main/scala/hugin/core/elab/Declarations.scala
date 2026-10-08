@@ -5,7 +5,7 @@ import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Declarations and definitions (REDESIGN §6.2, §6.4):
+/** Declarations and definitions (reference: meta/universes, meta/clauses):
  *
  *  - `x : A.` declares a constant. Classification by the universe of its type: an object type (`expr :
  *    type.`), object constructor (`lam : name -> expr -> expr.`) or relation (`edge : node -> node ->
@@ -87,7 +87,7 @@ trait Declarations:
 
   /** The type of a declaration and the stage of the declared constant.
    *
-   *  The type is inferred, which classifies the constant (REDESIGN §6.2): an object constant if its type
+   *  The type is inferred, which classifies the constant (reference: meta/universes): an object constant if its type
    *  is the type of an object type, constructor or relation ([[isObjectConstantType]]), otherwise the type
    *  is checked as a meta type (so `f : int -> int.` is a meta function on meta integers). The types of
    *  implicit binders are unknown: they are tried as meta types first (`vcons : A -> vec A N -> …`), then
