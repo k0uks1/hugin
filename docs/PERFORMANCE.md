@@ -376,3 +376,99 @@ little; removing the prelude's elaboration from the cold path would need an on-d
 (an `.olean`-style serialised core, ranked plan step 4; estimated cold one-line ~1.65 → ~1.0 s, minus
 the floor ~1.1 → ~0.45 s, for a serialiser of the core state of ~800 lines). **The designer rejected
 this option; it is not considered.** The estimate is kept here for the record.
+
+### Milestone 2 (`feat/perf-2`): evaluator, remaining elaboration costs, final numbers
+
+Changes:
+
+* **Evaluator** (`runtime/Engine.scala`, `runtime/Store.scala`; within the scope note: same semi-naive
+  strategy, simple indexes):
+  - `Key.hashCode` was `java.util.Arrays.hashCode`, a polynomial hash under which `(a, b)` and
+    `(a + 1, b - 31)` collide: tuples over small integers (node numbers, identities) formed long hash
+    chains — a pathological case. Now MurmurHash3 of the elements (consistent with `Key.equals`).
+  - Unboxed index buckets (`IntBuf`); the semi-naive window computed inline from the index of the delta
+    atom (no closure, no tuple per scan); a scan's index looked up once per scan, not per probe; tuples
+    found through the index of the checked columns are not checked again (index equality implies the
+    check's `==`); registers and constants evaluated without an `Option` (`word`); `Relation.append`
+    with plain loops.
+  - A delta variant of a rule is skipped when its delta atom's delta is empty (Soufflé does the same).
+* **Elaboration**: `Reflective.reflectiveGlobals` repeats its lookup of ~50 names only after the names
+  changed (`NameScope.version`); meta size-change calls are printed only for a reported E0912;
+  `SplitProblem.telescopeOrder` reads back each type once; `MemoKeys` builds the shapes of frequent
+  terms directly.
+* **Start-up**: `hugin --help`'s usage text is rendered when shown.
+* The on-disk elaborated prelude was estimated and rejected by the designer (see milestone 1).
+
+Correctness: golden, runtime, IR, fuzz (short run, including the naive-evaluator differential test),
+core, compiler, CLI and util suites; the whole non-fuzz suite at the end (928 tests, all pass).
+
+#### Final numbers (after milestone 2; same machine and method)
+
+**Metric 1, prelude.** The warm uncached elaboration is the elaborator's own speed (no cache); the warm
+one-line compile is what a compilation pays for the prelude in a running JVM (the process-wide cache);
+both measured with the same harness on the baseline and the final build, after 5 and after 30 warm-up
+runs (median of 21):
+
+| measurement | warm-up | baseline | final | factor |
+|---|---|---:|---:|---:|
+| prelude elaboration (uncached, direct) | 5 | 94 ms | 48 ms | 2.0× |
+| prelude elaboration (uncached, direct) | 30 | 64 ms | 28 ms | 2.3× |
+| compile one-line program (check, new database) | 5 | 138 ms | 7.2 ms | 19× |
+| compile one-line program (check, new database) | 30 | 125 ms | 5.0 ms | 25× |
+| cold `hugin check` one-line (new JVM, median of 5) | — | 1 901 ms | 1 471 ms | 1.3× |
+| cold minus the JVM floor (`hugin --help`, ~520 ms) | — | 1 381 ms | ~950 ms | 1.45× |
+
+**Metric 2, bench set** (warm: median of 11 after 10 warm-up runs; cold: new JVM, median of 5):
+
+| program | warm baseline | warm final | factor | cold baseline | cold final | factor |
+|---|---:|---:|---:|---:|---:|---:|
+| check one-line | 136 ms | 6.2 ms | 22× | 1 901 ms | 1 471 ms | 1.3× |
+| run a01_transitive_closure | 133 ms | 11.7 ms | 11× | 2 072 ms | 1 718 ms | 1.2× |
+| run a05_stratified | 165 ms | 15.3 ms | 11× | 2 134 ms | 1 760 ms | 1.2× |
+| run c1_aggregates | 152 ms | 11.0 ms | 14× | 2 188 ms | 1 863 ms | 1.2× |
+| run a04_typechecker | 158 ms | 29.6 ms | 5.3× | 2 307 ms | 2 047 ms | 1.1× |
+| run a10_meta_applicative | 143 ms | 16.3 ms | 8.7× | 2 038 ms | 1 878 ms | 1.1× |
+| run f_modules | 151 ms | 17.0 ms | 8.9× | 2 213 ms | 1 801 ms | 1.2× |
+| run c1_roundtrip | 128 ms | 8.8 ms | 15× | 2 055 ms | 1 846 ms | 1.1× |
+| run c2_module_wide | 141 ms | 11.1 ms | 13× | 2 101 ms | 1 881 ms | 1.1× |
+| run meta_scaled | 9 561 ms | 671 ms | 14× | 12 110 ms | 3 246 ms | 3.7× |
+| run tc_chain | 847 ms | 321 ms | 2.6× | 3 108 ms | 2 349 ms | 1.3× |
+| run shortest_grid | 307 ms | 79 ms | 3.9× | 2 578 ms | 2 433 ms | 1.06× |
+| run strata | 500 ms | 272 ms | 1.8× | 3 082 ms | 2 468 ms | 1.25× |
+| check gen_large | 16 896 ms | 857 ms | 20× | 16 346 ms | 4 917 ms | 3.3× |
+| run gen_large | 17 310 ms | 867 ms | 20× | 16 777 ms | 5 102 ms | 3.3× |
+
+**Metric 3, test suite** (`testOnly * -hugin.fuzz.*`, sbt's total time of the test task):
+**463 s → 42 s (11×)**, 917 → 928 tests. Slowest suites now (seconds): ItemQueriesSuite 23 (was 267),
+IncrementalSuite 4.4 (77), obj.check.SizeChangeSuite 1.5 (44), LibraryQueriesSuite 1.4, HandoverSuite
+1.3, GoldenTests 1.3 (17), FileDiagnosticsSuite 0.8 (14), ExplanationsSuite 0.7 (10). On CI, "Build
+and test" went from 7–9 min to ~2.5–3 min after milestone 1 (of which ~2 min compile).
+
+#### Where 8× was not reached, and why
+
+* **Cold runs** (metric 1 cold, all of metric 2 cold for small and meta programs): a new JVM spends
+  ~0.5 s before compiling anything (`hugin --help`), and the rest is dominated by running the elaborator
+  for the first time — interpreted and JIT-compiled code, where the same work takes ~30–50 ms warm. The
+  elaborator's algorithmic costs are gone (warm uncached prelude 2–2.3× faster, everything
+  per-compilation 10–25×), but a cold JVM does not profit proportionally. What would change it — an
+  on-disk elaborated prelude, or JVM start-up techniques (class-data sharing, native images) — was
+  rejected or excluded by the designer.
+* **Uncached prelude elaboration** (2–2.3×): what remains is genuine elaboration work spread thinly
+  (bidirectional checking of clause bodies ~30 %, clause compilation, evaluation); the next steps would
+  be smalltt's glued values and approximate unification (Other opportunities 3–4), which change printed
+  terms and need a design decision.
+* **Datalog-heavy runs** (1.8–3.9× warm): within the scope note the evaluator keeps its strategy;
+  the rest is boxed words, `Key` arrays per probe and tuple, and parsing large facts files with the
+  program parser.
+
+#### Remaining opportunities
+
+* ItemQueriesSuite (23 s, now half the suite) is dominated by the JIT and by compiling every golden
+  program from scratch 17 times per test; its from-scratch compilations are what it tests.
+* `MemoKeys` retains every stable value it read back for the core's lifetime (100–250 MB live on
+  meta_scaled); a bounded or weak cache would cut GC pauses at some recomputation.
+* Facts files are parsed by the program parser (24 % of `strata`); a dedicated fact reader would be
+  faster but must report the same diagnostics.
+* The ranked plan's items not done: approximate unification and glued values (also "Other
+  opportunities"), size-change subsumption with the Ben-Amram–Lee criterion.
+
