@@ -44,15 +44,22 @@ enum ObjDecl:
   case Struct(fact: Boolean)
 
 /** A top-level entity. `ty` is its type (closed), `stage` the stage of its type's universe, `span` the
- *  position of its name and `declSpan` that of its whole declaration. */
+ *  position of its name and `declSpan` that of its whole declaration.
+ *
+ *  An object relation, constructor or struct may be *pending*: declared before its declaration is
+ *  elaborated, so that object declarations can refer to each other in cycles (`abs : (body : term) ->
+ *  rel.  term : type = var | abs.`). A pending constant can only be used as a type (its fact type); its
+ *  type is the placeholder `rel` until its declaration sets the real one (see
+ *  [[elab.ObjectDecls.predeclare]]). Only the declaration phase sees pending constants. */
 final class GlobalEntry(
     val name: Name,
-    val ty: Val,
-    val tyTm: Tm,
+    var ty: Val,
+    var tyTm: Tm,
     val stage: Stage,
     var kind: GlobalKind,
     val span: Span,
-    val declSpan: Span = Span.NoSpan
+    val declSpan: Span = Span.NoSpan,
+    var pending: Boolean = false
 )
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).

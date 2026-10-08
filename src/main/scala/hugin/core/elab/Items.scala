@@ -20,7 +20,9 @@ trait Items:
       case _: Rule | _: Query | _: Directive => true
       case _ => false
     }
+    predeclare(meta)
     elabInDependencyOrder(meta)
+    dropPending()
     elabClauseGroups(clauses)
     obj.foreach(elabItemReporting)
     finish()

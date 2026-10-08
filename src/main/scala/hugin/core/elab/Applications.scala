@@ -75,7 +75,7 @@ trait Applications:
         unifyAt(c, f.span, Val.Pi("x", Icit.Expl, dom, Closure(c.env, cod)), fty)
         val at = check(c, a, dom, fs)
         (Tm.App(ft, at, Icit.Expl), eval(ev(c, at) :: c.env, cod), fs)
-      case other => notAFunction(c, f, a, other)
+      case other => notAFunction(c, f, a, other, ft)
 
   /** Meta code of an object function type `⇑(A -> B)` (a relation or constructor passed around at the
    *  meta level) is applied at the object level: it is spliced. */
@@ -86,7 +86,8 @@ trait Applications:
         case _ => r
     case _ => r
 
-  private def notAFunction(c: Cxt, f: Tree, a: Tree, ty: Val): Nothing =
+  private def notAFunction(c: Cxt, f: Tree, a: Tree, ty: Val, ft: Tm): Nothing =
+    requireDeclared(ft)
     val why = ty match
       case Val.RelT | Val.PropT => "it is already a complete atom: too many arguments"
       case _ => s"its type `${show(c, ty)}` is not a function type"

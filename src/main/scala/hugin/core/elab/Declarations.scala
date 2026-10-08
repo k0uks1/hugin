@@ -23,6 +23,14 @@ trait Declarations:
 
   /** Adds a global and its item; a name may be declared once per module. */
   def declare(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span = Span.NoSpan): Int =
+    scope.get(name.name).filter(id => globals(id).pending && globals(id).declSpan == declSpan) match
+      case Some(id) if stage == Stage.S0 => completePending(id, ty, kind)
+      case Some(_) =>
+        scope.remove(name.name) // not the object constant its syntax suggested
+        declareNew(name, ty, stage, kind, declSpan)
+      case None => declareNew(name, ty, stage, kind, declSpan)
+
+  private def declareNew(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span): Int =
     if scope.contains(name.name) then
       fail(
         Diagnostic.error("E0102", s"duplicate declaration of `${name.name}`", name.span, "declared again here")

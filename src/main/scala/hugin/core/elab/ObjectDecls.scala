@@ -74,3 +74,51 @@ trait ObjectDecls:
         )
       case _ => error("E0404", "the target of a subtyping edge must be an open type", e.sup.span)
     items += CoreItem.EdgeItem(zonk(Nil, 0, sub), zonk(Nil, 0, sup), e.span)
+
+  // ------------------------------------------------------------------ cycles between object declarations
+
+  /** Declares the object relations, structs and constructors among `items` as pending globals (see
+   *  [[GlobalEntry]]), so that declarations elaborated before them can use them as types. Constructors
+   *  are recognised by a result type declared `x : type.` in the module. */
+  def predeclare(items: List[Item]): Unit =
+    val objectTypes = items.collect { case d: Decl if d.tpe == Keyword(Kw.Type) && d.defn.isEmpty => d.name.name }.toSet
+    for d <- items.collect { case d: Decl => d } if !scope.contains(d.name.name) && d.params.isEmpty do
+      shapeOf(d, objectTypes).foreach { kind =>
+        val id = addGlobal(GlobalEntry(d.name.name, Val.RelT, Tm.RelT, Stage.S0, GlobalKind.Object(kind), d.name.span, d.span, pending = true))
+        scope(d.name.name) = id
+      }
+
+  /** The kind of object constant a declaration declares, if its syntax tells. */
+  private def shapeOf(d: Decl, objectTypes: Set[Name]): Option[ObjDecl] =
+    if isStructDecl(d) then Some(ObjDecl.Struct(d.fact))
+    else if d.defn.isDefined || d.sup.isDefined then None
+    else if endsInRel(d.tpe) then Some(ObjDecl.Relation)
+    else
+      hugin.syntax.TreeOps.flattenArrow(d.tpe) match
+        case (_ :: _, Ident(n)) if objectTypes(n) => Some(ObjDecl.Constructor(d.fact))
+        case _ => None
+
+  /** Sets the type of a pending global, now that its declaration is elaborated. */
+  def completePending(id: Int, ty: Tm, kind: GlobalKind): Int =
+    val g = globals(id)
+    g.tyTm = ty
+    g.ty = eval(Nil, ty)
+    g.kind = kind
+    g.pending = false
+    items += CoreItem.GlobalItem(id)
+    id
+
+  /** Removes the pending globals whose declarations failed: their uses are unresolved names. */
+  def dropPending(): Unit =
+    scope.filterInPlace((_, id) => !globals(id).pending)
+
+  /** A pending global at the head of `t` cannot be applied yet: the item is retried after its declaration. */
+  def requireDeclared(t: Tm): Unit =
+    def head(t: Tm): Tm = Tm.unloc(t) match
+      case Tm.App(f, _, _) => head(f)
+      case other => other
+    head(t) match
+      case Tm.Global(id) if globals(id).pending =>
+        throw ElabError(Diagnostic.error("E0101", s"`${globals(id).name}` is used before its declaration", globals(id).span), Some(globals(id).name))
+      case _ =>
+
