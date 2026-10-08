@@ -1,0 +1,22 @@
+# The Hugin language reference (mdBook). Build with `mdbook build reference`; see README.md.
+[book]
+title = "The Hugin Reference"
+description = "The language reference of Hugin, a two-level typed Datalog."
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+# the error index: one page per docs/errors/<code>.md, added on every build
+[preprocessor.error-index]
+command = "python3 error-index.py"
+
+[output.html]
+# the path of the published site (site-url.txt holds the full URL); used for the 404 page
+site-url = "/hugin/"
+additional-css = ["hugin.css"]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/k0uks1/hugin"
