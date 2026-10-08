@@ -1,0 +1,32 @@
+package hugin.core
+package elab
+
+import hugin.syntax.Trees.Import
+
+/** Imports (REDESIGN §6.7, docs/LIBRARIES.md): `%import "f"` is the module value of the file `f`, a
+ *  record of its declarations, elaborated once per compilation (so every import of a file denotes the
+ *  same object constants). Its type is the record type of the declarations' types; since they refer to
+ *  the file's constants themselves, ascribing a signature (`s : sig = %import "f".`) is transparent. A
+ *  file that is missing or closes a cycle (reported as E0108 by the import graph) is the empty module. */
+trait Imports:
+  self: Elaborator =>
+  import core.*
+
+  def inferImport(imp: Import): (Tm, Val, Stage) =
+    val path = hugin.compiler.ImportsPhase.resolve(imp, file.path)
+    val m = file.imports.getOrElse(path, ImportedModule(Tm.Rec(Nil), Tm.RecTy(Nil)))
+    (m.value, eval(Nil, m.ty), Stage.S1)
+
+  /** The module value of the file elaborated by this elaborator: its declarations in order. */
+  def moduleValue: ImportedModule =
+    val fields = scope.toList.flatMap((n, id) => field(id).map((n, _)))
+    ImportedModule(Tm.Rec(fields.map((n, f) => (n, f._1))), Tm.RecTy(fields.map((n, f) => (n, f._2))))
+
+  /** A declaration as a field: an object constant is object code (`⟨c⟩ : ⇑τ`), anything else itself. */
+  private def field(id: Int): Option[(Tm, Tm)] =
+    val g = globals(id)
+    if g.pending then None
+    else
+      g.kind match
+        case GlobalKind.Object(_) => Some((Tm.Quote(Tm.Global(id)), Tm.Lift(g.tyTm)))
+        case _ => Some((Tm.Global(id), g.tyTm))

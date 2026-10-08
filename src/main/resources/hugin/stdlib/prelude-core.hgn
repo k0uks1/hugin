@@ -1,0 +1,39 @@
+(* The Hugin prelude, in the syntax of the new meta level (docs/REDESIGN.md §6). It is included in every
+   program unless `--no-prelude` is given; its names are in scope everywhere and can be shadowed by the
+   program. Families and functors cost nothing unless they are used. The base types `int`, `float` and
+   `string` are built in. *)
+
+(* Lists (Section 13.3). `nil` and `cons` are data constructors: lists are values, not facts. *)
+list A : type.
+nil : list A.
+cons : A -> list A -> list A.
+
+(* The length of a given list: moded, so it is computed on demand for the lists that are asked about. *)
+len : (l : list A) -> (n : int) -> rel.
+%mode len +l -n.
+%terminates l len.
+len nil 0.
+len (cons _ L) M :- len L N, M = N + 1.
+
+(* Optional values and pairs *)
+option A : type.
+none : option A.
+some : A -> option A.
+
+pair A B : type = { fst : A, snd : B }.
+
+(* Graphs (Section 13.1): a signature, and functors over it *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+
+bounded (g : graph) (limit : int) = {
+  hop : g.node -> g.node -> int -> rel.
+  %terminates N (hop _ _ N).
+  hop X Y 1 :- g.edge X Y.
+  hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
+}.

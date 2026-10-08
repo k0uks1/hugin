@@ -17,24 +17,54 @@ final class Handover(core: Core, reporter: Reporter):
 
   def program(items: List[CoreItem]): ObjProgram =
     val ordered = items.sortBy(staging.position)
-    symbols.declare(ordered.collect { case CoreItem.GlobalItem(id) => id })
+    symbols.declare(objectConstants)
     val (genericRules, rules) = ordered.collect { case r: CoreItem.RuleItem => r }.partition(_.generic)
     val (genericDirs, dirs) = ordered.collect { case d: CoreItem.DirectiveItem => d }.partition(isGeneric)
+    val own = ordered.filter {
+      case r: CoreItem.RuleItem => !r.generic
+      case d: CoreItem.DirectiveItem => !isGeneric(d)
+      case _ => true
+    }.flatMap(item => stage(item, Nil, "").map(staging.position(item) -> _))
+    // module instances' items are placed at the item that created the instance (staging may create more)
+    val all = (own ++ moduleItems()).sortBy(_._1).map(_._2)
     // the generic rules come last: they are staged at the instances everything else uses
-    val plain = rules.flatMap(rule(_))
-    val queries = ordered.collect { case q: CoreItem.QueryItem => query(q) }.flatten
-    val edges = ordered.collect { case e: CoreItem.EdgeItem => edge(e) }.flatten
-    val directives = dirs.flatMap(directive(_))
     val instantiated = Generics(core, symbols, reporter, this).rules(genericRules)
-    val modules = moduleItems()
     ObjProgram(
       symbols.allTypes,
       symbols.allRelations,
-      (edges ++ modules.edges).toVector,
-      (plain ++ modules.rules ++ instantiated).toVector,
-      (queries ++ modules.queries).toVector,
-      (directives ++ modules.directives ++ genericDirs.flatMap(instanceDirectives)).toVector
+      all.collect { case e: obj.Edge => e }.toVector,
+      (all.collect { case r: obj.Rule => r } ++ instantiated).toVector,
+      all.collect { case q: obj.Query => q }.toVector,
+      (all.collect { case d: obj.Directive => d } ++ genericDirs.flatMap(instanceDirectives)).toVector
     )
+
+  /** The object constants that are not instances of families, in the order of their declarations (module
+   *  instances' constants at the item that created the instance). */
+  private def objectConstants: List[Int] =
+    globals.indices.toList
+      .filter(id => globals(id).kind.isInstanceOf[GlobalKind.Object] && globals(id).instanceOf.isEmpty && !globals(id).pending)
+      .sortBy(id => if globals(id).order >= 0 then globals(id).order else positionOf(globals(id).declSpan))
+
+  private type Staged = obj.Rule | obj.Query | obj.Edge | obj.Directive
+
+  /** An item staged in the environment `base` (of a module instance, or empty), rule names qualified with
+   *  `prefix`. */
+  private def stage(item: CoreItem, base: List[Val], prefix: String): Option[Staged] = item match
+    case r: CoreItem.RuleItem => rule(r, base, prefix)
+    case q: CoreItem.QueryItem => query(q, base)
+    case e: CoreItem.EdgeItem => edge(e, base)
+    case d: CoreItem.DirectiveItem => directive(d, base, prefix)
+    case _: CoreItem.GlobalItem => None
+
+  /** The items of all module instances with their positions (staging may create further instances). */
+  private def moduleItems(): List[(Int, Staged)] =
+    val out = scala.collection.mutable.ListBuffer.empty[(Int, Staged)]
+    var k = 0
+    while k < moduleInstances.length do
+      val i = moduleInstances(k)
+      out ++= i.body.items.flatMap(stage(_, i.env, i.prefix)).map(i.position -> _)
+      k += 1
+    out.toList
 
   /** A directive about a family (`%mode len +l -n.`) applies to each of its instances. */
   private def isGeneric(d: CoreItem.DirectiveItem): Boolean = d.target.exists(t => familyOf(t).isDefined)
@@ -55,7 +85,7 @@ final class Handover(core: Core, reporter: Reporter):
     val env = vars.indices.reverse.map(Val.local).toList ++ base
     val names = vars.map(_._1).reverse
     // the base environment is closed: only the variables of the item are bound
-    val normal = at(siteOf(span), "")(parts.map(p => quote(vars.length, eval(env, p))))
+    val normal = at(span, "")(parts.map(p => quote(vars.length, eval(env, p))))
     if !normal.forall(staging.objectCode(names, _, span)) then None
     else
       try Some(f(ObjectTerms(core, symbols, names, span), normal))
@@ -63,39 +93,6 @@ final class Handover(core: Core, reporter: Reporter):
         case e: NotObjectCode =>
           reporter.report(e.diagnostic)
           None
-
-  /** The items of a module instance, staged in the instance's environment `base`, rule names qualified
-   *  with its prefix. */
-  private def instanceItems(i: ModuleInstance): List[obj.Rule | obj.Query | obj.Edge | obj.Directive] =
-    i.body.items.flatMap {
-      case r: CoreItem.RuleItem => rule(r, i.env, i.prefix)
-      case q: CoreItem.QueryItem => query(q, i.env)
-      case e: CoreItem.EdgeItem => edge(e, i.env)
-      case d: CoreItem.DirectiveItem => directive(d, i.env, i.prefix)
-      case _: CoreItem.GlobalItem => None
-    }
-
-  private final class Staged(
-      val rules: List[obj.Rule],
-      val queries: List[obj.Query],
-      val edges: List[obj.Edge],
-      val directives: List[obj.Directive]
-  )
-
-  /** The items of all module instances (staging may create further instances). */
-  private def moduleItems(): Staged =
-    val out = scala.collection.mutable.ListBuffer.empty[obj.Rule | obj.Query | obj.Edge | obj.Directive]
-    var k = 0
-    while k < moduleInstances.length do
-      out ++= instanceItems(moduleInstances(k))
-      k += 1
-    val all = out.toList
-    Staged(
-      all.collect { case r: obj.Rule => r },
-      all.collect { case q: obj.Query => q },
-      all.collect { case e: obj.Edge => e },
-      all.collect { case d: obj.Directive => d }
-    )
 
   private def qualify(prefix: String, name: String): String = if prefix.isEmpty then name else s"$prefix.$name"
 

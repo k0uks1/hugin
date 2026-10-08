@@ -66,7 +66,10 @@ final class GlobalEntry(
     val declSpan: Span = Span.NoSpan,
     var pending: Boolean = false,
     /** For an instance of a family: the family and the (closed, normal) arguments. */
-    val instanceOf: Option[(Int, List[Tm])] = None
+    val instanceOf: Option[(Int, List[Tm])] = None,
+    /** Where the constant is placed in the object program (the object level orders the members of a
+     *  closed type by symbol id): its declaration, or the item that created a module instance. */
+    val order: Int = -1
 )
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).

@@ -15,7 +15,7 @@ trait Names:
   val builtinTypes: Map[String, BaseType] =
     Map("int" -> BaseType.IntT, "float" -> BaseType.FloatT, "string" -> BaseType.StringT)
 
-  private def lookupGlobal(n: Name): Option[Int] = scope.get(n)
+  private def lookupGlobal(n: Name): Option[Int] = scope.get(n).orElse(file.parent.get(n))
 
   def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
     c.scope.get(n) match
@@ -33,7 +33,7 @@ trait Names:
               case None => unresolved(c, n, span)
 
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
-    val candidates = (c.scope.keys ++ scope.keys).toList.distinct
+    val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
     val similar = candidates
       .filter(k => k != n && org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance.apply(k, n) <= 2)
       .sorted

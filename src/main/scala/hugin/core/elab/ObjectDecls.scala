@@ -103,7 +103,16 @@ trait ObjectDecls:
     for d <- items.collect { case d: Decl => d } if !scope.contains(d.name.name) && d.params.isEmpty do
       shapeOf(d, objectTypes).foreach { kind =>
         val id =
-          addGlobal(GlobalEntry(d.name.name, Val.RelT, Tm.RelT, Stage.S0, GlobalKind.Object(kind), d.name.span, d.span, pending = true))
+          addGlobal(GlobalEntry(
+            file.objectName(d.name.name),
+            Val.RelT,
+            Tm.RelT,
+            Stage.S0,
+            GlobalKind.Object(kind),
+            d.name.span,
+            d.span,
+            pending = true
+          ))
         scope(d.name.name) = id
       }
 
@@ -138,5 +147,6 @@ trait ObjectDecls:
       case other => other
     head(t) match
       case Tm.Global(id) if globals(id).pending =>
-        throw ElabError(ObjectProblem.UsedBeforeDeclaration(globals(id).name, globals(id).span).toDiagnostic, Some(globals(id).name))
+        val name = scope.collectFirst { case (n, i) if i == id => n }.getOrElse(globals(id).name)
+        throw ElabError(ObjectProblem.UsedBeforeDeclaration(name, globals(id).span).toDiagnostic, Some(name))
       case _ =>

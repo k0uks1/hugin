@@ -37,7 +37,9 @@ trait Declarations:
         Legacy.error(DiagCode.E0102, s"duplicate declaration of `${name.name}`", name.span, "declared again here")
           .withLabel(globals(scope(name.name)).span, "first declared here")
       )
-    val id = addGlobal(GlobalEntry(name.name, eval(Nil, ty), ty, stage, kind, name.span, declSpan))
+    val objectLike = stage == Stage.S0 || kind.isInstanceOf[GlobalKind.Family]
+    val gname = if objectLike then file.objectName(name.name) else name.name
+    val id = addGlobal(GlobalEntry(gname, eval(Nil, ty), ty, stage, kind, name.span, declSpan))
     scope(name.name) = id
     items += CoreItem.GlobalItem(id)
     id

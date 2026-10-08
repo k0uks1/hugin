@@ -9,6 +9,25 @@ import scala.collection.mutable
 final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None)
     extends Exception(diag.message, null, false, false)
 
+/** The module value of an imported file: a record of its declarations (closed terms). */
+final case class ImportedModule(value: Tm, ty: Tm)
+
+/** Where the items of a file are elaborated: its path, the qualifier of its object constants' names
+ *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names
+ *  qualified with `prelude` instead (the prelude's declarations the program redeclares), the names of
+ *  the enclosing scope (the prelude's), and the module values of the files it may import. */
+final case class FileEnv(
+    path: String = "",
+    qualifier: String = "",
+    shadowed: Set[Name] = Set.empty,
+    parent: Map[Name, Int] = Map.empty,
+    imports: Map[String, ImportedModule] = Map.empty
+):
+  /** The name of an object constant declared as `n`. */
+  def objectName(n: Name): Name =
+    val q = if shadowed(n) then "prelude" else qualifier
+    if q.isEmpty then n else s"$q.$n"
+
 /** What an elaboration has produced so far: the top-level names in scope and the elaborated items. */
 final class ElabState:
   val scope: mutable.LinkedHashMap[Name, Int] = mutable.LinkedHashMap.empty
@@ -47,7 +66,7 @@ final class ElabState:
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics.
  */
-class Elaborator(val core: Core, val reporter: Reporter)
+class Elaborator(val core: Core, val reporter: Reporter, val file: FileEnv = FileEnv())
     extends Contexts
     with ElabErrors
     with Names
@@ -72,6 +91,7 @@ class Elaborator(val core: Core, val reporter: Reporter)
     with DataConstructors
     with FormulaFunctions
     with ModuleBodies
+    with Imports
     with ObjectItems:
   val state: ElabState = ElabState()
   def scope: mutable.LinkedHashMap[Name, Int] = state.scope

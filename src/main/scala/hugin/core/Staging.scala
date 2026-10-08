@@ -63,11 +63,11 @@ final class Staging(core: Core, reporter: Reporter):
   /** The position of an item in the source: items are staged and printed in source order (elaboration
    *  may have deferred some). */
   def position(item: CoreItem): Int = item match
-    case CoreItem.GlobalItem(id) => globals(id).span.start
-    case r: CoreItem.RuleItem => r.span.start
-    case q: CoreItem.QueryItem => q.span.start
-    case e: CoreItem.EdgeItem => e.span.start
-    case d: CoreItem.DirectiveItem => d.span.start
+    case CoreItem.GlobalItem(id) => positionOf(globals(id).span)
+    case r: CoreItem.RuleItem => positionOf(r.span)
+    case q: CoreItem.QueryItem => positionOf(q.span)
+    case e: CoreItem.EdgeItem => positionOf(e.span)
+    case d: CoreItem.DirectiveItem => positionOf(d.span)
 
   /** The staged program: declarations, definitions (as elaborated, with inserted quotes, splices and
    *  implicit arguments), and object items after staging. */
