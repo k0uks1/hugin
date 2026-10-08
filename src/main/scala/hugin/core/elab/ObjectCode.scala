@@ -24,9 +24,10 @@ trait ObjectCode:
   import core.*
 
   /** `tm`, elaborated from a tree at `span`, at its position if it is an object term or formula (object
-   *  types carry no positions). The innermost position wins (`(X)` has the position of `X`). */
+   *  types, relations and constructors carry no positions). The innermost position wins (`(X)` has the
+   *  position of `X`). */
   def located(span: Span, tm: Tm, ty: Val, st: Stage): Tm =
-    if st != Stage.S0 || isUniverse(ty) then tm
+    if st != Stage.S0 || isUniverse(ty) || force(ty).isInstanceOf[Val.Pi] then tm
     else
       tm match
         case Tm.Obj(ObjForm.Loc(_), _) => tm

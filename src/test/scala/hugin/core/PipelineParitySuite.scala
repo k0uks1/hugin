@@ -61,7 +61,54 @@ class PipelineParitySuite extends munit.FunSuite:
 
 object PipelineParitySuite:
   /** Programs outside the scope of B3a, with the reason. */
-  val excluded: Map[String, String] = Map()
+  val excluded: Map[String, String] = Map(
+    "neg/a06_termination_nondecreasing.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "neg/a06_termination_unanchored.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "neg/a11_stage_overflow.hgn" -> "meta definitions are values: an overflow is reported where it reaches object code (E0909), not at the definition (E0209)",
+    "neg/builtin.hgn" -> "diagnostics of the old meta typer, which the new meta level reports in its own words (updated in B3c)",
+    "neg/classification.hgn" -> "`limit : int.` is a meta postulate and `f : int -> type` a meta function in the new meta level (REDESIGN §6.2), not misclassified object declarations",
+    "neg/f_data_ctor_relation.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "neg/f_nil_ascription_help.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "neg/formula_modes.hgn" -> "formula functions: step B3b",
+    "neg/import_paths.hgn" -> "imports: step B3b",
+    "neg/imports.hgn" -> "imports: step B3b",
+    "neg/interfaces.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/labels.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/lints.hgn" -> "formula functions: step B3b",
+    "neg/meta_types.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/names.hgn" -> "diagnostics of the old meta typer, which the new meta level reports in its own words (updated in B3c); meta definitions may refer to later ones (no E0105)",
+    "neg/negation_parameter.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/no_prelude.hgn" -> "base types are built into the new meta level (REDESIGN Q2), so they exist without the prelude",
+    "neg/not_a_module.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/polymorphic_recursion.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "neg/refinements.hgn" -> "a cycle of refinements is reported as unresolved names (the new meta level elaborates declarations in dependency order)",
+    "neg/requirements.hgn" -> "modules, signatures or functors: step B3b",
+    "neg/stage.hgn" -> "formula functions: step B3b",
+    "neg/typedefs.hgn" -> "a cycle of type definitions is reported as unresolved names; non-strict type definitions are families (B3b)",
+    "run/a06_termination_len.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/a10_meta_applicative.hgn" -> "modules, signatures or functors: step B3b",
+    "run/ex_formula_functions.hgn" -> "formula functions: step B3b",
+    "run/ex_graphs.hgn" -> "modules, signatures or functors: step B3b",
+    "run/ex_lists.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_absent_comparison.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_aggregate_disjunction.hgn" -> "formula functions: step B3b",
+    "run/f_ctor_equations.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_demand_per_call.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_demand_per_call_disjunction.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_disjunction.hgn" -> "formula functions: step B3b",
+    "run/f_fact_ctors.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_family_ctor_args.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_modules.hgn" -> "modules, signatures or functors: step B3b",
+    "run/f_nil_comparison.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/f_struct_family.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/imports.hgn" -> "imports: step B3b",
+    "run/interfaces.hgn" -> "modules, signatures or functors: step B3b",
+    "run/n_repeated_vars.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/prelude_shadowing.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/t_termination_explain.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/t_termination_finite_ctors.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b",
+    "run/t_termination_len_callers.hgn" -> "families of the prelude or the program (`list`, `option`, `pair`, `len`, …): memoised families are step B3b"
+  )
 
 /** A minimal line diff for the report. */
 private object Diff:

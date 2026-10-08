@@ -74,7 +74,7 @@ trait Universes:
     case Val.Rigid(_, Elim.ESplice :: _) | Val.Flex(_, Elim.ESplice :: _) => Stage.S0
     case Val.Lift(_) => Stage.S1
     case Val.Base(_, st) => st
-    case Val.RelT | Val.PropT | Val.FactTy(_) | Val.U0 => Stage.S0
+    case Val.RelT | Val.PropT | Val.FactTy(_) | Val.U0 | Val.Obj(_, _) => Stage.S0
     case Val.Pi(_, _, d, _) => stageOfType(d)
     case Val.Rigid(Head.Glob(id), _) if isObjectType(id) => Stage.S0
     case _ => Stage.S1

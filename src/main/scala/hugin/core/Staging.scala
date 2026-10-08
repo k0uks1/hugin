@@ -44,7 +44,8 @@ final class Staging(core: Core, reporter: Reporter):
       case Tm.Negate(a, _) => go(a)
       case Tm.Obj(_, as) => as.foreach(go)
       case Tm.Proj(a, _) => go(a)
-      case Tm.Var(_) | Tm.Global(_) | Tm.Lit(_, _) => ()
+      case Tm.FactTy(a) => go(a) // object types in ascriptions
+      case Tm.Var(_) | Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, Stage.S0) => ()
       case other =>
         bad("not object code", s"`${showTm(names, other)}`", "only object terms and formulas can occur in object items")
     go(t)

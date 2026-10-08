@@ -24,5 +24,7 @@ object NewMeta:
   def check(src: SourceFile): List[Diagnostic] =
     val reporter = Reporter()
     val prog = hugin.syntax.Parser.parseMeta2(src, reporter)
-    if !reporter.hasErrors then elaborate(prog.items, reporter).render(reporter)
+    if !reporter.hasErrors then
+      val e = elaborate(prog.items, reporter)
+      if !reporter.hasErrors then e.render(reporter)
     reporter.sorted

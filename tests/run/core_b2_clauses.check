@@ -7,6 +7,7 @@
 //    = note: the clauses before it cover all the cases it matches
 // 
 // 1 warning found
+(* ---------------- after elaborate ---------------- *)
 nat : Type.
 zero : nat.
 suc : nat -> nat.
@@ -35,3 +36,5 @@ total 42.
 isZero : nat -> int.
   isZero zero = 1.
   isZero (suc _) = 0.
+fib 90 2880067194370816120.
+total 42.

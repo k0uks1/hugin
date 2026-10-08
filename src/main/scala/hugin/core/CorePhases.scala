@@ -8,7 +8,6 @@ import hugin.util.Reporter
 final class ElaboratePhase extends Phase:
   def phaseName = "elaborate"
   def description = "elaborate the meta level: types, stages, implicit arguments, totality"
-  override def runsAfterErrors: Boolean = false
   def run(using Context): Unit =
     val u = ctx.unit
     if u.untpd == null then return

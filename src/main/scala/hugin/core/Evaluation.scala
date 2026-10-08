@@ -56,6 +56,7 @@ trait Evaluation:
 
   def app(f: Val, a: Val, i: Icit): Val = f match
     case Lam(_, _, cl) => inst(cl, a)
+    case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
     case Rigid(h, sp) => rigid(h, Elim.EApp(a, i) :: sp)
     case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
     case other => throw Impossible(s"application of a non-function value $other")

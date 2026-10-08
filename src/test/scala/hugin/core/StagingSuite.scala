@@ -40,7 +40,7 @@ class StagingSuite extends munit.FunSuite:
     val e = ok("k : int = 6 * 7.\nq : int -> rel.\nq k.\nq $k.\nq (k + 1).\n")
     assertEquals(e.nfOf("k"), "42")
     assert(e.output.contains("q 42."), e.output.mkString("\n"))
-    assert(e.output.contains("q (42 + 1)."), e.output.mkString("\n"))
+    assert(e.output.contains("q 43."), e.output.mkString("\n"))
   }
 
   test("meta int and object int: `int` in a meta position is the meta primitive, `⇑int` object code") {

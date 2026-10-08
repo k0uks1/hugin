@@ -50,7 +50,7 @@ trait PiTypes:
     case Parens(i) => objectArrow(c, i)
     case Arrow(label, dom, cod) =>
       val (ns, d) = binders(label, dom)
-      val dt = check(c, d, Val.U0, Stage.S0)
+      val dt = columnType(c, d)
       if force(ev(c, dt)) == Val.U0 then
         fail(
           Legacy.error(DiagCode.E0908, "relations and constructors cannot take object types as arguments", d.span, "a type")
@@ -62,7 +62,9 @@ trait PiTypes:
   /** An arrow whose type is inferred: the stage follows from its parts. */
   def inferArrow(c: Cxt, label: Option[Ident], dom: Tree, cod: Tree, span: Span): (Tm, Val, Stage) =
     val (ns, d) = binders(label, dom)
-    val (dt, sd, ud) = metaBinderOverTypes(c, inferU(c, d))
+    val (dt, sd, ud) = d match
+      case _: BoundType => (columnType(c, d), Stage.S0, Val.U0) // validated at the object level
+      case _ => metaBinderOverTypes(c, inferU(c, d))
     def go(cc: Cxt, rest: List[Name]): (Tm, Stage, Val) = rest match
       case Nil => inferU(cc, cod)
       case n :: more =>
