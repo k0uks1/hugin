@@ -41,6 +41,10 @@ enum ElabProblem extends Problem:
   case StructRequirement(at: Span)
   case UsedBeforeDeclaration(name: String, at: Span)
 
+  /** `f : (x : A) -> B = e.` where `e` uses the binder `x` at `at`: the definition's header `header` is
+   *  better written `rewritten` (`f (x : A) : B`). */
+  case TypeBinderInDefinition(name: String, at: Span, header: Span, rewritten: String)
+
   /** `e = e'.` where `e` is not a name applied to patterns: neither a definition nor a clause. */
   case MalformedClause(at: Span)
 
@@ -107,6 +111,7 @@ enum ElabProblem extends Problem:
     case _: StructFieldFact | _: StructRequirement => Code.E0004
     case _: UsedBeforeDeclaration => Code.E0101
     case _: MalformedClause => Code.E0004
+    case _: TypeBinderInDefinition => Code.E0916
     case _: SelfReference => Code.E0105
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
@@ -151,6 +156,7 @@ enum ElabProblem extends Problem:
     case StructRequirement(s) => s
     case UsedBeforeDeclaration(_, s) => s
     case MalformedClause(s) => s
+    case TypeBinderInDefinition(_, s, _, _) => s
     case SelfReference(_, s, _) => s
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
@@ -200,6 +206,7 @@ enum ElabProblem extends Problem:
     case _: StructRequirement => msg"requirements are not allowed in struct declarations"
     case UsedBeforeDeclaration(n, _) => msg"${Src(n)} is used before its declaration"
     case _: MalformedClause => msg"malformed definition"
+    case TypeBinderInDefinition(n, _, _, _) => msg"${Src(n)} is not in scope in the definition"
     case SelfReference(n, _, _) => msg"${Src(n)} refers to itself"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
@@ -229,6 +236,7 @@ enum ElabProblem extends Problem:
     case ClauseArity(n, a, p, _) => msg"clause of ${Src(n)} has $a arguments, but the function takes $p"
 
   override def primaryLabel: Msg = this match
+    case _: TypeBinderInDefinition => msg"not found in this scope"
     case _: NotAnAtom => msg"not a relation atom"
     case NotObjectShape(w, shown, _) => msg"${Src(shown)} is not ${Lit(w)}"
     case _: RestInHead => msg"rest pattern in head"
@@ -281,6 +289,8 @@ enum ElabProblem extends Problem:
     case _ => Nil
 
   override def notes: List[Msg] = this match
+    case TypeBinderInDefinition(n, _, _, _) =>
+      List(msg"${Src(n)} is bound by the declared type: the binders of a type do not scope over the definition")
     case _: RestInHead => List(msg"the omitted columns of a derived fact would be unknown")
     case UnknownLabel(r, _, ls, _, _) =>
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
@@ -335,6 +345,10 @@ enum ElabProblem extends Problem:
     case _ => Nil
 
   override def suggestions: List[Suggestion] = this match
+    case TypeBinderInDefinition(_, _, header, rewritten) =>
+      List(
+        Suggestion.replace(header, rewritten, msg"make the binders parameters: ${Src(rewritten)}", Applicability.MachineApplicable)
+      )
     case MissingLabels(_, ms, head, _, Some(at)) =>
       val add = Suggestion.replace(
         at,

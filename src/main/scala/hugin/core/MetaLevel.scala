@@ -1,6 +1,6 @@
 package hugin.core
 
-import hugin.syntax.Trees.{Decl, Def, Item}
+import hugin.syntax.Trees.Item
 import hugin.util.*
 
 /** A program elaborated by the meta level: the core state, the elaborated items of all its files (the

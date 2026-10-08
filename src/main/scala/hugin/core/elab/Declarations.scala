@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.Code as DiagCode
 
 /** Declarations and definitions (REDESIGN §6.2, §6.4):
  *
@@ -71,13 +70,20 @@ trait Declarations:
     }
     (c, out)
 
-  /** The context of a declaration's type: its implicit binders, then its parameters. */
-  private def declContext(d: Decl, base: Cxt): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
+  /** The context of a declaration's type: its implicit binders, then its parameters (an untyped one is
+   *  typed by `untyped`). */
+  private def declContext(d: Decl, base: Cxt, untyped: (Cxt, VarRef) => Tm = objectTypeParam): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
     val paramNames = d.params.map(_.nameString).toSet
     val paramTypes = d.params.collect { case Param.Typed(_, t, _) => t }
     val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)), base)
-    val (c2, ps) = bindParams(c, d.params, objectTypeParam)
+    val (c2, ps) = bindParams(c, d.params, untyped)
     (c2, imps, ps)
+
+  /** An untyped parameter of a definition `f X : A = e.` has an unknown type, inferred from its uses (as
+   *  in `f X = e.`); of a type definition `t X : type = τ.` it ranges over object types. */
+  private def definitionParam(d: Decl): (Cxt, VarRef) => Tm = d.tpe match
+    case Keyword(Kw.Type) => objectTypeParam
+    case _ => (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`")
 
   /** The type of a declaration and the stage of the declared constant.
    *
@@ -116,7 +122,7 @@ trait Declarations:
         if inferred then
           val (b, s, _) = inferU(c2, d.tpe)
           if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b)) then
-            error(DiagCode.E0901, "not the type of an object constant", d.tpe.span)
+            fail(TypeProblem.NotObjectConstantType(d.tpe.span))
           (b, s)
         else (checkType(c2, d.tpe, Stage.S1), Stage.S1)
       if imps.isEmpty && ps.isEmpty then (body, st)
@@ -150,14 +156,49 @@ trait Declarations:
   /** `x params : A = e.` in context `c`: its type and definition. Checking `e` against the full type
    *  introduces the implicit lambdas. */
   def declDefinition(c: Cxt, d: Decl, e: Tree): (Tm, Tm) =
-    val (c2, imps, ps) = declContext(d, c)
+    val (c2, imps, ps) = declContext(d, c, definitionParam(d))
     val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1)))
     val tyV = ev(c, ty)
     val builtin = (e, d.tpe) match
       case (_: Builtin, Keyword(Kw.Type)) => d.params.isEmpty
       case _ => false
-    val body = if builtin then definingBuiltin(check(c, e, tyV, Stage.S1)) else check(c, asLambda(d.params, e), tyV, Stage.S1)
+    val body =
+      if builtin then definingBuiltin(check(c, e, tyV, Stage.S1))
+      else typeBindersOutOfScope(d, e)(check(c, asLambda(d.params, e), tyV, Stage.S1))
     (ty, ascribed(tyV, e.span, body))
+
+  /** `f : (x : A) -> B = e.` where `e` uses `x`: the binders of a declared type do not scope over the
+   *  definition (E0916), which should be written `f (x : A) : B = e.` */
+  private def typeBindersOutOfScope[A](d: Decl, e: Tree)(elab: => A): A =
+    val (binders, rest) = namedBinders(d.tpe)
+    val names = binders.map(_._1.name).filterNot(n => scope.contains(n) || file.parent.contains(n)).toSet
+    if d.params.nonEmpty || e.isInstanceOf[Lambda] then elab
+    else
+      uses(e, names).headOption match
+        case None => elab
+        case Some(use) =>
+          val header = d.name.span.to(d.tpe.span)
+          val params = binders.map((l, dom) => s"(${l.name} : ${dom.span.text})").mkString(" ")
+          val rewritten = s"${d.name.name} $params : ${rest.span.text}"
+          fail(ElabProblem.TypeBinderInDefinition(use.span.text, use.span, header, rewritten))
+
+  /** The uses of the names `ns` in `t`, outside lambdas binding them. */
+  private def uses(t: Any, ns: Set[Name]): List[Tree] = t match
+    case _ if ns.isEmpty => Nil
+    case i @ Ident(n) if ns(n) => List(i)
+    case v @ VarRef(n) if ns(n) => List(v)
+    case Lambda(p, ann, b) => uses(ann, ns) ++ uses(b, ns - nameOf(p))
+    case p: Product => p.productIterator.toList.flatMap(uses(_, ns))
+    case it: Iterable[?] => it.toList.flatMap(uses(_, ns))
+    case _ => Nil
+
+  /** The leading named binders `(x : A) -> …` of a type and the rest of it. */
+  private def namedBinders(t: Tree): (List[(Ident, Tree)], Tree) = t match
+    case Arrow(Some(l), dom, cod) =>
+      val (bs, rest) = namedBinders(cod)
+      ((l, dom) :: bs, rest)
+    case Parens(i) if namedBinders(i)._1.nonEmpty => namedBinders(i)
+    case other => (Nil, other)
 
   /** A module ascribed a signature with `%fact` fields (`m : sig = e.`) must pass fact constructors for
    *  them ([[Tm.Require]]; the other requirements concern functor applications). */

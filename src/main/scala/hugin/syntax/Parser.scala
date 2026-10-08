@@ -170,12 +170,6 @@ final class Parser(
               val (name, params) = declHead(lhs)
               Def(name, params, rhs)(spanFrom(start))
             else Clause(lhs, rhs, where)(spanFrom(start))
-          case Tok.Eq =>
-            advance()
-            val (name, params) = declHead(lhs)
-            val rhs = parseExpr(LvlSemi)
-            expect(Tok.Period, "`.` after definition")
-            Def(name, params, rhs)(spanFrom(start))
           case Tok.SubT =>
             advance()
             val sup = parseExpr(LvlBar)

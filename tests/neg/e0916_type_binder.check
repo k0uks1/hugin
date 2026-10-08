@@ -1,0 +1,9 @@
+error[E0916]: `x` is not in scope in the definition
+ --> tests/neg/e0916_type_binder.hgn:2:29
+  |
+2 | double : (x : int) -> int = x * 2.
+  |                             ^ not found in this scope
+  |
+  = note: `x` is bound by the declared type: the binders of a type do not scope over the definition
+
+1 error found

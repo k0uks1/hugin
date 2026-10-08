@@ -34,6 +34,7 @@ error[E0906]: no field `plac`
   |          ^^^^ unknown field
   |
   = note: `{ place : type, here : ⇑geo.place, there : ⇑geo.place, far : ⇑geo.place }` has the fields `place`, `here`, `there`, `far`
+  = help: did you mean `place`?
 
 hugin> (* The session still has trip.hgn. *)
 hugin> :list

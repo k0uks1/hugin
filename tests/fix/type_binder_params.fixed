@@ -1,0 +1,4 @@
+(* E0916: the binders of the declared type become parameters of the definition *)
+scale (x : int) (k : int) : int = x * k.
+r : int -> rel.
+r (scale 2 21).

@@ -54,7 +54,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     db.set(SourceText, "bad.hgn", "p : int -> rel.\np X :- q X.\n")
     val diags = Ide.diagnostics(CompileKey("bad.hgn"))
-    assertEquals(diags.flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(diags.map(_.code).map(_.id), List("E0101"))
     assertEquals(diags.head.primarySpan.startLine, 1)
   }
 
@@ -95,7 +95,7 @@ class CompilerQueriesSuite extends munit.FunSuite:
     given db: Database = Database()
     db.set(SourceText, "s.hgn", "e : int -> int -> rel.\n%input e.\nsrc : int -> rel.\nsrc X :- e X Y, e X _Z.\n")
     val diags = Ide.diagnostics(CompileKey("s.hgn"))
-    assertEquals(diags.map(d => (d.code.map(_.id), d.primarySpan.text)), List((Some("W0002"), "Y")))
+    assertEquals(diags.map(d => (d.code.id, d.primarySpan.text)), List(("W0002", "Y")))
   }
 
   test("hover through a module path shows the type instantiated at that path") {

@@ -52,7 +52,8 @@ class ExplanationsSuite extends munit.FunSuite:
       val text = Files.readString(file(c))
       assert(text.startsWith(s"# ${c.id}: ${c.title}\n"), s"${c.id}.md must start with `# ${c.id}: ${c.title}`")
       val all = examples(text).filterNot(_.ignored)
-      if c.isActive then
+      // the codes of the tools are not reported for programs: their explanations have no examples
+      if c.isActive && c.phase != Phase.Tools then
         assert(all.exists(_.fails.contains(c.id)), s"${c.id}.md has no failing example")
         assert(all.exists(_.fails.isEmpty), s"${c.id}.md has no fixed example")
       for e <- all do
@@ -60,9 +61,9 @@ class ExplanationsSuite extends munit.FunSuite:
         e.fails match
           case Some(id) =>
             // the example shows this problem first: no other error comes before it
-            val first = ds.find(d => d.severity == Severity.Error || d.code.exists(_.id == id))
-            assertEquals(first.flatMap(_.code).map(_.id), Some(id), s"the first diagnostic of\n${e.program}\nis ${first.map(_.message)}")
+            val first = ds.find(d => d.severity == Severity.Error || d.code.id == id)
+            assertEquals(first.map(_.code).map(_.id), Some(id), s"the first diagnostic of\n${e.program}\nis ${first.map(_.message)}")
           case None =>
-            val errors = ds.filter(d => d.severity == Severity.Error || d.code.contains(c))
-            assertEquals(errors.map(d => s"${d.code.fold("")(_.id)}: ${d.message}"), Nil, s"in the fixed example\n${e.program}")
+            val errors = ds.filter(d => d.severity == Severity.Error || d.code == c)
+            assertEquals(errors.map(d => s"${d.code.id}: ${d.message}"), Nil, s"in the fixed example\n${e.program}")
     }

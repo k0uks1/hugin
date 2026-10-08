@@ -5,7 +5,6 @@ import hugin.obj.BaseType
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.Code as DiagCode
 
 /** Name resolution: bound variables, top-level names, builtin base types; implicitly bound variables. */
 trait Names:
@@ -40,17 +39,21 @@ trait Names:
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
     if state.erroneous(n) then throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
     val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
-      .filter(k => k != n && k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
-    val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
-    val similar =
-      candidates.map(k => (distance.apply(k, n).intValue, k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1).headOption.map(_._2)
+      .filter(k => k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
+    val similar = similarName(n, candidates)
     throw ElabError(ElabProblem.UnresolvedName(n, span, similar, span.text == n).toDiagnostic, unresolved = Some(n))
+
+  /** The candidate most similar to `n` (edit distance at most a third of its length), if any. */
+  def similarName(n: Name, candidates: List[Name]): Option[Name] =
+    val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
+    candidates.filter(_ != n).map(k => (distance.apply(k, n).intValue, k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1)
+      .headOption.map(_._2)
 
   def paramName(p: Tree): Name = p match
     case VarRef(n) => n
     case Ident(n) => n
     case Wildcard() => "_"
-    case other => error(DiagCode.E0001, "expected a parameter name", other.span)
+    case other => fail(TypeProblem.NotAParameterName(other.span))
 
   def nameOf(t: Tree): Name = t match
     case Ident(n) => n

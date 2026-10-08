@@ -65,7 +65,7 @@ class ClausesSuite extends munit.FunSuite:
 
   test("unreachable clauses are warned about") {
     val e = ok(nat + "isZero : nat -> nat.\nisZero zero = 1.\nisZero N = 0.\nisZero (suc N) = 0.\n")
-    assert(e.diagnostics.exists(_.code.contains(Code.W0006)))
+    assert(e.diagnostics.exists(_.code == Code.W0006))
   }
 
   test("pattern errors") {

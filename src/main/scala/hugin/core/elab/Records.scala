@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Records: record types with dependent fields (a telescope: later fields may mention earlier labels),
  *  record values, projections — also of object facts by column label (`I.price` for `I : item` where
@@ -79,10 +78,7 @@ trait Records:
     dupFields(fields.map(_.label), inSignature = false)
     val byLabel = fields.map(f => f.label.name -> f).toMap
     fields.find(f => !rt.labels.contains(f.label.name)).foreach { f =>
-      fail(
-        Legacy.error(DiagCode.E0906, s"no field `${f.label.name}` in the expected record type", f.label.span, "unknown field")
-          .withNote(s"the expected record type has the fields ${showLabels(rt.labels)}")
-      )
+      fail(TypeProblem.UnknownExpectedField(f.label.name, rt.labels, f.label.span))
     }
     rt.labels.find(l => !byLabel.contains(l)).foreach { l =>
       fail(ElabProblem.MissingSignatureField(l, show(c, rt), t.span))
@@ -108,10 +104,7 @@ trait Records:
       case other if qs == Stage.S1 && sel.qual.isInstanceOf[Ident] =>
         fail(ElabProblem.NotAModule(hugin.syntax.Printer.show(sel.qual), show(c, other), sel.qual.span))
       case other =>
-        fail(
-          Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")
-            .withLabel(sel.qual.span, s"this has type `${show(c, other)}`, which is not a record type")
-        )
+        fail(TypeProblem.NotARecord(sel.name, sel.qual.span, show(c, other), sel.nameSpan))
 
   /** Object code `⇑A` is projected at the object level (spliced at the qualifier's position). */
   private def spliceIfLifted(span: Span, r: (Tm, Val, Stage)): (Tm, Val, Stage) = force(r._2) match
@@ -123,10 +116,7 @@ trait Records:
   private def noField(c: Cxt, sel: Select, ty: Val, labels: List[Name]): Nothing =
     if droppedImport(sel.qual, sel.name) then
       throw ElabError(ElabProblem.UnresolvedName(sel.name, sel.nameSpan, None, false).toDiagnostic, silent = true)
-    fail(
-      Legacy.error(DiagCode.E0906, s"no field `${sel.name}`", sel.nameSpan, "unknown field")
-        .withNote(s"`${show(c, ty)}` has the fields ${showLabels(labels)}")
-    )
+    fail(TypeProblem.NoField(sel.name, show(c, ty), labels, similarName(sel.name, labels), sel.nameSpan))
 
   /** The labelled columns of an object relation (object arrows are not dependent, so the column types
    *  are closed). */

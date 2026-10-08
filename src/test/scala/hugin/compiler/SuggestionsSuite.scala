@@ -1,8 +1,8 @@
 package hugin.compiler
 
-import hugin.TestSupport
+import hugin.{TestDiagnostics, TestSupport}
 import hugin.util.*
-import hugin.util.diagnostics.{Applicability, Code, Legacy, Suggestion}
+import hugin.util.diagnostics.{Applicability, Code, Suggestion}
 
 /** Machine-applicable suggestions: applying the edit makes the diagnostic go away. */
 class SuggestionsSuite extends munit.FunSuite:
@@ -10,7 +10,7 @@ class SuggestionsSuite extends munit.FunSuite:
 
   /** The suggestions of the diagnostic with `code`. */
   private def suggestions(text: String, code: String): List[Suggestion] =
-    val d = diagnostics(text).find(_.code.exists(_.id == code)).getOrElse(fail(s"no $code in ${diagnostics(text)}"))
+    val d = diagnostics(text).find(_.code.id == code).getOrElse(fail(s"no $code in ${diagnostics(text)}"))
     d.suggestions
 
   /** Applies the edits of a suggestion, from the last to the first, so that offsets stay valid. */
@@ -23,7 +23,7 @@ class SuggestionsSuite extends munit.FunSuite:
   /** Applies the `n`-th suggestion of the diagnostic `code`; the result no longer has that diagnostic. */
   private def fix(text: String, code: String, n: Int = 0): String =
     val fixed = apply(text, suggestions(text, code)(n))
-    assert(!diagnostics(fixed).exists(_.code.exists(_.id == code)), s"$code remains after the fix:\n$fixed")
+    assert(!diagnostics(fixed).exists(_.code.id == code), s"$code remains after the fix:\n$fixed")
     fixed
 
   test("a singleton variable: `_` first, or a name starting with `_`") {
@@ -105,6 +105,6 @@ class SuggestionsSuite extends munit.FunSuite:
   }
 
   test("generated code has no span, so no suggestion") {
-    val d = Legacy.warning(Code.W0002, "x", Span.NoSpan).withSuggestion("m", Span.NoSpan, "_", Applicability.MachineApplicable)
+    val d = TestDiagnostics.warning(Code.W0002, "x", Span.NoSpan).withSuggestion("m", Span.NoSpan, "_", Applicability.MachineApplicable)
     assertEquals(d.suggestions, Nil)
   }

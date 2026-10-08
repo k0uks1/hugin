@@ -3,8 +3,6 @@ package elab
 
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
-import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Object items: rules and queries, whose (uppercase) variables are bound implicitly at stage 0 with
  *  unknown object types, and directives. */
@@ -69,16 +67,10 @@ trait ObjectItems:
     force(ty) match
       case Val.RelT | Val.PropT => tm
       case Val.Pi(_, _, _, _) =>
-        fail(
-          Legacy.error(DiagCode.E0910, "incomplete rule head", h.span, "missing arguments")
-            .withNote("a rule head must apply a relation (or a constructor) to all of its columns")
-        )
+        fail(TypeProblem.IncompleteHead(h.span))
       case other if stageOfType(other) == Stage.S0 && !isUniverse(other) => tm // a constructor term: asserts the fact
       case other =>
-        fail(
-          Legacy.error(DiagCode.E0910, "invalid rule head", h.span, s"this has type `${show(c, other)}`")
-            .withNote("a rule head is an atom of a relation or a constructor term")
-        )
+        fail(TypeProblem.InvalidHead(show(c, other), h.span))
 
   def elabQuery(q: Query): Unit = items += queryItem(Cxt.empty, q)
 

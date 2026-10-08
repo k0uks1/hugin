@@ -6,7 +6,7 @@ import hugin.util.*
  *  terms directly. */
 object CoreTesting:
   final case class Elaborated(core: Core, elab: hugin.core.elab.Elaborator, diagnostics: List[Diagnostic], output: List[String]):
-    def errors: List[String] = diagnostics.filter(_.severity == Severity.Error).flatMap(_.code).map(_.id)
+    def errors: List[String] = diagnostics.filter(_.severity == Severity.Error).map(_.code).map(_.id)
     def global(n: String): GlobalEntry = core.globals(elab.scope(n))
 
     /** The declared type of a global, printed. */

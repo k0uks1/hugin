@@ -15,12 +15,16 @@ enum Phase(val title: String, val block: Int):
   case Directives extends Phase("directives", 7)
   case Input extends Phase("input facts", 8)
 
-  /** The new meta level (`hugin.core`, redesign B1–B3). */
-  case Elaboration extends Phase("new meta level", 9)
+  /** The meta level (`hugin.core`, redesign Phase B). */
+  case Elaboration extends Phase("meta level", 9)
 
   /** Diagnostics that user-defined directives report (redesign C2). The block E1000–E1099 is reserved for
    *  them; they are reported through the same [[Problem]] API as the compiler's own. */
   case UserDirectives extends Phase("user directives", 10)
+
+  /** The tools around the compiler (the REPL, the language server): their own messages, which no program
+   *  produces, so they have no golden test and no example in their explanations. */
+  case Tools extends Phase("tools", 11)
   case Lints extends Phase("lints", -1)
 
 /** The default level of a code. Lints may be re-levelled from the command line once lint flags exist. */
@@ -109,14 +113,14 @@ enum Code(
   case E0701 extends Code(701, Phase.Directives, "invalid directive")
   // input facts
   case E0801 extends Code(801, Phase.Input, "invalid input fact")
-  // the new meta level
+  // the meta level
   case E0901 extends Code(901, Phase.Elaboration, "mismatched types")
   case E0902 extends Code(902, Phase.Elaboration, "stage error")
   case E0903 extends Code(903, Phase.Elaboration, "cannot infer")
   case E0904 extends Code(904, Phase.Elaboration, "universe inconsistency")
   case E0905 extends Code(905, Phase.Elaboration, "not a function")
   case E0906 extends Code(906, Phase.Elaboration, "unknown or missing field")
-  case E0907 extends Code(907, Phase.Elaboration, "not supported by the new meta level yet")
+  case E0907 extends Code(907, Phase.Elaboration, "not supported by the meta level")
   case E0908 extends Code(908, Phase.Elaboration, "object-level function")
   case E0909 extends Code(909, Phase.Elaboration, "staging failure")
   case E0910 extends Code(910, Phase.Elaboration, "invalid rule head")
@@ -125,6 +129,10 @@ enum Code(
   case E0913 extends Code(913, Phase.Elaboration, "non-positive occurrence")
   case E0914 extends Code(914, Phase.Elaboration, "invalid inductive declaration")
   case E0915 extends Code(915, Phase.Elaboration, "invalid pattern")
+  case E0916 extends Code(916, Phase.Elaboration, "type binder used in a definition")
+  // tools
+  case E1101 extends Code(1101, Phase.Tools, "invalid REPL command")
+  case E1102 extends Code(1102, Phase.Tools, "internal compiler error")
   // lints
   case W0001
       extends Code(1, Phase.Lints, "undefined constant expression", Level.Warning, lint = Some(Lint.UndefinedConstantExpressions))

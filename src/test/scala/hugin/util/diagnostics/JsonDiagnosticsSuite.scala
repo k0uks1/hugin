@@ -13,7 +13,7 @@ class JsonDiagnosticsSuite extends munit.FunSuite:
 
   test("a diagnostic encodes code, level, 1-based spans, suggestions with applicability and the rendering") {
     val src = SourceFile.virtual("f.hgn", "p X :- q X Y.\n")
-    val d = Legacy
+    val d = hugin.TestDiagnostics
       .warning(Code.W0002, "variable `Y` occurs only once in this rule", Span(src, 11, 12), "singleton variable")
       .withSuggestion("replace `Y` with `_`", Span(src, 11, 12), "_", Applicability.MachineApplicable)
     val rendered = DiagnosticRenderer(color = false).render(d)

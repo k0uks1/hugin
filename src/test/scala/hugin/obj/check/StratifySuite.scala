@@ -32,7 +32,7 @@ class StratifySuite extends munit.FunSuite:
       p X :- e X, not q X.
       q X :- e X, p X.
     """)
-    val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0601))
+    val d = c.reporter.diagnostics.filter(_.code == Code.E0601)
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.startsWith("cycle: p -> not q -> p")), d.head.notes)
   }
@@ -103,7 +103,7 @@ class StratifySuite extends munit.FunSuite:
 
   test("an asserting rule that negates a reader of the constructor is a cycle through negation (E0601)") {
     val c = TestSupport.compile(nested.replace("h (mk N) :- src N.", "h (mk N) :- src N, not r N."))
-    val d = c.reporter.diagnostics.filter(_.code.contains(Code.E0601))
+    val d = c.reporter.diagnostics.filter(_.code == Code.E0601)
     assertEquals(d.length, 1)
     assert(d.head.notes.exists(_.startsWith("cycle: mk -> not r -> mk")), d.head.notes)
     assert(d.head.notes.exists(_.contains("asserts facts of `mk` in its head")), d.head.notes)

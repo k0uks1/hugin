@@ -4,8 +4,6 @@ package elab
 import hugin.obj.BaseType
 import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
-import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** The bidirectional core: `infer` and `check` dispatch on the surface tree to the construct families
  *  (universes, functions, records, operators, staging); `inferS` infers with a known stage. */
@@ -30,7 +28,7 @@ trait Bidirectional:
       val l = levels.fresh()
       (checkImplicitPi(c, names, dom, cod, l), Val.U1(l), Stage.S1)
     case ImplicitBinder(_, _) =>
-      error(DiagCode.E0001, "implicit binders must be followed by `->`", t.span, "expected `{A : T} -> B`")
+      fail(TypeProblem.ImplicitBinderAlone(t.span))
     case LiftE(a) => inferLift(c, a)
     case SpliceE(a) => inferSplice(c, a, t.span)
     case RecordType(entries) =>
@@ -49,10 +47,7 @@ trait Bidirectional:
     case Infix(op, l, r) => inferInfix(c, op, l, r, t.span, None)
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
-      fail(
-        Legacy.error(DiagCode.E0903, "cannot infer the type of `_`", t.span, "type annotations needed")
-          .withNote("`_` stands for an unknown meta value or, in object code, for a wildcard")
-      )
+      fail(TypeProblem.CannotInferWildcard(t.span))
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */

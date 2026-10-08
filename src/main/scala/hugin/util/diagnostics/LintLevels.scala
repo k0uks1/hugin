@@ -19,7 +19,7 @@ final case class LintLevels(levels: Map[Lint, Level] = Map.empty, denyWarnings: 
    *  [[Level.Error]] becomes an error, and each one shown gets a note saying where its level comes from
    *  (which also names the lint, so that users can change its level). Other diagnostics are unchanged. */
   def apply(ds: List[Diagnostic]): List[Diagnostic] = ds.flatMap { d =>
-    d.code.flatMap(_.lint) match
+    d.code.lint match
       case None => Some(d)
       case Some(lint) =>
         level(lint) match

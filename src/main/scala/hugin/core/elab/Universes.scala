@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Universes and sorts: `type` (object types, U₀), `Type` (meta types, levels inferred and cumulative,
  *  REDESIGN §11 Q1), the object sorts `rel` and `prop`, builtin base types; elaborating types and the
@@ -63,7 +62,7 @@ trait Universes:
         unifyAt(c, t.span, u, ty)
         (tm, s, u)
       case other =>
-        fail(Legacy.error(DiagCode.E0901, "expected a type", t.span, s"this is a term of type `${show(c, other)}`"))
+        fail(TypeProblem.NotAType(show(c, other), t.span))
 
   /** Checks a type at a stage (at any level, for the meta stage). */
   def checkType(c: Cxt, t: Tree, st: Stage): Tm = check(c, t, universe(st), st)

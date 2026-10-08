@@ -24,7 +24,7 @@ object JsonDiagnostics:
   def encode(d: Diagnostic, rendered: String): Json =
     Json.obj(
       "version" -> Json.num(Version),
-      "code" -> d.code.fold(Json.Null)(code),
+      "code" -> code(d.code),
       "level" -> Json.str(d.severity.label),
       "message" -> Json.str(d.message),
       "spans" -> Json.Arr(d.labels.filter(_.span.exists).map(l => span(l.span, Some(l.primary), Some(l.message)))),

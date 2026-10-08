@@ -157,7 +157,7 @@ q : int -> rel.
 q X :- p X, small X.
 ```
 hugin> :lod x
-error: unknown command `:lod`
+error[E1101]: unknown command `:lod`
   = help: did you mean `:load`?
   = help: the commands are :load :reload :facts :reset :type :kind :list :imports :print :explain :stats :help :quit (see :help)
 

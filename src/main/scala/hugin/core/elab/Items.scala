@@ -2,8 +2,6 @@ package hugin.core
 package elab
 
 import hugin.syntax.Trees.*
-import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** The items of a program: elaborated one by one, each with error recovery (an item with an error is
  *  reported and dropped), in three phases: declarations and definitions; the clauses of functions (which
@@ -156,16 +154,9 @@ trait Items:
     scope.get(n) match
       case Some(id) if globals(id).kind.isInstanceOf[GlobalKind.Function] => id
       case Some(id) =>
-        fail(
-          Legacy.error(DiagCode.E0914, s"`$n` cannot be defined by clauses", first.span, "clause")
-            .withLabel(globals(id).span, s"`$n` is declared here as ${describeKind(id)}")
-            .withNote("clauses define meta functions; object relations are defined by rules (`:-`)")
-        )
+        fail(ClauseProblem.NotDefinableByClauses(n, first.span, globals(id).span, describeKind(id)))
       case None =>
-        fail(
-          Legacy.error(DiagCode.E0915, s"clauses of `$n` without a declaration", first.span, "clause")
-            .withHelp(s"declare its type first: `$n : A -> B.`")
-        )
+        fail(ClauseProblem.ClausesWithoutDeclaration(n, first.span))
 
   private def describeKind(id: Int): String = globals(id).kind match
     case _ if globals(id).stage == Stage.S0 => "an object constant"
@@ -215,8 +206,5 @@ trait Items:
     (start until metas.length).find(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved).foreach { m =>
       val e = metas(m)
       if e.what.startsWith("type argument") then fail(ElabProblem.UndeterminedTypeArgument(e.what, e.span))
-      fail(
-        Legacy.error(DiagCode.E0903, s"cannot infer ${e.what}", e.span, "cannot infer this")
-          .withNote("the elaborator found no constraint that determines it; add a type annotation")
-      )
+      fail(TypeProblem.CannotInfer(e.what, e.span))
     }

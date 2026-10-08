@@ -115,7 +115,7 @@ class LibraryQueriesSuite extends munit.FunSuite:
     val broken = files + (other -> "colour : type.\nbad : colour -> rel.\nbad X :- undefined X.\n")
     given db: Database = setup(broken)
     val diags = db(Compile, CompileKey(main, settings)).diagnostics
-    assertEquals(diags.flatMap(_.code).map(_.id), List("E0101"))
+    assertEquals(diags.map(_.code).map(_.id), List("E0101"))
     assertEquals(diags.head.primarySpan.source.path, other)
     assertEquals(observe(main), fromScratch(broken, main))
   }

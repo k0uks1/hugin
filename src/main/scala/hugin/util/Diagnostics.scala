@@ -24,13 +24,13 @@ object Origin:
   val Source: Origin = Origin(Nil)
 
 /** A structured diagnostic in the style of rustc: plain data (strings, spans and a [[Code]]), as stored by
- *  the query accumulators and consumed by the renderers and the LSP. Phases build it from a typed
- *  [[Problem]] (`Problem.toDiagnostic`) or, not yet migrated, through `Legacy`. `suggestions` are edits
- *  with an applicability, the most likely one first; each one comes with a help that describes it in
- *  prose. `code` is `None` only for messages of the driver and the REPL that are not compiler diagnostics. */
+ *  the query database and consumed by the renderers and the LSP. Phases build it from a typed [[Problem]]
+ *  (`Problem.toDiagnostic`). `suggestions` are edits with an applicability, the most likely one first;
+ *  each one comes with a help that describes it in prose. Every diagnostic has a code, also the messages
+ *  of the tools (the REPL, the language server: [[Code.E1101]], [[Code.E1102]]). */
 final case class Diagnostic(
     severity: Severity,
-    code: Option[Code],
+    code: Code,
     message: String,
     labels: List[Label] = Nil,
     notes: List[String] = Nil,
@@ -66,7 +66,7 @@ object Diagnostic:
 /** Collects diagnostics; compilation continues after errors. */
 final class Reporter(val maxErrors: Int = 200):
   private val buf = mutable.ArrayBuffer.empty[Diagnostic]
-  private val seen = mutable.HashSet.empty[(Option[Code], String, Int, Int, String)]
+  private val seen = mutable.HashSet.empty[(Code, String, Int, Int, String)]
   private var errors = 0
   private var warnings = 0
 

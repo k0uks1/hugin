@@ -33,7 +33,6 @@ object Moding:
     case Formula.Not(_) => Set.empty
     case Formula.Agg(res, _, _, _) => Set(res)
     case Formula.Disj(alts) => alts.map(_.flatMap(formulaVars).toSet).reduceOption(_ intersect _).getOrElse(Set.empty)
-    case _ => Set.empty
 
   def applicable(m: Mode, args: List[Term], b: Set[String]): Boolean =
     m.inputs.zip(args).forall((in, a) => if in then vars(a).subsetOf(b) else needs(a).subsetOf(b))

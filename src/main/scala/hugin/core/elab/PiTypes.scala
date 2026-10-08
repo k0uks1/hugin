@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.Tree
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** Π types. Three surface forms are distinguished:
  *
@@ -52,10 +51,7 @@ trait PiTypes:
       val (ns, d) = binders(label, dom)
       val dt = columnType(c, d)
       if force(ev(c, dt)) == Val.U0 then
-        fail(
-          Legacy.error(DiagCode.E0908, "relations and constructors cannot take object types as arguments", d.span, "a type")
-            .withNote("the object level is first order; families of relations are meta functions returning relations")
-        )
+        fail(TypeProblem.ObjectTypeArgument(d.span))
       piChain(c, ns.map(_._1), Icit.Expl, dt, Stage.S0, scoped = false)(objectArrow(_, cod))
     case other => check(c, other, Val.U0, Stage.S0)
 
@@ -86,7 +82,7 @@ trait PiTypes:
     if sd == Stage.S0 && sb == Stage.S0 then (Tm.Pi(n, Icit.Expl, dom, body), Stage.S0, Val.U0)
     else
       if sd == Stage.S0 && occurs(0, body) then
-        fail(Legacy.error(DiagCode.E0902, "a meta type cannot depend on object code", span, s"`$n` is object code"))
+        fail(TypeProblem.DependsOnObject(n, span))
       val l = levels.fresh()
       requireLe(c, span, ud, l)
       requireLe(c, span, ub, l)

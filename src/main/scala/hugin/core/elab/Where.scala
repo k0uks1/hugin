@@ -4,7 +4,6 @@ package elab
 import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
-import hugin.util.diagnostics.{Code as DiagCode, Legacy}
 
 /** `where` blocks of clauses: local definitions, Haskell-style (designer addition to REDESIGN §6.4).
  *
@@ -45,17 +44,12 @@ trait Where:
       (define(c, name.name, ty, ev(c, t)), items.tail)
     case d @ Decl(name, Nil, tpe, None, None, _, _) =>
       val (clauses, rest) = items.tail.span(isClauseOf(name.name))
-      if clauses.isEmpty then error(DiagCode.E0915, s"the local function `${name.name}` has no clauses", d.span, "declared here")
+      if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
       (localFunction(c, owner, name, tpe, clauses.flatMap(localClause), d.span), rest)
     case cl @ Clause(lhs, rhs, Nil) if constructorHead(lhs) =>
       (patternBinding(c, owner, lhs, rhs, cl.span), items.tail)
     case other =>
-      fail(
-        Legacy.error(DiagCode.E0915, "invalid local definition", other.span, "not allowed in a `where` block")
-          .withNote(
-            "a `where` block contains definitions `x = e.`, local functions (`f : A.` and clauses `f p̄ = e.`) and pattern bindings `c x̄ = e.`"
-          )
-      )
+      fail(ClauseProblem.InvalidLocal(other.span))
 
   private def isClauseOf(n: Name)(item: Item): Boolean = item match
     case Clause(lhs, _, _) => TreeOps.headName(lhs).exists(_.name == n)
@@ -124,7 +118,7 @@ trait Where:
       case Ident(n) => Some(n)
       case VarRef(n) => Some(n)
       case Wildcard() => None
-      case other => error(DiagCode.E0915, "a pattern binding binds names", other.span, "expected a name or `_`")
+      case other => fail(ClauseProblem.BindingNotName(other.span))
     }
     val fieldTypes = constructorFieldTypes(c, head.asInstanceOf[Ident], ety, args.length, span)
     names.zip(fieldTypes).zipWithIndex.foldLeft(c) {
@@ -158,10 +152,10 @@ trait Where:
           cty = inst(cl, m)
         case _ => more = false
     unifyAt(c, span, ty, cty)
-    if fields.length != n then error(DiagCode.E0915, s"`${ctor.name}` has ${fields.length} explicit argument(s)", span, s"found $n")
+    if fields.length != n then fail(ClauseProblem.BindingArity(ctor.name, fields.length, n, span))
     fields.toList.map { f =>
       val t = quote(c.lvl, f)
-      if containsMeta(t) then error(DiagCode.E0915, "pattern bindings of dependent fields are not supported", span, "dependent field")
+      if containsMeta(t) then fail(ClauseProblem.DependentBinding(span))
       t
     }
 

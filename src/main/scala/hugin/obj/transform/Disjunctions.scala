@@ -47,7 +47,6 @@ final class Disjunctions extends MiniPhase:
     case Formula.Not(a) => allVars(a)
     case Formula.Agg(res, _, t, b) => Moding.vars(t) ++ b.flatMap(allVars) + res
     case Formula.Disj(alts) => alts.flatten.flatMap(allVars).toSet
-    case _ => Set.empty
 
   private def headName(r: Rule): String = r.heads.headOption match
     case Some(Term.App(RelRef.Sym(c), _)) => c.name
