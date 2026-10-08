@@ -235,7 +235,9 @@ Incremental now:
 * Parsing: the whole file is parsed after every edit (it decides the item boundaries and reports parse
   errors); the items are parsed from their own slices, memoised by text.
 * Libraries (the prelude, imported files): named and elaborated once per revision of the files they
-  depend on, shared by all programs, by the REPL session and by the language server's documents.
+  depend on, shared by all programs, by the REPL session and by the language server's documents. The
+  prelude is moreover parsed and elaborated once per process and text, for all databases
+  (`StdlibCache`, docs/LIBRARIES.md).
 * The program's top level: named after every edit (cut off unless declarations change); declarations and
   definitions are elaborated together when one of them changes; every other item is elaborated on its
   own, again only when its text, a name it looks up, a declaration it reads or the order of a meta

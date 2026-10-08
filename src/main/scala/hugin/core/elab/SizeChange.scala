@@ -23,8 +23,8 @@ trait SizeChange:
     case Le, Lt
 
   /** A call `caller → callee` with its size-change matrix (`m(i)(j)`: argument `i` of the caller to
-   *  argument `j` of the callee). */
-  private final case class Call(caller: Int, callee: Int, m: Vector[Vector[Option[Rel]]], span: Span, shown: String)
+   *  argument `j` of the callee); `shown` prints it for a diagnostic (only then: printing is pure). */
+  private final case class Call(caller: Int, callee: Int, m: Vector[Vector[Option[Rel]]], span: Span, shown: () => String)
 
   private val calls = mutable.ListBuffer.empty[Call]
 
@@ -34,7 +34,7 @@ trait SizeChange:
       val (head, args) = spine(t)
       calleeOf(head, env).foreach { (g, applied) =>
         val argVals = applied ++ args.map(a => eval(env, a))
-        calls += Call(f.id, g, matrix(callerArgs, argVals, lvl, arity(g)), source.span, showTm(c.names, t))
+        calls += Call(f.id, g, matrix(callerArgs, argVals, lvl, arity(g)), source.span, () => showTm(c.names, t))
       }
       args.foreach(visit(_, env, lvl))
       head match
@@ -152,7 +152,7 @@ trait SizeChange:
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = calls.find(c => c.caller == f && c.callee == f).orElse(calls.find(_.caller == f))
-      reporter.report(ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown))).toDiagnostic)
+      reporter.report(ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown()))).toDiagnostic)
 
   /** The functions reachable from `f` (itself included) along `edges`. */
   private def reachable(f: Int, edges: mutable.HashMap[Int, mutable.Set[Int]]): mutable.Set[Int] =

@@ -111,6 +111,14 @@ the importing compilations; only the evaluation of the meta level runs per compi
 that was never set is read on first use (from the bundled standard library for `<stdlib>/` paths,
 otherwise from disk); an editor sets the text of open files explicitly.
 
+The bundled standard library is shared further, by the whole process (`compiler/StdlibCache.scala`,
+issue #60): a `<stdlib>/` file is parsed once per text, and the prelude elaborated once per text (and
+`builtinNames` flag), for every database and every direct compilation in the JVM (each test, each CLI
+command). The cache is keyed by the whole text, so an edited prelude is elaborated again; an elaborated
+prelude is used only with the very parse it came from (its positions point into it), and later parts
+only fork it. `StdlibCacheSuite` compares compilations with and without the cache. Imported files of a
+program are not cached beyond their database (see `docs/PERFORMANCE.md`).
+
 ## Interfaces
 
 A file needs no interface: `geo = %import "lib/geo".` exposes everything the file exports. Optionally,

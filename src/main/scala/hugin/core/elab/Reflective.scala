@@ -105,10 +105,15 @@ trait Reflective:
 
   private var loaded: Option[Option[ReflectiveGlobals]] = None
 
+  /** The version of the scope in which a lookup last missed a name: it is repeated only after the names
+   *  changed (the parent's names are fixed; whether all are found depends on nothing else). */
+  private var missedAt = -1L
+
   /** The reflective globals, if the prelude (or the file) declares them all. */
   def reflectiveGlobals: Option[ReflectiveGlobals] =
-    if loaded.forall(_.isEmpty) then
+    if loaded.forall(_.isEmpty) && missedAt != scope.version then
       val found = names.map(n => n -> file.parent.get(n).orElse(scope.get(n))).collect { case (n, Some(id)) => n -> id }.toMap
+      if found.size < names.size then missedAt = scope.version
       loaded = Some(Option.when(found.size == names.size && globals(found("sym")).kind == GlobalKind.Symbols) {
         ReflectiveGlobals(
           found("seq"),

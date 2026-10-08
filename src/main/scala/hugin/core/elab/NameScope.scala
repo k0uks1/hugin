@@ -21,12 +21,18 @@ final class NameScope private (private var names: VectorMap[Name, Int]) extends 
   override def size: Int = names.size
   override def knownSize: Int = names.size
 
+  /** Increases with every change of the names (for caches of lookups). */
+  def version: Long = changes
+  private var changes = 0L
+
   def addOne(elem: (Name, Int)): this.type =
+    changes += 1
     log(elem._1)
     names = names.updated(elem._1, elem._2)
     this
 
   def subtractOne(key: Name): this.type =
+    changes += 1
     log(key)
     names = names.removed(key)
     this
@@ -57,6 +63,7 @@ final class NameScope private (private var names: VectorMap[Name, Int]) extends 
     val firstWrites = mutable.LinkedHashMap.empty[Name, Boolean]
     for (n, before) <- writes.iterator.drop(mark) do firstWrites.getOrElseUpdate(n, before)
     for (n, before) <- firstWrites if !before do names = names.removed(n)
+    changes += 1
     commit(mark)
 
   /** Ends the transaction `mark`, keeping its changes (an enclosing transaction can still drop them). */

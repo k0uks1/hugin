@@ -211,7 +211,8 @@ object CommandLine:
       .validate(n => if Lint.parse(n).isDefined then success else failure(s"unknown lint `$n`; see `hugin explain --list`"))
       .action((n, o) => o.copy(display = o.display.copy(lints = o.display.lints.set(Lint.parse(n).get, level))))
 
-  val usage: String = OParser.usage(parser)
+  /** Rendered when shown (rendering it is a noticeable part of start-up). */
+  lazy val usage: String = OParser.usage(parser)
 
   private def positional = Set("hover", "definition", "references", "completions")
   private def requests = positional ++ Set("symbols", "diagnostics")
