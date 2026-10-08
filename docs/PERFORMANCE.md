@@ -285,25 +285,92 @@ Not performance work; recorded for issues (not implemented here).
 
 ## Milestones
 
-### P0+P1 (in progress)
+### Milestone 1 (`feat/perf-1`): prelude per process, memo keys, trails, linear-time elaboration steps
 
-* Bench harness and bench set (above).
-* `StdlibCache` (`compiler/StdlibCache.scala`): the prelude parsed and elaborated once per process and
-  text; used by the query database (`Parse`, `ElabLibrary`) and by direct compilations.
-* Size-change termination of meta functions: only the call-graph components with calls recorded since the
-  last check are checked again (their verdict depends only on their own calls), and the closure extends
-  paths by single calls of their callee.
-* `Graphs.components`: Tarjan's algorithm and Kahn's with a priority queue in plain Scala instead of
-  JGraphT (also a step towards Scala.js, #58); `GraphsSuite` checks it against the JGraphT implementation.
+Changes (each cites its source in the code):
 
-* `TreeOps.nodes` walked lists (products `head :: tail`) through nested iterators: quadratic in the
-  number of a file's items; it collected the `%import`s of every compiled file (the prelude in every
-  compile, 40 % of ItemQueriesSuite; most of gen_large). Now an explicit stack, same preorder
-  (`TreeOpsSuite` compares it with the recursive definition).
-* `StdlibCacheSuite`: cached vs uncached `hugin run` on a sample of golden programs, the shared base
-  unchanged by compilations, one elaboration per text.
+* **Bench harness and bench set** (above).
+* **`StdlibCache`** (`compiler/StdlibCache.scala`; salsa/rustc reuse of results, Lean/Agda interfaces in
+  memory): the prelude parsed and elaborated once per process and text, used by the query database
+  (`Parse`, `ElabLibrary`) and by direct compilations; the tests' direct loaders use the shared parse.
+* **`TreeOps.nodes`** with an explicit stack: walking a list (a product `head :: tail`) through nested
+  iterators made every step cost the depth, quadratic in the number of a file's items (it collected the
+  `%import`s of every compiled file: 40 % of ItemQueriesSuite, most of gen_large).
+* **Meta size-change termination** (`core/elab/SizeChange.scala`; Agda: per-component checking,
+  completion against the original calls): only the components with new calls are checked again, found
+  from the call graph kept between checks; the closure extends paths by single calls.
+* **`Graphs.components`** in plain Scala (Tarjan, Kahn with a priority queue) instead of JGraphT.
+* **Memo keys in amortised O(1)** (`core/MemoKeys.scala`; Lean 4's cached hashes and `ShareCommon`): the
+  read-back of stable data values is cached per value object and normal forms get hash-consed ids; the
+  memo hits and misses exactly as before.
+* **Trails instead of snapshots** (`Core.undoOnFailure`/`tentatively`, `Levels`; the WAM trail, Lean 4's
+  restorable meta context): backtracking costs the changes made, not the number of metas and levels.
+* **Copy-on-write metas and persistent names in forks** (`Core.fork`, `elab/NameScope.scala`,
+  `ElabState`; Lean 4/Agda persistent elaborator state): forking for one item costs nothing per meta or
+  name; `Items.itemTransaction` logs first writes instead of copying all names.
+* **Linear-time steps**: `Items.elabInDependencyOrder` counts declaring items once per round instead of
+  listing all others per item; `SplitProblem.env` computed once.
 
-First effect: prelude elaboration (uncached) 121 → ~73 ms warm; compile of the one-line program in a
-warm JVM 156 → 5.1 ms; `run a01_transitive_closure` warm 133 → 13 ms; check gen_large ~17 s → ~7 s; with the cache the targeted suites
-(query, golden, repl, lsp, obj SizeChange) take 228 s instead of ~440 s (ItemQueriesSuite 267 → 150 s,
-IncrementalSuite 77 → 32 s, SizeChangeSuite 44 → 17 s). Not yet re-measured: everything else.
+Correctness guards added: `StdlibCacheSuite` (cached vs uncached `hugin run` on a sample of golden
+programs, the shared base unchanged by compilations, one elaboration per text, uncached prelude equal to
+the shared one); `GraphsSuite` (against JGraphT on random graphs); `TreeOpsSuite` (against the recursive
+definition on the prelude and all goldens); `MemoKeysSuite` (keys, closedness and id equality against
+the definitions they replace); `BacktrackingSuite` (`NameScope` against a `LinkedHashMap` with the old
+rollback, `Levels` against state copies, on random operations with nested transactions; fork isolation
+and undo of `Core`). The fuzz suites pass (short run).
+
+#### Numbers after milestone 1 (same machine and method)
+
+Warm (median of 11 after 10 warm-up runs):
+
+| measurement | baseline | after | factor |
+|---|---:|---:|---:|
+| prelude elaboration (uncached, direct) | 121 ms | 54 ms | 2.2× |
+| compile one-line program (check, new database) | 156 ms | 4.6 ms | 34× |
+| check one-line | 136 ms | 4.8 ms | 28× |
+| run a01_transitive_closure | 133 ms | 10.0 ms | 13× |
+| run a05_stratified | 165 ms | 13.6 ms | 12× |
+| run c1_aggregates | 152 ms | 10.1 ms | 15× |
+| run a04_typechecker | 158 ms | 24.2 ms | 6.5× |
+| run a10_meta_applicative | 143 ms | 10.0 ms | 14× |
+| run f_modules | 151 ms | 17.7 ms | 8.5× |
+| run c1_roundtrip | 128 ms | 10.6 ms | 12× |
+| run c2_module_wide | 141 ms | 10.5 ms | 13× |
+| run meta_scaled | 9 561 ms | 842 ms | 11× |
+| run tc_chain | 847 ms | 710 ms | 1.2× |
+| run shortest_grid | 307 ms | 83 ms | 3.7× |
+| run strata | 500 ms | 350 ms | 1.4× |
+| check gen_large | 16 896 ms | 829 ms | 20× |
+| run gen_large | 17 310 ms | 888 ms | 19× |
+
+Cold (new JVM per run, staged launcher, median of 5). `hugin --help` (the JVM floor: start-up, class
+loading of the command line) is ~520 ms in both builds; the last column is cold minus that floor.
+
+| program | baseline | after | factor | minus floor: baseline → after |
+|---|---:|---:|---:|---|
+| check one-line | 1 901 ms | 1 650 ms | 1.15× | 1 381 → 1 130 ms (1.2×) |
+| run a01_transitive_closure | 2 072 ms | 1 804 ms | 1.15× | 1 552 → 1 284 ms |
+| run a05_stratified | 2 134 ms | 1 861 ms | 1.15× | |
+| run c1_aggregates | 2 188 ms | 1 819 ms | 1.2× | |
+| run a04_typechecker | 2 307 ms | 1 922 ms | 1.2× | |
+| run a10_meta_applicative | 2 038 ms | 1 963 ms | 1.04× | |
+| run f_modules | 2 213 ms | 1 825 ms | 1.2× | |
+| run c1_roundtrip | 2 055 ms | 1 856 ms | 1.1× | |
+| run c2_module_wide | 2 101 ms | 1 925 ms | 1.1× | |
+| run meta_scaled | 12 110 ms | 3 706 ms | 3.3× | 11 590 → 3 186 ms (3.6×) |
+| run tc_chain | 3 108 ms | 2 730 ms | 1.14× | |
+| run shortest_grid | 2 578 ms | 2 290 ms | 1.13× | |
+| run strata | 3 082 ms | 2 760 ms | 1.12× | |
+| check gen_large | 16 346 ms | 5 008 ms | 3.3× | 15 826 → 4 488 ms (3.5×) |
+| run gen_large | 16 777 ms | 5 164 ms | 3.2× | |
+
+Metric 3 (test suite): not re-measured on the whole suite (test-run discipline); the suites touched
+while iterating: ItemQueriesSuite 267 → ~85 s, IncrementalSuite 77 → ~8 s, obj SizeChangeSuite 44 →
+~17 s, GoldenTests 17 → ~7 s, FileDiagnosticsSuite 14 → ~6 s (single runs).
+
+**Where the cold time goes now** (profile of `hugin check` on the one-line program): of the main
+thread's ~1.1 s, elaborating the prelude is ~57 % (it runs once per process, in the interpreter and
+the JIT's first tiers; warm it takes ~50 ms), parsing it ~6 %, class initialisation ~18 % (Scala
+library, `CommandLine`, the elaborator's traits). Making the elaborator faster helps the cold run only a
+little; removing the prelude's elaboration from the cold path (an on-disk elaborated prelude, ranked plan
+step 4) is what would change it: estimated cold one-line ~1.65 → ~1.0 s (minus floor ~1.1 → ~0.45 s).
