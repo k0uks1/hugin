@@ -6,12 +6,19 @@ import Trees.*
 object TreeOps:
   /** Every node of a surface tree in preorder, the tree itself first: the fields of case classes and
    *  enum cases, and the elements of lists, options and other collections, recursively. */
-  def nodes(x: Any): Iterator[Any] =
-    val children = x match
-      case p: Product => p.productIterator.flatMap(nodes)
-      case it: Iterable[?] => it.iterator.flatMap(nodes)
-      case _ => Iterator.empty
-    Iterator.single(x) ++ children
+  def nodes(x: Any): Iterator[Any] = new Iterator[Any]:
+    // the nodes still to visit, the next one last: an explicit stack, since nested iterators would make
+    // every step cost the depth of the tree, and a list (a product `head :: tail`) is as deep as it is long
+    private val pending = scala.collection.mutable.ArrayBuffer[Any](x)
+    def hasNext: Boolean = pending.nonEmpty
+    def next(): Any =
+      val y = pending.remove(pending.length - 1)
+      val children = y match
+        case p: Product => p.productIterator.toVector
+        case it: Iterable[?] => it.toVector
+        case _ => Vector.empty
+      pending ++= children.reverseIterator
+      y
 
   /** The head and the arguments of an application `f a1 ... an`; parentheses around the whole
    *  application are dropped. */
