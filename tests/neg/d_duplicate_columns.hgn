@@ -1,0 +1,7 @@
+(* E0307: a label names one column of a relation or constructor *)
+r : (a : int) -> (a : int) -> rel. (*~ E0307 *)
+s : (a : int) -> (b : string) -> (a : string) -> rel. (*~ E0307 *)
+t : type.
+k : (x : int) -> (x : int) -> t. (*~ E0307 *)
+ok : (a : int) -> (b : int) -> rel.
+ok 1 2.

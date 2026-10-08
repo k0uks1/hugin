@@ -1,0 +1,10 @@
+error[E0905]: not a function
+ --> tests/neg/f_apply_object_projection.hgn:5:9
+  |
+5 | report (_E.loc _J). (*~ E0905 *)
+  |         ^^^^^^ -- argument
+  |         applied to an argument here
+  |
+  = note: `_E.loc` cannot be applied: it is an object-level value, not a relation or constructor
+
+1 error found

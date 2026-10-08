@@ -141,6 +141,13 @@ path X Z :- edge X Y, path Y Z.   (* a rule *)
   input** (this is what makes structural termination checkable, §4).
 * Relations `r : τ̄ -> rel` have facts without a result identity.
 
+[As implemented and decided (#74): relation facts have identities too. Every relation (and struct) is
+also a fact type: `(edge 1 _ as E)` binds the identity of an existing `edge` fact, a column of type
+`edge` holds such facts, and a head `seen (edge 5 6)` asserts `edge 5 6` (the same subfact closure as
+for constructors). There is no `bool` value type at the object level: values are `int`, `float`,
+`string` and identities; truth is the presence of a fact (a nullary relation is the boolean). `bool`
+is a meta type of the prelude.]
+
 ### 3.3 Semantics
 
 Let F be the set of relations and constructors, `subfact(t) = { s ⊑ t | head(s) ∈ F }` (all
@@ -277,6 +284,9 @@ terminating is rejected.
 `+ - * / mod`, comparisons and constant folding stay as today (Section 3.3, `obj/Prims.scala`).
 Recursion through exact arithmetic is accepted only with a size-change argument (§4.2), e.g. a
 decreasing, lower-bounded argument (`fib`, `len`).
+
+[As implemented and decided (#74): there is no `mod`; the operators are `+ - * /` and the string
+concatenation `^`.]
 
 ### 5.2 Bound columns (Limit Datalog)
 
@@ -565,6 +575,10 @@ Notation (decided): **`$`** marks holes, Scala-style.
   `$F[V]` matches a formula that may mention the locally bound `V`; with locally nameless
   representation (Q5) this is well defined.
 
+[As implemented (C1): the reflective types are lower case (`term`, `formula`, `rule`, `item`, `module`),
+`List` is the prelude's `seq`, and there is no `Var`: object variables are `tvar string`, so `$X` in a
+variable position binds a `string`.]
+
 Examples:
 
 ```
@@ -624,6 +638,11 @@ hand-written code. The footprint tells the incremental compiler what depends on 
 (`docs/INCREMENTALITY.md`): local directives keep per-item incrementality, module-wide ones make the
 module's items depend on the expansion.
 
+[As implemented (C2): a local directive does not have type `Decl -> Decl`: the standalone form
+`%d a₁ … aₙ.` has type `decl` (the declaration it names is its last argument, quoted as a `decl`), and
+only the prefix form `%d a₁ … aₙ DECL` has `decl -> decl`. The types are `decl`, `module -> module` and
+`seq item` (also `item`, `rule`, `seq rule`).]
+
 Unknown directives are name errors with suggestions (as E0103 is today). Argument errors are type
 errors; dependent typing lets directives check, e.g., that mode labels match the relation's columns.
 
@@ -638,6 +657,11 @@ Implemented in the compiler, typed like any directive:
 * `%terminates p r.` — termination hint (§4.6).
 * `%complete r.` — the completeness discipline (Section 6.5), unchanged.
 
+[As implemented and decided (#74): `%complete r` is not a directive. It is a requirement inside a
+signature only (it promises that a functor's relation parameter is fully known, which permits negation
+and aggregation over it); elsewhere it is E0004. A top-level relation of a closed program is always
+complete.]
+
 ### 7.3 Library directives (prelude)
 
 * `%demand r m.` — the demand transformation (§7.4). (`%mode` was planned as an alias; removed in C3, Q10.)
@@ -651,6 +675,9 @@ Implemented in the compiler, typed like any directive:
 demand : (r : ⇑(τ̄ → rel)) -> Modes r -> Module -> Module.
 mode = demand.                      (* alias: not added in C3, Q10 *)
 ```
+
+[As implemented (C3): `demand : (r : sym) -> modes (labels r) -> module -> module`; `Modes r` is
+`modes (labels r)`, indexed by the labels of `r`'s columns.]
 
 `Modes r` is indexed by `r`'s columns, so `%demand typed +e +g -t.` is checked against `typed`'s labels.
 The function implements the magic-sets transformation of today's `obj/transform/Demand.scala`
@@ -755,6 +782,10 @@ fib 1 1.
 fib N F :- need N, N > 1, A = N - 1, B = N - 2, fib A FA, fib B FB, F = FA + FB.   (* (B) on n *)
 ?- fib 90 F.
 ```
+
+[As implemented: the check accepts `fib` by descent (A), read upwards (the head's `N` is larger than the
+premises' `A` and `B`, bounded by the finite `need` facts); see `--explain-termination` on
+`tests/run/rd_fib.hgn`.]
 
 Compile-time alternative (total meta function; no runtime recursion):
 

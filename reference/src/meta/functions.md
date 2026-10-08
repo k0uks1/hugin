@@ -44,8 +44,9 @@ inferred from the explicit arguments and the expected type.
 
 The free uppercase variables of the type of a declaration `x : A.` or `x : A = e.` are implicit
 arguments of `x`. So `ident : A -> A = [x] x.` declares `ident : {A : Type} -> A -> A`. The free uppercase
-variables in the parameter types of a definition without a declared type, `f (x : A) = e.`, are implicit
-arguments as well. The type of such a variable is unknown; it is tried as a meta type first, then as an
+variables in the parameter types of a definition, `f (x : A) = e.` or `f (x : A) : B = e.`, and in its
+result type are implicit arguments as well: `ident (x : A) : A = x.` declares
+`ident : {A : Type} -> A -> A`. The type of such a variable is unknown; it is tried as a meta type first, then as an
 object type.
 
 The following program composes two functions on compile-time integers. `compose` has three implicit

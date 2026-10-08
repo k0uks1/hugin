@@ -106,6 +106,9 @@ trait Applications:
         val at = withRequirements(dom, span, check(c, a, dom, fs))
         val resTy = inst(cl, ev(c, at))
         (functorApplication(f, span, Tm.App(ft, at, Icit.Expl), resTy), resTy, fs)
+      // object syntax (a projection `E.loc`, a variable, a comparison, …) is never a function, even while
+      // its type is still unknown: applying it is E0905, not an application to be solved by unification
+      case Val.Flex(_, _) if isObjectSyntax(ft) => notAFunction(c, f, a, fty, ft)
       case Val.Flex(_, _) =>
         val dom = ev(c, freshType(c, fs, a.span, "the type of an argument"))
         val cod = freshType(bind(c, "x", dom, fs), fs, span, "the type of an application")
@@ -113,6 +116,10 @@ trait Applications:
         val at = check(c, a, dom, fs)
         (Tm.App(ft, at, Icit.Expl), eval(ev(c, at) :: c.env, cod), fs)
       case other => notAFunction(c, f, a, other, ft)
+
+  private def isObjectSyntax(t: Tm): Boolean = Tm.unloc(t) match
+    case Tm.Obj(_, _) => true
+    case _ => false
 
   /** Meta code of an object function type `⇑(A -> B)` (a relation or constructor passed around at the
    *  meta level) is applied at the object level: it is spliced. */
@@ -129,6 +136,7 @@ trait Applications:
       val (head, args) = TreeOps.flattenApp(Apply(f, a)(f.span.to(a.span)))
       objectArity(head, ft, args.length - 1, args.length, f.span.to(a.span))
     val why = ty match
+      case _ if isObjectSyntax(ft) => "it is an object-level value, not a relation or constructor"
       case Val.RelT | Val.PropT => "it is already a complete atom: too many arguments"
       case _ => s"its type `${show(c, ty)}` is not a function type"
-    fail(TypeProblem.NotAFunction(TreeOps.headName(f).map(_.name).getOrElse("this"), why, f.span, a.span))
+    fail(TypeProblem.NotAFunction(TreeOps.headName(f).map(_.name).getOrElse(hugin.syntax.Printer.show(f)), why, f.span, a.span))

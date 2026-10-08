@@ -1,0 +1,16 @@
+(* Free uppercase variables of a definition header with typed parameters and a result type are implicit
+   binders, as in `x : A = e.` and `f (x : A) = e.`. *)
+ident (x : A) : A = x.
+apply (f : A -> A) (a : A) : A = f a.
+twice (f : A -> A) (a : A) : A = apply f (apply f a).
+inc (n : int) : int = n + 1.
+greet (s : string) : string = s.
+
+q : (n : int) -> rel.
+q $(ident 3).
+q $(apply inc 4).
+q $(twice inc 10).
+w : (s : string) -> rel.
+w $(apply greet (ident "hi")).
+?- q N.
+?- w S.

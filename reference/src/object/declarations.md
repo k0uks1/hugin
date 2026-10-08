@@ -48,7 +48,8 @@ Column          ::= "(" NAME ":" Type ")" | Type
 A column may have a *label*: in `edge : (src : node) -> (dst : node) -> rel.` the columns of `edge` are
 labelled `src` and `dst`. Labels are used by named patterns, projections and updates
 ([Records](rules.md#records)), by the `%demand` directive and by measures of `%terminates`. A label
-names a column, not a variable.
+names a column, not a variable. It is an error ([E0307](../errors/E0307.md)) if two columns of a
+declaration have the same label.
 
 The last column of a relation may be a [bound column](bound-columns.md), of type `min τ` or `max τ`.
 
@@ -82,7 +83,8 @@ A constructor `c : τ₁ -> … -> τₙ -> a`, where `a` is an open type, build
 `a`. A constructor without columns, such as `red : color`, is a constant of its type. Every constructor
 is also a relation: the term `c v₁ … vₙ` is a fact of `c` once a rule or an input file builds it
 ([Facts and identity](facts.md)). It is an error ([E0103](../errors/E0103.md)) if the result type of a
-constructor is a refinement.
+constructor is not an open type: a refinement, or the fact type of a struct or relation (its values are
+the identities of its facts, which only its own facts have).
 
 The following program declares an open type of shapes with two constructors, builds two shapes and
 reads the facts of the constructor `square`.

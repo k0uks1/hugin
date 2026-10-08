@@ -23,6 +23,9 @@ aggregate ranges over the distinct valuations of its local variables that satisf
 Wildcards are local variables as well: `count { I | sale S I _ }` counts the sales of `S`, not the
 distinct items, since two sales of one item at different prices are two valuations.
 
+> **Note.** This is the standard Datalog semantics: Soufflé's `count : { sale(S, I, _) }` likewise counts
+> the matching facts. To count distinct items, aggregate over a relation that holds the items.
+
 The term's variables must be bound by the body.
 
 ## Semantics

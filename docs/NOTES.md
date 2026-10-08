@@ -906,10 +906,12 @@ application `d a₁ … aₙ`, and its type says what it changes (the *footprint
   `%symmetric friend`"); **module-wide** ones need the whole module: every object item records what it
   contributes (`ModulePart`: a rule or query as written, the data of a splice or an additive directive, a
   rewrite), and if there is a rewrite, the rules and queries elaborated item by item are replaced by the
-  expansion: in source order, the rules, queries and splices are the module's data (rules reified from
-  their syntax, named rules as `inamed`), an additive directive adds its items at its place, and a
-  module-wide directive replaces all data so far with its result, so each directive sees the output of
-  the ones before it. The result is reflected and elaborated; an item the directive passed on unchanged
+  expansion: the rules, queries and splices of the whole file are the module's data, in source order
+  (rules reified from their syntax, named rules as `inamed`); then the directives are applied in source
+  order: an additive directive adds its items at its place, and a module-wide directive replaces the
+  module with its result. So a module-wide directive sees every rule, query and splice of the file (also
+  those after it) and the items of the additive and module-wide directives before it; only the items of
+  additive directives after it are not seen (they are added to its result at their place). The result is reflected and elaborated; an item the directive passed on unchanged
   keeps its place and provenance, a new one is placed at the directive and notes it. Items with errors
   are not part of the module. Both are top level only: in a module body they are E0907 (the body's items
   would have to be reflected over its members, whose values exist only per instance).

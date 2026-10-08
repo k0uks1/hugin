@@ -1,0 +1,5 @@
+(* E0905: object syntax is never a function, also while its type is unknown. Found by the mutation
+   fuzzer: `E.loc J` crashed the evaluator (application of a non-function value). *)
+span : type = { file : string }.
+report : span -> rel.
+report (_E.loc _J). (*~ E0905 *)

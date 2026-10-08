@@ -161,16 +161,22 @@ trait Declarations:
         define(d.name, ty, tm, d.span)
 
   /** `x params : A = e.` in context `c`: its type and definition. Checking `e` against the full type
-   *  introduces the implicit lambdas. */
+   *  introduces the implicit lambdas. With both implicit binders and parameters (`ident (x : A) : A = x.`),
+   *  `e` is checked in the declaration's context, where the implicit binders are in scope, as in
+   *  `f (x : A) = e.`. */
   def declDefinition(c: Cxt, d: Decl, e: Tree): (Tm, Tm) =
     val (c2, imps, ps) = declContext(d, c, definitionParam(d))
-    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1)))
+    val result = checkType(c2, d.tpe, Stage.S1)
+    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, result))
     val tyV = ev(c, ty)
     val builtin = (e, d.tpe) match
       case (_: Builtin, Keyword(Kw.Type)) => d.params.isEmpty
       case _ => false
     val body =
       if builtin then definingBuiltin(check(c, e, tyV, Stage.S1))
+      else if imps.nonEmpty && ps.nonEmpty then
+        val inner = check(c2, e, ev(c2, result), Stage.S1)
+        imps.foldRight(lams(ps, inner))((b, acc) => Tm.Lam(b._1, Icit.Impl, acc))
       else typeBindersOutOfScope(d, e)(check(c, asLambda(d.params, e), tyV, Stage.S1))
     (ty, body)
 
