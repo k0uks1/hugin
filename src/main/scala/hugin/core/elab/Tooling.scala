@@ -60,7 +60,19 @@ trait Tooling:
       index.declare(sym)
       index.describe(sym, s"meta parameter ${b.name} : ${show(c, b.ty)}")
       Some(sym)
-    case _ => None
+    case _ => b.site.filter(_.span.exists).map(site => localSym(c, b, site))
+
+  /** The symbol of a local variable declared at `site` (described once the item's unknowns are solved). */
+  private def localSym(c: Cxt, b: Binder, site: Site): Sym =
+    val sym = Sym(b.name, SymKind.MetaParam, site.span, site.span)
+    index.declare(sym)
+    later(_ => index.describe(sym, s"${site.what} ${b.name} : ${show(c, b.ty)}"))
+    sym
+
+  /** The declaration of the local variable at `level` of `c` (at its site). */
+  def recordLocalDeclaration(c: Cxt, level: Int): Unit =
+    val b = c.binder(level)
+    b.site.filter(_.span.exists).foreach(localSym(c, b, _))
 
   /** The declaration of the global `id` by the item `item`: its description, labels and members. */
   def recordDeclaration(id: Int, item: Item): Unit =

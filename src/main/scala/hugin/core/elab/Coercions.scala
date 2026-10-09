@@ -13,16 +13,17 @@ trait Coercions:
 
   /** Coerces `t : a` (stage `s`) to `a2` (stage `s2`), inserting quotes, splices, lifts and record
    *  coercions; falls back to unification. */
-  def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
+  def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm = coercing(span) {
     reflectiveKind(a).filter(k => s == Stage.S1 && s2 == Stage.S0 && (k == RKind.Formula || k == RKind.Term)) match
       case Some(k) => reflectCode(c, t, k, span, Some(a2))._1
       case None => coeStaged(c, span, t, a, s, a2, s2)
+  }
 
   private def coeStaged(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
     try
       if s2 == Stage.S0 && isObjectData(a2) then
         // object data is coerced softly (the object typer decides), also a lifted meta value
-        val moved = if s == Stage.S1 && !forceData(a).isInstanceOf[Val.Lift] then liftCode(c, t, a) else None
+        val moved = if s == Stage.S1 && !forceData(a).isInstanceOf[Val.Lift] then lifted(c, t, a) else None
         moved match
           case Some((t1, a1)) => coeObjectData(c, t1, a1, a2)
           case None if s == Stage.S0 && isObjectData(a) => coeObjectData(c, t, a, a2)
@@ -57,12 +58,15 @@ trait Coercions:
 
   private def adjustStage(c: Cxt, t: Tm, a: Val, s: Stage, s2: Stage): Option[(Tm, Val)] =
     (s, s2) match
-      case (Stage.S0, Stage.S1) => Some((Tm.quote(t), Val.Lift(a)))
+      case (Stage.S0, Stage.S1) =>
+        insertedQuote()
+        Some((Tm.quote(t), Val.Lift(a)))
       case (Stage.S1, Stage.S0) =>
         // the rule Lift; a meta value of unknown type is object code
-        liftCode(c, t, a).orElse {
+        lifted(c, t, a).orElse {
           val m = ev(c, freshMeta(c, Val.U0, Stage.S0, Span.NoSpan, "object type"))
           unify(c.lvl, a, Val.Lift(m))
+          insertedLifting(Tm.splice(t))
           Some((Tm.splice(t), m))
         }
       case _ => None
@@ -94,7 +98,9 @@ trait Coercions:
           case Some(cv) =>
             val body = coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2)
             Some(Tm.Lam(if x2 == "_" then x else x2, i, body.getOrElse(Tm.App(tw, cv, i))))
-      case (Val.U0, Val.U1(_)) => Some(liftType(c, t))
+      case (Val.U0, Val.U1(_)) =>
+        insertedLift()
+        Some(liftType(c, t))
       case (rel, Val.U0) if isFactConstantType(rel) => Some(Tm.FactTy(t))
       case (rel, Val.U1(_)) if isFactConstantType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
       case (Val.U1(l), Val.U1(l2)) =>
@@ -104,11 +110,15 @@ trait Coercions:
         unify(c.lvl, x, y)
         None
       case (Val.Flex(_, _), _) | (_, Val.Flex(_, _)) => justUnify(c, t, a, s, a2, s2)
-      case (Val.Lift(x), _) => Some(coeOpt(c, Tm.splice(t), x, Stage.S0, a2, s2).getOrElse(Tm.splice(t)))
-      case (_, Val.Lift(y)) => Some(Tm.quote(coeOpt(c, t, a, s, y, Stage.S0).getOrElse(t)))
+      case (Val.Lift(x), _) =>
+        insertedLifting(Tm.splice(t))
+        Some(coeOpt(c, Tm.splice(t), x, Stage.S0, a2, s2).getOrElse(Tm.splice(t)))
+      case (_, Val.Lift(y)) =>
+        insertedQuote()
+        Some(Tm.quote(coeOpt(c, t, a, s, y, Stage.S0).getOrElse(t)))
       case (from, to) if s == Stage.S1 && stageOfType(to) == Stage.S0 && !isUniverse(to) && liftCode(c, t, from).isDefined =>
         // the rule Lift: a meta value of a base or shared type as object code
-        val (t1, a1) = liftCode(c, t, from).get
+        val (t1, a1) = lifted(c, t, from).get
         Some(coeOpt(c, t1, a1, Stage.S0, a2, s2).getOrElse(t1))
       case (Val.RelT, Val.PropT) => None
       case (ty, Val.PropT) if s == Stage.S0 && isConstructorAtom(t, ty) => None
@@ -144,6 +154,12 @@ trait Coercions:
       e = v :: e
     Option.when(changed)(Tm.Rec(built.map(b => (b._1, b._2))))
 
+  /** [[liftCode]], recorded as an inserted conversion. */
+  private def lifted(c: Cxt, t: Tm, a: Val): Option[(Tm, Val)] =
+    val r = liftCode(c, t, a)
+    r.foreach((moved, _) => insertedLifting(moved))
+    r
+
   /** `⇑A`, the explicit lift. */
   def inferLift(c: Cxt, a: Tree): (Tm, Val, Stage) =
     (Tm.Lift(check(c, a, Val.U0, Stage.S0)), Val.U1(Level.zero), Stage.S1)
@@ -170,7 +186,7 @@ trait Coercions:
 
   /** Moves an inferred term to another stage. */
   def adjust(c: Cxt, span: Span, tm: Tm, ty: Val, s: Stage, st: Stage): (Tm, Val) =
-    try adjustStage(c, tm, ty, s, st).getOrElse((tm, ty))
+    try coercing(span)(adjustStage(c, tm, ty, s, st)).getOrElse((tm, ty))
     catch
       case e: UnifyError =>
         fail(mismatch(c, span, if st == Stage.S0 then Val.Lift(ty) else ty, st, ty, s, e.failure))

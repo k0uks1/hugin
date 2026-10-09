@@ -174,11 +174,17 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
   private val trail = mutable.ArrayBuffer.empty[(Int, Option[Val])]
   private var openCheckpoints = 0
 
-  private final class Checkpoint(val metaCount: Int, val at: Int, val levels: Levels.Checkpoint)
+  private final class Checkpoint(val metaCount: Int, val at: Int, val levels: Levels.Checkpoint, val logged: Int)
 
   private def checkpoint(): Checkpoint =
     openCheckpoints += 1
-    Checkpoint(metas.length, trail.length, levels.checkpoint())
+    Checkpoint(metas.length, trail.length, levels.checkpoint(), toolingLog.length)
+
+  /** What the elaborator records for tooling once the unknowns of the item are solved (types shown with
+   *  their solutions, inserted implicit arguments, goals): run by the elaborator at the end of each item
+   *  (`true` if it succeeded). Rolled back with the metas, so that an attempt that was undone (a
+   *  declaration tried at the other stage) leaves nothing behind. A fork starts with an empty log. */
+  val toolingLog: mutable.ArrayBuffer[Boolean => Unit] = mutable.ArrayBuffer.empty
 
   /** Returns to the state at `c`: metas created since are removed, solutions found since undone. */
   private def rollback(c: Checkpoint): Unit =
@@ -186,6 +192,7 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
       val (m, old) = trail.remove(trail.length - 1)
       if m < c.metaCount then ownMeta(m).solution = old
     metas.dropRightInPlace(metas.length - c.metaCount)
+    toolingLog.dropRightInPlace(toolingLog.length - c.logged.min(toolingLog.length))
     owned.filterInPlace(_ < c.metaCount)
     levels.rollback(c.levels)
     close()

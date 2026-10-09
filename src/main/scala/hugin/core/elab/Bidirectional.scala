@@ -15,7 +15,10 @@ trait Bidirectional:
   def infer(c: Cxt, t: Tree): (Tm, Val, Stage) = t match
     case Parens(i) => infer(c, i)
     case Ident(n) => resolve(c, n, t.span)
-    case VarRef("Type") if !c.scope.contains("Type") => inferMetaUniverse()
+    case VarRef("Type") if !c.scope.contains("Type") =>
+      val r @ (Tm.U1(l), _, _) = inferMetaUniverse(): @unchecked
+      recordLevel(t.span, l)
+      r
     case VarRef(n) => resolve(c, n, t.span)
     case k: Keyword => inferKeyword(k)
     case b @ Builtin(n) => inferBuiltin(n, b.span)
@@ -61,7 +64,9 @@ trait Bidirectional:
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
   def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) =
     val (tm, ty) = atStage(st)(inferAt(c, t, st))
-    (located(t.span, tm, ty, st), ty)
+    val out = located(t.span, tm, ty, st)
+    recordTyped(c, t.span, out, ty, st, checked = false)
+    (out, ty)
 
   /** Runs `f` with `st` as the stage of the position ([[ElabState.stage]]). */
   def atStage[A](st: Stage)(f: => A): A =
@@ -91,7 +96,10 @@ trait Bidirectional:
   def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
     val saved = state.typePosition
     state.typePosition = isUniverse(a)
-    try located(t.span, atStage(st)(checkAt(c, t, a, st)), a, st)
+    try
+      val out = located(t.span, atStage(st)(checkAt(c, t, a, st)), a, st)
+      recordTyped(c, t.span, out, a, st, checked = true)
+      out
     finally state.typePosition = saved
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
@@ -112,7 +120,11 @@ trait Bidirectional:
       Tm.Lam(x, Icit.Impl, check(newBinder(c, x, dom, Stage.S1), t, inst(cl, Val.local(c.lvl)), st))
     case (_, Val.Lift(x)) if st == Stage.S1 =>
       // every value of `⇑A` is a quote (up to conversion): check object code under a quote
-      Tm.quote(check(c, t, x, Stage.S0))
+      val code = check(c, t, x, Stage.S0)
+      code match
+        case Tm.Splice(_) =>
+        case _ => coercing(t.span)(insertedQuote())
+      Tm.quote(code)
     case (Arrow(label, dom, cod), Val.U1(l)) if !endsInRel(t) => checkMetaArrow(c, label, dom, cod, l)
     case (ImplicitPi(ns, d, cod), Val.U1(l)) => checkImplicitPi(c, ns, d, cod, l)
     case (RecordType(entries), Val.U1(l)) => checkRecordType(c, entries, l)

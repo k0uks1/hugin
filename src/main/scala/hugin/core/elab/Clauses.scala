@@ -259,9 +259,17 @@ trait Clauses:
     val args = p.values.take(f.arity).map(ren)
     for (n, ty, v) <- f.prelude(args) do c = define(c, n, ty, v)
     for (v, value, ty) <- binds do
+      val site = Option.when(!v.implicitBinder)(Site(v.span, "pattern variable"))
       value match
-        case Val.Rigid(Head.Local(l), Nil) => c = c.copy(scope = c.scope + (v.name -> l))
-        case other => c = define(c, v.name, ty, other)
+        case Val.Rigid(Head.Local(l), Nil) =>
+          c = c.copy(scope = c.scope + (v.name -> l))
+          site.foreach { s =>
+            c = withSite(c, l, s)
+            recordLocalDeclaration(c, l)
+          }
+        case other =>
+          c = define(c, v.name, ty, other, site)
+          recordLocalDeclaration(c, c.lvl - 1)
     c = elabWhere(c, f.name, cl.source.where)
     val body = check(c, cl.source.rhs, ren(target), Stage.S1)
     recordCalls(f, args, c, body, cl.source)

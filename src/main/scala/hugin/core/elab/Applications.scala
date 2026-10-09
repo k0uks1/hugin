@@ -22,6 +22,7 @@ trait Applications:
             case Tm.Global(id) if globals(id).kind.isInstanceOf[GlobalKind.Family] => s"type argument `$x` of family `${globals(id).name}`"
             case _ => s"the implicit argument `$x`"
           val m = freshMeta(c, a, Stage.S1, span, what)
+          insertedImplicit(c, span, x, m)
           t = Tm.App(t, m, Icit.Impl)
           ty = inst(cl, ev(c, m))
         case _ => more = false
@@ -39,7 +40,9 @@ trait Applications:
       case Some(a) => checkType(c, a, Stage.S1)
       case None => freshType(c, Stage.S1, param.span, s"the type of `$name`")
     val dv = ev(c, dom)
-    val (bt, bty) = inferS(bind(c, name, dv, Stage.S1), body, Stage.S1)
+    val cb = bind(c, name, dv, Stage.S1, site = Some(Site(param.span, "parameter")))
+    recordLocalDeclaration(cb, c.lvl)
+    val (bt, bty) = inferS(cb, body, Stage.S1)
     (Tm.Lam(name, Icit.Expl, bt), Val.Pi(name, Icit.Expl, dv, Closure(c.env, quote(c.lvl + 1, bty))), Stage.S1)
 
   def checkLambda(c: Cxt, t: Tree, param: Tree, ann: Option[Tree], body: Tree, pi: Val.Pi, st: Stage): Tm =
@@ -50,7 +53,9 @@ trait Applications:
       val at = checkType(c, an, Stage.S1)
       unifyAt(c, an.span, pi.dom, ev(c, at))
     }
-    Tm.Lam(name, Icit.Expl, check(bind(c, name, pi.dom, Stage.S1), body, inst(pi.cl, Val.local(c.lvl)), st))
+    val cb = bind(c, name, pi.dom, Stage.S1, site = Some(Site(param.span, "parameter")))
+    recordLocalDeclaration(cb, c.lvl)
+    Tm.Lam(name, Icit.Expl, check(cb, body, inst(pi.cl, Val.local(c.lvl)), st))
 
   def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
     val (ft, fty, fs) = objectFunction(insertAll(c, f.span, infer(c, f)))
