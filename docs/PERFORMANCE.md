@@ -472,3 +472,108 @@ and test" went from 7–9 min to ~2.5–3 min after milestone 1 (of which ~2 min
 * The ranked plan's items not done: approximate unification and glued values (also "Other
   opportunities"), size-change subsumption with the Ben-Amram–Lee criterion.
 
+
+## After #80–#87 (issue #88)
+
+Same machine, method and harness as the final numbers of #60 (warm: median of 11 after 10 warm-up runs,
+the prelude median of 21 after 5 and 30; cold: `bench/cold.sh`, new JVM, median of 5). The usual caveat
+holds: absolute numbers move by 10–20 % between sessions of the same container, so every factor above
+20 % was re-measured *on the same machine at the same time* against a build of the #60 final commit
+(a28b1b0) and of the development branch before #88 (82b84e2), with the same harness (median of 21 after
+10, two interleaved rounds).
+
+### The stack overflow
+
+`sbt "Test/runMain hugin.bench.Bench warm"` died with a `StackOverflowError` in `run meta_scaled`, after
+the programs before it had run in the same JVM. The harness runs in sbt's forked JVM on the main thread,
+with the JVM's default 1 MiB stack (the launcher gives 64 MiB, `-J-Xss64m`). The stack trace (7 000
+frames with `-XX:MaxJavaStackTraceDepth`) is one cycle repeated ~190 times, once per item of the module:
+`ModuleDirectives.rewrite` → `eval` → `app` → `Matching.reduceFunction` → `Matching.runTree` (5–10
+nested calls) → `eval` of the clause body `… :: mirror Rest` → `reduceFunction` …: the module-wide
+directive `mirror` of the bench program recurses over the module, which the strict evaluator nests on
+the JVM stack. Each level cost ~40 frames: `runTree` recursed once per split of the case tree through
+`Option.flatMap` (three frames per split), and `mirror`'s first clause, a quoted pattern
+`'{ edge $X $Y :- $..B }`, splits about ten times. The overflow is *not* a regression of #80–#87: the
+#60 final build overflows the same way with the same harness settings today (it depends on the JIT's
+state, which is why `loop meta_scaled` alone passes); #60's numbers were taken on a run that stayed just
+below the limit.
+
+The root cause is JVM stack spent per element of a long list. Fixes (no larger stack, nothing caught):
+
+* `Matching.runTree` is a loop (`@tailrec`, no `Option` combinators) and `reduceFunction` straight-line
+  code: a meta function's recursion costs a constant number of frames per level, whatever the depth of
+  its case tree (mirror over a module: overflow at ~190 items before, ~590 after, cold, 1 MiB).
+* `MemoKeys` (keys of the memo of meta applications: read-back of stable data, hash-consed ids,
+  closedness) recursed down a list's spine; past a depth of 200 they continue with an explicit stack.
+  A module-wide directive over 3 000 items overflowed here even without recursion in the directive.
+* `Evaluation.eval` of a chain of applications in argument position (`cons x1 (cons x2 (… nil))`, the
+  data of a module that `listData` builds) is a loop, in the same order of evaluation.
+* `Reflection.elements` (the items of a list value) is a loop.
+
+`LongListsSuite` runs each case on a thread with the JVM's default 1 MiB stack: a module-wide directive
+over a module of 5 000 items, `mirror` over 400 items, and memo keys and evaluation of a list of 100 000
+elements (all three overflow before the fix). With the launcher's stack, lists of 10 000 elements pass
+through `list.lift`, a recursive directive and a recursive meta function. What remains proportional to a
+list's length is a meta function's own recursion (one level per element: the evaluator is a recursive
+NbE evaluator), and the parser and elaborator on a source list literal of thousands of elements
+(`Slices.congruent`, checking); see docs/NOTES.md (#88).
+
+### Numbers (after #88)
+
+**Metric 1, prelude** (warm, median of 21):
+
+| measurement | warm-up | #60 final | after #88 | change |
+|---|---|---:|---:|---:|
+| prelude elaboration (uncached, direct) | 5 | 48 ms | 61 ms | +28 % |
+| prelude elaboration (uncached, direct) | 30 | 28 ms | 40 ms | +42 % |
+| compile one-line program (check, new database) | 5 | 7.2 ms | 7.2 ms | 0 |
+| compile one-line program (check, new database) | 30 | 5.0 ms | 4.4 ms | −12 % |
+| cold `hugin check` one-line | — | 1 471 ms | 1 570 ms | +7 % |
+
+**Metric 2, bench set**:
+
+| program | warm #60 final | warm after #88 | change | cold #60 final | cold after #88 | change |
+|---|---:|---:|---:|---:|---:|---:|
+| check one-line | 6.2 ms | 5.3 ms | −15 % | 1 471 ms | 1 570 ms | +7 % |
+| run a01_transitive_closure | 11.7 ms | 11.7 ms | 0 | 1 718 ms | 1 736 ms | +1 % |
+| run a05_stratified | 15.3 ms | 14.9 ms | −3 % | 1 760 ms | 1 741 ms | −1 % |
+| run c1_aggregates | 11.0 ms | 10.6 ms | −4 % | 1 863 ms | 1 807 ms | −3 % |
+| run a04_typechecker | 29.6 ms | 29.4 ms | −1 % | 2 047 ms | 1 969 ms | −4 % |
+| run a10_meta_applicative | 16.3 ms | 11.8 ms | −28 % | 1 878 ms | 1 834 ms | −2 % |
+| run f_modules | 17.0 ms | 18.7 ms | +10 % | 1 801 ms | 1 936 ms | +7 % |
+| run c1_roundtrip | 8.8 ms | 9.4 ms | +7 % | 1 846 ms | 1 814 ms | −2 % |
+| run c2_module_wide | 11.1 ms | 11.0 ms | −1 % | 1 881 ms | 1 770 ms | −6 % |
+| run meta_scaled | 671 ms | 675 ms | +1 % | 3 246 ms | 3 346 ms | +3 % |
+| run tc_chain | 321 ms | 349 ms | +9 % | 2 349 ms | 2 325 ms | −1 % |
+| run shortest_grid | 79 ms | 111 ms | +40 % | 2 433 ms | 2 329 ms | −4 % |
+| run strata | 272 ms | 305 ms | +12 % | 2 468 ms | 2 471 ms | 0 |
+| check gen_large | 857 ms | 908 ms | +6 % | 4 917 ms | 4 922 ms | 0 |
+| run gen_large | 867 ms | 973 ms | +12 % | 5 102 ms | 5 281 ms | +4 % |
+
+`hugin --help` takes ~450 ms (was ~520 ms in #60's session). Metric 3 (the test suite) was not re-run
+(the issue's test policy runs targeted suites only).
+
+### Changes above 20 %, re-measured on the same machine
+
+| measurement | #60 final (a28b1b0) | before #88 (82b84e2) | after #88 |
+|---|---:|---:|---:|
+| prelude elaboration (uncached, warm-up 10) | 36–45 ms | 55–58 ms | 54–58 ms |
+| run shortest_grid (warm) | 67–72 ms | 87–92 ms | 77–83 ms |
+| run meta_scaled (warm, `loop`) | 650–661 ms | 604–675 ms | 613–634 ms |
+
+* **shortest_grid** (+25 % before #88): the facts file (14 161 facts) is parsed with the program parser,
+  and the resilient parser of #53 collected the `%infix` operators with `toks.sliding(4)` — a vector per
+  token. Now a loop over the tokens (`Operators.declared`, same result). The rest (+10–15 %) is the
+  parser's own per-token work since #53 (`ParserBase.atColumn0`, `TreeOps.hasSyntaxErrors` per fact);
+  recorded, not changed (it is the parser's error recovery).
+* **Prelude elaboration, uncached** (+40 %, real; the cached compile that users pay is unchanged): a
+  profile of `Bench loop prelude` against a28b1b0 attributes the difference to new work of #80–#87, not to
+  a slower algorithm: the meta-level tooling records of #54 (~17 % of the time: `Clauses.recordSplits`
+  computes the splittable pattern variables of every clause by index unification against every
+  constructor, `flushTooling` runs the records), the derived `lift`/`reify` functions of the shared
+  prelude types of #85 (~5 %), and the resilient parser of #53 (~4 %). Making `recordSplits` lazy would
+  need it to run against a later state of the metas than the clause's, so it is recorded here rather than
+  changed in a bug fix.
+* **meta_scaled**: unchanged against #60. A first version of the `MemoKeys` fix (an explicit stack on
+  every call) cost +28 % here, from allocations; the walks now recurse up to a depth of 200 and switch to
+  the explicit stack only below it.

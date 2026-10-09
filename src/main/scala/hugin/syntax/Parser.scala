@@ -60,11 +60,15 @@ object Parser:
  *  reported when its item is parsed). */
 object Operators:
   def declared(toks: Vector[Token]): Map[String, (Parser.Assoc, Int)] =
-    toks
-      .sliding(4)
-      .collect {
-        case Vector(d, a, p, n)
-            if d.kind == Tok.Directive && d.text == "%infix" && a.kind == Tok.Name && p.kind == Tok.IntLit && n.kind == Tok.Name =>
+    // a loop over the directives, not a window per token: facts files have hundreds of thousands of
+    // tokens (docs/PERFORMANCE.md, "After #80–#87")
+    val out = Map.newBuilder[String, (Parser.Assoc, Int)]
+    var i = 0
+    while i + 3 < toks.length do
+      val d = toks(i)
+      if d.kind == Tok.Directive && d.text == "%infix" then
+        val (a, p, n) = (toks(i + 1), toks(i + 2), toks(i + 3))
+        if a.kind == Tok.Name && p.kind == Tok.IntLit && n.kind == Tok.Name then
           val assoc = a.text match
             case "left" => Some(Parser.Assoc.Left)
             case "right" => Some(Parser.Assoc.Right)
@@ -73,7 +77,6 @@ object Operators:
           val prec = p.value match
             case l: Long => l.toInt
             case _ => 0
-          assoc.map(as => n.text -> (as, prec * 10 + 5))
-      }
-      .flatten
-      .toMap
+          assoc.foreach(as => out += n.text -> (as, prec * 10 + 5))
+      i += 1
+    out.result()

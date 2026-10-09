@@ -1574,6 +1574,39 @@ Deferred:
   declaration; navigation from the expansion document back to the meta code is by the origin comments
   it shows, not by links.
 
+## Long lists and the bench harness (#88)
+
+`sbt "Test/runMain hugin.bench.Bench warm"` overflowed the stack in `meta_scaled` (docs/PERFORMANCE.md,
+"After #80–#87", has the stack trace's analysis and the numbers). Decisions:
+
+* **Root cause, not a larger stack.** The harness runs on the JVM's default 1 MiB stack, the launcher on
+  64 MiB; the overflow was JVM stack spent per element of a list: the module-wide directive `mirror`
+  recursing over ~190 items at ~40 frames per item. The #60 final build overflows the same way today
+  (JIT-dependent), so this is not a regression of #80–#87; the issue's suspects (explicit quotes, shared
+  `list` with derived folds) only contributed the deep case tree of a quoted pattern.
+* **What is now constant-stack per element**: case-tree matching (`Matching.runTree` is a loop, so a
+  meta function's recursion costs the same frames per level whatever its case tree), the memo keys
+  (`MemoKeys`: recursion up to depth 200, then an explicit stack — an explicit stack on every call cost
+  +28 % on meta_scaled), evaluation of argument chains (`cons x1 (cons x2 …)`, in the recursion's order:
+  functions and arguments left to right, each application after its argument), and the elements of a
+  list value (`Reflection.elements`).
+* **What stays proportional to the length** (recorded, not changed): a meta function's own recursion over
+  a list, including the derived `T.lift`/`T.reify` folds (the evaluator is a recursive NbE evaluator;
+  making it stackless — CPS or a trampoline through `eval`/`app`/`reduceFunction`/`quote` — is a redesign);
+  read-back (`quote`) of a long list outside the memo keys; and parsing/elaborating a source list literal
+  of thousands of elements (`Slices.congruent`, the elaborator). Measured on the 1 MiB stack, cold: a
+  literal list lifted to object code (`p [1, …, n]`) overflows from ~150 elements, a recursive directive
+  from ~590 items (was ~190); on the launcher's stack all of them pass at 10 000 elements.
+* **Tests** (`core/LongListsSuite`) run on a thread with an explicit 1 MiB stack (the harness's
+  situation), so they do not depend on the test JVM's thread configuration: a module-wide directive over
+  5 000 items, `mirror` over 400 items, memo keys and evaluation of a 100 000-element list. All three
+  overflow before the fix.
+* **Performance regressions found** while re-recording the numbers (each re-measured against a build of
+  the #60 final commit on the same machine): `shortest_grid` +25 % from `Operators.declared`
+  (`sliding(4)` over the tokens of a 14 000-line facts file; now a loop), fixed; uncached prelude
+  elaboration +40 % from new work (tooling records of #54, derived functions of #85, the resilient parser
+  of #53), recorded — making `Clauses.recordSplits` lazy changes the state it reads.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

@@ -155,10 +155,21 @@ trait Reflection:
 
   private def malformed(what: String, s: Span): Nothing = fail(ReflectionProblem.MalformedData(what, s))
 
-  private def elements(v: Val, sp: Span, t: Target): List[(Val, Span)] = ctorApp(v, sp, t) match
-    case ("nil", Nil, _) => Nil
-    case ("cons", List(x, xs), s) => (x, s) :: elements(xs, s, t)
-    case (_, _, s) => malformed("not a list", s)
+  /** The elements of a list, with a loop down its spine (a module can have thousands of items, issue #88). */
+  private def elements(v: Val, sp: Span, t: Target): List[(Val, Span)] =
+    val out = List.newBuilder[(Val, Span)]
+    var cur = v
+    var at = sp
+    var more = true
+    while more do
+      ctorApp(cur, at, t) match
+        case ("nil", Nil, _) => more = false
+        case ("cons", List(x, xs), s) =>
+          out += ((x, s))
+          cur = xs
+          at = s
+        case (_, _, s) => malformed("not a list", s)
+    out.result()
 
   /** The rules and queries that the closed value `v` of kind `k` (`rule`, `item` or a `list` of them)
    *  describes, as syntax at `span` (where the data has no positions of its own). */
