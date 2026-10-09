@@ -27,6 +27,10 @@ enum ReflectionProblem extends Problem:
   /** `$..xs` or `$f[t̄]` outside a quote. */
   case HoleOutsideQuote(at: Span)
 
+  /** A variable of a quoted rule's head that only a hole of the body (`hole`, at `holeAt`) can bind,
+   *  by its name (W0007). */
+  case HoleCapture(variable: String, hole: String, at: Span, holeAt: Span)
+
   /** A quote where the expected type (`expected`, if known) is not a reflective type. */
   case QuoteWithoutType(expected: Option[String], at: Span)
 
@@ -50,6 +54,7 @@ enum ReflectionProblem extends Problem:
 
   def code: Code = this match
     case _: NotClosed | _: MalformedData => Code.E0918
+    case _: HoleCapture => Code.W0007
     case _: QuoteWithoutType => Code.E0919
     case _ => Code.E0917
 
@@ -67,6 +72,7 @@ enum ReflectionProblem extends Problem:
     case HoleNotVariable(s) => s
     case NotClosed(_, s) => s
     case MalformedData(_, s) => s
+    case HoleCapture(_, _, s, _) => s
 
   def message: Msg = this match
     case _: NoReflectiveTypes => msg"the reflective types of the prelude are not in scope"
@@ -82,6 +88,7 @@ enum ReflectionProblem extends Problem:
     case _: HoleNotVariable => msg"a hole in a pattern must be a variable or `_`"
     case _: NotClosed => msg"cannot reflect a value that is not known at compile time"
     case MalformedData(w, _) => Msg.text(s"cannot reflect this value: $w")
+    case HoleCapture(v, h, _, _) => msg"the variable ${Src(v)} is bound only through the hole ${Src(h)}, by its name"
 
   override def primaryLabel: Msg = this match
     case _: NoReflectiveTypes => msg"object syntax as data"
@@ -98,6 +105,11 @@ enum ReflectionProblem extends Problem:
     case _: HoleNotVariable => msg"expected `$$X` or `$$_`"
     case NotClosed(s, _) => msg"the value is ${Src(s)}"
     case _: MalformedData => msg"reflected here"
+    case _: HoleCapture => msg"no formula of the quote binds it"
+
+  override def labels: List[(Span, Msg)] = this match
+    case HoleCapture(_, _, _, h) => List((h, msg"the data in this hole may name it"))
+    case _ => Nil
 
   override def helps: List[Msg] = this match
     case _: QuoteWithoutType => List(msg"give the type: `('{ p X :- q X } : rule)`, or declare it, as in `r : rule = '{ p X :- q X }.`")
@@ -127,4 +139,9 @@ enum ReflectionProblem extends Problem:
         msg"`$$F[V]` matches a formula that may mention `V`, the variable an enclosing aggregate binds; `F` is then a function of type `term -> formula`"
       )
     case _: NotClosed => List(msg"reflection turns closed data into object code during elaboration")
+    case _: HoleCapture =>
+      List(
+        msg"a variable of reflected data is the variable of the rule with the same name, so the quote depends on the names the hole's data happens to use",
+        msg"pass the variable to the code that builds the hole's data, as a `quoted A` made by `qvar`"
+      )
     case _ => Nil

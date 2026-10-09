@@ -1,0 +1,6 @@
+path a b.
+path a c.
+path b b.
+path b c.
+twice a b.
+twice b c.

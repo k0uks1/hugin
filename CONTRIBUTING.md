@@ -63,11 +63,12 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
 
 Every warning is a named *lint* (`hugin explain --list` shows the names next to the `W` codes):
 `undefined_constant_expressions` (W0001), `singleton_variables` (W0002), `unused_definitions` (W0003),
-`empty_formula_functions` (W0005), `unreachable_clauses` (W0006). A lint is given by its name or its code;
-the last flag for a lint wins, and an explicit `-W` keeps a lint a warning under `--deny-warnings`. A denied
-lint is reported as an error (`error[W0002]`) and makes the command fail. Each reported lint has a note
-saying where its level comes from (`` `-W singleton_variables` is on by default ``). The launcher script
-of `sbt stage` passes arguments starting with `-D` to the JVM, so with it write `--deny <lint>`.
+`empty_formula_functions` (W0005), `unreachable_clauses` (W0006), `hole_capture` (W0007). A lint is given
+by its name or its code; the last flag for a lint wins, and an explicit `-W` keeps a lint a warning under
+`--deny-warnings`. A denied lint is reported as an error (`error[W0002]`) and makes the command fail.
+Each reported lint has a note saying where its level comes from
+(`` `-W singleton_variables` is on by default ``). The launcher script of `sbt stage` passes arguments
+starting with `-D` to the JVM, so with it write `--deny <lint>`.
 
 `hugin fix FILE` applies the suggestions marked machine-applicable (adding a missing `.`, replacing a
 singleton variable by `_`, adding missing labels as `_`, `%complete`, the

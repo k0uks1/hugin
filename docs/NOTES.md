@@ -1724,6 +1724,20 @@ three batches.
   Goldens `run/tf_typed_atoms` (atoms as facts, items, heads, bodies, under `not`, and taken apart by a
   quoted pattern), `neg/tf_typed_atoms`. Changed: `neg/core_e0901_occurs` (numbers of unknowns, which
   count the prelude's declarations).
+* **Batch 3, typed variables and W0007.** `qvar N = qterm (tvar (N ^ "#v"))` is a prelude definition,
+  so its data is ordinary and the same hint gives the same variable. Its type argument is stated by the
+  program (a declared type, a parameter type): `$(qvar "x")` written directly in a hole leaves it
+  undetermined (E0903), since a hole's type is inferred. `--print-after` shows the name as `x#v`, and query
+  answers leave such variables out, like the `_a#0` of `%demand`. The lint `hole_capture` (W0007) runs where
+  a quote is checked (`TypedQuotes.holeCapture`, for rule and item quotes, not for the rules a module-wide
+  directive reifies): a plain variable of a head that no positive atom, equation or aggregate result of the
+  body binds, while the body has a hole of type `formula`, a sequence hole or a hole of type `term`
+  outside `not`. Holes of type `quoted A` do not count: a typed value is the intended way to share a
+  variable. Reports are deduplicated by position, since a quote can be elaborated more than once.
+  The probe ran `hugin check` over the 481 programs of `tests/`, `examples/`,
+  `docs/design/examples/` and the code blocks of the reference and of `docs/errors`: no W0007, so the lint
+  is a warning by default. Changed: `neg/core_e0901_occurs` again (`qvar` adds unknowns to the prelude).
+  Goldens `run/tf_qvar`, `run/tf_hole_capture` (with `-A unused_definitions`).
 
 ## Possible next steps
 
