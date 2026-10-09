@@ -116,7 +116,7 @@ final class Engine(prog: CoreProgram):
   private inline def windowLo(rel: Int, recIdx: Int): Int = if recIdx >= 0 && recIdx == deltaAt then oldEnd(rel) else 0
 
   private inline def windowHi(rel: Int, recIdx: Int): Int =
-  if recIdx < 0 then Int.MaxValue else if deltaAt >= 0 && recIdx < deltaAt then oldEnd(rel) else deltaEnd(rel)
+    if recIdx < 0 then Int.MaxValue else if deltaAt >= 0 && recIdx < deltaAt then oldEnd(rel) else deltaEnd(rel)
 
   /** Runs ops(i..) and calls `k` for every solution. Returns false to stop early. */
   private def exec(ops: Array[BodyOp], i: Int, regs: Array[Any], k: Array[Any] => Boolean): Boolean =
