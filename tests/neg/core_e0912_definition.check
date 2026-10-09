@@ -1,0 +1,12 @@
+error[E0912]: cannot show that `f` terminates
+ --> tests/neg/core_e0912_definition.hgn:5:1
+  |
+5 | f : nat -> nat.
+  | ^ possibly non-terminating
+...
+8 | f (suc N) = g (suc N).
+  | ---------------------- in this clause: `g (suc N)`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+1 error found

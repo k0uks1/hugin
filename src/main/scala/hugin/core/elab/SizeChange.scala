@@ -28,32 +28,264 @@ trait SizeChange:
 
   private val calls = mutable.ListBuffer.empty[Call]
 
-  /** Records the calls of functions in the right-hand side `body` (elaborated in `c`) of a leaf of `f`. */
+  /** Records the calls of functions in the right-hand side `body` (elaborated in `c`) of a leaf of `f`.
+   *
+   *  A call can be hidden behind another name, and evaluation finds it there; so the calls are collected
+   *  where evaluation would find them (reference: meta/termination):
+   *
+   *  - a definition applied to arguments is inlined: its term is visited with the argument values for its
+   *    parameters, so `g = [x] f x` makes `g (suc N)` the call `f (suc N)`; this also covers
+   *    definitions in definitions and partial applications stored in definitions (`h = f`, `h = k zero`);
+   *  - a field of a record term (`ops.step` with `ops = { step = [x] f x }`, also through definitions)
+   *    is visited as that field's term applied to the arguments;
+   *  - a variable bound to a closure, a record or a partial application (a `let`, a lifted local
+   *    function of a `where` block, an inlined parameter) is followed through its value, as is the
+   *    solution of a meta (an implicit argument);
+   *  - what cannot be followed with its arguments is a call with unknown arguments to every function it
+   *    may reach: a definition or lambda that is not applied, and module bodies (functor applications,
+   *    whose members and items see the body's parameters).
+   *
+   *  Definitions are not recursive (E0105), so inlining terminates. */
   def recordCalls(f: Clauses#FunctionInfo, callerArgs: Vector[Val], c: Cxt, body: Tm, source: SurfaceClause): Unit =
-    def visit(t: Tm, env: List[Val], lvl: Int): Unit =
-      val (head, args) = spine(t)
-      calleeOf(head, env).foreach { (g, applied) =>
-        val argVals = applied ++ args.map(a => eval(env, a))
-        calls += Call(f.id, g, matrix(callerArgs, argVals, lvl, arity(g)), source.span, () => showTm(c.names, t))
-      }
-      args.foreach(visit(_, env, lvl))
-      head match
-        case Tm.Lam(_, _, b) => visit(b, Val.local(lvl) :: env, lvl + 1)
-        case Tm.Pi(_, _, a, b) => visit(a, env, lvl); visit(b, Val.local(lvl) :: env, lvl + 1)
-        case Tm.Let(_, _, d, b) => visit(d, env, lvl); visit(b, eval(env, d) :: env, lvl + 1)
-        case Tm.App(_, _, _) | Tm.Global(_) | Tm.Var(_) => ()
-        case other => Tm.children(other).foreach(visit(_, env, lvl))
-    visit(body, c.env, c.lvl)
+    CallCollector(f.id, callerArgs, c, source.span).visit(body, c.env, c.lvl, Nil, None)
 
-  /** The function a call head denotes, with the arguments it is already applied to: a function, or a
-   *  variable bound to a partially applied one (a lifted local function of a `where` block). */
-  private def calleeOf(head: Tm, env: List[Val]): Option[(Int, List[Val])] = head match
-    case Tm.Global(g) if isFunction(g) => Some((g, Nil))
-    case Tm.Var(ix) =>
-      env(ix) match
-        case Val.Rigid(Head.Glob(g), sp) if isFunction(g) => Some((g, sp.reverse.collect { case Elim.EApp(a, _) => a }))
-        case _ => None
+  /** The calls of one right-hand side; `site` is the term of the clause (in the clause's context) that
+   *  a call shows in a diagnostic, `None` while visiting the clause's own syntax. */
+  private final class CallCollector(caller: Int, callerArgs: Vector[Val], c: Cxt, span: Span):
+    private var depth = 0
+    private var steps = 0
+    private val unknownDone = mutable.HashSet.empty[Int]
+
+    private def record(g: Int, args: List[Val], lvl: Int, site: Tm): Unit =
+      calls += Call(caller, g, matrix(callerArgs, args, lvl, arity(g)), span, () => showTm(c.names, zonk(c.env, c.lvl, site)))
+
+    /** `t` (in `env`, under `lvl` binders) applied to the further arguments `extra`. */
+    def visit(t: Tm, env: List[Val], lvl: Int, extra: List[Val], site0: Option[Tm]): Unit =
+      val site = site0.getOrElse(t)
+      val (head, args) = spine(t)
+      lazy val argVals = args.map(a => eval(env, a)) ++ extra
+      args.foreach(a => visit(a, env, lvl, Nil, site0))
+      head match
+        case Tm.Global(g) if isFunction(g) => record(g, argVals, lvl, site)
+        case Tm.Global(g) =>
+          definitionTerm(g).foreach(d => inlining(g, lvl, site)(visitApplied(d, Nil, lvl, argVals, site)))
+        case Tm.Var(ix) => env.lift(ix).foreach(v => visitValue(v, lvl, argVals, site, deep = false))
+        case Tm.Meta(m) => metas(m).solution.foreach(v => visitValue(v, lvl, argVals, site, deep = true))
+        case Tm.AppPruning(Tm.Meta(m), pr) =>
+          val selected = env.zip(pr).reverse.collect { case (v, Some(_)) => v }
+          metas(m).solution.foreach(v => visitValue(v, lvl, selected ++ argVals, site, deep = true))
+        case Tm.Proj(a, l) =>
+          field(a, env, l) match
+            case Some(Left((ft, fenv))) => visitApplied(ft, fenv, lvl, argVals, site)
+            case Some(Right(v)) => visitValue(v, lvl, argVals, site, deep = false)
+            case None => visit(a, env, lvl, Nil, site0)
+        case Tm.Lam(_, _, _) => visitApplied(head, env, lvl, argVals, site)
+        case Tm.Pi(_, _, a, b) =>
+          visit(a, env, lvl, Nil, site0); visit(b, Val.local(lvl) :: env, lvl + 1, Nil, site0)
+        case Tm.Let(_, _, d, b) =>
+          visit(d, env, lvl, Nil, site0); visit(b, eval(env, d) :: env, lvl + 1, argVals, site0)
+        case Tm.Module(b, menv) =>
+          menv.foreach(visit(_, env, lvl, Nil, site0))
+          moduleFunctions(b).foreach(g => unknown(g, lvl, site))
+        case Tm.RecTy(fs, _, _) =>
+          var e = env
+          var lv = lvl
+          for (_, ty) <- fs do
+            visit(ty, e, lv, Nil, site0)
+            e = Val.local(lv) :: e
+            lv += 1
+        case Tm.Fresh(ns, b) =>
+          val locals = ns.indices.map(i => Val.local(lvl + i)).reverse.toList
+          visit(b, locals ++ env, lvl + ns.length, Nil, site0)
+        case Tm.App(_, _, _) => ()
+        case other => Tm.children(other).foreach(visit(_, env, lvl, Nil, site0))
+
+    /** The term `t` (in `env`) applied to `args`: its lambdas take the arguments; lambdas without one
+     *  bind unknown values. */
+    private def visitApplied(t: Tm, env: List[Val], lvl: Int, args: List[Val], site: Tm): Unit = (t, args) match
+      case (Tm.Lam(_, _, b), a :: rest) => visitApplied(b, a :: env, lvl, rest, site)
+      case (Tm.Lam(_, _, b), Nil) => visitApplied(b, Val.local(lvl) :: env, lvl + 1, Nil, site)
+      case _ => visit(t, env, lvl, args, Some(site))
+
+    /** A value applied to `args`, followed without evaluating it: a closure by its term, a neutral
+     *  application of a function as a call, of a definition by inlining. The value of a variable
+     *  (`deep = false`) came from syntax that is visited where it is written, so only its head is
+     *  followed; a meta's solution (`deep = true`) is visited through all its parts. */
+    private def visitValue(v: Val, lvl: Int, args: List[Val], site: Tm, deep: Boolean): Unit =
+      def part(x: Val) = if deep then visitValue(x, lvl, Nil, site, deep) else ()
+      def closure(b: Tm, env: List[Val]) = if deep then visit(b, Val.local(lvl) :: env, lvl + 1, Nil, Some(site)) else ()
+      v match
+        case Val.Lam(_, _, cl) =>
+          if args.nonEmpty || deep then visitApplied(Tm.Lam("_", Icit.Expl, cl.body), cl.env, lvl, args, site)
+        case Val.Rigid(h, sp) =>
+          val spArgs = sp.reverse.collect { case Elim.EApp(a, _) => a }
+          spArgs.foreach(part)
+          h match
+            case Head.Glob(g) if isFunction(g) =>
+              if sp.forall(_.isInstanceOf[Elim.EApp]) then record(g, spArgs ++ args, lvl, site) else unknown(g, lvl, site)
+            case Head.Glob(g) =>
+              definitionTerm(g).foreach(d => inlining(g, lvl, site)(visitApplied(d, Nil, lvl, spArgs ++ args, site)))
+            case Head.Module(b, env) =>
+              env.foreach(part)
+              moduleFunctions(b).foreach(g => unknown(g, lvl, site))
+            case Head.Local(_) => ()
+        case Val.Flex(m, sp) =>
+          val spArgs = sp.reverse.collect { case Elim.EApp(a, _) => a }
+          spArgs.foreach(part)
+          metas(m).solution.foreach(s => visitValue(s, lvl, spArgs ++ args, site, deep = true))
+        case Val.Obj(ObjForm.Loc(_), List(x)) => visitValue(x, lvl, args, site, deep)
+        case Val.Pi(_, _, a, cl) => part(a); closure(cl.body, cl.env)
+        case Val.Rec(fs) => fs.foreach(x => part(x._2))
+        case Val.RecTy(_, env, tys, _, _) if deep =>
+          var e = env
+          var lv = lvl
+          for ty <- tys do
+            visit(ty, e, lv, Nil, Some(site))
+            e = Val.local(lv) :: e
+            lv += 1
+        case Val.Lift(a) => part(a)
+        case Val.Quote(a) => part(a)
+        case Val.Persist(a) => part(a)
+        case Val.FactTy(a) => part(a)
+        case Val.Arith(_, a, b, _) => part(a); part(b)
+        case Val.Negate(a, _) => part(a)
+        case Val.Obj(_, as) => as.foreach(part)
+        case _ => ()
+
+    /** The field `l` of the record that `a` denotes, if it is a record term (through definitions) or a
+     *  record value: the field's term with its environment, or its value. */
+    private def field(a: Tm, env: List[Val], l: Name): Option[Either[(Tm, List[Val]), Val]] = a match
+      case Tm.Rec(fs) => fs.find(_._1 == l).map(x => Left((x._2, env)))
+      case Tm.Global(g) => definitionTerm(g).flatMap(field(_, Nil, l))
+      case Tm.Var(ix) =>
+        env.lift(ix) match
+          case Some(Val.Rec(fs)) => fs.find(_._1 == l).map(x => Right(x._2))
+          case _ => None
+      case Tm.Proj(b, l2) =>
+        field(b, env, l2) match
+          case Some(Left((t, fenv))) => field(t, fenv, l)
+          case Some(Right(Val.Rec(fs))) => fs.find(_._1 == l).map(x => Right(x._2))
+          case _ => None
+      case Tm.Module(b, menv) => member(b, menv.map(eval(env, _)), l)
+      case Tm.Trace(_, t) => field(t, env, l)
+      case Tm.Require(_, _, t) => field(t, env, l)
+      case Tm.App(_, _, _) =>
+        // a functor applied to all its parameters: the field of its body
+        val (h, args) = spine(a)
+        h match
+          case Tm.Global(g) =>
+            definitionTerm(g).flatMap { d =>
+              var t = d
+              var e = List.empty[Val]
+              var rest = args
+              while rest.nonEmpty && t.isInstanceOf[Tm.Lam] do
+                e = eval(env, rest.head) :: e
+                rest = rest.tail
+                t = t.asInstanceOf[Tm.Lam].body
+              if rest.isEmpty && !t.isInstanceOf[Tm.Lam] then field(t, e, l) else None
+            }
+          case _ => None
+      case _ => None
+
+    /** The member `l` of a module body in the environment `menv`: its definition, in the environment of
+     *  the members before it (their values, object members as placeholders). `None` (calls with
+     *  unknown arguments) for an object member, or if an earlier member's definition would instantiate a
+     *  module or create object variables when evaluated. */
+    private def member(b: ModuleBody, menv: List[Val], l: Name): Option[Either[(Tm, List[Val]), Val]] =
+      var e = menv
+      var result: Option[Either[(Tm, List[Val]), Val]] = None
+      var ok = true
+      val it = b.members.iterator
+      while ok && result.isEmpty && it.hasNext do
+        val m = it.next()
+        m.kind match
+          case MemberKind.Defined(t) if m.name == l => result = Some(Left((t, e)))
+          case MemberKind.Defined(t) if pure(t) => e = eval(e, t) :: e
+          case MemberKind.Object(_) if m.name != l => e = Val.Wild :: e
+          case _ => ok = false
+      result
+
+    /** Evaluating `t` has no effect: it instantiates no module body and creates no object variable. */
+    private def pure(t: Tm): Boolean = !Tm.exists(t) {
+      case Tm.Module(_, _) | Tm.Fresh(_, _) => true
+      case _ => false
+    }
+
+    /** Runs `k` (inlining definition `g`) unless the inlining is too deep, in which case the functions
+     *  `g` may reach are called with unknown arguments. */
+    private def inlining(g: Int, lvl: Int, site: Tm)(k: => Unit): Unit =
+      steps += 1
+      if depth >= MaxInlining || steps > MaxInlineSteps then reachableFunctions(g).foreach(h => unknown(h, lvl, site))
+      else
+        depth += 1
+        try k
+        finally depth -= 1
+
+    /** A call of `g` with arguments that are not known (all arcs absent), once per right-hand side. */
+    private def unknown(g: Int, lvl: Int, site: Tm): Unit =
+      if unknownDone.add(g) then record(g, Nil, lvl, site)
+
+  /** Bounds on inlining per right-hand side (nesting, and inlined definitions in all); beyond them the
+   *  calls a definition may reach have unknown arguments. */
+  private val MaxInlining = 64
+  private val MaxInlineSteps = 10000
+
+  /** The term of a definition. */
+  private def definitionTerm(g: Int): Option[Tm] = globals(g).kind match
+    case GlobalKind.Definition(tm, _) => Some(tm)
     case _ => None
+
+  private val reachableMemo = mutable.HashMap.empty[Int, Set[Int]]
+
+  /** The functions that the term of definition `g` refers to, also through the definitions, module
+   *  bodies and solved metas it refers to. */
+  private def reachableFunctions(g: Int): Set[Int] =
+    reachableMemo.get(g) match
+      case Some(r) => r
+      case None =>
+        reachableMemo(g) = Set.empty // definitions are not recursive; guards a malformed cycle
+        val r = definitionTerm(g).map(functionsIn).getOrElse(Set.empty)
+        reachableMemo(g) = r
+        r
+
+  private def functionsIn(t: Tm): Set[Int] = t match
+    case Tm.Global(g) if isFunction(g) => Set(g)
+    case Tm.Global(g) => reachableFunctions(g)
+    case Tm.Meta(m) => metas(m).solution.map(functionsInVal(_, 0)).getOrElse(Set.empty)
+    case Tm.Module(b, env) => env.flatMap(functionsIn).toSet ++ moduleFunctions(b)
+    case other => Tm.children(other).flatMap(functionsIn).toSet
+
+  private def functionsInVal(v: Val, depth: Int): Set[Int] =
+    if depth > MaxInlining then Set.empty
+    else
+      def sp(s: Spine) = s.collect { case Elim.EApp(a, _) => functionsInVal(a, depth + 1) }.flatten.toSet
+      v match
+        case Val.Lam(_, _, cl) => functionsIn(cl.body) ++ cl.env.flatMap(functionsInVal(_, depth + 1))
+        case Val.Pi(_, _, a, cl) => functionsInVal(a, depth + 1) ++ functionsIn(cl.body)
+        case Val.Rigid(Head.Glob(g), s) => (if isFunction(g) then Set(g) else reachableFunctions(g)) ++ sp(s)
+        case Val.Rigid(Head.Module(b, env), s) => moduleFunctions(b) ++ env.flatMap(functionsInVal(_, depth + 1)) ++ sp(s)
+        case Val.Rigid(_, s) => sp(s)
+        case Val.Flex(m, s) => metas(m).solution.map(functionsInVal(_, depth + 1)).getOrElse(Set.empty) ++ sp(s)
+        case Val.Rec(fs) => fs.flatMap(x => functionsInVal(x._2, depth + 1)).toSet
+        case Val.Lift(a) => functionsInVal(a, depth + 1)
+        case Val.Quote(a) => functionsInVal(a, depth + 1)
+        case Val.Persist(a) => functionsInVal(a, depth + 1)
+        case Val.Obj(_, as) => as.flatMap(functionsInVal(_, depth + 1)).toSet
+        case _ => Set.empty
+
+  private val moduleMemo = mutable.HashMap.empty[Int, Set[Int]]
+
+  /** The functions a module body refers to in its members and items. */
+  private def moduleFunctions(b: ModuleBody): Set[Int] =
+    moduleMemo.getOrElseUpdate(
+      b.id,
+      b.members.flatMap { m =>
+        functionsIn(m.ty) ++ (m.kind match
+          case MemberKind.Defined(t) => functionsIn(t)
+          case MemberKind.Object(_) => Set.empty
+        )
+      }.toSet ++ b.items.flatMap(CoreItem.terms).flatMap(functionsIn)
+    )
 
   private def isFunction(g: Int): Boolean = globals(g).kind.isInstanceOf[GlobalKind.Function]
 
