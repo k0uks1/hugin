@@ -47,7 +47,7 @@ trait Where:
       (local(define(c, name.name, ty, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
     case Decl(_, _, k @ Keyword(Kw.Data), _, _) =>
       // a shared data declaration is top level only (E0923)
-      fail(SharedProblem.NotTopLevel(k.span))
+      fail(SharedProblem.NotTopLevel(k.span, inWhere = true))
     case d @ Decl(name, Nil, tpe, None, None) =>
       val (clauses, rest) = items.tail.span(isClauseOf(name.name))
       if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
