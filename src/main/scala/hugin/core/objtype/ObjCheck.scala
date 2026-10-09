@@ -106,6 +106,7 @@ final class ObjCheck(
           report(ObjTypeError.NoMeet(VarName(v), (ty(failedType), failedSpan), others.toList, expectations.toList))
           gamma(v) = OTy.Err
     equations()
+    body.foreach(meetEquations)
     for h <- heads do
       h match
         case OTerm.App(Some(r), args, _) => checkArgs(r, args, inHead = true)
@@ -115,6 +116,30 @@ final class ObjCheck(
     body.foreach(checkFormula)
     (problems.toList, gamma.toMap)
 
+  /** An equation `X = t` (or `t = X`), a conjunct of the body, between a variable with positions in the
+   *  body and a term of a known type: both denote one value, so the variable's type is the meet of the two
+   *  (E0401 if there is none). */
+  private def meetEquations(f: OFormula): Unit = f match
+    case OFormula.Cmp(CmpOp.Eq, l, r, sp) =>
+      def meetWith(x: String, other: OTerm): Unit =
+        (gamma.get(x), synth(other)) match
+          case (Some(tx), Some(to)) if known(tx) && known(to) && expected.contains(x) =>
+            meet(tx, to) match
+              case Some(m) => gamma(x) = m
+              case None =>
+                val occs = expected(x).toList
+                val others = occs.distinctBy(_._1).map((t, s, _) => (ty(t), s))
+                val expectations = (occs.map((t, _, w) => (ty(t), w)) :+ ((ty(to), "equation"))).distinctBy((t, w) => (t.shown, w))
+                report(ObjTypeError.NoMeet(VarName(x), (ty(to), sp), others, expectations))
+                gamma(x) = OTy.Err
+          case _ =>
+      (l, r) match
+        case (OTerm.Var(x, _), other) => meetWith(x, other)
+        case _ =>
+      (r, l) match
+        case (OTerm.Var(x, _), other) => meetWith(x, other)
+        case _ =>
+    case _ => // an equation in one alternative of a disjunction holds in that alternative only
   /** Types the variables without positions in the body by equations and aggregates, to a fixed point. */
   private def equations(): Unit =
     var changed = true

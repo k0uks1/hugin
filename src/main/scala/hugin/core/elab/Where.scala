@@ -38,10 +38,16 @@ trait Where:
     case Decl(name, Nil, tpe, None, Some(e)) =>
       val a = checkType(c, tpe, Stage.S1)
       val av = ev(c, a)
-      (local(define(c, name.name, av, ev(c, check(c, e, av, Stage.S1)), Some(Site(name.span, "local definition")))), items.tail)
+      val t = check(c, e, av, Stage.S1)
+      checkObjectFragments(c, t, av)
+      (local(define(c, name.name, av, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
     case Def(name, Nil, rhs) =>
       val (t, ty) = inferS(c, rhs, Stage.S1)
+      checkObjectFragments(c, t, ty)
       (local(define(c, name.name, ty, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
+    case Decl(_, _, k @ Keyword(Kw.Data), _, _) =>
+      // a shared data declaration is top level only (E0923)
+      fail(SharedProblem.NotTopLevel(k.span))
     case d @ Decl(name, Nil, tpe, None, None) =>
       val (clauses, rest) = items.tail.span(isClauseOf(name.name))
       if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))

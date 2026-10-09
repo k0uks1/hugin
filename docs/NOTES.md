@@ -1692,6 +1692,20 @@ Goldens: `neg/ot_generators`, `neg/ot_functor_once`, `neg/ot_typed_quotes`, `run
 (numbers of unknowns). Two unit tests of `HandoverSuite` and `ModulesSuite` were ill-typed (they stopped
 before the object typer ran) and were made well-typed.
 
+### Fixes after the reference audit (#98)
+
+The audit of the reference (#97) found seven places where the implementation fell short of the design
+(entries 16–22 of `reference/DISCREPANCIES.md`, removed with the fixes): object code in record fields,
+`where` definitions, definitions with an inferred type (an atom of type `rel` is a formula) and formulas
+passed to meta functions inside object code is typed at the definition; a rule whose head is not a family
+instance reports an undetermined type argument as E0206 (it was made generic, then E0909 at staging); an
+error of the check of staged items in code generated elsewhere has the note "in the code staged for this
+rule"; a directive argument at `quoted A` is quoted implicitly; `$f a.` is a splice item when `f` returns
+reflected items, whatever the argument (so its error is the argument's); `data` in a `where` block is
+E0923; an equation that is a conjunct of the body meets the type of a variable with columns (not in an
+alternative of a disjunction). The generated fuzz programs no longer equate a variable with constants of
+two constructors, which is now a rule that never fires (E0401).
+
 ## Possible next steps
 
 * A faster engine (columnar storage, join planning) behind the same core IR.

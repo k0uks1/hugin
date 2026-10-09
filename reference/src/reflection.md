@@ -178,7 +178,8 @@ stands where no reflective type is expected: the expected type is another one, o
 a definition without a declared type. Ascribe the quote, `('{ p X } : formula)`, or declare the type. An
 item `$e.` expects reflected items, so `$'{ … }.` needs no ascription. Object syntax outside a quote is
 never data: the arguments of directives are the exception, as they are object syntax themselves; an
-argument at a parameter of a reflective type is quoted implicitly ([Directives](directives.md)).
+argument at a parameter of a reflective type or of type `quoted A` is quoted implicitly
+([Directives](directives.md)).
 
 The following program builds a module as data and reflects it into the program.
 
@@ -359,8 +360,8 @@ A quoted term `q : quoted A` may be used as follows:
 
 It is an error ([E0901](errors/E0901.md)) to use a quoted term otherwise. In particular, a `term` is not
 a `quoted A`, `quoted A` is not `quoted B` unless `A` is a subtype of `B`, and a quoted term is not
-object code `⇑A`. A [directive](directives.md) does not quote an argument at a parameter of type
-`quoted A` implicitly; the argument is written as a quote.
+object code `⇑A`. A [directive](directives.md) quotes an argument at a parameter of type `quoted A`
+implicitly, as a term of type `A`.
 
 The following program uses a quoted term as a term, in a head with `$` and in an equation through a
 `term`.

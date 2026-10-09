@@ -1,0 +1,9 @@
+error[E0206]: cannot infer type argument `A` of family `nil`
+ --> tests/neg/f98_type_argument.hgn:4:15
+  |
+4 | pairs :- _X = nil. (*~ E0206 *)
+  |               ^^^ type not determined
+  |
+  = help: ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined
+
+1 error found

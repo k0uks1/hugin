@@ -1,0 +1,10 @@
+error[E0923]: a shared data declaration that is not at the top level of a file
+ --> tests/neg/f98_data_in_where.hgn:4:17
+  |
+4 |   where shape : data. (*~ E0923 *)
+  |                 ^^^^ `data` is only allowed here at the top level
+  |
+  = note: the meta side of a shared type declared in a module body or a functor would be generative, which the meta level does not support
+  = help: move the declaration and its constructors to the top level of the file
+
+1 error found

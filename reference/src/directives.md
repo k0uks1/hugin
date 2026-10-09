@@ -39,7 +39,7 @@ is an error ([E0001](errors/E0001.md)).
 name. The compiler elaborates the application `d a₁ … aₙ` with the arguments checked against `d`'s
 parameter types, with stage inference. The arguments of a directive are object syntax, like the item they
 stand in: an argument at a parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`,
-`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes)
+`decl`, `measure`) or of type `quoted A` is quoted implicitly, as if it were written in a [quote](reflection.md#quotes)
 `'{ … }`. The quote may also be written explicitly. In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
@@ -48,8 +48,8 @@ stand in: an argument at a parameter of a reflective type (`term`, `formula`, `r
 - where a `measure` is expected, the measure syntax of `%terminates` is quoted;
 - a meta value is passed in a hole, `%d $x.`; at a `decl` or `sym` parameter, an argument that is not a
   name (or a hole) is elaborated as meta code;
-- an argument at a parameter of type `quoted A` is not quoted implicitly: it is written as a quote,
-  `%d '{ 3 }.`;
+- an argument at a parameter of type `quoted A` is a term of type `A` (`%d 3.` for `quoted int`), typed
+  as the quote `'{ 3 }` checked against `quoted A`;
 - a run of mode items is elaborated to the prelude's `modes` data.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).

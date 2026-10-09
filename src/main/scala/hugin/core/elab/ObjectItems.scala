@@ -40,7 +40,11 @@ trait ObjectItems:
         val heads = r.heads.map(h => elabHead(c, h))
         val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
         checkObjectItem(c, varTypes(c, vars), heads, body.toList)
-        val generic = generalize(start) || openFamilyHead(c, heads)
+        val familyHead = openFamilyHead(c, heads)
+        // a rule over unknown type arguments is a family of rules only if its head is an instance of a
+        // family at them; otherwise nothing determines them (E0206)
+        if !familyHead then undeterminedTypeArgument(start).foreach(p => fail(p))
+        val generic = generalize(start) || familyHead
         CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
       }
     // a variable that reflected code uses as well is not a singleton
@@ -60,6 +64,12 @@ trait ObjectItems:
       case Val.Rigid(Head.Glob(f), sp) if globals(f).kind.isInstanceOf[GlobalKind.Family] => true
       case _ => false
   }
+
+  /** The first implicit type argument created since `start` that nothing determined. */
+  private def undeterminedTypeArgument(start: Int): Option[ElabProblem] =
+    (start until metas.length).find(m => metas(m).solution.isEmpty && metas(m).what.startsWith("type argument")).map { m =>
+      ElabProblem.UndeterminedTypeArgument(metas(m).what, metas(m).span)
+    }
 
   private def isObjectTypeUnknown(m: Int): Boolean =
     val result = force(telescope(metas(m).ty)._2)

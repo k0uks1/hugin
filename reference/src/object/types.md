@@ -228,9 +228,11 @@ a type of facts.
 
 The type of an object variable is the meet of the types of all the columns it occupies in the atoms of
 its rule's body, including negated atoms, aggregates and disjunctions. A variable bound only by an
-equation `X = t` or an aggregate has the type of `t`, and the result of `count` is an `int`. It is an
-error ([E0401](../errors/E0401.md)) if a variable's positions have no meet: no value could occupy all of
-them.
+equation `X = t` or an aggregate has the type of `t`, and the result of `count` is an `int`. An equation
+`X = t` that is a conjunct of the body (not one alternative of a disjunction) also takes part in the meet
+of a variable with columns: `X` and `t` are one value, so the type of `X` is the meet of its columns and
+the type of `t`. It is an error ([E0401](../errors/E0401.md)) if a variable's positions have no meet: no
+value could occupy all of them.
 
 Every term must have a subtype of the type its position expects; it is an error
 ([E0402](../errors/E0402.md)) otherwise. In a head, a variable must have a subtype of the column type.
@@ -251,6 +253,18 @@ odd : rel.
 odd :- lives X _, lives _ X.
 ```
 
+The following rule is rejected: `X` is a `num` and, by the equation, a `var`.
+
+```hugin,compile_fail,E0401
+expr : type.
+num : (n : int) -> expr.
+var : (name : string) -> expr.
+nums : (n : num) -> rel.
+vars : (v : var) -> rel.
+odd : rel.
+odd :- nums X, vars E, X = E.
+```
+
 ## Where object code is typed
 
 The rules of this chapter apply to object code wherever it is written. The compiler types object code
@@ -258,16 +272,15 @@ during elaboration. Each of the following is typed as a whole, once it is elabor
 
 - a rule or a query, in a file, in a module body or reflected from data;
 - a clause of a [formula function](../meta/staging.md#formula-functions) defined by rules;
-- the right-hand side of a meta definition with a declared type (`x : A = e.`, `f params : A = e.`) or of
-  a clause of a meta function: the object code that the right-hand side is, inside the parameters of the
-  definition, and the object code that it passes to the meta functions it applies, at their parameter
-  types;
+- the right-hand side of a meta definition, with a declared or an inferred type (`x : A = e.`,
+  `f params = e.`), of a clause of a meta function, or of a definition in a [`where`](../meta/where.md)
+  block: the object code that the right-hand side is, inside the parameters of the definition, the object
+  code in the fields of a record value, and the object code (terms and formulas) that it passes to the
+  meta functions it applies, at their parameter types, also where the application is itself object code;
 - a [quote](../reflection.md#quotes) `'{ … }`.
 
 Each of these is typed whether or not anything uses it, so a meta function whose right-hand side can
-build ill-typed object code is rejected where it is defined. Object code in other places of meta code,
-such as a field of a record value or a definition of a [`where`](../meta/where.md) block, is typed only
-after staging, in the items that use it (see below).
+build ill-typed object code is rejected where it is defined.
 
 The following formula function is rejected where it is defined, although nothing uses it: `lit N` is an
 `expr`, in a column of type `typ`.
@@ -290,6 +303,20 @@ typ : type.
 typed : (e : expr) -> (t : typ) -> rel.
 swap : ⇑expr -> ⇑typ -> ⇑prop.
 swap E T = typed T E.
+```
+
+The following function is rejected where it is defined: the formula that its `where` block defines, and
+passes to `k`, puts an `expr` in a column of type `typ`.
+
+```hugin,compile_fail,E0402
+expr : type. typ : type.
+lit : int -> expr.
+typed : (e : expr) -> (t : typ) -> rel.
+k : ⇑prop -> ⇑prop.
+k F = F.
+g : int -> prop.
+g N = k h
+  where h : ⇑prop = typed (lit N) (lit N).
 ```
 
 The following formula function is accepted: its argument of type `⇑expr` stands in a body column of
@@ -371,7 +398,8 @@ places = rising { node = place, edge = road }.
 After [staging](../meta/staging.md), every staged rule and query is typed again, by the same rules,
 since its variables may meet types that its source did not show: the columns in which the code of a
 formula function or a meta function uses its arguments, and the instances of families and module
-bodies. A problem is reported only for an item that involves meta code:
+bodies. A problem in code that meta code generated elsewhere names the item in a note. A problem is
+reported only for an item that involves meta code:
 
 - an item of a module instance;
 - an instance of a rule of a family that is generic over its type arguments;
