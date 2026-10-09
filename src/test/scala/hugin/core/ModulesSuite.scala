@@ -4,7 +4,7 @@ import StagedTesting.*
 
 /** Module bodies, functors, signatures and their requirements, imports (reference: modules). */
 class ModulesSuite extends munit.FunSuite:
-  private val graph = "n : type. a : n. b : n.\nnext : n -> n -> rel.\nnext a b.\n"
+  private val graph = "%use \"std/graph\".\nn : type. a : n. b : n.\nnext : n -> n -> rel.\nnext a b.\n"
 
   test("a functor's body is generative: each application in an item creates its own relations") {
     val p = staged(graph + "r1 = tc { node = n, edge = next }.\nr2 = tc { node = n, edge = next }.\n")

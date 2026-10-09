@@ -16,7 +16,8 @@ final case class Generated(
     derived: Vector[String],
     demand: Option[ProgramGen.Rel] = None
 ):
-  def items: Vector[String] = decls ++ facts ++ rules ++ derived.map(d => s"%output $d.")
+  // `len` is the relation of `std/list`
+  def items: Vector[String] = ("%use \"std/list\"." +: decls) ++ facts ++ rules ++ derived.map(d => s"%output $d.")
   def code: String = items.mkString("\n") + "\n"
   def program: Program = Program(code, Option.when(inputs.nonEmpty)(inputs.mkString("\n") + "\n"))
   override def toString: String = program.toString

@@ -1,6 +1,7 @@
 (* The holes of a quoted pattern at the columns of a constant bind terms of the columns' types: in
    `guard`, `E : quoted expr` (the argument of `neg`), `G : quoted ctx`, `T : quoted typ`, so the quotes that use them are checked
    where `guard` is defined. Taking a rule apart and putting it together again gives the same rule. *)
+%use "std/reflect".
 expr : type. typ : type. ctx : type.
 lit : int -> expr.
 neg : expr -> expr.

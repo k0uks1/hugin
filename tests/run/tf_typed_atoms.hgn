@@ -1,6 +1,7 @@
 (* Typed atoms: a `quoted r` of a type of facts is an atom where a formula is expected (`qatom` is
    inserted). The generators of atoms are checked at their definitions; their atoms stand in heads, in
    bodies, under `not`, as facts and as items, and a quoted pattern takes them apart again. *)
+%use "std/reflect".
 node : type. a : node. b : node. c : node.
 edge : (src : node) -> (dst : node) -> rel.
 path : (src : node) -> (dst : node) -> rel.

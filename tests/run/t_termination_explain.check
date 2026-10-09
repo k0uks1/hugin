@@ -1,21 +1,21 @@
 termination: {fib.check}: terminates by descent along derivations (A)
   descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
-  rule at tests/run/t_termination_explain.hgn:7:45: premise `fib.check N`: `A` < `N` (`N - A` = 1; `A` >= 1)
-  rule at tests/run/t_termination_explain.hgn:7:55: premise `fib.check N`: `B` < `N` (`N - B` = 2; `B` >= 0)
+  rule at tests/run/t_termination_explain.hgn:8:45: premise `fib.check N`: `A` < `N` (`N - A` = 1; `A` >= 1)
+  rule at tests/run/t_termination_explain.hgn:8:55: premise `fib.check N`: `B` < `N` (`N - B` = 2; `B` >= 0)
 termination: {fib}: terminates, measure declared
   measure of `fib`: argument 1 `n` (integer)
   guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
-  rule at tests/run/t_termination_explain.hgn:7:1: call `fib A FA`: `N - A` = 1; anchored: `N` is bound by relations outside the component
-  rule at tests/run/t_termination_explain.hgn:7:1: call `fib B FB`: `N - B` = 2; anchored: `N` is bound by relations outside the component
+  rule at tests/run/t_termination_explain.hgn:8:1: call `fib A FA`: `N - A` = 1; anchored: `N` is bound by relations outside the component
+  rule at tests/run/t_termination_explain.hgn:8:1: call `fib B FB`: `N - B` = 2; anchored: `N` is bound by relations outside the component
 termination: {path}: finite: recursive, but no rule is constructive (no numbers, no new terms beyond a finite set)
 termination: {nat}: terminates by descent along derivations (A)
   descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
-  rule at tests/run/t_termination_explain.hgn:20:1: premise `nat N`: `M` > `N` (`M - N` = 1; `M` <= 3)
+  rule at tests/run/t_termination_explain.hgn:21:1: premise `nat N`: `M` > `N` (`M - N` = 1; `M` <= 3)
 termination: {len[string]}: terminates, measure inferred
   inferred measure: `%terminates l len[string].`
   measure of `len[string]`: argument 1 `l` (structural)
   guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
-  rule at <stdlib>/prelude.hgn:19:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
+  rule at <stdlib>/std/list.hgn:6:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
 ?- fib 10 F.
 F = 55.
 ?- words L, len L N.

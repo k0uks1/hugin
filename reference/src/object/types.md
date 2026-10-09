@@ -152,8 +152,9 @@ of object constants:
 - `len : (l : list A) -> (n : int) -> rel.` declares a family of relations;
 - `pair A B : type = { fst : A, snd : B }.` declares a family of structs.
 
-The object side of a [shared data type](../meta/families.md#shared-data), such as the prelude's `list`
-(declared `list A : data.`), is a family of types and constructors of this kind.
+The object side of a [shared data type](../meta/families.md#shared-data), such as `list` of the [standard
+library](../std/reflect.md) (declared `list A : data.`), is a family of types and constructors of this
+kind.
 
 The application of a family to object types is an *instance*. Two applications to the same types are the
 same instance: `list int` in two places is one type, and `len` used at lists of integers is one
@@ -167,10 +168,11 @@ supplies them. It is an error ([E0205](../errors/E0205.md)) if a recursive rule 
 family at other type arguments than its own (polymorphic recursion), since that would need infinitely
 many instances.
 
-The following program uses the prelude's family `list` at two element types; the same rule of `len`
-measures both.
+The following program uses the family `list` at two element types; the same rule of `len` of
+[`std/list`](../std/list.md) measures both.
 
 ```hugin,run
+%use "std/list".
 nums : list int -> rel.
 nums (cons 1 (cons 2 nil)).
 words : list string -> rel.

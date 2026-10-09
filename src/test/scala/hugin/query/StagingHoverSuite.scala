@@ -29,6 +29,7 @@ class StagingHoverSuite extends munit.FunSuite:
       |words (cons "a" nil).
       |?- nums L, len L N.
       |?- words L, len L N.
+      |%use "std/list".
       |""".stripMargin
 
   private val key = CompileKey("s.hgn")

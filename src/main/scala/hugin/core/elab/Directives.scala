@@ -99,7 +99,7 @@ trait Directives:
   private def modeData(c: Cxt, t: Tree): Tree = t match
     case m @ ModeArgs(items) =>
       def ctor(n: Name, at: Span): Tree =
-        file.parent.get(n).orElse(lookupGlobal(n)).map(SymRef(_, n)(at)).getOrElse(fail(ReflectionProblem.NoReflectiveTypes(m.span)))
+        coreName(n).orElse(lookupGlobal(n)).map(SymRef(_, n)(at)).getOrElse(fail(ReflectionProblem.NoReflectiveTypes(m.span)))
       items.foldRight(ctor("mnone", m.span)) { (item, rest) =>
         val label = item.label.map(l => Lit(Literal.StrL(l.name))(l.span)).getOrElse(Wildcard()(item.span))
         Apply(Apply(ctor(if item.input then "minput" else "moutput", item.span), label)(item.span), rest)(item.span.to(rest.span))

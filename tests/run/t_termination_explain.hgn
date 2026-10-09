@@ -1,4 +1,5 @@
 (* `--explain-termination`: the measure and the justification of every recursive component *)
+%use "std/list".
 fib : (n : int) -> (f : int) -> rel.
 %demand fib +n -f.
 %terminates n fib.

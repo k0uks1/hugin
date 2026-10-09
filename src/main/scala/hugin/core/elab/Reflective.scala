@@ -25,6 +25,10 @@ final case class ReflectiveGlobals(
 ):
   def ctor(n: Name): Int = ctors(n)
 
+object Reflective:
+  /** The compiler-bound module of the standard library (reference: prelude). */
+  val CorePath: String = hugin.compiler.SourceLoader.StdlibPrefix + "std/reflect.hgn"
+
 /** What a reflective type is: the kinds of object syntax as data. */
 enum RKind:
   case Sym, Term, Formula, Rule, Item
@@ -105,6 +109,26 @@ trait Reflective:
 
   private var loaded: Option[Option[ReflectiveGlobals]] = None
 
+  /** The declarations of the compiler-bound module `std/reflect` (reference: prelude), if the compilation
+   *  includes it: what the compiler knows by name, whatever the names in scope. */
+  private lazy val coreModule: Map[Name, Int] =
+    file.imports.get(Reflective.CorePath).fold(Map.empty[Name, Int]) { m =>
+      m.value match
+        case Tm.Rec(fs) =>
+          fs.collect {
+            case (n, Tm.Global(id)) => n -> id
+            case (n, Tm.Quote(Tm.Global(id))) => n -> id
+          }.toMap
+        case _ => Map.empty
+    }
+
+  /** A name the compiler knows: `std/reflect`'s, else the enclosing scope's (a prelude that declares the
+   *  reflective types itself, as the core tests' do). */
+  def coreName(n: Name): Option[Int] = coreModule.get(n).orElse(file.parent.get(n))
+
+  /** Whether the compiler-known names come from outside the file (otherwise from the file itself). */
+  def coreOutside: Boolean = coreModule.nonEmpty || file.parent.nonEmpty
+
   /** The version of the scope in which a lookup last missed a name: it is repeated only after the names
    *  changed (the parent's names are fixed; whether all are found depends on nothing else). */
   private var missedAt = -1L
@@ -112,7 +136,7 @@ trait Reflective:
   /** The reflective globals, if the prelude (or the file) declares them all. */
   def reflectiveGlobals: Option[ReflectiveGlobals] =
     if loaded.forall(_.isEmpty) && missedAt != scope.version then
-      val found = names.map(n => n -> file.parent.get(n).orElse(scope.get(n))).collect { case (n, Some(id)) => n -> id }.toMap
+      val found = names.map(n => n -> coreName(n).orElse(scope.get(n))).collect { case (n, Some(id)) => n -> id }.toMap
       if found.size < names.size then missedAt = scope.version
       loaded = Some(Option.when(found.size == names.size && globals(found("sym")).kind == GlobalKind.Symbols) {
         ReflectiveGlobals(

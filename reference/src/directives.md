@@ -2,10 +2,10 @@
 
 A *directive* `%d a₁ … aₙ.` applies the meta function `d` to its arguments, and the type of the
 application says what it changes in the program: one declaration, the items at its place, or all rules
-and queries of the file. The directives of the prelude, such as `%input`, `%output` and `%demand`, are
-ordinary meta functions, and a program can define its own. This chapter defines the syntax and
-resolution of directives, their footprints, the order of expansion, the directives of the prelude and
-`%demand` in detail.
+and queries of the file. The directives of the standard library, such as `%input`, `%output` and
+`%demand`, are ordinary meta functions, and a program can define its own. This chapter defines the syntax
+and resolution of directives, their footprints, the order of expansion, the directives of the standard
+library and `%demand` in detail.
 
 ## Syntax
 
@@ -54,7 +54,7 @@ quote may also be written explicitly. In particular:
   name (or a hole) is elaborated as meta code;
 - an argument at a parameter of type `quoted A` is a term of type `A` (`%d 3.` for `quoted int`), typed
   as the quote `'{ 3 }` checked against `quoted A`;
-- a run of mode items is elaborated to the prelude's `modes` data.
+- a run of mode items is elaborated to the `modes` data of `std/reflect`.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).
 
@@ -116,6 +116,7 @@ deriving `edge`. It sees the edge added by `%loop c` before it, but not the one 
 it.
 
 ```hugin,run
+%use "std/reflect".
 node : type.
 a : node. b : node. c : node. d : node.
 edge : node -> node -> rel.
@@ -142,7 +143,8 @@ edge d c.
 
 ## The primitive directives
 
-The prelude defines the directives whose attributes the compiler implements.
+The module [`std/reflect`](std/reflect.md#declarations-and-directives) defines the directives whose
+attributes the compiler implements, and the prelude opens them.
 
 | directive | type | meaning |
 |---|---|---|
@@ -161,6 +163,7 @@ The following program defines a local directive `%io` from two primitive ones an
 `%output`, in the prefix form.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node.
 io : decl -> decl.
 io D = input (output D).
@@ -184,6 +187,7 @@ A directive is any meta function whose application has a directive type. The fol
 `%symmetric`, which takes a relation as object code and adds the rule that makes it symmetric.
 
 ```hugin,run
+%use "std/reflect".
 person : type. ann : person. bob : person. cid : person.
 symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '{ R Y X :- R X Y. }.
@@ -204,9 +208,10 @@ friend cid bob.
 ## Demand
 
 `%demand r m.` makes the relation `r` *demand-driven*: `r` is computed only for the inputs that some rule
-or query asks for. The directive is a module-wide meta function of the prelude, written in Hugin with
-quoted patterns. It implements the magic-sets transformation as ordinary rules, which are typed,
-stratified and checked for termination like hand-written rules.
+or query asks for. The directive is the module-wide meta function `demand` of
+[`std/demand`](std/demand.md), written in Hugin with quoted patterns. It implements the magic-sets
+transformation as ordinary rules, which are typed, stratified and checked for termination like
+hand-written rules.
 
 ### Modes
 
@@ -334,6 +339,7 @@ E = lam "x" (base "int") (ref "x"), T = arrow (base "int") (base "int").
 > puts the demand relation and the relation into one component, which the termination check rejects
 > ([Termination](object/termination.md#limitation)).
 
-> **Note.** `%demand` cannot be applied to a relation of the prelude from the prelude itself, since a
-> module-wide directive rewrites its own file only. A program that calls the prelude's `len` on lists it
-> builds writes `%demand len +l -n.` itself.
+> **Note.** `%demand` cannot be applied to a relation of a library from the library itself on behalf of
+> its callers, since a module-wide directive rewrites its own file only. A program that calls `len` of
+> [`std/list`](std/list.md) on lists it builds writes `%demand len +l -n.` itself; the demand rules of
+> the program build the lists, and the library's relation measures them.

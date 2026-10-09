@@ -1,3 +1,4 @@
+%use "std/list".
 color : type.
 red : color.
 green : color.

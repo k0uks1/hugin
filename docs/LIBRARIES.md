@@ -82,20 +82,40 @@ a type declaration (E0103 otherwise); the declared name is free, so `num : type 
 another name for the same base type. Base types are printed by their builtin names. Keywords (`type`,
 `rel`, `prop`, `Type`), primitive formulas and aggregates remain part of the language.
 
-### Contents
+### Contents (#61, batch B1)
 
-| names | what |
+The standard library is split (design: `docs/design/stdlib.md`):
+
+| file | contents |
 |---|---|
-| `int`, `float`, `string` | base types |
-| `list A`, `nil`, `cons`, `append`, `len` | lists, a shared data type (`list A : data.`, reference: [families](https://k0uks1.github.io/hugin/meta/families.html#shared-data)): a meta inductive family written `[]`, `[a, b]`, `x :: xs` (with `append`, and `list.lift`, `list.reify`) and an object family of fact constructors; and the length of the lists that are facts: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3; reference: [directives](https://k0uks1.github.io/hugin/directives.html)) |
-| `option A`, `none`, `some` | optional values, shared like `list` |
-| `pair A B` | a struct family with labels `fst`, `snd` |
-| `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
-| `sym`, `term`, `formula`, `rule`, `item`, `module`, `index`, `arith_op`, `cmp_op`, `agg_op`, `column` | reflection (reference: [reflection](https://k0uks1.github.io/hugin/reflection.html)): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, `inamed`, `ierror`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
-| `decl`, `attr`, `measure`, `attach` | declarations as data, with the attributes the primitive directives attach (reference: [directives](https://k0uks1.github.io/hugin/directives.html); docs/NOTES.md, "Directives") |
-| `input`, `output`, `open`, `derivations`, `terminates` | the primitive directives (`%input r.`, …): meta functions returning a `decl` |
-| `bool`, `same`, `labels`, `derive`, `derived` | meta booleans and the primitives on object constants that library directives use |
-| `modes`, `demand` | `%demand r +a -b.`: the demand transformation as a library directive, `demand : (r : sym) -> modes (labels r) -> module -> module` (its helpers are named `d…`; docs/NOTES.md, "Demand in the prelude") |
+| `<stdlib>/prelude.hgn` | two `%use` items: `bool`, `true`, `false`, `if`, `same`, `list`, `nil`, `cons`, `append`, `option`, `none`, `some` and the primitive directives from `std/reflect`, `demand` from `std/demand` |
+| `<stdlib>/std/reflect.hgn` | what the compiler knows by name: `list`, `option` (shared), `bool`, `if`, the reflective types, `quoted`, `decl`/`attr`/`measure`, the primitive directives, `modes`, the primitives `same`, `labels`, `derive`, `derived` |
+| `<stdlib>/std/demand.hgn` | `%demand` (`%export { demand : … }`; its helpers are outside the signature) |
+| `<stdlib>/std/list.hgn` | `len` |
+| `<stdlib>/std/graph.hgn` | `graph`, `tc`, `bounded` |
+
+`pair` was deleted (no program used it; meta code uses record types).
+
+**The prelude's chain.** The prelude imports `std/reflect` and `std/demand`, which the import graph
+places before it (the walk visits the prelude's imports first). They are elaborated as libraries with no
+enclosing scope (`std/demand` opens `std/reflect` itself), then the prelude on top of them
+(`ProgramElab.preludeChain`); the names the prelude opens are its scope for every later file. The chain
+is shared per process by `StdlibCache.prelude(chain)`, keyed by every file's text, and memoised as one
+step by the query `ElabLibrary` (a chain key ending in the prelude). The constants of `<stdlib>/` files
+have no qualifier (`len`, not `list.len`) and are displayed as `prelude.n` when the program declares the
+same name (`ObjectSymbols`).
+
+**Compiler-known names by file.** `ReflectiveGlobals`, the typed quotes (`quoted`, `qterm`, `raw`) and the
+mode items (`modes`) are looked up in the module of `<stdlib>/std/reflect.hgn` when the compilation
+includes it (`Reflective.coreName`), else in the prelude's scope, else in the file (the core tests
+concatenate a prelude into their programs). A program's own `term` or `list` never changes what quotes,
+list syntax or mode items build. With `--no-prelude`, `std/reflect` is part of the compilation only if the
+program imports it.
+
+**Migration.** Programs that name reflective types or constructors open `std/reflect`; those that use
+`tc`, `bounded` or `graph` open `std/graph`, those that use `len` open `std/list`. In negative and
+recovery tests the `%use` item is on the line that ends the leading comment, so that the lines of the
+diagnostics do not move. The REPL's `:imports` leaves out the prelude's chain.
 
 ## Diagnostics
 

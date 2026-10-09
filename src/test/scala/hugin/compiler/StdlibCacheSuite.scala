@@ -55,8 +55,7 @@ class StdlibCacheSuite extends munit.FunSuite:
     )
 
   private def sharedPrelude(): ElabBase =
-    val parsed = StdlibCache.parsed(SourceLoader.PreludePath, SourceLoader.stdlib(SourceLoader.PreludePath).get)
-    StdlibCache.prelude(parsed, builtinNames = true)
+    StdlibCache.prelude(StdlibCache.bundledChain(), builtinNames = true)
 
   test("compilations with the shared prelude give exactly the output of compilations without it") {
     for p <- sample do assertEquals(run(p, cached = true), run(p, cached = false), p.toString)
@@ -72,29 +71,24 @@ class StdlibCacheSuite extends munit.FunSuite:
 
   test("the prelude is elaborated once per text: an edited prelude is elaborated, and served from then on") {
     val text = SourceLoader.stdlib(SourceLoader.PreludePath).get + "\nextra_rel : int -> rel.\n"
-    val parsed = StdlibCache.parsed(SourceLoader.PreludePath, text)
+    val chain = StdlibCache.bundledChain(text)
     val count = StdlibCache.elaborations
-    val base = StdlibCache.prelude(parsed, builtinNames = true)
+    val base = StdlibCache.prelude(chain, builtinNames = true)
     assertEquals(StdlibCache.elaborations, count + 1)
-    assert(StdlibCache.prelude(StdlibCache.parsed(SourceLoader.PreludePath, text), builtinNames = true) eq base)
+    assert(StdlibCache.prelude(StdlibCache.bundledChain(text), builtinNames = true) eq base)
     assert(base.prelude.contains("extra_rel"))
     assert(!sharedPrelude().prelude.contains("extra_rel"))
     // a parse that is not the cache's own (other positions) is never given the shared base
     val other = Parsed(hugin.util.SourceFile.virtual(SourceLoader.PreludePath, text))
-    assert(StdlibCache.prelude(other, builtinNames = true) ne base)
+    assert(StdlibCache.prelude(chain.init :+ other, builtinNames = true) ne base)
   }
 
   test("the uncached prelude elaborates to the same globals as the shared one") {
     val shared = sharedPrelude()
-    val text = SourceLoader.stdlib(SourceLoader.PreludePath).get
-    val fresh = hugin.core.ProgramElab.prelude(
-      hugin.core.SourceItems(
-        SourceLoader.PreludePath,
-        "",
-        Parsed(hugin.util.SourceFile.virtual(SourceLoader.PreludePath, text)).program.items
-      ),
-      builtinNames = true
-    )
+    def items(p: Parsed) =
+      hugin.core.SourceItems(p.source.path, "", Parsed(hugin.util.SourceFile.virtual(p.source.path, p.source.content)).program.items)
+    val chain = StdlibCache.bundledChain()
+    val fresh = hugin.core.ProgramElab.preludeChain(chain.init.map(items), items(chain.last), builtinNames = true)
     def shape(b: ElabBase) = b.core.globals.toList.map { g =>
       val kind = g.kind match
         case GlobalKind.Definition(tm, _) => s"definition $tm"

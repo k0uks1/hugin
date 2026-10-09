@@ -1,6 +1,7 @@
 (* Typed variables: `qvar "x"` is the object variable named by the hint, as a `quoted A`. Pieces built
    apart share it through typed values, so each piece is checked against the variable's type where it is
    written. The same hint in one rule is the same variable; a program's own `X` is another variable. *)
+%use "std/reflect".
 node : type. a : node. b : node. c : node.
 edge : node -> node -> rel.
 path : node -> node -> rel.

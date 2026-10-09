@@ -60,13 +60,26 @@ object ProgramElab:
   def empty(builtinNames: Boolean): ElabBase =
     ElabBase(Core(), Map.empty, Map.empty, Nil, Nil, SemanticIndex(), builtinNames)
 
-  /** The prelude, elaborated into a new core: its names are in scope in every other file. */
-  def prelude(file: SourceItems, builtinNames: Boolean): ElabBase =
-    val base = empty(builtinNames)
-    val (e, diagnostics) = elabFile(base.core, file, elab.FileEnv(file.path, file.qualifier, builtinNames = builtinNames))
-    // the names it opens with `%use` are in scope in every file too, unless it declares them itself
+  /** The prelude without imports, elaborated into a new core: its names are in scope in every other file. */
+  def prelude(file: SourceItems, builtinNames: Boolean): ElabBase = preludeOn(empty(builtinNames), file)
+
+  /** The prelude after the files it imports (`libraries`, in dependency order, which see no prelude):
+   *  the standard library's chain (reference: prelude). */
+  def preludeChain(libraries: List[SourceItems], prelude: SourceItems, builtinNames: Boolean): ElabBase =
+    preludeOn(libraries.foldLeft(empty(builtinNames))(library), prelude)
+
+  /** The prelude, elaborated in a fork of `base` (its imports): its names, and the names it opens with
+   *  `%use`, are in scope in every later file. */
+  def preludeOn(base: ElabBase, file: SourceItems): ElabBase =
+    val core = base.core.fork()
+    val env = elab.FileEnv(file.path, file.qualifier, Map.empty, base.imports, builtinNames = base.builtinNames)
+    val (e, diagnostics) = elabFile(core, file, env)
+    val index = SemanticIndex()
+    index.include(base.index)
+    index.include(e.index)
+    // the names it opens are in scope in every file too, unless it declares them itself
     val opened = e.state.opened.collect { case (n, List((id, _))) if !e.state.declaredHere(n) => n -> id }
-    ElabBase(base.core, opened ++ e.scope.toMap, Map.empty, e.items.toList, diagnostics, e.index, builtinNames)
+    ElabBase(core, opened ++ e.scope.toMap, base.imports, base.items ++ e.items, base.diagnostics ++ diagnostics, index, base.builtinNames)
 
   /** An imported file, elaborated in a fork of `base`: its module value is what `%import` denotes. */
   def library(base: ElabBase, file: SourceItems): ElabBase =

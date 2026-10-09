@@ -1,5 +1,5 @@
 (* Diagnostics in reflected code point to the quoted syntax the code came from, with a note on the item
-   that reflected it; a quote that is ill-typed by itself (`typo`) is reported where it is written. *)
+   that reflected it; a quote that is ill-typed by itself (`typo`) is reported where it is written. *) %use "std/reflect".
 p : int -> rel.
 q : int -> rel.
 

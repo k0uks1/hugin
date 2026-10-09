@@ -19,6 +19,7 @@ class LibraryQueriesSuite extends munit.FunSuite:
       """g = %import "lib/geo".
         |r = %import "lib/routes".
         |o = %import "lib/other".
+        |%use "std/list".
         |reachable : g.place -> rel.
         |reachable Y :- g.near X, r.legs.path X Y.
         |%output reachable.
@@ -33,6 +34,7 @@ class LibraryQueriesSuite extends munit.FunSuite:
         |""".stripMargin,
     routes ->
       """geo = %import "geo".
+        |%use "std/graph".
         |leg : geo.place -> geo.place -> rel.
         |leg geo.here geo.there.
         |legs = tc { node = geo.place, edge = leg }.
@@ -72,8 +74,13 @@ class LibraryQueriesSuite extends munit.FunSuite:
     given db: Database = setup()
     val compiled = db(Compile, CompileKey(main, settings))
     assert(!compiled.hasErrors, compiled.diagnostics)
-    assertEquals(compiled.context.unit.libraries.keys.toList, List(SourceLoader.PreludePath, geo, routes, other))
-    assertEquals(elaborations, 4)
+    // the prelude after the bundled files it imports
+    val std = List("std/reflect", "std/demand").map(m => SourceLoader.StdlibPrefix + m + ".hgn")
+    val graph = SourceLoader.StdlibPrefix + "std/graph.hgn"
+    val list = SourceLoader.StdlibPrefix + "std/list.hgn"
+    assertEquals(compiled.context.unit.libraries.keys.toList, std ++ List(SourceLoader.PreludePath, geo, graph, routes, other, list))
+    // the prelude with its imports is one step of the chain
+    assertEquals(elaborations, 6)
   }
 
   test("editing the program does not elaborate the prelude or the libraries again") {
@@ -92,12 +99,13 @@ class LibraryQueriesSuite extends munit.FunSuite:
     db.stats.reset()
     db.set(SourceText, geo, files(geo) + "elsewhere : place.\n")
     db(Compile, CompileKey(main, settings))
-    // geo and the files after it (routes, other); not the prelude
-    assertEquals(elaborations, 3)
+    // geo and the files after it (std/graph, routes, other, std/list); not the prelude
+    assertEquals(elaborations, 5)
     db.stats.reset()
     db.set(SourceText, other, files(other) + "blue : colour.\n")
     db(Compile, CompileKey(main, settings))
-    assertEquals(elaborations, 1)
+    // other and std/list, after it
+    assertEquals(elaborations, 2)
   }
 
   test("programs sharing a database share the prelude and the libraries they both import") {

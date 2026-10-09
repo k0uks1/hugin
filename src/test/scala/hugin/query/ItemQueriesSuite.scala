@@ -183,7 +183,8 @@ class ItemQueriesSuite extends munit.FunSuite:
   }
 
   private val directives =
-    """node : type.
+    """%use "std/reflect".
+      |node : type.
       |a : node. b : node. c : node.
       |edge : node -> node -> rel.
       |path : node -> node -> rel.

@@ -1,0 +1,6 @@
+(* std/list: relations over the lists that are facts (reference: prelude). *)
+
+(* The length of every list (by guarded induction on `l`: its tail is a smaller fact) *)
+len : (l : list A) -> (n : int) -> rel.
+len nil 0.
+len (cons X L) M :- cons X L, len L N, M = N + 1.

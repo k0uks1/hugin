@@ -1,3 +1,4 @@
+%use "std/graph".
 geo = %import "geo".
 leg : geo.place -> geo.place -> rel.
 leg geo.here geo.there.

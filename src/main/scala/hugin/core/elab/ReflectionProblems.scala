@@ -75,7 +75,7 @@ enum ReflectionProblem extends Problem:
     case HoleCapture(_, _, s, _) => s
 
   def message: Msg = this match
-    case _: NoReflectiveTypes => msg"the reflective types of the prelude are not in scope"
+    case _: NoReflectiveTypes => msg"the reflective types are not part of this compilation"
     case Unsupported(w, k, _) => Msg.text(s"$w cannot be quoted as $k")
     case NotObjectSyntax(k, _) => Msg.text(s"expected object syntax of $k")
     case QuoteShape(k, f, _) => Msg.text(s"expected $k in this quote, found $f")
@@ -117,7 +117,9 @@ enum ReflectionProblem extends Problem:
 
   override def notes: List[Msg] = this match
     case _: NoReflectiveTypes =>
-      List(msg"`term`, `formula`, `rule`, `item` and `module` are declared by the prelude, which `--no-prelude` leaves out")
+      List(
+        msg"`term`, `formula`, `rule`, `item` and `module` are declared by `std/reflect`, which `--no-prelude` loads only if the program imports it"
+      )
     case _: Unsupported =>
       List(
         msg"reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates"

@@ -1,9 +1,9 @@
-error[E0917]: the reflective types of the prelude are not in scope
+error[E0917]: the reflective types are not part of this compilation
  --> tests/neg/e0917_no_prelude.hgn:4:7
   |
 4 | y = x []. (*~ E0917 *)
   |       ^^ object syntax as data
   |
-  = note: `term`, `formula`, `rule`, `item` and `module` are declared by the prelude, which `--no-prelude` leaves out
+  = note: `term`, `formula`, `rule`, `item` and `module` are declared by `std/reflect`, which `--no-prelude` loads only if the program imports it
 
 1 error found

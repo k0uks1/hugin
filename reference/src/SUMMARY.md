@@ -29,6 +29,11 @@
 - [Directives](directives.md)
 - [Modules, functors and libraries](modules.md)
 - [The prelude](prelude.md)
+- [The standard library](std/index.md)
+    - [`std/reflect`](std/reflect.md)
+    - [`std/list`](std/list.md)
+    - [`std/graph`](std/graph.md)
+    - [`std/demand`](std/demand.md)
 
 ---
 

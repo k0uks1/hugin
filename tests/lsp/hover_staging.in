@@ -1,7 +1,7 @@
 // Hover over persisted, quoted and spliced code and over uses of families; definition and references.
 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
 {"jsonrpc": "2.0", "method": "initialized", "params": {}}
-{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "k : int = 6 * 7.\nat_k : int -> rel.\nat_k X :- X = k.\ncheap : int -> prop = [I] I < 10.\nlow : int -> rel.\nlow X :- at_k X, cheap X.\nnums : list int -> rel.\nnums (cons 1 nil).\n?- nums L, len L _.\n"}}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "k : int = 6 * 7.\nat_k : int -> rel.\nat_k X :- X = k.\ncheap : int -> prop = [I] I < 10.\nlow : int -> rel.\nlow X :- at_k X, cheap X.\nnums : list int -> rel.\nnums (cons 1 nil).\n?- nums L, len L _.\n%use \"std/list\".\n"}}}
 {"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "position": {"line": 2, "character": 14}}}
 {"jsonrpc": "2.0", "id": 3, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "position": {"line": 5, "character": 17}}}
 {"jsonrpc": "2.0", "id": 4, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:t.hgn"}, "position": {"line": 5, "character": 23}}}

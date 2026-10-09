@@ -140,7 +140,7 @@ not use them:
 | open type | an object type `a : type.` whose members are the constructors and relations declared into it | [Object types](object/types.md#open-types) |
 | pattern | the left side of a clause, matched against arguments | [Clauses](meta/clauses.md#patterns) |
 | postulate | a meta constant with a type and no value | [The meta level](meta/index.md#meta-items) |
-| prelude | the library included in every program | [The prelude](prelude.md) |
+| prelude | the file included in every program, whose names are in scope in every file | [The prelude](prelude.md) |
 | query | an item `?- φ.` that asks for the answers of `φ` | [Queries and output](object/io.md#queries) |
 | quote | `'{ … }`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
 | quoted pattern | a quote used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
@@ -148,7 +148,7 @@ not use them:
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |
 | refinement | a nominal type `a : type <: b.` whose values are values of the base type or refinement `b` | [Object types](object/types.md#refinements) |
 | reflect | turn reflective data into object items of the program | [Reflection](reflection.md#reflecting-data-into-the-program) |
-| reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data, without object types; `quoted A` is the typed layer over `term` | [Reflection](reflection.md) |
+| reflective type | one of the types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data, without object types; `quoted A` is the typed layer over `term` | [Reflection](reflection.md) |
 | reify | turn object syntax into reflective data, by a quote; a meta value of a base or shared data type at a hole is reified by `tint`, … or `T.reify` | [Reflection](reflection.md#quotes) |
 | relation | an object constant `r : τ̄ -> rel`; a set of facts | [Declarations](object/declarations.md) |
 | rule | an item `h̄ :- φ.` that derives the heads `h̄` for every valuation that satisfies `φ` | [Rules](object/rules.md) |
@@ -157,6 +157,7 @@ not use them:
 | splice | `$e`: meta code that computes object code, inserted into object code | [Staging](meta/staging.md) |
 | spliced code | a meta value of type `⇑τ` in object code: a term of type `τ` whose shape is not known when it is typed | [Object types](object/types.md#typing-of-rules) |
 | stage | 0 for the object level, 1 for the meta level | [Staging](meta/staging.md) |
+| standard library | the modules bundled with the compiler, imported by paths `std/…` | [The standard library](std/index.md) |
 | stratum | a set of components evaluated after all relations it negates or aggregates over | [Negation](object/negation.md) |
 | struct | a relation declared as a record type `s : type = { l₁ : τ₁, … }.` | [Declarations](object/declarations.md#structs) |
 | subtyping edge | an item `c <: a.` that makes the fact type `c`, or the members of the open type `c`, members of the open type `a` | [Object types](object/types.md#open-types) |

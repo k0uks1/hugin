@@ -172,8 +172,11 @@ object Library:
   def qualified(files: List[String]): List[(String, String)] =
     val taken = mutable.HashSet("", "prelude")
     files.filterNot(_ == SourceLoader.PreludePath).map { path =>
-      val base = moduleName(path)
-      path -> Iterator.from(1).map(k => if k == 1 then base else s"$base$k").find(taken.add).get
+      // the bundled standard library's constants are named as the prelude's: without a prefix
+      if StdlibCache.isStdlib(path) then path -> ""
+      else
+        val base = moduleName(path)
+        path -> Iterator.from(1).map(k => if k == 1 then base else s"$base$k").find(taken.add).get
     }
 
   /** The imports of the file `path` with their resolved paths. */

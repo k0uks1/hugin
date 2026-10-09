@@ -116,7 +116,8 @@ class SessionSuite extends munit.FunSuite:
 
   test(":type shows the type of names, module paths, meta expressions and object terms") {
     val s = session(graph*)
-    // the session's `path` shadows the one of the prelude's `tc`
+    assertEquals(s.execute("%use \"std/graph\".").diagnostics, Nil)
+    // the session's `path` is its own
     assertEquals(s.execute(":type path").output, List("relation path : node -> node -> rel"))
     assertEquals(s.execute(":type a").output, List("constructor a : node"))
     assertEquals(s.execute(":type cons a nil").output, List("cons a nil : cons[node]"))
@@ -291,9 +292,10 @@ class SessionSuite extends munit.FunSuite:
     assertEquals(s.complete(":stats ", 7), List("on", "off"))
     assert(s.complete(":print ", 7).contains("lower"))
     assert(s.complete(":type ", 6).containsSlice(List("edge")))
-    assertEquals(s.complete("?- pa", 5), List("pair", "path")) // `pair` is from the prelude
+    assertEquals(s.complete("?- pa", 5), List("path"))
     assertEquals(s.complete("p X :- ed", 9), List("edge"))
     // members of a module
+    s.execute("%use \"std/graph\".")
     s.execute("g = tc { node = node, edge = edge }.")
     assertEquals(s.complete("?- g.", 5), List("path"))
     assertEquals(s.complete("?- g.pa", 7), List("path"))

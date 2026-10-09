@@ -1,5 +1,5 @@
 (* Quotes: the rule syntax of old in parentheses is an error with the quote syntax as help, an unclosed
-   `'{` is E0005, and the items around them are elaborated. *)
+   `'{` is E0005, and the items around them are elaborated. *) %use "std/reflect".
 p : int -> rel.
 q : int -> rel.
 old : rule = (p X :- q X). (*~ E0001 *)
