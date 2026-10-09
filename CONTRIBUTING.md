@@ -598,6 +598,8 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
 - **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck` (configuration in `.scalafmt.conf`).
   The same job runs `scripts/check-refs.sh`: `src/main` must cite chapters of the language reference
   (`reference: object/termination`), not sections of `docs/REDESIGN.md`, and every cited chapter must exist.
+  It also runs `scripts/check-style.sh`, which rejects the words and phrases that `reference/STYLE.md`
+  rules out (filler, marketing words, hedges, em-dashes, retired terms) in `reference/src` and `docs/errors`.
 - **Build and test** on JDK 17 and 21 — compilation with warnings as errors (`CI` set in the
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
   `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that

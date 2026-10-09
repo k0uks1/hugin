@@ -31,6 +31,11 @@ The links are checked in CI with [lychee](https://lychee.cli.rs/) (offline: inte
 lychee --offline --include-fragments --exclude-path reference/book/404.html 'reference/book/**/*.html'
 ```
 
+## Style
+
+`STYLE.md` is the style guide of the book and of `docs/errors`. `scripts/check-style.sh` checks its word
+list in CI (job "Formatting"); run it before a commit.
+
 ## Code blocks
 
 Every fenced block whose info string starts with `hugin` is checked by `sbt test`
