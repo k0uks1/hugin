@@ -1607,6 +1607,19 @@ Deferred:
   elaboration +40 % from new work (tooling records of #54, derived functions of #85, the resilient parser
   of #53), recorded — making `Clauses.recordSplits` lazy changes the state it reads.
 
+## Predeclared constructors (#86)
+
+`ObjectDecls.predeclare` compared `d.tpe == Keyword(Kw.Type)`, but `Keyword` has a second parameter list
+(its span), so the right side was a function and the test always false: no open type was recognised and
+no constructor was predeclared. Forward references to a constructor already worked without it
+(`elabInDependencyOrder` retries an item after the declaration it refers to), but a **cycle through a
+constructor** did not: `neg : (e : small) -> expr.  lit : (v : int) -> expr.  small : type = lit | neg.`
+reported E0101 for `small` and `neg` (in either order of the declarations). Decision: fix the
+predeclaration rather than remove it (a pattern `Decl(n, Nil, Keyword(Kw.Type), None, None)`: a plain
+open type, no parameters, refinement or definition), as the design note of B3 ("Cycles between object
+declarations") describes. `HandoverSuite` covers a forward reference, the cycle in both orders and facts
+of the cycle's constructors.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

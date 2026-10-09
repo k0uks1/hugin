@@ -129,7 +129,8 @@ trait ObjectDecls:
    *  [[GlobalEntry]]), so that declarations elaborated before them can use them as types. Constructors
    *  are recognised by a result type declared `x : type.` in the module. */
   def predeclare(items: List[Item]): Unit =
-    val objectTypes = items.collect { case d: Decl if d.tpe == Keyword(Kw.Type) && d.defn.isEmpty => d.name.name }.toSet
+    // `Keyword` has a second parameter list (its span), so this is a pattern, not an equality (issue #86)
+    val objectTypes = items.collect { case Decl(n, Nil, Keyword(Kw.Type), None, None) => n.name }.toSet
     for
       d <- items.collect { case d: Decl => d }
       if !scope.contains(d.name.name) && d.params.isEmpty && !hugin.syntax.TreeOps.hasSyntaxErrors(d)
