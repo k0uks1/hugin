@@ -1308,6 +1308,21 @@ aggregates reads stay unversioned (stratification puts their relations in earlie
 `tests/run/f_recursive_existence_check` (the shrunk program, and a chain that needs one round per step;
 expected output derived by hand).
 
+**Existence checks of built types (generator).** The other failures of seeds 7 and 42 in all three
+properties (differential, metamorphic, demand) were one generator bug: `ProgramGen.equation` produced
+`V = some X`, an existence check of `some[int]` (a *built* type, whose facts heads of later relations
+construct). The checking relation then depends on `some[int]`, which depends on the bodies of every rule
+that builds `some …` in its head; with a negation or aggregate over the checking relation in such a body
+the program has a genuine cycle through negation, and E0601 is correct (reference: object/facts, the
+note under *Facts derived in other components*). The W0002 warnings in the reports are incidental (the
+generator often leaves singleton variables; warnings do not make a program rejected) and the demand
+property failed only because both variants were rejected. Fix (`fuzz/ProgramGen.scala`): binding
+equations check only constructors of read types (`cons X nil`) and `pt`, as the generator's invariant
+for built types already said; recursive existence checks keep their coverage through a dedicated shape
+(`existenceChain`: `xr N :- xs M N, _X = some M.`, `xm (some N) :- xr N.`), which nothing else reads, so
+no negation joins its component. With the engine fix reverted, seed 7 finds the engine bug again through
+this shape.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

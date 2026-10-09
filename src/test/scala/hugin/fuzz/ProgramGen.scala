@@ -163,7 +163,25 @@ object ProgramGen:
         rules += s"counter M :- counter N, N < ${between(0, 8)}, M = N + ${between(1, 2)}."
         derived += c
       if chance(0.4) then boundColumns(decls, facts, rules, derived)
+      if chance(0.3) then existenceChain(decls, facts, rules, derived)
       Generated(decls.toVector, facts.toVector, rules.toVector, inputs.toVector, derived.map(_.name).toVector, demand)
+
+    /** Recursive existence checks (issue #83): `xr N` holds for the steps `xs M N` whose source `some M`
+     *  is a fact, and `xm (some N)` builds `some N` for every `xr N`, so `xr` and `some[int]` form one
+     *  component and the check `_X = some M` is a recursive read. Nothing else reads `xr` or `xm`, and
+     *  no other rule checks `some`, so no negation or aggregate joins the component. */
+    private def existenceChain(
+        decls: mutable.ArrayBuffer[String],
+        facts: mutable.ArrayBuffer[String],
+        rules: mutable.ArrayBuffer[String],
+        derived: mutable.ArrayBuffer[Rel]
+    ): Unit =
+      decls ++= Seq("xs : int -> int -> rel.", "xr : int -> rel.", "xm : option int -> rel.")
+      for _ <- 0 until between(1, 6) do facts += s"xs ${between(0, 4)} ${between(0, 4)}."
+      facts += s"xm (some ${between(0, 4)})."
+      rules += "xr N :- xs M N, _X = some M."
+      rules += "xm (some N) :- xr N."
+      derived += Rel("xr", Vector(IntT)) += Rel("xm", Vector(OptT))
 
     /** Relations with bound columns (reference: object/bound-columns) over a small weighted graph `wg` with seeds
      *  `ws`: `w0` keeps the best value per node (`min` or `max`), propagated along edges by type-consistent
@@ -317,18 +335,17 @@ object ProgramGen:
           s"${bind(IntT)} = $e"
         }
 
-      /** A binding equation: with a data constructor it builds the value (`V = some X`, `V = cons X nil`),
-       *  with the fact constructor `pt` it checks that the fact exists (`V = pt X`). In a recursive
-       *  relation the built term's variables come from atoms of `lower` (otherwise the rule is
-       *  constructive). */
+      /** A binding equation `V = c X`: an existence check (reference: object/facts), which holds if `c X`
+       *  is a fact. Only constructors of read types (`cons X nil`) and `pt` (`V = pt X`): a check of a
+       *  built type (`V = some X`) reads its facts, which heads of later relations build, so the rule's
+       *  relation would depend on those relations, closing cycles through their negations and aggregates
+       *  (E0601; issue #83). Recursive existence checks have their own shape ([[existenceChain]]). In a
+       *  recursive relation the term's variables come from atoms of `lower`. */
       private def equation(): Option[String] =
         val ints = boundOf(IntT).filter(v => !inRecursion || lowerVars(v))
         Option.when(ints.nonEmpty) {
           val x = pick(ints)
-          rnd.nextInt(3) match
-            case 0 => s"${bind(OptT)} = some $x"
-            case 1 => s"${bind(ListT)} = cons $x nil"
-            case _ => s"${bind(PointT)} = pt $x"
+          if chance(0.5) then s"${bind(ListT)} = cons $x nil" else s"${bind(PointT)} = pt $x"
         }
 
       private def disjunction(): Option[String] =
