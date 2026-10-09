@@ -38,7 +38,7 @@ class MetaLanguageServerSuite extends munit.FunSuite:
   test("hover: the type and stage of an expression, the elaborated term with its implicit arguments") {
     val text = "ident : A -> A = [x] x.\nthree : int = ident 3.\ncode : ⇑int = 4.\n"
     val (s, _) = server(text)
-    assert(hover(s, pos(text, "ident 3")).endsWith("`ident 3` : `int`  \nstage: meta\n\nelaborated: `ident {int} 3`"))
+    assert(hover(s, pos(text, " 3", 1)).endsWith("`3` : `int`  \nstage: meta"))
     assertEquals(hover(s, pos(text, "4.")), "`4` : `⇑int`  \nstage: meta, object code `⇑int`\n\nelaborated: `⟨4⟩`")
     assert(hover(s, pos(text, "x] x", 3)).startsWith("```hugin\nparameter x : A\n```"))
   }
@@ -52,6 +52,14 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     val data = d.getData.asInstanceOf[com.google.gson.JsonObject]
     assertEquals(data.get("goal").getAsString, "nat")
     assertEquals(data.getAsJsonArray("context").get(0).getAsJsonObject.get("name").getAsString, "N")
+  }
+
+  test("refine a hole with the constructors of its goal; hover on the head of an application") {
+    val text = nat + "double : nat -> nat.\ndouble N = ?.\nident : A -> A = [x] x.\nthree : int = ident 3.\n"
+    val (s, _) = server(text)
+    val refine = actions(s, pos(text, "?")).filter(_.getTitle.startsWith("Refine")).map(a => (a.getTitle, edit(a)._2))
+    assertEquals(refine, List(("Refine the hole with `zero`", "zero"), ("Refine the hole with `suc ?`", "(suc ?)")))
+    assert(hover(s, pos(text, "ident 3")).contains("`ident` : `int -> int`  \nstage: meta\n\nelaborated: `ident {int}`"))
   }
 
   test("split a pattern variable: one clause per constructor, the variable replaced where it is used") {
@@ -116,7 +124,7 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     val (s, c) = server(text)
     val codes = c.published(uri).map(_.getCode.getLeft).toSet
     assert(Set("E0911", "E0912").subsetOf(codes), codes)
-    assert(hover(s, pos(text, "suc zero.")).contains("`suc zero` : `nat`"))
+    assert(hover(s, pos(text, "suc zero.")).contains("`suc` : `nat -> nat`"))
     val tokens = s.getTextDocumentService.semanticTokensFull(SemanticTokensParams(TextDocumentIdentifier(uri))).get().getData
     assert(tokens.size > 0)
   }

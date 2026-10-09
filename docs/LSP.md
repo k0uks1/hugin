@@ -28,7 +28,7 @@ not work (see "Deferred" in `docs/NOTES.md`, "LSP for the meta level (#54)").
 ## Features
 
 - **Hover** adds to the signature and the staging notes: the elaborated type of the innermost expression
-  under the cursor (types are shown with the solutions of their unknowns) and its *stage* (`meta`,
+  under the cursor (or the head of an application) (types are shown with the solutions of their unknowns) and its *stage* (`meta`,
   `object`, or `meta, object code ⇑A`); the elaborated term when it shows what was not written
   (implicit arguments `{int}`, quotes `⟨…⟩`, splices `$…`); for a typed hole its goal and the variables
   in scope; inside a directive application `%d …` its type and footprint; on a shared type or
@@ -55,7 +55,8 @@ not work (see "Deferred" in `docs/NOTES.md`, "LSP for the meta level (#54)").
 - **Code actions**: `Split on X` (`refactor.rewrite`) on a pattern variable of an inductive type
   replaces its clause by one clause per constructor whose indices unify; `Add the missing clause(s)`
   (preferred quick fix of E0911) inserts every case the coverage checker found, with holes; `Add a
-  clause for f` on a meta function declared without clauses.
+  clause for f` on a meta function declared without clauses; `Refine the hole with c ?` on a hole whose
+  goal is an inductive type, one per constructor (its explicit arguments holes).
 - **Completion**: after `%` the directives; inside a reflection quote only object syntax (after `$`, only
   meta values); where the elaborator checked the name being typed against a known type, the candidates
   whose result type has the same head come first (`preselect`, `sortText`) and the variables in scope

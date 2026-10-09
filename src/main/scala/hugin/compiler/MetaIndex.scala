@@ -112,7 +112,15 @@ object MetaIndex:
   final case class Hint(at: Span, label: String, kind: HintKind, tooltip: String)
 
   /** A typed hole `?` or `?name`: its goal type and stage, and the context (name, type), outermost first. */
-  final case class Goal(span: Span, name: Option[String], tpe: String, stage: String, context: List[(String, String)])
+  final case class Goal(
+      span: Span,
+      name: Option[String],
+      tpe: String,
+      stage: String,
+      context: List[(String, String)],
+      /** If the goal is an inductive type: its constructors applied to holes (`zero`, `(suc ?)`). */
+      refinements: List[String] = Nil
+  )
 
   /** A pattern variable `variable` of the clause at `clause` that can be split: the patterns replacing it,
    *  one per constructor that can apply (a constructor applied to fresh variables). */

@@ -96,7 +96,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nformula function cheap : int -> prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here\n\n`cheap X` : `prop`  \nstage: object\n\nelaborated: `$(cheap ⟨X⟩)`"
+      "value": "```hugin\nformula function cheap : int -> prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here\n\n`cheap` : `⇑int -> ⇑prop`  \nstage: meta"
     }
   }
 }
@@ -129,7 +129,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data: at the meta level `cons : {A : Type} -> A -> list A -> list A`; at the object level `constructor cons A : A -> list A -> list A`\n\n`cons 1 nil` : `list[int]`  \nstage: object\n\nelaborated: `$(cons {⟨int⟩}) 1 $(nil {⟨int⟩})`"
+      "value": "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data: at the meta level `cons : {A : Type} -> A -> list A -> list A`; at the object level `constructor cons A : A -> list A -> list A`\n\n`cons` : `⇑(int -> list[int] -> list[int])`  \nstage: meta, object code `⇑(int -> list[int] -> list[int])`\n\nelaborated: `cons {⟨int⟩}`"
     }
   }
 }
@@ -151,7 +151,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nrelation len A : (l : list A) -> (n : int) -> rel\n```\n\ninstance: `len[int]`\n\n`len L _` : `prop`  \nstage: object\n\nelaborated: `$(len {⟨int⟩}) L _`"
+      "value": "```hugin\nrelation len A : (l : list A) -> (n : int) -> rel\n```\n\ninstance: `len[int]`\n\n`len` : `⇑((l : list[int]) -> (n : int) -> rel)`  \nstage: meta, object code `⇑((l : list[int]) -> (n : int) -> rel)`\n\nelaborated: `len {⟨int⟩}`"
     }
   }
 }

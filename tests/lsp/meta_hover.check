@@ -85,7 +85,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nmeta definition plus : nat -> nat -> nat\n```\n\n`plus M N` : `nat`  \nstage: meta"
+      "value": "```hugin\nmeta definition plus : nat -> nat -> nat\n```\n\n`plus` : `nat -> nat -> nat`  \nstage: meta"
     }
   }
 }
@@ -118,7 +118,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nmeta definition ident A : A -> A\n```\n\n`ident 3` : `int`  \nstage: meta\n\nelaborated: `ident {int} 3`"
+      "value": "```hugin\nmeta definition ident A : A -> A\n```\n\n`ident` : `int -> int`  \nstage: meta\n\nelaborated: `ident {int}`"
     }
   }
 }
@@ -162,7 +162,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nmeta definition list A : data\n```\n\nshared data: at the meta level `list : Type -> Type`; at the object level `object type list A : data`\n\nderived: `list.lift : {A1 : Type} -> {B1 : type} -> (A1 -> ⇑B1) -> list A1 -> ⇑$(list B1)`, `list.reify : {A1 : Type} -> (A1 -> term) -> list A1 -> term`\n\n`list int` : `Type`  \nstage: meta"
+      "value": "```hugin\nmeta definition list A : data\n```\n\nshared data: at the meta level `list : Type -> Type`; at the object level `object type list A : data`\n\nderived: `list.lift : {A1 : Type} -> {B1 : type} -> (A1 -> ⇑B1) -> list A1 -> ⇑$(list B1)`, `list.reify : {A1 : Type} -> (A1 -> term) -> list A1 -> term`\n\n`list` : `Type -> Type`  \nstage: meta"
     }
   }
 }

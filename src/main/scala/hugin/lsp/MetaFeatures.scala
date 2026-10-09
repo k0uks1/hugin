@@ -112,7 +112,12 @@ final class MetaFeatures(using db: Database):
         a.setDiagnostics(List(lsp).asJava)
         a.setIsPreferred(true)
         a
-    missing ++ split.toList ++ skeleton.toList
+    val refine = MetaIde.goalAt(k, from).filter(_.span.source.path == path).toList.flatMap { g =>
+      g.refinements.map(r =>
+        action(s"Refine the hole with `${r.stripPrefix("(").stripSuffix(")")}`", CodeActionKind.RefactorRewrite, uri, g.span, r)
+      )
+    }
+    missing ++ split.toList ++ skeleton.toList ++ refine
 
   private def action(title: String, kind: String, uri: String, at: Span, text: String): CodeAction =
     val a = CodeAction(title)

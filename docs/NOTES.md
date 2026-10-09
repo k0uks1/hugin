@@ -1525,10 +1525,10 @@ test of each feature. Decisions (the designer was not available; all are open to
   information is in `MetaIde`/`Expansion` and only the language server shows it, so no CLI output
   changed (except that `hugin query` now also finds pattern variables, lambda parameters, `where`
   bindings, constructors in patterns and clause names, which are new symbols and references).
-- **Hover shows the innermost recorded expression.** Heads of applications are inferred without a
-  record, so on `f` in `f a` the type shown is the application's (the text of the expression is shown
-  with its type to make that clear). Inside a directive application the application's type and
-  footprint are shown instead of the quoted data its arguments become.
+- **Hover shows the innermost recorded expression** with its text: an expression checked or inferred at a
+  stage, or the head of an application (`ident` in `ident 3` shows `int -> int`, elaborated `ident
+  {int}`). Inside a directive application the application's type and footprint are shown instead of the
+  quoted data its arguments become.
 - **Typed holes** (`?`, `?name`; E0924) are a new expression form: `?` not followed by `-` (so `?-`
   stays the query token) with the name characters directly after it. A hole is checked like any
   expression, as an unknown that may stay unsolved, so the item elaborates and every hole is found; each
@@ -1565,10 +1565,11 @@ test of each feature. Decisions (the designer was not available; all are open to
 Deferred:
 
 - Features inside items with syntax errors (dropped by the parser, #53).
-- Hover on the head of an application, on module members inside a module body (their binders have no
-  site), and on quoted object syntax beyond its variables and constants.
-- Refining a hole (with a constructor or a function whose result fits), splitting literals and quoted
-  patterns, full unification for completion, completion inside broken items' module bodies.
+- Hover on module members inside a module body (their binders have no site) and on quoted object syntax
+  beyond its variables and constants.
+- Refining a hole with a function whose result fits (holes are refined with the constructors of an
+  inductive goal, not filtered by index unification), splitting literals and quoted patterns, full
+  unification for completion.
 - Expansion of local directives (their `decl` attributes) and of a family's instances from its
   declaration; navigation from the expansion document back to the meta code is by the origin comments
   it shows, not by links.

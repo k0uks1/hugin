@@ -58,7 +58,13 @@ trait Applications:
     Tm.Lam(name, Icit.Expl, check(cb, body, inst(pi.cl, Val.local(c.lvl)), st))
 
   def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
-    val (ft, fty, fs) = objectFunction(insertAll(c, f.span, infer(c, f)))
+    val head = insertAll(c, f.span, infer(c, f))
+    // the head of an application is inferred, not checked: its type is recorded here (for tooling)
+    f match
+      case _: hugin.syntax.Trees.Ident | _: hugin.syntax.Trees.VarRef | _: hugin.syntax.Trees.Select =>
+        recordTyped(c, f.span, head._1, head._2, head._3, checked = false)
+      case _ =>
+    val (ft, fty, fs) = objectFunction(head)
     (a, namedColumns(fty)) match
       case (rl: RecordLit, Some(cols)) if fs == Stage.S0 =>
         (namedPattern(c, f, ft, cols, rl), cols.foldLeft(fty)((t, _) => objectCodomain(t)), Stage.S0)

@@ -31,10 +31,19 @@ trait Holes:
       val context = c.binders.reverse.zipWithIndex.collect {
         case (b, l) if c.scope.get(b.name).contains(l) && visible(b.name) => (b.name, show(c, b.ty))
       }
-      index.meta.goal(MetaIndex.Goal(h.span, h.name, goal, st.show, context))
+      index.meta.goal(MetaIndex.Goal(h.span, h.name, goal, st.show, context, refinements(a)))
       if ok then
         reporter.report(TypeProblem.UnsolvedGoal(h.name, goal, st.show, context.map((x, t) => s"$x : $t"), h.span).toDiagnostic)
     }
+
+  /** The constructors of an inductive goal, applied to holes for their explicit arguments. */
+  private def refinements(a: Val): List[String] = core.force(a) match
+    case Val.Rigid(Head.Glob(fam), _) if isFamily(fam) =>
+      constructors(fam).map { c =>
+        val holes = telescope(core.globals(c).ty)._1.count(_._2 == Icit.Expl)
+        if holes == 0 then core.globals(c).name else (core.globals(c).name :: List.fill(holes)("?")).mkString("(", " ", ")")
+      }
+    case _ => Nil
 
   /** Names a program can write (not the compiler's own: `f#1`, `$sel`). */
   private def visible(n: Name): Boolean = n != "_" && !n.exists(ch => ch == '#' || ch == '$')
