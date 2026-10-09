@@ -7,7 +7,7 @@ precedence of operators. Facts files (see [Input facts](object/io.md#input-facts
 ## Whitespace and comments
 
 Spaces, tabs and line breaks separate tokens and have no other meaning, with one exception: an
-argument cannot start in column 0 of a line (see [Items](#items)).
+argument, and the formula after `?-` or `:-`, cannot start in column 0 of a line (see [Items](#items)).
 
 A *comment* starts with `(*` and ends with the matching `*)`. Comments nest: `(* a (* b *) c *)` is one
 comment. It is an error ([E0002](errors/E0002.md)) if a comment is not closed before the end of the file.
@@ -142,8 +142,9 @@ The productions of the items are given in the chapters that define them:
 and [directives](directives.md). Several items may share a line.
 
 An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
-of `$` or `⇑`. So a missing period at the end of a line is reported where the next item starts, and that
-item is still parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
+of `$` or `⇑`, the formula of a query after `?-` or the body of a rule after `:-`. So a missing period,
+or a missing formula, at the end of a line is reported where the next item starts, and that item is
+still parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
 
 The following program declares a relation and gives it two facts on one line.
 
