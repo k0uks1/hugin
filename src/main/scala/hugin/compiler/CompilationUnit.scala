@@ -28,7 +28,7 @@ final class CompilationUnit(val source: SourceFile):
   /** Directives of the relations of `prog` (from `directives` on; see [[ProgramFacts]]). */
   var facts: ProgramFacts = ProgramFacts.empty
 
-  /** Typing contexts computed by `objTyper`, keyed by rule/query identity. */
+  /** Typing contexts computed by object typing at the handover (`core/handover/StagedTyping`), keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
   /** Signature requirements (reference: modules) recorded by staging, checked by `directives`. */

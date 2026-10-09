@@ -1,0 +1,2 @@
+?- stock S, V = S.price, L = cons V nil, prices L.
+S = pen 3, V = 3, L = cons 3 nil.

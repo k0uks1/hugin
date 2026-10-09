@@ -119,7 +119,7 @@ trait Bidirectional:
     case (ListLit(_) | ConsE(_, _), ty) if st == Stage.S1 && !ty.isInstanceOf[Val.Lift] => checkList(c, t, a)
     case (ListLit(_) | ConsE(_, _), _) if st == Stage.S0 => check(c, objectList(t), a, st)
     case (Lit(l), ty) if st == Stage.S0 =>
-      // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
+      // the literal's type determines unknowns (`cons "b" nil`); refinements of it are object typing's
       coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)
     case (Lambda(param, ann, body), pi @ Val.Pi(_, Icit.Expl, _, _)) => checkLambda(c, t, param, ann, body, pi, st)
     case (_, Val.Pi(x, Icit.Impl, dom, cl)) =>

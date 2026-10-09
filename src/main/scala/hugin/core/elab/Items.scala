@@ -278,7 +278,7 @@ trait Items:
     flushTooling(success = true)
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
-   *  object typer infers). */
+   *  object typing infers). */
   def checkSolved(start: Int): Unit =
     (start until metas.length).find(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved).foreach { m =>
       val e = metas(m)

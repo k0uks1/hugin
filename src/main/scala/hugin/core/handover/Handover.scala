@@ -126,7 +126,17 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
       val body = normal.drop(r.heads.length).flatMap(terms.formulas(_))
       val rule = obj.Rule(r.name.map(qualify(prefix, _)), heads, body)(r.span, Origin(r.origin.frames ++ origin.frames))
       val meta = base.nonEmpty || r.generic || involvesMeta(r.heads ++ r.body.toList)
-      typed(rule, r.vars, normal.take(r.heads.length), normal.drop(r.heads.length), rule.origin, rule.span, heads, body, meta || rule.origin.frames.nonEmpty)
+      typed(
+        rule,
+        r.vars,
+        normal.take(r.heads.length),
+        normal.drop(r.heads.length),
+        rule.origin,
+        rule.span,
+        heads,
+        body,
+        meta || rule.origin.frames.nonEmpty
+      )
       rule
     }
 

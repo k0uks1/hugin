@@ -8,7 +8,7 @@ import hugin.util.*
 /** Declarations of object constants beyond `x : A.` (reference: object/index): structs `s : type = { l : τ, … }.`,
  *  refinements `a : type <: b.`, subtyping edges `τ <: a.`, and the classification of a declared object
  *  constant ([[ObjDecl]]). The core records what they declare; whether the subtyping makes sense is
- *  checked by the object typer on the staged program. */
+ *  checked by object typing ([[ObjectTyping]], E0404 in [[checkObjectDeclarations]]). */
 trait ObjectDecls:
   self: Elaborator =>
   import core.*
@@ -126,7 +126,12 @@ trait ObjectDecls:
       case t @ objtype.OTy.Con(h, as) if env.kind(h, as) == objtype.HeadKind.Open =>
       case t =>
         val types = objtype.ObjTypes(env)
-        fail(objtype.ObjTypeError.NotOpenMember(objtype.TyName(types.show(t)), objtype.ConstName(types.show(env.oty(sup))), e.span, hugin.util.Origin.Source))
+        fail(objtype.ObjTypeError.NotOpenMember(
+          objtype.TyName(types.show(t)),
+          objtype.ConstName(types.show(env.oty(sup))),
+          e.span,
+          hugin.util.Origin.Source
+        ))
 
   /** The object side of a shared type (or an instance of a shared family): the shared object global. */
   private def sharedType(id: Int): Option[Int] =
@@ -245,6 +250,12 @@ trait ObjectDecls:
             for i <- ms.indices; j <- ms.indices if i < j do
               val common = types.members(ms(i)).map(_.fact).intersect(types.members(ms(j)).map(_.fact))
               common.headOption.foreach(c =>
-                report(ObjTypeError.UnionOverlap(TyName(types.show(ms(i))), TyName(types.show(ms(j))), ConstName(types.show(c)), g.declSpan, o))
+                report(ObjTypeError.UnionOverlap(
+                  TyName(types.show(ms(i))),
+                  TyName(types.show(ms(j))),
+                  ConstName(types.show(c)),
+                  g.declSpan,
+                  o
+                ))
               )
         case _ =>

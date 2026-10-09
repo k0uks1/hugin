@@ -55,7 +55,8 @@ final class ObjTypes(val env: ObjEnv):
 
   /** The same type, where an argument of one side is unknown. */
   private def sameUpToUnknowns(a: OTy, b: OTy): Boolean =
-    def args(x: List[OTy], y: List[OTy]) = x.length == y.length && x.zip(y).forall((p, q) => p == q || p.vague || q.vague || sameUpToUnknowns(p, q))
+    def args(x: List[OTy], y: List[OTy]) =
+      x.length == y.length && x.zip(y).forall((p, q) => p == q || p.vague || q.vague || sameUpToUnknowns(p, q))
     (a, b) match
       case (OTy.Con(h, as), OTy.Con(k, bs)) => h == k && args(as, bs)
       case (OTy.Fact(h, as), OTy.Fact(k, bs)) => h == k && args(as, bs)

@@ -8,14 +8,12 @@ import hugin.util.*
 /** The forms of object code that have no meta-level counterpart (reference: object/index): `as`, ascriptions,
  *  projections and updates of facts, aggregates, unions, wildcards; and positions.
  *
- *  **Object typing is deferred.** The core types object code by unification only, which is enough to
- *  stage it and to solve implicit arguments; the object level's own typing (subtyping, unions,
- *  refinements, fact types of relations, labels of projections) is the object typer's
- *  (`obj/typing/ObjTyper`, reference: object/index), which sees the staged program. So the core never rejects
- *  object code for its object types: where two object types do not unify, the term is kept as it is
- *  ([[Coercions.coe]]), and the forms below get the types they would have without subtyping, or unknown
- *  ones. Only the *shape* of object code is the core's business: stages, arities, labels of named
- *  patterns.
+ *  **Two passes over object code.** While elaborating, the core types object code by unification, which
+ *  stages it and solves implicit arguments: where two object types do not unify, the term is kept as it
+ *  is ([[Coercions.coe]]), and the forms below get the types they would have without subtyping, or
+ *  unknown ones. At the end of each scope, object typing proper (subtyping, unions, refinements, fact
+ *  types, meets of variables, labels of projections) checks the elaborated code ([[ObjectTyping]],
+ *  reference: object/types).
  *
  *  **Positions.** An object term or formula elaborated from a tree is wrapped in the tree's position
  *  ([[located]]); evaluation keeps positions, so the staged program has them for its diagnostics. */
@@ -61,13 +59,13 @@ trait ObjectCode:
       case other => List(other)
     Tm.Obj(ObjForm.Union, members(t).map(check(c, _, Val.U0, Stage.S0)))
 
-  /** `(e : A)` with an object type `A`: an object ascription (checked by the object typer). */
+  /** `(e : A)` with an object type `A`: an object ascription (a checked downcast, [[ObjectTyping]]). */
   def objectAscription(c: Cxt, e: Tree, at: Tm): (Tm, Val, Stage) =
     val av = ev(c, at)
     (Tm.Obj(ObjForm.Ascribe, List(check(c, e, av, Stage.S0), at)), av, Stage.S0)
 
   /** `q.l` on object code: a projection of a fact by column label. Its type is the column's if the fact
-   *  type of `q` is known to have it, otherwise unknown (the object typer resolves projections on unions
+   *  type of `q` is known to have it, otherwise unknown (object typing resolves projections on unions
    *  and reports unknown labels). */
   def objectProjection(c: Cxt, sel: Select, qt: Tm, qty: Val): (Tm, Val, Stage) =
     val known = force(qty) match
@@ -81,7 +79,7 @@ trait ObjectCode:
     val (rt, rty) = inferS(c, res, Stage.S0)
     val (tt, tty) = inferS(c, agg.term, Stage.S0)
     // the result's type, where the core knows it (so that it can solve implicit type arguments that
-    // depend on it); otherwise the object typer's
+    // depend on it); otherwise object typing's
     val resultType = if agg.kind == hugin.syntax.AggKind.Count then Val.Base(hugin.obj.BaseType.IntT, Stage.S0) else tty
     try undoOnFailure(unify(c.lvl, rty, resultType))
     catch case _: UnifyError => ()
@@ -90,7 +88,7 @@ trait ObjectCode:
     (Tm.Obj(ObjForm.Agg(agg.kind), List(rt, tt, body)), Val.PropT, Stage.S0)
 
   /** Whether a type is the type of object data (values of object terms), as opposed to formulas, types
-   *  and functions. Coercions between such types are left to the object typer. */
+   *  and functions. Coercions between such types are left to object typing ([[ObjectTyping]]). */
   def isObjectData(v: Val): Boolean = force(v) match
     case Val.PropT | Val.U0 | Val.U1(_) | Val.Lift(_) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _, _, _) => false
     case Val.RelT | Val.Flex(_, _) => true

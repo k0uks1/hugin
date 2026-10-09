@@ -7,8 +7,8 @@ import hugin.util.Span
 /** The forms of object syntax that only exist at stage 0. In the core they are one node,
  *  [[Tm.Obj]] / [[Val.Obj]] (a form and its subterms): object code is inert data for evaluation,
  *  unification and read-back, which treat every form alike, so a new object form needs no new case in
- *  the core's algorithms. Object typing proper (subtyping, unions, refinements, projections, updates) is
- *  not the core's business: it is done by `obj/typing/ObjTyper` on the staged program (reference: object/index).
+ *  the core's algorithms. Object typing (subtyping, unions, refinements, projections, updates) reads the
+ *  forms at the end of each scope ([[objtype.ObjCheck]], reference: object/types).
  *
  *  The subterms of each form, in order:
  *

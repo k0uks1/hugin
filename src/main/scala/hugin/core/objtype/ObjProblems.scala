@@ -173,4 +173,3 @@ enum RecordError extends Problem:
     case NoCommonLabel(_, _, Some((v, t)), _) => List(msg"$v has type $t; every member must have the label")
     case _: UndefinedJoin => List(msg"the join of different base types is undefined")
     case _ => Nil
-

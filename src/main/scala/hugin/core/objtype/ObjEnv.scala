@@ -73,7 +73,13 @@ final class ObjEnv(val core: Core, locals: ObjEnv.Locals = ObjEnv.NoLocals):
   private val infos = mutable.HashMap.empty[(OHead, List[OTy]), Option[RelInfo]]
 
   /** The columns and result of a relation, constructor or struct (`None` for a type). */
-  def relInfo(h: OHead, as: List[OTy]): Option[RelInfo] = infos.getOrElseUpdate(
+  def relInfo(h: OHead, as: List[OTy]): Option[RelInfo] = h match
+    case OHead.G(id) if as.isEmpty && !globals(id).pending =>
+      // a global's columns are closed: kept with the core
+      core.relInfoCache.getOrElseUpdate(id, computeRelInfo(h, as)).asInstanceOf[Option[RelInfo]]
+    case _ => computeRelInfo(h, as)
+
+  private def computeRelInfo(h: OHead, as: List[OTy]): Option[RelInfo] = infos.getOrElseUpdate(
     (h, as), {
       val isFamily = h match
         case OHead.G(id) => globals(id).kind.isInstanceOf[GlobalKind.Family]

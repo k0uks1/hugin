@@ -1,0 +1,9 @@
+error[E0402]: type mismatch
+ --> tests/neg/ot_functor_once.hgn:8:7
+  |
+8 |   out X :- g.edge X X. (*~ E0402 *)
+  |       ^ expected `expr`, found `g.node`
+  |
+  = note: in column 1 (`x`) of `out`
+
+1 error found

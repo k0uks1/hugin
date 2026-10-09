@@ -180,7 +180,9 @@ final class ObjCheck(
     case OTerm.Arith(op, l, r, _) => checkArith(t, op, l, r, col, inHead, where)
     case OTerm.Neg(x, _) =>
       checkTerm(x, None, inHead, where)
-      synth(x).foreach(tx => if decided(tx) && !baseOf(tx).exists(_ != BaseType.StringT) then report(ObjTypeError.UnaryMinus(ty(tx), t.span)))
+      synth(x).foreach(tx =>
+        if decided(tx) && !baseOf(tx).exists(_ != BaseType.StringT) then report(ObjTypeError.UnaryMinus(ty(tx), t.span))
+      )
     case OTerm.Proj(OTerm.Var(x, _), l, _) => ObjRecords.checkProj(this, types, t, x, l, col, inHead, where)
     case OTerm.Proj(OTerm.Code(tx, _), l, _) =>
       // spliced code (a formula function's parameter): it stands for a variable or a fact once staged
@@ -206,9 +208,11 @@ final class ObjCheck(
     (synth(l), synth(r)) match
       case (Some(a), Some(b)) if decided(a) && decided(b) =>
         val (bl, br) = (baseOf(a), baseOf(b))
-        val ok = bl.isDefined && bl == br && (if op == ArithOp.Concat then bl.contains(BaseType.StringT) else !bl.contains(BaseType.StringT))
+        val ok =
+          bl.isDefined && bl == br && (if op == ArithOp.Concat then bl.contains(BaseType.StringT) else !bl.contains(BaseType.StringT))
         if !ok then report(ObjTypeError.ArithOperands(op, ty(a), ty(b), t.span))
-        else col.foreach(ct => bl.foreach(b => if !isSub(OTy.Base(b), ct) && !baseOf(ct).contains(b) then mismatch(t, OTy.Base(b), ct, where)))
+        else
+          col.foreach(ct => bl.foreach(b => if !isSub(OTy.Base(b), ct) && !baseOf(ct).contains(b) then mismatch(t, OTy.Base(b), ct, where)))
       case _ =>
 
   private[objtype] def problem(p: Problem): Unit = report(p)

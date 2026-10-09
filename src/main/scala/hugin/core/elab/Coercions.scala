@@ -22,7 +22,7 @@ trait Coercions:
   private def coeStaged(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
     try
       if s2 == Stage.S0 && isObjectData(a2) then
-        // object data is coerced softly (the object typer decides), also a lifted meta value
+        // object data is coerced softly (object typing decides), also a lifted meta value
         val moved = if s == Stage.S1 && !forceData(a).isInstanceOf[Val.Lift] then lifted(c, t, a) else None
         moved match
           case Some((t1, a1)) => coeObjectData(c, t1, a1, a2)
@@ -40,7 +40,7 @@ trait Coercions:
     case other => Option.when(isRelationType(other))(other)
 
   /** Object data between object types: unified if possible (which solves implicit arguments and the
-   *  types of variables); otherwise left to the object typer, which knows subtyping ([[ObjectCode]]). */
+   *  types of variables); otherwise left to object typing, which knows subtyping ([[ObjectTyping]]). */
   private def coeObjectData(c: Cxt, t: Tm, a: Val, a2: Val): Tm =
     try undoOnFailure(unify(c.lvl, dataType(c, t, a), a2))
     catch case _: UnifyError => ()

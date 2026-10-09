@@ -74,7 +74,7 @@ trait Operators:
 
   /** Arithmetic in object code. If both operands are compile-time primitives (and not both literals),
    *  it is computed at compile time and the result persisted as a literal (`q (k + 1)` with `k = 42`
-   *  stages to `q 43`); otherwise it is object arithmetic, whose operand types the object typer checks. */
+   *  stages to `q 43`); otherwise it is object arithmetic, whose operand types object typing checks. */
   private def objectArith(c: Cxt, op: ArithOp, l: Tree, r: Tree): (Tm, Val) =
     val (lt, lty, ls) = insert(c, l.span, infer(c, l))
     val (rt, rty, rs) = insert(c, r.span, infer(c, r))
