@@ -1,0 +1,373 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc (double N)).\ntoInt : nat -> int.\ntoInt zero = 0.\ntoInt (suc N) = toInt N + one\n  where one = 1.\ntwice : (int -> int) -> int -> int = [f] [x] f (f x).\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nfriend : person -> person -> rel.\n%symmetric friend.\n","uri":"untitled:n.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":34,"line":5},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `twice`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 5,
+            "line": 10
+          },
+          "start": {
+            "character": 0,
+            "line": 10
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      }
+    ],
+    "uri": "untitled:n.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 13,
+          "line": 5
+        },
+        "start": {
+          "character": 12,
+          "line": 5
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/references","params":{"context":{"includeDeclaration":true},"position":{"character":12,"line":5},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 13,
+          "line": 5
+        },
+        "start": {
+          "character": 12,
+          "line": 5
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 35,
+          "line": 5
+        },
+        "start": {
+          "character": 34,
+          "line": 5
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":8,"line":5},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 3,
+          "line": 2
+        },
+        "start": {
+          "character": 0,
+          "line": 2
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":5,"jsonrpc":"2.0","method":"textDocument/references","params":{"context":{"includeDeclaration":true},"position":{"character":0,"line":1},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 4,
+          "line": 1
+        },
+        "start": {
+          "character": 0,
+          "line": 1
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 4
+        },
+        "start": {
+          "character": 7,
+          "line": 4
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 18,
+          "line": 4
+        },
+        "start": {
+          "character": 14,
+          "line": 4
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 10,
+          "line": 7
+        },
+        "start": {
+          "character": 6,
+          "line": 7
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":6,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":26,"line":8},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 9
+        },
+        "start": {
+          "character": 8,
+          "line": 9
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":7,"jsonrpc":"2.0","method":"textDocument/references","params":{"context":{"includeDeclaration":true},"position":{"character":38,"line":10},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 7,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 39,
+          "line": 10
+        },
+        "start": {
+          "character": 38,
+          "line": 10
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 46,
+          "line": 10
+        },
+        "start": {
+          "character": 45,
+          "line": 10
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 49,
+          "line": 10
+        },
+        "start": {
+          "character": 48,
+          "line": 10
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":8,"jsonrpc":"2.0","method":"textDocument/references","params":{"context":{"includeDeclaration":true},"position":{"character":10,"line":12},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 8,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 11,
+          "line": 12
+        },
+        "start": {
+          "character": 10,
+          "line": 12
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 18,
+          "line": 12
+        },
+        "start": {
+          "character": 17,
+          "line": 12
+        }
+      },
+      "uri": "untitled:n.hgn"
+    },
+    {
+      "range": {
+        "end": {
+          "character": 27,
+          "line": 12
+        },
+        "start": {
+          "character": 26,
+          "line": 12
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":9,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":11,"line":15},"textDocument":{"uri":"untitled:n.hgn"}}}
+<-- {
+  "id": 9,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "range": {
+        "end": {
+          "character": 6,
+          "line": 14
+        },
+        "start": {
+          "character": 0,
+          "line": 14
+        }
+      },
+      "uri": "untitled:n.hgn"
+    }
+  ]
+}
+--> {"id":10,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 10,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

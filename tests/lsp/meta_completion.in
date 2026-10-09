@@ -1,0 +1,12 @@
+// Completion on the meta level: type-directed (the candidates whose result fits first, the variables in scope), quote-aware, directives.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:c.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nsize (suc N) = size N + 1.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc N).\nquad : nat -> nat.\nquad N = d.\nperson : type.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- fr }.\n%sy\n"}}}
+// `d` where a `nat` is expected: `double` (a `nat`) before the rest
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": {"textDocument": {"uri": "untitled:c.hgn"}, "position": {"line": 10, "character": 10}}}
+// in a reflection quote: object syntax only
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": {"textDocument": {"uri": "untitled:c.hgn"}, "position": {"line": 14, "character": 28}}}
+// after `%`: directives
+{"jsonrpc": "2.0", "id": 4, "method": "textDocument/completion", "params": {"textDocument": {"uri": "untitled:c.hgn"}, "position": {"line": 15, "character": 3}}}
+{"jsonrpc": "2.0", "id": 5, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

@@ -1,0 +1,9 @@
+// Inlay hints: inferred quotes, splices and liftings, implicit arguments and (enabled by the initialization options) universe levels; a configuration change turns the implicit arguments off.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}, "initializationOptions": {"inlayHints": {"levels": true}}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:i.hgn", "languageId": "hugin", "version": 1, "text": "limit : int = 2 + 3.\ncode : ⇑int = 4.\nn : int -> rel.\nn limit.\nn code.\nident : A -> A = [x] x.\nthree : int = ident 3.\npair : Type -> Type = [A] A.\n"}}}
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/inlayHint", "params": {"textDocument": {"uri": "untitled:i.hgn"}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}}}
+{"jsonrpc": "2.0", "method": "workspace/didChangeConfiguration", "params": {"settings": {"hugin": {"inlayHints": {"implicits": false, "levels": false}}}}}
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/inlayHint", "params": {"textDocument": {"uri": "untitled:i.hgn"}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 9, "character": 0}}}}
+{"jsonrpc": "2.0", "id": 4, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

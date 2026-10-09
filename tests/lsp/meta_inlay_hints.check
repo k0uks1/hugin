@@ -1,0 +1,238 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{},"initializationOptions":{"inlayHints":{"levels":true}}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"limit : int = 2 + 3.\ncode : ⇑int = 4.\nn : int -> rel.\nn limit.\nn code.\nident : A -> A = [x] x.\nthree : int = ident 3.\npair : Type -> Type = [A] A.\n","uri":"untitled:i.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/inlayHint","params":{"range":{"end":{"character":0,"line":9},"start":{"character":0,"line":0}},"textDocument":{"uri":"untitled:i.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `three`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 5,
+            "line": 6
+          },
+          "start": {
+            "character": 0,
+            "line": 6
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      },
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `pair`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 4,
+            "line": 7
+          },
+          "start": {
+            "character": 0,
+            "line": 7
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      }
+    ],
+    "uri": "untitled:i.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "label": "⟨",
+      "position": {
+        "character": 14,
+        "line": 1
+      },
+      "tooltip": "quote (inferred): object code used as a meta value of type ⇑A"
+    },
+    {
+      "label": "⟩",
+      "position": {
+        "character": 15,
+        "line": 1
+      },
+      "tooltip": "end of the inferred quote"
+    },
+    {
+      "label": "$",
+      "position": {
+        "character": 2,
+        "line": 3
+      },
+      "tooltip": "persisted (inferred): the compile-time value is embedded as a literal"
+    },
+    {
+      "label": "$",
+      "position": {
+        "character": 2,
+        "line": 4
+      },
+      "tooltip": "splice (inferred): meta code of type ⇑A inserted as object code"
+    },
+    {
+      "kind": 1,
+      "label": "{int}",
+      "paddingLeft": true,
+      "position": {
+        "character": 19,
+        "line": 6
+      },
+      "tooltip": "implicit argument `A` = `int` (inferred)"
+    },
+    {
+      "kind": 1,
+      "label": "₀",
+      "position": {
+        "character": 11,
+        "line": 7
+      },
+      "tooltip": "universe level (inferred): Type"
+    },
+    {
+      "kind": 1,
+      "label": "₀",
+      "position": {
+        "character": 19,
+        "line": 7
+      },
+      "tooltip": "universe level (inferred): Type"
+    }
+  ]
+}
+--> {"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{"settings":{"hugin":{"inlayHints":{"implicits":false,"levels":false}}}}}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/inlayHint","params":{"range":{"end":{"character":0,"line":9},"start":{"character":0,"line":0}},"textDocument":{"uri":"untitled:i.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "label": "⟨",
+      "position": {
+        "character": 14,
+        "line": 1
+      },
+      "tooltip": "quote (inferred): object code used as a meta value of type ⇑A"
+    },
+    {
+      "label": "⟩",
+      "position": {
+        "character": 15,
+        "line": 1
+      },
+      "tooltip": "end of the inferred quote"
+    },
+    {
+      "label": "$",
+      "position": {
+        "character": 2,
+        "line": 3
+      },
+      "tooltip": "persisted (inferred): the compile-time value is embedded as a literal"
+    },
+    {
+      "label": "$",
+      "position": {
+        "character": 2,
+        "line": 4
+      },
+      "tooltip": "splice (inferred): meta code of type ⇑A inserted as object code"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

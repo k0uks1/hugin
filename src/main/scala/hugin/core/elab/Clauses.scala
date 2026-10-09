@@ -1,6 +1,7 @@
 package hugin.core
 package elab
 
+import hugin.compiler.MetaIndex
 import hugin.util.*
 import scala.collection.mutable
 
@@ -33,13 +34,18 @@ trait Clauses:
       arity: Int,
       explicit: List[Int],
       used: mutable.Set[Int],
-      prelude: Vector[Val] => List[(Name, Val, Val)]
+      prelude: Vector[Val] => List[(Name, Val, Val)],
+      /** The missing cases found so far (as the clauses' left-hand sides): coverage reports the first,
+       *  tooling offers to add them all ([[MissingClauses]]). */
+      missing: mutable.ListBuffer[String] = mutable.ListBuffer.empty
   )
 
   /** Elaborates the clauses of a declared function into its case tree. `prelude` gives the names a
    *  lifted local function sees (from the arguments at a leaf): name, type, value. */
   def elabFunction(id: Int, clauses: List[SurfaceClause], prelude: Vector[Val] => List[(Name, Val, Val)] = _ => Nil): Unit =
     val g = globals(id)
+    // the clauses' names are uses of the function (for tooling)
+    for cl <- clauses if cl.name.span.text == g.name do recordUse(cl.name.span, id)
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
     val n = clauses.head.pats.length
@@ -52,7 +58,10 @@ trait Clauses:
     val (problem, target) = initialProblem(g.ty, arity)
     val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude)
     val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i))
-    val tree = buildTree(info, problem, target, states)
+    val tree =
+      try buildTree(info, problem, target, states)
+      catch case _: ElabError if info.missing.nonEmpty => notCovering(info, clauses)
+    if info.missing.nonEmpty then notCovering(info, clauses)
     g.kind = GlobalKind.Function(arity, Some(tree))
     checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) do
@@ -246,6 +255,7 @@ trait Clauses:
   /** A leaf: the first clause applies; its right-hand side is checked with its pattern variables bound. */
   private def leaf(f: FunctionInfo, p: SplitProblem, target: Val, cl: ClauseState): CaseTree =
     f.used += cl.index
+    recordSplits(p, cl)
     val order = p.telescopeOrder(core)
     val ren = p.renaming(core, order)
     val binds = cl.binds.map((v, value, ty) => (v, force(ren(value)), ren(ty)))
@@ -259,14 +269,46 @@ trait Clauses:
     val args = p.values.take(f.arity).map(ren)
     for (n, ty, v) <- f.prelude(args) do c = define(c, n, ty, v)
     for (v, value, ty) <- binds do
+      val site = Option.when(!v.implicitBinder)(Site(v.span, "pattern variable"))
       value match
-        case Val.Rigid(Head.Local(l), Nil) => c = c.copy(scope = c.scope + (v.name -> l))
-        case other => c = define(c, v.name, ty, other)
+        case Val.Rigid(Head.Local(l), Nil) =>
+          c = c.copy(scope = c.scope + (v.name -> l))
+          site.foreach { s =>
+            c = withSite(c, l, s)
+            recordLocalDeclaration(c, l)
+          }
+        case other =>
+          c = define(c, v.name, ty, other, site)
+          recordLocalDeclaration(c, c.lvl - 1)
     c = elabWhere(c, f.name, cl.source.where)
     val body = check(c, cl.source.rhs, ren(target), Stage.S1)
     recordCalls(f, args, c, body, cl.source)
     val patterns = f.explicit.map(l => quote(order.length, args(l)))
     CaseTree.Leaf(letBound(c, base, body), p.size, order, names.toVector, patterns)
+
+  /** The pattern variables of a clause that can be split (for tooling, [[MetaIndex.Split]]): those of an
+   *  inductive type, with a pattern per constructor whose indices unify with the variable's type. */
+  private def recordSplits(p: SplitProblem, cl: ClauseState): Unit =
+    val taken = mutable.Set.from(cl.binds.map(_._1.name))
+    def fresh(base: String): String =
+      val name = Iterator.from(1).map(k => if k == 1 && !taken(base) then base else s"$base$k").find(!taken(_)).get
+      taken += name
+      name
+    for case (v, value, _) <- cl.binds if !v.implicitBinder && v.span.exists do
+      force(value) match
+        case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) =>
+          force(p.types(x)) match
+            case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
+              val patterns = constructors(fam).filter(c => unifyConstructor(p, famSp, c)._3 != IndexUnification.Conflict).map { c =>
+                val args = telescope(globals(c).ty)._1.collect { case (x, Icit.Expl, _) =>
+                  fresh(if x == "_" || x.isEmpty || !x.head.isLetter then v.name else x.capitalize)
+                }
+                if args.isEmpty then globals(c).name else (globals(c).name :: args).mkString("(", " ", ")")
+              }
+              val split = MetaIndex.Split(v.span, v.name, cl.source.span, patterns)
+              later(_ => index.meta.split(split))
+            case _ =>
+        case _ =>
 
   /** Wraps the definitions bound after level `base` around `body` as lets. */
   private def letBound(c: Cxt, base: Int, body: Tm): Tm =
@@ -274,8 +316,20 @@ trait Clauses:
       Tm.Let(b.name, b.tyTm, b.defn.getOrElse(throw Impossible("a pattern binder without definition")), acc)
     }
 
-  private def missingCase(f: FunctionInfo, p: SplitProblem): Nothing =
+  /** A case no clause covers: collected (up to a bound), so that tooling can add them all; the tree
+   *  returned in its place is never used, since coverage then fails ([[notCovering]]). */
+  private def missingCase(f: FunctionInfo, p: SplitProblem): CaseTree =
     val names = p.names.indices.map(l => if p.isFree(l) then "_" else p.names(l)).toList.reverse
     val pats = f.explicit.map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
-    val shown = (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
-    fail(ClauseProblem.NotCovering(f.name, shown, globals(f.id).span))
+    f.missing += (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
+    if f.missing.length >= MaxMissing then fail(ClauseProblem.NotCovering(f.name, f.missing.head, globals(f.id).span))
+    CaseTree.Split(-1, Nil)
+
+  private val MaxMissing = 20
+
+  /** E0911 for the first missing case; all of them are recorded for tooling (clauses with holes). */
+  private def notCovering(f: FunctionInfo, clauses: List[SurfaceClause]): Nothing =
+    val declared = globals(f.id).span
+    if f.name.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'') && clauses.nonEmpty && !index.muted then
+      index.meta.missing(MetaIndex.MissingClauses(declared, f.name, f.missing.toList.map(_ + " = ?."), clauses.map(_.span).maxBy(_.end)))
+    fail(ClauseProblem.NotCovering(f.name, f.missing.head, declared))

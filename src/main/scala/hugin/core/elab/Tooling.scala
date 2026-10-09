@@ -60,7 +60,19 @@ trait Tooling:
       index.declare(sym)
       index.describe(sym, s"meta parameter ${b.name} : ${show(c, b.ty)}")
       Some(sym)
-    case _ => None
+    case _ => b.site.filter(_.span.exists).map(site => localSym(c, b, site))
+
+  /** The symbol of a local variable declared at `site` (described once the item's unknowns are solved). */
+  private def localSym(c: Cxt, b: Binder, site: Site): Sym =
+    val sym = Sym(b.name, SymKind.MetaParam, site.span, site.span)
+    index.declare(sym)
+    later(_ => index.describe(sym, s"${site.what} ${b.name} : ${show(c, b.ty)}"))
+    sym
+
+  /** The declaration of the local variable at `level` of `c` (at its site). */
+  def recordLocalDeclaration(c: Cxt, level: Int): Unit =
+    val b = c.binder(level)
+    b.site.filter(_.span.exists).foreach(localSym(c, b, _))
 
   /** The declaration of the global `id` by the item `item`: its description, labels and members. */
   def recordDeclaration(id: Int, item: Item): Unit =
@@ -75,6 +87,60 @@ trait Tooling:
         index.directive(sym)
         declared(sym, s"$description\n(directive, $fp)", g.ty)
       case None => declared(sym, description, g.ty)
+    index.meta.resultHead(sym, resultHeadKey(g.ty))
+    if g.stage == Stage.S1 then index.meta.role(sym, roleOf(id))
+    g.shared.foreach(link => index.meta.note(sym, () => sharedNotes(id, link)))
+    skeleton(id, item)
+
+  private def roleOf(id: Int): hugin.compiler.MetaIndex.Role =
+    import hugin.compiler.MetaIndex.Role
+    val g = globals(id)
+    g.kind match
+      case GlobalKind.Inductive(_) => Role.Family
+      case GlobalKind.Constructor(_) => Role.Constructor
+      case _ =>
+        force(g.ty) match
+          case _: Val.RecTy => Role.Module
+          case _: Val.Pi => Role.Function
+          case Val.U1(_) | Val.U0 => Role.Family
+          case _ =>
+            g.kind match
+              case GlobalKind.Definition(_, v) if force(v).isInstanceOf[Val.RecTy] => Role.Module
+              case _ => Role.Value
+
+  /** The two stages of a constant of a shared data declaration and its derived functions (shown once
+   *  they are declared, when a language server asks). */
+  private def sharedNotes(id: Int, link: SharedLink): List[String] =
+    val (meta, obj) = if link.side == Stage.S1 then (id, link.counterpart) else (link.counterpart, id)
+    def sig(g: Int) = s"`${globals(g).name} : ${showValPlain(Nil, globals(g).ty)}`"
+    // the object side as declared (its type as a meta value shows the splices of its family)
+    val objectSide = index.description(symOf(obj)).fold(sig(obj))(d => s"`$d`")
+    val derived = globals(meta).shared.toList.flatMap(l => List(l.lift, l.reify)).filter(_ >= 0).map(sig)
+    s"shared data: at the meta level ${sig(meta)}; at the object level $objectSide" ::
+      (if derived.isEmpty then Nil else List(s"derived: ${derived.mkString(", ")}"))
+
+  /** A meta function declared without clauses or definition: the clause that starts it, for tooling. */
+  private def skeleton(id: Int, item: Item): Unit =
+    val g = globals(id)
+    item match
+      case d: Decl if d.defn.isEmpty && g.stage == Stage.S1 && g.kind == GlobalKind.Postulate =>
+        val (binders, result) = telescope(g.ty)
+        val explicit = binders.filter(_._2 == Icit.Expl)
+        val isFormula = force(result) match
+          case Val.Lift(Val.PropT) | Val.PropT => true
+          case _ => false
+        if explicit.nonEmpty && !isFormula then
+          val taken = scala.collection.mutable.Set.empty[String]
+          val names = explicit.map { (x, _, a) =>
+            val base =
+              if x.nonEmpty && x != "_" && x.head.isLetter then x.capitalize
+              else headKey(a).dropWhile(_ != ':').drop(1).headOption.filter(_.isLetter).map(_.toUpper.toString).getOrElse("X")
+            val name = Iterator.from(1).map(k => if k == 1 then base else s"$base$k").find(n => !taken(n)).get
+            taken += name
+            name
+          }
+          index.meta.skeleton(hugin.compiler.MetaIndex.Skeleton(g.span, d.span, g.name, s"${(g.name :: names).mkString(" ")} = ?."))
+      case _ =>
 
   private def declared(sym: Sym, description: String, ty: Val): Unit =
     index.declare(sym)

@@ -99,6 +99,9 @@ object Trees:
   /** `⇑t`: the lift of an object type to the meta level; normally inferred. */
   final case class LiftE(arg: Tree)(val span: Span) extends Tree
 
+  /** `?` or `?name`: a typed hole, an expression still to be written (reference: meta/functions). */
+  final case class Hole(name: Option[String])(val span: Span) extends Tree
+
   /** `{A B : T}` in front of `->`: implicit binders (only as the domain of an [[ImplicitPi]]). */
   final case class ImplicitBinder(names: List[Tree], tpe: Tree)(val span: Span) extends Tree
 

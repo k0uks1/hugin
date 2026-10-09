@@ -1,0 +1,259 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\npred : nat -> nat.\npred (suc N) = N.\ndouble : nat -> nat.\ndouble N = suc ?d.\nsize : nat -> int.\n","uri":"untitled:h.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":16,"line":6},"textDocument":{"uri":"untitled:h.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "E0911",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/E0911.html"
+        },
+        "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
+        "range": {
+          "end": {
+            "character": 4,
+            "line": 3
+          },
+          "start": {
+            "character": 0,
+            "line": 3
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
+      },
+      {
+        "code": "E0924",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/E0924.html"
+        },
+        "data": {
+          "context": [
+            {
+              "name": "N",
+              "type": "nat"
+            }
+          ],
+          "goal": "nat",
+          "name": "d",
+          "stage": "meta"
+        },
+        "message": "unsolved goal `?d`\ngoal: `nat`\nnote: the hole stands for a meta value of type `nat`\nnote: in scope: `N : nat`\nhelp: replace the hole with an expression of type `nat`",
+        "range": {
+          "end": {
+            "character": 17,
+            "line": 6
+          },
+          "start": {
+            "character": 15,
+            "line": 6
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
+      }
+    ],
+    "uri": "untitled:h.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "**goal** `?d` : `nat` (meta level)\n\n```hugin\nN : nat\n```"
+    }
+  }
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[{"code":"E0911","message":"","range":{"end":{"character":4,"line":3},"start":{"character":0,"line":3}},"source":"hugin"}]},"range":{"end":{"character":4,"line":3},"start":{"character":0,"line":3}},"textDocument":{"uri":"untitled:h.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "diagnostics": [
+        {
+          "code": "E0911",
+          "codeDescription": {
+            "href": "https://k0uks1.github.io/hugin/errors/E0911.html"
+          },
+          "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
+          "range": {
+            "end": {
+              "character": 4,
+              "line": 3
+            },
+            "start": {
+              "character": 0,
+              "line": 3
+            }
+          },
+          "severity": 1,
+          "source": "hugin"
+        }
+      ],
+      "edit": {
+        "changes": {
+          "untitled:h.hgn": [
+            {
+              "newText": "\npred zero = ?.",
+              "range": {
+                "end": {
+                  "character": 17,
+                  "line": 4
+                },
+                "start": {
+                  "character": 17,
+                  "line": 4
+                }
+              }
+            }
+          ]
+        }
+      },
+      "isPreferred": true,
+      "kind": "quickfix",
+      "title": "Add the missing clause"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":7,"line":6},"start":{"character":7,"line":6}},"textDocument":{"uri":"untitled:h.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "edit": {
+        "changes": {
+          "untitled:h.hgn": [
+            {
+              "newText": "double zero = suc ?d.\ndouble (suc N1) = suc ?d.",
+              "range": {
+                "end": {
+                  "character": 18,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          ]
+        }
+      },
+      "kind": "refactor.rewrite",
+      "title": "Split on `N`"
+    }
+  ]
+}
+--> {"id":5,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":0,"line":7},"start":{"character":0,"line":7}},"textDocument":{"uri":"untitled:h.hgn"}}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "edit": {
+        "changes": {
+          "untitled:h.hgn": [
+            {
+              "newText": "\nsize N = ?.",
+              "range": {
+                "end": {
+                  "character": 18,
+                  "line": 7
+                },
+                "start": {
+                  "character": 18,
+                  "line": 7
+                }
+              }
+            }
+          ]
+        }
+      },
+      "kind": "quickfix",
+      "title": "Add a clause for `size`"
+    }
+  ]
+}
+--> {"id":6,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

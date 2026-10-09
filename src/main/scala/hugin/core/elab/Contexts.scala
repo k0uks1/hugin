@@ -10,11 +10,11 @@ trait Contexts:
 
   def show(c: Cxt, v: Val): String = showValPlain(c.names, v)
 
-  def bind(c: Cxt, x: Name, a: Val, st: Stage, origin: BinderOrigin = BinderOrigin.Plain): Cxt =
+  def bind(c: Cxt, x: Name, a: Val, st: Stage, origin: BinderOrigin = BinderOrigin.Plain, site: Option[Site] = None): Cxt =
     Cxt(
       Val.local(c.lvl) :: c.env,
       c.lvl + 1,
-      Binder(x, a, quote(c.lvl, a), st, None, origin) :: c.binders,
+      Binder(x, a, quote(c.lvl, a), st, None, origin, site) :: c.binders,
       if x == "_" then c.scope else c.scope + (x -> c.lvl),
       Some(Icit.Expl) :: c.pruning
     )
@@ -23,11 +23,11 @@ trait Contexts:
   def newBinder(c: Cxt, x: Name, a: Val, st: Stage): Cxt = bind(c, x, a, st).copy(scope = c.scope)
 
   /** A variable defined as `v` (a pattern variable bound to a term), in scope by `x`. */
-  def define(c: Cxt, x: Name, a: Val, v: Val): Cxt =
+  def define(c: Cxt, x: Name, a: Val, v: Val, site: Option[Site] = None): Cxt =
     Cxt(
       v :: c.env,
       c.lvl + 1,
-      Binder(x, a, quote(c.lvl, a), Stage.S1, Some(quote(c.lvl, v))) :: c.binders,
+      Binder(x, a, quote(c.lvl, a), Stage.S1, Some(quote(c.lvl, v)), site = site) :: c.binders,
       c.scope + (x -> c.lvl),
       None :: c.pruning
     )
@@ -49,3 +49,8 @@ trait Contexts:
       case Stage.S1 => freshMeta(c, Val.U1(levels.fresh()), Stage.S1, span, what, allowUnsolved)
 
   def ev(c: Cxt, t: Tm): Val = eval(c.env, t)
+
+  /** `c` with the variable at `level` declared at `site`. */
+  def withSite(c: Cxt, level: Int, site: Site): Cxt =
+    val k = c.lvl - level - 1
+    c.copy(binders = c.binders.updated(k, c.binders(k).copy(site = Some(site))))

@@ -10,6 +10,7 @@
     { "include": "#directive" },
     { "include": "#rule-name" },
     { "include": "#declaration" },
+    { "include": "#meta" },
     { "include": "#keyword" },
     { "include": "#variable" },
     { "include": "#operator" },
@@ -59,9 +60,35 @@
     "keyword": {
       "patterns": [
         { "name": "storage.type.hugin", "match": "(?<![\\w'])(?:type|mod|rel|prop)(?![\\w'])" },
+        { "name": "storage.type.meta.hugin", "match": "(?<![\\w'])(?:Type|data)(?![\\w'])" },
+        { "name": "keyword.other.where.hugin", "match": "(?<![\\w'])where(?![\\w'])" },
         { "name": "keyword.operator.word.hugin", "match": "(?<![\\w'])(?:not|as|with)(?![\\w'])" },
         { "name": "support.function.aggregate.hugin", "match": "(?<![\\w'])(?:count|sum|min|max)(?![\\w'])" }
       ]
+    },
+    "meta": {
+      "comment": "the meta level's syntax: typed holes `?` and `?name` (not `?-`), quote holes `$..xs` and splices `$x`, the lift, `::`, and reflection quotes `'{ … }` (braces nest inside)",
+      "patterns": [
+        { "name": "keyword.other.hole.hugin", "match": "\\?(?!-)[A-Za-z0-9_']*" },
+        { "name": "keyword.operator.splice.sequence.hugin", "match": "\\$\\.\\." },
+        { "name": "keyword.operator.splice.hugin", "match": "\\$" },
+        { "name": "keyword.operator.lift.hugin", "match": "⇑" },
+        { "name": "keyword.operator.cons.hugin", "match": "::" },
+        {
+          "name": "meta.quote.hugin",
+          "begin": "(?<![\\w'])'\\{",
+          "end": "\\}",
+          "beginCaptures": { "0": { "name": "punctuation.section.quote.begin.hugin" } },
+          "endCaptures": { "0": { "name": "punctuation.section.quote.end.hugin" } },
+          "patterns": [{ "include": "#braces" }, { "include": "$self" }]
+        }
+      ]
+    },
+    "braces": {
+      "comment": "braces inside a quote, so that the quote ends at its own `}`",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [{ "include": "#braces" }, { "include": "$self" }]
     },
     "variable": {
       "patterns": [
@@ -82,7 +109,6 @@
     },
     "punctuation": {
       "patterns": [
-        { "name": "punctuation.section.quote.begin.hugin", "match": "(?<![\\w'])'(?=\\{)" },
         { "name": "punctuation.accessor.hugin", "match": "(?<=[A-Za-z0-9_'])\\.(?=[a-z])" },
         { "name": "punctuation.terminator.hugin", "match": "\\." },
         { "name": "punctuation.separator.hugin", "match": "[,;]" }

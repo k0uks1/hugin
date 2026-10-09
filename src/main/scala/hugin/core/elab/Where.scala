@@ -38,10 +38,10 @@ trait Where:
     case Decl(name, Nil, tpe, None, Some(e)) =>
       val a = checkType(c, tpe, Stage.S1)
       val av = ev(c, a)
-      (define(c, name.name, av, ev(c, check(c, e, av, Stage.S1))), items.tail)
+      (local(define(c, name.name, av, ev(c, check(c, e, av, Stage.S1)), Some(Site(name.span, "local definition")))), items.tail)
     case Def(name, Nil, rhs) =>
       val (t, ty) = inferS(c, rhs, Stage.S1)
-      (define(c, name.name, ty, ev(c, t)), items.tail)
+      (local(define(c, name.name, ty, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
     case d @ Decl(name, Nil, tpe, None, None) =>
       val (clauses, rest) = items.tail.span(isClauseOf(name.name))
       if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
@@ -50,6 +50,11 @@ trait Where:
       (patternBinding(c, owner, lhs, rhs, cl.span), items.tail)
     case other =>
       fail(ClauseProblem.InvalidLocal(other.span))
+
+  /** `c`, its last variable declared for tooling. */
+  private def local(c: Cxt): Cxt =
+    recordLocalDeclaration(c, c.lvl - 1)
+    c
 
   private def isClauseOf(n: Name)(item: Item): Boolean = item match
     case Clause(lhs, _, _) => TreeOps.headName(lhs).exists(_.name == n)
@@ -79,11 +84,11 @@ trait Where:
 
   /** A hidden global function of type `closeOver(c, a)`, and `c` extended by `name` defined as it applied
    *  to the bound variables. */
-  private def lift(c: Cxt, owner: Name, name: Name, a: Tm, span: Span): (Int, Cxt) =
+  private def lift(c: Cxt, owner: Name, name: Name, a: Tm, span: Span, site: Span = Span.NoSpan): (Int, Cxt) =
     val closed = closeOver(c, a)
     val id = addGlobal(GlobalEntry(s"$owner.$name", eval(Nil, closed), closed, Stage.S1, GlobalKind.Function(-1, None), span))
     val value = boundVars(c).foldLeft(globalValue(id))((f, v) => app(f, v, Icit.Expl))
-    (id, define(c, name, ev(c, a), value))
+    (id, local(define(c, name, ev(c, a), value, Some(Site(site, "local function")))))
 
   /** The names of `c` re-expressed over the arguments of a function lifted from `c` (its first arguments
    *  are the bound variables of `c`, whose values at a leaf are `args`). */
@@ -104,7 +109,7 @@ trait Where:
 
   private def localFunction(c: Cxt, owner: Name, name: Ident, tpe: Tree, clauses: List[SurfaceClause], span: Span): Cxt =
     val a = checkType(c, tpe, Stage.S1)
-    val (id, c2) = lift(c, owner, name.name, a, span)
+    val (id, c2) = lift(c, owner, name.name, a, span, name.span)
     val k = boundVars(c).length
     val padded = clauses.map(cl => cl.copy(pats = List.fill(k)(Wildcard()(cl.span)) ++ cl.pats))
     elabFunction(id, padded, prelude(c2))
@@ -133,7 +138,7 @@ trait Where:
         val sel = SurfaceClause(Ident(s"(binding of `$n`)")(span), List.fill(k)(Wildcard()(span)) :+ pat, VarRef("$sel")(span), span, Nil)
         elabFunction(id, List(sel), prelude(c))
         val value = app(boundVars(c).foldLeft(globalValue(id))((f, v) => app(f, v, Icit.Expl)), ev(c, et), Icit.Expl)
-        define(cc, n, ev(c, fty), value)
+        local(define(cc, n, ev(c, fty), value, Some(Site(args(i).span, "local binding"))))
       case (cc, ((None, _), _)) => cc
     }
 

@@ -1,0 +1,14 @@
+// Typed holes and interactive development: goals as diagnostic data and in hover, adding missing clauses, splitting a pattern variable, starting the clauses of a declared function.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:h.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\npred : nat -> nat.\npred (suc N) = N.\ndouble : nat -> nat.\ndouble N = suc ?d.\nsize : nat -> int.\n"}}}
+// the goal of the hole
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:h.hgn"}, "position": {"line": 6, "character": 16}}}
+// the clauses missing from `pred` (E0911)
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:h.hgn"}, "range": {"start": {"line": 3, "character": 0}, "end": {"line": 3, "character": 4}}, "context": {"diagnostics": [{"range": {"start": {"line": 3, "character": 0}, "end": {"line": 3, "character": 4}}, "message": "", "code": "E0911", "source": "hugin"}]}}}
+// split `N` of `double`
+{"jsonrpc": "2.0", "id": 4, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:h.hgn"}, "range": {"start": {"line": 6, "character": 7}, "end": {"line": 6, "character": 7}}, "context": {"diagnostics": []}}}
+// start the clauses of `size`
+{"jsonrpc": "2.0", "id": 5, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:h.hgn"}, "range": {"start": {"line": 7, "character": 0}, "end": {"line": 7, "character": 0}}, "context": {"diagnostics": []}}}
+{"jsonrpc": "2.0", "id": 6, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

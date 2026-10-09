@@ -1,0 +1,153 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"person : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\n%symmetric friend.\nfriend ann bob.\ngraph : Type = { node : type, edge : node -> node -> rel }.\ntc (g : graph) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\nfriends = tc { node = person, edge = friend }.\n%output friends.path.\n","uri":"untitled:e.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/codeLens","params":{"textDocument":{"uri":"untitled:e.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:e.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "command": {
+        "arguments": [
+          "untitled:e.hgn",
+          5,
+          0
+        ],
+        "command": "hugin.showExpansion",
+        "title": "Show expansion (1 item)"
+      },
+      "range": {
+        "end": {
+          "character": 18,
+          "line": 5
+        },
+        "start": {
+          "character": 0,
+          "line": 5
+        }
+      }
+    },
+    {
+      "command": {
+        "arguments": [
+          "untitled:e.hgn",
+          13,
+          10
+        ],
+        "command": "hugin.showExpansion",
+        "title": "Show expansion (2 items)"
+      },
+      "range": {
+        "end": {
+          "character": 45,
+          "line": 13
+        },
+        "start": {
+          "character": 10,
+          "line": 13
+        }
+      }
+    }
+  ]
+}
+--> {"id":3,"jsonrpc":"2.0","method":"workspace/executeCommand","params":{"arguments":["untitled:e.hgn",5,3],"command":"hugin.expansion"}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": "(* In expansion of `%symmetric friend` at untitled:e.hgn:6:1: 1 item *)\nfriend Y X :- friend X Y.\n"
+}
+--> {"id":4,"jsonrpc":"2.0","method":"workspace/executeCommand","params":{"arguments":["untitled:e.hgn",13,10],"command":"hugin.expansion"}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": "(* In application of `tc` at untitled:e.hgn:14:11: 2 items *)\nfriends.path X Y :- friend X Y.\nfriends.path X Z :- friend X Y, friends.path Y Z.\n"
+}
+--> {"id":5,"jsonrpc":"2.0","method":"workspace/executeCommand","params":{"arguments":["untitled:e.hgn",10,2],"command":"hugin.expansion"}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": "(* Staged code of the item at untitled:e.hgn:11:3: 1 item *)\n(* in application of `tc` at untitled:e.hgn:14:11 *)\nfriends.path X Y :- friend X Y.\n"
+}
+--> {"id":6,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

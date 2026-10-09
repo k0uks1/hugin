@@ -1,0 +1,185 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nplus : nat -> nat -> nat.\nplus zero N = N.\nplus (suc M) N = suc (plus M N).\nident : A -> A = [x] x.\nthree : int = ident 3.\ncode : ⇑int = 4.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\n%symmetric friend.\nfriend ann bob.\ntotal : int -> rel.\ntotal three.\ntotal code.\nprimes : list int = [2, 3].\nlisted : list int -> rel.\nlisted primes.\n","uri":"untitled:m.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":23,"line":5},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [],
+    "uri": "untitled:m.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition plus : nat -> nat -> nat\n```\n\n`plus` : `nat -> nat -> nat`  \nstage: meta"
+    }
+  }
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":27,"line":5},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\npattern variable M : nat\n```\n\n`M` : `nat`  \nstage: meta"
+    }
+  }
+}
+--> {"id":4,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":21,"line":6},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nparameter x : A\n```\n\n`x` : `A`  \nstage: meta"
+    }
+  }
+}
+--> {"id":5,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":14,"line":7},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 5,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition ident A : A -> A\n```\n\n`ident` : `int -> int`  \nstage: meta\n\nelaborated: `ident {int}`"
+    }
+  }
+}
+--> {"id":6,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":14,"line":8},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 6,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "`4` : `⇑int`  \nstage: meta, object code `⇑int`\n\nelaborated: `⟨4⟩`"
+    }
+  }
+}
+--> {"id":7,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":1,"line":14},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 7,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition symmetric A : (r : ⇑((A -> (A -> rel)))) -> list item\n(directive, additive: it adds items)\n```\n\ndirective application `%symmetric friend` : `list item`  \nfootprint: additive: it adds items (a list of items) here"
+    }
+  }
+}
+--> {"id":8,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":26,"line":10},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 8,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\npattern variable R : ⇑(A -> A -> rel)\n```\n\n`R X Y` : `prop`  \nstage: object"
+    }
+  }
+}
+--> {"id":9,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":9,"line":19},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 9,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition list A : data\n```\n\nshared data: at the meta level `list : Type -> Type`; at the object level `object type list A : data`\n\nderived: `list.lift : {A1 : Type} -> {B1 : type} -> (A1 -> ⇑B1) -> list A1 -> ⇑$(list B1)`, `list.reify : {A1 : Type} -> (A1 -> term) -> list A1 -> term`\n\n`list` : `Type -> Type`  \nstage: meta"
+    }
+  }
+}
+--> {"id":10,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":7,"line":21},"textDocument":{"uri":"untitled:m.hgn"}}}
+<-- {
+  "id": 10,
+  "jsonrpc": "2.0",
+  "result": {
+    "contents": {
+      "kind": "markdown",
+      "value": "```hugin\nmeta definition primes : list int\n```\n\nspliced: the meta-level code `cons[int] 2 (cons[int] 3 nil[int])` is inserted here\n\n`primes` : `list[int]`  \nstage: object\n\nelaborated: `$(list.lift {int} {⟨int⟩} ([x] ⟨x⟩) primes)`"
+    }
+  }
+}
+--> {"id":11,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 11,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

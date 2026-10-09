@@ -58,10 +58,12 @@ trait Items:
     predeclare(meta)
     elabInDependencyOrder(meta)
     dropPending()
-    defineSharedFunctions()
+    // the derived functions are generated code: nothing to show for their positions
+    withoutTooling(defineSharedFunctions())
     elabClauseGroups(clauses)
     for f <- formulaFunctions if !state.unelaborated(f) do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
+    flushTooling(success = true)
 
   /** The names an item with a syntax error might have been meant to declare: its name, or the name of
    *  the head of a rule (a declaration whose `:` is missing is a rule). */
@@ -135,7 +137,7 @@ trait Items:
       itemTransaction {
         undoOnFailure {
           elabItem(item)
-          checkSolved(start)
+          solvedAndRecorded(start)
         }
       }
       None
@@ -176,9 +178,16 @@ trait Items:
       val start = metas.length
       try
         undoOnFailure {
-          val id = declaredFunction(n, group.head)
-          elabFunction(id, group.flatMap(surfaceClause))
-          checkSolved(start)
+          // the records of a failed group are shown before its metas are undone
+          try
+            val id = declaredFunction(n, group.head)
+            elabFunction(id, group.flatMap(surfaceClause))
+            checkSolved(start)
+          catch
+            case e: ElabError =>
+              flushTooling(success = false)
+              throw e
+          flushTooling(success = true)
         }
       catch
         case e: ElabError =>
@@ -208,7 +217,12 @@ trait Items:
     // an item with a syntax error (reported by the parser) is not elaborated: it is dropped silently and
     // the names it declares are erroneous (`docs/PARSER.md`, §5)
     if hasSyntaxErrors(item) then syntaxError(item.span)
-    at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
+    // the records of a failed item are shown before its metas are undone ([[solvedAndRecorded]])
+    try at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
+    catch
+      case e: ElabError =>
+        flushTooling(success = false)
+        throw e
     // a shared declaration declares a constant at each stage under the name
     declares(item).flatMap(scope.get).foreach(id =>
       (id :: globals(id).shared.map(_.counterpart).toList).foreach(recordDeclaration(_, item))
@@ -228,7 +242,7 @@ trait Items:
     try
       itemTransaction {
         elabItem(item)
-        checkSolved(start)
+        solvedAndRecorded(start)
       }
     catch case e: ElabError => report(e)
 
@@ -250,6 +264,16 @@ trait Items:
           throw e
     scope.commit(names)
     result
+
+  /** [[checkSolved]], then the item's tooling records are flushed ([[MetaTooling]]): once it is known
+   *  whether the item succeeded, and before its metas are undone if it did not. */
+  private def solvedAndRecorded(start: Int): Unit =
+    try checkSolved(start)
+    catch
+      case e: ElabError =>
+        flushTooling(success = false)
+        throw e
+    flushTooling(success = true)
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
    *  object typer infers). */

@@ -123,6 +123,9 @@ Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'{ }` are pairs. It 
 `⇑` (U+21D1) is the lift of [staging](meta/staging.md); `$` starts a splice, or inside a quote a
 [hole](reflection.md#holes).
 
+A question mark `?` that is not followed by `-` is a [typed hole](meta/functions.md#typed-holes),
+together with the name characters directly after it: `?`, `?rest`.
+
 ## Items
 
 A file is a sequence of *items*. Every item ends with a period:

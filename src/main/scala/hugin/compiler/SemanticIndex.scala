@@ -85,6 +85,9 @@ final class SemanticIndex:
   private val scopeExtents = mutable.ArrayBuffer.empty[ScopeExtent]
   private val directiveSyms = mutable.LinkedHashSet.empty[Sym]
 
+  /** What the elaborator learned about the meta level (types, stages, holes), for language servers. */
+  val meta: MetaIndex = MetaIndex()
+
   /** The names of the program's top level and of the prelude (where no recorded extent applies). */
   var topLevel: List[Sym] = Nil
 
@@ -133,6 +136,7 @@ final class SemanticIndex:
     labelLists ++= other.labelLists
     scopeExtents ++= other.scopeExtents.map(s => ScopeExtent(s.extent, s.names))
     directiveSyms ++= other.directiveSyms
+    meta.include(other.meta)
     if other.topLevel.nonEmpty then topLevel = other.topLevel
 
   def references: Seq[Reference] = refs.toSeq

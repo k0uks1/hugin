@@ -62,7 +62,10 @@ trait Patterns:
         case (h @ (_: Ident | _: SymRef), args) =>
           val (c, n) = h match
             case SymRef(id, n) if isConstructor(id) => (id, n) // a generated pattern ([[DerivedFunctions]])
-            case _ => (constructorNamed(nameOf(h), h.span), nameOf(h))
+            case _ =>
+              val c = constructorNamed(nameOf(h), h.span)
+              recordUse(h.span, c)
+              (c, nameOf(h))
           val types = constructorArgTypes(c, expected)
           if types.length != args.length then
             fail(ClauseProblem.PatternArity(n, types.length, args.length, t.span))

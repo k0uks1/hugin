@@ -35,6 +35,7 @@ object Printer:
     case Import(path) => s"%import ${Literal.quote(path)}"
     case SpliceE(a) => s"$$${showArg(a)}"
     case LiftE(a) => s"⇑${showArg(a)}"
+    case Hole(n) => "?" + n.getOrElse("")
     case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
     case ListLit(es) => es.map(show).mkString("[", ", ", "]")

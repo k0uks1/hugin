@@ -265,7 +265,8 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     case other => startsExpression(other)
 
   protected def startsExpression(t: Tok): Boolean = t match
-    case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok.Quote |
+    case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok
+          .Quote | Tok.Hole |
         Tok.KwNot | Tok.Minus | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
         Tok.Directive | Tok.RuleName | Tok.Error =>
       true

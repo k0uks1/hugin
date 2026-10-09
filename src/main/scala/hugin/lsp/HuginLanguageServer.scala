@@ -24,6 +24,9 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   private var client: Option[LanguageClient] = None
   private var shutdownRequested = false
 
+  /** Whether the client asks for inlay hints again when told to (after a change of the settings). */
+  private var refreshHints = false
+
   /** The features, for tests. */
   val features: Features = Features()
 
@@ -52,7 +55,12 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     caps.setCompletionProvider(CompletionOptions(false, features.completionTriggers.asJava))
     val legend = SemanticTokensLegend(features.tokenTypes.asJava, features.tokenModifiers.asJava)
     caps.setSemanticTokensProvider(SemanticTokensWithRegistrationOptions(legend, true))
-    caps.setCodeActionProvider(CodeActionOptions(List(CodeActionKind.QuickFix).asJava))
+    caps.setCodeActionProvider(CodeActionOptions(List(CodeActionKind.QuickFix, CodeActionKind.RefactorRewrite).asJava))
+    caps.setInlayHintProvider(true)
+    caps.setCodeLensProvider(CodeLensOptions(false))
+    caps.setExecuteCommandProvider(ExecuteCommandOptions(List(MetaFeatures.ExpansionCommand).asJava))
+    features.meta.hintSettings = HintSettings.from(params.getInitializationOptions, features.meta.hintSettings)
+    refreshHints = scala.util.Try(params.getCapabilities.getWorkspace.getInlayHint.getRefreshSupport.booleanValue).getOrElse(false)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
   override def shutdown(): CompletableFuture[Object] =
@@ -120,12 +128,32 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     override def semanticTokensFull(params: SemanticTokensParams): CompletableFuture[SemanticTokens] =
       completedFuture(features.semanticTokens(params.getTextDocument.getUri))
 
+    override def codeLens(params: CodeLensParams): CompletableFuture[java.util.List[? <: CodeLens]] =
+      completedFuture(features.codeLenses(params.getTextDocument.getUri).asJava)
+
+    override def inlayHint(params: InlayHintParams): CompletableFuture[java.util.List[InlayHint]] =
+      completedFuture(features.inlayHints(params.getTextDocument.getUri, params.getRange).asJava)
+
     override def codeAction(params: CodeActionParams): CompletableFuture[java.util.List[JEither[Command, CodeAction]]] =
       val actions = features.codeActions(params.getTextDocument.getUri, params.getRange).map(a => JEither.forRight[Command, CodeAction](a))
       completedFuture(actions.asJava)
 
   private final class Workspace extends WorkspaceService:
-    override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit = ()
+    /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
+    override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
+      features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
+      if refreshHints then client.foreach(c => scala.util.Try(c.refreshInlayHints()))
+
+    /** `hugin.expansion` ([[MetaFeatures.ExpansionCommand]]): the expansion at a position, or null. */
+    override def executeCommand(params: ExecuteCommandParams): CompletableFuture[Object] =
+      val result =
+        if params.getCommand != MetaFeatures.ExpansionCommand then None
+        else
+          MetaFeatures.positionArgs(Option(params.getArguments).fold(Nil)(_.asScala.toList)).flatMap((uri, pos) =>
+            features.expansion(uri, pos)
+          )
+      completedFuture(result.orNull)
+
     override def didChangeWatchedFiles(params: DidChangeWatchedFilesParams): Unit =
       params.getChanges.asScala.foreach(e => features.changedOnDisk(e.getUri))
       publish()

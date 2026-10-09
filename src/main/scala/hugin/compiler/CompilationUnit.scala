@@ -21,6 +21,10 @@ final class CompilationUnit(val source: SourceFile):
   /** The object program, transformed in place by the object-level phases (from `stage` on). */
   var prog: ObjProgram | Null = null
 
+  /** The rules and queries of the object program as staging produced them (for tooling: the expansion
+   *  of directives, functor applications and families, `hugin.query.Expansion`). */
+  var staged: (Vector[Rule], Vector[Query]) = (Vector.empty, Vector.empty)
+
   /** Directives of the relations of `prog` (from `directives` on; see [[ProgramFacts]]). */
   var facts: ProgramFacts = ProgramFacts.empty
 

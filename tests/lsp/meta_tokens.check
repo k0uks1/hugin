@@ -1,0 +1,396 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\ntwo : nat = suc (suc zero).\nedge : int -> int -> rel.\npath : int -> int -> rel.\npath X Y :- edge X Y.\ncode : ⇑int = 4.\nsymmetric : sym -> list item.\nsymmetric R = '{ $R Y X :- $R X Y. }.\n%symmetric edge.\nlater : nat = ?.\n","uri":"untitled:t.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/semanticTokens/full","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
+<-- {
+  "jsonrpc": "2.0",
+  "method": "textDocument/publishDiagnostics",
+  "params": {
+    "diagnostics": [
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `two`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 3,
+            "line": 3
+          },
+          "start": {
+            "character": 0,
+            "line": 3
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      },
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `code`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 4,
+            "line": 7
+          },
+          "start": {
+            "character": 0,
+            "line": 7
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      },
+      {
+        "code": "W0003",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+        },
+        "message": "unused definition `later`\nnever referenced",
+        "range": {
+          "end": {
+            "character": 5,
+            "line": 11
+          },
+          "start": {
+            "character": 0,
+            "line": 11
+          }
+        },
+        "severity": 2,
+        "source": "hugin",
+        "tags": [
+          1
+        ]
+      },
+      {
+        "code": "E0924",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/errors/E0924.html"
+        },
+        "data": {
+          "context": [],
+          "goal": "nat",
+          "stage": "meta"
+        },
+        "message": "unsolved goal `?`\ngoal: `nat`\nnote: the hole stands for a meta value of type `nat`\nhelp: replace the hole with an expression of type `nat`",
+        "range": {
+          "end": {
+            "character": 15,
+            "line": 11
+          },
+          "start": {
+            "character": 14,
+            "line": 11
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
+      }
+    ],
+    "uri": "untitled:t.hgn"
+  }
+}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": {
+    "data": [
+      0,
+      0,
+      3,
+      12,
+      3,
+      1,
+      0,
+      4,
+      4,
+      3,
+      0,
+      7,
+      3,
+      12,
+      2,
+      1,
+      0,
+      3,
+      4,
+      3,
+      0,
+      6,
+      3,
+      12,
+      2,
+      0,
+      7,
+      3,
+      12,
+      2,
+      1,
+      0,
+      3,
+      7,
+      3,
+      0,
+      6,
+      3,
+      12,
+      2,
+      0,
+      6,
+      3,
+      4,
+      2,
+      0,
+      5,
+      3,
+      4,
+      2,
+      0,
+      4,
+      4,
+      4,
+      2,
+      1,
+      0,
+      4,
+      3,
+      5,
+      1,
+      0,
+      4,
+      3,
+      5,
+      1,
+      0,
+      4,
+      3,
+      4,
+      0,
+      5,
+      1,
+      7,
+      4,
+      0,
+      2,
+      1,
+      7,
+      4,
+      0,
+      5,
+      4,
+      3,
+      4,
+      0,
+      5,
+      1,
+      7,
+      4,
+      0,
+      2,
+      1,
+      7,
+      4,
+      1,
+      0,
+      4,
+      7,
+      3,
+      0,
+      7,
+      1,
+      10,
+      2,
+      1,
+      0,
+      9,
+      11,
+      3,
+      0,
+      12,
+      3,
+      12,
+      10,
+      0,
+      7,
+      4,
+      12,
+      10,
+      0,
+      5,
+      4,
+      12,
+      10,
+      1,
+      0,
+      9,
+      11,
+      2,
+      0,
+      10,
+      1,
+      6,
+      3,
+      0,
+      4,
+      2,
+      9,
+      2,
+      0,
+      3,
+      1,
+      10,
+      2,
+      0,
+      1,
+      1,
+      6,
+      2,
+      0,
+      2,
+      1,
+      7,
+      4,
+      0,
+      2,
+      1,
+      7,
+      4,
+      0,
+      5,
+      1,
+      10,
+      2,
+      0,
+      1,
+      1,
+      6,
+      2,
+      0,
+      2,
+      1,
+      7,
+      4,
+      0,
+      2,
+      1,
+      7,
+      4,
+      0,
+      3,
+      1,
+      9,
+      2,
+      1,
+      0,
+      10,
+      8,
+      2,
+      0,
+      11,
+      4,
+      3,
+      4,
+      1,
+      0,
+      5,
+      7,
+      3,
+      0,
+      8,
+      3,
+      12,
+      2,
+      0,
+      6,
+      1,
+      13,
+      2
+    ]
+  }
+}
+--> {"id":3,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

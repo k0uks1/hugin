@@ -6,8 +6,12 @@
     "capabilities": {
       "codeActionProvider": {
         "codeActionKinds": [
-          "quickfix"
+          "quickfix",
+          "refactor.rewrite"
         ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
       },
       "completionProvider": {
         "resolveProvider": false,
@@ -19,13 +23,22 @@
       },
       "definitionProvider": true,
       "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
       "hoverProvider": true,
+      "inlayHintProvider": true,
       "referencesProvider": true,
       "semanticTokensProvider": {
         "full": true,
         "legend": {
           "tokenModifiers": [
-            "declaration"
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
           ],
           "tokenTypes": [
             "namespace",
@@ -35,7 +48,13 @@
             "enumMember",
             "macro",
             "parameter",
-            "variable"
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
           ]
         }
       },

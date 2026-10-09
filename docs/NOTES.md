@@ -1503,6 +1503,77 @@ three design examples (`GoldenTests` runs `docs/design/examples/*.hgn` like `tes
 `tree (option int)`, `list (list string)`, `option (tree float)`, `stmt`, `list (option int)`: the staged
 programs with `held v.` and `$'{ held $v. }.` are equal).
 
+## LSP for the meta level (#54)
+
+The language server learned the meta level: hover with elaborated types and stages, navigation through
+patterns, lambdas, `where` and quotes, semantic tokens by level, inlay hints for what stage inference
+inserted, the expansion of directives and functor applications, typed holes with code actions, and
+type-directed, quote-aware completion. `docs/LSP.md` has the audit, the features, the protocol and the
+test of each feature. Decisions (the designer was not available; all are open to revision):
+
+- **Where the information comes from.** The elaborator records, in a `MetaIndex` of the semantic index,
+  the type and stage of every expression checked or inferred at a stage (`check`/`inferS`), the
+  conversions `coe`/`adjust` insert, implicit insertions, universe levels, goals, split candidates,
+  missing clauses and directive applications (`core/elab/MetaTooling.scala`). Types must be shown with
+  the solutions of unknowns found later, and attempts that are undone (a declaration tried at the other
+  stage, `undoOnFailure`) must leave nothing: records go to a *tooling log* in the core, truncated with
+  the metas by the checkpoints, and flushed at the end of each item once it is known whether it
+  succeeded. A successful item's records are kept as closures evaluated when a language server asks
+  (its core does not change afterwards), so compilation pays only for the closures; a failed item's are
+  evaluated at once, before its metas are undone (they then show `?n` for unknowns).
+- **`Ide` stays as it is.** `hugin query` and the REPL's `:type` print `Ide`'s answers; the new
+  information is in `MetaIde`/`Expansion` and only the language server shows it, so no CLI output
+  changed (except that `hugin query` now also finds pattern variables, lambda parameters, `where`
+  bindings, constructors in patterns and clause names, which are new symbols and references).
+- **Hover shows the innermost recorded expression** with its text: an expression checked or inferred at a
+  stage, or the head of an application (`ident` in `ident 3` shows `int -> int`, elaborated `ident
+  {int}`). Inside a directive application the application's type and footprint are shown instead of the
+  quoted data its arguments become.
+- **Typed holes** (`?`, `?name`; E0924) are a new expression form: `?` not followed by `-` (so `?-`
+  stays the query token) with the name characters directly after it. A hole is checked like any
+  expression, as an unknown that may stay unsolved, so the item elaborates and every hole is found; each
+  is an error once the item's other unknowns are solved (reported only if the item otherwise elaborates:
+  the error of a failed item is the one reported), so compilation stops before staging. Staging does not
+  report code stuck on a hole again (E0909). The name only identifies the hole in messages. Holes in
+  quotes are not quoted syntax (they are reported as such).
+- **Coverage collects every missing case** (up to 20) for the code action, but E0911 is unchanged: it
+  reports the first, and an error found after a missing case is replaced by that first missing case, as
+  before, since the checker used to stop there.
+- **Split** offers the constructors whose indices unify with the variable's type (`head : vec A (suc N)
+  -> A` splits into `vcons` only) and replaces every occurrence of the variable's token in the clause
+  text (its binding and its uses); a lambda parameter of the same name in the right-hand side would be
+  replaced as well. New variables are named after the constructor's binders, or after the variable
+  (`N1`, `N2`). Literal and quoted patterns are not split.
+- **Clause skeletons** are offered for meta postulates with explicit arguments: a declaration whose
+  result is an inductive type declares a constructor, so a function returning one only gets clauses once
+  it has a clause.
+- **Type-directed completion matches heads**, not types: a candidate fits if the head of its result type
+  (a family's name, a base type, `type`, `prop`, …, through `⇑`) is the expected type's. The expected
+  type is recorded when the name being typed fails to elaborate (with the variables in scope), which is
+  the usual state while typing.
+- **Expansion** uses the object program as staging produced it (`CompilationUnit.staged`, before the
+  object-level phases rewrite it): the items whose expansion chain contains the innermost directive or
+  functor application around the position, otherwise the staged instances of the item there. Code
+  lenses are on every application that produced items.
+- **Semantic tokens** keep the first eight legend types in their order and add `decorator`, `keyword`,
+  `operator`, `method`, `class`, `label`, with the custom modifiers `meta` and `object` (declared by the
+  VS Code extension); meta and object names are told apart by the modifiers, so themes without them
+  still colour by type.
+- **Inlay hints** default to staging and implicit arguments on, levels off; implicit arguments of object
+  families (`cons {⟨int⟩}` in hover, `{int}` hints) show the object type quoted, as elaborated.
+
+Deferred:
+
+- Features inside items with syntax errors (dropped by the parser, #53).
+- Hover on module members inside a module body (their binders have no site) and on quoted object syntax
+  beyond its variables and constants.
+- Refining a hole with a function whose result fits (holes are refined with the constructors of an
+  inductive goal, not filtered by index unification), splitting literals and quoted patterns, full
+  unification for completion.
+- Expansion of local directives (their `decl` attributes) and of a family's instances from its
+  declaration; navigation from the expansion document back to the meta code is by the origin comments
+  it shows, not by links.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

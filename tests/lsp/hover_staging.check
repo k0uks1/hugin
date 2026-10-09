@@ -6,8 +6,12 @@
     "capabilities": {
       "codeActionProvider": {
         "codeActionKinds": [
-          "quickfix"
+          "quickfix",
+          "refactor.rewrite"
         ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
       },
       "completionProvider": {
         "resolveProvider": false,
@@ -19,13 +23,22 @@
       },
       "definitionProvider": true,
       "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
       "hoverProvider": true,
+      "inlayHintProvider": true,
       "referencesProvider": true,
       "semanticTokensProvider": {
         "full": true,
         "legend": {
           "tokenModifiers": [
-            "declaration"
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
           ],
           "tokenTypes": [
             "namespace",
@@ -35,7 +48,13 @@
             "enumMember",
             "macro",
             "parameter",
-            "variable"
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
           ]
         }
       },
@@ -66,7 +85,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal"
+      "value": "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal\n\n`k` : `int`  \nstage: object"
     }
   }
 }
@@ -77,7 +96,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nformula function cheap : int -> prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here"
+      "value": "```hugin\nformula function cheap : int -> prop\n```\n\nspliced: the meta-level code `X < 10` is inserted here\n\n`cheap` : `⇑int -> ⇑prop`  \nstage: meta"
     }
   }
 }
@@ -88,7 +107,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nvariable X : int\n```\n\nquoted: passed to the meta level as the code `X`"
+      "value": "```hugin\nvariable X : int\n```\n\nquoted: passed to the meta level as the code `X`\n\n`X` : `⇑int`  \nstage: meta, object code `⇑int`\n\nelaborated: `⟨X⟩`"
     }
   }
 }
@@ -99,7 +118,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "spliced: the meta-level code `X` is inserted here"
+      "value": "```hugin\nparameter I : ⇑int\n```\n\nspliced: the meta-level code `X` is inserted here\n\n`I` : `int`  \nstage: object\n\nelaborated: `$I`"
     }
   }
 }
@@ -110,7 +129,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`"
+      "value": "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data: at the meta level `cons : {A : Type} -> A -> list A -> list A`; at the object level `constructor cons A : A -> list A -> list A`\n\n`cons` : `⇑(int -> list[int] -> list[int])`  \nstage: meta, object code `⇑(int -> list[int] -> list[int])`\n\nelaborated: `cons {⟨int⟩}`"
     }
   }
 }
@@ -121,7 +140,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nconstructor nil A : list A\n```\n\ninstance: `nil[int]`"
+      "value": "```hugin\nconstructor nil A : list A\n```\n\ninstance: `nil[int]`\n\nshared data: at the meta level `nil : {A : Type} -> list A`; at the object level `constructor nil A : list A`\n\n`nil` : `list[int]`  \nstage: object\n\nelaborated: `$(nil {⟨int⟩})`"
     }
   }
 }
@@ -132,7 +151,7 @@
   "result": {
     "contents": {
       "kind": "markdown",
-      "value": "```hugin\nrelation len A : (l : list A) -> (n : int) -> rel\n```\n\ninstance: `len[int]`"
+      "value": "```hugin\nrelation len A : (l : list A) -> (n : int) -> rel\n```\n\ninstance: `len[int]`\n\n`len` : `⇑((l : list[int]) -> (n : int) -> rel)`  \nstage: meta, object code `⇑((l : list[int]) -> (n : int) -> rel)`\n\nelaborated: `len {⟨int⟩}`"
     }
   }
 }
