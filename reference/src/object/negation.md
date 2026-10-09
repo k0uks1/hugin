@@ -1,8 +1,8 @@
 # Negation and stratification
 
 A negated atom `not r t̄` holds if the database has no fact that matches `r t̄`. Negation is evaluated
-under the closed-world reading: what is not derived is false. For this reading to be well defined, a
-relation must be complete before it is negated. This chapter defines negation, the stratification that
+under the closed-world reading: what is not derived is false. This reading is well defined only if a
+relation is complete before it is negated. This chapter defines negation, the stratification that
 orders evaluation, and the completeness discipline for relations that are open to more facts.
 
 ## Negation
@@ -48,15 +48,14 @@ rule is evaluated. The components between two negative edges form a *stratum*.
 It is an error ([E0601](../errors/E0601.md)) if a program is not stratified. The diagnostic shows the
 cycle.
 
-The following program is not stratified: `p` and `q` negate each other.
+The following program is not stratified: a position is winning if a move leads to a position that is
+not winning, so `win` depends on itself through a negation.
 
 ```hugin,compile_fail,E0601
-base : int -> rel.
-base 1.
-p : int -> rel.
-q : int -> rel.
-p X :- base X, not q X.
-q X :- base X, not p X.
+move : int -> int -> rel.
+move 1 2. move 2 3.
+win : int -> rel.
+win X :- move X Y, not win Y.
 ```
 
 A rule whose head builds a fact of a constructor `c` makes `c` depend on the rule's body
@@ -68,11 +67,8 @@ that depends on `c`.
 A relation is *open* if it is declared with the directive `%open`: its facts may come from a facts file,
 and the program does not claim to know all of them. A relation is *incomplete* if it is open or depends
 positively on an incomplete relation. The absence of a fact of an incomplete relation means "unknown",
-not "false", so
-
-- it is an error ([E0602](../errors/E0602.md)) if a rule negates or aggregates over an incomplete
-  relation, and
-- a query may mention an incomplete relation only positively (also [E0602](../errors/E0602.md)).
+not "false". It is therefore an error ([E0602](../errors/E0602.md)) if a rule negates or aggregates over
+an incomplete relation, or if a query mentions one other than positively.
 
 A relation declared `%input` is complete: its facts file states all of its facts. The
 [input relations](io.md#input-facts) are those declared `%input` or `%open`.

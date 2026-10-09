@@ -83,8 +83,9 @@ A constructor `c : τ₁ -> … -> τₙ -> a`, where `a` is an open type, build
 `a`. A constructor without columns, such as `red : color`, is a constant of its type. Every constructor
 is also a relation: the term `c v₁ … vₙ` is a fact of `c` once a rule or an input file builds it
 ([Facts and identity](facts.md)). It is an error ([E0103](../errors/E0103.md)) if the result type of a
-constructor is not an open type: a refinement, or the fact type of a struct or relation (its values are
-the identities of its facts, which only its own facts have).
+constructor is not an open type, for example a refinement or the fact type of a struct or relation. The
+values of a fact type are the identities of the facts of its own constant, so no constructor can build
+them.
 
 The following program declares an open type of shapes with two constructors, builds two shapes and
 reads the facts of the constructor `square`.

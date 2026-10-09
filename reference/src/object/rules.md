@@ -49,8 +49,8 @@ CmpOp     ::= "=" | "<>" | "<" | "<=" | ">" | ">="
 
 A *formula* is a condition on the variables of a rule. The forms are:
 
-- An *atom* `r t₁ … tₙ` holds if `r v₁ … vₙ` is a fact, where `vᵢ` matches `tᵢ`. A term in an argument is a
-  pattern ([Facts and identity](facts.md#bodies-never-create-facts)). An atom of a formula function is
+- An *atom* `r t₁ … tₙ` holds if `r v₁ … vₙ` is a fact, where `vᵢ` matches `tᵢ`. A term in an argument is
+  a pattern ([Facts and identity](facts.md#bodies-never-create-facts)). An atom of a formula function is
   replaced by the function's formula ([Staging](../meta/staging.md#formula-functions)).
 - A *comparison* compares two terms ([Arithmetic and comparisons](arithmetic.md)). An equation `X = t`
   whose left side is not bound yet binds `X`.
@@ -85,8 +85,8 @@ A comparison other than a binding equation, a negation, the term of an aggregate
 their variables bound. The body is *range-restricted* if its formulas can be ordered so that each formula
 finds the variables it needs bound by the formulas before it, and the heads' variables are bound at the
 end. The compiler evaluates the body in such an order, the *canonical order*: it picks the leftmost
-formula that can be evaluated, repeatedly. It is an error ([E0501](../errors/E0501.md)) if a rule or query
-is not range-restricted.
+formula that can be evaluated, repeatedly. It is an error ([E0501](../errors/E0501.md)) if a rule or
+query is not range-restricted.
 
 The following rule is rejected, since nothing binds `Y`.
 
@@ -107,7 +107,7 @@ the same as one rule per head.
 ## Named rules
 
 A rule may have a name `@r`. The name is used by [`%derivations`](io.md#derivation-facts) and in
-diagnostics. Several rules may share a name.
+diagnostics. Several rules may have the same name.
 
 ## Records
 
@@ -119,21 +119,22 @@ Projection   ::= VAR "." NAME
 Update       ::= "(" VAR "with" "{" NAME "=" Term ("," NAME "=" Term)* "}" ")"
 ```
 
-A *named pattern* `r { l₁ = t₁, …, lₖ = tₖ }` is the atom of `r` with `tᵢ` in the column labelled `lᵢ`. It
-must name every column, or end with `..`, which fills the columns it does not name with wildcards. It is
-an error to omit a label without `..` ([E0301](../errors/E0301.md)), to use `..` in a head
-([E0302](../errors/E0302.md)) or to name a label the relation does not have ([E0306](../errors/E0306.md)).
-A record value `{ l = t, … }` as the argument of a struct is the same as a named pattern.
+A *named pattern* `r { l₁ = t₁, …, lₖ = tₖ }` is the atom of `r` with `tᵢ` in the column labelled `lᵢ`.
+It must name every column, or end with `..`, which fills the columns it does not name with wildcards. It
+is an error to omit a label without `..` ([E0301](../errors/E0301.md)), to use `..` in a head
+([E0302](../errors/E0302.md)) or to name a label the relation does not have
+([E0306](../errors/E0306.md)). A record value `{ l = t, … }` as the argument of a struct is the same as a
+named pattern.
 
 A *projection* `X.l` is the value in the column labelled `l` of the fact `X`. An *update*
 `(X with { l = t })` is the fact like `X` but with `t` in the column `l`; in a head it derives that fact.
 Both apply to variables whose type is closed. If the type of `X` is a union, the rule stands for one rule
 per member, and every member must have the label ([E0303](../errors/E0303.md),
-[E0304](../errors/E0304.md)). The type of `X.l` over a union is the join of the column types; it is an
-error ([E0305](../errors/E0305.md)) if they have none.
+[E0304](../errors/E0304.md)). The type of `X.l` over a union is the *join* of the column types, their
+least common supertype. It is an error ([E0305](../errors/E0305.md)) if they have none.
 
-The following program uses each form: a named pattern in a body and a head, a projection and an
-update over a union of two relations.
+The following program uses each form over a union of two relations: a named pattern in a body, a
+projection in a head and an update in a head.
 
 ```hugin,run
 name : type = string.

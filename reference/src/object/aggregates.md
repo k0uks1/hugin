@@ -90,16 +90,17 @@ auxiliary relation with one rule per alternative. Its columns are the variables 
 are bound before it and those that every alternative binds; a variable that only some alternatives bind
 is local to its alternative.
 
-The following program counts the values in `p` or in the first column of `q`.
+The following program counts the people who are members or guests. Ann is both and is counted once,
+since the auxiliary relation holds her once.
 
 ```hugin,run
-p : int -> rel. p 1. p 2. p 3.
-q : int -> int -> rel. q 1 10. q 5 50.
-n : int -> rel.
-n C :- C = count { X | p X ; q X _ }.
-%output n.
+member : string -> rel. member "ann". member "bo". member "cy".
+guest : (name : string) -> (host : string) -> rel. guest "ann" "bo". guest "dee" "cy".
+attendees : int -> rel.
+attendees C :- C = count { X | member X ; guest X _ }.
+%output attendees.
 ```
 
 ```output
-n 4.
+attendees 4.
 ```

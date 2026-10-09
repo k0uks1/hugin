@@ -1,8 +1,8 @@
 # Universes
 
 A *universe* is a type whose elements are types. Hugin has one universe of object types, `type`, and a
-hierarchy of universes of meta types, `Type₀`, `Type₁`, …, written `Type`. This chapter defines them, their
-levels and the types `rel` and `prop`.
+hierarchy of universes of meta types, `Type₀`, `Type₁`, …, written `Type`. This chapter defines them,
+their levels and the types `rel` and `prop`.
 
 ## Syntax
 
@@ -35,26 +35,28 @@ The universes form a hierarchy:
 - the lift `⇑A` of every object type `A`, also of `A = type`, is in `Type₀`.
 
 It is an error ([E0904](../errors/E0904.md)) if the levels cannot be chosen consistently, in particular
-if a universe is used as an element of itself. `Type : Type` is excluded because it would make the meta
-level inconsistent and its evaluation possibly non-terminating.
+if a universe is used as an element of itself.
+
+> **Rationale.** `Type : Type` would make the meta level inconsistent, and its evaluation could fail to
+> terminate.
 
 Levels are global to a program: a definition has one level wherever it is used. There is no universe
 polymorphism.
 
 In the following program the signature `graph` has object types and relations as components, so it is
-in `Type₀`; `holder` has a component of type `Type`, so it is in `Type₁`. `h.t` is the meta type `int` of
-compile-time integers.
+in `Type₀`. The record type `holder` has a component of type `Type`, so it is in `Type₁`. `numbers.t` is
+the meta type `int` of compile-time integers.
 
 ```hugin,run
 graph : Type = { node : type, edge : node -> node -> rel }.
 holder : Type = { t : Type }.
-h : holder = { t = int }.
+numbers : holder = { t = int }.
 city : type.  berlin : city.
 road : city -> city -> rel.
 roads : graph = { node = city, edge = road }.
-n : h.t = 42.
+limit : numbers.t = 42.
 answer : int -> rel.
-answer n.
+answer limit.
 ```
 
 ```output

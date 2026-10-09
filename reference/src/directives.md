@@ -25,12 +25,12 @@ In the *prefix form*, a directive without a period is followed by a declaration,
 its `:`. The directive applies to that declaration: `%output path : node -> node -> rel.` declares `path`
 and makes it an output relation.
 
-`%infix` has a syntax of its own and is handled by the parser
-([Lexical structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are
-expressions, not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)).
-`%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
-([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it is
-an error ([E0001](errors/E0001.md)).
+`%infix` has a syntax of its own and is handled by the parser ([Lexical
+structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
+not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%complete`
+is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
+([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it
+is an error ([E0001](errors/E0001.md)).
 
 ## Resolution and arguments
 
@@ -39,8 +39,8 @@ an error ([E0001](errors/E0001.md)).
 name. The compiler elaborates the application `d a₁ … aₙ` with the arguments checked against `d`'s
 parameter types, with stage inference. The arguments of a directive are object syntax, like the item they
 stand in: an argument at a parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`,
-`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes) `'{ … }`
-(which may also be written explicitly). In particular:
+`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes)
+`'{ … }`. The quote may also be written explicitly. In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
   module body) is its declaration `dconst ⟨r⟩ []`, and a rule name `@r` is `drule "r" []`;
@@ -86,8 +86,8 @@ It is an error ([E0701](errors/E0701.md)) if an attribute does not fit its decla
 
 ### Additive directives
 
-An additive directive is [reflected](reflection.md#reflecting-data-into-the-program) like an item `$e.` at
-its place. Its items carry the note "in expansion of `%d …`" in diagnostics.
+An additive directive is [reflected](reflection.md#reflecting-data-into-the-program) like an item `$e.`
+at its place. Its items carry the note "in expansion of `%d …`" in diagnostics.
 
 ### Module-wide directives
 
@@ -147,9 +147,9 @@ The prelude defines the directives whose attributes the compiler implements.
 | `%terminates m p.` | `measure -> formula -> decl` | a termination measure ([Termination](object/termination.md#declared-measures)) |
 | `%demand r m.` | `(r : sym) -> modes (labels r) -> module -> module` | demand-driven evaluation of `r` (below) |
 
-`%input r.` is the application `input '{ r }`, with `r` quoted implicitly as a `decl`; `input`, `output`, `open` and
-`derivations` have the type `decl -> decl`, so they are also used in the prefix form, and they compose
-like functions.
+`%input r.` is the application `input '{ r }`, with `r` quoted implicitly as a `decl`. The functions
+`input`, `output`, `open` and `derivations` have the type `decl -> decl`, so they can also be used in the
+prefix form, and they compose like functions.
 
 The following program defines a local directive `%io` from two primitive ones and uses it, and
 `%output`, in the prefix form.
@@ -214,10 +214,10 @@ columns. An item without a label matches any column.
 
 For the relation `r` with input columns `ī`, `%demand r m` changes the module as follows.
 
-1. It declares the *demand relation* `r.check`, a [derived constant](reflection.md#symbols-and-derived-constants)
-   whose columns are the input columns of `r`.
-2. Every rule of `r` gets the *guard* `r.check ī` before its body: `r t̄ :- r.check t̄ᵢ, body`. A wildcard
-   in an input column of the head is named, so that the guard binds it.
+1. It declares the *demand relation* `r.check`, a [derived
+   constant](reflection.md#symbols-and-derived-constants) whose columns are the input columns of `r`.
+2. Every rule of `r` gets the *guard* `r.check ī` before its body: `r t̄ :- r.check t̄ᵢ, body`. A
+   wildcard in an input column of the head is named, so that the guard binds it.
 3. Every call `r t̄` in every rule and query of the module (positive, negated, in an aggregate or in a
    disjunction) gets a *demand rule* `r.check t̄ᵢ :- prefix`, where `prefix` is the conjunction of the
    formulas before the call, the guard first in a rule of `r`. A demand rule in a rule of `r` is a
@@ -270,8 +270,9 @@ induction or descent, guarded by `fib.check` ([Termination](object/termination.m
 ### Several demand-driven relations
 
 Several `%demand` directives are expanded in source order, each seeing the rules generated by the ones
-before it. The rules generated from a rule follow it, and a later `%demand` that guards a rule also guards
-the demand rules that follow it. So the order of the `%demand` directives does not change the program.
+before it. The rules generated from a rule follow it, and a later `%demand` that guards a rule also
+guards the demand rules that follow it. So the order of the `%demand` directives does not change the
+program.
 
 The following type checker makes `lookup` and `typed` demand-driven. The demand rules of `typed` build
 the contexts `bind G X T1` as facts.

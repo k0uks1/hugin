@@ -38,18 +38,19 @@ P = dan.
 
 ## Key ideas
 
-- **Two levels.** The object level is Datalog∃!, evaluated bottom-up to a least fixed point. The meta
-  level is a two-level type theory: dependent types, inductive families, functions defined by clauses,
-  modules and functors. Meta code runs during compilation and produces object rules.
-- **Constructors are facts.** Every constructor term built in a rule head is a fact with Skolem identity,
-  and the constructor is also the relation of its facts. Bodies only match existing facts.
-- **Every accepted program terminates.** Recursion that builds terms or computes numbers must pass a
-  size-change check; there are no evaluation budgets. Meta functions are checked for coverage and
+- Hugin has two levels. The object level is Datalog∃!, evaluated bottom-up to a least fixed point. The
+  meta level is a two-level type theory with dependent types, inductive families, functions defined by
+  clauses, modules and functors. Meta code runs during compilation and produces object rules.
+- Constructors build facts. Every constructor term built in a rule head is a fact, whose identity is
+  determined by its content, and the constructor is also the relation of its facts. Bodies only match
+  existing facts.
+- Every accepted program terminates. Recursion that builds terms or computes numbers must pass a
+  size-change check; there is no limit on evaluation rounds. Meta functions are checked for coverage and
   termination as well.
-- **Bound columns.** The last column of a relation can be `min τ` or `max τ` (Limit Datalog), which keeps
-  the best value per key, so recursion such as shortest paths terminates.
-- **Directives are meta functions.** `%input`, `%output` and `%demand` are defined in the prelude, written
-  in Hugin over a reflected representation of object syntax. Programs can define their own.
+- The last column of a relation can be a bound column, `min τ` or `max τ`, as in Limit Datalog. The
+  relation keeps the best value per key, so recursion such as shortest paths terminates.
+- Directives are meta functions. `%input`, `%output` and `%demand` are defined in the prelude, written in
+  Hugin over a reflected representation of object syntax. Programs can define their own.
 
 ## Status
 
@@ -87,19 +88,22 @@ lists all commands and options.
 
 ## Background
 
-Hugin combines ideas from these papers:
+Hugin builds on the following work. The reference lists all cited works in
+[Notation](https://k0uks1.github.io/hugin/notation.html#references).
 
-- T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski.
-  [Datalog with First-Class Facts](https://arxiv.org/abs/2411.14330). PVLDB 18(3), 2024. The object
-  level is based on its language DL∃!.
-- *Hugin: A Two-Level Typed Datalog with First-Class Facts. Formal Language Definition* (draft,
-  revision 7). The definition the implementation started from; the reference supersedes it.
-- A. Kovács. [Staged Compilation with Two-Level Type Theory](https://doi.org/10.1145/3547641).
-  ICFP 2022. The design of the meta level and its elaborator.
-- M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. Foundations of Declarative Data
-  Analysis Using Limit Datalog Programs. IJCAI 2017. Bound columns.
-- C. S. Lee, N. D. Jones, A. M. Ben-Amram. The Size-Change Principle for Program Termination. POPL 2001.
-  The termination check.
+- T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. *Datalog with First-Class
+  Facts.* PVLDB 18(3), 2024. [arXiv:2411.14330](https://arxiv.org/abs/2411.14330). The object level is
+  based on its language DL∃!.
+- A. Kovács. *Staged Compilation with Two-Level Type Theory.* ICFP 2022.
+  [doi:10.1145/3547641](https://doi.org/10.1145/3547641). The design of the meta level and its
+  elaborator.
+- M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data
+  Analysis Using Limit Datalog Programs.* IJCAI 2017. [arXiv:1705.06927](https://arxiv.org/abs/1705.06927).
+  Bound columns.
+- C. S. Lee, N. D. Jones, A. M. Ben-Amram. *The Size-Change Principle for Program Termination.* POPL 2001.
+  The termination checks.
+- *Hugin: A Two-Level Typed Datalog with First-Class Facts. Formal Language Definition*, draft revision 7.
+  The definition the implementation started from; the reference supersedes it.
 
 ## Contributing
 

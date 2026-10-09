@@ -4,8 +4,8 @@ A *bound column* is the last column of a relation, declared `min τ` or `max τ`
 column keeps, for each *key* (the values of its other columns), only the best value: the least for
 `min`, the greatest for `max`. Bound columns allow recursion through arithmetic where nothing decreases,
 such as shortest paths, and evaluation still terminates: a value that would improve forever becomes `-∞`
-or `∞`. They follow Limit Datalog (Kaminski et al. 2017) and its type-consistency condition (Berent et al.
-2022, Definition 4).
+or `∞`. Bound columns follow Limit Datalog ([Kaminski et al. 2017](../notation.md#references)) and its
+type-consistency condition (Berent et al. 2022, Definition 4).
 
 ## Syntax
 
@@ -13,8 +13,8 @@ or `∞`. They follow Limit Datalog (Kaminski et al. 2017) and its type-consiste
 BoundColumn ::= "(" NAME ":" ("min" | "max") ObjectType ")" | ("min" | "max") ObjectType
 ```
 
-`dist : (v : node) -> (d : min int) -> rel.` declares the relation `dist` with key `v` and the bound column
-`d`.
+`dist : (v : node) -> (d : min int) -> rel.` declares the relation `dist` with key `v` and the bound
+column `d`.
 
 ## Static rules
 
@@ -64,9 +64,9 @@ node : type = string.
 edge : node -> node -> int -> rel.
 source : node -> rel.
 edge "a" "b" 1. source "a".
-d : (v : node) -> (d : min int) -> rel.
-d S 0 :- source S.
-d W (C - D) :- d V D, edge V W C.
+dist : (v : node) -> (d : min int) -> rel.
+dist S 0 :- source S.
+dist W (C - D) :- dist V D, edge V W C.
 ```
 
 ## Semantics
@@ -76,11 +76,11 @@ than the stored one, the new fact replaces it; a worse or equal value is ignored
 
 Some values improve without end: a cycle of negative edges lowers a `min` distance in every round. Such
 values become *infinite*. After rounds 4, 8, 16, … of a component, the evaluation builds the *value
-propagation graph* of Kaminski et al. 2017: a node for each key, and an edge for each rule instance that
+propagation graph* (Kaminski et al. 2017): a node for each key, and an edge for each rule instance that
 passes a value from a key in its body to the key of its head, weighted by how much the value improves.
 Every key on a cycle of positive weight, and every key reachable from one, gets the value `-∞` (for
-`min`) or `∞` (for `max`), which never changes again. Type-consistency ensures that such a value would
-indeed improve forever.
+`min`) or `∞` (for `max`), which never changes again. Type-consistency guarantees that such a value
+improves forever.
 
 `∞` and `-∞` are values of bound columns only; there is no literal for them. They print as `∞` and `-∞`.
 Arithmetic and comparisons extend to them: `-∞ < k < ∞` for every integer `k`, `∞ ± k = ∞`, and

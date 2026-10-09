@@ -1,19 +1,21 @@
 # The meta level
 
 The *meta level* is the compile-time language of Hugin. It is a total, dependently typed functional
-language: a two-level type theory (Annenkov et al. 2023) whose outer level is evaluated by the compiler
-and whose inner level is the [object level](../object/index.md) (Kovács 2022). Meta code computes object
-code: types, relations, rules and formulas. It never runs when the object program is evaluated.
+language: a two-level type theory ([Annenkov et al. 2023](../notation.md#references)) whose outer level
+is evaluated by the compiler and whose inner level is the [object level](../object/index.md) (Kovács
+2022). Meta code computes object code: types, relations, rules and formulas. It never runs when the
+object program is evaluated.
 
 Every meta function terminates, and every meta function defined by clauses covers all its arguments.
-So elaboration of every program terminates, and every application of a meta function has a value.
+Therefore the elaboration of every program terminates, and every application of a meta function to
+closed arguments has a value.
 
 ## Stages
 
 Every term has a *stage*: 0 for object code and 1 for meta code. The stage of a term is the stage of the
 universe of its type ([Universes](universes.md)). The compiler infers where meta code must be turned
-into object code and back ([Staging](staging.md)); a program writes neither quotes nor, except where it
-wants to, splices.
+into object code and back ([Staging](staging.md)). A program does not write these quotes, and it writes
+a splice only where it chooses to.
 
 The following program defines a meta function by clauses over a meta type of natural numbers, and uses
 its value in an object fact. The fact is computed at compile time.
@@ -60,10 +62,10 @@ A *postulate* has a type but no value. Meta code that applies it is stuck; it is
 
 ## Order of elaboration
 
-The items of a file may be written in any order. The compiler elaborates the declarations and
-definitions first, each after the items it refers to, then the clauses of functions, which may refer to
-every declaration and to each other, and then the object items: rules, queries and directives. It is an
-error ([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
+The items of a file may be written in any order. The compiler elaborates the declarations and definitions
+first, each after the items it refers to, then the clauses of functions, which may refer to every
+declaration and to each other, and then the object items: rules, queries and directives. It is an error
+([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
 definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
 reported and left out; elaboration continues with the next item.
 
