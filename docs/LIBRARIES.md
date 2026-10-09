@@ -87,11 +87,10 @@ another name for the same base type. Base types are printed by their builtin nam
 | names | what |
 |---|---|
 | `int`, `float`, `string` | base types |
-| `list A`, `nil`, `cons`, `len` | lists (fact constructors) and their length: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3; reference: [directives](https://k0uks1.github.io/hugin/directives.html)) |
-| `option A`, `none`, `some` | optional values |
+| `list A`, `nil`, `cons`, `append`, `len` | lists, a shared data type (`list A : data.`, reference: [families](https://k0uks1.github.io/hugin/meta/families.html#shared-data)): a meta inductive family written `[]`, `[a, b]`, `x :: xs` (with `append`, and `list.lift`, `list.reify`) and an object family of fact constructors; and the length of the lists that are facts: `len : (l : list A) -> (n : int) -> rel` measures the lists that are facts (guarded induction on the list); with `%demand len +l -n.` in a program a call demands its list, and the demand rule makes the list a fact (Section 13.3; reference: [directives](https://k0uks1.github.io/hugin/directives.html)) |
+| `option A`, `none`, `some` | optional values, shared like `list` |
 | `pair A B` | a struct family with labels `fst`, `snd` |
 | `graph`, `tc`, `bounded` | the graph signature and functors of Section 13.1 |
-| `seq A`, `snil`, `scons`, `sappend` | meta lists, written `[]`, `[a, b]` and `x :: xs` |
 | `sym`, `term`, `formula`, `rule`, `item`, `module`, `index`, `arith_op`, `cmp_op`, `agg_op`, `column` | reflection (reference: [reflection](https://k0uks1.github.io/hugin/reflection.html)): object syntax as data, with their constructors (`tvar`, `tapp`, `fatom`, `horn`, `irule`, `inamed`, `ierror`, …) and `openT`/`openF`, which instantiate the variable an aggregate binds (docs/NOTES.md, "Reflection") |
 | `decl`, `attr`, `measure`, `attach` | declarations as data, with the attributes the primitive directives attach (reference: [directives](https://k0uks1.github.io/hugin/directives.html); docs/NOTES.md, "Directives") |
 | `input`, `output`, `open`, `derivations`, `terminates` | the primitive directives (`%input r.`, …): meta functions returning a `decl` |

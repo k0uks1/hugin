@@ -1373,6 +1373,136 @@ body elaborated).
 seeds; `MutationFuzzSuite` (10 tests per property) for seeds 1, 7, 42; and all fuzz suites with the
 default seed. No property was weakened.
 
+## Shared data (#80)
+
+Shared (stage-polymorphic) data declarations, as approved in issue #80 after the design note
+`docs/design/stage-polymorphism.md` (#52). `T ā : data.` with constructors declared as today declares
+a type at both stages; stage inference converts meta values into object code by one rule, Lift.
+
+| file | contents |
+|---|---|
+| `syntax/ItemSyntax.scala`, `syntax/Trees.scala` | `Kw.Data`: `data` is a keyword only as the whole type of a declaration (`T ā : data.`); elsewhere a name (`tests/run/c1_roundtrip` defines `data : module`) |
+| `core/Core.scala` | `SharedLink` on both `GlobalEntry`s of a shared name: the side (stage), the counterpart, and on the meta family the ids of `T.lift`, `T.reify` |
+| `core/elab/SharedData.scala` | the declaration (meta family, object family, `T.lift` declared), the constructors (meta and object constructor), the restrictions (E0920, E0921, E0923), `sharedAt` (a constant at a stage) |
+| `core/elab/DerivedFunctions.scala` | `T.lift` and `T.reify` generated as surface clauses, with helpers for nested types |
+| `core/elab/Liftings.scala` | the lifting judgement: the rule Lift (`liftCode`), its reflective counterpart (`reifyCode`), list syntax at the object stage, the first unshared type for E0902 |
+| `core/elab/SharedProblems.scala` | E0920–E0923 |
+| `core/elab/Coercions.scala` | `adjustStage`, `coeOpt`, `coeStaged`, `$e`: one call of `liftCode` instead of the cases for `⇑A` and base types |
+| `core/elab/Bidirectional.scala`, `Names.scala`, `Records.scala`, `Quotes.scala`, `Declarations.scala`, `PiTypes.scala` | the stage of the position (`ElabState.stage`) and the resolution of shared names; `T.lift`/`T.reify` by name; members of imported files |
+| `core/elab/QuoteTerms.scala` | holes of base and shared types reified; values of shared types in rules reified for module-wide directives (#79) |
+
+**Generated items and their typing.** For `T a₁ … aₙ : data.` with constructors `cᵢ : σ̄ᵢ -> T ā`:
+
+```text
+T       : Type -> … -> Type                       meta inductive family (GlobalKind.Inductive)
+cᵢ      : {ā : Type} -> σ̄ᵢ -> T ā                  meta constructors
+T       : ⇑type -> … -> ⇑type                     object family (GlobalKind.Family), or an object type (n = 0)
+cᵢ      : {ā : ⇑type} -> ⇑(σ̄ᵢ -> T ā)              object (fact) constructors
+T.lift  : (A₁ -> ⇑B₁) -> … -> T Ā -> ⇑(T B̄)        T.lift F̄ (cᵢ X̄) = cᵢ (L[σ] X)…
+T.reify : (A₁ -> term) -> … -> T Ā -> term        T.reify Ḡ (cᵢ X̄) = '{ cᵢ $(R[σ] X)… }
+```
+
+The meta and the object constants are elaborated from the same declaration, at the meta stage (unknown
+types as meta types) and at the object stage (unknown types as object types); the object side is
+declared without a name in scope (`declareHidden`) and found through the link. Both are made by the
+existing declaration code, so everything downstream (coverage, families and their instances, the
+object typer, the handover) is unchanged. `T.lift` and `T.reify` are declared as functions with a type
+built as syntax and defined by clauses built as syntax, elaborated by `elabFunction`; coverage and
+size-change termination are checked as for hand-written functions (none was disabled). In the clauses
+an argument of a parameter's type is converted by its element function, one of a closed type by stage
+inference itself (`X` in object code is lifted, `$X` in a quote reified), one of a type of the file by a
+direct call. `T.reify` exists where `term` is in scope; the prelude declares `list` before `term`, so
+there it is declared after the file's declarations (before the clauses of functions, so programs can
+use it like any function).
+
+**Nested types (decision).** In `node : list (tree A) -> tree A` the naive clause is
+`node $(list.lift (tree.lift F1) X1)`, a call of `tree.lift` that size-change termination cannot see
+(it is an argument, not a call). Instead of skipping the check for derived functions, a nested
+occurrence (a shared family applied to types that mention the file's shared families) gets a helper
+`tree.lift.1 : (A1 -> ⇑B1) -> list (tree A1) -> ⇑(list (tree B1))`, the fold of `list` specialised at
+`tree A1`, with direct calls of `tree.lift` and of itself, as the prelude writes `openTs` next to
+`openT`. Helpers are memoised per owner and type. The generator works on the constructors' elaborated
+types (a small `Ty` of parameters, base types and applications of shared families), not on their
+syntax, so it covers constructors of other files (`list`'s for a nested `list (tree A)`), and refers to
+constants by id (`SymRef`, which now resolves by the stage of its position like a name; constructor
+patterns accept a `SymRef`).
+
+**Names and stages (decision).** A shared name in scope is its meta constant; `Names.resolve` takes the
+counterpart when the position is an object position. `check` and `inferS` set the stage of the
+position (`ElabState.stage`, meta outside them; `$e` elaborates `e` at the meta stage). In a declared
+type whose stage is inferred, the position has the stage of the declared constant's result (probed by
+inferring the codomain): `wrap : list int -> box.` is an object constructor with an object list column,
+`size : list int -> int.` a meta function (the object alternative of `declType` fails for a result of a
+base type, as before). Parameters of formula functions are object code, so a shared type there is the
+object type. A member of an imported file (`c.color`) is its meta constant, and the object constant at
+an object position (`tests/run/s_shared_import`). Inside quotes names resolve to object constants
+(`objectConstant`, also through `SymRef` and paths). The list syntax `[ē]`, `e :: es` is the prelude's
+(reflective) `list` at the stage of the position: meta lists as before, object lists in object code
+and in quotes (desugared to `cons`/`nil` by reference).
+
+**The rule Lift as implemented.** `liftCode(c, t, τ)`: `⇑A` gives `$t` (rule Code), a meta base type
+`Tm.Persist(t)` (rule Base), a shared family applied to `τ̄` gives `$(T.lift ℓ̄ t)` with the element
+liftings `ℓ̄` built recursively as meta functions (`[x] x` for code, `[x] ⟨persist x⟩` for base types,
+partial applications of `U.lift` for shared types), the implicit arguments of `T.lift` solved by
+unification with the types of `ℓ̄` and `τ`; otherwise no lifting. The base-type persistence of
+`adjustStage`, `coeOpt` (`Base S1` to `Base S0`), `coeStaged` (`isMetaPrim`) and the explicit splice are
+replaced by this one function: persistence is the instance Base, the splice the instance Code (no
+separate rule remains). A meta value of unknown type used as object code is still taken to be object
+code (`unify` with `⇑?m`), as before. `reifyCode` is the counterpart for holes: `tint`/`tfloat`/`tstr`,
+`T.reify ḡ`, no rule for `⇑A`; a hole `$e` at a term infers `e` first and, if its type is not `term`
+but has a reification, applies it (otherwise checks against `term` as before). In a file with a
+module-wide directive, a value of a shared type in a rule is reified as its object constructors
+(`termData`), as #79 does for base values.
+
+**Restrictions.** E0920: a constructor argument whose type is not a parameter, a base type or a shared
+type applied to such types (checked on the elaborated meta type, so a variable that is not a parameter
+or a dependent argument is caught too). E0921: a result other than `T ā` at distinct implicit
+parameters, `T` at other arguments in an argument (polymorphic recursion), or a typed parameter in the
+declaration. E0922: an edge or refinement into a shared type (or an instance of a shared family).
+E0923: `data` in a module body or `where` block (reported where `inferKeyword` meets it), and a
+declaration returning a shared type of another file (`single : A -> list A.` in a program; before, a
+program could add constructors to the prelude's `list`; no test or example did). A declaration with
+clauses or a definition returning a shared type is a function, as before.
+
+**Prelude.** `list A : data.` (constructors as before, unlabelled, so column labels and outputs are
+unchanged) and `option A : data.`; `append` (meta) replaces `sappend`; `seq`, `snil`, `scons` are
+removed, and the reflective types, `labels`, `modes` and the `%demand` code use `list` (mostly through
+`[]` and `::`). `pair` stays an object struct, `bool` meta only. `ReflectiveGlobals` has `list`, `nil`,
+`cons`, `append`; `DeclAttributes` and `Reflection` match `nil`/`cons`. The line of `len`'s recursive
+rule (19) is kept, because termination explanations print it.
+
+**Not done (decisions of the issue).** No `lower`, no typed holes in quoted patterns, no shared records,
+no stage-polymorphic functions, no shared aliases (`name : data = string.` of the design's §5.1; the
+issue lists only `T ā : data.`). The derived functions of an imported file's shared type are inserted by
+stage inference but cannot be named (`c.color.lift` is not a path). In the REPL a declaration whose
+clauses come in a later input is classified without them, for shared result types as for meta
+families (pre-existing).
+
+**Observation.** `ObjectDecls.predeclare` compares `d.tpe == Keyword(Kw.Type)`, which compares a tree with
+a partially applied constructor (`Keyword` has a second parameter list) and is always false, so
+constructors are never predeclared; the dependency-order retry covers them. Not changed here (the shared
+declaration test uses a pattern match).
+
+**Changed `.check` files.** No answer of a `tests/run` golden changed. The design examples were not
+goldens before; their outputs are identical to the pre-#80 versions (checked with a build of the base).
+
+| file | why |
+|---|---|
+| `neg/c1_coverage` | the program says `list rule` for `seq rule`; the missing case prints `nil` for `snil`, the clause `cons`/`nil` |
+| `neg/c2_directives` | E1001/E1002's note says `list item` (`list rule`) |
+| `neg/core_e0901_occurs` | the numbers of the unknowns (`?167` for `?151`): the prelude creates more metas (the derived functions) |
+| `neg/core_e0902_meta_as_object` | E0902's note names shared data types among what can be used as object code, and a new note says `nat` has no lifting |
+| `neg/e0917_quoted_syntax` | columns after `list` for `seq` in the program; E0917's note says `list rule` |
+| `recovery/f_stray_brace_period`, `recovery/quotes` | the program after `elaborate` prints `list item`, `cons`/`nil` for `seq item`, `scons`/`snil` |
+
+New goldens: `neg/e0920_not_shareable`, `neg/e0921_not_uniform`, `neg/e0922_edge_into_shared`,
+`neg/e0923_shared_out_of_place`, `run/s_shared_data` (nested, mutual, floats and strings, object list
+syntax, explicit `T.lift`/`T.reify`, `list (⇑int)`, reified holes), `run/s_shared_import`, and the
+three design examples (`GoldenTests` runs `docs/design/examples/*.hgn` like `tests/run`).
+`SharedDataSuite` checks `reflect (T.reify v) ≡ T.lift v` differentially (ScalaCheck, random values of
+`tree (option int)`, `list (list string)`, `option (tree float)`, `stmt`, `list (option int)`: the staged
+programs with `held v.` and `$'{ held $v. }.` are equal).
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

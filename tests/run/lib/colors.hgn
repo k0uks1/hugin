@@ -1,0 +1,5 @@
+(* A shared data type in an imported file (tests/run/s_shared_import.hgn) *)
+color : data.
+red : color.
+green : color.
+mix : color -> color -> color.

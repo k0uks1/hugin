@@ -209,7 +209,10 @@ trait Items:
     // the names it declares are erroneous (`docs/PARSER.md`, §5)
     if hasSyntaxErrors(item) then syntaxError(item.span)
     at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
-    declares(item).flatMap(scope.get).foreach(recordDeclaration(_, item))
+    // a shared declaration declares a constant at each stage under the name
+    declares(item).flatMap(scope.get).foreach(id =>
+      (id :: globals(id).shared.map(_.counterpart).toList).foreach(recordDeclaration(_, item))
+    )
 
   private def elabItemAt(item: Item): Unit = item match
     case d: Decl => elabDecl(d)

@@ -96,6 +96,15 @@ trait Records:
       globalRef(id)
     case _ => inferProjection(c, sel)
 
+  /** A member of an imported file declared by a shared data declaration (its meta constant), at an
+   *  object position: the object constant. */
+  private def sharedMember(c: Cxt, t: Tm): Option[(Tm, Val, Stage)] =
+    if state.stage != Stage.S0 then None
+    else
+      force(ev(c, t)) match
+        case Val.Rigid(Head.Glob(id), Nil) if globals(id).shared.exists(_.side == Stage.S1) => Some(globalRef(sharedAt(id, Stage.S0)))
+        case _ => None
+
   private def derivedOf(n: Name, label: Name): Option[Int] =
     lookupGlobal(n).flatMap(sharedFamily).map(l => if label == "lift" then l.lift else if label == "reify" then l.reify else -1).filter(
       _ >= 0
@@ -108,7 +117,7 @@ trait Records:
         fieldType(rt, ev(c, qt), sel.name) match
           case Some(fty) =>
             recordFieldUse(c, rt, sel, fty)
-            (Tm.Proj(qt, sel.name), fty, qs)
+            sharedMember(c, Tm.Proj(qt, sel.name)).getOrElse((Tm.Proj(qt, sel.name), fty, qs))
           case None => noField(c, sel, qty, rt.labels)
       case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
       case other if qs == Stage.S1 && sel.qual.isInstanceOf[Ident] =>

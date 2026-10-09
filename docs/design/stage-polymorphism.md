@@ -1,9 +1,16 @@
 # Stage polymorphism: sharing data and definitions across stages
 
-Research note for [issue #52](https://github.com/k0uks1/hugin/issues/52). Design only; nothing here is
-implemented. The examples in `docs/design/examples/` show the duplication of today and compile with the
-current build. Proposed syntax is written against the explicit reflection quotes `'{ … }` of
-[issue #76](https://github.com/k0uks1/hugin/issues/76); where that matters it is said.
+Research note for [issue #52](https://github.com/k0uks1/hugin/issues/52). Proposed syntax is written
+against the explicit reflection quotes `'{ … }` of [issue #76](https://github.com/k0uks1/hugin/issues/76);
+where that matters it is said.
+
+> **Status.** Shared data declarations (§5) are implemented by
+> [issue #80](https://github.com/k0uks1/hugin/issues/80); the reference defines them (meta/families,
+> "Shared data"; meta/staging, "Lifting") and `docs/NOTES.md`, "Shared data (#80)", records the decisions
+> of the implementation. The examples in `docs/design/examples/` are rewritten in the new form and run
+> as goldens; §2 and the code in this note describe the duplication before #80 (`seq`, `snil`, `scons`,
+> `sappend` no longer exist). Shared aliases (`DataAlias` of §5.1) and labels on the prelude's `cons` are
+> not implemented.
 
 Contents
 
