@@ -159,7 +159,10 @@ trait ObjectDecls:
   def dropPending(): Unit =
     scope.filterInPlace((_, id) => !globals(id).pending)
 
-  /** A pending global at the head of `t` cannot be applied yet: the item is retried after its declaration. */
+  /** A pending global at the head of `t` cannot be applied yet: the item is retried after its declaration.
+   *  If the declaration was already dropped for an error (its name is erroneous), the use is not reported
+   *  again (`docs/PARSER.md`, §5; issue #83): before [[dropPending]] removes the global from the scope, an
+   *  item elaborated in the same round (a module body using the name) still finds it. */
   def requireDeclared(t: Tm): Unit =
     def head(t: Tm): Tm = Tm.unloc(t) match
       case Tm.App(f, _, _) => head(f)
@@ -167,5 +170,7 @@ trait ObjectDecls:
     head(t) match
       case Tm.Global(id) if globals(id).pending =>
         val name = scope.collectFirst { case (n, i) if i == id => n }.getOrElse(globals(id).name)
+        if state.erroneous(name) then
+          throw ElabError(ElabProblem.UnresolvedName(name, globals(id).span, None, false).toDiagnostic, silent = true)
         throw ElabError(ElabProblem.UsedBeforeDeclaration(name, globals(id).span).toDiagnostic, Some(name))
       case _ =>

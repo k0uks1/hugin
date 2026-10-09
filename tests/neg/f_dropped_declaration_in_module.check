@@ -1,0 +1,13 @@
+error[E0101]: unresolved name `nodee`
+ --> tests/neg/f_dropped_declaration_in_module.hgn:4:5
+  |
+4 | a : nodee. (*~ E0101 *)
+  |     ^^^^^ not found in this scope
+
+error[E0101]: unresolved name `nodee`
+ --> tests/neg/f_dropped_declaration_in_module.hgn:5:8
+  |
+5 | edge : nodee -> nodee -> rel. (*~ E0101 *)
+  |        ^^^^^ not found in this scope
+
+2 errors found

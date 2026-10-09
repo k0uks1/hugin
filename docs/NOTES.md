@@ -1344,6 +1344,19 @@ item that `}` closed, not a mistake of its own. Fix (`syntax/ParserBase.scala`, 
 directly followed by `.` on its line is skipped together with it. Golden:
 `tests/recovery/f_stray_brace_period`.
 
+**A use of a dropped declaration in a module body (elaborator).** Seed 23 deleted the `:` of `node : type.`
+in `tests/run/c1_patterns`: `edge : node -> node -> rel.` is then dropped (its type uses the erroneous
+`node`), and the module `m = { edge a c. }` (elaborated in the same round, before `dropPending` removes
+the pending global `edge` from the scope) got E0101 "`edge` is used before its declaration", at the
+dropped declaration: an unresolved name outside the damaged line, i.e. a cascade. The same happens
+without any syntax error (`a : nodee.` with `nodee` undeclared). Fix (`core/elab/ObjectDecls.scala`,
+`requireDeclared`): a pending global whose name is erroneous (its declaration was dropped for a reported
+error) gives a silent error, as `Names.unresolved` does for erroneous names. Golden:
+`tests/neg/f_dropped_declaration_in_module`. Not fixed (outside the property, which looks only at E0101
+and syntax errors): in the same mutant, `$sappend (reverse '{ edge a b }) (reverse '{ m.edge b c }).`
+reports E0901 at `sappend` when an argument fails silently; the splice-application fallback reports the
+type of the bare splice instead of staying silent.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
