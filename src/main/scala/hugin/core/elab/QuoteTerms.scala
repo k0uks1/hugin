@@ -43,9 +43,14 @@ trait QuoteTerms:
 
   /** The quote `t` (or implicitly quoted syntax) checked against the reflective type of kind `k`: its
    *  data. */
-  def reify(c: Cxt, t: Tree, k: RKind): Tm = t match
-    case qt: Quote => reifyQ(c, quotedContent(c, qt, k))
-    case _ => reifyQ(c, quoted(c, t, k, Nil))
+  def reify(c: Cxt, t: Tree, k: RKind, at: Option[Val] = None): Tm =
+    val q = t match
+      case qt: Quote => quotedContent(c, qt, k)
+      case _ => quoted(c, t, k, Nil)
+    val data = reifyQ(c, q)
+    // the rules of the file a module-wide directive reifies were checked as rules
+    if !reifyingRules then checkQuoted(c, q, k, at)
+    data
 
   /** E0919: a quote where the expected type `a` is not reflective (or not known). */
   def quoteWithoutType(c: Cxt, qt: Tree, a: Option[Val]): Nothing =
@@ -53,7 +58,7 @@ trait QuoteTerms:
     fail(ReflectionProblem.QuoteWithoutType(shown, qt.span))
 
   private def reifyQ(c: Cxt, q: Q): Tm = q match
-    case Q.Hole(x, RKind.Term, _) => termHole(c, x)
+    case h @ Q.Hole(x, RKind.Term, _) => termHole(c, x, h)
     case Q.Hole(x, k, _) => check(c, x, ev(c, kindType(k)), Stage.S1)
     case Q.EntryHole(x, k, sp) => entryHole(c, x, k, sp)
     case Q.SeqHole(_, _, sp) => fail(ReflectionProblem.MisplacedSequenceHole(sp))
@@ -82,11 +87,12 @@ trait QuoteTerms:
 
   /** A hole `$x` at a term: `x` of type `term`, or a meta value of a base or shared type, as its
    *  reification (`T.reify`, `tint`, …; [[Liftings.reifyCode]]). */
-  private def termHole(c: Cxt, x: Tree): Tm =
+  private def termHole(c: Cxt, x: Tree, hole: Q): Tm =
     val term = ev(c, kindType(RKind.Term))
     val inferred =
       try Some(undoOnFailure(insert(c, x.span, infer(c, x))))
       catch case _: ElabError => None
+    inferred.foreach((tm, ty, _) => recordHole(c, hole, tm, ty))
     inferred match
       case Some((tm, ty, Stage.S1)) if reflectiveKind(ty).isEmpty && reifyCode(c, tm, ty).isDefined => reifyCode(c, tm, ty).get
       case Some((tm, ty, s)) => coe(c, x.span, tm, ty, s, term, Stage.S1)

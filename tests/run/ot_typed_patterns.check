@@ -1,0 +1,3 @@
+?- typed X empty T.
+X = lit 1, T = tint.
+X = neg (lit 1), T = tint.

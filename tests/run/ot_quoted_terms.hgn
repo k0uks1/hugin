@@ -1,0 +1,10 @@
+(* A quote checked against `quoted A` is a term of type `A`; in object code it stands for its term, and
+   where a `term` is expected it is one. *)
+r : int -> int -> rel.
+q : int -> rel.
+three : quoted int = '{ 1 + 2 }.
+asTerm : term = three.
+q 1. q 2.
+r X $three :- q X.
+r X Y :- q X, Y = asTerm.
+?- r X Y.
