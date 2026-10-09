@@ -164,6 +164,7 @@ not use them:
 | termination argument | descent along derivations (A) or guarded induction (B) | [Termination](object/termination.md) |
 | typed atom | a `quoted A` whose type `A` is a type of facts, used as an atom | [Reflection](reflection.md#typed-atoms) |
 | typed hole | an expression `?` or `?name` that stands for an expression still to be written; it is an error that reports its goal | [Functions](meta/functions.md#typed-holes) |
+| typed variable | `qvar n`: the object variable named by the hint `n`, as a `quoted A` | [Reflection](reflection.md#typed-variables) |
 | union | a type `τ₁ \| … \| τₙ` whose values are those of its members | [Object types](object/types.md#unions) |
 | universe | `type`, the type of object types, or `Typeᵢ`, a type of meta types | [Universes](meta/universes.md) |
 | valuation | an assignment of values to the variables of a rule or query | [Rules](object/rules.md#semantics) |

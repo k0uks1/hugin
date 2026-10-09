@@ -97,6 +97,12 @@ qterm : term -> quoted A.
 raw : quoted A -> term.
 raw (qterm T) = T.
 
+(* A typed variable (reference: reflection): the object variable named by the hint `N`, as a term of
+   type `A`. Its name has the reserved form `N#v`, which source syntax cannot write, so it cannot capture
+   a variable of the program; the same hint in one rule is the same variable. *)
+qvar : string -> quoted A.
+qvar N = qterm (tvar (N ^ "#v")).
+
 formula : Type.
 fatom : sym -> list term -> formula.
 fcmp : cmp_op -> term -> term -> formula.
