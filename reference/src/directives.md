@@ -48,6 +48,8 @@ stand in: an argument at a parameter of a reflective type (`term`, `formula`, `r
 - where a `measure` is expected, the measure syntax of `%terminates` is quoted;
 - a meta value is passed in a hole, `%d $x.`; at a `decl` or `sym` parameter, an argument that is not a
   name (or a hole) is elaborated as meta code;
+- an argument at a parameter of type `quoted A` is not quoted implicitly: it is written as a quote,
+  `%d '{ 3 }.`;
 - a run of mode items is elaborated to the prelude's `modes` data.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).
@@ -217,7 +219,9 @@ For the relation `r` with input columns `ī`, `%demand r m` changes the module a
 1. It declares the *demand relation* `r.check`, a [derived
    constant](reflection.md#symbols-and-derived-constants) whose columns are the input columns of `r`.
 2. Every rule of `r` gets the *guard* `r.check ī` before its body: `r t̄ :- r.check t̄ᵢ, body`. A
-   wildcard in an input column of the head is named, so that the guard binds it.
+   wildcard in an input column of the head is named, so that the guard binds it. The names are
+   `_a#0`, `_ba#0`, …, which no variable of the program can capture
+   ([Reflection](reflection.md#reflecting-data-into-the-program)); they are shown as `_a`, `_ba`, …
 3. Every call `r t̄` in every rule and query of the module (positive, negated, in an aggregate or in a
    disjunction) gets a *demand rule* `r.check t̄ᵢ :- prefix`, where `prefix` is the conjunction of the
    formulas before the call, the guard first in a rule of `r`. A demand rule in a rule of `r` is a
@@ -266,6 +270,26 @@ fib.check 30.
 The propagation rules leave out the calls `fib A FA` and `fib B FB`, whose answers they do not need. So
 `fib.check` is in a component of its own and terminates by descent (A); `fib` terminates by guarded
 induction or descent, guarded by `fib.check` ([Termination](object/termination.md)).
+
+The following program has a variable `_a` in the body of a rule whose head has a wildcard in the input
+column. The guard binds the wildcard as `_a#0`, which is not the program's `_a`, so the rule derives
+`reach b a` for the demanded input `b`.
+
+```hugin,run
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+start : node -> rel.
+reach : (from : node) -> (to : node) -> rel.
+%demand reach +from -to.
+edge a b. edge c a. start c.
+reach _ Y :- start _a, edge _a Y.
+?- reach b Y.
+```
+
+```output
+?- reach b Y.
+Y = a.
+```
 
 ### Several demand-driven relations
 

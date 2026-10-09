@@ -40,6 +40,11 @@ right-hand side is a module body: `tc (g : graph) = { … }.` Its parameters are
 [signatures](#signatures). An application `tc { node = city, edge = road }` evaluates the body with the
 parameter bound to the argument, and creates an instance.
 
+The object code of a functor's body is [typed](object/types.md#functor-bodies) once, where the body is
+written. The object types that a parameter gives are abstract in the body; checks that depend on what
+such a type is are made for each instance. The subtyping edges of a module body are in scope for all of
+its rules.
+
 The following program applies the prelude's functor `tc` (transitive closure) twice to the same graph.
 The two applications create two distinct relations `r1.path` and `r2.path`.
 
