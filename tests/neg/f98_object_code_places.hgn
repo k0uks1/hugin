@@ -1,0 +1,15 @@
+(* Object code in meta code is typed where it is written (#98): in the fields of a record value, in a
+   `where` definition, in a definition with an inferred type, and in a formula passed to a meta function
+   inside object code; none of these definitions is used. *)
+expr : type. typ : type.
+lit : int -> expr.
+typed : (e : expr) -> (t : typ) -> rel.
+k : ⇑prop -> ⇑prop.
+k F = F.
+fields : { a : ⇑prop } = { a = typed (lit 1) (lit 1) }. (*~ E0402 *)
+local : int -> prop.
+local N = h
+  where h : ⇑prop = typed (lit N) (lit N). (*~ E0402 *)
+inferred (m : int) = typed (lit m) (lit m). (*~ E0402 *)
+passed : int -> prop.
+passed N = k (typed (lit N) (lit N)). (*~ E0402 *)

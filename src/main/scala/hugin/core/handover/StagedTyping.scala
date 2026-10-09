@@ -21,7 +21,14 @@ final class StagedTyping(core: Core, symbols: ObjectSymbols, reporter: Reporter,
 
   /** Checks a staged item over the variables `names` (innermost first); reports its problems if `report`.
    *  `None` if it has a problem that is reported. */
-  def check(names: List[Name], heads: List[Tm], body: List[Tm], origin: Origin, report: Boolean): Option[Map[String, OType]] =
+  def check(
+      names: List[Name],
+      heads: List[Tm],
+      body: List[Tm],
+      origin: Origin,
+      report: Boolean,
+      item: (Span, String)
+  ): Option[Map[String, OType]] =
     val walk = ObjWalk(env, ObjWalk.staged(names, Nil))
     val hs = walk.headTerms(heads)
     val fs = body.flatMap(walk.formulas)
@@ -29,7 +36,12 @@ final class StagedTyping(core: Core, symbols: ObjectSymbols, reporter: Reporter,
     if report && problems.nonEmpty then
       problems.foreach { p =>
         val d = p.toDiagnostic
-        reporter.report(d.withOrigin(Origin(d.origin.frames ++ origin.frames)))
+        // code that meta code generated elsewhere: the note names the item it was staged for
+        val (span, what) = item
+        val at = d.primarySpan
+        val outside = at.exists && span.exists && !(at.source == span.source && at.start >= span.start && at.end <= span.end)
+        val frame = Option.when(outside && origin.frames.isEmpty)(TraceFrame(s"in the code staged for this $what", span))
+        reporter.report(d.withOrigin(Origin(frame.toList ++ d.origin.frames ++ origin.frames)))
       }
       None
     else Some(gamma.map((x, t) => x -> otype(t)))

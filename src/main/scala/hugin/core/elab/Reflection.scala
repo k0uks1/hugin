@@ -56,11 +56,22 @@ trait Reflection:
     // a quote is reflected items (errors in it are reported when it is elaborated)
     case _: Quote => Some(RKind.List(RKind.Item))
     case _ =>
-      try
-        reflectiveKind(splicedData(e)._2).filter {
-          case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
-          case _ => false
-        }
+      def items(ty: Val) = reflectiveKind(ty).filter {
+        case RKind.Rule | RKind.Item | RKind.List(RKind.Rule) | RKind.List(RKind.Item) => true
+        case _ => false
+      }
+      try items(splicedData(e)._2)
+      catch
+        // `$f a.` whose `f` returns reflected items, with an argument that does not fit: a splice item,
+        // whose elaboration reports the argument's error, as for `$(f a).`
+        case _: ElabError => functionHead(e).flatMap(items)
+
+  /** The result type of the function `f` that `e = f a₁ … aₙ` applies (`n > 0`), if `f` elaborates. */
+  private def functionHead(e: Tree): Option[Val] =
+    val (f, args) = hugin.syntax.TreeOps.flattenApp(e)
+    if args.isEmpty then None
+    else
+      try Some(telescope(undoOnFailure(infer(Cxt.empty, f))._2)._2)
       catch case _: ElabError => None
 
   /** The data of `$e.` and its type: inferred; a quote (or a list that has no type of its own) is

@@ -1,0 +1,13 @@
+(* An equation meets the type of a variable with columns (#98): in a rule, and in a formula function's
+   clause, whose argument is bound by an equation. *)
+expr : type.
+num : (n : int) -> expr.
+var : (name : string) -> expr.
+nums : (n : num) -> rel.
+vars : (v : var) -> rel.
+odd : rel.
+odd :- nums X, vars E, X = E. (*~ E0401 *)
+known : expr -> prop.
+known E :- vars E. (*~ E0401 *)
+odd2 : rel.
+odd2 :- nums X, known X.
