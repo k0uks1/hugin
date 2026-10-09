@@ -89,7 +89,7 @@ trait DerivedFunctions:
     elabDecl(Decl(Ident(name)(g.span), Nil, tpe, None, None)(sp))
     scope(name)
 
-  /** A type as syntax, its parameters given by `params` (shared families by reference: at an object
+  /** A type as syntax, its parameters given by `params` (shared families by reference, at an object
    *  position, the object family). */
   private def treeOf(t: Ty, params: List[Tree], sp: Span): Tree = t match
     case Ty.Param(j) => params(j)
