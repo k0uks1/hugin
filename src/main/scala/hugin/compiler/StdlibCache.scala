@@ -1,6 +1,7 @@
 package hugin.compiler
 
-import hugin.core.{ElabBase, ProgramElab, SourceItems}
+import hugin.core.{CoreItem, ElabBase, GlobalKind, ProgramElab, SourceItems, Val}
+import hugin.syntax.Trees.{Clause, Decl, Def, DirArgs, Directive, Import}
 import hugin.util.SourceFile
 import scala.collection.mutable
 
@@ -23,10 +24,11 @@ object StdlibCache:
   private final case class Key(path: String, text: String)
 
   /** How many texts are kept: of each file of the standard library, and some edited versions. */
-  private val capacity = 32
+  private val capacity = 64
 
   private val parses = mutable.LinkedHashMap.empty[Key, Parsed]
   private val bases = mutable.LinkedHashMap.empty[(List[Key], Boolean), (List[Parsed], ElabBase)]
+  private val objects = mutable.LinkedHashMap.empty[(List[Key], Boolean), (List[Parsed], Boolean)]
 
   /** Whether compilations use the cache (the differential tests turn it off). */
   @volatile var enabled: Boolean = true
@@ -43,21 +45,76 @@ object StdlibCache:
 
   /** The prelude elaborated from `chain`: the files it imports in dependency order, then the prelude
    *  itself (reference: prelude). Shared if every parse is the cache's own parse of its text (the
-   *  elaborated core refers to the positions of those parses), otherwise elaborated here. */
+   *  elaborated core refers to the positions of those parses), otherwise elaborated here. The files
+   *  before the prelude are shared one by one, each with the files before it: chains that leave out a
+   *  file the prelude re-exports lazily ([[LazyStdlib]]) share the files before it. */
   def prelude(chain: List[Parsed], builtinNames: Boolean): ElabBase =
-    def items(p: Parsed) = SourceItems(p.source.path, "", p.program.items)
-    def elaborate() =
+    memo(chain, builtinNames) {
       elaborations += 1
-      ProgramElab.preludeChain(chain.init.map(items), items(chain.last), builtinNames)
-    val keys = chain.map(p => Key(p.source.path, p.source.content))
-    val shared = enabled && synchronized(chain.zip(keys).forall((p, k) => parses.get(k).exists(_ eq p)))
-    if !shared then elaborate()
+      ProgramElab.preludeOn(libraries(chain.init, builtinNames), items(chain.last))
+    }
+
+  /** The files `files` of the standard library (in dependency order, without the prelude) elaborated one
+   *  after the other, each file once per process and chain before it. */
+  def libraries(files: List[Parsed], builtinNames: Boolean): ElabBase =
+    if files.isEmpty then ProgramElab.empty(builtinNames)
+    else memo(files, builtinNames)(ProgramElab.library(libraries(files.init, builtinNames), items(files.last)))
+
+  /** Whether the file `file` of the standard library, after the files `before`, declares or may declare
+   *  object constants: a lazy re-export ([[LazyStdlib]]) is allowed only if it does not. Decided from its
+   *  declarations, elaborated without the clauses of its functions (cheap, [[ProgramElab.signatures]]): a
+   *  file declares none if its items are declarations, definitions, clauses, and `%use` of imported
+   *  files, `%infix` and `%export`; its declarations are not object constants or shared data, those with
+   *  a definition are not modules (a functor's application creates the module's relations), and the
+   *  declarations elaborate without errors (which are then reported). */
+  def declaresObjects(before: List[Parsed], file: Parsed, builtinNames: Boolean): Boolean =
+    val chain = before :+ file
+    def compute: Boolean =
+      val plain = file.program.items.forall {
+        case d: Decl => d.sup.isEmpty
+        case _: Clause | _: Def => true
+        case Directive(_, DirArgs.Use(_: Import, _) | _: DirArgs.Infix | _: DirArgs.Export) => true
+        case _ => false
+      }
+      !plain || {
+        val defined = file.program.items.collect {
+          case d: Decl if d.defn.isDefined => d.name.name
+          case d: Def => d.name.name
+        }.toSet
+        val base = libraries(before, builtinNames)
+        val after = ProgramElab.signatures(base, items(file))
+        val core = after.core
+        after.diagnostics.length > base.diagnostics.length ||
+        after.items.drop(base.items.length).exists(!_.isInstanceOf[CoreItem.GlobalItem]) ||
+        (base.core.globals.length until core.globals.length).exists { id =>
+          val g = core.globals(id)
+          g.kind match
+            case GlobalKind.Object(_) | GlobalKind.Family(_, _) => true
+            case _ => defined(g.name) && core.force(g.ty).isInstanceOf[Val.RecTy]
+        }
+      }
+    val keys = chain.map(key)
+    if !enabled || !synchronized(own(chain, keys)) then compute
+    else synchronized(lookup(objects, (keys, builtinNames), (chain, compute))._2)
+
+  private def items(p: Parsed) = SourceItems(p.source.path, "", p.program.items)
+
+  private def key(p: Parsed) = Key(p.source.path, p.source.content)
+
+  /** Whether every parse of `chain` is the cache's own parse of its text. */
+  private def own(chain: List[Parsed], keys: List[Key]): Boolean = chain.zip(keys).forall((p, k) => parses.get(k).exists(_ eq p))
+
+  /** The base elaborated from `chain` by `compute`: shared if the cache is enabled and every parse is
+   *  its own, since the elaborated core refers to the positions of those parses. */
+  private def memo(chain: List[Parsed], builtinNames: Boolean)(compute: => ElabBase): ElabBase =
+    val keys = chain.map(key)
+    if !enabled || !synchronized(own(chain, keys)) then compute
     else
       synchronized {
         // a base is used only with the very parses it was elaborated from (a parse may have been dropped
         // and made again since)
         bases.get((keys, builtinNames)).filter(b => b._1.zip(chain).exists(_ ne _)).foreach(_ => bases.remove((keys, builtinNames)))
-        lookup(bases, (keys, builtinNames), (chain, elaborate()))._2
+        lookup(bases, (keys, builtinNames), (chain, compute))._2
       }
 
   /** The bundled prelude with the text `text` (by default its own) and the bundled files it imports, in
@@ -81,6 +138,7 @@ object StdlibCache:
   def clear(): Unit = synchronized {
     parses.clear()
     bases.clear()
+    objects.clear()
   }
 
   /** The cached value of `key`, computed and stored if missing; the least recently used entry is dropped

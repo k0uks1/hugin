@@ -577,3 +577,27 @@ NbE evaluator), and the parser and elaborator on a source list literal of thousa
 * **meta_scaled**: unchanged against #60. A first version of the `MemoKeys` fix (an explicit stack on
   every call) cost +28 % here, from allocations; the walks now recurse up to a depth of 200 and switch to
   the explicit stack only below it.
+
+## Lazy re-export of `std/demand` (#61, batch B2)
+
+A program that does not use `%demand` no longer elaborates `std/demand` (docs/LIBRARIES.md, "Lazy
+re-export"). Measured on the machine above at cd50f3e (B1) against B2, while other builds ran (load
+average 7 to 10). Thread CPU time is robust to that load; wall times were taken interleaved, base and B2
+alternating.
+
+| measurement | B1 | B2 | change |
+|---|---:|---:|---:|
+| prelude chain elaboration, warm, uncached (thread CPU, median of 31 after 15 warm-up) | 84.9 ms | 45.2 ms | −47 % |
+| first prelude chain elaboration in a new JVM (median of 7) | 1 889 ms | 1 307 ms | −31 % |
+| cold `hugin check bench/small/one.hgn`, wall (median of 9, interleaved) | 3 938 ms | 2 975 ms | −24 % |
+| cold `run a01_transitive_closure`, wall | 4 275 ms | 3 436 ms | −20 % |
+| cold `run c1_roundtrip`, wall | 4 418 ms | 3 832 ms | −13 % |
+| cold `run a04_typechecker` (uses `%demand`), wall | 3 679 ms | 3 918 ms | within noise |
+
+* The B2 chain is `std/reflect` and the prelude. `std/demand` alone costs 45.2 ms warm on top of
+  `std/reflect`, as much as the rest of the chain.
+* The check that `std/demand` declares no object constants (its declarations without clauses) costs
+  16.7 ms warm and about 100 ms in a new JVM (1 207 ms without it). It runs once per process and is
+  included in the B2 numbers.
+* A program that uses `%demand` elaborates the same chain as before. The warm cached compile
+  (`StdlibCache`) is unchanged.

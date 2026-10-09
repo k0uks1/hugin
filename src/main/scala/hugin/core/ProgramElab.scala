@@ -93,6 +93,14 @@ object ProgramElab:
     val imports = base.imports + (file.path -> e.moduleValue)
     ElabBase(core, base.prelude, imports, base.items ++ e.items, base.diagnostics ++ diagnostics, index, base.builtinNames)
 
+  /** The declarations of an imported file without the clauses of its functions, elaborated in a fork of
+   *  `base`: their kinds and types ([[elab.FileEnv.signaturesOnly]]). */
+  def signatures(base: ElabBase, file: SourceItems): ElabBase =
+    val core = base.core.fork()
+    val env = elab.FileEnv(file.path, file.qualifier, base.prelude, base.imports, builtinNames = base.builtinNames, signaturesOnly = true)
+    val (e, diagnostics) = elabFile(core, file, env)
+    ElabBase(core, base.prelude, base.imports, base.items ++ e.items, base.diagnostics ++ diagnostics, base.index, base.builtinNames)
+
   private def elabFile(core: Core, file: SourceItems, env: elab.FileEnv): (elab.Elaborator, List[Diagnostic]) =
     core.rankFile(file.path)
     val reporter = Reporter()
