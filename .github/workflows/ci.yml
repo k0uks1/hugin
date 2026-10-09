@@ -24,6 +24,8 @@ jobs:
         run: sbt -batch scalafmtCheckAll scalafmtSbtCheck
       - name: Check that sources cite the language reference, not REDESIGN.md sections
         run: scripts/check-refs.sh
+      - name: Check the wording of the reference and the error explanations (reference/STYLE.md)
+        run: scripts/check-style.sh
 
   test:
     name: Build and test (JDK ${{ matrix.java }})

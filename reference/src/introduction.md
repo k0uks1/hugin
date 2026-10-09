@@ -1,18 +1,18 @@
 # Introduction
 
-This is the reference for **Hugin**, a two-level typed Datalog. Hugin has two levels:
+This is the reference of Hugin, a two-level typed Datalog. A Hugin program has two levels:
 
-- the *object level*, Datalog∃!: a typed Datalog with stratified negation, aggregates, arithmetic and
-  first-class facts, in which every constructor term that a rule derives is a fact with an identity
-  determined by its content. Its programs are evaluated bottom-up to a least fixed point, and every
-  accepted program terminates.
-- the *meta level*: a total, dependently typed functional language, a two-level type theory, that
+- The *object level* is Datalog∃!, a typed Datalog with stratified negation, aggregates, arithmetic and
+  first-class facts. Every constructor term that a rule derives is a fact, with an identity determined
+  by its content. Object programs are evaluated bottom-up to a least fixed point, and every accepted
+  program terminates.
+- The *meta level* is a total, dependently typed functional language, a two-level type theory, that
   computes object programs at compile time. Modules, functors, families of relations, formula
-  functions, reflection of object syntax and directives are meta-level programs.
+  functions, reflection of object syntax and directives are programs of the meta level.
 
-The following program is a complete Hugin program. It declares a type of cities, a relation of roads with
-three facts, and the transitive closure of the roads by the prelude's functor `tc`, and it asks which
-cities can be reached from Berlin.
+The following program declares a type of cities and a relation of roads with three facts. It applies
+the prelude's functor `tc` to get the transitive closure of the roads, and asks which cities can be
+reached from Berlin.
 
 ```hugin,run
 city : type.
@@ -41,7 +41,7 @@ compiled, and run where its output is shown, in the continuous integration of th
 The design notes in the repository (`docs/REDESIGN.md`, `docs/NOTES.md`, `docs/history/` and the other
 files under `docs/`) are *historical*: they record how and why the language came to be as it is,
 including alternatives that were rejected and the arguments for the soundness of its checks. They are not
-a specification; where they differ from this reference, this reference applies.
+a specification. Where they differ from this reference, this reference applies.
 
 ## How to read this reference
 

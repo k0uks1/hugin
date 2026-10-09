@@ -28,7 +28,7 @@ The case of the first character decides the class of an identifier:
 - A *name* (`NAME`) starts with a lowercase letter. Names refer to constants: types, relations,
   constructors, functions, modules and labels (`edge`, `typed`, `x'`).
 - A *variable* (`VAR`) starts with an uppercase letter or `_`. Variables of rules and queries are
-  *object variables*; variables in clauses and in the types of declarations are meta variables
+  *object variables*. Variables in clauses and in the types of declarations are variables of meta code
   (`X`, `Body`, `_rest`).
 - The variable `_` alone is the *wildcard*. Each occurrence of `_` is a variable of its own that occurs
   nowhere else.
@@ -142,9 +142,8 @@ The productions of the items are given in the chapters that define them:
 and [directives](directives.md). Several items may share a line.
 
 An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
-of `$` or `⇑`. So
-a missing period at the end of a line is reported where the next item starts, and that item is still
-parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
+of `$` or `⇑`. So a missing period at the end of a line is reported where the next item starts, and that
+item is still parsed. It is an error ([E0001](errors/E0001.md)) if an item does not end with a period.
 
 The following program declares a relation and gives it two facts on one line.
 
@@ -200,8 +199,8 @@ and looser than those of level *p* + 1. `a op b` is the application `op a b`.
 The operator is in effect in the whole file, also before the directive. A rule head is parsed above
 the comparison level, so an operator of precedence 5 or more may appear in a head.
 
-The following program declares `likes` as an infix operator below the comparisons and uses it in facts,
-a head and a body.
+The following program declares `likes` as an infix operator of precedence 5, which binds tighter than
+the comparisons and looser than `+`. It uses the operator in facts, a head and a body.
 
 ```hugin,run
 %infix none 5 likes.

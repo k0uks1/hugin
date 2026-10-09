@@ -135,10 +135,10 @@ A formula function is declared without clauses or definition.
 
 ```hugin
 never : int -> prop.
-p : int -> rel.
-p 1.
-q : int -> rel.
-q X :- p X, never X.
+item : int -> rel.
+item 1.
+chosen : int -> rel.
+chosen X :- item X, never X.
 ```
 
 ## Why this is reported
@@ -148,13 +148,15 @@ A formula function without clauses is always false, so every rule using it never
 
 ## How to fix it
 
+Give the formula function a clause:
+
 ```hugin
 small : int -> prop.
 small X :- X < 10.
-p : int -> rel.
-p 1.
-q : int -> rel.
-q X :- p X, small X.
+item : int -> rel.
+item 1.
+chosen : int -> rel.
+chosen X :- item X, small X.
 ```
 
 Online: https://k0uks1.github.io/hugin/errors/W0005.html

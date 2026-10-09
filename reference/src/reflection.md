@@ -2,7 +2,7 @@
 
 *Reflection* represents object syntax as meta data that programs can build, inspect and turn back into
 object code. Object code of type `⇑A` ([Staging](meta/staging.md)) is opaque; the *reflective types* of
-the prelude are ordinary inductive types whose values describe terms, formulas, rules and items. This
+the prelude are ordinary inductive families whose values describe terms, formulas, rules and items. This
 chapter defines the reflective types, the quotes `'{ … }` that turn object syntax into their values
 (*reification*), the quoted patterns that match on them, and how data becomes part of the program again
 (*reflection*).
@@ -32,7 +32,7 @@ aggregates. An object variable is represented by its name (`tvar "X"`). In an ag
 and `φ` are `tbound` indices (a locally nameless representation). `fagg k x t φ` holds the result `x`,
 the term `t` and the body `φ`.
 
-A program may declare its own types with these names; the compiler finds the reflective types in the
+A program may declare its own types with these names. The compiler finds the reflective types in the
 prelude's scope, not in the program's.
 
 ## Lists
@@ -57,9 +57,9 @@ Entry   ::= RuleName? Expr (":-" Formula)? | "?-" Formula
 A *quote* `'{ … }` holds object syntax as data, written as in a file: its content is a sequence of
 entries (rules, facts and queries) separated by periods, the last period optional. Like the items of a
 module body, an entry does not start in column 0: a quote over several lines indents its entries. The
-`'` must be directly followed by `{`; a prime inside or after a name is part of the name (`x'`). Which data a quote
-denotes depends on the reflective type expected where it stands, which gives the *category* of its
-content:
+`'` must be directly followed by `{`; a prime inside or after a name is part of the name (`x'`). Which
+data a quote denotes depends on the reflective type expected where it stands, which gives the *category*
+of its content:
 
 | expected type | content | example |
 |---|---|---|
@@ -85,12 +85,12 @@ In the content,
 Meta values are written as holes (see below): `'{ $R X :- $..Body }`. It is an error
 ([E0917](errors/E0917.md)) to quote `as`, an ascription, a projection or an update, which have no
 representation, or content of another category than the expected type's (two items where a rule is
-expected, a rule where a formula is expected). A quote where no reflective type is expected (the type is
-another one, or it is not known, as for a definition without a declared type) is an error
-([E0919](errors/E0919.md)): ascribe it, `('{ p X } : formula)`, or declare the type. An item `$e.` expects
-reflected items, so `$'{ … }.` needs no ascription. Object syntax outside a quote is never data: the
-arguments of directives are the exception, as they are object syntax themselves; an argument at a
-parameter of a reflective type is quoted implicitly ([Directives](directives.md)).
+expected, a rule where a formula is expected). It is an error ([E0919](errors/E0919.md)) if a quote
+stands where no reflective type is expected: the expected type is another one, or it is not known, as for
+a definition without a declared type. Ascribe the quote, `('{ p X } : formula)`, or declare the type. An
+item `$e.` expects reflected items, so `$'{ … }.` needs no ascription. Object syntax outside a quote is
+never data: the arguments of directives are the exception, as they are object syntax themselves; an
+argument at a parameter of a reflective type is quoted implicitly ([Directives](directives.md)).
 
 The following program builds a module as data and reflects it into the program.
 
@@ -135,11 +135,11 @@ In an expression, a hole splices a value into the quoted syntax; a sequence hole
 sequence. A hole `$e` at a term whose value is not `term` data but a meta value of a base type or of a
 [shared data type](meta/families.md#shared-data) stands for the value's *reification*: `tint e`,
 `tfloat e` or `tstr e` for a base type, `T.reify ḡ e` for a shared type, with the element functions given
-by the type. The reified data describes exactly the object code that the value [lifts](meta/staging.md#lifting)
-to, so reflecting `'{ p $e }` gives the rule `p e` with `e` lifted. There is no such conversion in
-patterns. In a pattern, `$X` binds the meta variable `X` to the data at its place, `$_` matches anything,
-and `$..Xs` binds the rest of a sequence and must end it. It is an error ([E0917](errors/E0917.md)) if a
-hole is in a place it cannot stand for.
+by the type. The reified data describes exactly the object code that the value
+[lifts](meta/staging.md#lifting) to, so reflecting `'{ p $e }` gives the rule `p e` with `e` lifted.
+There is no such conversion in patterns. In a pattern, `$X` binds the pattern variable `X` to the data at
+its place, `$_` matches anything, and `$..Xs` binds the rest of a sequence and must end it. It is an
+error ([E0917](errors/E0917.md)) if a hole is in a place it cannot stand for.
 
 The following program generates one fact per suffix of a compile-time list. The hole `$(X :: Xs)` is a
 meta list, so its reification `list.reify tint (X :: Xs)` is inserted.
@@ -162,8 +162,9 @@ L = cons 2 nil.
 ## Quoted patterns
 
 A clause pattern whose argument has a reflective type may be a quote: a *quoted pattern*, with the
-syntax and the categories of quotes in expressions. It is elaborated to a pattern over the constructors of the reflective types, so
-[coverage](meta/coverage.md) and [termination](meta/termination.md) apply unchanged.
+syntax and the categories of quotes in expressions. It is elaborated to a pattern over the constructors
+of the reflective types, so [coverage](meta/coverage.md) and [termination](meta/termination.md) apply
+unchanged.
 
 - An object constant in a quoted pattern matches that constant by identity. A pattern on `edge` does not
   match the `edge` of a module `m.edge`, nor a relation `edge` that shadows the one in scope where the
@@ -220,14 +221,15 @@ count_ok 2.
 SpliceItem ::= "$" Expr "."
 ```
 
-An item `$e.`, where `e` has type `rule`, `item`, `list rule` or `module`, stands for the rules, queries and
-declarations that `e` evaluates to: it is the staging splice applied to reflected data. `$f a.` is read
-as `$(f a).`; a quote or a list in `$e.` is checked against `module` (`$'{ p 1. }.`). The data is evaluated during
-elaboration, turned into syntax whose object constants are already resolved, and elaborated and checked
-like a hand-written item, at the object level too (typing, stratification, termination). It is an error
-([E0918](errors/E0918.md)) if the data is not closed (it depends on a postulate or on a parameter of a
-meta function) or does not describe object code (a variable without a name, a rule without heads, a
-bound index outside its aggregate).
+An item `$e.`, where `e` has type `rule`, `item`, `list rule` or `module`, stands for the rules, queries
+and declarations that `e` evaluates to: it is the staging splice applied to reflected data. `$f a.` is
+read as `$(f a).`; a quote or a list in `$e.` is checked against `module` (`$'{ p 1. }.`). The data is
+evaluated during elaboration, turned into syntax whose object constants are already resolved, and
+elaborated and checked like a hand-written item, at the object level too (typing, stratification,
+termination). It is an error ([E0918](errors/E0918.md)) if the data is not closed, because it depends on
+a postulate or on a parameter of a meta function. It is also an error if the data does not describe
+object code, such as a variable without a name, a rule without heads or a bound index outside its
+aggregate.
 
 Generated items take the place of the item `$e.`. A diagnostic in a generated item points at the syntax
 the data was quoted from, with a note "in code reflected by `$e`". A query generated by `$e.` prints the
@@ -263,8 +265,8 @@ r 3 3.
 ## Symbols and derived constants
 
 A *symbol* is a value of type `sym`: a reference to an object constant, written as a quote of its name
-(`'{ edge }`). Symbols have no constructors; they are compared by
-identity. The prelude declares four primitive operations on symbols and literals:
+(`'{ edge }`). Symbols have no constructors; they are compared by identity. The prelude declares four
+primitive operations on symbols and literals:
 
 | primitive | meaning |
 |---|---|

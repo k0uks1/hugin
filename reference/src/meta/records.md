@@ -22,17 +22,17 @@ with [signatures](../modules.md#signatures).
 
 ## Record types
 
-`{ l₁ : A₁, …, lₙ : Aₙ }` is the type of records with the fields `l₁ … lₙ`. The type `Aᵢ` may refer to the
-fields `l₁ … lᵢ₋₁`: in `{ node : type, edge : node -> node -> rel }` the type of `edge` mentions `node`.
-A record type is in the universe of its field types ([Universes](universes.md)).
+`{ l₁ : A₁, …, lₙ : Aₙ }` is the type of records with the fields `l₁ … lₙ`. The type `Aᵢ` may refer to
+the fields `l₁ … lᵢ₋₁`: in `{ node : type, edge : node -> node -> rel }` the type of `edge` mentions
+`node`. A record type is in the universe of its field types ([Universes](universes.md)).
 
 ## Record values and projection
 
-`{ l₁ = e₁, …, lₙ = eₙ }` is a record with the given fields. Its fields may be written in any order. It is
-an error ([E0307](../errors/E0307.md)) to give a field twice.
+`{ l₁ = e₁, …, lₙ = eₙ }` is a record with the given fields. Its fields may be written in any order. It
+is an error ([E0307](../errors/E0307.md)) to give a field twice.
 
-`e.l` is the field `l` of the record `e`. It is an error ([E0906](../errors/E0906.md)) if `e` has no field
-`l`. A projection from a record value is evaluated at compile time.
+`e.l` is the field `l` of the record `e`. It is an error ([E0906](../errors/E0906.md)) if `e` has no
+field `l`. A projection from a record value is evaluated at compile time.
 
 ## Subtyping by coercion
 
@@ -46,10 +46,10 @@ The following program gives a record with three fields to a definition of type `
 ```hugin,run
 point : Type = { x : int, y : int }.
 labelled = { x = 5, y = 6, name = "a" }.
-p : point = labelled.
+corner : point = labelled.
 coordinate : int -> rel.
-coordinate p.x.
-coordinate p.y.
+coordinate corner.x.
+coordinate corner.y.
 named : string -> rel.
 named labelled.name.
 ```
@@ -64,9 +64,9 @@ The following program has a dependent field: the type of `v` is the value of the
 
 ```hugin,run
 boxed : Type = { t : Type, v : t }.
-b : boxed = { t = string, v = "inside" }.
+parcel : boxed = { t = string, v = "inside" }.
 content : string -> rel.
-content b.v.
+content parcel.v.
 ```
 
 ```output
