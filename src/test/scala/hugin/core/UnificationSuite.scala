@@ -121,3 +121,59 @@ class UnificationSuite extends munit.FunSuite:
     assertEquals(f.failure(0, f.glob(f.p), f.glob(f.g, f.glob(f.p))), UnifyFailure.Mismatch)
     assertEquals(f.failure(0, Val.U0, Val.U1(Level.zero)), UnifyFailure.Mismatch)
   }
+
+  // Frozen metas (issue #66): the metas created before a block are not solved or pruned inside it.
+
+  test("frozen: a meta of an earlier block is not solved") {
+    val f = Fixture()
+    val m = f.meta(0)
+    f.core.inBlock {
+      assertEquals(f.failure(0, f.flex(m), f.glob(f.p)), UnifyFailure.Frozen(m))
+      assertEquals(f.failure(0, f.glob(f.p), f.flex(m)), UnifyFailure.Frozen(m))
+    }
+    assertEquals(f.solution(m), "unsolved")
+    // outside blocks (staging) it is solvable again
+    f.unify(0, f.flex(m), f.glob(f.p))
+    assertEquals(f.solution(m), "p")
+  }
+
+  test("frozen: against an active meta, the active one is solved") {
+    val f = Fixture()
+    val old = f.meta(0)
+    f.core.inBlock {
+      val fresh = f.meta(0)
+      f.unify(0, f.flex(old), f.flex(fresh))
+      assertEquals(f.solution(old), "unsolved")
+      assertEquals(f.solution(fresh), "?0")
+    }
+  }
+
+  test("frozen: the same frozen meta on both sides compares the spines") {
+    val f = Fixture()
+    val m = f.meta(1)
+    f.core.inBlock {
+      f.unify(1, f.flex(m, f.x(0)), f.flex(m, f.x(0)))
+      assertEquals(f.failure(2, f.flex(m, f.x(0)), f.flex(m, f.x(1))), UnifyFailure.Mismatch)
+      assertEquals(f.solution(m), "unsolved")
+    }
+  }
+
+  test("frozen: a frozen meta in a solution is not pruned") {
+    val f = Fixture()
+    val old = f.meta(2)
+    f.core.inBlock {
+      val fresh = f.meta(1)
+      // ?fresh x0 = g (?old x0 x1): x1 is out of scope, and ?old may not be pruned
+      assertEquals(f.failure(2, f.flex(fresh, f.x(0)), f.glob(f.g, f.flex(old, f.x(0), f.x(1)))), UnifyFailure.Escape(1))
+      assertEquals(f.solution(old), "unsolved")
+    }
+  }
+
+  test("frozen: blocks inside a block are part of it") {
+    val f = Fixture()
+    f.core.inBlock {
+      val m = f.meta(0)
+      f.core.inBlock(f.unify(0, f.flex(m), f.glob(f.p)))
+      assertEquals(f.solution(m), "p")
+    }
+  }
