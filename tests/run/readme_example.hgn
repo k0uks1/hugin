@@ -8,7 +8,7 @@ knows bob cid.
 knows dan ann.
 
 (* a directive is a meta function; this one returns rules *)
-symmetric : (r : ⇑(A -> A -> rel)) -> seq item.
+symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '{ R Y X :- R X Y. }.
 %symmetric knows.
 

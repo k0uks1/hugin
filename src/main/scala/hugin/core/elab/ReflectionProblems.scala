@@ -114,7 +114,7 @@ enum ReflectionProblem extends Problem:
       List(msg"quoted object syntax is an object constant applied to terms, a variable, a literal, a hole `$$x`, or a formula")
     case _: QuoteShape =>
       List(
-        msg"a `module` (or `seq rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period"
+        msg"a `module` (or `list rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period"
       )
     case _: QuoteCategory => List(msg"a list of formulas or terms is a meta list of quotes: `['{ p X }, '{ q X }]`")
     case _: HoleOutsideQuote =>

@@ -8,9 +8,9 @@ import hugin.util.*
 /** The reflective types of the prelude (reference: reflection) and their constructors, by global id. */
 final case class ReflectiveGlobals(
     list: Int,
-    snil: Int,
-    scons: Int,
-    sappend: Int,
+    nil: Int,
+    cons: Int,
+    append: Int,
     sym: Int,
     term: Int,
     formula: Int,
@@ -35,17 +35,17 @@ enum RKind:
   case List(elem: RKind)
 
 /** The reflective embedding (reference: reflection): the prelude's types `term`, `formula`, `rule`, `item` (and
- *  `seq` of them, `module = seq item`), found by name in the prelude (or, without it, in the file),
+ *  `list` of them, `module = list item`), found by name in the prelude (or, without it, in the file),
  *  how expected types are classified, and the constructors of reflective data. */
 trait Reflective:
   self: Elaborator =>
   import core.*
 
   private val names = List(
-    "seq",
-    "snil",
-    "scons",
-    "sappend",
+    "list",
+    "nil",
+    "cons",
+    "append",
     "sym",
     "term",
     "formula",
@@ -116,10 +116,10 @@ trait Reflective:
       if found.size < names.size then missedAt = scope.version
       loaded = Some(Option.when(found.size == names.size && globals(found("sym")).kind == GlobalKind.Symbols) {
         ReflectiveGlobals(
-          found("seq"),
-          found("snil"),
-          found("scons"),
-          found("sappend"),
+          found("list"),
+          found("nil"),
+          found("cons"),
+          found("append"),
           found("sym"),
           found("term"),
           found("formula"),
@@ -153,7 +153,7 @@ trait Reflective:
       case _ => None
   }
 
-  /** The element type of a list type `seq A`. */
+  /** The element type of a list type `list A` (the meta list). */
   def listElement(ty: Val): Option[Val] = reflectiveGlobals.flatMap { r =>
     forceData(ty) match
       case Val.Rigid(Head.Glob(id), List(Elim.EApp(a, _))) if id == r.list => Some(a)
@@ -183,14 +183,14 @@ trait Reflective:
   /** A list of elements of type `elem`: single elements (`Left`) and lists spliced in (`Right`). */
   def listData(elem: Tm, parts: List[Either[Tm, Tm]]): Tm =
     val r = reflectiveGlobals.get
-    def nil = Tm.App(Tm.Global(r.snil), elem, Icit.Impl)
+    def nil = Tm.App(Tm.Global(r.nil), elem, Icit.Impl)
     parts.foldRight(Option.empty[Tm]) { (part, acc) =>
       part match
-        case Left(e) => Some(Tm.App(Tm.App(Tm.App(Tm.Global(r.scons), elem, Icit.Impl), e, Icit.Expl), acc.getOrElse(nil), Icit.Expl))
+        case Left(e) => Some(Tm.App(Tm.App(Tm.App(Tm.Global(r.cons), elem, Icit.Impl), e, Icit.Expl), acc.getOrElse(nil), Icit.Expl))
         case Right(l) =>
           acc match
             case None => Some(l)
-            case Some(rest) => Some(Tm.App(Tm.App(Tm.App(Tm.Global(r.sappend), elem, Icit.Impl), l, Icit.Expl), rest, Icit.Expl))
+            case Some(rest) => Some(Tm.App(Tm.App(Tm.App(Tm.Global(r.append), elem, Icit.Impl), l, Icit.Expl), rest, Icit.Expl))
     }.getOrElse(nil)
 
   /** `n` as an `Index`. */

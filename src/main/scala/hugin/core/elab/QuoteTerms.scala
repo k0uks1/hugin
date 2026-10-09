@@ -53,6 +53,7 @@ trait QuoteTerms:
     fail(ReflectionProblem.QuoteWithoutType(shown, qt.span))
 
   private def reifyQ(c: Cxt, q: Q): Tm = q match
+    case Q.Hole(x, RKind.Term, _) => termHole(c, x)
     case Q.Hole(x, k, _) => check(c, x, ev(c, kindType(k)), Stage.S1)
     case Q.EntryHole(x, k, sp) => entryHole(c, x, k, sp)
     case Q.SeqHole(_, _, sp) => fail(ReflectionProblem.MisplacedSequenceHole(sp))
@@ -78,6 +79,18 @@ trait QuoteTerms:
     case Q.SymC(id, sp) => Tm.loc(sp, Tm.Quote(Tm.Global(id)))
     case Q.SymTm(tm, sp) => Tm.loc(sp, tm)
     case Q.Raw(tm, _) => tm
+
+  /** A hole `$x` at a term: `x` of type `term`, or a meta value of a base or shared type, as its
+   *  reification (`T.reify`, `tint`, …; [[Liftings.reifyCode]]). */
+  private def termHole(c: Cxt, x: Tree): Tm =
+    val term = ev(c, kindType(RKind.Term))
+    val inferred =
+      try Some(undoOnFailure(insert(c, x.span, infer(c, x))))
+      catch case _: ElabError => None
+    inferred match
+      case Some((tm, ty, Stage.S1)) if reflectiveKind(ty).isEmpty && reifyCode(c, tm, ty).isDefined => reifyCode(c, tm, ty).get
+      case Some((tm, ty, s)) => coe(c, x.span, tm, ty, s, term, Stage.S1)
+      case None => check(c, x, term, Stage.S1)
 
   /** A whole entry `$x` of kind `k` (a rule or an item): `x` of that kind, or a formula (the fact `x`), or
    *  for an item a rule. */
@@ -129,7 +142,8 @@ trait QuoteTerms:
     else fail(notSyntax)
 
   /** A value used as an object term as `term` data: literals (also persisted), object constants applied
-   *  to such terms (implicit arguments dropped), object arithmetic. */
+   *  to such terms (implicit arguments dropped; a value of a shared type is its object constructors, as
+   *  its `reify` gives), object arithmetic. */
   private def termData(v: Val): Option[Tm] = force(v) match
     case Val.Lit(l, _) =>
       val ctor = l match
@@ -140,10 +154,10 @@ trait QuoteTerms:
     case Val.Persist(x) => termData(x)
     case Val.Quote(x) => termData(x)
     case Val.Obj(ObjForm.Loc(_), List(x)) => termData(x)
-    case Val.Rigid(Head.Glob(id), spine) if isObjectConstant(id) && spine.forall(_.isInstanceOf[Elim.EApp]) =>
+    case Val.Rigid(Head.Glob(id), spine) if isObjectConstant(sharedAt(id, Stage.S0)) && spine.forall(_.isInstanceOf[Elim.EApp]) =>
       val args = spine.reverse.collect { case Elim.EApp(a, Icit.Expl) => termData(a) }
       Option.when(args.forall(_.isDefined))(
-        con("tapp", Tm.Quote(Tm.Global(id)), listData(kindType(RKind.Term), args.map(a => Left(a.get))))
+        con("tapp", Tm.Quote(Tm.Global(sharedAt(id, Stage.S0))), listData(kindType(RKind.Term), args.map(a => Left(a.get))))
       )
     case Val.Arith(op, a, b, Stage.S0) =>
       for x <- termData(a); y <- termData(b) yield con("tarith", con(arithCtor(op)), x, y)
@@ -166,7 +180,7 @@ trait QuoteTerms:
         listData(elemTm, es.map(e => Left(check(c, e, elem, Stage.S1))))
       case ConsE(h, tl) =>
         Tm.App(
-          Tm.App(Tm.App(Tm.Global(r.scons), elemTm, Icit.Impl), check(c, h, elem, Stage.S1), Icit.Expl),
+          Tm.App(Tm.App(Tm.Global(r.cons), elemTm, Icit.Impl), check(c, h, elem, Stage.S1), Icit.Expl),
           check(c, tl, listOf(elem), Stage.S1),
           Icit.Expl
         )

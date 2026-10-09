@@ -4,7 +4,7 @@
 person : type.
 ann : person. bob : person. cid : person.
 
-symmetric : (r : ⇑(A -> A -> rel)) -> seq item.
+symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '{ R Y X :- R X Y. }.
 
 friend : person -> person -> rel.
@@ -13,7 +13,7 @@ friend ann bob.
 friend bob cid.
 
 (* the same with a symbol: `$R` splices it into the quoted rule *)
-symmetric2 : sym -> seq item.
+symmetric2 : sym -> list item.
 symmetric2 R = '{ $R Y X :- $R X Y. }.
 
 knows : person -> person -> rel.

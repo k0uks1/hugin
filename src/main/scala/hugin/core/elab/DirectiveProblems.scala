@@ -79,7 +79,7 @@ enum DirectiveProblem extends Problem:
       List(msg"a directive `%d` applies the meta function `d` in scope; the prelude declares the primitive ones")
     case _: NotADirective | _: NotAttachable =>
       List(
-        msg"a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `seq item` (it adds items; also `item`, `rule`, `seq rule`)"
+        msg"a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `list item` (it adds items; also `item`, `rule`, `list rule`)"
       )
     case _: ChangedDeclaration => List(msg"a directive attached to a declaration may change only that declaration")
     case _: LabelsWithPattern =>

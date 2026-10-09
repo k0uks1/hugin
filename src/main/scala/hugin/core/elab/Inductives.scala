@@ -73,17 +73,17 @@ trait Inductives:
       }
     }
 
-  /** The implicit binders of a constructor that are arguments of its result (`A` in `scons : A -> seq A ->
-   *  seq A`): forced by the type, like parameters, so they do not count for predicativity (otherwise a
+  /** The implicit binders of a constructor that are arguments of its result (`A` in `cons : A -> list A ->
+   *  list A`): forced by the type, like parameters, so they do not count for predicativity (otherwise a
    *  family over `Type` could not hold its elements in its own universe, and nested families such as
-   *  `tapp : sym -> seq term -> term` would be universe-inconsistent). */
+   *  `tapp : sym -> list term -> term` would be universe-inconsistent). */
   private def forcedBinders(binders: List[(Name, Icit, Val)], resultSp: Spine): Set[Int] =
     val args = resultSp.collect { case Elim.EApp(Val.Rigid(Head.Local(x), Nil), _) => x }.toSet
     binders.zipWithIndex.collect { case ((_, Icit.Impl, _), l) if args(l) => l }.toSet
 
   /** `T` occurs strictly positively in `a` (over `l` variables): `a` does not mention `T`, or is
    *  `(ȳ : B̄) -> T w̄` with `T` neither in `B̄` nor in `w̄`, or `T` occurs strictly positively in an argument
-   *  of another family that is positive in that argument (nested, `seq term`). */
+   *  of another family that is positive in that argument (nested, `list term`). */
   private def strictlyPositive(fam: Int, l: Int, a: Val): Boolean =
     force(a) match
       case Val.Pi(_, _, b, cl) => !mentions(fam, l, b) && strictlyPositive(fam, l + 1, inst(cl, Val.local(l)))

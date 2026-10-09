@@ -69,8 +69,13 @@ trait ElabErrors:
       case (Stage.S0, Stage.S1) if !isLiftOrFlex(expected) && !isUniverse(expected) =>
         Some(TypeProblem.ObjectForMeta(e, fo, span).toDiagnostic)
       case (Stage.S1, Stage.S0) if !isLiftOrFlex(found) && isMetaPrimOrData(found) =>
-        Some(TypeProblem.MetaForObject(e, fo, span).toDiagnostic)
+        Some(TypeProblem.MetaForObject(e, fo, span, unsharedData(c, found)).toDiagnostic)
       case _ => None
+
+  /** The first type that is not shared in a meta inductive type or a shared type applied to one. */
+  private def unsharedData(c: Cxt, v: Val): Option[String] = forceData(v) match
+    case Val.Rigid(Head.Glob(id), _) if globals(id).kind.isInstanceOf[GlobalKind.Inductive] => firstUnshared(c, v)
+    case _ => None
 
   private def isMetaPrimOrData(v: Val): Boolean = force(v) match
     case Val.Base(_, Stage.S1) | Val.Pi(_, _, _, _) | Val.RecTy(_, _, _, _, _) | Val.U1(_) => true

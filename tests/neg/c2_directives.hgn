@@ -28,7 +28,7 @@ relations_only (dconst S As) = dconst S As.
 relations_only D = derror "`%relations_only` applies to relations only".
 %relations_only @r. (*~ E1000 *)
 
-not_yet : (r : ⇑(A -> rel)) -> seq item.
+not_yet : (r : ⇑(A -> rel)) -> list item.
 not_yet R = [ierror "`%not_yet` is not implemented yet"].
 %not_yet seen. (*~ E1000 *)
 
@@ -36,7 +36,7 @@ not_yet R = [ierror "`%not_yet` is not implemented yet"].
 %terminates n (edge X Y). (*~ E0701 *)
 %terminates n edge. (*~ E0701 *)
 
-copy : sym -> seq item.
+copy : sym -> list item.
 copy R = '{ $R X Y :- edge X Y. }.
 loops = {
   l : node -> node -> rel.

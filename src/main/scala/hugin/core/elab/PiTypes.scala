@@ -104,9 +104,10 @@ trait PiTypes:
     case _ => false
 
   /** A parameter of a formula function: an object type is object code (`int -> prop` is `⇑int ->
-   *  ⇑prop`, base types included, unlike other meta function types); other types are meta types. */
+   *  ⇑prop`, base types included, unlike other meta function types); other types are meta types. A
+   *  shared type is the object type. */
   private def formulaParam(c: Cxt, d: Tree, l: Level): Tm =
-    val (t, s, _) = inferU(c, d)
+    val (t, s, _) = atStage(Stage.S0)(inferU(c, d))
     if s == Stage.S0 then Tm.Lift(t) else check(c, d, Val.U1(l), Stage.S1)
 
   /** `{A B : T} -> B` checked against `Type l`. */

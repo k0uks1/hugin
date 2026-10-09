@@ -10,7 +10,7 @@ enum Footprint:
   /** `decl`: the declaration of one object constant (or rule); per-item incrementality is kept. */
   case Local
 
-  /** Items (`seq item`, `item`, `rule`, `seq rule`): added where the directive is. */
+  /** Items (`list item`, `item`, `rule`, `list rule`): added where the directive is. */
   case Additive(kind: RKind)
 
   /** `module -> module`: the file's rules and queries, rewritten. */

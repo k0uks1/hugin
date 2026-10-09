@@ -58,6 +58,7 @@ trait Items:
     predeclare(meta)
     elabInDependencyOrder(meta)
     dropPending()
+    defineSharedFunctions()
     elabClauseGroups(clauses)
     for f <- formulaFunctions if !state.unelaborated(f) do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })

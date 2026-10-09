@@ -5,6 +5,7 @@ error[E0902]: compile-time value used as object code
   |   ^^^^ a meta value of type `nat`
   |
   = note: object code of type `int` is expected here
-  = note: only object code (of type `⇑A`) and primitive values (`int`, `float`, `string`) can be spliced into object code
+  = note: only object code (of type `⇑A`), primitive values (`int`, `float`, `string`) and values of shared data types (declared `: data`) can be used as object code
+  = note: `nat` is not a shared data type, so it has no lifting into object code
 
 1 error found

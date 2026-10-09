@@ -79,7 +79,10 @@ private[syntax] trait ItemSyntax extends ParserBase:
       // only an error: a missing type)
       error(SyntaxError.Expected(List(Expect.tpe), found, tok.span, None, Some(SyntaxHelp.ColonEquals(colon.span))))
       return List(parseDefRest(lhs, first))
-    val tpe = parseType()
+    val tpe = parseType() match
+      // `T ā : data.`: a shared data declaration (`data` is a keyword only here)
+      case d @ Ident("data") if at(Tok.Period) => Keyword(Kw.Data)(d.span)
+      case other => other
     val sup = if at(Tok.SubT) then { advance(); Some(parseType(LvlBar)) }
     else None
     val defn = if at(Tok.Eq) then { advance(); Some(parseNonType(LvlSemi)) }

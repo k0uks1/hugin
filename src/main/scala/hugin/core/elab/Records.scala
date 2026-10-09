@@ -88,7 +88,18 @@ trait Records:
     })
 
   /** `q.l`: a projection of a meta record, or of an object fact by column label. */
-  def inferSelect(c: Cxt, sel: Select): (Tm, Val, Stage) =
+  def inferSelect(c: Cxt, sel: Select): (Tm, Val, Stage) = sel.qual match
+    // `T.lift`, `T.reify`: the functions derived from a shared data declaration
+    case hugin.syntax.Trees.Ident(n) if !c.scope.contains(n) && derivedOf(n, sel.name).isDefined =>
+      val id = derivedOf(n, sel.name).get
+      recordUse(sel.nameSpan, id)
+      globalRef(id)
+    case _ => inferProjection(c, sel)
+
+  private def derivedOf(n: Name, label: Name): Option[Int] =
+    lookupGlobal(n).flatMap(sharedFamily).map(l => if label == "lift" then l.lift else if label == "reify" then l.reify else -1).filter(_ >= 0)
+
+  private def inferProjection(c: Cxt, sel: Select): (Tm, Val, Stage) =
     val (qt, qty, qs) = spliceIfLifted(sel.qual.span, insertAll(c, sel.qual.span, infer(c, sel.qual)))
     qty match
       case rt: Val.RecTy =>

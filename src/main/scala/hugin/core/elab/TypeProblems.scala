@@ -40,7 +40,9 @@ enum TypeProblem extends Problem:
 
   /** Object code where a meta value of type `expected` is needed, and the other way round. */
   case ObjectForMeta(expected: String, found: String, at: Span)
-  case MetaForObject(expected: String, found: String, at: Span)
+  /** `unshared`: the first type in `found` that is not shared, if `found` is a meta inductive type or a
+   *  shared type applied to one (it has no lifting into object code). */
+  case MetaForObject(expected: String, found: String, at: Span, unshared: Option[String] = None)
   case DependsOnObject(name: String, at: Span)
   case SpliceOfObjectCode(at: Span)
   case CannotInferWildcard(at: Span)
@@ -85,7 +87,7 @@ enum TypeProblem extends Problem:
     case NotString(_, s) => s
     case NotObjectConstantType(s) => s
     case ObjectForMeta(_, _, s) => s
-    case MetaForObject(_, _, s) => s
+    case MetaForObject(_, _, s, _) => s
     case DependsOnObject(_, s) => s
     case SpliceOfObjectCode(s) => s
     case CannotInferWildcard(s) => s
@@ -143,7 +145,7 @@ enum TypeProblem extends Problem:
     case NotNumeric(f, _) => msg"expected a number, found ${Src(f)}"
     case NotString(f, _) => msg"expected a string, found ${Src(f)}"
     case ObjectForMeta(_, f, _) => msg"object code of type ${Src(f)}"
-    case MetaForObject(_, f, _) => msg"a meta value of type ${Src(f)}"
+    case MetaForObject(_, f, _, _) => msg"a meta value of type ${Src(f)}"
     case DependsOnObject(n, _) => msg"${Src(n)} is object code"
     case _: SpliceOfObjectCode => msg"this is already object code"
     case _: CannotInferWildcard => msg"type annotations needed"
@@ -177,11 +179,11 @@ enum TypeProblem extends Problem:
         msg"a meta value of type ${Src(e)} is expected here",
         msg"object terms (rule variables, constructor terms, formulas) only exist at run time; the meta level computes at compile time"
       )
-    case MetaForObject(e, _, _) =>
+    case MetaForObject(e, _, _, u) =>
       List(
         msg"object code of type ${Src(e)} is expected here",
-        msg"only object code (of type `⇑A`) and primitive values (`int`, `float`, `string`) can be spliced into object code"
-      )
+        msg"only object code (of type `⇑A`), primitive values (`int`, `float`, `string`) and values of shared data types (declared `: data`) can be used as object code"
+      ) ++ u.map(t => msg"${Src(t)} is not a shared data type, so it has no lifting into object code").toList
     case _: SpliceOfObjectCode => List(Msg.text("`$t` splices meta code of type `⇑A` into object code"))
     case _: CannotInferWildcard => List(msg"`_` stands for an unknown meta value or, in object code, for a wildcard")
     case _: CannotInfer => List(msg"the elaborator found no constraint that determines it; add a type annotation")

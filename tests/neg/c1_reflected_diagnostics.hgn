@@ -3,7 +3,7 @@
 p : int -> rel.
 q : int -> rel.
 
-mk : int -> seq rule.
+mk : int -> list rule.
 mk N = '{ p X :- q N. }. (*~ E0501 *)
 
 $mk 1.

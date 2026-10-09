@@ -21,7 +21,7 @@ error[E1001]: `%twice 3` is not a directive
 15 | %twice 3. (*~ E1001 *)
    | ^^^^^^^^^ its application has type `int`
    |
-   = note: a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `seq item` (it adds items; also `item`, `rule`, `seq rule`)
+   = note: a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `list item` (it adds items; also `item`, `rule`, `list rule`)
 
 error[E0901]: mismatched types
   --> tests/neg/c2_directives.hgn:16:8
@@ -37,7 +37,7 @@ error[E1002]: `%output edge` cannot be attached to a declaration
 19 | seen : node -> rel.
    | ---- the declaration that follows
    |
-   = note: a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `seq item` (it adds items; also `item`, `rule`, `seq rule`)
+   = note: a directive's application has type `decl` (it changes a declaration), `module -> module` (it rewrites the file's rules) or `list item` (it adds items; also `item`, `rule`, `list rule`)
    = help: end the directive with `.` if it is not meant to apply to the declaration
 
 error[E1003]: the directive returned the declaration of `edge` for that of `other`

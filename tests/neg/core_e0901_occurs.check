@@ -2,8 +2,8 @@ error[E0901]: mismatched types
  --> tests/neg/core_e0901_occurs.hgn:2:14
   |
 2 | self = [x] x x.
-  |              ^ expected `?151`, found `(x' : ?151) -> ?152 x'`
+  |              ^ expected `?167`, found `(x' : ?167) -> ?168 x'`
   |
-  = note: the unknown `?151` would have to contain itself (occurs check)
+  = note: the unknown `?167` would have to contain itself (occurs check)
 
 1 error found

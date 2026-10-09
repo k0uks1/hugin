@@ -41,11 +41,11 @@ trait QuotedPatterns:
       case Q.HigherOrder(f, args, k, sp) => higherOrder(f, args, k, sp)
       case Q.Con(n, args, _, sp) => Pat.PCon(r.ctor(n), args.map(patternOf), sp)
       case Q.QList(elems, _, sp) =>
-        elems.zipWithIndex.foldRight(Pat.PCon(r.snil, Nil, sp)) { case ((e, i), acc) =>
+        elems.zipWithIndex.foldRight(Pat.PCon(r.nil, Nil, sp)) { case ((e, i), acc) =>
           e match
             case Q.SeqHole(x, k, hs) if i == elems.length - 1 => patternOf(Q.Hole(x, k, hs))
             case Q.SeqHole(_, _, hs) => fail(ReflectionProblem.SequenceHoleNotLast(hs))
-            case _ => Pat.PCon(r.scons, List(patternOf(e), acc), spanOf(e))
+            case _ => Pat.PCon(r.cons, List(patternOf(e), acc), spanOf(e))
         }
       case Q.Var(_, sp) => Pat.PCon(r.ctor("tvar"), List(Pat.PWild(sp)), sp)
       case Q.Bound(i, sp) => Pat.PCon(r.ctor("tbound"), List(Pat.PLit(i.toLong, sp)), sp)

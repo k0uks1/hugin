@@ -3,7 +3,7 @@
 p : int -> rel.
 q : int -> rel.
 old : rule = (p X :- q X). (*~ E0001 *)
-inList : seq rule = [p X :- q X]. (*~ E0001 *)
+inList : list rule = [p X :- q X]. (*~ E0001 *)
 fine : rule = '{ p X :- q X }.
 unclosed : rule = '{ p X :- q X (*~ E0005 *)
 after : rule = '{ q 1 }.
