@@ -37,12 +37,21 @@ conversion ([Kovács 2022](../notation.md#references)):
 - a *splice* `$e` turns a meta value `e : ⇑A` into object code of type `A`;
 - a meta value of a base type or of a [shared data type](families.md#shared-data) used as object code is
   converted by its [lifting](#lifting);
-- `⇑` is inserted where an object type is used as a meta type;
-- `⇑` is *covariant*: a value of type `⇑A` is accepted where `⇑B` is expected if `A` is a
-  [subtype](../object/types.md#subtyping) of `B`. Nothing is inserted.
+- `⇑` is inserted where an object type is used as a meta type.
 
 Functions are converted by eta-expansion: a relation of type `⇑(A -> rel)` can be passed where a formula
 function `⇑A -> ⇑prop` is expected. `--print-after elaborate` shows the inserted quotes and splices.
+
+`⇑` is *covariant*: a value of type `⇑A` is accepted where a value of type `⇑B` is expected if `A` is a
+[subtype](../object/types.md#subtyping) of `B`. Nothing is inserted. The same holds where a value
+`e : ⇑A` is used as object code in a position that is itself quoted, such as an argument of a meta
+function that takes `⇑B`: the quote cancels the splice, and `e` is passed as it is. A function type is
+contravariant in its domain, so a function on `⇑expr` is accepted where a function on `⇑var` is expected
+if `var` is a subtype of `expr`. Record types are related field by field. Any other type that contains
+`⇑`, such as `list (⇑A)`, is related to another only by equality. It is an error
+([E0901](../errors/E0901.md)) otherwise, or ([E0204](../errors/E0204.md)) for a field of a record.
+Spliced code in an object position is not a meta-level conversion; it is typed by object typing
+([Object types](../object/types.md#typing-of-rules)).
 
 It is an error ([E0902](../errors/E0902.md)) if a meta value is used as object code and its type has no
 lifting, or if object code is used where a meta value is needed.
@@ -80,6 +89,20 @@ found X :- vars X, named X.
 ```output
 ?- found X.
 X = v 1.
+```
+
+The following function is rejected: `X` is object code of type `expr`, and `narrow` takes object code of
+type `var`, a subtype of `expr`.
+
+```hugin,compile_fail,E0901
+expr : type.
+var : type.
+var <: expr.
+vars : (v : var) -> rel.
+narrow : var -> prop.
+narrow X = vars X.
+widen : expr -> prop.
+widen X = narrow X.
 ```
 
 The explicit splice `$e` states a conversion that stage inference would insert: `e` is meta code, and a
@@ -175,7 +198,9 @@ formula function is replaced by the formula that the function returns. A formula
   `f t₁ … tₙ :- φ.` of the file is a clause of `f`. The function stands for the disjunction of its
   clauses: `f x̄` is `(x̄ = t̄₁, φ₁) ; … ; (x̄ = t̄ₖ, φₖ)`.
 
-The variables of a clause other than its arguments are local to each use: every application gets fresh
+Each clause of a formula function is [typed](../object/types.md#where-object-code-is-typed) where it
+is written, like a rule whose body is the clause's body and the equations of its arguments. The
+variables of a clause other than its arguments are local to each use: every application gets fresh
 variables (*hygiene*). A formula function without clauses is always false; the compiler warns about it
 ([W0005](../errors/W0005.md), lint `empty_formula_functions`).
 

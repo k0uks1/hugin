@@ -7,10 +7,57 @@ chapter defines the reflective types, the quotes `'{ … }` that turn object syn
 (*reification*), the quoted patterns that match on them, and how data becomes part of the program again
 (*reflection*).
 
-The reflective types are untyped: the data does not record object types. A quote is
-[object-typed](object/types.md#where-object-code-is-typed) where it is written, and `quoted A` is a term
-of the object type `A` (see [Typed terms](#typed-terms)). Reflected code is elaborated and checked again
-like code written by hand.
+Reflection has a typed layer over an untyped representation:
+
+- A *quoted term*, a value of type `quoted A`, is a term of the object type `A`
+  ([Typed terms](#typed-terms)). Its data is a `term`; the object type `A` is an index of its type that
+  the data does not record.
+- A quote is [object-typed](object/types.md#where-object-code-is-typed) where it is written, whether or
+  not it is ever reflected ([Quotes](#quotes)).
+- A hole of a quoted pattern at a column of a known object type `τ` binds a quoted term of type
+  `quoted τ` ([Quoted patterns](#quoted-patterns)).
+- The types `term`, `formula`, `rule`, `item` and `module` are the representation. Their values carry no
+  object types, and formulas, rules and items have no typed form.
+- Reflected data is elaborated and typed again like code written by hand
+  ([Reflecting data into the program](#reflecting-data-into-the-program)). Data built without a quote
+  may describe ill-typed code, which is reported when it is reflected.
+
+The following function takes a quoted term of type `expr` and puts it under `neg` in a fact of `typed`.
+
+```hugin,run
+expr : type. typ : type.
+lit : int -> expr.
+neg : expr -> expr.
+tint : typ.
+typed : (e : expr) -> (t : typ) -> rel.
+negated : quoted expr -> list item.
+negated E = '{ typed (neg $E) tint. }.
+$negated '{ lit 1 }.
+$negated '{ neg (lit 2) }.
+%output typed.
+```
+
+```output
+typed (neg (lit 1)) tint.
+typed (neg (neg (lit 2))) tint.
+```
+
+The following function is rejected where it is defined, since it puts its quoted term of type `expr` in
+the column of type `typ`.
+
+```hugin,compile_fail,E0402
+expr : type. typ : type.
+lit : int -> expr.
+tint : typ.
+typed : (e : expr) -> (t : typ) -> rel.
+backwards : quoted expr -> list item.
+backwards E = '{ typed tint $E. }.
+```
+
+> **Note.** The typed layer follows Qq's `Q(α)` over Lean's untyped `Expr`, Scala's `Expr[T]` and typed
+> Template Haskell: a phantom index over untyped syntax, with an unchecked conversion (`qterm`) and a
+> forgetful one (`raw`). The untyped types remain the representation, the target of quotes and the
+> type of directives that are generic over all relations, such as `%demand`.
 
 ## The reflective types
 
@@ -22,12 +69,12 @@ The prelude declares the following types ([The prelude](prelude.md#reflection)).
 | `sym` | none | references to object constants, compared by identity |
 | `index` | `izero`, `isuc` | de Bruijn indices of variables bound by aggregates |
 | `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (list term)`, `tarith arith_op term term`, `tneg term` | terms |
+| `quoted A` | `qterm term` | a term of the object type `A` ([Typed terms](#typed-terms)) |
 | `formula` | `fatom sym (list term)`, `fcmp cmp_op term term`, `fnot formula`, `fconj formula formula`, `fdisj formula formula`, `fagg agg_op term term formula` | formulas |
 | `rule` | `horn (list formula) (list formula)` | a rule: its heads and its body conjuncts |
 | `item` | `irule rule`, `iquery (list formula)`, `inamed string rule`, `ierror string`, `irelation sym (list column)` | items |
 | `module` | (a definition: `list item`) | the rules and queries of a file |
 | `column` | `colof sym index` | the column of an object constant at an index |
-| `quoted A` | `qterm term` | a term of the object type `A` ([Typed terms](#typed-terms)) |
 
 `arith_op`, `cmp_op` and `agg_op` enumerate the operators `+ - * / ^`, the comparisons and the
 aggregates. An object variable is represented by its name (`tvar "X"`). In an aggregate
@@ -86,12 +133,37 @@ In the content,
 - a named pattern `r { l = t, .. }` is the atom with its arguments in column order;
 - a plain uppercase identifier is an object variable (`tvar "X"`), and `_` the wildcard `twild`.
 
-A quote is object-typed where it is written, by the rules of [Object types](object/types.md): each rule
-of its content is typed like a rule of the program, a formula like a body, and a term at the type the
-expected `quoted A` gives (at no type for `term`). Its holes have the types of their values: a hole of
-type `quoted A` is a term of type `A`, a hole of type `term` a term of any type, and a meta value of a
-base or shared type a term of the type it lifts to. It is an error ([E0402](errors/E0402.md),
-[E0401](errors/E0401.md)) if the content is ill-typed, whether or not the quote is ever reflected.
+A quote is [object-typed](object/types.md#where-object-code-is-typed) where it is written, whether or
+not it is ever reflected, according to its category:
+
+- each rule of a `rule`, `item`, `list rule` or `module` quote is typed like a rule of the program, and
+  each query like a query;
+- a `formula` quote is typed like the formula of a query;
+- the term of a quote checked against `quoted A` must have a subtype of `A`;
+- the term of a `term` quote is typed without an expected type, so only its inside is checked;
+- a `sym`, `decl` or `measure` quote is not typed.
+
+The holes of a quote are typed by their values:
+
+- a hole whose value is a quoted term of type `quoted A` is a term of type `A`;
+- a hole whose value is a `term` is a term of an unknown type, which fits every column;
+- a hole whose value has a base type or a shared data type is a term of the object type that the value
+  [lifts](meta/staging.md#lifting) to;
+- a hole for a symbol, a formula, a rule or an item, a sequence hole `$..Xs` and a higher-order hole are
+  not typed, and neither are the arguments of an atom whose relation is a hole.
+
+It is an error ([E0401](errors/E0401.md), [E0402](errors/E0402.md)) if the content of a quote is
+ill-typed. A hole whose value is object code `⇑A` is an error ([E0901](errors/E0901.md)): object code
+is opaque, and a quote holds data.
+
+The following definition is rejected: the quoted term must be a `typ`, and `lit 1` is an `expr`.
+
+```hugin,compile_fail,E0402
+expr : type. typ : type.
+lit : int -> expr.
+tint : typ.
+one : quoted typ = '{ lit 1 }.
+```
 
 A variable `X` of type `quoted A` that is a hole `$X` at several places of the body of one quoted rule,
 query or formula is one object variable there: its type is the meet of the types of these positions and
@@ -114,8 +186,13 @@ both X = '{ busy :- teaches $X, cleans $X }.
 
 Meta values are written as holes (see below): `'{ $R X :- $..Body }`. It is an error
 ([E0917](errors/E0917.md)) to quote `as`, an ascription, a projection or an update, which have no
-representation, or content of another category than the expected type's (two items where a rule is
-expected, a rule where a formula is expected). It is an error ([E0919](errors/E0919.md)) if a quote
+representation, content of another category than the expected type's (two items where a rule is
+expected, a rule where a formula is expected), a quote directly inside quoted syntax, or a
+[typed hole](meta/functions.md#typed-holes) `?`. A quote cannot denote a list of formulas or terms; such
+a list is a meta list of quotes (`['{ p X }, '{ q X }]`), and a quote checked against it is an error
+([E0917](errors/E0917.md)). The expression of a hole is meta code again, so a quote may stand inside a
+hole (`'{ p $(f '{ X }) }`). It is an error ([E0101](errors/E0101.md)) if a name in a quote is not in
+scope. It is an error ([E0919](errors/E0919.md)) if a quote
 stands where no reflective type is expected: the expected type is another one, or it is not known, as for
 a definition without a declared type. Ascribe the quote, `('{ p X } : formula)`, or declare the type. An
 item `$e.` expects reflected items, so `$'{ … }.` needs no ascription. Object syntax outside a quote is
@@ -162,14 +239,16 @@ A *hole* marks a place in a quote where a meta value stands. Holes exist only in
   without a space.
 
 In an expression, a hole splices a value into the quoted syntax; a sequence hole may be anywhere in its
-sequence. A hole `$e` at a term whose value is not `term` data but a meta value of a base type or of a
+sequence. A hole whose value is a [quoted term](#typed-terms) stands for its term. A hole `$e` at a term
+whose value is not `term` data but a meta value of a base type or of a
 [shared data type](meta/families.md#shared-data) stands for the value's *reification*: `tint e`,
 `tfloat e` or `tstr e` for a base type, `T.reify ḡ e` for a shared type, with the element functions given
 by the type. The reified data describes exactly the object code that the value
 [lifts](meta/staging.md#lifting) to, so reflecting `'{ p $e }` gives the rule `p e` with `e` lifted.
 There is no such conversion in patterns. In a pattern, `$X` binds the pattern variable `X` to the data at
-its place, `$_` matches anything, and `$..Xs` binds the rest of a sequence and must end it. It is an
-error ([E0917](errors/E0917.md)) if a hole is in a place it cannot stand for.
+its place, or to a quoted term ([Quoted patterns](#quoted-patterns)), `$_` matches anything, and `$..Xs`
+binds the rest of a sequence and must end it. It is an error ([E0917](errors/E0917.md)) if a hole is in a
+place it cannot stand for.
 
 The following program generates one fact per suffix of a compile-time list. The hole `$(X :: Xs)` is a
 meta list, so its reification `list.reify tint (X :: Xs)` is inserted.
@@ -205,14 +284,33 @@ unchanged.
   `V` bound by an enclosing aggregate; it binds `F : term -> formula` (or `term -> term`), the function
   that puts its argument in the place of `V`.
 
-- A hole `$X` at an argument of an object constant whose column has a base type or the type of a
-  constant binds `X : quoted τ`, a term of the column's type `τ`: in `typed $E $G $T`, `E` is a
-  `quoted expr`. Other holes bind data of their category (`term`, `formula`, a list for `$..Xs`).
+A hole `$X` binds `X` to a quoted term if it is an argument of an object constant that is not a
+family, written by its name (an atom or a constructor term, also nested, as `E` in
+`typed (neg $E) $G $T`), and the column of the argument has one of the following types `τ`:
+
+- a base type;
+- an open type or a refinement;
+- the fact type of a relation, struct or constructor.
+
+An instance of a family is none of these.
+
+Then `X` has the type `quoted τ`. In `typed $E $G $T` with `typed : (e : expr) -> (g : ctx) -> (t : typ)
+-> rel`, `E` is a `quoted expr`, `G` a `quoted ctx` and `T` a `quoted typ`, so the quotes in the
+right-hand side that use them are typed with these types. Every other hole binds data of its category:
+
+- a hole at a column of a union type or of an instance of a family, such as `list expr`, binds a `term`,
+  and so does a hole at an argument of a family's constant, such as `$X` in `cons $X $Xs`;
+- a hole among the arguments of an atom whose relation is a hole, as `$X` in `$R $X $Y`, binds a `term`;
+- a hole inside arithmetic or a comparison, as `$X` in `$X + 1`, binds a `term`;
+- a hole for a relation binds a `sym`, and a hole for a formula, a rule or an item binds a `formula`,
+  `rule` or `item`;
+- `$..Xs` binds a list of its category, and a higher-order hole binds a function, as stated above.
 
 Splitting on object constants and literals has a branch for each value that the clauses name and a
-default branch for the clauses that do not constrain the argument. The type of a hole is not checked when
-data is matched: data built without a quote (by constructors, or by `qterm`) may describe an ill-typed
-term, which is found when the data is reflected.
+default branch for the clauses that do not constrain the argument. A quoted term that a hole binds does
+not change the case tree: the type of the matched data is not tested. Data built without a quote, by the
+constructors of the reflective types or by `qterm`, may describe an ill-typed term, which is reported
+when the data is reflected.
 
 The following function swaps the arguments of every binary atom; `$R` matches the relation as a symbol.
 
@@ -253,11 +351,55 @@ count_ok 2.
 
 ## Typed terms
 
-`quoted A` is a term of the object type `A`: a quote checked against `quoted A` is one, and so is a hole
-of a quoted pattern at a column of type `A`. Its value is the data `qterm t` with the `term` `t`; the
-prelude's `raw : quoted A -> term` gives `t` back. A `quoted A` is accepted where a `term` is expected
-(`raw` is inserted), where a `quoted B` is expected if `A` is a subtype of `B`, and in object code, where
-it stands for its term. `qterm` makes a `quoted A` from any `term` without a check.
+The prelude declares the type former of quoted terms with its constructor and its inverse:
+
+```text
+quoted : ⇑type -> Type.
+qterm  : term -> quoted A.
+raw    : quoted A -> term.         (raw (qterm t) = t)
+```
+
+A value of type `quoted A` is a quoted term of the object type `A`. Its data is `qterm t` with a `term`
+`t`. It is made in one of three ways:
+
+- by a quote checked against `quoted A`, whose term is typed at `A` ([Quotes](#quotes));
+- by a hole of a quoted pattern at a column of type `A` ([Quoted patterns](#quoted-patterns));
+- by `qterm t`, from any `term` `t`, without a check.
+
+A quoted term `q : quoted A` may be used as follows:
+
+- where a `term` is expected, `raw q` is inserted;
+- where a `quoted B` is expected, `q` is accepted if `A` is a [subtype](object/types.md#subtyping) of
+  `B`, and nothing is inserted: `quoted` is covariant;
+- in object code, with or without `$`, `q` stands for the term it describes, which is reflected and
+  typed like a term written in its place; as for a `term` in object code, the data must be closed
+  ([E0918](errors/E0918.md));
+- as the value of a hole of a quote, `q` is a term of type `A` ([Quotes](#quotes)).
+
+It is an error ([E0901](errors/E0901.md)) to use a quoted term otherwise. In particular, a `term` is not
+a `quoted A`, `quoted A` is not `quoted B` unless `A` is a subtype of `B`, and a quoted term is not
+object code `⇑A`. A [directive](directives.md) does not quote an argument at a parameter of type
+`quoted A` implicitly; the argument is written as a quote.
+
+The following program uses a quoted term as a term, in a head with `$` and in an equation through a
+`term`.
+
+```hugin,run
+pairs : int -> int -> rel.
+base : int -> rel.
+three : quoted int = '{ 1 + 2 }.
+asTerm : term = three.
+base 1. base 2.
+pairs X $three :- base X.
+pairs X Y :- base X, Y = asTerm.
+?- pairs X Y.
+```
+
+```output
+?- pairs X Y.
+X = 1, Y = 3.
+X = 2, Y = 3.
+```
 
 The following function guards the rules of `typed` whose expression is a negation. `E` is a
 `quoted expr`, so the quotes that use it are checked where `guard` is defined: `'{ asked $G $E }` would
@@ -301,6 +443,40 @@ termination). It is an error ([E0918](errors/E0918.md)) if the data is not close
 a postulate or on a parameter of a meta function. It is also an error if the data does not describe
 object code, such as a variable without a name, a rule without heads or a bound index outside its
 aggregate.
+
+Reflected code is [typed](object/types.md#where-object-code-is-typed) like code written by hand. Data
+built by the constructors of the reflective types or by `qterm` has not been typed before, so its type
+errors are reported here. The following program is rejected when `$'{ held $bad. }` is reflected: `bad`
+claims to be a term of type `int`, but its data is the string `"x"`.
+
+```hugin,compile_fail,E0402
+held : int -> rel.
+bad : quoted int = qterm (tstr "x").
+$'{ held $bad. }.
+```
+
+The name of an object variable in data may end in `#k`, where `k` is a number: `tvar "X#0"`. Source
+syntax cannot write `#`, so such a variable is distinct from every variable that the program writes,
+also from `X`. Diagnostics and printed programs show it without the suffix. Code that invents variables,
+such as [`%demand`](directives.md#what-demand-generates), uses such names, so that they cannot capture a
+variable of the program, as the variables of [formula functions](meta/staging.md#formula-functions)
+cannot.
+
+The following program reflects a rule with the variables `X#0` and `X`, which are two variables.
+
+```hugin,run
+node : type. a : node. b : node.
+edge : node -> node -> rel.
+linked : node -> node -> rel.
+edge a b.
+hidden : term = tvar "X#0".
+$'{ linked $hidden X :- edge $hidden X. }.
+%output linked.
+```
+
+```output
+linked a b.
+```
 
 Generated items take the place of the item `$e.`. A diagnostic in a generated item points at the syntax
 the data was quoted from, with a note "in code reflected by `$e`". A query generated by `$e.` prints the
