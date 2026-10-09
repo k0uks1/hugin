@@ -139,7 +139,8 @@ type definitions that unfold into each other form a forbidden cycle ([E0104](../
 [Object types](types.md#type-definitions)). The [prelude](../prelude.md) is an outer scope: a declaration
 of the program with the name of a prelude constant shadows it in the whole file.
 
-The following program declares its own `len` and `list`, which shadow those of the prelude.
+The following program declares its own `list`, which shadows that of the prelude, and a relation `len`
+over it.
 
 ```hugin,run
 list : type.

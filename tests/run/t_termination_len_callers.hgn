@@ -1,6 +1,7 @@
 (* Callers of `len` that read its answers and are read by other calls of `len` (formerly a component of
    the moded `len` and its demand relation): the prelude's `len` measures the lists that are facts, so
    `pick`, `long` and `sized` are in later components. `sized` builds terms over the answers of `len`. *)
+%use "std/list".
 e : list int -> rel.
 e (cons 1 nil). e (cons 2 (cons 3 nil)). e (cons 1 (cons 2 (cons 3 nil))).
 pick : list int -> rel.

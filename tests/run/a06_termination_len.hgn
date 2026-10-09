@@ -1,6 +1,7 @@
 (* A.2 (6): the termination check accepts the prelude's `len` (guarded induction on the list, a fact
    whose tail is a smaller fact) and a bounded integer counter. `len` measures the lists that are facts;
    with `%demand len +l -n.` a call demands its list, and the demand rule makes it a fact. *)
+%use "std/list".
 %demand len +l -n.
 counter : int -> rel.
 %terminates N (counter N).

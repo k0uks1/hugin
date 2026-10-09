@@ -18,8 +18,8 @@ For an object type `A`, the meta type `⇑A` (*lift* of `A`) is the type of *obj
 term of the object level that is not evaluated at compile time. Its values can be passed around, stored
 in records and returned by functions, and they are inserted into object items, but they cannot be
 inspected: a meta function cannot match on a value of type `⇑A`. Programs that inspect object syntax use
-the [reflective types](../reflection.md). Object code is [object-typed](../object/types.md#where-object-code-is-typed)
-where it is written.
+the [reflective types](../reflection.md). Object code is
+[object-typed](../object/types.md#where-object-code-is-typed) where it is written.
 
 The types of relations (`node -> node -> rel`) and of formulas (`prop`) are object types in this sense:
 a meta value of type `node -> node -> rel` is object code that denotes a relation, and one of type `prop`
@@ -164,6 +164,7 @@ size 6.
 The following program states a list and an optional value computed at compile time as facts.
 
 ```hugin,run
+%use "std/list".
 primes : list int = [2, 3, 5, 7].
 first : option int = some 2.
 listed : list int -> rel.

@@ -1,0 +1,16 @@
+(* std/graph: graphs as modules (reference: prelude). `graph` is the signature of a graph; the
+   functors take one and return a module with the derived relation. *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+
+bounded (g : graph) (limit : int) = {
+  hop : g.node -> g.node -> int -> rel.
+  %terminates N (hop _ _ N).
+  hop X Y 1 :- g.edge X Y.
+  hop X Z M :- hop X Y N, g.edge Y Z, N < limit, M = N + 1.
+}.

@@ -1,5 +1,5 @@
 (* Reflective data that cannot become object code (E0918): data that is not known at compile time, a
-   variable without a name, a rule without heads. *)
+   variable without a name, a rule without heads. *) %use "std/reflect".
 p : int -> rel.
 
 opaque : formula.

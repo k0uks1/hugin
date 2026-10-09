@@ -24,7 +24,7 @@ final class ObjectTerms(core: Core, symbols: ObjectSymbols, names: List[Name], i
 
   private def bad(problem: Problem): Nothing = throw NotObjectCode(problem.toDiagnostic)
 
-  private def expected(what: String, t: Tm, span: Span): Nothing = bad(ElabProblem.NotObjectShape(what, showTm(names, t), span))
+  private def expected(what: String, t: Tm, span: Span): Nothing = bad(ElabProblem.NotObjectShape(what, showTmBounded(names, t), span))
 
   private def variable(t: Tm, span: Span): String = Tm.unloc(t) match
     case Tm.Var(ix) => names(ix)

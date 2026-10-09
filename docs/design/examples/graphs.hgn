@@ -2,10 +2,11 @@
    type `edge`, used at compile time by a meta function and at run time as facts: stating it as a fact
    (`known graph.`, `list.lift` is inserted) builds its subfacts, among them the edges `e 1 2`, …, which
    the relation `road` reads. The two definitions of reachability stay different, on purpose: at the
-   object level it is the least fixed point of two rules (the prelude's functor `tc`); at the meta level
+   object level it is the least fixed point of two rules (the functor `tc` of `std/graph`); at the meta level
    a function must be structurally recursive, so the closure is computed by iterating a step a bounded
    number of times (the number of edges suffices). Before #80 the graph was written twice (as facts of
    `road` and as a list of a meta type `medge`). *)
+%use "std/graph".
 
 edge : data.
 e : (from : int) -> (to : int) -> edge.
@@ -28,7 +29,7 @@ size (E :: Es) = suc (size Es).
 
 mem : int -> list int -> bool.
 mem X [] = false.
-mem X (Y :: Ys) = bor (same X Y) (mem X Ys).
+mem X (Y :: Ys) = if (same X Y) true (mem X Ys).
 
 addNew : int -> list int -> list int.
 addNew X Ys = addIf (mem X Ys) X Ys.

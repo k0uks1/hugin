@@ -1,5 +1,5 @@
 (* Quotes are object-typed where they are written: with typed holes, with the type of a `quoted` term,
-   and without holes. *)
+   and without holes. *) %use "std/reflect".
 expr : type. typ : type. ctx : type.
 lit : int -> expr.
 tint : typ.

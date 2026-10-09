@@ -2,7 +2,7 @@
    application whose type is not a directive's (E1001), a prefix directive that does not have type
    `decl -> decl` (E1002), or that returns another declaration (E1003), errors a directive reports
    itself (E1000), arguments of the wrong type (E0901), attributes that do not fit (E0701), and what
-   module bodies do not support (E0907). *)
+   module bodies do not support (E0907). *) %use "std/reflect".
 node : type.
 a : node.
 edge : node -> node -> rel.

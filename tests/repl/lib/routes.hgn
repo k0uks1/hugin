@@ -1,4 +1,5 @@
 (* imported by trip.hgn; imports geo.hgn from its own directory *)
+%use "std/graph".
 geo = %import "geo".
 leg : geo.place -> geo.place -> rel.
 leg geo.here geo.there.

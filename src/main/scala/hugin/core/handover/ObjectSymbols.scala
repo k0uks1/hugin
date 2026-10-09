@@ -112,7 +112,8 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
 
   private def isObjectLike(k: GlobalKind): Boolean = k.isInstanceOf[GlobalKind.Object] || k.isInstanceOf[GlobalKind.Family]
 
-  private def fromPrelude(g: GlobalEntry): Boolean = g.declSpan.exists && g.declSpan.source.path == hugin.compiler.SourceLoader.PreludePath
+  /** Whether `g` is declared by the bundled standard library (the prelude or a `std/` module). */
+  private def fromPrelude(g: GlobalEntry): Boolean = g.declSpan.exists && hugin.compiler.StdlibCache.isStdlib(g.declSpan.source.path)
 
   /** The object-level name of an object constant: a prelude constant that the program redeclares is
    *  qualified with `prelude` (`prelude.pair`), also in the names of its instances. */
@@ -159,5 +160,5 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
     case other => notAnObjectType(other, span)
 
   private def notAnObjectType(t: Tm, span: Span): OType =
-    reporter.report(elab.ElabProblem.StuckObjectType(showTm(Nil, t), span).toDiagnostic)
+    reporter.report(elab.ElabProblem.StuckObjectType(showTmBounded(Nil, t), span).toDiagnostic)
     OType.Err

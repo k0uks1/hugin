@@ -1,0 +1,208 @@
+(* std/reflect: the vocabulary the compiler knows by name (reference: prelude). Lists and options
+   (shared by both stages), meta booleans, object syntax as data (reference: reflection), declarations
+   as data and the primitive directives (reference: directives), and the primitive operations on
+   symbols. The compiler finds these declarations in this file, whatever the names in scope of a
+   program; the prelude opens the ones that nearly every program uses. *)
+
+(* Lists, shared by both stages (`[a, b]`, `x :: xs`; reference: meta/families). At the object level
+   `nil` and `cons` are constructors: a list is a fact once a head or an input file builds it. *)
+list A : data.
+nil : list A.
+cons : A -> list A -> list A.
+
+(* Optional values, shared like lists *)
+option A : data.
+none : option A.
+some : A -> option A.
+
+(* Meta booleans, and the choice between two values by one *)
+bool : Type.
+true : bool.
+false : bool.
+
+if : bool -> A -> A -> A.
+if true X Y = X.
+if false X Y = Y.
+
+(* Reflection (reference: reflection): object syntax as data. A quote `'{ … }` where one of these
+   types is expected is data of it (`'{ p X :- q X }`, `'{ edge 1 2. edge 2 3. }`); in a pattern it is
+   a quoted pattern with holes `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the
+   program. Sequences of syntax are meta lists (`list term`). *)
+append : list A -> list A -> list A.
+append [] Ys = Ys.
+append (X :: Xs) Ys = X :: append Xs Ys.
+
+(* References to object constants, compared by identity *)
+sym : Type = %builtin symbol.
+
+(* De Bruijn indices of the variables bound by aggregates (locally nameless) *)
+index : Type.
+izero : index.
+isuc : index -> index.
+
+arith_op : Type.
+oadd : arith_op.
+osub : arith_op.
+omul : arith_op.
+odiv : arith_op.
+ocat : arith_op.
+
+cmp_op : Type.
+ceq : cmp_op.
+cne : cmp_op.
+clt : cmp_op.
+cle : cmp_op.
+cgt : cmp_op.
+cge : cmp_op.
+
+agg_op : Type.
+acount : agg_op.
+asum : agg_op.
+amin : agg_op.
+amax : agg_op.
+
+term : Type.
+tvar : string -> term.
+tbound : index -> term.
+twild : term.
+tint : int -> term.
+tfloat : float -> term.
+tstr : string -> term.
+tapp : sym -> list term -> term.
+tarith : arith_op -> term -> term -> term.
+tneg : term -> term.
+
+(* A term of the object type `A` (reference: reflection): a quote checked against `quoted A`, or the
+   hole `$X` of a quoted pattern at a column of type `A`, is one. `qterm` makes one without a check
+   (the escape hatch); reflected data is checked again in any case. A `quoted A` is used as a `term`. *)
+quoted : ⇑type -> Type.
+qterm : term -> quoted A.
+raw : quoted A -> term.
+raw (qterm T) = T.
+
+(* A typed variable (reference: reflection): the object variable named by the hint `N`, as a term of
+   type `A`. Its name has the reserved form `N#v`, which source syntax cannot write, so it cannot capture
+   a variable of the program; the same hint in one rule is the same variable. *)
+qvar : string -> quoted A.
+qvar N = qterm (tvar (N ^ "#v")).
+
+formula : Type.
+fatom : sym -> list term -> formula.
+fcmp : cmp_op -> term -> term -> formula.
+fnot : formula -> formula.
+fconj : formula -> formula -> formula.
+fdisj : formula -> formula -> formula.
+(* `X = k { t | φ }`: `t` and `φ` are under one binder, the variable `t` names *)
+fagg : agg_op -> term -> term -> formula -> formula.
+
+(* A term of a type of facts as an atom (reference: reflection): `qatom` turns the data `qterm (tapp s ts)`
+   into `fatom s ts`, and is stuck on any other term, which reflection rejects. A `quoted A` whose `A` is a
+   type of facts is accepted where a `formula` is expected (`qatom` is inserted). *)
+qatom : quoted A -> formula = %builtin qatom.
+
+rule : Type.
+horn : list formula -> list formula -> rule.
+
+(* A column of an object constant: the column at an index of a constant, with its label and type (types
+   are not data, Q5, but they can be referred to) *)
+column : Type.
+colof : sym -> index -> column.
+
+item : Type.
+irule : rule -> item.
+iquery : list formula -> item.
+(* a rule with a name `@n` *)
+inamed : string -> rule -> item.
+(* an error reported where the items are reflected (a directive rejecting its arguments) *)
+ierror : string -> item.
+(* the declaration of a relation with the given columns: of a constant derived from another (`derive`) *)
+irelation : sym -> list column -> item.
+
+module : Type = list item.
+
+(* Instantiating the variable bound at index K by W (what a higher-order hole `$F[V]` abstracts) *)
+pick : index -> index -> term -> term -> term.
+pick izero izero W B = W.
+pick izero (isuc J) W B = B.
+pick (isuc K) izero W B = B.
+pick (isuc K) (isuc J) W B = pick K J W B.
+
+openT : index -> term -> term -> term.
+openT K W (tbound J) = pick K J W (tbound J).
+openT K W (tapp S Ts) = tapp S (openTs K W Ts).
+openT K W (tarith O A B) = tarith O (openT K W A) (openT K W B).
+openT K W (tneg A) = tneg (openT K W A).
+openT K W T = T.
+
+openTs : index -> term -> list term -> list term.
+openTs K W [] = [].
+openTs K W (T :: Ts) = openT K W T :: openTs K W Ts.
+
+openF : index -> term -> formula -> formula.
+openF K W (fatom S Ts) = fatom S (openTs K W Ts).
+openF K W (fcmp C A B) = fcmp C (openT K W A) (openT K W B).
+openF K W (fnot F) = fnot (openF K W F).
+openF K W (fconj F G) = fconj (openF K W F) (openF K W G).
+openF K W (fdisj F G) = fdisj (openF K W F) (openF K W G).
+openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isuc K) W F).
+
+(* Directives (reference: directives): `%d a₁ … aₙ.` applies the meta function `d`, and the type of the
+   application says what it changes. A directive returning a `decl` changes the declaration of an object
+   constant (local: `%input r.`; in the prefix form `%d a₁ … aₙ` before a declaration, `d a₁ … aₙ` has type
+   `decl -> decl` and is applied to it); one of type `module -> module` rewrites the file's rules and
+   queries (module-wide); one returning items (`list item`, `item`, `rule`, `list rule`) adds them. The
+   arguments of a directive are object syntax: at a parameter of a reflective type, an argument is quoted
+   implicitly (where a `decl` is expected, the name of an object constant or a rule name `@r` is its
+   declaration). *)
+
+(* What directives attach to a declaration; the compiler implements them *)
+measure : Type.
+mvars : list string -> measure.        (* `%terminates X (r X _)`, `%terminates (X, Y) (r X Y)` *)
+mlabels : list string -> measure.      (* `%terminates n r`, `%terminates (n, m) r` *)
+
+attr : Type.
+ainput : attr.
+aoutput : attr.
+aopen : attr.
+aderivations : attr.
+(* a measure, with the arguments of the call pattern for a measure of variables *)
+aterminates : measure -> list term -> attr.
+
+decl : Type.
+dconst : sym -> list attr -> decl.     (* an object constant (relation, constructor, type) *)
+drule : string -> list attr -> decl.   (* a named rule `@r` *)
+derror : string -> decl.              (* an error, reported at the directive *)
+
+attach : attr -> decl -> decl.
+attach A (dconst S As) = dconst S (append As [A]).
+attach A (drule N As) = drule N (append As [A]).
+attach A (derror M) = derror M.
+
+(* The primitive directives (reference: directives) *)
+input : decl -> decl.
+input D = attach ainput D.
+output : decl -> decl.
+output D = attach aoutput D.
+open : decl -> decl.
+open D = attach aopen D.
+derivations : decl -> decl.
+derivations D = attach aderivations D.
+
+terminates : measure -> formula -> decl.
+terminates M (fatom S Ts) = dconst S [aterminates M Ts].
+terminates M F = derror "`%terminates` expects a relation or a call pattern `(r t̄)` after the measure".
+
+(* The primitive operations on atoms and symbols *)
+(* whether two atoms (literals, symbols) are equal; stuck on anything else *)
+same : A -> A -> bool = %builtin same.
+(* the labels of the columns of a constant (`""` for a column without one) *)
+labels : sym -> list string = %builtin labels.
+(* the constant `r.l` derived from `r`, declared by an item `irelation`; and whether a constant is one *)
+derive : sym -> string -> sym = %builtin derive.
+derived : sym -> bool = %builtin derived.
+
+(* one mode per column, indexed by the columns' labels: `+e -t` is `minput "e" (moutput "t" mnone)` *)
+modes : list string -> Type.
+mnone : modes [].
+minput : (l : string) -> modes Ls -> modes (l :: Ls).
+moutput : (l : string) -> modes Ls -> modes (l :: Ls).

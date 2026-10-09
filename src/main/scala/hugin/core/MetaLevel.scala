@@ -26,6 +26,7 @@ object MetaLevel:
       index: hugin.compiler.SemanticIndex = hugin.compiler.SemanticIndex()
   ): Elaborated =
     val base0 = prelude.fold(ProgramElab.empty(builtinNames))(ProgramElab.prelude(_, builtinNames))
+    // (a prelude given here has no imports: the core tests' preludes declare everything themselves)
     elaborateOn(base0, program, libraries, reporter, index)
 
   /** Elaborates `program` with the imported files `libraries` on the prelude's (or an empty) base. */
@@ -56,13 +57,14 @@ object MetaLevel:
     val reporter = Reporter()
     val index = hugin.compiler.SemanticIndex()
     def items(path: String) = load(path).fold(Nil)(_.program.items)
-    val base0 = graph.files.find(_ == hugin.compiler.SourceLoader.PreludePath) match
-      case None => ProgramElab.empty(prelude)
-      case Some(p) =>
-        load(p) match
-          case Some(parsed) => hugin.compiler.StdlibCache.prelude(parsed, prelude)
-          case None => ProgramElab.prelude(SourceItems(p, "", Nil), prelude)
-    val libraries = hugin.compiler.Library.qualified(graph.files).map((p, q) => SourceItems(p, q, items(p)))
+    // the prelude comes after the files it imports, which precede every other file in the graph
+    val (std, rest) = graph.files.indexOf(hugin.compiler.SourceLoader.PreludePath) match
+      case -1 => (Nil, graph.files)
+      case i => (graph.files.take(i + 1), graph.files.drop(i + 1))
+    val base0 =
+      if std.isEmpty then ProgramElab.empty(prelude)
+      else hugin.compiler.StdlibCache.prelude(std.flatMap(load), prelude)
+    val libraries = hugin.compiler.Library.qualified(rest).map((p, q) => SourceItems(p, q, items(p)))
     val e = elaborateOn(base0, SourceItems(root, "", program.items), libraries, reporter, index)
     hugin.compiler.ProgramElaboration(e, reporter.diagnostics, index)
 

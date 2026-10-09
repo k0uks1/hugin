@@ -4,6 +4,7 @@
    `list.lift` (the fold into object code) where a meta list is used as an object list, and `list.reify`
    (the fold into reflected syntax) at a hole of a quote. Before #80 this file wrote both folds by hand
    (`lift` into `⇑(list B)`, `reify` into `term`, and a `persist` function for the elements). *)
+%use "std/reflect". %use "std/list".
 
 (* The length at compile time; the prelude's `len` is the length of the lists that are facts (the two
    are written differently on purpose: a structural fold and a fixed point over facts). *)

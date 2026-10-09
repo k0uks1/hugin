@@ -32,7 +32,7 @@ result E T :- program E, typed E empty T.
 (* The checker as a meta function, over the meta side of the same types. *)
 teq : typ -> typ -> bool.
 teq (base A) (base B) = same A B.
-teq (arrow A B) (arrow C D) = band (teq A C) (teq B D).
+teq (arrow A B) (arrow C D) = if (teq A C) (teq B D) false.
 teq A B = false.
 
 mlookup : ctx -> string -> option typ.

@@ -1,6 +1,7 @@
 (* Round trip (reference: reflection): rules quoted as data and reflected back are the rules written
    directly, up to the names of aggregate variables (`ReflectionSuite` compares them). Every form of
    reflective data occurs. *)
+%use "std/reflect".
 n : type.
 z : n.
 s : n -> n.

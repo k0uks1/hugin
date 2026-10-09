@@ -26,7 +26,7 @@ trait TypedQuotes:
   /** `quoted`, `qterm` and `raw` of the prelude (or of the file, without the prelude). */
   def typedGlobal(n: Name): Option[Int] = typed(n)
 
-  private def typed(n: Name): Option[Int] = file.parent.get(n).orElse(if file.parent.isEmpty then scope.get(n) else None)
+  private def typed(n: Name): Option[Int] = coreName(n).orElse(if !coreOutside then scope.get(n) else None)
 
   /** `raw {A} t`: the term of `t : quoted A`. */
   def rawTerm(c: Cxt, a: Val, t: Tm): Tm =

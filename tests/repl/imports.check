@@ -7,6 +7,7 @@ hugin> ?- trip g.far.
 yes.
 hugin> :imports
 tests/repl/lib/geo.hgn
+<stdlib>/std/graph.hgn
 tests/repl/lib/routes.hgn
 hugin> :hover r.legs.path
 relation r.legs.path : geo.place -> geo.place -> rel

@@ -10,11 +10,12 @@ This is the reference of Hugin, a two-level typed Datalog. A Hugin program has t
   computes object programs at compile time. Modules, functors, families of relations, formula
   functions, reflection of object syntax and directives are programs of the meta level.
 
-The following program declares a type of cities and a relation of roads with three facts. It applies
-the prelude's functor `tc` to get the transitive closure of the roads, and asks which cities can be
-reached from Berlin.
+The following program declares a type of cities and a relation of roads with three facts. It applies the
+functor `tc` of the standard library to get the transitive closure of the roads, and asks which cities
+can be reached from Berlin.
 
 ```hugin,run
+%use "std/graph".
 city : type.
 berlin : city. paris : city. rome : city.
 road : city -> city -> rel.
@@ -50,7 +51,8 @@ lists the cited works. [Lexical structure](lexical-structure.md) defines tokens,
 of operators. [The object level](object/index.md) defines the evaluated language, from declarations and
 types to termination. [The meta level](meta/index.md) defines the compile-time language and staging.
 [Reflection](reflection.md), [Directives](directives.md) and [Modules](modules.md) build on the meta
-level. [The prelude](prelude.md) lists the library that every program includes.
+level. [The prelude](prelude.md) lists the names in scope in every program, and [the standard
+library](std/index.md) the modules a program imports.
 
 The [error index](errors/index.md) lists every diagnostic code of the compiler with an explanation and
 examples. It is the same text that `hugin explain <code>` prints.

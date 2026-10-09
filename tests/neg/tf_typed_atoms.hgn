@@ -1,5 +1,5 @@
 (* A `quoted A` is an atom only if `A` is a type of facts (E0901 where it is used as one), and the data of
-   an atom must be an application (E0918 when it is reflected). *)
+   an atom must be an application (E0918 when it is reflected). *) %use "std/reflect".
 node : type. a : node.
 edge : node -> node -> rel.
 age : type <: int.

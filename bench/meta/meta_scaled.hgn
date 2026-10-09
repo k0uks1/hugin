@@ -1,5 +1,6 @@
 (* bench: the meta level at scale: functors, families, %demand, reflection and a module-wide
    directive, repeated over many relations *)
+%use "std/reflect".
 graph : Type = { node : type, edge : node -> node -> rel }.
 tc (g : graph) = {
   path : g.node -> g.node -> rel.

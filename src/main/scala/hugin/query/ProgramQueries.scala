@@ -59,9 +59,12 @@ object ElabLibrary extends Query[ChainKey, ElabBase]("elabLibrary"):
   def compute(key: ChainKey)(using db: Database): ElabBase =
     key.files match
       case Nil => ProgramElab.empty(key.builtinNames)
-      case List((p, q)) if p == SourceLoader.PreludePath =>
-        if db.has(SourceText, p) then StdlibCache.prelude(db(Parse, p), key.builtinNames)
-        else ProgramElab.prelude(SourceItems(p, q, Nil), key.builtinNames)
+      // the prelude with the files it imports (they precede it), elaborated as one ([[StdlibCache]])
+      case files if files.last._1 == SourceLoader.PreludePath =>
+        val present = files.filter((p, _) => db.has(SourceText, p))
+        if present.lastOption.exists(_._1 == SourceLoader.PreludePath) then
+          StdlibCache.prelude(present.map((p, _) => db(Parse, p)), key.builtinNames)
+        else ProgramElab.prelude(SourceItems(SourceLoader.PreludePath, "", Nil), key.builtinNames)
       case files =>
         val (p, q) = files.last
         ProgramElab.library(db(ElabLibrary, ChainKey(files.init, key.builtinNames)), SourceItems(p, q, items(p)))
@@ -113,8 +116,12 @@ object ItemOf extends Query[ItemQueryKey, PositionedItem]("itemOf"):
 /** The chain of libraries a program is elaborated on: the files of its import graph. */
 private def chainOf(key: ProgramKey)(using db: Database): ChainKey =
   val graph = db(LibraryGraph, GraphKey(key.path, key.prelude))
-  val prelude = graph.files.filter(_ == SourceLoader.PreludePath).map(_ -> "")
-  ChainKey(prelude ++ Library.qualified(graph.files), key.prelude)
+  // the prelude after its imports (an import of the prelude has no prefix), then the other files
+  graph.files.indexOf(SourceLoader.PreludePath) match
+    case -1 => ChainKey(Library.qualified(graph.files), key.prelude)
+    case i =>
+      val (std, rest) = graph.files.splitAt(i + 1)
+      ChainKey(std.map(_ -> "") ++ Library.qualified(rest), key.prelude)
 
 /** The declarations of a program, elaborated on its libraries. */
 object Signatures extends Query[ProgramKey, ElaboratedDeclarations]("signatures"):

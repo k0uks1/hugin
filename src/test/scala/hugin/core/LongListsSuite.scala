@@ -28,7 +28,8 @@ class LongListsSuite extends munit.FunSuite:
 
   test("a module-wide directive over a module of 5000 items (memo keys, list data, elements)") {
     val code =
-      s"""q : int -> rel.
+      s"""%use "std/reflect".
+         |q : int -> rel.
          |keep : module -> module.
          |keep M = M.
          |swap : module -> module.
@@ -45,7 +46,8 @@ class LongListsSuite extends munit.FunSuite:
   test("a meta function recursing over a module of 400 items with a deep case tree (bench meta_scaled)") {
     // `mirror`'s first clause splits a dozen times per item: before #88, every split cost three frames
     val code =
-      s"""node : type.
+      s"""%use "std/reflect".
+         |node : type.
          |edge : node -> node -> rel.
          |n0 : node. n1 : node.
          |edge n0 n1.

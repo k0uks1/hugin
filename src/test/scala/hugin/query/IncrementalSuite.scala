@@ -1,6 +1,6 @@
 package hugin.query
 
-import hugin.compiler.Settings
+import hugin.compiler.{Settings, StdlibCache}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.*
 import java.nio.file.{Files, Path}
@@ -63,7 +63,8 @@ class IncrementalSuite extends munit.FunSuite:
   /** The files imported (transitively) by a golden program at its own path, which exist. */
   private def libraries(p: Path): List[String] =
     given db: Database = Database()
-    db(Compile, CompileKey(p.toString)).context.unit.libraries.values.filterNot(_.isPrelude).map(_.path).toList
+    // the files on disk: not the prelude, nor the bundled `std/` modules
+    db(Compile, CompileKey(p.toString)).context.unit.libraries.values.map(_.path).filterNot(StdlibCache.isStdlib).toList
 
   for p <- programs if Files.readString(p).contains("%import") do
     test(s"incremental = from scratch under edits of imported files: ${p.getParent.getFileName}/${p.getFileName}") {

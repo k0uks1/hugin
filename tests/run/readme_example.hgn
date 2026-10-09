@@ -1,4 +1,5 @@
 (* The example of README.md: keep the two in sync. *)
+%use "std/reflect". %use "std/graph".
 person : type.
 ann : person. bob : person. cid : person. dan : person.
 

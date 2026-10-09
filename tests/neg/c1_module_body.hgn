@@ -1,4 +1,4 @@
-(* Reflected items are not supported in module bodies yet. *)
+(* Reflected items are not supported in module bodies yet. *) %use "std/reflect".
 p : int -> rel.
 rs : list rule = '{ p 1. }.
 m = {

@@ -9,13 +9,70 @@ trait Readback:
   /** The normal form of `v` (definitions unfolded): what staging, memo keys and comparisons use. */
   def quote(l: Int, v: Val): Tm = readBack(l, v, folded = false)
 
+  /** The read-backs of the current read-back (a call and the calls it makes), shared by value object,
+   *  level and mode once the value being read back holds stuck meta code (issue #108). Meta code shares
+   *  values (a function that uses its argument twice), and stuck code keeps them: `step G (step G R)`
+   *  where `step` is stuck refers to `R` twice at every level, a value of linear size whose tree is
+   *  exponential. Read back node by node, it took exponential time and memory (and every memo key of an
+   *  application to it, [[MemoKeys]]). Read back with this sharing, its normal form is a term of the same
+   *  size, whose shared subterms are the same objects. The cache is only made when a stuck application is
+   *  met, so the read-back of values without stuck code (object code, data) allocates nothing more; it is
+   *  dropped when the outermost call returns. */
+  private var shared: java.util.IdentityHashMap[Val, (Int, Boolean, Tm)] = null
+  private var readBackDepth = 0
+
+  /** Runs `f` as one read-back: the read-backs it makes share their results (a memo key of several
+   *  arguments that share values, [[MemoKeys]]). */
+  def sharingReadBack[A](f: => A): A =
+    readBackDepth += 1
+    try f
+    finally
+      readBackDepth -= 1
+      if readBackDepth == 0 then shared = null
+
+  /** An application of a function, a definition or a postulate that does not reduce: stuck meta code. */
+  private def stuckApplication(v: Val): Boolean = v match
+    case Rigid(Head.Glob(id), sp) if sp.nonEmpty =>
+      globals(id).kind match
+        case _: GlobalKind.Function | _: GlobalKind.Definition | GlobalKind.Postulate => true
+        case _ => false
+    case _ => false
+
+  /** Values with parts, whose read-back is worth sharing. */
+  private def shareable(v: Val): Boolean = v match
+    case Rigid(_, sp) => sp.nonEmpty
+    case Flex(_, sp) => sp.nonEmpty
+    case Top(_, sp, _) => sp.nonEmpty
+    case _: Rec | _: Obj | _: Arith | _: Negate | _: Persist | _: Quote => true
+    case _ => false
+
   /** `v` read back with definitions folded (glued evaluation, [[Val.Top]]): the smallest term, for
    *  printing, meta solutions and the terms the elaborator keeps (`zonk`). Its value is the same. */
   def quoteFolded(l: Int, v: Val): Tm = readBack(l, v, folded = true)
 
   private def readBack(l: Int, v: Val, folded: Boolean): Tm =
+    val cache = shared
+    val hit = if cache == null then null else cache.get(v)
+    if hit != null && hit._1 == l && hit._2 == folded then hit._3
+    else
+      readBackDepth += 1
+      try
+        val fv = if folded then forceMetas(v) else force(v)
+        // from the first stuck application on, before its parts are read back
+        if shared == null && stuckApplication(fv) then shared = java.util.IdentityHashMap()
+        val t = readBackForced(l, fv, folded)
+        val c = shared
+        if c != null && shareable(fv) then
+          c.put(v, (l, folded, t))
+          c.put(fv, (l, folded, t))
+        t
+      finally
+        readBackDepth -= 1
+        if readBackDepth == 0 then shared = null
+
+  private def readBackForced(l: Int, fv: Val, folded: Boolean): Tm =
     def go(l: Int, v: Val): Tm = readBack(l, v, folded)
-    (if folded then forceMetas(v) else force(v)) match
+    fv match
       case Flex(m, sp) => quoteSp(l, Tm.Meta(m), sp, folded)
       case Top(id, sp, _) => quoteSp(l, Tm.Global(id), sp, folded)
       case Rigid(Head.Local(x), sp) => quoteSp(l, Tm.Var(l - x - 1), sp, folded)

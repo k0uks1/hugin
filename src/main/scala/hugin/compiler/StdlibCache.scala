@@ -22,11 +22,11 @@ import scala.collection.mutable
 object StdlibCache:
   private final case class Key(path: String, text: String)
 
-  /** How many texts are kept. */
-  private val capacity = 4
+  /** How many texts are kept: of each file of the standard library, and some edited versions. */
+  private val capacity = 32
 
   private val parses = mutable.LinkedHashMap.empty[Key, Parsed]
-  private val bases = mutable.LinkedHashMap.empty[(Key, Boolean), (Parsed, ElabBase)]
+  private val bases = mutable.LinkedHashMap.empty[(List[Key], Boolean), (List[Parsed], ElabBase)]
 
   /** Whether compilations use the cache (the differential tests turn it off). */
   @volatile var enabled: Boolean = true
@@ -41,22 +41,41 @@ object StdlibCache:
     if !enabled || !isStdlib(path) then Parsed(SourceFile.virtual(path, text))
     else synchronized(lookup(parses, Key(path, text), Parsed(SourceFile.virtual(path, text))))
 
-  /** The prelude elaborated from `parsed`: shared if `parsed` is the cache's own parse of its text (the
-   *  elaborated core refers to the positions of that parse), otherwise elaborated here. */
-  def prelude(parsed: Parsed, builtinNames: Boolean): ElabBase =
+  /** The prelude elaborated from `chain`: the files it imports in dependency order, then the prelude
+   *  itself (reference: prelude). Shared if every parse is the cache's own parse of its text (the
+   *  elaborated core refers to the positions of those parses), otherwise elaborated here. */
+  def prelude(chain: List[Parsed], builtinNames: Boolean): ElabBase =
+    def items(p: Parsed) = SourceItems(p.source.path, "", p.program.items)
     def elaborate() =
       elaborations += 1
-      ProgramElab.prelude(SourceItems(parsed.source.path, "", parsed.program.items), builtinNames)
-    val key = Key(parsed.source.path, parsed.source.content)
-    val shared = enabled && synchronized(parses.get(key).exists(_ eq parsed))
+      ProgramElab.preludeChain(chain.init.map(items), items(chain.last), builtinNames)
+    val keys = chain.map(p => Key(p.source.path, p.source.content))
+    val shared = enabled && synchronized(chain.zip(keys).forall((p, k) => parses.get(k).exists(_ eq p)))
     if !shared then elaborate()
     else
       synchronized {
-        // a base is used only with the very parse it was elaborated from (the parse may have been
-        // dropped and made again since)
-        bases.get((key, builtinNames)).filter(_._1 ne parsed).foreach(_ => bases.remove((key, builtinNames)))
-        lookup(bases, (key, builtinNames), (parsed, elaborate()))._2
+        // a base is used only with the very parses it was elaborated from (a parse may have been dropped
+        // and made again since)
+        bases.get((keys, builtinNames)).filter(b => b._1.zip(chain).exists(_ ne _)).foreach(_ => bases.remove((keys, builtinNames)))
+        lookup(bases, (keys, builtinNames), (chain, elaborate()))._2
       }
+
+  /** The bundled prelude with the text `text` (by default its own) and the bundled files it imports, in
+   *  dependency order, parsed through the cache: what [[prelude]] elaborates (for tests and benchmarks;
+   *  compilations take the chain from their import graph). */
+  def bundledChain(text: String = SourceLoader.stdlib(SourceLoader.PreludePath).get): List[Parsed] =
+    val prelude = parsed(SourceLoader.PreludePath, text)
+    val out = mutable.ListBuffer.empty[Parsed]
+    val seen = mutable.HashSet(SourceLoader.PreludePath)
+    def visit(path: String, p: Parsed): Unit =
+      for (_, dep) <- Library.importsOf(path, p.program) if seen.add(dep) do
+        SourceLoader.stdlib(dep).foreach { t =>
+          val q = parsed(dep, t)
+          visit(dep, q)
+          out += q
+        }
+    visit(SourceLoader.PreludePath, prelude)
+    out.toList :+ prelude
 
   /** Empties the cache. */
   def clear(): Unit = synchronized {

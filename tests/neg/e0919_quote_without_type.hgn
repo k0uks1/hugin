@@ -1,6 +1,6 @@
 (* A quote where no reflective type is expected (E0919): its category (a module, a rule, a formula, …)
    comes from the expected type, so a quote without one, or against a type that is not reflective, is
-   an error. *)
+   an error. *) %use "std/reflect".
 p : int -> rel.
 
 untyped = '{ p 1 }. (*~ E0919 *)
