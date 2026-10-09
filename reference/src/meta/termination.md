@@ -12,6 +12,11 @@ A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argu
 `suc N`; it is *equal* to `pᵢ` if it is the variable `pᵢ` itself. These relations form a *size-change
 graph* from the arguments of `f` to those of `g`. The *call graph* of the program has these graphs as its
 edges; calls through the local functions of a [`where`](where.md) block are calls of those functions.
+A call through a definition, a field of a record, a member of a module or a functor application is the
+call that evaluation reaches: with `g : nat -> nat = [x] f x.`, the term `g (suc N)` in a clause of `f`
+is the call `f (suc N)`. A function used as a value, not applied, the calls inside a lambda that is not
+applied, and the calls of a module body that is not projected to a known member are calls with unknown
+arguments, which relate no argument.
 
 The graphs are closed under composition, within each strongly connected component of the call graph. A
 function is accepted if every graph `G : f → f` of the closure with `G ; G = G` has a strict decrease

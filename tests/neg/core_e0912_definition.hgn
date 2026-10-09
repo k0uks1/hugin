@@ -1,0 +1,8 @@
+(* new meta level: a recursive call through a definition is a call of the function; it does not decrease *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+f : nat -> nat.
+g : nat -> nat = [x] f x.
+f zero = zero.
+f (suc N) = g (suc N).
