@@ -1706,6 +1706,29 @@ E0923; an equation that is a conjunct of the body meets the type of a variable w
 alternative of a disjunction). The generated fuzz programs no longer equate a variable with constants of
 two constructors, which is now a rule that never fires (E0401).
 
+## Frozen metas (#66, Batch 1)
+
+Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.1. Each declaration,
+clause group, formula function and object item is a *block* (`Core.inBlock`, called by `Items`). While a
+block is elaborated, the metas that existed when it started are frozen: `Core.solveMeta` refuses them
+(`UnifyFailure.Frozen`), `unify` treats them as rigid (against an active meta it solves the active one;
+the same frozen meta on both sides compares the spines), and `pruneFlex` does not prune them. A block
+inside a block is part of it. Outside blocks nothing is frozen, because staging solves the unknowns of a
+generic item for each instance (`Core.tentatively`).
+
+Before, an unknown that may stay unsolved (a hole) could be solved by a later item: `t : Type = ?t.`
+followed by `x : t = 5.` solved `?t := int`, and `y : t = "s".` then reported "expected `int`". The
+reference already said a hole is constrained by its item only. A frozen hole now makes the later item
+fail silently (`ElabErrors.mismatch`): its E0924 is the error. A spike that logged every cross-block
+solution found none in the golden, core, reference, LSP and incrementality suites, so no other program
+changes. Object typing (#56) solves its store inside the block, before the block ends, so freezing
+follows it.
+
+Unknowns print numbered from the start of their block (`Printing.showMeta`): `?3` instead of `?167`, so
+messages do not depend on the number of metas in the prelude. `Core.fork` keeps its copy-on-write of meta
+entries: an item's fork can no longer solve a base meta, but `allowUnsolved` still writes entries, and a
+parent core may go on elaborating after a fork.
+
 ## Typed reflection beyond terms (#96)
 
 The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
