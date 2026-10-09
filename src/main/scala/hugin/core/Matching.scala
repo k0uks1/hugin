@@ -50,7 +50,7 @@ trait Matching:
   /** The value of the case tree `tree` for the variables `env`, or `null` if a split meets a neutral (or a
    *  value that matches no branch). A loop rather than a recursion through the splits: the JVM stack a
    *  meta function's recursion uses per level does not grow with the depth of its case tree, which is
-   *  large for quoted patterns (`mirror ('{ edge $X $Y :- $..B } :: Rest)`, issue #88). */
+   *  large for quoted patterns (`mirror ('( edge $X $Y :- $..B ) :: Rest)`, issue #88). */
   @scala.annotation.tailrec
   private def runTree(tree: CaseTree, env: Vector[Val]): Val | Null = tree match
     case CaseTree.Leaf(body, size, order, _, _) =>

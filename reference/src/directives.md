@@ -43,7 +43,7 @@ So `%use` makes the directives of a module available: after `%use "lib/closures"
 the application `d a₁ … aₙ` with the arguments checked against `d`'s parameter types, with stage
 inference. The arguments of a directive are object syntax, like the item they stand in: an argument at a
 parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`, `decl`, `measure`) or of type
-`quoted A` is quoted implicitly, as if it were written in a [quote](reflection.md#quotes) `'{ … }`. The
+`quoted A` is quoted implicitly, as if it were written in a [quote](reflection.md#quotes) `'( … )`. The
 quote may also be written explicitly. In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
@@ -53,7 +53,7 @@ quote may also be written explicitly. In particular:
 - a meta value is passed in a hole, `%d $x.`; at a `decl` or `sym` parameter, an argument that is not a
   name (or a hole) is elaborated as meta code;
 - an argument at a parameter of type `quoted A` is a term of type `A` (`%d 3.` for `quoted int`), typed
-  as the quote `'{ 3 }` checked against `quoted A`;
+  as the quote `'( 3 )` checked against `quoted A`;
 - a run of mode items is elaborated to the `modes` data of `std/reflect`.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).
@@ -123,10 +123,10 @@ edge : node -> node -> rel.
 edge a b.
 mirror : module -> module.
 mirror [] = [].
-mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
+mirror ('( edge $X $Y :- $..B ) :: Rest) = '( edge $X $Y :- $..B ) :: '( edge $Y $X :- $..B ) :: mirror Rest.
 mirror (I :: Rest) = I :: mirror Rest.
 loop : term -> list item.
-loop N = '{ edge $N d. }.
+loop N = '( edge $N d. ).
 %loop c.
 %mirror.
 %loop a.
@@ -155,7 +155,7 @@ attributes the compiler implements, and the prelude opens them.
 | `%terminates m p.` | `measure -> formula -> decl` | a termination measure ([Termination](object/termination.md#declared-measures)) |
 | `%demand r m.` | `(r : sym) -> modes (labels r) -> module -> module` | demand-driven evaluation of `r` (below) |
 
-`%input r.` is the application `input '{ r }`, with `r` quoted implicitly as a `decl`. The functions
+`%input r.` is the application `input '( r )`, with `r` quoted implicitly as a `decl`. The functions
 `input`, `output`, `open` and `derivations` have the type `decl -> decl`, so they can also be used in the
 prefix form, and they compose like functions.
 
@@ -190,7 +190,7 @@ A directive is any meta function whose application has a directive type. The fol
 %use "std/reflect".
 person : type. ann : person. bob : person. cid : person.
 symmetric : (r : ⇑(A -> A -> rel)) -> list item.
-symmetric R = '{ R Y X :- R X Y. }.
+symmetric R = '( R Y X :- R X Y. ).
 friend : person -> person -> rel.
 %symmetric friend.
 friend ann bob.

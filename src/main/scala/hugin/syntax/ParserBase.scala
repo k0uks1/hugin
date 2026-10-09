@@ -238,8 +238,8 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     else if tok.kind == Tok.Error then
       skipItem()
       false
-    else if at(Tok.EOF) || startsLine(i) || (at(Tok.RBrace) && bodies > 0) then
-      val next = Option.when(tok.kind != Tok.EOF && tok.kind != Tok.RBrace)(tok.span)
+    else if at(Tok.EOF) || startsLine(i) || atBodyCloser then
+      val next = Option.when(tok.kind != Tok.EOF && !atBodyCloser)(tok.span)
       error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, next))
       firstOnLine(context.start)
     else
@@ -247,8 +247,20 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
       skipItem()
       false
 
-  /** The number of module bodies the parser is in: a `}` outside of them is a stray token. */
-  protected var bodies = 0
+  /** The closers of the bodies the parser is in, innermost first: `}` for a module body, `)` for a
+   *  reflection quote, whose entries are items too. Recovery inside an item stops at the innermost one. */
+  protected var bodyClosers: List[Tok] = Nil
+
+  protected def bodies: Int = bodyClosers.length
+
+  /** At the closer of the innermost body. */
+  protected def atBodyCloser: Boolean = bodyClosers.headOption.contains(kind)
+
+  /** Runs `f` inside a body closed by `closer`. */
+  protected def inBody[A](closer: Tok)(f: => A): A =
+    bodyClosers = closer :: bodyClosers
+    try f
+    finally bodyClosers = bodyClosers.tail
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
    *  closing the enclosing body, or the end of the file. At the top level, a period followed by an
@@ -260,9 +272,8 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     while !done && !at(Tok.EOF) && !(atColumn0(i) && depth == 0 && !at(Tok.Period)) do
       kind match
         case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
-        case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
-        case Tok.RBrace =>
-          if depth == 0 && bodies > 0 then done = true else { depth = (depth - 1).max(0); advance() }
+        case Tok.RParen | Tok.RBrack | Tok.RBrace =>
+          if depth == 0 && atBodyCloser then done = true else { depth = (depth - 1).max(0); advance() }
         case Tok.Period if depth == 0 =>
           advance()
           done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)

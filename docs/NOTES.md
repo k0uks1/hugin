@@ -1858,6 +1858,18 @@ quotes `'( … )`, and the name `quoted` (Qq's `Quoted`, a Note in the reference
 
 Goldens `run/n_staging_notation`, `recovery/r_code_quote`; `ParserSuite`.
 
+**Reflection quotes `'( … )`** (the second pull request). The lexer makes `'` a token before `(` instead of
+`{`, `QuoteSyntax.parseQuote` closes the quote with `)`, and the printer, the semantic tokens, completion
+inside quotes (`MetaFeatures.inQuote`) and the VS Code grammar follow. `'{` is removed, not kept as an
+alias: there are no programs outside the repository. Recovery inside a quote stops at the quote's own
+closer: `ParserBase` keeps a stack of body closers (`}` for a module body, `)` for a quote) instead of a
+count of bodies, so `skipItem` and `endItem` stop at the innermost one. An unclosed `'(` stays E0005. The
+migration of every quote in `std/*.hgn`, the tests, the examples, the reference, the error explanations,
+`docs/design/examples` and the current documentation was done by a script that matches each `'{` with its
+`}` (skipping strings), and reviewed; the history in `docs/NOTES.md`, `docs/REDESIGN.md`, the design notes
+and `docs/PERFORMANCE.md` keeps the syntax of its time. Every check file regenerated identically to the
+migrated one.
+
 The new goldens shift the mutants of `RecoveryFuzzSuite`, which then found two recovery gaps older than
 this change, fixed at the root:
 

@@ -18,7 +18,7 @@ enum Footprint:
 
 /** Directives are meta functions (reference: directives): `%d a₁ … aₙ.` resolves `d` like any name, elaborates the
  *  arguments against `d`'s parameter types (with stage inference; an argument at a parameter of a
- *  reflective type is object syntax, quoted implicitly as if written `'{ … }`: where a `decl` is
+ *  reflective type is object syntax, quoted implicitly as if written `'( … )`: where a `decl` is
  *  expected, a name is the declaration of its object constant), and the type of the
  *  application gives its footprint ([[Footprint]]). In the prefix form `%d a₁ … aₙ DECL`, `d a₁ … aₙ` must
  *  have type `decl -> decl` and is applied to the declaration that follows.

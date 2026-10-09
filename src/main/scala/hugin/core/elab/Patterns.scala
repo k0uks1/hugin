@@ -41,7 +41,7 @@ trait Patterns:
       Some(SurfaceClause(d.name, pats, d.rhs, d.span))
     case _ => None
 
-  /** A surface pattern, with the type it matches if that is known and closed: a quote `'{ … }` is a
+  /** A surface pattern, with the type it matches if that is known and closed: a quote `'( … )` is a
    *  quoted pattern ([[QuotedPatterns]]), which needs a reflective type; list syntax is the prelude's
    *  meta `list`. */
   def pattern(t: Tree, expected: Option[Val] = None): Pat = t match

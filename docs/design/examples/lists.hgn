@@ -21,7 +21,7 @@ held primes.                                      (* `list.lift` is inserted *)
    body); the hole `$(X :: Xs)` is a meta list in a quote, so `list.reify` is inserted. *)
 suffixes : list int -> list rule.
 suffixes [] = [].
-suffixes (X :: Xs) = '{ held $(X :: Xs) } :: suffixes Xs.
+suffixes (X :: Xs) = '( held $(X :: Xs) ) :: suffixes Xs.
 $suffixes [11, 13].
 
 static_len : int -> rel.

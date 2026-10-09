@@ -12,7 +12,7 @@ import scala.collection.mutable
  *
  *  {{{
  *    T.lift  : (a₁ → ⇑b₁) → … → T ā → ⇑(T b̄)      T.lift f̄ (cᵢ x̄) = cᵢ (L[σ₁] x₁) …
- *    T.reify : (a₁ → term) → … → T ā → term         T.reify ḡ (cᵢ x̄) = '{ cᵢ $(R[σ₁] x₁) … }
+ *    T.reify : (a₁ → term) → … → T ā → term         T.reify ḡ (cᵢ x̄) = '( cᵢ $(R[σ₁] x₁) … )
  *  }}}
  *
  *  generated as surface clauses and elaborated like hand-written ones, so coverage and size-change
@@ -158,7 +158,7 @@ trait DerivedFunctions:
       case _ => code(elementFunction(dv, elems, t))
 
   /** The element function for values of `t`, a type that does not mention the file's families: a
-   *  parameter's, `U.lift ē` for an open shared type, `(Y : τ) => Y` (`'{ $Y }`) for a closed one. */
+   *  parameter's, `U.lift ē` for an open shared type, `(Y : τ) => Y` (`'( $Y )`) for a closed one. */
   private def elementFunction(dv: Derivation, elems: List[Tree], t: Ty): Tree = t match
     case Ty.Param(j) => elems(j)
     case _ if closed(t) =>

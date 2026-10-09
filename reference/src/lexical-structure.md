@@ -111,15 +111,15 @@ The remaining tokens are:
 +    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '
 ```
 
-A prime `'` is a token only at the start of a token and directly before `{`: `'{` opens a
-[quote](reflection.md#quotes), and its `{` is closed by a `}` like any brace. Elsewhere a prime is a
-character of a name (`x'`, `f''`).
+A prime `'` is a token only at the start of a token and directly before `(`: `'(` opens a
+[quote](reflection.md#quotes), and its `(` is closed by a `)` like any parenthesis. Elsewhere a prime is
+a character of a name (`x'`, `f''`).
 
 A period `.` that directly follows a name, a variable or a closing parenthesis `)`, without space, and
 is directly followed by a lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path`, `(tc g).path`
 select a field or a column label. Every other `.` ends an item.
 
-Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'{ }` are pairs. It is an error
+Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'( )` are pairs. It is an error
 ([E0005](errors/E0005.md)) if an item ends before an opening one is closed.
 
 `⇑` (U+21D1) is the lift of [staging](meta/staging.md), and `^` where an operand starts is its ASCII

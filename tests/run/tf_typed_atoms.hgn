@@ -8,34 +8,34 @@ path : (src : node) -> (dst : node) -> rel.
 blocked : node -> rel.
 
 link : quoted node -> quoted node -> quoted edge.
-link X Y = '{ edge $X $Y }.
+link X Y = '( edge $X $Y ).
 reach : quoted node -> quoted node -> quoted path.
-reach X Y = '{ path $X $Y }.
+reach X Y = '( path $X $Y ).
 
 x : quoted node = qterm (tvar "X").
 y : quoted node = qterm (tvar "Y").
 z : quoted node = qterm (tvar "Z").
 
 (* facts and items from atoms *)
-$'{ $(link '{ a } '{ b }). $(link '{ b } '{ c }). }.
-fact : rule = '{ $(link '{ c } '{ c }) }.
+$'( $(link '( a ) '( b )). $(link '( b ) '( c )). ).
+fact : rule = '( $(link '( c ) '( c )) ).
 $[fact].
 blocked a.
 
 (* an atom in a head, in a body and under `not` *)
 rules : list rule = [
-  '{ $(reach x y) :- $(link x y), not blocked $y },
-  '{ $(reach x z) :- $(reach x y), $(link y z), not blocked $z }
+  '( $(reach x y) :- $(link x y), not blocked $y ),
+  '( $(reach x z) :- $(reach x y), $(link y z), not blocked $z )
 ].
 $rules.
 
 (* the data of a typed atom is an atom: a quoted pattern takes it apart, binding `S : quoted node` *)
 start : node -> rel.
 origin : formula -> rule.
-origin '{ edge $S $_ } = '{ start $S }.
-origin F = '{ start a }.
-$[origin (qatom (link '{ b } '{ c }))].
+origin '( edge $S $_ ) = '( start $S ).
+origin F = '( start a ).
+$[origin (qatom (link '( b ) '( c )))].
 held : rel.
-held :- $(qatom (link '{ a } '{ b })).
+held :- $(qatom (link '( a ) '( b ))).
 
 %output path. %output start. %output held.

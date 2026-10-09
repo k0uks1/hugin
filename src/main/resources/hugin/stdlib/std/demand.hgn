@@ -58,16 +58,16 @@ dmodule R Cs M G (I :: Is) = I :: dmodule R Cs M [] Is.
 (* A rule: of `r` guarded, with the demand of its calls; derived from the last rule of `r`, guarded like
    it; any other with the demand of its calls *)
 dstep : sym -> list sym -> modes Ls -> list formula -> rule -> (rule -> item) -> module.
-dstep R Cs M G '{ $S $..Ts :- $..B } Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
+dstep R Cs M G '( $S $..Ts :- $..B ) Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
 dstep R Cs M G Rl Mk = Mk Rl :: ditems (dbody R Cs M Rl).
 
 dhead : bool -> bool -> sym -> list sym -> modes Ls -> list formula -> sym -> list term -> list formula -> (rule -> item) -> module.
 dhead true D R Cs M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R Cs M [dguard R M Ts] B).
 dhead false true R Cs M G S Ts B Mk = [Mk (horn [fatom S Ts] (dprefix Cs Ts (append G B)))].
-dhead false false R Cs M G S Ts B Mk = Mk '{ $S $..Ts :- $..B } :: ditems (dcalls R Cs M [] B).
+dhead false false R Cs M G S Ts B Mk = Mk '( $S $..Ts :- $..B ) :: ditems (dcalls R Cs M [] B).
 
 dguarded : formula -> sym -> list term -> list formula -> (rule -> item) -> item.
-dguarded F S Ts B Mk = Mk '{ $S $..Ts :- $F, $..B }.
+dguarded F S Ts B Mk = Mk '( $S $..Ts :- $F, $..B ).
 
 (* The guard of a rule of `r` with head arguments `Ts` *)
 dguard : sym -> modes Ls -> list term -> formula.
@@ -75,7 +75,7 @@ dguard R M Ts = fatom (derive R "check") (dinputs M (dnamed "_" M Ts)).
 
 (* The guard the rules after `Rl` get: `Rl`'s if it is a rule of `r`, `G` if it is derived *)
 dguardOf : sym -> modes Ls -> rule -> list formula -> list formula.
-dguardOf R M '{ $S $..Ts :- $..B } G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
+dguardOf R M '( $S $..Ts :- $..B ) G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
 dguardOf R M Rl G = [].
 
 dguardSel : bool -> bool -> formula -> list formula -> list formula.

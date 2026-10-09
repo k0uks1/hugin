@@ -131,7 +131,7 @@ object BenchGen:
       |edge c0 c1.
       |mirror : module -> module.
       |mirror [] = [].
-      |mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
+      |mirror ('( edge $X $Y :- $..B ) :: Rest) = '( edge $X $Y :- $..B ) :: '( edge $Y $X :- $..B ) :: mirror Rest.
       |mirror (I :: Rest) = I :: mirror Rest.
       |""".stripMargin
 
@@ -160,7 +160,7 @@ object BenchGen:
        |result$i E T :- prog$i E, typed$i E empty T.
        |%output result$i.
        |num$i : int -> rel.
-       |data$i : module = '{ num$i $i. num$i M :- num$i N, N < ${i + 3}, M = N + 1. }.
+       |data$i : module = '( num$i $i. num$i M :- num$i N, N < ${i + 3}, M = N + 1. ).
        |$$data$i.
        |%output num$i.
        |""".stripMargin

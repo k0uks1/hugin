@@ -142,7 +142,7 @@ not use them:
 | postulate | a meta constant with a type and no value | [The meta level](meta/index.md#meta-items) |
 | prelude | the file included in every program, whose names are in scope in every file | [The prelude](prelude.md) |
 | query | an item `?- φ.` that asks for the answers of `φ` | [Queries and output](object/io.md#queries) |
-| quote | `'{ … }`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
+| quote | `'( … )`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
 | quoted pattern | a quote used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
 | quoted term | a value of `quoted A`: `term` data that describes a term of the object type `A` | [Reflection](reflection.md#typed-terms) |
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |

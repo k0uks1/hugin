@@ -69,7 +69,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"person : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\n%symmetric friend.\nfriend ann bob.\ngraph : Type = { node : type, edge : node -> node -> rel }.\ntc (g : graph) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\nfriends = tc { node = person, edge = friend }.\n%output friends.path.\n%use \"std/reflect\".\n","uri":"untitled:e.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"person : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '( R Y X :- R X Y. ).\n%symmetric friend.\nfriend ann bob.\ngraph : Type = { node : type, edge : node -> node -> rel }.\ntc (g : graph) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\nfriends = tc { node = person, edge = friend }.\n%output friends.path.\n%use \"std/reflect\".\n","uri":"untitled:e.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/codeLens","params":{"textDocument":{"uri":"untitled:e.hgn"}}}
 <-- {
   "jsonrpc": "2.0",

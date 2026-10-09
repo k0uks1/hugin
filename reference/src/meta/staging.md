@@ -33,7 +33,7 @@ expected type is object code and the term is a meta value, or the reverse, the c
 conversion ([Kovács 2022](../notation.md#references)):
 
 - a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A`. It is inserted, or written as
-  `<t>` ([Explicit quotes](#explicit-quotes)). The quotes `'{ … }` of
+  `<t>` ([Explicit quotes](#explicit-quotes)). The quotes `'( … )` of
   [reflection](../reflection.md#quotes) are a different construct, which makes data of the reflective
   types;
 - a *splice* `$e` turns a meta value `e : ⇑A` into object code of type `A`;
@@ -109,7 +109,7 @@ widen X = narrow X.
 
 The explicit splice `$e` states a conversion that stage inference would insert: `e` is meta code, and a
 value of a type with a lifting is lifted. It is needed where the context of a term does not determine
-its stage. Inside a reflection quote `'{ … }`, `$` marks a [hole](../reflection.md#holes) instead;
+its stage. Inside a reflection quote `'( … )`, `$` marks a [hole](../reflection.md#holes) instead;
 outside a quote it is always the splice. The explicit lift `⇑A` writes the type of object code; `^A` is
 its ASCII spelling, and the compiler prints `⇑A`.
 

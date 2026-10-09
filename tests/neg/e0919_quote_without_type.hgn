@@ -3,13 +3,13 @@
    an error. *) %use "std/reflect".
 p : int -> rel.
 
-untyped = '{ p 1 }. (*~ E0919 *)
-number : int = '{ 1 }. (*~ E0919 *)
+untyped = '( p 1 ). (*~ E0919 *)
+number : int = '( 1 ). (*~ E0919 *)
 
 num : int -> int.
-num '{ 1 } = 1. (*~ E0919 *)
+num '( 1 ) = 1. (*~ E0919 *)
 num _ = 0.
 
-$['{ p 1 }, '{ p 2 }].
-ok : rule = ('{ p 3 } : rule).
+$['( p 1 ), '( p 2 )].
+ok : rule = ('( p 3 ) : rule).
 $[ok].

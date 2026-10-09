@@ -43,7 +43,7 @@ object Printer:
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
     case Quote(es, terminated) =>
       val shown = es.map(showItem(_).stripSuffix("."))
-      if shown.isEmpty then "'{ }" else shown.mkString("'{ ", ". ", if terminated then ". }" else " }")
+      if shown.isEmpty then "'( )" else shown.mkString("'( ", ". ", if terminated then ". )" else " )")
     case SpliceSeq(a) => s"$$..${showArg(a)}"
     case SpliceHO(f, as) => s"$$${showArg(f)}${as.map(show).mkString("[", ", ", "]")}"
     case SymRef(_, n) => n

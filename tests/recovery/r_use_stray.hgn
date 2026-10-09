@@ -3,6 +3,6 @@
 %use "std/reflect". : int -> rel. (*~ E0001 *)
 held : int -> rel.
 hold : quoted int -> list item.
-hold Q = ['{ held $Q }].
+hold Q = ['( held $Q )].
 %hold 3.
 ?- held X.

@@ -10,7 +10,7 @@ import scala.jdk.CollectionConverters.*
 
 /** Semantic tokens: what the semantic index knows about names (declarations, references, object
  *  variables), classified by level, and the meta level's own syntax, from the tokens of the file:
- *  directives `%d`, the delimiters of reflection quotes `'{ … }`, splices and quote holes `$`, `$..`,
+ *  directives `%d`, the delimiters of reflection quotes `'( … )`, splices and quote holes `$`, `$..`,
  *  lifts `⇑` and typed holes `?`.
  *
  *  Types tell what a name is (a relation, an object or meta constructor, a meta function, an inductive
@@ -29,7 +29,7 @@ object Tokens:
     SemanticTokenTypes.Parameter, // 6 meta parameters and local meta variables
     SemanticTokenTypes.Variable, // 7 object variables, meta constants
     SemanticTokenTypes.Decorator, // 8 directives `%d`
-    SemanticTokenTypes.Keyword, // 9 the delimiters of reflection quotes `'{` `}`
+    SemanticTokenTypes.Keyword, // 9 the delimiters of reflection quotes `'(` `)`
     SemanticTokenTypes.Operator, // 10 splices and quote holes `$`, `$..`, lifts `⇑`
     SemanticTokenTypes.Method, // 11 meta functions
     SemanticTokenTypes.Class, // 12 meta inductive families
@@ -85,7 +85,7 @@ object Tokens:
       val pos = Positions.position(t.span.source, t.span.start)
       val line = pos.getLine
       val char = pos.getCharacter
-      // a token does not span lines (`'{` and `$..` never do)
+      // a token does not span lines (`'(` and `$..` never do)
       val length = (t.span.end - t.span.start).min(t.span.source.lineText(line).length - char)
       data ++= List(line - prevLine, if line == prevLine then char - prevChar else char, length, t.tpe, t.mods).map(Int.box)
       prevLine = line
@@ -97,16 +97,16 @@ object Tokens:
   private def lexical(source: SourceFile): List[Tok_] =
     val toks = Lexer(source, Reporter()).tokenize().toVector
     val out = mutable.ListBuffer.empty[Tok_]
-    // the braces opened by `'{`, to find the `}` that closes each quote
-    val braces = mutable.Stack.empty[Boolean]
+    // the parentheses opened by `'(`, to find the `)` that closes each quote
+    val parens = mutable.Stack.empty[Boolean]
     def next(i: Int): Option[Token] = toks.lift(i + 1)
     for (t, i) <- toks.zipWithIndex do
       t.kind match
         case Tok.Directive => out += Tok_(t.span, 8, Meta, 2)
         case Tok.Quote =>
-          next(i).filter(_.kind == Tok.LBrace).foreach(b => out += Tok_(t.span.to(b.span), 9, Meta, 2))
-        case Tok.LBrace => braces.push(i > 0 && toks(i - 1).kind == Tok.Quote)
-        case Tok.RBrace => if braces.nonEmpty && braces.pop() then out += Tok_(t.span, 9, Meta, 2)
+          next(i).filter(_.kind == Tok.LParen).foreach(b => out += Tok_(t.span.to(b.span), 9, Meta, 2))
+        case Tok.LParen => parens.push(i > 0 && toks(i - 1).kind == Tok.Quote)
+        case Tok.RParen => if parens.nonEmpty && parens.pop() then out += Tok_(t.span, 9, Meta, 2)
         case Tok.Dollar =>
           val span = next(i).filter(n => n.kind == Tok.DotDot && n.span.start == t.span.end).fold(t.span)(n => t.span.to(n.span))
           out += Tok_(span, 10, Meta, 2)

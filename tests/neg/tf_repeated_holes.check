@@ -1,7 +1,7 @@
 error[E0401]: no value can occur in all these positions
   --> tests/neg/tf_repeated_holes.hgn:15:37
    |
-15 | g X = '{ both :- teaches $X, cleans $X }. (*~ E0401 *)
+15 | g X = '( both :- teaches $X, cleans $X ). (*~ E0401 *)
    |                          --         ^^ `$X` has type `janitor` here
    |                          `$X` has type `staff` here
    |                          `$X` has type `teacher` here
@@ -11,7 +11,7 @@ error[E0401]: no value can occur in all these positions
 error[E0401]: no value can occur in all these positions
   --> tests/neg/tf_repeated_holes.hgn:19:29
    |
-19 | f X = '{ teaches $X, cleans $X }. (*~ E0401 *)
+19 | f X = '( teaches $X, cleans $X ). (*~ E0401 *)
    |                  --         ^^ `$X` has type `janitor` here
    |                  `$X` has type `staff` here
    |                  `$X` has type `teacher` here
@@ -21,7 +21,7 @@ error[E0401]: no value can occur in all these positions
 error[E0401]: no value can occur in all these positions
   --> tests/neg/tf_repeated_holes.hgn:21:41
    |
-21 | q X = '{ ?- paid $X, teaches $X, cleans $X }. (*~ E0401 *)
+21 | q X = '( ?- paid $X, teaches $X, cleans $X ). (*~ E0401 *)
    |                  --          --         ^^ `$X` has type `janitor` here
    |                              `$X` has type `teacher` here
    |                  `$X` has type `staff` here

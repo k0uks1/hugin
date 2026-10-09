@@ -12,10 +12,10 @@ excluded : item -> rel.
 count_ok : int -> rel.
 
 restrict : rule -> rule.
-restrict '{ count_ok $X :- $Y = count { V | $F[V] } } = '{ count_ok $X :- $Y = count { V | $F[V], not excluded V } }.
+restrict '( count_ok $X :- $Y = count { V | $F[V] } ) = '( count_ok $X :- $Y = count { V | $F[V], not excluded V } ).
 restrict R = R.
 
-$restrict '{ count_ok N :- N = count { I | stock I } }.
+$restrict '( count_ok N :- N = count { I | stock I } ).
 
 stock pen.
 stock ink.

@@ -1,7 +1,7 @@
 // warning[W0007]: the variable `C` is bound only through the hole `$F`, by its name
 //   --> tests/run/tf_hole_capture.hgn:11:24
 //    |
-// 11 | by_formula F = '{ born C :- $F }.
+// 11 | by_formula F = '( born C :- $F ).
 //    |                        ^    -- the data in this hole may name it
 //    |                        no formula of the quote binds it
 //    |
@@ -12,7 +12,7 @@
 // warning[W0007]: the variable `C` is bound only through the hole `$..Fs`, by its name
 //   --> tests/run/tf_hole_capture.hgn:13:22
 //    |
-// 13 | by_list Fs = '{ born C :- $..Fs }.
+// 13 | by_list Fs = '( born C :- $..Fs ).
 //    |                      ^    ----- the data in this hole may name it
 //    |                      no formula of the quote binds it
 //    |
@@ -23,7 +23,7 @@
 // warning[W0007]: the variable `C` is bound only through the hole `$T`, by its name
 //   --> tests/run/tf_hole_capture.hgn:17:21
 //    |
-// 17 | by_term T = '{ born C :- lives $T C2 }.
+// 17 | by_term T = '( born C :- lives $T C2 ).
 //    |                     ^          -- the data in this hole may name it
 //    |                     no formula of the quote binds it
 //    |

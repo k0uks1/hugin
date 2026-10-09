@@ -69,7 +69,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nsize (suc N) = size N + 1.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc N).\nquad : nat -> nat.\nquad N = d.\nperson : type.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- fr }.\n%sy\n%use \"std/reflect\".\n","uri":"untitled:c.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nsize (suc N) = size N + 1.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc N).\nquad : nat -> nat.\nquad N = d.\nperson : type.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '( R Y X :- fr ).\n%sy\n%use \"std/reflect\".\n","uri":"untitled:c.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/completion","params":{"position":{"character":10,"line":10},"textDocument":{"uri":"untitled:c.hgn"}}}
 <-- {
   "jsonrpc": "2.0",
