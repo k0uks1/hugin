@@ -66,6 +66,18 @@ trait MetaTooling:
         )
       }
 
+  /** The expression at `span`, whose elaboration against `a` failed (a name being typed): what was
+   *  expected there, with the variables in scope (for completion). */
+  def recordExpected(c: Cxt, span: Span, a: Val, st: Stage): Unit =
+    if span.exists then
+      later { _ =>
+        val context = c.binders.reverse.zipWithIndex.collect {
+          case (b, l) if c.scope.get(b.name).contains(l) && b.name != "_" && !b.name.exists(ch => ch == '#' || ch == '$') =>
+            (b.name, show(c, b.ty))
+        }
+        index.meta.typed(Typed(span, show(c, a), st.show, force(a).isInstanceOf[Val.Lift], None, checked = true, headKey(a), context))
+      }
+
   /** The elaborated term, if it shows what is not written (implicit arguments, quotes, splices). */
   private def elaborated(c: Cxt, tm: Tm, span: Span): Option[String] =
     val text = showTm(c.names, zonk(c.env, c.lvl, tm))

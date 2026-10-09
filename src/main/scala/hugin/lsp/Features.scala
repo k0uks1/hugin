@@ -17,6 +17,9 @@ import scala.util.control.NonFatal
  *  (`.hgn`) get every feature, facts files (`.facts`) syntax diagnostics.
  */
 final class Features(using db: Database):
+  /** The meta-level features (hover, inlay hints, holes, interactive code actions), and their settings. */
+  val meta: MetaFeatures = MetaFeatures()
+
   /** The open documents: path to URI as the client spelled it. */
   private val opened = mutable.LinkedHashMap.empty[String, String]
 
@@ -77,19 +80,29 @@ final class Features(using db: Database):
    *  Diagnostics without a position belong to the document whose compilation reported them. The bundled
    *  standard library has no URI and is skipped. */
   def diagnostics: Map[String, List[Diagnostic]] =
-    val byFile = mutable.LinkedHashMap.empty[String, mutable.ListBuffer[HDiagnostic]]
+    // each with the document whose compilation reported it (for the goals of typed holes)
+    val byFile = mutable.LinkedHashMap.empty[String, mutable.ListBuffer[(String, HDiagnostic)]]
     for path <- opened.keys do byFile(path) = mutable.ListBuffer.empty
     for path <- opened.keys; f <- fileDiagnostics(path) do
       val file = if f.path == SourceFile.NoSource.path then path else f.path
-      if file == path || !opened.contains(file) then byFile.getOrElseUpdate(file, mutable.ListBuffer.empty) ++= f.diagnostics
-    (for (file, ds) <- byFile; uri <- uriOf(file) yield uri -> ds.distinct.map(toLsp).toList).toMap
+      if file == path || !opened.contains(file) then byFile.getOrElseUpdate(file, mutable.ListBuffer.empty) ++= f.diagnostics.map(path -> _)
+    (for (file, ds) <- byFile; uri <- uriOf(file) yield uri -> ds.distinctBy(_._2).map((p, d) => toLsp(d, p)).toList).toMap
 
   /** The diagnostics of one document. */
   def diagnosticsOf(uri: String): List[Diagnostic] = diagnostics.getOrElse(uri, Nil)
 
   /** The range is the primary label's; its message, the notes and the helps form the message; secondary
    *  labels and the meta-level call chain become related information. */
-  def toLsp(d: HDiagnostic): Diagnostic =
+  def toLsp(d: HDiagnostic): Diagnostic = toLsp(d, "")
+
+  /** As [[toLsp]]; the goal of a typed hole (E0924) is the diagnostic's `data`, from the compilation of
+   *  the document at `path`. */
+  def toLsp(d: HDiagnostic, path: String): Diagnostic =
+    val out = plain(d)
+    if path.nonEmpty then meta.goalData(path, d).foreach(out.setData)
+    out
+
+  private def plain(d: HDiagnostic): Diagnostic =
     val primary = d.labels.find(_.primary).filter(_.span.exists)
     val text = (d.message :: primary.map(_.message).filter(_.nonEmpty).toList) ++
       d.notes.map("note: " + _) ++ d.helps.map("help: " + _)
@@ -120,10 +133,10 @@ final class Features(using db: Database):
     val path = Uris.path(uri)
     if isFacts(path) then None
     else
-      Ide.hoverInfo(key(path), offset(path, pos)).map { info =>
-        val parts = info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes
-        Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n")))
-      }
+      val off = offset(path, pos)
+      val base = Ide.hoverInfo(key(path), off).toList.flatMap(info => info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes)
+      val parts = base ++ meta.hover(path, off).filterNot(base.contains)
+      Option.when(parts.nonEmpty)(Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n"))))
 
   /** The declaration of the name at a position; nothing for declarations of the bundled standard library. */
   def definition(uri: String, pos: Position): List[Location] =
@@ -141,14 +154,32 @@ final class Features(using db: Database):
   /** Characters after which clients should ask for completions: module members, labels, directives. */
   val completionTriggers: List[String] = List(".", "{", "%")
 
+  /** The compiler's candidates ([[Ide.completions]]), adapted on the meta level: inside a reflection
+   *  quote `'{ … }` only object syntax (or, after `$`, meta values) is offered; where the elaborator knew
+   *  the type expected at the name being typed, the variables in scope there are added and the
+   *  candidates whose result type fits come first (`sortText`, `preselect`). */
   def completion(uri: String, pos: Position): List[CompletionItem] =
     val path = Uris.path(uri)
     if isFacts(path) then Nil
     else
-      Ide.completions(key(path), offset(path, pos)).map { c =>
+      val off = offset(path, pos)
+      val text = source(path).content
+      val start = Iterator.iterate(off)(_ - 1).find(i => i <= 0 || !(text.charAt(i - 1).isLetterOrDigit || "_'".contains(text.charAt(i - 1)))).get
+      val prefix = text.substring(start, off.min(text.length))
+      val base = Ide.completions(key(path), off)
+      val expected = if start > 0 && ".%{".contains(text.charAt(start - 1)) then None else meta.expected(path, start, off)
+      val locals = expected.toList.flatMap(_._2).filter(_._1.startsWith(prefix)).map((x, t) => hugin.query.CompletionItem(x, "meta parameter", t))
+      val candidates = MetaFeatures.inQuote(text, start) match
+        case Some(afterDollar) => (locals ++ base).filter(c => MetaFeatures.isObjectKind(c.kind) != afterDollar)
+        case None => locals ++ base
+      val heads = expected.map(_ => hugin.query.MetaIde.headsByName(key(path))).getOrElse(Map.empty)
+      candidates.distinctBy(_.label).map { c =>
         val item = CompletionItem(c.label)
         item.setKind(completionKind(c.kind))
         item.setDetail(c.detail)
+        val fits = expected.exists((head, _) => heads.getOrElse(c.label, Set.empty)(head) || locals.exists(_.label == c.label))
+        if expected.isDefined then item.setSortText((if fits then "0" else "1") + c.label)
+        if fits then item.setPreselect(true)
         item
       }
 
@@ -203,55 +234,22 @@ final class Features(using db: Database):
     case SymKind.MetaDef => SymbolKind.Module
     case SymKind.MetaParam => SymbolKind.Variable
 
-// ------------------------------------------------------------------------------------ semantic tokens
+  // ------------------------------------------------------------------------------------ semantic tokens
 
-  /** Token types of the semantic tokens legend; a token's type is its index. */
-  val tokenTypes: List[String] = List(
-    SemanticTokenTypes.Namespace, // meta definitions: modules, functors, signatures, constants
-    SemanticTokenTypes.Type, // object types, type definitions, base types
-    SemanticTokenTypes.Struct, // structs
-    SemanticTokenTypes.Function, // relations
-    SemanticTokenTypes.EnumMember, // constructors
-    SemanticTokenTypes.Macro, // formula functions (expanded hygienically)
-    SemanticTokenTypes.Parameter, // meta parameters
-    SemanticTokenTypes.Variable // object variables
-  )
-  val tokenModifiers: List[String] = List(SemanticTokenModifiers.Declaration)
+  /** Token types and modifiers of the semantic tokens legend ([[Tokens]]). */
+  val tokenTypes: List[String] = Tokens.types
+  val tokenModifiers: List[String] = Tokens.modifiers
 
-  private def tokenType(k: SymKind): Int = k match
-    case SymKind.MetaDef => 0
-    case SymKind.ObjType | SymKind.TypeDef | SymKind.BaseType => 1
-    case SymKind.Struct => 2
-    case SymKind.Rel => 3
-    case SymKind.Ctor => 4
-    case SymKind.FormulaFn => 5
-    case SymKind.MetaParam => 6
-
-  /** Semantic tokens from the semantic index: declarations, resolved names and object variables, encoded
-   *  relative to the previous token as the protocol requires. */
   def semanticTokens(uri: String): SemanticTokens =
     val path = Uris.path(uri)
-    if isFacts(path) then return SemanticTokens(List.empty[Integer].asJava)
-    val index = db(Compile, key(path)).index
-    val decls = index.symbols.map(s => (s.span, s.name, tokenType(s.kind), 1))
-    val uses = index.references.map(r => (r.span, r.sym.name, tokenType(r.sym.kind), 0))
-    val vars = index.variables.map(v => (v.span, v.name, 7, 0))
-    val tokens = (decls ++ uses ++ vars)
-      .filter((sp, name, _, _) => inFile(sp, path) && sp.text == name)
-      .sortBy((sp, _, _, mods) => (sp.start, -mods))
-    val data = scala.collection.mutable.ArrayBuffer.empty[Integer]
-    var prevLine = 0
-    var prevChar = 0
-    var prevEnd = -1
-    for (sp, _, tpe, mods) <- tokens if sp.start >= prevEnd do
-      val pos = Positions.position(sp.source, sp.start)
-      val line = pos.getLine
-      val char = pos.getCharacter
-      data ++= List(line - prevLine, if line == prevLine then char - prevChar else char, sp.end - sp.start, tpe, mods).map(Int.box)
-      prevLine = line
-      prevChar = char
-      prevEnd = sp.end
-    SemanticTokens(data.asJava)
+    if isFacts(path) then SemanticTokens(List.empty[Integer].asJava)
+    else Tokens.of(db(Compile, key(path)).index, source(path), path)
+
+  // ---------------------------------------------------------------------------------------- inlay hints
+
+  def inlayHints(uri: String, range: Range): List[InlayHint] =
+    val path = Uris.path(uri)
+    if isFacts(path) then Nil else meta.inlayHints(path, range)
 
   // --------------------------------------------------------------------------------------- code actions
 
@@ -265,10 +263,9 @@ final class Features(using db: Database):
     if isFacts(path) then return Nil
     val src = source(path)
     val (from, to) = (Positions.offset(src, range.getStart), Positions.offset(src, range.getEnd))
-    for
-      d <- compilerDiagnostics(path)
-      sp = d.primarySpan
-      if inFile(sp, path) && sp.start <= to && from <= sp.end
+    val here = compilerDiagnostics(path).filter(d => inFile(d.primarySpan, path) && d.primarySpan.start <= to && from <= d.primarySpan.end)
+    val fixes = for
+      d <- here
       preferred = d.suggestions.find(_.isMachineApplicable)
       s <- d.suggestions
       edits <- workspaceEdit(s).toList
@@ -279,6 +276,7 @@ final class Features(using db: Database):
       action.setEdit(edits)
       action.setIsPreferred(preferred.exists(_ eq s))
       action
+    fixes ++ meta.codeActions(uri, path, from, to, here.map(d => (d, toLsp(d))))
 
   /** The edits of a suggestion by document, or `None` if one of them lies in a file without a URI. */
   private def workspaceEdit(s: Suggestion): Option[WorkspaceEdit] =

@@ -52,7 +52,9 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     caps.setCompletionProvider(CompletionOptions(false, features.completionTriggers.asJava))
     val legend = SemanticTokensLegend(features.tokenTypes.asJava, features.tokenModifiers.asJava)
     caps.setSemanticTokensProvider(SemanticTokensWithRegistrationOptions(legend, true))
-    caps.setCodeActionProvider(CodeActionOptions(List(CodeActionKind.QuickFix).asJava))
+    caps.setCodeActionProvider(CodeActionOptions(List(CodeActionKind.QuickFix, CodeActionKind.RefactorRewrite).asJava))
+    caps.setInlayHintProvider(true)
+    features.meta.hintSettings = HintSettings.from(params.getInitializationOptions, features.meta.hintSettings)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
   override def shutdown(): CompletableFuture[Object] =
@@ -120,12 +122,17 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     override def semanticTokensFull(params: SemanticTokensParams): CompletableFuture[SemanticTokens] =
       completedFuture(features.semanticTokens(params.getTextDocument.getUri))
 
+    override def inlayHint(params: InlayHintParams): CompletableFuture[java.util.List[InlayHint]] =
+      completedFuture(features.inlayHints(params.getTextDocument.getUri, params.getRange).asJava)
+
     override def codeAction(params: CodeActionParams): CompletableFuture[java.util.List[JEither[Command, CodeAction]]] =
       val actions = features.codeActions(params.getTextDocument.getUri, params.getRange).map(a => JEither.forRight[Command, CodeAction](a))
       completedFuture(actions.asJava)
 
   private final class Workspace extends WorkspaceService:
-    override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit = ()
+    /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
+    override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
+      features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
     override def didChangeWatchedFiles(params: DidChangeWatchedFilesParams): Unit =
       params.getChanges.asScala.foreach(e => features.changedOnDisk(e.getUri))
       publish()

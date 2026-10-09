@@ -104,7 +104,11 @@ class LanguageServerSuite extends munit.FunSuite:
     val (s, _) = server()
     open(s, uri, program)
     val hover = s.getTextDocumentService.hover(HoverParams(doc(uri), pos("roads.path", "roads.".length))).get()
-    assertEquals(hover.getContents.getRight.getValue, "```hugin\nrelation roads.path : city -> city -> rel\n```")
+    assertEquals(
+      hover.getContents.getRight.getValue,
+      "```hugin\nrelation roads.path : city -> city -> rel\n```\n\n" +
+        "directive application `%output roads.path` : `decl`  \nfootprint: local: it changes a declaration"
+    )
     assertEquals(s.getTextDocumentService.hover(HoverParams(doc(uri), Position(30, 0))).get(), null)
   }
 
@@ -167,7 +171,11 @@ class LanguageServerSuite extends munit.FunSuite:
       .get().asScala.map(_.getRight).loneElement
     assertEquals(fix.getEdit.getChanges.get(uri).asScala.map(_.getNewText).toList, List("."))
     val hover = s.getTextDocumentService.hover(HoverParams(doc(uri), pos("roads.path", "roads.".length, text = text))).get()
-    assertEquals(hover.getContents.getRight.getValue, "```hugin\nrelation roads.path : city -> city -> rel\n```")
+    assertEquals(
+      hover.getContents.getRight.getValue,
+      "```hugin\nrelation roads.path : city -> city -> rel\n```\n\n" +
+        "directive application `%output roads.path` : `decl`  \nfootprint: local: it changes a declaration"
+    )
     // (not in the broken items, which are not elaborated)
     val defs = s.getTextDocumentService.definition(DefinitionParams(doc(uri), pos("road }", 0, text = text))).get().getLeft.asScala
     assertEquals(defs.map(_.getRange.getStart).toList, List(pos("road :", text = text)))
@@ -269,9 +277,9 @@ class LanguageServerSuite extends munit.FunSuite:
       s.getTextDocumentService.hover(HoverParams(doc(uri), pos(needle, shift, text = text))).get().getContents.getRight.getValue
     assertEquals(
       hover("X = k", 4),
-      "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal"
+      "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal\n\n`k` : `int`  \nstage: object"
     )
-    assertEquals(hover("cons 1", 0), "```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`")
+    assert(hover("cons 1", 0).startsWith("```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data"))
   }
 
   private def actions(s: HuginLanguageServer, at: Position): List[CodeAction] =

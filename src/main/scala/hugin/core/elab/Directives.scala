@@ -75,9 +75,20 @@ trait Directives:
       case Some(name) =>
         if !isDeclTransformer(c, ty) then fail(DirectiveProblem.NotAttachable(shown(d), show(c, ty), d.span, name.span))
         val data = reify(c, name, RKind.Decl)
+        recordApplication(c, d, ty, Footprint.Local)
         (Tm.App(tm, data, Icit.Expl), Footprint.Local, Some(symbolTerm(c, name)))
       case None =>
-        footprintOf(c, ty).map((tm, _, None)).getOrElse(notADirective)
+        val fp = footprintOf(c, ty).getOrElse(notADirective)
+        recordApplication(c, d, ty, fp)
+        (tm, fp, None)
+
+  /** The application `d` of type `ty` with footprint `fp`, for tooling (hover on `%d`). */
+  private def recordApplication(c: Cxt, d: Directive, ty: Val, fp: Footprint): Unit =
+    val what = fp match
+      case Footprint.Local => "local: it changes a declaration"
+      case Footprint.Additive(k) => s"additive: it adds items (${kindName(k)}) here"
+      case Footprint.ModuleWide => "module-wide: it rewrites the module's rules and queries"
+    later(_ => index.meta.directive(hugin.compiler.MetaIndex.DirectiveUse(d.span, shown(d), show(c, ty), what)))
 
   /** Mode items as the prelude's `modes` data (by its constructors, which the program cannot shadow). */
   private def modeData(c: Cxt, t: Tree): Tree = t match

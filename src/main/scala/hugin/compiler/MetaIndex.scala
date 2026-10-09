@@ -20,7 +20,8 @@ final class MetaIndex:
   private val skeletonSet = mutable.LinkedHashMap.empty[Span, Skeleton]
   private val applications = mutable.LinkedHashMap.empty[Span, DirectiveUse]
   private val heads = mutable.HashMap.empty[Sym, String]
-  private val notesOf = mutable.HashMap.empty[Sym, List[String]]
+  private val roles = mutable.HashMap.empty[Sym, Role]
+  private val notesOf = mutable.HashMap.empty[Sym, () => List[String]]
 
   /** The expression at `span` (the last record wins: an item elaborated again records it again). */
   def typed(t: Typed): Unit = typedLazy(t.span, () => Some(t))
@@ -41,9 +42,16 @@ final class MetaIndex:
   def resultHead(sym: Sym, head: String): Unit = heads(sym) = head
   def resultHeadOf(sym: Sym): Option[String] = heads.get(sym)
 
-  /** Hover notes of a symbol that only language servers show (the stages of a shared type). */
-  def note(sym: Sym, notes: List[String]): Unit = if notes.nonEmpty then notesOf(sym) = notes
-  def notes(sym: Sym): List[String] = notesOf.getOrElse(sym, Nil)
+  /** What a meta-level global is (semantic tokens tell functions from constructors and families). */
+  def role(sym: Sym, r: Role): Unit = roles(sym) = r
+  def roleOf(sym: Sym): Option[Role] = roles.get(sym)
+
+  /** Hover notes of a symbol that only language servers show (the stages of a shared type), computed
+   *  when first asked for. */
+  def note(sym: Sym, notes: () => List[String]): Unit =
+    lazy val computed = scala.util.Try(notes()).getOrElse(Nil)
+    notesOf(sym) = () => computed
+  def notes(sym: Sym): List[String] = notesOf.get(sym).fold(Nil)(_())
 
   def types: Iterable[Typed] = typedSet.values.flatMap(_())
 
@@ -67,13 +75,28 @@ final class MetaIndex:
     skeletonSet ++= other.skeletonSet
     applications ++= other.applications
     heads ++= other.heads
+    roles ++= other.roles
     notesOf ++= other.notesOf
 
 object MetaIndex:
+  /** What a meta-level global is. */
+  enum Role:
+    case Function, Family, Constructor, Module, Value
+
   /** The expression at `span`: its elaborated type (shown with the solutions of unknowns), its stage, the
    *  elaborated term if it shows something not written (implicit arguments, quotes, splices), whether it
    *  was checked against `tpe` (rather than inferred), and the head of `tpe` ([[headKey]]). */
-  final case class Typed(span: Span, tpe: String, stage: String, code: Boolean, elaborated: Option[String], checked: Boolean, head: String)
+  final case class Typed(
+      span: Span,
+      tpe: String,
+      stage: String,
+      code: Boolean,
+      elaborated: Option[String],
+      checked: Boolean,
+      head: String,
+      /** For an expression whose elaboration failed (a name being typed): the variables in scope. */
+      context: List[(String, String)] = Nil
+  )
 
   enum HintKind:
     /** A quote `⟨`/`⟩`, splice `$`, lift `⇑` or lifting inserted by stage inference. */

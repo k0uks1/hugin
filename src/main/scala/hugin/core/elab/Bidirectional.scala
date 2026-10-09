@@ -98,7 +98,12 @@ trait Bidirectional:
     val saved = state.typePosition
     state.typePosition = isUniverse(a)
     try
-      val out = located(t.span, atStage(st)(checkAt(c, t, a, st)), a, st)
+      val out =
+        try located(t.span, atStage(st)(checkAt(c, t, a, st)), a, st)
+        catch
+          case e: ElabError =>
+            recordExpected(c, t.span, a, st)
+            throw e
       recordTyped(c, t.span, out, a, st, checked = true)
       out
     finally state.typePosition = saved
