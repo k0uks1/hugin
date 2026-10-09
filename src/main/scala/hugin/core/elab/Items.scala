@@ -8,7 +8,11 @@ import hugin.syntax.TreeOps.hasSyntaxErrors
  *  reported and dropped), in three phases: declarations and definitions; the clauses of functions (which
  *  may refer to every declaration, also recursively); object items (rules, queries, directives). The
  *  first two are the program's *declarations*, which the object items are elaborated against, each on its
- *  own ([[hugin.core.ProgramElab]]). Finally the termination of the functions is checked. */
+ *  own ([[hugin.core.ProgramElab]]). Finally the termination of the functions is checked.
+ *
+ *  Each declaration, clause group (a function, a formula function) and object item is a *block*
+ *  ([[Core.inBlock]]): the unknowns of earlier blocks are frozen while it is elaborated, so it can neither
+ *  solve them nor be changed by a later block (smalltt freezes metas per top-level definition). */
 trait Items:
   self: Elaborator =>
   import core.*
@@ -70,9 +74,19 @@ trait Items:
     withoutTooling(defineSharedFunctions())
     elabClauseGroups(clauses)
     for f <- formulaFunctions if !state.unelaborated(f) do
-      elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
+      inBlock(elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }))
     exports.foreach(elabItemReporting)
     flushTooling(success = true)
+
+  /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
+  private def droppedUse(item: Item): Unit = item match
+    case Directive(_, DirArgs.Use(_, names)) =>
+      val these = names.map(_.map(_.name).toSet)
+      state.droppedUses = (state.droppedUses, these) match
+        case (None, t) => Some(t)
+        case (Some(None), _) | (_, None) => Some(None)
+        case (Some(Some(a)), Some(b)) => Some(Some(a ++ b))
+    case _ => ()
 
   private def isUse(item: Item): Boolean = item match
     case Directive(_, _: DirArgs.Use) => true
@@ -123,6 +137,7 @@ trait Items:
             if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
             // the names of a dropped item are erroneous: their uses are not reported again
             declares(item).foreach(state.erroneous += _)
+            droppedUse(item)
             None
           case None => None
       }
@@ -151,7 +166,7 @@ trait Items:
     reporter.report(ElabProblem.SelfReference(name.name, e.diag.labels.head.span, name.span).toDiagnostic)
 
   /** Elaborates an item; on an error, undoes its effects on metas and returns the error. */
-  private def attemptItem(item: Item): Option[ElabError] =
+  private def attemptItem(item: Item): Option[ElabError] = inBlock {
     val start = metas.length
     try
       itemTransaction {
@@ -162,6 +177,7 @@ trait Items:
       }
       None
     catch case e: ElabError => Some(e)
+  }
 
   /** Called after all items: checks across items. W0003: a meta definition or formula function of the
    *  program that nothing refers to (module values and signatures are exempt: a module emits its rules
@@ -195,25 +211,27 @@ trait Items:
     val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
     for item <- items; n <- clauseName(item, state.functionNames) do groups(n) = groups.getOrElse(n, Nil) :+ item
     for (n, group) <- groups if !state.unelaborated(n) do
-      val start = metas.length
-      try
-        undoOnFailure {
-          // the records of a failed group are shown before its metas are undone
-          try
-            val id = declaredFunction(n, group.head)
-            elabFunction(id, group.flatMap(surfaceClause))
-            checkSolved(start)
-          catch
-            case e: ElabError =>
-              flushTooling(success = false)
-              throw e
-          flushTooling(success = true)
-        }
-      catch
-        case e: ElabError =>
-          report(e)
-          // dropped for an error that follows from a syntax error: its uses are not elaborated either
-          if e.silent then state.unelaborated += n
+      inBlock {
+        val start = metas.length
+        try
+          undoOnFailure {
+            // the records of a failed group are shown before its metas are undone
+            try
+              val id = declaredFunction(n, group.head)
+              elabFunction(id, group.flatMap(surfaceClause))
+              checkSolved(start)
+            catch
+              case e: ElabError =>
+                flushTooling(success = false)
+                throw e
+            flushTooling(success = true)
+          }
+        catch
+          case e: ElabError =>
+            report(e)
+            // dropped for an error that follows from a syntax error: its uses are not elaborated either
+            if e.silent then state.unelaborated += n
+      }
 
   private def declaredFunction(n: Name, first: Item): Int =
     scope.get(n) match
@@ -259,7 +277,7 @@ trait Items:
     case e: SubEdge => elabEdge(e)
     case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))
 
-  def elabItemReporting(item: Item): Unit =
+  def elabItemReporting(item: Item): Unit = inBlock {
     val start = metas.length
     try
       itemTransaction {
@@ -267,6 +285,7 @@ trait Items:
         solvedAndRecorded(start)
       }
     catch case e: ElabError => report(e)
+  }
 
   /** Runs `f`; if it fails, the items and names it added are removed (an item with an error is dropped). */
   private def itemTransaction[A](f: => A): A =

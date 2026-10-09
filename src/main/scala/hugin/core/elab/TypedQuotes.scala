@@ -36,10 +36,29 @@ trait TypedQuotes:
   def qtermOf(c: Cxt, a: Val, d: Tm): Tm =
     Tm.App(Tm.App(Tm.Global(typed("qterm").get), quote(c.lvl, a), Icit.Impl), d, Icit.Expl)
 
-  /** The coercions of `quoted`: to `term` (forgetting the index), and covariantly in the index. */
+  /** `qatom {A} t`: the term `t : quoted A` of a type of facts as an atom. */
+  def qatomOf(c: Cxt, a: Val, t: Tm): Tm =
+    Tm.App(Tm.App(Tm.Global(typed("qatom").get), quote(c.lvl, a), Icit.Impl), t, Icit.Expl)
+
+  /** Whether `A` of `quoted A` is a type of facts (or a type the core does not know). */
+  private def factIndex(c: Cxt, a: Val): Boolean =
+    val env = objEnv(c)
+    ObjTypes(env).isRelLike(env.oty(a))
+
+  /** The coercions of `quoted`: to `term` (forgetting the index), to `formula` for a type of facts (an
+   *  atom, by `qatom`), and covariantly in the index. */
   def coeQuoted(c: Cxt, t: Tm, a: Val, a2: Val): Option[Option[Tm]] =
     (quotedIndex(a), quotedIndex(a2)) match
       case (Some(x), _) if reflectiveKind(a2).contains(RKind.Term) => Some(Some(rawTerm(c, x, t)))
+      case (Some(x), _) if reflectiveKind(a2).contains(RKind.Formula) && typed("qatom").isDefined =>
+        if !factIndex(c, x) then
+          fail(TypeProblem.Mismatch(
+            show(c, a2),
+            show(c, a),
+            coercionAt,
+            List(s"a `quoted` term is an atom only if its type is a type of facts, and `${show(c, x)}` is not one")
+          ))
+        Some(Some(qatomOf(c, x, t)))
       case (Some(x), Some(y)) =>
         try undoOnFailure(unify(c.lvl, x, y))
         catch case e: UnifyError => if !liftSubtype(c, x, y) then throw e
@@ -54,6 +73,9 @@ trait TypedQuotes:
    *  to: the occurrences of one such hole in the body of a quoted rule are one object variable. */
   private val quotedHoles = java.util.IdentityHashMap[Q, String]()
 
+  /** The holes whose value is a `term` (data of any shape, which may name variables). */
+  private val termHoles = java.util.Collections.newSetFromMap(java.util.IdentityHashMap[Q, java.lang.Boolean]())
+
   /** Records the object type of the hole `q` (from the type `ty` of its meta value). */
   def recordHole(c: Cxt, q: Q, tm: Tm, ty: Val): Unit =
     val env = objEnv(c)
@@ -62,7 +84,9 @@ trait TypedQuotes:
         val o = env.oty(a)
         holeVariable(c, q).filter(_ => !o.vague).foreach(n => quotedHoles.put(q, n))
         o
-      case None if reflectiveKind(ty).isDefined => OTy.Unknown
+      case None if reflectiveKind(ty).isDefined =>
+        termHoles.add(q)
+        OTy.Unknown
       case None =>
         try undoOnFailure(liftCode(c, tm, ty)).map((_, o) => env.oty(o)).getOrElse(OTy.Unknown)
         catch case _: ElabError => OTy.Unknown
@@ -98,6 +122,59 @@ trait TypedQuotes:
           case _ => Nil
       case _ => Nil
     problems.headOption.foreach(p => fail(p))
+    k match
+      case RKind.Rule | RKind.Item => holeCapture(q)
+      case RKind.List(RKind.Rule | RKind.Item) =>
+        q match
+          case Q.QList(es, _, _) => es.foreach(holeCapture)
+          case _ =>
+      case _ =>
+
+  // ---------------------------------------------------------------- variables bound through holes
+
+  private val captureReported = scala.collection.mutable.Set.empty[Span]
+
+  /** W0007: a plain variable of a quoted rule's head that no formula of the quote's body binds, while the
+   *  body has a hole whose data may name it (a formula, a sequence of formulas, a `term`). */
+  private def holeCapture(q: Q): Unit = q match
+    case Q.Con("irule" | "inamed", args, _, _) => args.lastOption.foreach(holeCapture)
+    case Q.Con("horn", List(Q.QList(hs, _, _), Q.QList(body, _, _)), _, _) =>
+      captureHole(body).foreach { (hole, holeAt) =>
+        val bound = body.flatMap(binds).toSet
+        hs.flatMap(vars).filterNot((n, _) => bound(n)).distinctBy(_._1).foreach { (n, sp) =>
+          if captureReported.add(sp) then reporter.report(ReflectionProblem.HoleCapture(n, hole, sp, holeAt).toDiagnostic)
+        }
+      }
+    case _ =>
+
+  private def subQ(q: Q): List[Q] = q match
+    case Q.Con(_, args, _, _) => args
+    case Q.QList(es, _, _) => es
+    case _ => Nil
+
+  /** The plain variables of syntax (not those of holes' data), with their positions. */
+  private def vars(q: Q): List[(String, Span)] = q match
+    case Q.Var(n, sp) => List((n, sp))
+    case _ => subQ(q).flatMap(vars)
+
+  /** The variables a formula of a body binds: those of its positive atoms and equations, and the result
+   *  of an aggregate. */
+  private def binds(q: Q): List[String] = q match
+    case Q.Con("fatom", List(_, args), _, _) => vars(args).map(_._1)
+    case Q.Con("fcmp", List(Q.Con("ceq", _, _, _), l, r), _, _) => (vars(l) ++ vars(r)).map(_._1)
+    case Q.Con("fconj" | "fdisj", List(a, b), _, _) => binds(a) ++ binds(b)
+    case Q.Con("fagg", List(_, x, _, _), _, _) => vars(x).map(_._1)
+    case _ => Nil
+
+  /** The first hole of a body (outside `not`) whose data may name variables of the rule. */
+  private def captureHole(body: List[Q]): Option[(String, Span)] =
+    def go(q: Q): Option[(String, Span)] = q match
+      case Q.Hole(_, RKind.Formula, sp) => Some((sp.text, sp))
+      case Q.SeqHole(_, _, sp) => Some((sp.text, sp))
+      case h @ Q.Hole(_, RKind.Term, sp) if termHoles.contains(h) => Some((sp.text, sp))
+      case Q.Con("fnot", _, _, _) => None
+      case _ => subQ(q).view.flatMap(go).headOption
+    body.view.flatMap(go).headOption
 
   /** Reads analysed quote content as object code for [[ObjCheck]]. */
   private final class QuoteReader(c: Cxt, env: ObjEnv):

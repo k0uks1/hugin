@@ -1,0 +1,11 @@
+(* A hole is an unknown of its item only: later items cannot solve it (they are dropped without a
+   further error, which would only follow from the hole). *)
+nat : Type.
+zero : nat.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+t : Type = ?t. (*~ E0924 *)
+x : t = 5.
+y : t = "s".
+k : nat = ?k. (*~ E0924 *)
+w : eqn k zero = refl.

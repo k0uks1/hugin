@@ -13,9 +13,18 @@ trait Printing:
     val v = levels.value(l)
     if v == 0 then "Type" else "Type" + v.toString.map(c => subscripts(c - '0'))
 
-  def showVal(names: List[Name], v: Val): String = showTm(names, quote(names.length, v))
+  /** A value as users write it: definitions folded ([[Val.Top]]). */
+  def showVal(names: List[Name], v: Val): String = showTm(names, quoteFolded(names.length, v))
 
   def showTm(names: List[Name], t: Tm): String = go(names, t, 0)
+
+  /** An unknown, numbered from the start of its top-level block (`?0` is the block's first), so that
+   *  messages do not depend on the metas of the prelude and of earlier items. An unknown of an earlier
+   *  block is a hole (shown as written) or keeps its global number. */
+  def showMeta(m: Int): String =
+    if m >= blockStart then s"?${m - blockStart}"
+    else if metas(m).what == elab.Holes.What then metas(m).span.text
+    else s"?$m"
 
   /** Whether splices of names and paths are shown as the names (`g.node` for `$g.node`) and object types
    *  as `type` (for `⇑type`): how users write them, in diagnostics and tooling. */
@@ -28,7 +37,10 @@ trait Printing:
     try go(names, t, 0)
     finally plain = saved
 
-  def showValPlain(names: List[Name], v: Val): String = showPlain(names, quote(names.length, v))
+  def showValPlain(names: List[Name], v: Val): String = showPlain(names, quoteFolded(names.length, v))
+
+  /** [[showValPlain]] with definitions unfolded: when two different values look the same folded. */
+  def showValPlainUnfolded(names: List[Name], v: Val): String = showPlain(names, quote(names.length, v))
 
   private def isPath(t: Tm): Boolean = t match
     case Tm.Var(_) | Tm.Global(_) => true
@@ -83,7 +95,7 @@ trait Printing:
   private def go(ns: List[Name], t: Tm, p: Int): String = t match
     case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
-    case Tm.Meta(m) => s"?$m"
+    case Tm.Meta(m) => showMeta(m)
     case Tm.AppPruning(f, pr) =>
       val args = ns.zip(pr).reverse.collect { case (n, Some(i)) => if i == Icit.Impl then s"{$n}" else n }
       if args.isEmpty then go(ns, f, p) else par(p, 5, (go(ns, f, 5) :: args).mkString(" "))

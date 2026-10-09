@@ -1,0 +1,34 @@
+(* W0007: a variable of a quoted rule's head that only a hole of the body can bind, by its name. The
+   typed rewrite passes the variable to the piece as a `quoted A`. *)
+%use "std/reflect".
+person : type. city : type. ann : person. oslo : city.
+lives : person -> city -> rel.
+born : city -> rel.
+named : string -> rel.
+lives ann oslo.
+
+(* a formula hole and a sequence hole *)
+by_formula : formula -> rule.
+by_formula F = '{ born C :- $F }.
+by_list : list formula -> rule.
+by_list Fs = '{ born C :- $..Fs }.
+
+(* a `term` hole in an atom of the body *)
+by_term : term -> rule.
+by_term T = '{ born C :- lives $T C2 }.
+
+(* not reported: the body binds the variable, or the hole is under `not`, or holds a typed value (range
+   restriction is checked when a rule is reflected) *)
+bound : formula -> rule.
+bound F = '{ born C :- lives _ C, $F }.
+negated : formula -> rule.
+negated F = '{ named "x" :- not $F }.
+typed : quoted city -> rule.
+typed V = '{ born C :- lives _ $V }.
+
+(* the typed rewrite *)
+born_where : (quoted city -> formula) -> rule.
+born_where F = '{ born $c :- $(F c) }
+  where c : quoted city = qvar "c".
+$[born_where ([p] '{ lives _ $p })].
+%output born.

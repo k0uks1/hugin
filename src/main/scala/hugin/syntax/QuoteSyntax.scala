@@ -126,7 +126,9 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     val close = k
     val lambdaShape = close >= 2 && (peekTok(1).kind == Tok.Var || peekTok(1).kind == Tok.Name) &&
       (close == 2 || peekTok(2).kind == Tok.Colon)
-    comma || !lambdaShape || !startsLambdaBody(peekTok(close + 1).kind)
+    // a lambda's body does not start in column 0: that token is the next item (`f X = [X]` without its
+    // period, followed by `g : …`, is a list)
+    comma || !lambdaShape || !startsLambdaBody(peekTok(close + 1).kind) || atColumn0((i + close + 1).min(toks.length - 1))
 
   private def startsLambdaBody(t: Tok): Boolean = t != Tok.RuleName && t != Tok.Error && startsExpression(t)
 

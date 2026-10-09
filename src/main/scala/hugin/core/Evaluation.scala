@@ -102,8 +102,9 @@ trait Evaluation:
     hygiene += 1
     Obj(ObjForm.Named(s"$x#$hygiene"), Nil)
 
+  /** A global as a value: a definition folded ([[Val.Top]]) with its value, anything else neutral. */
   def globalValue(id: Int): Val = globals(id).kind match
-    case GlobalKind.Definition(_, v) => v
+    case GlobalKind.Definition(_, v) => Top(id, Nil, Unfold.of(v))
     case _ => Rigid(Head.Glob(id), Nil)
 
   def metaValue(m: Int): Val = metas(m).solution.getOrElse(Flex(m, Nil))
@@ -122,6 +123,7 @@ trait Evaluation:
     case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
     case Rigid(h, sp) => rigid(h, Elim.EApp(a, i) :: sp)
     case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
+    case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
     case other => throw Impossible(s"application of a non-function value $other")
 
   /** A neutral value; a function applied to enough arguments reduces ([[Matching]]). */
@@ -133,30 +135,49 @@ trait Evaluation:
   def vQuote(v: Val): Val = Val.unloc(v) match
     case Rigid(h, Elim.ESplice :: sp) => Rigid(h, sp)
     case Flex(m, Elim.ESplice :: sp) => Flex(m, sp)
+    case Top(id, Elim.ESplice :: sp, u) => Top(id, sp, Unfold(vQuote(u.value)))
     case _ => Quote(v)
 
   def vSplice(v: Val): Val = v match
     case Quote(t) => t
     case Rigid(h, sp) => Rigid(h, Elim.ESplice :: sp)
     case Flex(m, sp) => Flex(m, Elim.ESplice :: sp)
+    case Top(id, sp, u) => Top(id, Elim.ESplice :: sp, Unfold(vSplice(u.value)))
     case other => throw Impossible(s"splice of $other")
 
+  /** A projection unfolds a folded record: a member of a module value is shown as itself. */
   def proj(v: Val, l: Name): Val = v match
+    case Top(_, _, u) => proj(u.value, l)
     case Rec(fs) => fs.find(_._1 == l).map(_._2).getOrElse(throw Impossible(s"no field $l"))
     case Rigid(h, sp) => Rigid(h, Elim.EProj(l) :: sp)
     case Flex(m, sp) => Flex(m, Elim.EProj(l) :: sp)
     case other => throw Impossible(s"projection .$l of $other")
 
-  def arith(op: hugin.obj.ArithOp, a: Val, b: Val, st: Stage): Val = (a, b, st) match
-    case (Lit(x, Stage.S1), Lit(y, Stage.S1), Stage.S1) =>
-      Prims.arith(op, x, y).map(Lit(_, Stage.S1)).getOrElse(Arith(op, a, b, st))
-    case _ => Arith(op, a, b, st)
+  /** Whether `v` is a folded definition, possibly at positions. */
+  private def hasTop(v: Val): Boolean = v match
+    case Top(_, _, _) => true
+    case Obj(ObjForm.Loc(_), List(x)) => hasTop(x)
+    case _ => false
 
-  def negate(a: Val, st: Stage): Val = (a, st) match
-    case (Lit(x, Stage.S1), Stage.S1) => Prims.neg(x).map(Lit(_, Stage.S1)).getOrElse(Negate(a, st))
-    case _ => Negate(a, st)
+  /** Compile-time operations compute on values: a folded definition is unfolded first. */
+  private def unfolded(v: Val): Val = v match
+    case Top(_, _, u) => unfolded(u.value)
+    case other => other
 
-  def persist(v: Val): Val = v match
+  def arith(op: hugin.obj.ArithOp, a0: Val, b0: Val, st: Stage): Val =
+    val (a, b) = if st == Stage.S1 then (unfolded(a0), unfolded(b0)) else (a0, b0)
+    (a, b, st) match
+      case (Lit(x, Stage.S1), Lit(y, Stage.S1), Stage.S1) =>
+        Prims.arith(op, x, y).map(Lit(_, Stage.S1)).getOrElse(Arith(op, a, b, st))
+      case _ => Arith(op, a, b, st)
+
+  def negate(a0: Val, st: Stage): Val =
+    val a = if st == Stage.S1 then unfolded(a0) else a0
+    (a, st) match
+      case (Lit(x, Stage.S1), Stage.S1) => Prims.neg(x).map(Lit(_, Stage.S1)).getOrElse(Negate(a, st))
+      case _ => Negate(a, st)
+
+  def persist(v: Val): Val = unfolded(v) match
     case Lit(l, Stage.S1) => Lit(l, Stage.S0)
     case t => Persist(t)
 
@@ -170,6 +191,9 @@ trait Evaluation:
   /** Unfolds solved metas at the head, and re-tries stuck function applications (an argument may have
    *  become a constructor application since, through a meta solution or a newly elaborated function). */
   def force(v: Val): Val = v match
+    case Top(_, _, u) => force(u.value)
+    // object code at a position: a folded definition inside is unfolded, the position kept
+    case Obj(ObjForm.Loc(s), List(x)) if hasTop(x) => Obj(ObjForm.Loc(s), List(force(x)))
     case Flex(m, sp) =>
       metas(m).solution match
         case Some(s) => force(appSp(s, sp))
@@ -184,6 +208,21 @@ trait Evaluation:
     case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
     case Negate(a, Stage.S1) => negate(force(a), Stage.S1)
     case Persist(t) => persist(force(t))
+    case other => other
+
+  /** [[force]] without unfolding definitions: solved metas at the head are unfolded and stuck function
+   *  applications retried, but a [[Val.Top]] stays folded (for printing and meta solutions). */
+  def forceMetas(v: Val): Val = v match
+    case Flex(m, sp) =>
+      metas(m).solution match
+        case Some(s) => forceMetas(appSp(s, sp))
+        case None => v
+    case Rigid(Head.Glob(id), sp) =>
+      globals(id).kind match
+        case GlobalKind.Definition(_, _) => appSp(globalValue(id), sp)
+        case _ => reduceFunction(id, sp).map(forceMetas).getOrElse(v)
+    case Rigid(Head.Module(b, env), sp) if closedEnv(env).isDefined => forceMetas(appSp(evalModule(b, env), sp))
+    case Arith(_, _, _, Stage.S1) | Negate(_, Stage.S1) | Persist(_) => force(v)
     case other => other
 
   // ------------------------------------------------------------------ records

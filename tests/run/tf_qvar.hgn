@@ -1,0 +1,35 @@
+(* Typed variables: `qvar "x"` is the object variable named by the hint, as a `quoted A`. Pieces built
+   apart share it through typed values, so each piece is checked against the variable's type where it is
+   written. The same hint in one rule is the same variable; a program's own `X` is another variable. *)
+%use "std/reflect".
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+edge a b. edge b c.
+
+step : quoted node -> quoted node -> formula.
+step X Y = '{ edge $X $Y }.
+
+x : quoted node = qvar "x".
+y : quoted node = qvar "y".
+z : quoted node = qvar "z".
+
+(* the transitive closure from pieces *)
+closure : list rule = [
+  '{ path $x $y :- $(step x y) },
+  '{ path $x $z :- path $x $y, $(step y z) }
+].
+$closure.
+
+(* two values made from the hint "x" are one variable: the rule is `path X X :- edge X _, edge _ X` *)
+x2 : quoted node = qvar "x".
+both_ends : rule = '{ path $x $x2 :- edge $x _, edge _ $x2 }.
+$[both_ends].
+
+(* a variable of the program named `X` is not captured by `qvar "X"` *)
+twice : node -> node -> rel.
+pair : quoted node -> rule.
+pair V = '{ twice $V X :- edge $V X }.
+$[pair (qvar "X")].
+
+%output path. %output twice.

@@ -117,6 +117,13 @@ trait SizeChange:
       v match
         case Val.Lam(_, _, cl) =>
           if args.nonEmpty || deep then visitApplied(Tm.Lam("_", Icit.Expl, cl.body), cl.env, lvl, args, site)
+        case Val.Top(g, sp, u) =>
+          // a folded definition: inlined with its arguments, as a definition written in the syntax
+          if sp.forall(_.isInstanceOf[Elim.EApp]) then
+            val spArgs = sp.reverse.collect { case Elim.EApp(a, _) => a }
+            spArgs.foreach(part)
+            definitionTerm(g).foreach(d => inlining(g, lvl, site)(visitApplied(d, Nil, lvl, spArgs ++ args, site)))
+          else visitValue(u.value, lvl, args, site, deep)
         case Val.Rigid(h, sp) =>
           val spArgs = sp.reverse.collect { case Elim.EApp(a, _) => a }
           spArgs.foreach(part)
@@ -263,6 +270,7 @@ trait SizeChange:
         case Val.Lam(_, _, cl) => functionsIn(cl.body) ++ cl.env.flatMap(functionsInVal(_, depth + 1))
         case Val.Pi(_, _, a, cl) => functionsInVal(a, depth + 1) ++ functionsIn(cl.body)
         case Val.Rigid(Head.Glob(g), s) => (if isFunction(g) then Set(g) else reachableFunctions(g)) ++ sp(s)
+        case Val.Top(g, s, _) => reachableFunctions(g) ++ sp(s)
         case Val.Rigid(Head.Module(b, env), s) => moduleFunctions(b) ++ env.flatMap(functionsInVal(_, depth + 1)) ++ sp(s)
         case Val.Rigid(_, s) => sp(s)
         case Val.Flex(m, s) => metas(m).solution.map(functionsInVal(_, depth + 1)).getOrElse(Set.empty) ++ sp(s)

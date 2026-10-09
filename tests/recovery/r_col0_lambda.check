@@ -1,0 +1,17 @@
+error[E0001]: expected `.` after the definition, found `same`
+ --> tests/recovery/r_col0_lambda.hgn:4:10
+  |
+4 | f R = [R] (*~ E0001 *)
+  |          ^ expected `.` here
+...
+6 | same : int -> int.
+  | ---- next item starts here
+  |
+  = help: every item ends with a period
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+f : int -> list int.
+  f R = cons R nil.
+same : int -> int.
+  same R = R.

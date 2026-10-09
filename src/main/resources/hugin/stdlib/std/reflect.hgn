@@ -80,6 +80,12 @@ qterm : term -> quoted A.
 raw : quoted A -> term.
 raw (qterm T) = T.
 
+(* A typed variable (reference: reflection): the object variable named by the hint `N`, as a term of
+   type `A`. Its name has the reserved form `N#v`, which source syntax cannot write, so it cannot capture
+   a variable of the program; the same hint in one rule is the same variable. *)
+qvar : string -> quoted A.
+qvar N = qterm (tvar (N ^ "#v")).
+
 formula : Type.
 fatom : sym -> list term -> formula.
 fcmp : cmp_op -> term -> term -> formula.
@@ -88,6 +94,11 @@ fconj : formula -> formula -> formula.
 fdisj : formula -> formula -> formula.
 (* `X = k { t | φ }`: `t` and `φ` are under one binder, the variable `t` names *)
 fagg : agg_op -> term -> term -> formula -> formula.
+
+(* A term of a type of facts as an atom (reference: reflection): `qatom` turns the data `qterm (tapp s ts)`
+   into `fatom s ts`, and is stuck on any other term, which reflection rejects. A `quoted A` whose `A` is a
+   type of facts is accepted where a `formula` is expected (`qatom` is inserted). *)
+qatom : quoted A -> formula = %builtin qatom.
 
 rule : Type.
 horn : list formula -> list formula -> rule.

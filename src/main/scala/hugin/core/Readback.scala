@@ -1,45 +1,56 @@
 package hugin.core
 
-/** Read-back (quotation) of values into normal forms, and zonking (substituting solved metas). */
+/** Read-back (quotation) of values into normal forms, folded or unfolded ([[Val.Top]]), and zonking
+ *  (substituting solved metas). */
 trait Readback:
   self: Core =>
   import Val.*
 
-  def quote(l: Int, v: Val): Tm = force(v) match
-    case Flex(m, sp) => quoteSp(l, Tm.Meta(m), sp)
-    case Rigid(Head.Local(x), sp) => quoteSp(l, Tm.Var(l - x - 1), sp)
-    case Rigid(Head.Glob(id), sp) => quoteSp(l, Tm.Global(id), sp)
-    case Rigid(Head.Module(b, env), sp) => quoteSp(l, Tm.Module(b, env.map(quote(l, _))), sp)
-    case Lam(x, i, cl) => Tm.Lam(x, i, quote(l + 1, inst(cl, Val.local(l))))
-    case Pi(x, i, a, cl) => Tm.Pi(x, i, quote(l, a), quote(l + 1, inst(cl, Val.local(l))))
-    case U0 => Tm.U0
-    case U1(k) => Tm.U1(k)
-    case Lift(a) => Tm.Lift(quote(l, a))
-    case Quote(t) => Tm.Quote(quote(l, t))
-    case RecTy(ls, env, tys, rs, ds) =>
-      var e = env
-      var lv = l
-      val qs = tys.map { ty =>
-        val q = quote(lv, eval(e, ty))
-        e = Val.local(lv) :: e
-        lv += 1
-        q
-      }
-      Tm.RecTy(ls.zip(qs), rs, ds)
-    case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, quote(l, v))))
-    case Lit(x, st) => Tm.Lit(x, st)
-    case Base(b, st) => Tm.Base(b, st)
-    case RelT => Tm.RelT
-    case PropT => Tm.PropT
-    case Arith(op, a, b, st) => Tm.Arith(op, quote(l, a), quote(l, b), st)
-    case Negate(a, st) => Tm.Negate(quote(l, a), st)
-    case Obj(f, as) => Tm.Obj(f, as.map(quote(l, _)))
-    case Persist(t) => Tm.Persist(quote(l, t))
-    case FactTy(r) => Tm.FactTy(quote(l, r))
+  /** The normal form of `v` (definitions unfolded): what staging, memo keys and comparisons use. */
+  def quote(l: Int, v: Val): Tm = readBack(l, v, folded = false)
 
-  def quoteSp(l: Int, h: Tm, sp: Spine): Tm = sp.reverse.foldLeft(h) { (acc, e) =>
+  /** `v` read back with definitions folded (glued evaluation, [[Val.Top]]): the smallest term, for
+   *  printing, meta solutions and the terms the elaborator keeps (`zonk`). Its value is the same. */
+  def quoteFolded(l: Int, v: Val): Tm = readBack(l, v, folded = true)
+
+  private def readBack(l: Int, v: Val, folded: Boolean): Tm =
+    def go(l: Int, v: Val): Tm = readBack(l, v, folded)
+    (if folded then forceMetas(v) else force(v)) match
+      case Flex(m, sp) => quoteSp(l, Tm.Meta(m), sp, folded)
+      case Top(id, sp, _) => quoteSp(l, Tm.Global(id), sp, folded)
+      case Rigid(Head.Local(x), sp) => quoteSp(l, Tm.Var(l - x - 1), sp, folded)
+      case Rigid(Head.Glob(id), sp) => quoteSp(l, Tm.Global(id), sp, folded)
+      case Rigid(Head.Module(b, env), sp) => quoteSp(l, Tm.Module(b, env.map(go(l, _))), sp, folded)
+      case Lam(x, i, cl) => Tm.Lam(x, i, go(l + 1, inst(cl, Val.local(l))))
+      case Pi(x, i, a, cl) => Tm.Pi(x, i, go(l, a), go(l + 1, inst(cl, Val.local(l))))
+      case U0 => Tm.U0
+      case U1(k) => Tm.U1(k)
+      case Lift(a) => Tm.Lift(go(l, a))
+      case Quote(t) => Tm.Quote(go(l, t))
+      case RecTy(ls, env, tys, rs, ds) =>
+        var e = env
+        var lv = l
+        val qs = tys.map { ty =>
+          val q = go(lv, eval(e, ty))
+          e = Val.local(lv) :: e
+          lv += 1
+          q
+        }
+        Tm.RecTy(ls.zip(qs), rs, ds)
+      case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, go(l, v))))
+      case Lit(x, st) => Tm.Lit(x, st)
+      case Base(b, st) => Tm.Base(b, st)
+      case RelT => Tm.RelT
+      case PropT => Tm.PropT
+      case Arith(op, a, b, st) => Tm.Arith(op, go(l, a), go(l, b), st)
+      case Negate(a, st) => Tm.Negate(go(l, a), st)
+      case Obj(f, as) => Tm.Obj(f, as.map(go(l, _)))
+      case Persist(t) => Tm.Persist(go(l, t))
+      case FactTy(r) => Tm.FactTy(go(l, r))
+
+  def quoteSp(l: Int, h: Tm, sp: Spine, folded: Boolean = false): Tm = sp.reverse.foldLeft(h) { (acc, e) =>
     e match
-      case Elim.EApp(a, i) => Tm.App(acc, quote(l, a), i)
+      case Elim.EApp(a, i) => Tm.App(acc, readBack(l, a, folded), i)
       case Elim.ESplice => Tm.Splice(acc)
       case Elim.EProj(lb) => Tm.Proj(acc, lb)
   }
@@ -57,7 +68,7 @@ trait Readback:
       case Tm.App(f, a, i) => metaHeaded(f).map(app(_, eval(env, a), i))
       case _ => None
     metaHeaded(t) match
-      case Some(v) => quote(l, v)
+      case Some(v) => quoteFolded(l, v)
       case None =>
         t match
           case Tm.App(f, a, i) => Tm.App(zonk(env, l, f), zonk(env, l, a), i)

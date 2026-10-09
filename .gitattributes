@@ -1,0 +1,4 @@
+# GitHub (Linguist) has no grammar for Hugin. Highlight Hugin sources with the OCaml grammar, which
+# matches the nested `(* … *)` comments, strings, numbers and `->`; keep them out of the language
+# statistics, since they are not OCaml.
+*.hgn linguist-language=OCaml linguist-detectable=false

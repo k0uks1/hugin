@@ -142,7 +142,7 @@ class ItemQueriesSuite extends munit.FunSuite:
   test("an edit that moves lines elaborates only the edited item") {
     given db: Database = setup()
     compile
-    edit("r X :- p X, X < limit.", "r X :-\np X, X < limit.")
+    edit("r X :- p X, X < limit.", "r X :-\n  p X, X < limit.")
     assertEquals(elaborated, 1) // `r`; `s`, `t` and the query are on other lines now, with the same slices
     val warned = program.replace("t X :- p X.", "t X :- p Z.")
     db.set(SourceText, path, warned)

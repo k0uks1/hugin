@@ -4,7 +4,7 @@ error[E0906]: no field `z`
 4 | z = origin.z.
   |            ^ unknown field
   |
-  = note: `{ x : int, y : int }` has the fields `x`, `y`
+  = note: `point` has the fields `x`, `y`
   = help: did you mean `x`?
 
 1 error found

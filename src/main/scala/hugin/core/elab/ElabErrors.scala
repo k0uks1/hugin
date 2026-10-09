@@ -30,8 +30,19 @@ trait ElabErrors:
     catch case e: UnifyError => fail(mismatch(c, span, expected, Stage.S1, found, Stage.S1, e.failure))
 
   def mismatch(c: Cxt, span: Span, expected: Val, sExp: Stage, found: Val, sFound: Stage, f: UnifyFailure): Diagnostic =
-    val e = show(c, expected)
-    val fo = show(c, found)
+    f match
+      // a hole of an earlier item is reported there (E0924); what fails for it here follows from it
+      case UnifyFailure.Frozen(m) if metas(m).what == Holes.What =>
+        throw ElabError(mismatchDiagnostic(c, span, expected, sExp, found, sFound, f), silent = true)
+      case _ => mismatchDiagnostic(c, span, expected, sExp, found, sFound, f)
+
+  private def mismatchDiagnostic(c: Cxt, span: Span, expected: Val, sExp: Stage, found: Val, sFound: Stage, f: UnifyFailure): Diagnostic =
+    // folded, as written; unfolded if the two look the same folded
+    val (e, fo) =
+      val (e0, f0) = (show(c, expected), show(c, found))
+      // universe levels are what a universe inconsistency is about: shown unfolded
+      if e0 != f0 && f != UnifyFailure.Universe then (e0, f0)
+      else (showValPlainUnfolded(c.names, expected), showValPlainUnfolded(c.names, found))
     f match
       case UnifyFailure.MissingField(_) | UnifyFailure.Field(_, _, _) =>
         val note = f match
@@ -45,7 +56,9 @@ trait ElabErrors:
           val levels =
             if e == fo then List(s"the expected type is at the ${sExp.show} level, the found one at the ${sFound.show} level") else Nil
           val why = f match
-            case UnifyFailure.Occurs(m) => List(s"the unknown `?$m` would have to contain itself (occurs check)")
+            case UnifyFailure.Occurs(m) => List(s"the unknown `${showMeta(m)}` would have to contain itself (occurs check)")
+            case UnifyFailure.Frozen(m) =>
+              List(s"the unknown `${showMeta(m)}` belongs to an earlier item, which must determine it")
             case UnifyFailure.Escape(x) =>
               val n = if x < c.lvl then c.binder(x).name else s"#$x"
               List(s"the solution of an unknown would mention `$n`, which is not in its scope")

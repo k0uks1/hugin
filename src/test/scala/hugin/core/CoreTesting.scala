@@ -19,7 +19,7 @@ object CoreTesting:
 
     /** The normal form of a global's definition. */
     def nfOf(n: String): String = global(n).kind match
-      case GlobalKind.Definition(_, v) => core.showVal(Nil, v)
+      case GlobalKind.Definition(_, v) => core.showTm(Nil, core.quote(0, v)) // unfolded: the normal form
       case k => s"<$k>"
 
     /** The normal form of an expression elaborated (with inferred type) in the program's scope. */
@@ -30,7 +30,7 @@ object CoreTesting:
       items.foreach(elab.elabItemReporting)
       assert(!r.hasErrors && !reporterErrors, s"errors in $expr: ${elab.reporter.diagnostics.map(_.message)}")
       val v = global("it").kind match
-        case GlobalKind.Definition(_, v) => core.showVal(Nil, v)
+        case GlobalKind.Definition(_, v) => core.showTm(Nil, core.quote(0, v)) // unfolded: the normal form
         case _ => "?"
       elab.scope.remove("it")
       v

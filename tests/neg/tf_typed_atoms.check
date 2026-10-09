@@ -1,0 +1,31 @@
+error[E0901]: mismatched types
+ --> tests/neg/tf_typed_atoms.hgn:8:21
+  |
+8 | bad : formula = '{ $n }. (*~ E0901 *)
+  |                     ^ expected `formula`, found `quoted ⟨int⟩`
+  |
+  = note: a `quoted` term is an atom only if its type is a type of facts, and `⟨int⟩` is not one
+
+error[E0901]: mismatched types
+  --> tests/neg/tf_typed_atoms.hgn:11:19
+   |
+11 | fact : rule = '{ $m }. (*~ E0901 *)
+   |                   ^ expected `formula`, found `quoted ⟨age⟩`
+   |
+   = note: a `quoted` term is an atom only if its type is a type of facts, and `⟨age⟩` is not one
+
+error[E0402]: type mismatch
+  --> tests/neg/tf_typed_atoms.hgn:15:23
+   |
+15 | link X Y = '{ edge $X $Y }. (*~ E0402 *)
+   |                       ^^ expected `node`, found `int`
+   |
+   = note: in column 2 of `edge`
+
+error[E0918]: cannot reflect this value: the term `tvar "E"` of a `quoted` atom is not an atom
+  --> tests/neg/tf_typed_atoms.hgn:19:5
+   |
+19 | $'{ $v. }. (*~ E0918 *)
+   |     ^^ reflected here
+
+4 errors found

@@ -236,7 +236,9 @@ The fields are those of the type of `m`, so a signature decides what is opened: 
 its export signature, and `%use (m : sig).` opens the fields of `sig`. An opened name denotes the field:
 a constructor stays a constructor, also in patterns, and a relation the same relation. `%use` may come
 before the definition of the module it opens. It is an error ([E0107](errors/E0107.md)) if `m` is not a
-module, and ([E0907](errors/E0907.md)) to write `%use` in a module body.
+module, and ([E0907](errors/E0907.md)) to write `%use` in a module body. A `%use` that is left out for an
+error opens nothing, and a name that it might have opened (any name for `%use m.`, the names listed for
+`%use m (x, y).`) is not reported as unresolved ([E0101](errors/E0101.md)): the error is the `%use`'s.
 
 The following program opens a module value and then the relation of a functor's instance.
 

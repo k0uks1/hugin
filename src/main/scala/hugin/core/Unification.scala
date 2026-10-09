@@ -10,6 +10,9 @@ enum UnifyFailure:
   case Universe
   case NonPattern
 
+  /** The unknown `m` belongs to an earlier top-level block: it is frozen ([[Core.isFrozen]]). */
+  case Frozen(m: Int)
+
   /** A record lacks a field of the expected record type (a module lacks a member of its signature). */
   case MissingField(label: Name)
 
@@ -158,7 +161,27 @@ trait Unification:
         val p = pr.map(_.get)
         if p.exists(_.isEmpty) then pruneMeta(p, m)
 
-  def unify(l: Int, t: Val, u: Val): Unit = (force(t), force(u)) match
+  /** Unifies `t` and `u`. An unknown against a folded definition ([[Val.Top]]) is solved with the folded
+   *  form (`?m := vec2`, not its unfolding, and `?m := f` rather than `[x] f x`); if that fails, the
+   *  sides are unfolded and unified as any other values. */
+  def unify(l: Int, t: Val, u: Val): Unit =
+    val t1 = forceMetas(t)
+    val u1 = forceMetas(u)
+    (t1, u1) match
+      case (Flex(m, sp), r: Top) if !isFrozen(m) => solveFolded(l, m, sp, r, t1, u1)
+      case (r: Top, Flex(m, sp)) if !isFrozen(m) => solveFolded(l, m, sp, r, t1, u1)
+      case _ => unifyForced(l, unfoldTop(t1), unfoldTop(u1))
+
+  private def solveFolded(l: Int, m: Int, sp: Spine, r: Val, t1: Val, u1: Val): Unit =
+    try undoOnFailure(solve(l, m, sp, r))
+    catch case _: UnifyError => unifyForced(l, unfoldTop(t1), unfoldTop(u1))
+
+  /** A value from [[forceMetas]] forced completely: `force` unfolds the definition at its head. */
+  private def unfoldTop(v: Val): Val = v match
+    case Top(_, _, u) => force(u.value)
+    case other => other
+
+  private def unifyForced(l: Int, t: Val, u: Val): Unit = (t, u) match
     case (U0, U0) =>
     case (U1(a), U1(b)) => if !levels.eq(a, b) then fail(UnifyFailure.Universe)
     case (Pi(_, i, a, b), Pi(_, i2, a2, b2)) if i == i2 =>
@@ -196,9 +219,13 @@ trait Unification:
     case (t1, Lam(_, i, c2)) => unify(l + 1, app(t1, Val.local(l), i), inst(c2, Val.local(l)))
     case (Lam(_, i, c), u1) => unify(l + 1, inst(c, Val.local(l)), app(u1, Val.local(l), i))
     case (Flex(m, sp), Flex(m2, sp2)) =>
-      if m == m2 then intersect(l, m, sp, sp2) else flexFlex(l, m, sp, m2, sp2)
-    case (Flex(m, sp), u1) => solve(l, m, sp, u1)
-    case (t1, Flex(m, sp)) => solve(l, m, sp, t1)
+      if m == m2 then if isFrozen(m) then unifySp(l, sp, sp2) else intersect(l, m, sp, sp2)
+      else if isFrozen(m) && isFrozen(m2) then fail(UnifyFailure.Frozen(m))
+      else if isFrozen(m) then solve(l, m2, sp2, Flex(m, sp))
+      else if isFrozen(m2) then solve(l, m, sp, Flex(m2, sp2))
+      else flexFlex(l, m, sp, m2, sp2)
+    case (Flex(m, sp), u1) => if isFrozen(m) then fail(UnifyFailure.Frozen(m)) else solve(l, m, sp, u1)
+    case (t1, Flex(m, sp)) => if isFrozen(m) then fail(UnifyFailure.Frozen(m)) else solve(l, m, sp, t1)
     // η for code: ⟨t⟩ = u iff t = $u
     case (Quote(a), u1 @ Rigid(_, _)) => unify(l, a, vSplice(u1))
     case (t1 @ Rigid(_, _), Quote(b)) => unify(l, vSplice(t1), b)

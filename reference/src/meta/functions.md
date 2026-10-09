@@ -37,8 +37,10 @@ far to the right as possible. Application is juxtaposition and associates to the
 ## Implicit arguments
 
 At an application of a function with implicit arguments, the compiler inserts a fresh unknown for each
-implicit argument and solves it by higher-order pattern unification with the types around it. It is an
-error ([E0903](../errors/E0903.md)) if an implicit argument or a type is not determined. Implicit
+implicit argument and solves it by higher-order pattern unification with the types around it. An unknown
+belongs to the item that creates it (see [the order of items](index.md)): it is solved within that item,
+and later items cannot solve it. It is an error ([E0903](../errors/E0903.md)) if an implicit argument or
+a type is not determined by the end of its item. Implicit
 arguments cannot be written explicitly; they are inferred from the explicit arguments and the expected
 type.
 
@@ -78,7 +80,10 @@ A *definition* gives a constant a value. Its forms are:
   has the type `T`, and a parameter `X` an inferred type (in a type definition `t X : type = τ.`, `X`
   ranges over object types).
 
-A definition is a value: it is evaluated where it is used. The binders of a declared type do not scope
+A definition is a value: it is evaluated where it is used. Diagnostics, the language server and
+`--print-after elaborate` show it by its name where a type or an implicit argument comes from it
+(`w : vec2 = ident {vec2} v.` after `vec2 : Type = vec int two.` and `v : vec2`); conversion uses its
+value. The binders of a declared type do not scope
 over the definition. It is an error ([E0916](../errors/E0916.md)) to use them there:
 `double : (x : int) -> int = x * 2.` is written `double (x : int) : int = x * 2.`, and `hugin fix` makes
 this change.
@@ -94,13 +99,14 @@ Hole      ::= "?" | "?" NAME_CHARS
 
 A *typed hole* `?` or `?name` stands for an expression that is still to be written. It is checked like
 any expression: its type, the *goal*, is the type its position expects, and it is an unknown that the
-rest of the item may constrain. A hole may stand in meta code and in object code; in object code its
-goal is an object type, such as the type of a column. Every hole is an error
-([E0924](../errors/E0924.md)), whose diagnostic reports the goal and the variables in scope. The items
-around a hole are still elaborated, so all holes are reported at once; compilation stops before
-staging. A hole in an item that has another error is not reported. The name of a hole only identifies
-it in messages. A hole is not object syntax: in the content of a [quote](../reflection.md#quotes) it is
-an error ([E0917](../errors/E0917.md)).
+rest of the item may constrain. Later items cannot constrain it: an item whose elaboration would need a
+value for the hole of an earlier item is left out without a further diagnostic, since the hole is
+reported. A hole may stand in meta code and in object code; in object code its goal is an object type,
+such as the type of a column. Every hole is an error ([E0924](../errors/E0924.md)), whose diagnostic
+reports the goal and the variables in scope. The items around a hole are still elaborated, so all holes
+are reported at once; compilation stops before staging. A hole in an item that has another error is not
+reported. The name of a hole only identifies it in messages. A hole is not object syntax: in the content
+of a [quote](../reflection.md#quotes) it is an error ([E0917](../errors/E0917.md)).
 
 The following program leaves the argument of the outer `suc` as a hole. The compiler reports its goal,
 `nat`.
@@ -120,6 +126,15 @@ The following rule leaves a column of its body as a hole. Its goal is the column
 edge : int -> int -> rel.
 reach : int -> rel.
 reach X :- edge X ?next.
+```
+
+In the following program the hole `?t` is the value of the type `t`. The definition `x` would need
+`?t` to be `int`, but `?t` belongs to the item `t`: the compiler reports the hole, and leaves `x` out
+without reporting it.
+
+```hugin,compile_fail,E0924
+t : Type = ?t.
+x : t = 5.
 ```
 
 > **Note.** Holes support writing a program step by step. The language server shows the goal of a hole,

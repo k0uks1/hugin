@@ -1,0 +1,28 @@
+error[E0001]: expected an expression, found `linked`
+ --> tests/recovery/r_col0_formula.hgn:5:1
+  |
+4 | edge : node -> node -> rel. ?-
+  |                             -- this query starts here
+5 | linked : node -> rel. (*~ E0001 *)
+  | ^^^^^^ expected an expression
+
+error[E0001]: expected an expression, found `edge`
+ --> tests/recovery/r_col0_formula.hgn:9:1
+  |
+8 | reaches X :-
+  | ------- this rule starts here
+9 | edge a b. (*~ E0001 *)
+  | ^^^^ expected an expression
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+node : type.
+a : node.
+b : node.
+edge : node -> node -> rel.
+linked : node -> rel.
+linked X :- edge X _.
+reaches : node -> rel.
+edge a b.
+reaches X :- linked X.
+?- reaches X.
