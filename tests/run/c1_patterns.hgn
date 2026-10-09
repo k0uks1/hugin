@@ -11,18 +11,18 @@ back : node -> node -> rel.
 weight : node -> int -> rel.
 
 flip : formula -> formula.
-flip '{ $R $X $Y } = '{ $R $Y $X }.
+flip '( $R $X $Y ) = '( $R $Y $X ).
 flip F = F.
 
 (* every rule with `edge` in its body gets a reversed copy deriving `back` *)
 reverse : rule -> list rule.
-reverse '{ edge $X $Y } = ['{ back $Y $X }].
-reverse '{ _ :- edge $X $Y } = ['{ back $Y $X :- edge $X $Y }].
+reverse '( edge $X $Y ) = ['( back $Y $X )].
+reverse '( _ :- edge $X $Y ) = ['( back $Y $X :- edge $X $Y )].
 reverse _ = [].
 
 heavy : formula -> list rule.
-heavy '{ weight $N 3 } = ['{ edge $N $N }].
-heavy '{ weight _ _ } = [].
+heavy '( weight $N 3 ) = ['( edge $N $N )].
+heavy '( weight _ _ ) = [].
 heavy _ = [].
 
 m = {
@@ -30,12 +30,12 @@ m = {
   edge a c.
 }.
 
-rules : list rule = '{ edge a b. m.edge b c. back X X :- weight X 3. }.
+rules : list rule = '( edge a b. m.edge b c. back X X :- weight X 3. ).
 
 $rules.
-$append (reverse '{ edge a b }) (reverse '{ m.edge b c }).
-$'{ $(flip '{ edge a b }). }.
-$heavy '{ weight c 3 }.
-$heavy '{ weight c 4 }.
+$append (reverse '( edge a b )) (reverse '( m.edge b c )).
+$'( $(flip '( edge a b )). ).
+$heavy '( weight c 3 ).
+$heavy '( weight c 4 ).
 
 weight c 3.

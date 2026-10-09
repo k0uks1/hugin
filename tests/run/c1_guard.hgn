@@ -19,24 +19,24 @@ typed_check : expr -> ctx -> rel.
 lookup : ctx -> string -> typ -> rel.
 
 guard : rule -> list rule.
-guard '{ typed $E $G $T :- $..Body } =
-  '{ typed $E $G $T :- typed_check $E $G, $..Body }
-  :: propagate '{ typed_check $E $G } Body.
+guard '( typed $E $G $T :- $..Body ) =
+  '( typed $E $G $T :- typed_check $E $G, $..Body )
+  :: propagate '( typed_check $E $G ) Body.
 guard R = [R].                                   (* all other rules unchanged; coverage needs it *)
 
 propagate : formula -> list formula -> list rule.
 propagate Pre [] = [].
-propagate Pre ('{ typed $E2 $G2 $_ } :: Rest) = '{ typed_check $E2 $G2 :- $Pre } :: propagate Pre Rest.
-propagate Pre (F :: Rest) = propagate '{ $Pre, $F } Rest.
+propagate Pre ('( typed $E2 $G2 $_ ) :: Rest) = '( typed_check $E2 $G2 :- $Pre ) :: propagate Pre Rest.
+propagate Pre (F :: Rest) = propagate '( $Pre, $F ) Rest.
 
 guardAll : list rule -> list rule.
 guardAll [] = [].
 guardAll (R :: Rs) = append (guard R) (guardAll Rs).
 
-rules : list rule = '{
+rules : list rule = '(
   typed (ref X) G T :- lookup G X T.
   typed (app F A) G T :- typed F G (arr S T), typed A G S.
-}.
+).
 
 $guardAll rules.
 

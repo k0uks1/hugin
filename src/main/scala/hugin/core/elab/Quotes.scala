@@ -12,7 +12,7 @@ import hugin.util.*
 enum Q:
   case Hole(t: Tree, kind: RKind, span: Span)
 
-  /** A hole that is a whole entry of a quote (`'{ $r }`, `'{ a. $i. }`) of kind `kind` (a rule or an
+  /** A hole that is a whole entry of a quote (`'( $r )`, `'( a. $i. )`) of kind `kind` (a rule or an
    *  item): in an expression, a meta value of that kind, or of type `formula` (a fact) or `rule` (for an
    *  item); in a pattern, a variable for the whole entry. */
   case EntryHole(t: Tree, kind: RKind, span: Span)
@@ -33,7 +33,7 @@ enum Q:
   /** Data built directly (a declaration's empty attributes, a measure): only in expressions. */
   case Raw(tm: Tm, span: Span)
 
-/** Reflection quotes (reference: reflection): `'{ … }` checked against a reflective type denotes data of
+/** Reflection quotes (reference: reflection): `'( … )` checked against a reflective type denotes data of
  *  that type, read in the category the type gives (a module or a sequence of rules: entries with their
  *  periods; a rule or an item: one entry; a formula, a term, a reference to a constant, a declaration, a
  *  measure: one entry without `:-` or period), with `$x` holes for meta values, `$..xs` for sequences and

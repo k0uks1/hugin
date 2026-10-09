@@ -4,9 +4,9 @@ p : int -> rel.
 q : int -> rel.
 
 mk : int -> list rule.
-mk N = '{ p X :- q N. }. (*~ E0501 *)
+mk N = '( p X :- q N. ). (*~ E0501 *)
 
 $mk 1.
 
-typo : rule = '{ p "one" :- q 1 }. (*~ E0402 *)
+typo : rule = '( p "one" :- q 1 ). (*~ E0402 *)
 $[typo].

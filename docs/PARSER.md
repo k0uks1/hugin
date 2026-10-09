@@ -131,17 +131,17 @@ the CST can be added below the typed trees then.
 | `ItemSyntax.scala` | programs and items: declarations, definitions, clauses with `where`, edges, rules, queries; declaration heads |
 | `ExprSyntax.scala` | expressions: operators, prefix forms, application, selection, primaries, parentheses |
 | `RecordSyntax.scala` | braces: record types and values, implicit binders, module bodies |
-| `QuoteSyntax.scala` | reflection: quotes `'{ … }` (since #76), holes, lists |
+| `QuoteSyntax.scala` | reflection: quotes `'( … )` (since #76), holes, lists |
 | `DirectiveSyntax.scala` | directives, mode items, attached declarations |
 | `SyntaxProblems.scala` | the inventory of syntax errors (E0001–E0005) |
 
 The parts are traits over the concrete `ParserBase` class (the cursor is a field, not a set of abstract
 hooks), mixed into `final class Parser`. Quoted syntax has its own part (`QuoteSyntax`), and the recovery
 primitives (closing a delimiter, ending an item, skipping to a recovery set) are generic. The explicit
-quotes `'{ … }` of issue #76 use them: the lexer makes `'` a token only before `{` (the `{` stays a token
+quotes `'( … )` of issue #76 use them: the lexer makes `'` a token only before `{` (the `{` stays a token
 of its own, so every depth count treats the quote as a brace), the entries are parsed like rules and
 queries (`[@n] e [:- b]`, `?- b`) separated by periods, and the quote is closed with `close`, so an
-unclosed `'{` is E0005 with the usual insertion suggestion.
+unclosed `'(` is E0005 with the usual insertion suggestion.
 
 ## 4. The resilient parser
 
@@ -189,7 +189,7 @@ Recovery happens at the innermost construct that can continue:
 | item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token, or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
-| `( … )`, `[ … ]`, `{ … }`, `'{ … }`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
+| `( … )`, `[ … ]`, `{ … }`, `'( … )`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
 | record type / value, list, higher-order hole | `,` | an entry without a label ends the entries, and the closing brace recovers |
 | declaration | `:` type `<:` `=` | each part is parsed on its own; a broken definition leaves the name and the type in the tree |
 
@@ -293,7 +293,7 @@ label on the opener. Specific messages replace the generic one for common mistak
 | `:=` in a definition header | expected a type, found `=`; a definition without a type is `name = expr.` | remove `:` (machine-applicable) |
 | `=` in a record type, `:` in a record value | ``expected `:`, found `=` ``: record types use `:`, record values `=` | replace (maybe incorrect) |
 | `$` not followed by an expression | expected an expression; how holes and splices are written | — |
-| `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'{ h :- b }` (#76) | — |
+| `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'( h :- b )` (#76) | — |
 | `}` without an open module body | unmatched `}` | — |
 | `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
 

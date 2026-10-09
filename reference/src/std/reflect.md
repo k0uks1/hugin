@@ -51,7 +51,7 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `arith_op` (`oadd`, `osub`, `omul`, `odiv`, `ocat`) | arithmetic operators |
 | `cmp_op` (`ceq`, `cne`, `clt`, `cle`, `cgt`, `cge`) | comparison operators |
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
-| `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'{ … }` ([Reflection](../reflection.md#quotes)) |
+| `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'( … )` ([Reflection](../reflection.md#quotes)) |
 | `quoted A`, `qterm`, `raw` | a term of the object type `A`, made without a check, and its term ([Reflection](../reflection.md#typed-terms)) |
 | `qvar` | the typed variable named by a hint ([Reflection](../reflection.md#typed-variables)) |
 | `qatom` | a typed atom as a formula, inserted where a formula is expected ([Reflection](../reflection.md#typed-atoms)) |

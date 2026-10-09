@@ -120,7 +120,7 @@ object Trees:
   /** `e :: es`: a meta list with head `e`. */
   final case class ConsE(head: Tree, tail: Tree)(val span: Span) extends Tree
 
-  /** `'{ … }`: a reflection quote, object syntax as data (reference: reflection). Its content is a sequence
+  /** `'( … )`: a reflection quote, object syntax as data (reference: reflection). Its content is a sequence
    *  of entries as in a file: rules and facts ([[Rule]], a fact's single head unsplit, so that `p X, q X`
    *  without `:-` is one formula) and queries ([[Query]]), separated by periods; `terminated` if the last
    *  entry ends with a period. Which syntactic category the content denotes (a module, a rule, an item, a

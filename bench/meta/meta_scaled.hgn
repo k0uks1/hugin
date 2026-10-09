@@ -19,7 +19,7 @@ edge : city -> city -> rel.
 edge c0 c1.
 mirror : module -> module.
 mirror [] = [].
-mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
+mirror ('( edge $X $Y :- $..B ) :: Rest) = '( edge $X $Y :- $..B ) :: '( edge $Y $X :- $..B ) :: mirror Rest.
 mirror (I :: Rest) = I :: mirror Rest.
 road0 : city -> city -> rel.
 road0 c0 c1.  road0 c1 c2.  road0 c2 c3.
@@ -45,7 +45,7 @@ result0 : expr -> typ -> rel.
 result0 E T :- prog0 E, typed0 E empty T.
 %output result0.
 num0 : int -> rel.
-data0 : module = '{ num0 0. num0 M :- num0 N, N < 3, M = N + 1. }.
+data0 : module = '( num0 0. num0 M :- num0 N, N < 3, M = N + 1. ).
 $data0.
 %output num0.
 
@@ -73,7 +73,7 @@ result1 : expr -> typ -> rel.
 result1 E T :- prog1 E, typed1 E empty T.
 %output result1.
 num1 : int -> rel.
-data1 : module = '{ num1 1. num1 M :- num1 N, N < 4, M = N + 1. }.
+data1 : module = '( num1 1. num1 M :- num1 N, N < 4, M = N + 1. ).
 $data1.
 %output num1.
 
@@ -101,7 +101,7 @@ result2 : expr -> typ -> rel.
 result2 E T :- prog2 E, typed2 E empty T.
 %output result2.
 num2 : int -> rel.
-data2 : module = '{ num2 2. num2 M :- num2 N, N < 5, M = N + 1. }.
+data2 : module = '( num2 2. num2 M :- num2 N, N < 5, M = N + 1. ).
 $data2.
 %output num2.
 
@@ -129,7 +129,7 @@ result3 : expr -> typ -> rel.
 result3 E T :- prog3 E, typed3 E empty T.
 %output result3.
 num3 : int -> rel.
-data3 : module = '{ num3 3. num3 M :- num3 N, N < 6, M = N + 1. }.
+data3 : module = '( num3 3. num3 M :- num3 N, N < 6, M = N + 1. ).
 $data3.
 %output num3.
 
@@ -157,7 +157,7 @@ result4 : expr -> typ -> rel.
 result4 E T :- prog4 E, typed4 E empty T.
 %output result4.
 num4 : int -> rel.
-data4 : module = '{ num4 4. num4 M :- num4 N, N < 7, M = N + 1. }.
+data4 : module = '( num4 4. num4 M :- num4 N, N < 7, M = N + 1. ).
 $data4.
 %output num4.
 
@@ -185,7 +185,7 @@ result5 : expr -> typ -> rel.
 result5 E T :- prog5 E, typed5 E empty T.
 %output result5.
 num5 : int -> rel.
-data5 : module = '{ num5 5. num5 M :- num5 N, N < 8, M = N + 1. }.
+data5 : module = '( num5 5. num5 M :- num5 N, N < 8, M = N + 1. ).
 $data5.
 %output num5.
 
@@ -213,7 +213,7 @@ result6 : expr -> typ -> rel.
 result6 E T :- prog6 E, typed6 E empty T.
 %output result6.
 num6 : int -> rel.
-data6 : module = '{ num6 6. num6 M :- num6 N, N < 9, M = N + 1. }.
+data6 : module = '( num6 6. num6 M :- num6 N, N < 9, M = N + 1. ).
 $data6.
 %output num6.
 
@@ -241,7 +241,7 @@ result7 : expr -> typ -> rel.
 result7 E T :- prog7 E, typed7 E empty T.
 %output result7.
 num7 : int -> rel.
-data7 : module = '{ num7 7. num7 M :- num7 N, N < 10, M = N + 1. }.
+data7 : module = '( num7 7. num7 M :- num7 N, N < 10, M = N + 1. ).
 $data7.
 %output num7.
 

@@ -8,26 +8,26 @@ lives ann oslo.
 
 (* a formula hole and a sequence hole *)
 by_formula : formula -> rule.
-by_formula F = '{ born C :- $F }.
+by_formula F = '( born C :- $F ).
 by_list : list formula -> rule.
-by_list Fs = '{ born C :- $..Fs }.
+by_list Fs = '( born C :- $..Fs ).
 
 (* a `term` hole in an atom of the body *)
 by_term : term -> rule.
-by_term T = '{ born C :- lives $T C2 }.
+by_term T = '( born C :- lives $T C2 ).
 
 (* not reported: the body binds the variable, or the hole is under `not`, or holds a typed value (range
    restriction is checked when a rule is reflected) *)
 bound : formula -> rule.
-bound F = '{ born C :- lives _ C, $F }.
+bound F = '( born C :- lives _ C, $F ).
 negated : formula -> rule.
-negated F = '{ named "x" :- not $F }.
+negated F = '( named "x" :- not $F ).
 typed : quoted city -> rule.
-typed V = '{ born C :- lives _ $V }.
+typed V = '( born C :- lives _ $V ).
 
 (* the typed rewrite *)
 born_where : (quoted city -> formula) -> rule.
-born_where F = '{ born $c :- $(F c) }
+born_where F = '( born $c :- $(F c) )
   where c : quoted city = qvar "c".
-$[born_where ([p] '{ lives _ $p })].
+$[born_where ([p] '( lives _ $p ))].
 %output born.

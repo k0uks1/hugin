@@ -139,7 +139,7 @@ final class ElabState(val scope: NameScope = NameScope()):
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics;
  *  - [[Reflective]], [[Quotes]], [[QuoteTerms]], [[QuotedPatterns]], [[Reflection]]: object syntax as data
- *    (reference: reflection): the prelude's reflective types, quotes `'{ … }` in expressions and
+ *    (reference: reflection): the prelude's reflective types, quotes `'( … )` in expressions and
  *    patterns, reflection of data back into object code.
  */
 class Elaborator(

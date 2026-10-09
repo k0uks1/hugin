@@ -64,14 +64,14 @@ codes (both X Y) :- src X, src Y, X < Y.
 
 (* reified at holes of quotes: `reflect (reify v)` is the code `lift v` *)
 reflected : tree float -> rel.
-$'{ reflected $t. }.
+$'( reflected $t. ).
 same_tree : int -> rel.
 same_tree 1 :- trees T, reflected T.
-named : rule = '{ labelled $"quoted" }.
+named : rule = '( labelled $"quoted" ).
 $[named].
 terms : term = list.reify tint [3, 4].
 listed : list int -> rel.
-$'{ listed $terms. }.
+$'( listed $terms. ).
 
 ?- inner K.
 ?- labelled L.

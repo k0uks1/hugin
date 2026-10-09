@@ -4,7 +4,7 @@
 knows : (a : int) -> (b : int) -> rel.
 knows 1 2.
 symmetric : (r : ⇑(A -> A -> rel)) -> list item.
-symmetric R = '{ } R Y X :- R X Y. }. (*~ E0001 *) (*~ E0001 *)
+symmetric R = '( ) R Y X :- R X Y. }. (*~ E0001 *) (*~ E0001 *)
 twice : (r : ⇑(A -> A -> rel)) -> list item.
-twice R = '{ R X X :- R X _. }.
+twice R = '( R X X :- R X _. ).
 %twice knows.

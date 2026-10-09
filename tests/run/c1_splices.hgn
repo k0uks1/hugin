@@ -5,8 +5,8 @@ p : int -> rel.
 q : int -> rel.
 r : int -> int -> rel.
 
-body : formula = '{ q X, X > 1 }.
-three : term = '{ 1 + 2 }.
+body : formula = '( q X, X > 1 ).
+three : term = '( 1 + 2 ).
 
 q 1.
 q 2.

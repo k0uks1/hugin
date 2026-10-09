@@ -156,7 +156,7 @@ final class Features(using db: Database):
   val completionTriggers: List[String] = List(".", "{", "%")
 
   /** The compiler's candidates ([[Ide.completions]]), adapted on the meta level: inside a reflection
-   *  quote `'{ … }` only object syntax (or, after `$`, meta values) is offered; where the elaborator knew
+   *  quote `'( … )` only object syntax (or, after `$`, meta values) is offered; where the elaborator knew
    *  the type expected at the name being typed, the variables in scope there are added and the
    *  candidates whose result type fits come first (`sortText`, `preselect`). */
   def completion(uri: String, pos: Position): List[CompletionItem] =

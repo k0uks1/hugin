@@ -1,7 +1,7 @@
 // Semantic tokens on the meta level: meta and object names, meta constructors and functions, directives, quote delimiters, splices, lifts, holes.
 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
 {"jsonrpc": "2.0", "method": "initialized", "params": {}}
-{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\ntwo : nat = suc (suc zero).\nedge : int -> int -> rel.\npath : int -> int -> rel.\npath X Y :- edge X Y.\ncode : ⇑int = 4.\nsymmetric : sym -> list item.\nsymmetric R = '{ $R Y X :- $R X Y. }.\n%symmetric edge.\nlater : nat = ?.\n%use \"std/reflect\".\n"}}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:t.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\ntwo : nat = suc (suc zero).\nedge : int -> int -> rel.\npath : int -> int -> rel.\npath X Y :- edge X Y.\ncode : ⇑int = 4.\nsymmetric : sym -> list item.\nsymmetric R = '( $R Y X :- $R X Y. ).\n%symmetric edge.\nlater : nat = ?.\n%use \"std/reflect\".\n"}}}
 {"jsonrpc": "2.0", "id": 2, "method": "textDocument/semanticTokens/full", "params": {"textDocument": {"uri": "untitled:t.hgn"}}}
 {"jsonrpc": "2.0", "id": 3, "method": "shutdown"}
 {"jsonrpc": "2.0", "method": "exit"}

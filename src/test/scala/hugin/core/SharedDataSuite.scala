@@ -49,7 +49,7 @@ class SharedDataSuite extends munit.ScalaCheckSuite:
   property("reflect (T.reify v) is T.lift v: the reflected fact is the lifted one") {
     Prop.forAll(typed) { (ty, value) =>
       val lifted = StagedTesting.staged(program(ty, value, "held v."))
-      val reflected = StagedTesting.staged(program(ty, value, "$'{ held $v. }."))
+      val reflected = StagedTesting.staged(program(ty, value, "$'( held $v. )."))
       assertEquals(reflected, lifted, s"$ty = $value")
       true
     }
@@ -59,7 +59,7 @@ class SharedDataSuite extends munit.ScalaCheckSuite:
     val code = program(
       "tree (option int)",
       "node \"r\" [leaf (some 1), leaf none]",
-      "held v.\nagain : tree (option int) -> rel.\n$'{ again $v. }.\nsame : int -> rel.\nsame 1 :- held X, again X.\n%output same."
+      "held v.\nagain : tree (option int) -> rel.\n$'( again $v. ).\nsame : int -> rel.\nsame 1 :- held X, again X.\n%output same."
     )
     assertEquals(StagedTesting.run(code), Right(List("same 1.")))
   }
