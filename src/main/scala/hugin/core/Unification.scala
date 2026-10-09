@@ -161,7 +161,27 @@ trait Unification:
         val p = pr.map(_.get)
         if p.exists(_.isEmpty) then pruneMeta(p, m)
 
-  def unify(l: Int, t: Val, u: Val): Unit = (force(t), force(u)) match
+  /** Unifies `t` and `u`. An unknown against a folded definition ([[Val.Top]]) is solved with the folded
+   *  form (`?m := vec2`, not its unfolding, and `?m := f` rather than `[x] f x`); if that fails, the
+   *  sides are unfolded and unified as any other values. */
+  def unify(l: Int, t: Val, u: Val): Unit =
+    val t1 = forceMetas(t)
+    val u1 = forceMetas(u)
+    (t1, u1) match
+      case (Flex(m, sp), r: Top) if !isFrozen(m) => solveFolded(l, m, sp, r, t1, u1)
+      case (r: Top, Flex(m, sp)) if !isFrozen(m) => solveFolded(l, m, sp, r, t1, u1)
+      case _ => unifyForced(l, unfoldTop(t1), unfoldTop(u1))
+
+  private def solveFolded(l: Int, m: Int, sp: Spine, r: Val, t1: Val, u1: Val): Unit =
+    try undoOnFailure(solve(l, m, sp, r))
+    catch case _: UnifyError => unifyForced(l, unfoldTop(t1), unfoldTop(u1))
+
+  /** A value from [[forceMetas]] forced completely: `force` unfolds the definition at its head. */
+  private def unfoldTop(v: Val): Val = v match
+    case Top(_, _, u) => force(u.value)
+    case other => other
+
+  private def unifyForced(l: Int, t: Val, u: Val): Unit = (t, u) match
     case (U0, U0) =>
     case (U1(a), U1(b)) => if !levels.eq(a, b) then fail(UnifyFailure.Universe)
     case (Pi(_, i, a, b), Pi(_, i2, a2, b2)) if i == i2 =>

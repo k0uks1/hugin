@@ -111,14 +111,17 @@ trait Records:
     )
 
   private def inferProjection(c: Cxt, sel: Select): (Tm, Val, Stage) =
-    val (qt, qty, qs) = spliceIfLifted(sel.qual.span, insertAll(c, sel.qual.span, infer(c, sel.qual)))
+    val inferred = insertAll(c, sel.qual.span, infer(c, sel.qual))
+    val (qt, qty, qs) = spliceIfLifted(sel.qual.span, inferred)
+    // the record type as written (a signature's name), unless the qualifier was object code
+    val shownTy = if qs == inferred._3 then inferred._2 else qty
     qty match
       case rt: Val.RecTy =>
         fieldType(rt, ev(c, qt), sel.name) match
           case Some(fty) =>
             recordFieldUse(c, rt, sel, fty)
             sharedMember(c, Tm.Proj(qt, sel.name)).getOrElse((Tm.Proj(qt, sel.name), fty, qs))
-          case None => noField(c, sel, qty, rt.labels)
+          case None => noField(c, sel, shownTy, rt.labels)
       case _ if qs == Stage.S0 => objectProjection(c, sel, qt, qty)
       case other if qs == Stage.S1 && sel.qual.isInstanceOf[Ident] =>
         fail(ElabProblem.NotAModule(hugin.syntax.Printer.show(sel.qual), show(c, other), sel.qual.span))

@@ -270,7 +270,7 @@ trait Declarations:
     val (cp, ps) = bindParams(ci, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
     val (body, bty) = inferS(cp, rhs, Stage.S1)
     checkObjectFragments(cp, body, bty)
-    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, quote(cp.lvl, bty)))
+    val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, quoteFolded(cp.lvl, bty)))
     val tm = imps.foldRight(lams(ps, body))((b, acc) => Tm.Lam(b._1, Icit.Impl, acc))
     (ty, tm)
 

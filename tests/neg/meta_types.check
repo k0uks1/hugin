@@ -25,7 +25,7 @@ error[E0901]: mismatched types
   --> tests/neg/meta_types.hgn:13:11
    |
 13 | bad4 = tc 5.
-   |           ^ expected `{ node : type, edge : ⇑(node -> node -> rel) }`, found `int`
+   |           ^ expected `graph`, found `int`
 
 error[E0905]: not a function
   --> tests/neg/meta_types.hgn:16:18

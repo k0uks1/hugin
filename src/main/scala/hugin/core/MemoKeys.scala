@@ -89,6 +89,7 @@ trait MemoKeys:
         case Val.Quote(u) =>
           val (tu, s) = quoteKeyAt(u, d)
           (Tm.Quote(tu), s)
+        case Val.Top(_, _, u) => quoteKeyAt(u.value, d)
         case Val.Rec(fs) =>
           val qs = fs.map((l, x) => (l, quoteKeyAt(x, d)))
           (Tm.Rec(qs.map((l, q) => (l, q._1))), qs.forall(_._2._2))
@@ -195,6 +196,7 @@ trait MemoKeys:
         case Val.Obj(_, as) => as
         case Val.Quote(u) => List(u)
         case Val.Rec(fs) => fs.map(_._2)
+        case Val.Top(_, _, u) => List(u.value)
         case _ => Nil
       bottomUp(root)(children, v => readBack.containsKey(v) || local.containsKey(v)) { v =>
         val (t, stable) = v match
@@ -217,6 +219,7 @@ trait MemoKeys:
           case Val.Obj(f, as) =>
             val qs = as.map(result)
             (Tm.Obj(f, qs.map(_._1)), qs.forall(_._2))
+          case Val.Top(_, _, u) => result(u.value)
           case Val.Quote(u) =>
             val (tu, s) = result(u)
             (Tm.Quote(tu), s)
