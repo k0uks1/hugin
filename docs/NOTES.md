@@ -1724,6 +1724,13 @@ three batches.
   Goldens `run/tf_typed_atoms` (atoms as facts, items, heads, bodies, under `not`, and taken apart by a
   quoted pattern), `neg/tf_typed_atoms`. Changed: `neg/core_e0901_occurs` (numbers of unknowns, which
   count the prelude's declarations).
+  The new golden shifted the mutants that `RecoveryFuzzSuite` draws from its fixed seed onto a weakness
+  of the parser that it had not met: `?-` at the end of a line took the declaration in column 0 of the
+  next line as its formula, so the declaration was lost (E0101 for its uses). The formula of a query and
+  the body of a rule now do not start in column 0, like an argument and the operand of `⇑`
+  (`ItemSyntax`); no program of `tests/`, `examples/`, `docs/`, `bench/`, the reference or the prelude
+  starts one there. Reference: lexical-structure ("Items"); `docs/PARSER.md` 4.2; golden
+  `recovery/r_col0_formula`.
 
 ## Possible next steps
 
