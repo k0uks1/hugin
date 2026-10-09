@@ -72,7 +72,7 @@ not use them:
 
 | term | definition | defined in |
 |---|---|---|
-| abstract type | an object type that a functor's parameter gives, which in the functor's body is a subtype only of itself | [Object types](object/types.md#where-object-code-is-typed) |
+| abstract type | an object type that a functor's parameter gives, which in the functor's body is a subtype only of itself | [Object types](object/types.md#functor-bodies) |
 | aggregate | a formula `X = k { t \| φ }` that binds `X` to the count, sum, minimum or maximum of `t` over the solutions of `φ` | [Aggregates](object/aggregates.md) |
 | anchor | the finite set in which guarded induction keeps the measure of a head | [Termination](object/termination.md#guarded-induction-b) |
 | answer | a valuation of the variables of a query under which its formula holds | [Queries and output](object/io.md#queries) |
@@ -104,6 +104,7 @@ not use them:
 | formula | a condition of a rule body or query: atoms, comparisons, negations, aggregates, conjunctions, disjunctions | [Rules](object/rules.md#formulas) |
 | formula function | a meta function whose result is a formula, of type `… -> prop` | [Staging](meta/staging.md#formula-functions) |
 | functor | a meta function that returns a module | [Modules](modules.md#functors) |
+| goal | the type that the position of a typed hole expects | [Functions](meta/functions.md#typed-holes) |
 | guard | the atom `r.check t̄ᵢ` that `%demand` adds to the body of every rule of `r`; it bounds the inputs of `r` | [Directives](directives.md#what-demand-generates) |
 | guarded induction (B) | the termination argument by which a measure decreases along every recursive call and stays in a finite set | [Termination](object/termination.md#guarded-induction-b) |
 | head | an atom before `:-` of a rule; the fact the rule derives | [Rules](object/rules.md) |
@@ -121,7 +122,7 @@ not use them:
 | lifting | the meta function `τ -> ⇑τ⁰` that turns meta values of a base type, object code or a shared data type into object code; stage inference inserts it | [Staging](meta/staging.md#lifting) |
 | measure | a tuple of argument positions that guarded induction orders | [Termination](object/termination.md#guarded-induction-b) |
 | meet | the greatest common subtype of two types | [Object types](object/types.md#subtyping) |
-| member | a constructor, relation or struct whose facts are values of an open type | [Object types](object/types.md#open-types) |
+| member | a constructor, relation or struct whose facts are values of an open type, directly or through an edge between open types | [Object types](object/types.md#open-types) |
 | meta constant | a constant whose type is a meta type: a function, definition, inductive family, meta constructor or postulate | [The meta level](meta/index.md) |
 | meta constructor | a constructor of an inductive family | [Inductive families](meta/families.md) |
 | meta function | a meta constant of a Π type, defined by clauses or by a definition | [Functions](meta/functions.md) |
@@ -145,19 +146,21 @@ not use them:
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |
 | refinement | a nominal type `a : type <: b.` whose values are values of the base type or refinement `b` | [Object types](object/types.md#refinements) |
 | reflect | turn reflective data into object items of the program | [Reflection](reflection.md#reflecting-data-into-the-program) |
-| reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data | [Reflection](reflection.md) |
+| reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data, without object types; `quoted A` is the typed layer over `term` | [Reflection](reflection.md) |
 | reify | turn object syntax into reflective data, by a quote; a meta value of a base or shared data type at a hole is reified by `tint`, … or `T.reify` | [Reflection](reflection.md#quotes) |
 | relation | an object constant `r : τ̄ -> rel`; a set of facts | [Declarations](object/declarations.md) |
 | rule | an item `h̄ :- φ.` that derives the heads `h̄` for every valuation that satisfies `φ` | [Rules](object/rules.md) |
 | shared data type | a type declared `T ā : data.` that exists at both stages: a meta inductive family and an object family under one name, with the derived `T.lift` and `T.reify` | [Inductive families](meta/families.md#shared-data) |
 | signature | a record type used as the type of modules | [Modules](modules.md#signatures) |
 | splice | `$e`: meta code that computes object code, inserted into object code | [Staging](meta/staging.md) |
+| spliced code | a meta value of type `⇑τ` in object code: a term of type `τ` whose shape is not known when it is typed | [Object types](object/types.md#typing-of-rules) |
 | stage | 0 for the object level, 1 for the meta level | [Staging](meta/staging.md) |
 | stratum | a set of components evaluated after all relations it negates or aggregates over | [Negation](object/negation.md) |
 | struct | a relation declared as a record type `s : type = { l₁ : τ₁, … }.` | [Declarations](object/declarations.md#structs) |
-| subtyping edge | an item `c <: a.` that makes the fact type `c` a member of the open type `a` | [Object types](object/types.md#open-types) |
+| subtyping edge | an item `c <: a.` that makes the fact type `c`, or the members of the open type `c`, members of the open type `a` | [Object types](object/types.md#open-types) |
 | symbol | a meta value of type `sym` that refers to an object constant | [Reflection](reflection.md#symbols-and-derived-constants) |
 | termination argument | descent along derivations (A) or guarded induction (B) | [Termination](object/termination.md) |
+| typed hole | an expression `?` or `?name` that stands for an expression still to be written; it is an error that reports its goal | [Functions](meta/functions.md#typed-holes) |
 | union | a type `τ₁ \| … \| τₙ` whose values are those of its members | [Object types](object/types.md#unions) |
 | universe | `type`, the type of object types, or `Typeᵢ`, a type of meta types | [Universes](meta/universes.md) |
 | valuation | an assignment of values to the variables of a rule or query | [Rules](object/rules.md#semantics) |
