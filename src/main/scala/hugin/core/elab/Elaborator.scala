@@ -66,6 +66,14 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  the items using them without further errors. */
   var unelaborated: Set[Name] = Set.empty
 
+  /** What the `%use` items that were dropped for an error might have opened: `None` if none was dropped,
+   *  `Some(None)` for any name (a `%use m.`), `Some(Some(ns))` for the names `ns` (`%use m (x, y).`). A
+   *  name they might have opened is not reported as unresolved: the error is the `%use`'s. */
+  var droppedUses: Option[Option[Set[Name]]] = None
+
+  /** Whether an unresolved name `n` might have been opened by a dropped `%use`. */
+  def mightBeOpened(n: Name): Boolean = droppedUses.exists(_.forall(_(n)))
+
   /** What the object items elaborated so far contribute to the module (for module-wide directives). */
   val parts: mutable.ListBuffer[ModulePart] = mutable.ListBuffer.empty
 
@@ -106,6 +114,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     s.signatures = signatures
     s.erroneous = erroneous
     s.unelaborated = unelaborated
+    s.droppedUses = droppedUses
     s.used = used
     s
 

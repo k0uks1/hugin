@@ -67,7 +67,9 @@ first, each after the items it refers to, then the clauses of functions, which m
 declaration and to each other, and then the object items: rules, queries and directives. It is an error
 ([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
 definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
-reported and left out; elaboration continues with the next item.
+reported and left out; elaboration continues with the next item. A use of a name that such an item
+declared, or that a `%use` that was left out might have opened ([Modules](../modules.md)), is not
+reported again: its item is left out without a further diagnostic.
 
 The unknowns that the compiler creates while it elaborates an item (implicit arguments, inferred types,
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.

@@ -1,0 +1,9 @@
+(* A `%use` of a module whose definition is left out for a syntax error opens nothing: the names it might
+   have opened are not reported as unresolved, only the syntax error is. *)
+%use m.
+m = {
+  r : int -> -> rel. (*~ E0001 *)
+  s : int -> rel.
+}.
+q : int -> rel.
+q X :- r X, s X.
