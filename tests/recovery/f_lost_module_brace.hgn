@@ -1,0 +1,12 @@
+(* A module body whose `{` was deleted (issue #83): one error where the body's first member does not fit
+   the definition, and one for the `}` (with its period). The indented members belong to the damaged
+   definition: they are skipped with it, so `sel` is not reported as unresolved in the rule after its
+   declaration, and the items in column 0 after the body are elaborated. *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+select (p : A -> prop) (r : A -> rel) =
+  sel : A -> rel. (*~ E0001 *)
+  @s sel X :- r X, p X.
+}. (*~ E0001 *)
+expensive : item -> rel.
+expensive I :- listed I, I.price >= 10.

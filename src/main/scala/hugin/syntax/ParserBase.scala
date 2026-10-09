@@ -242,7 +242,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   protected var bodies = 0
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
-   *  closing the enclosing body, or the end of the file. */
+   *  closing the enclosing body, or the end of the file. At the top level, a period followed by an
+   *  indented line does not end the skip: top-level items start in column 0, so the indented text belongs
+   *  to the damaged item (the members of a module body whose `{` was lost; issue #83). */
   protected def skipItem(): Unit =
     var depth = 0
     var done = false
@@ -252,7 +254,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
         case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
         case Tok.RBrace =>
           if depth == 0 && bodies > 0 then done = true else { depth = (depth - 1).max(0); advance() }
-        case Tok.Period if depth == 0 => advance(); done = true
+        case Tok.Period if depth == 0 =>
+          advance()
+          done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)
         case _ => advance()
 
   /** Whether a token can start an item (in recovery: whether skipping can stop before it). */

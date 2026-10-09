@@ -1357,6 +1357,17 @@ and syntax errors): in the same mutant, `$sappend (reverse '{ edge a b }) (rever
 reports E0901 at `sappend` when an argument fails silently; the splice-application fallback reports the
 type of the bare splice instead of staying silent.
 
+**A module body whose `{` was lost (parser).** Seed 19 (after the goldens above changed the corpus) deleted
+the `{` of `select … = { sel : A -> rel. @s sel X :- r X, p X. }.` in `examples/formula_functions`: the
+definition is damaged at `:`, `skipItem` stopped at the first period, and the indented members became
+top-level items (`sel` unresolved in the rule, outside the damaged line; and `}` and `.` before the fix
+above). Top-level items start in column 0 (the line heuristic of #53), so indented text after a period of
+a damaged top-level item belongs to that item. Fix (`syntax/ParserBase.scala`, `skipItem`): at the top
+level (no enclosing body or quote), a period followed by an indented line does not end the skip; the
+skip ends before the next token in column 0 as before. Inside bodies and quotes, whose members are
+indented, nothing changes. Golden: `tests/recovery/f_lost_module_brace` (2 errors, the items after the
+body elaborated).
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
