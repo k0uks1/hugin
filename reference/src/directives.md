@@ -28,8 +28,8 @@ and makes it an output relation.
 `%infix` has a syntax of its own and is handled by the parser ([Lexical
 structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
 not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%use` and
-`%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)). `%complete`
-is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
+`%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)).
+`%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
 ([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it
 is an error ([E0001](errors/E0001.md)).
 
@@ -39,11 +39,12 @@ is an error ([E0001](errors/E0001.md)).
 So `%use` makes the directives of a module available: after `%use "lib/closures".`, a function
 `symmetric` of that file is the directive `%symmetric`. It is an error ([E0101](errors/E0101.md)) if no
 `d` is in scope; the diagnostic suggests a directive with a similar name. It is an error
-([E0109](errors/E0109.md)) if two `%use` items open `d` for different functions. The compiler elaborates the application `d a₁ … aₙ` with the arguments checked against `d`'s
-parameter types, with stage inference. The arguments of a directive are object syntax, like the item they
-stand in: an argument at a parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`,
-`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes)
-`'{ … }`. The quote may also be written explicitly. In particular:
+([E0109](errors/E0109.md)) if two `%use` items open `d` for different functions. The compiler elaborates
+the application `d a₁ … aₙ` with the arguments checked against `d`'s parameter types, with stage
+inference. The arguments of a directive are object syntax, like the item they stand in: an argument at a
+parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`, `decl`, `measure`) is quoted
+implicitly, as if it were written in a [quote](reflection.md#quotes) `'{ … }`. The quote may also be
+written explicitly. In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
   module body) is its declaration `dconst ⟨r⟩ []`, and a rule name `@r` is `drule "r" []`;

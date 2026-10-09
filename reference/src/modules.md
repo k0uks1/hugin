@@ -102,9 +102,9 @@ field `c : τ̄ -> a` by a constructor. A field `c : a` without columns is match
 Signatures are [records](meta/records.md), and the rules of record subtyping apply: a module may have
 more fields than the signature.
 
-*Ascription* `m : sig = e.` gives the module `e` the type `sig`; the expression `(e : sig)` does the
-same without a name. Ascription is *transparent*: the definition `m` unfolds to its value, so the types of
-the signature are the types of `e` (`m.shape` is `e`'s `shape`), and a constructor of `e` stays a
+*Ascription* `m : sig = e.` gives the module `e` the type `sig`; the expression `(e : sig)` does the same
+without a name. Ascription is *transparent*: the definition `m` unfolds to its value, so the types of the
+signature are the types of `e` (`m.shape` is `e`'s `shape`), and a constructor of `e` stays a
 constructor. Only the fields of `sig` are fields of `m`: it is an error ([E0906](errors/E0906.md)) to
 select another. It is an error ([E0204](errors/E0204.md)) if `e` lacks a field of `sig` or a field has
 another kind or type.
@@ -227,13 +227,13 @@ Use ::= "%use" (STRING | Atom) ("(" NAME ("," NAME)* ")")? "."
 ```
 
 An item `%use m.` *opens* the module `m`: the fields of `m` become names of the file. `m` is an atom: a
-name, a path or a parenthesised expression whose value is a module; `%use "path".` opens the file
-`path`, as `%use %import "path".` does. With a list of names, `%use m (x, y).` opens only those fields; it
-is an error ([E0906](errors/E0906.md)) if one is not a field of `m`.
+name, a path or a parenthesised expression whose value is a module; `%use "path".` opens the file `path`,
+as `%use %import "path".` does. With a list of names, `%use m (x, y).` opens only those fields; it is an
+error ([E0906](errors/E0906.md)) if one is not a field of `m`.
 
-The fields are those of the type of `m`, so a signature decides what is opened: `%use` of a file opens its
-export signature, and `%use (m : sig).` opens the fields of `sig`. An opened name denotes the field: a
-constructor stays a constructor, also in patterns, and a relation the same relation. `%use` may come
+The fields are those of the type of `m`, so a signature decides what is opened: `%use` of a file opens
+its export signature, and `%use (m : sig).` opens the fields of `sig`. An opened name denotes the field:
+a constructor stays a constructor, also in patterns, and a relation the same relation. `%use` may come
 before the definition of the module it opens. It is an error ([E0107](errors/E0107.md)) if `m` is not a
 module, and ([E0907](errors/E0907.md)) to write `%use` in a module body.
 
@@ -288,8 +288,7 @@ which no meta function can.
 
 The scopes of a compilation are nested as follows: the prelude encloses every file; each file is a scope
 of its own; each module body is a scope inside the scope where it is written. The names that a file opens
-with `%use` lie between the file and the enclosing scope. A name declared in a scope shadows the same name
-of an enclosing scope, in the whole scope, also before its declaration. The names the prelude opens are in
-scope in every file. When a
-program declares an object constant with the name of a prelude constant, the prelude's constant is
-displayed as `prelude.n`.
+with `%use` lie between the file and the enclosing scope. A name declared in a scope shadows the same
+name of an enclosing scope, in the whole scope, also before its declaration. The names the prelude opens
+are in scope in every file. When a program declares an object constant with the name of a prelude
+constant, the prelude's constant is displayed as `prelude.n`.
