@@ -86,6 +86,30 @@ this change.
 After a declaration `f : A.`, an item `f X₁ … Xₙ = e.` is a [clause](clauses.md) of `f`, not a
 definition.
 
+## Typed holes
+
+```text
+Hole      ::= "?" | "?" NAME_CHARS
+```
+
+A *typed hole* `?` or `?name` stands for an expression that is still to be written. It is checked like
+any expression: its type, the *goal*, is the type its position expects, and it is an unknown that the
+rest of the item may constrain. It is an error ([E0924](../errors/E0924.md)) for every hole of a program,
+which reports the goal and the variables in scope; the items around the holes are elaborated, so all
+holes are found at once, and the compilation stops before staging. A hole is written while a program is
+developed step by step (the language server shows its goal and offers to split cases and to add the
+clauses that are missing, with holes for their right-hand sides). The name of a hole only identifies it
+in messages.
+
+```hugin,compile_fail,E0924
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+double : nat -> nat.
+double zero = zero.
+double (suc N) = suc (suc ?).
+```
+
 ## Literals and primitive operations
 
 A literal checked against a meta type is a meta value: `3 : int` is a compile-time integer. A literal

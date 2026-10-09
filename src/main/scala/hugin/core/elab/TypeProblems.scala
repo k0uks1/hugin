@@ -62,6 +62,10 @@ enum TypeProblem extends Problem:
   case IncompleteHead(at: Span)
   case InvalidHead(tpe: String, at: Span)
 
+  /** A typed hole `?name` (reference: meta/functions) of type `goal` at a stage, with the variables in
+   *  scope (shown as `x : A`). */
+  case UnsolvedGoal(name: Option[String], goal: String, stage: String, context: List[String], at: Span)
+
   def code: Code = this match
     case _: ImplicitBinderAlone | _: UnknownOperator | _: NotAParameterName => Code.E0001
     case _: Mismatch | _: NotAType | _: NegativeNat | _: NatTooLarge | _: NotNumeric | _: NotString | _: NotObjectConstantType =>
@@ -75,6 +79,7 @@ enum TypeProblem extends Problem:
     case _: ObjectTypeArgument | _: ObjectFunction => Code.E0908
     case _: NotStaged => Code.E0909
     case _: IncompleteHead | _: InvalidHead => Code.E0910
+    case _: UnsolvedGoal => Code.E0924
 
   def primary: Span = this match
     case ImplicitBinderAlone(s) => s
@@ -104,6 +109,7 @@ enum TypeProblem extends Problem:
     case NotStaged(_, _, s) => s
     case IncompleteHead(s) => s
     case InvalidHead(_, s) => s
+    case UnsolvedGoal(_, _, _, _, s) => s
 
   def message: Msg = this match
     case _: ImplicitBinderAlone => msg"implicit binders must be followed by `->`"
@@ -136,6 +142,7 @@ enum TypeProblem extends Problem:
         case Unstaged.NotObjectCode => msg"not object code"
     case _: IncompleteHead => msg"incomplete rule head"
     case _: InvalidHead => msg"invalid rule head"
+    case UnsolvedGoal(n, _, _, _, _) => msg"unsolved goal ${Src("?" + n.getOrElse(""))}"
 
   override def primaryLabel: Msg = this match
     case _: ImplicitBinderAlone => msg"expected `{A : T} -> B`"
@@ -166,6 +173,7 @@ enum TypeProblem extends Problem:
         case Unstaged.NotObjectCode => msg"${Src(shown)}"
     case _: IncompleteHead => msg"missing arguments"
     case InvalidHead(t, _) => msg"this has type ${Src(t)}"
+    case UnsolvedGoal(_, g, _, _, _) => msg"goal: ${Src(g)}"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -211,10 +219,14 @@ enum TypeProblem extends Problem:
       )
     case _: IncompleteHead => List(msg"a rule head must apply a relation (or a constructor) to all of its columns")
     case _: InvalidHead => List(msg"a rule head is an atom of a relation or a constructor term")
+    case UnsolvedGoal(_, g, st, ctx, _) =>
+      msg"the hole stands for ${Lit(if st == "object" then "object code" else "a meta value")} of type ${Src(g)}" ::
+        (if ctx.isEmpty then Nil else List(msg"in scope: ${Lit(ctx.map(x => s"`$x`").mkString(", "))}"))
     case _ => Nil
 
   override def helps: List[Msg] = this match
     case ObjectForMeta(_, f, _) =>
       List(Msg.text(s"to take object code as an argument, declare the parameter with an object type (`⇑$f` at the meta level)"))
     case NoField(_, _, _, Some(s), _) => List(msg"did you mean ${Src(s)}?")
+    case UnsolvedGoal(_, g, _, _, _) => List(msg"replace the hole with an expression of type ${Src(g)}")
     case _ => Nil

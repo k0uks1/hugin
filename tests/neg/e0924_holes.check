@@ -1,0 +1,30 @@
+error[E0924]: unsolved goal `?step`
+ --> tests/neg/e0924_holes.hgn:8:22
+  |
+8 | plus (suc M) N = suc ?step. (*~ E0924 *)
+  |                      ^^^^^ goal: `nat`
+  |
+  = note: the hole stands for a meta value of type `nat`
+  = note: in scope: `N : nat`, `M : nat`
+  = help: replace the hole with an expression of type `nat`
+
+error[E0924]: unsolved goal `?`
+ --> tests/neg/e0924_holes.hgn:9:26
+  |
+9 | double (n : int) : int = ? + n. (*~ E0924 *)
+  |                          ^ goal: `int`
+  |
+  = note: the hole stands for a meta value of type `int`
+  = note: in scope: `n : int`
+  = help: replace the hole with an expression of type `int`
+
+error[E0924]: unsolved goal `?arg`
+  --> tests/neg/e0924_holes.hgn:10:22
+   |
+10 | twice : int = double ?arg. (*~ E0924 *)
+   |                      ^^^^ goal: `int`
+   |
+   = note: the hole stands for a meta value of type `int`
+   = help: replace the hole with an expression of type `int`
+
+3 errors found

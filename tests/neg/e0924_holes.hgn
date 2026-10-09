@@ -1,0 +1,12 @@
+(* Typed holes: each is an unsolved goal, reported with its type and the variables in scope; the items
+   around them elaborate, so every hole is found. *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc ?step. (*~ E0924 *)
+double (n : int) : int = ? + n. (*~ E0924 *)
+twice : int = double ?arg. (*~ E0924 *)
+n : int -> rel.
+n twice.

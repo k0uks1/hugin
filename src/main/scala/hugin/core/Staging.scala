@@ -14,18 +14,19 @@ final class Staging(core: Core, reporter: Reporter):
   /** Checks that a normal form is object code; reports what is not. */
   def objectCode(names: List[Name], t: Tm, span: Span): Boolean =
     var ok = true
-    def bad(kind: elab.Unstaged, shown: String): Unit =
-      if ok then stuck(span, kind, shown)
+    // code stuck on a typed hole is not reported again: the hole is (E0924)
+    def bad(kind: elab.Unstaged, shown: String, at: Tm): Unit =
+      if ok && !onHole(at) then stuck(span, kind, shown)
       ok = false
     def go(t: Tm): Unit = t match
       case Tm.Splice(x) =>
-        bad(elab.Unstaged.StuckSplice, showTm(names, x))
+        bad(elab.Unstaged.StuckSplice, showTm(names, x), x)
       case Tm.Persist(x) =>
-        bad(elab.Unstaged.StuckPrimitive, showTm(names, x))
+        bad(elab.Unstaged.StuckPrimitive, showTm(names, x), x)
       case Tm.Arith(_, a, b, Stage.S1) =>
-        bad(elab.Unstaged.UndefinedArithmetic, showTm(names, t))
+        bad(elab.Unstaged.UndefinedArithmetic, showTm(names, t), t)
       case Tm.Meta(_) | Tm.AppPruning(_, _) =>
-        bad(elab.Unstaged.Unsolved, "")
+        bad(elab.Unstaged.Unsolved, "", t)
       case Tm.App(f, a, _) => go(f); go(a)
       case Tm.Arith(_, a, b, _) => go(a); go(b)
       case Tm.Negate(a, _) => go(a)
@@ -34,9 +35,15 @@ final class Staging(core: Core, reporter: Reporter):
       case Tm.FactTy(a) => go(a) // object types in ascriptions
       case Tm.Var(_) | Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, Stage.S0) => ()
       case other =>
-        bad(elab.Unstaged.NotObjectCode, showTm(names, other))
+        bad(elab.Unstaged.NotObjectCode, showTm(names, other), other)
     go(t)
     ok
+
+  /** Whether `t` is stuck on a typed hole ([[elab.Holes]]). */
+  private def onHole(t: Tm): Boolean = Tm.exists(t) {
+    case Tm.Meta(m) => m < metas.length && metas(m).what == elab.Holes.What
+    case _ => false
+  }
 
   /** The leaves of a case tree as clauses, with their bodies normalised. */
   private def clauses(f: Name, tree: CaseTree): List[String] = tree match

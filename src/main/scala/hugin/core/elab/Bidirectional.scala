@@ -58,6 +58,7 @@ trait Bidirectional:
     case ListLit(_) | ConsE(_, _) if state.stage == Stage.S0 => infer(c, objectList(t))
     case ListLit(_) | ConsE(_, _) => inferList(c, t)
     case q: Quote => quoteWithoutType(c, q, None)
+    case h: Hole => inferHole(c, h)
     case _: SpliceSeq | _: SpliceHO => fail(ReflectionProblem.HoleOutsideQuote(t.span))
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
@@ -105,6 +106,7 @@ trait Bidirectional:
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined => reify(c, t, implicitQuote(t, ty).get)
     case (Parens(i), _) => check(c, i, a, st)
+    case (h: Hole, _) => checkHole(c, h, a, st)
     case (q: Quote, ty) =>
       reflectiveKind(ty) match
         case Some(k) if st == Stage.S1 => reify(c, q, k)

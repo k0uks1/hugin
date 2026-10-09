@@ -17,6 +17,8 @@ enum Tok:
   // `'` directly before `{`: the opener of a reflection quote `'{ … }` (reference: reflection); the `{`
   // is a token of its own, so that delimiters nest as usual
   case Quote
+  // `?` or `?name`: a typed hole of the meta level (reference: meta/functions)
+  case Hole
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -49,6 +51,7 @@ object Lexer:
     case Tok.EOF => "end of file"
     case Tok.Period => "`.`"
     case Tok.Select => "a selector `.`"
+    case Tok.Hole => "a hole `?`"
     case other => symbolText.getOrElse(other, other.toString.toLowerCase.stripPrefix("kw")) match
         case s => s"`$s`"
 
@@ -185,6 +188,11 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case ':' if peek(1) == ':' => sym(Tok.ColonColon, 2)
         case ':' => sym(Tok.Colon, 1)
         case '?' if peek(1) == '-' => sym(Tok.Query, 2)
+        case '?' =>
+          // a hole, named by the identifier directly after it
+          pos += 1
+          while isIdent(peek()) do pos += 1
+          mk(Tok.Hole, start, space)
         case '-' if peek(1) == '>' => sym(Tok.Arrow, 2)
         case '-' => sym(Tok.Minus, 1)
         case '<' if peek(1) == ':' => sym(Tok.SubT, 2)
