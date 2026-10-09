@@ -1,0 +1,4 @@
+(* An implicit type argument that nothing determines in a rule whose head is not an instance of a family
+   is E0206 at the rule (#98), not a staging failure. *)
+pairs : rel.
+pairs :- _X = nil. (*~ E0206 *)

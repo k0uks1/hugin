@@ -22,7 +22,8 @@ enum SharedProblem extends Problem:
   case EdgeIntoShared(family: String, at: Span, declared: Span)
 
   /** `T ā : data.` in a module body or a `where` block. */
-  case NotTopLevel(at: Span)
+  /** `data` in a module body, or (`inWhere`) in a `where` block. */
+  case NotTopLevel(at: Span, inWhere: Boolean = false)
 
   /** A constructor of the shared type `family` declared outside the file that declares it. */
   case ConstructorElsewhere(ctor: String, family: String, at: Span, declared: Span)
@@ -37,7 +38,7 @@ enum SharedProblem extends Problem:
     case NotShareable(_, _, _, s) => s
     case NotUniform(_, _, s) => s
     case EdgeIntoShared(_, s, _) => s
-    case NotTopLevel(s) => s
+    case NotTopLevel(s, _) => s
     case ConstructorElsewhere(_, _, s, _) => s
 
   def message: Msg = this match
@@ -73,6 +74,8 @@ enum SharedProblem extends Problem:
       List(
         msg"the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors"
       )
+    case NotTopLevel(_, true) =>
+      List(msg"a `where` block holds local definitions and functions; a shared type declares constants of the file")
     case _: NotTopLevel =>
       List(
         msg"the meta side of a shared type declared in a module body or a functor would be generative, which the meta level does not support"

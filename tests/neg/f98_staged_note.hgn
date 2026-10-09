@@ -1,0 +1,9 @@
+(* An error that the check of staged items finds in code that meta code generated elsewhere has a note
+   naming the rule it was staged for (#98). *)
+expr : type. var : type.
+var <: expr.
+lit : int -> expr.
+named : (n : var) -> rel.
+c : ⇑expr = lit 1. (*~ E0402 *)
+odd : rel.
+odd :- named c.

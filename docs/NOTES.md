@@ -1692,21 +1692,19 @@ Goldens: `neg/ot_generators`, `neg/ot_functor_once`, `neg/ot_typed_quotes`, `run
 (numbers of unknowns). Two unit tests of `HandoverSuite` and `ModulesSuite` were ill-typed (they stopped
 before the object typer ran) and were made well-typed.
 
-## Typed reflection beyond terms (#96)
+### Fixes after the reference audit (#98)
 
-The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
-Twelf and Abella read from source), approved by the designer as written: no context index and no typed
-formula type; the context of a generated piece is the meta context of its `quoted A` values. It lands in
-three batches.
-
-* **Batch 1, repeated holes.** `TypedQuotes.QuoteReader` reads a hole `$X` (a variable of type `quoted A`
-  with a known `A`) that occurs more than once in the body of a quoted rule, query or formula as one
-  object variable `$X`, with `A` as a further bound (`OFormula.Expect`), so the checker's meets apply
-  (E0401 at the generator). A hole used once keeps the per-position check of #56 (so no diagnostic of an
-  existing program changes), and a hole in a head keeps `A ≤ σ`, since the data may be a constructor term.
-  The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
-  for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
-  a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+The audit of the reference (#97) found seven places where the implementation fell short of the design
+(entries 16–22 of `reference/DISCREPANCIES.md`, removed with the fixes): object code in record fields,
+`where` definitions, definitions with an inferred type (an atom of type `rel` is a formula) and formulas
+passed to meta functions inside object code is typed at the definition; a rule whose head is not a family
+instance reports an undetermined type argument as E0206 (it was made generic, then E0909 at staging); an
+error of the check of staged items in code generated elsewhere has the note "in the code staged for this
+rule"; a directive argument at `quoted A` is quoted implicitly; `$f a.` is a splice item when `f` returns
+reflected items, whatever the argument (so its error is the argument's); `data` in a `where` block is
+E0923; an equation that is a conjunct of the body meets the type of a variable with columns (not in an
+alternative of a disjunction). The generated fuzz programs no longer equate a variable with constants of
+two constructors, which is now a rule that never fires (E0401).
 
 ## Frozen metas (#66, Batch 1)
 
@@ -1730,6 +1728,46 @@ Unknowns print numbered from the start of their block (`Printing.showMeta`): `?3
 messages do not depend on the number of metas in the prelude. `Core.fork` keeps its copy-on-write of meta
 entries: an item's fork can no longer solve a base meta, but `allowUnsolved` still writes entries, and a
 parent core may go on elaborating after a fork.
+
+## Typed reflection beyond terms (#96)
+
+The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
+Twelf and Abella read from source), approved by the designer as written: no context index and no typed
+formula type; the context of a generated piece is the meta context of its `quoted A` values. It lands in
+three batches.
+
+* **Batch 1, repeated holes.** `TypedQuotes.QuoteReader` reads a hole `$X` (a variable of type `quoted A`
+  with a known `A`) that occurs more than once in the body of a quoted rule, query or formula as one
+  object variable `$X`, with `A` as a further bound (`OFormula.Expect`), so the checker's meets apply
+  (E0401 at the generator). A hole used once keeps the per-position check of #56 (so no diagnostic of an
+  existing program changes), and a hole in a head keeps `A ≤ σ`, since the data may be a constructor term.
+  The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
+  for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
+  a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+* **Batch 2, typed atoms.** `qatom : quoted A -> formula = %builtin qatom.` is a primitive
+  (`PrimOp.QAtom`, with `fatom`, `tapp` and `qterm` found from its declared type): it reduces the data
+  `qterm (tapp s ts)` to `fatom s ts` (the same spine, with the positions of the quoted syntax kept) and
+  is stuck otherwise. It is not a definition, so glued evaluation (#66) never unfolds it, and `quoted`
+  stays a postulated type former. `TypedQuotes.coeQuoted` inserts it where a `formula` is expected and
+  the index is a type of facts (`ObjTypes.isRelLike`, which also admits an index the core does not know,
+  such as an unsolved one: reflection checks the data then); otherwise E0901 with a note. A whole entry
+  `'{ $a }` of a typed atom is its fact (`QuoteTerms.entryHole`). Reflection reports a `qatom` stuck on
+  closed data as E0918 ("the term `tvar "E"` of a `quoted` atom is not an atom"). The quote reader needs
+  no change: a typed atom's columns were checked where it was built, at constructing positions.
+  Deviation from the design note: open types are types of facts (their values are facts of their
+  members, and every constructor is a relation), so `quoted node` for an open type `node` is an atom;
+  the note's example of a rejected index is a base type. The section "Typed terms" of the reference keeps
+  its name (its anchor is linked from other chapters) and gains a subsection "Typed atoms".
+  Goldens `run/tf_typed_atoms` (atoms as facts, items, heads, bodies, under `not`, and taken apart by a
+  quoted pattern), `neg/tf_typed_atoms`. Changed: `neg/core_e0901_occurs` (numbers of unknowns, which
+  count the prelude's declarations).
+  The new golden shifted the mutants that `RecoveryFuzzSuite` draws from its fixed seed onto a weakness
+  of the parser that it had not met: `?-` at the end of a line took the declaration in column 0 of the
+  next line as its formula, so the declaration was lost (E0101 for its uses). The formula of a query and
+  the body of a rule now do not start in column 0, like an argument and the operand of `⇑`
+  (`ItemSyntax`); no program of `tests/`, `examples/`, `docs/`, `bench/`, the reference or the prelude
+  starts one there. Reference: lexical-structure ("Items"); `docs/PARSER.md` 4.2; golden
+  `recovery/r_col0_formula`.
 
 ## Glued evaluation (#66, Batch 2)
 

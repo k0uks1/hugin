@@ -26,7 +26,8 @@ private[syntax] trait ItemSyntax extends ParserBase:
       case Tok.Directive => parseDirective()
       case Tok.Query =>
         advance()
-        val body = parseExpr(LvlSemi)
+        // the formula does not start in column 0 (it would be the next item)
+        val body = if atColumn0(i) then missing(Expect.expression, Some(Context("query", first.span))) else parseExpr(LvlSemi)
         val ok = endItem(Context("query", first.span), List(Expect.period))
         List(Query(checked(body, ok))(spanFrom(start)))
       case Tok.RuleName =>
@@ -129,7 +130,8 @@ private[syntax] trait ItemSyntax extends ParserBase:
       if at(Tok.Turnstile) then
         advance()
         resync()
-        Some(parseExpr(LvlSemi))
+        // the body does not start in column 0 (it would be the next item)
+        Some(if atColumn0(i) then missing(Expect.expression, Some(Context("rule", first.span))) else parseExpr(LvlSemi))
       else None
     val expectations =
       if body.isEmpty then List(Expect.period, Expect.Token(Tok.Comma), Expect.Token(Tok.Turnstile)) else List(Expect.period)
