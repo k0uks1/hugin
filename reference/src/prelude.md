@@ -84,8 +84,9 @@ short.hop paris rome 1.
 
 ## Reflection
 
-The reflective types and their helpers are described in [Reflection](reflection.md). Sequences of
-syntax are meta lists (`list term`, `list formula`, `module = list item`).
+The reflective types and their helpers are described in [Reflection](reflection.md). `quoted A` is
+the typed layer over `term`; the other types are the representation and carry no object types.
+Sequences of syntax are meta lists (`list term`, `list formula`, `module = list item`).
 
 | declaration | meaning |
 |---|---|
@@ -94,8 +95,8 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `arith_op` (`oadd`, `osub`, `omul`, `odiv`, `ocat`) | arithmetic operators |
 | `cmp_op` (`ceq`, `cne`, `clt`, `cle`, `cgt`, `cge`) | comparison operators |
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
-| `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'{ … }` ([Reflection](reflection.md#quotes)) |
-| `quoted A`, `qterm`, `raw` | a term of the object type `A`, made without a check, and its term ([Reflection](reflection.md#typed-terms)) |
+| `quoted : ⇑type -> Type`, `qterm : term -> quoted A`, `raw : quoted A -> term` | quoted terms: a term of the object type `A`, the constructor that makes one from a `term` without a check, and the term of one ([Reflection](reflection.md#typed-terms)) |
+| `term`, `formula`, `rule`, `item`, `module` | object syntax as data, without object types, written as quotes `'{ … }` ([Reflection](reflection.md#quotes)) |
 | `qatom : quoted A -> formula` | a term of a type of facts as an atom (primitive, [Reflection](reflection.md#typed-atoms)) |
 | `column`, `colof` | the column of an object constant at an index |
 | `pick`, `openT`, `openTs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
@@ -113,10 +114,11 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `modes` (`mnone`, `minput`, `moutput`) | modes indexed by the labels of a relation's columns |
 | `demand : (r : sym) -> modes (labels r) -> module -> module` | the directive `%demand` |
 
-The helper functions of `demand` have names that start with `d` (`dmodule`, `dprefix`, …), with the
-set operations `member`, `sdiff` and `shares` on lists of strings and the binding analysis `tvarsOf`,
-`tsvars`, `fvars`, `fbound`, `fneeds` and `plain`. They are ordinary definitions, which programs may use,
-but they are not part of the documented interface of the prelude.
+The helper functions of `demand` have names that start with `d` (`dmodule`, `dprefix`, …), with the set
+operations `member`, `sdiff` and `shares` on lists of strings, the test `msym` on lists of symbols and
+the binding analysis `tvarsOf`, `tsvars`, `fvars`, `fbound`, `fneeds`, `plain` and `plains`. They are
+ordinary definitions, which programs may use, but they are not part of the documented interface of the
+prelude.
 
 ## Booleans and primitives
 
