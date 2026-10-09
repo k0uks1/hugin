@@ -1,5 +1,6 @@
 (* Reflection in object code (reference: reflection): a meta value of type `formula` or `term` stands for
    the formula or term, with or without `$`; its variables are those of the rule with the same names. *)
+%use "std/reflect".
 p : int -> rel.
 q : int -> rel.
 r : int -> int -> rel.

@@ -18,11 +18,11 @@ A meta declaration without a definition and without clauses is classified by its
 - `c : Δ -> T ū.`, whose type ends in a family `T` of the same file, declares a meta constructor of `T`;
 - any other meta declaration declares a postulate ([The meta level](index.md#meta-items)).
 
-The constructors of a family are the constructor declarations that return it, in the order of the file.
-A constructor must return the family applied to all of its arguments. It is an error otherwise
+The constructors of a family are the constructor declarations that return it, in the order of the file. A
+constructor must return the family applied to all of its arguments. It is an error otherwise
 ([E0914](../errors/E0914.md), or [E0901](../errors/E0901.md) if the result is not a type). A program
-cannot add constructors to a family of the prelude or of another file: `x : formula.` in a program
-declares a postulate.
+cannot add constructors to a family of the standard library or of another file: `x : formula.` in a
+program declares a postulate.
 
 Free uppercase variables in the type of a constructor are implicit arguments
 ([Functions](functions.md#implicit-arguments)): `vcons : A -> vec A N -> vec A (suc N).` has the implicit
@@ -60,7 +60,7 @@ total 42.
 
 A family may occur in the argument types of its constructors only *strictly positively*: not to the left
 of an arrow. It may occur in an argument of another family if that family is strictly positive in that
-argument, as in `tapp : sym -> list term -> term` of the prelude. It is an error
+argument, as in `tapp : sym -> list term -> term` of `std/reflect`. It is an error
 ([E0913](../errors/E0913.md)) otherwise.
 
 The following declaration is rejected: `lam` takes a function from `value` as its argument, so `value`
@@ -100,8 +100,8 @@ family are.
 Shared ::= NAME VAR* ":" "data" "."
 ```
 
-`data` is a keyword only as the whole type of a declaration. The prelude's `list` and `option` are
-shared data types ([The prelude](../prelude.md#lists-options-and-pairs)).
+`data` is a keyword only as the whole type of a declaration. The `list` and `option` of the
+standard library are shared data types ([`std/reflect`](../std/reflect.md#lists-options-and-booleans)).
 
 ### Restrictions
 
@@ -149,10 +149,10 @@ T.reify : (a₁ -> term) -> … -> (aₙ -> term) -> T a₁ … aₙ -> term
 `T.lift f̄ (cᵢ x̄)` is the object term `cᵢ` applied to the arguments `x̄`, each turned into object code:
 by `fⱼ` for a parameter `aⱼ`, as a literal for a base type, by the `lift` of its type for a shared type.
 `T.reify ḡ (cᵢ x̄)` is the [term data](../reflection.md#the-reflective-types) of the same object term,
-`'{ cᵢ $(…) … }`. `T.reify` exists where the prelude's reflective types are in scope. Both are checked
-for coverage and termination like functions written by hand. Stage inference inserts them
-([Staging](staging.md#lifting), [Reflection](../reflection.md#holes)); a program names them only to pass
-them as arguments, as `list.lift`.
+`'{ cᵢ $(…) … }`. `T.reify` exists where the reflective types of `std/reflect` are part of the
+compilation. Both are checked for coverage and termination like functions written by hand. Stage
+inference inserts them ([Staging](staging.md#lifting), [Reflection](../reflection.md#holes)); a program
+names them only to pass them as arguments, as `list.lift`.
 
 > **Note.** An argument whose type nests the declared type in another shared type, such as
 > `node : list (tree A) -> tree A`, is converted by an auxiliary function `tree.lift.1` (`tree.reify.1`),

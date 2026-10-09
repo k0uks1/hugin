@@ -1,6 +1,6 @@
 (* The occurrences of a typed hole in the body of a quoted rule, query or formula are one object
    variable: their positions meet with each other and with the hole's type (E0401 where the quote is
-   written). A hole in a head keeps its own check, and a hole used once is checked alone. *)
+   written). A hole in a head keeps its own check, and a hole used once is checked alone. *) %use "std/reflect".
 staff : type.
 teacher : (n : string) -> staff.
 janitor : (n : string) -> staff.

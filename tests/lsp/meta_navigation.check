@@ -69,7 +69,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc (double N)).\ntoInt : nat -> int.\ntoInt zero = 0.\ntoInt (suc N) = toInt N + one\n  where one = 1.\ntwice : (int -> int) -> int -> int = [f] [x] f (f x).\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nfriend : person -> person -> rel.\n%symmetric friend.\n","uri":"untitled:n.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc (double N)).\ntoInt : nat -> int.\ntoInt zero = 0.\ntoInt (suc N) = toInt N + one\n  where one = 1.\ntwice : (int -> int) -> int -> int = [f] [x] f (f x).\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nfriend : person -> person -> rel.\n%symmetric friend.\n%use \"std/reflect\".\n","uri":"untitled:n.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/definition","params":{"position":{"character":34,"line":5},"textDocument":{"uri":"untitled:n.hgn"}}}
 <-- {
   "jsonrpc": "2.0",

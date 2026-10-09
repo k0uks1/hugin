@@ -1,7 +1,7 @@
 package hugin.bench
 
 import hugin.cli.Main
-import hugin.compiler.{Parsed, SourceLoader}
+import hugin.compiler.Parsed
 import hugin.core.{ProgramElab, SourceItems}
 import hugin.util.SourceFile
 import java.nio.file.Files
@@ -59,9 +59,10 @@ object Bench:
 
   /** Parses and elaborates the prelude directly, without any database or cache. */
   def elabPrelude(): Unit =
-    val path = SourceLoader.PreludePath
-    val parsed = Parsed(SourceFile.virtual(path, SourceLoader.stdlib(path).get))
-    ProgramElab.prelude(SourceItems(path, "", parsed.program.items), builtinNames = true)
+    // the prelude and the bundled files it imports, parsed afresh (no cache)
+    def items(p: Parsed) = SourceItems(p.source.path, "", Parsed(SourceFile.virtual(p.source.path, p.source.content)).program.items)
+    val chain = hugin.compiler.StdlibCache.bundledChain()
+    ProgramElab.preludeChain(chain.init.map(items), items(chain.last), builtinNames = true)
 
   private val oneLine = Files.createTempFile("hugin-bench-one", ".hgn")
   Files.writeString(oneLine, "p : int -> rel.\n")

@@ -1,5 +1,6 @@
 (* Section 13.1: graph operations. The signature `graph` and the functors `tc` and `bounded` come from
    the prelude (src/main/resources/hugin/stdlib/prelude.hgn). *)
+%use "std/graph".
 city : type.
 berlin : city.
 paris : city.

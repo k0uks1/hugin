@@ -2,10 +2,10 @@
 
 *Reflection* represents object syntax as meta data that programs can build, inspect and turn back into
 object code. Object code of type `⇑A` ([Staging](meta/staging.md)) is opaque; the *reflective types* of
-the prelude are ordinary inductive families whose values describe terms, formulas, rules and items. This
-chapter defines the reflective types, the quotes `'{ … }` that turn object syntax into their values
-(*reification*), the quoted patterns that match on them, and how data becomes part of the program again
-(*reflection*).
+the module [`std/reflect`](std/reflect.md) are ordinary inductive families whose values describe terms,
+formulas, rules and items. This chapter defines the reflective types, the quotes `'{ … }` that turn
+object syntax into their values (*reification*), the quoted patterns that match on them, and how data
+becomes part of the program again (*reflection*).
 
 Reflection has a typed layer over an untyped representation:
 
@@ -25,6 +25,7 @@ Reflection has a typed layer over an untyped representation:
 The following function takes a quoted term of type `expr` and puts it under `neg` in a fact of `typed`.
 
 ```hugin,run
+%use "std/reflect".
 expr : type. typ : type.
 lit : int -> expr.
 neg : expr -> expr.
@@ -46,6 +47,7 @@ The following function is rejected where it is defined, since it puts its quoted
 the column of type `typ`.
 
 ```hugin,compile_fail,E0402
+%use "std/reflect".
 expr : type. typ : type.
 lit : int -> expr.
 tint : typ.
@@ -61,11 +63,12 @@ backwards E = '{ typed tint $E. }.
 
 ## The reflective types
 
-The prelude declares the following types ([The prelude](prelude.md#reflection)).
+The module `std/reflect` declares the following types ([`std/reflect`](std/reflect.md#reflection)). A
+program opens them with `%use "std/reflect".` ([Modules](modules.md#opening-modules)).
 
 | type | constructors | describes |
 |---|---|---|
-| `list A` | `nil`, `cons` | sequences: the prelude's shared `list` ([Inductive families](meta/families.md#shared-data)) at the meta level, written `[]`, `[a, b]` and `x :: xs` |
+| `list A` | `nil`, `cons` | sequences: the shared `list` ([Inductive families](meta/families.md#shared-data)) at the meta level, written `[]`, `[a, b]` and `x :: xs` |
 | `sym` | none | references to object constants, compared by identity |
 | `index` | `izero`, `isuc` | de Bruijn indices of variables bound by aggregates |
 | `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (list term)`, `tarith arith_op term term`, `tneg term` | terms |
@@ -82,8 +85,8 @@ aggregates. An object variable is represented by its name (`tvar "X"`). In an ag
 and `φ` are `tbound` indices (a locally nameless representation). `fagg k x t φ` holds the result `x`,
 the term `t` and the body `φ`.
 
-A program may declare its own types with these names. The compiler finds the reflective types in the
-prelude's scope, not in the program's.
+A program may declare its own types with these names. The compiler finds the reflective types in
+`std/reflect`, not in the program's scope.
 
 ## Lists
 
@@ -93,9 +96,9 @@ Cons    ::= Expr "::" Expr
 ```
 
 `[e₁, …, eₙ]` is the list of the elements, `e :: es` the list with first element `e`: `cons` and `nil` of
-the prelude's `list`, at the stage of the position. In meta code it is a meta list; in object code and
-inside a quote it is the object list (`[X, Y]` in a rule head is the term `cons X (cons Y nil)`). A `[`
-starts a list unless it has the shape of a lambda `[x] e`.
+the shared `list` of `std/reflect`, at the stage of the position. In meta code it is a meta list; in
+object code and inside a quote it is the object list (`[X, Y]` in a rule head is the term
+`cons X (cons Y nil)`). A `[` starts a list unless it has the shape of a lambda `[x] e`.
 
 ## Quotes
 
@@ -159,6 +162,7 @@ is opaque, and a quote holds data.
 The following definition is rejected: the quoted term must be a `typ`, and `lit 1` is an `expr`.
 
 ```hugin,compile_fail,E0402
+%use "std/reflect".
 expr : type. typ : type.
 lit : int -> expr.
 tint : typ.
@@ -174,6 +178,7 @@ The following generator is rejected where it is defined: a value that the hole `
 be both a `teacher` and a `janitor`.
 
 ```hugin,compile_fail,E0401
+%use "std/reflect".
 staff : type.
 teacher : (name : string) -> staff.
 janitor : (name : string) -> staff.
@@ -203,6 +208,7 @@ argument at a parameter of a reflective type or of type `quoted A` is quoted imp
 The following program builds a module as data and reflects it into the program.
 
 ```hugin,run
+%use "std/reflect".
 edge : int -> int -> rel.
 path : int -> int -> rel.
 rules : module = '{
@@ -255,6 +261,7 @@ The following program generates one fact per suffix of a compile-time list. The 
 meta list, so its reification `list.reify tint (X :: Xs)` is inserted.
 
 ```hugin,run
+%use "std/reflect".
 held : list int -> rel.
 suffixes : list int -> list rule.
 suffixes [] = [].
@@ -316,6 +323,7 @@ when the data is reflected.
 The following function swaps the arguments of every binary atom; `$R` matches the relation as a symbol.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node.
 edge : node -> node -> rel.
 flip : formula -> formula.
@@ -333,6 +341,7 @@ The following function restricts the count of a rule to the items that are not e
 matches the body of the aggregate, which mentions the variable `V` bound by the aggregate.
 
 ```hugin,run
+%use "std/reflect".
 item : type. pen : item. ink : item. cap : item.
 stock : item -> rel.
 excluded : item -> rel.
@@ -352,7 +361,7 @@ count_ok 2.
 
 ## Typed terms
 
-The prelude declares the type former of quoted terms with its constructor and its inverse:
+`std/reflect` declares the type former of quoted terms with its constructor and its inverse:
 
 ```text
 quoted : ⇑type -> Type.
@@ -386,6 +395,7 @@ The following program uses a quoted term as a term, in a head with `$` and in an
 `term`.
 
 ```hugin,run
+%use "std/reflect".
 pairs : int -> int -> rel.
 base : int -> rel.
 three : quoted int = '{ 1 + 2 }.
@@ -407,6 +417,7 @@ The following function guards the rules of `typed` whose expression is a negatio
 be an error.
 
 ```hugin,run
+%use "std/reflect".
 expr : type. typ : type. ctx : type.
 lit : int -> expr.
 neg : expr -> expr.
@@ -451,6 +462,7 @@ errors are reported here. The following program is rejected when `$'{ held $bad.
 claims to be a term of type `int`, but its data is the string `"x"`.
 
 ```hugin,compile_fail,E0402
+%use "std/reflect".
 held : int -> rel.
 bad : quoted int = qterm (tstr "x").
 $'{ held $bad. }.
@@ -466,6 +478,7 @@ cannot.
 The following program reflects a rule with the variables `X#0` and `X`, which are two variables.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node.
 edge : node -> node -> rel.
 linked : node -> node -> rel.
@@ -492,6 +505,7 @@ with or without `$`. Its variables are the variables of the rule with the same n
 The following program uses a formula and a term as data in rules.
 
 ```hugin,run
+%use "std/reflect".
 p : int -> rel.
 q : int -> rel.
 r : int -> int -> rel.
@@ -513,7 +527,7 @@ r 3 3.
 ## Symbols and derived constants
 
 A *symbol* is a value of type `sym`: a reference to an object constant, written as a quote of its name
-(`'{ edge }`). Symbols have no constructors; they are compared by identity. The prelude declares four
+(`'{ edge }`). Symbols have no constructors; they are compared by identity. `std/reflect` declares four
 primitive operations on symbols and literals:
 
 | primitive | meaning |
@@ -536,6 +550,7 @@ The following program declares the reverse of a relation as a derived relation, 
 for it.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node.
 edge : (src : node) -> (dst : node) -> rel.
 edge a b.

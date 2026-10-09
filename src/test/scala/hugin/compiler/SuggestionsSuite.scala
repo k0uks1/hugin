@@ -69,7 +69,8 @@ class SuggestionsSuite extends munit.FunSuite:
 
   test("a signature of the prelude is not edited") {
     val text =
-      """lonely (x : graph) = {
+      """%use "std/graph".
+        |lonely (x : graph) = {
         |  out : x.node -> rel.
         |  out N :- x.edge N _, not x.edge _ N.
         |}.

@@ -1,5 +1,6 @@
 (* Imported files are module values; an imported file sees the prelude (`tc`, `list`) but not the
    importing program, and a file imported twice is the same module *)
+%use "std/list".
 g = %import "lib/geo".
 r = %import "lib/routes".
 

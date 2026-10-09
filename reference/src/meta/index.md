@@ -85,7 +85,7 @@ The meta types are
   ([Functions](functions.md#literals-and-primitive-operations));
 - the *lifted* object types `⇑A`, whose values are object code of type `A`, and the types of object
   relations and formulas ([Staging](staging.md));
-- `sym` and the reflective types of the prelude ([Reflection](../reflection.md)).
+- `sym` and the reflective types of `std/reflect` ([Reflection](../reflection.md)).
 
 ## Unused definitions
 

@@ -68,8 +68,9 @@ class ReflectionSuite extends munit.FunSuite:
     for rule <- rules do assertEquals(staged(decls + "$[" + quoted(rule) + "]."), staged(decls + rule), rule)
   }
 
+  /** The compiler-bound module of the standard library, as a prelude the tests' programs include. */
   private lazy val prelude =
-    scala.io.Source.fromResource("hugin/stdlib/prelude.hgn").mkString
+    scala.io.Source.fromResource("hugin/stdlib/std/reflect.hgn").mkString
 
   private def withoutPositions(t: Tm): Tm = Tm.mapChildren(Tm.unloc(t))(withoutPositions)
 

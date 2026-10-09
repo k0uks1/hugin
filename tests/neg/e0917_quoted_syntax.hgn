@@ -1,5 +1,5 @@
 (* Quoted syntax that has no reflective representation, holes in the wrong places, and quotes whose
-   content is not of the category the expected type needs (E0917). *)
+   content is not of the category the expected type needs (E0917). *) %use "std/reflect".
 p : int -> rel.
 q : int -> int -> rel.
 f : int -> int.

@@ -69,7 +69,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nplus : nat -> nat -> nat.\nplus zero N = N.\nplus (suc M) N = suc (plus M N).\nident : A -> A = [x] x.\nthree : int = ident 3.\ncode : ⇑int = 4.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\n%symmetric friend.\nfriend ann bob.\ntotal : int -> rel.\ntotal three.\ntotal code.\nprimes : list int = [2, 3].\nlisted : list int -> rel.\nlisted primes.\n","uri":"untitled:m.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nplus : nat -> nat -> nat.\nplus zero N = N.\nplus (suc M) N = suc (plus M N).\nident : A -> A = [x] x.\nthree : int = ident 3.\ncode : ⇑int = 4.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\n%symmetric friend.\nfriend ann bob.\ntotal : int -> rel.\ntotal three.\ntotal code.\nprimes : list int = [2, 3].\nlisted : list int -> rel.\nlisted primes.\n%use \"std/reflect\".\n","uri":"untitled:m.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":23,"line":5},"textDocument":{"uri":"untitled:m.hgn"}}}
 <-- {
   "jsonrpc": "2.0",

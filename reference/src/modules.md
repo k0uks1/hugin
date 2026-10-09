@@ -45,10 +45,11 @@ written. The object types that a parameter gives are abstract in the body; check
 such a type is are made for each instance. The subtyping edges of a module body are in scope for all of
 its rules.
 
-The following program applies the prelude's functor `tc` (transitive closure) twice to the same graph.
-The two applications create two distinct relations `r1.path` and `r2.path`.
+The following program applies the functor `tc` (transitive closure) of [`std/graph`](std/graph.md) twice
+to the same graph. The two applications create two distinct relations `r1.path` and `r2.path`.
 
 ```hugin,run
+%use "std/graph".
 city : type. berlin : city. paris : city. rome : city.
 road : city -> city -> rel.
 road berlin paris. road paris rome.
@@ -290,5 +291,5 @@ The scopes of a compilation are nested as follows: the prelude encloses every fi
 of its own; each module body is a scope inside the scope where it is written. The names that a file opens
 with `%use` lie between the file and the enclosing scope. A name declared in a scope shadows the same
 name of an enclosing scope, in the whole scope, also before its declaration. The names the prelude opens
-are in scope in every file. When a program declares an object constant with the name of a prelude
-constant, the prelude's constant is displayed as `prelude.n`.
+are in scope in every file. When a program declares an object constant with the name of a constant of the
+prelude or of the standard library, that constant is displayed as `prelude.n`.

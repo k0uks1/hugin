@@ -1,4 +1,5 @@
 (* Section 13.3: polymorphism. `list`, `nil`, `cons` and `len` come from the prelude. *)
+%use "std/list".
 nums : list int -> rel.
 nums (cons 1 (cons 2 (cons 3 nil))).
 ?- nums L, len L N.

@@ -2,6 +2,7 @@
    every rule deriving `edge` derives the reversed edge as well. Directives are expanded in source
    order: the module `%mirror` rewrites contains the rules added by `%loop` before it, but not those of
    `%loop` after it. Items it passes on unchanged keep their places. *)
+%use "std/reflect".
 node : type.
 a : node. b : node. c : node. d : node.
 edge : node -> node -> rel.

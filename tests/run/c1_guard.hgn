@@ -3,6 +3,7 @@
    the recursive calls; the rules are reflected back into the program by the item `$guardAll rules.`
    (`typed_check` stands for `typed.check`, which Phase C3 names). The generated rules are shown with
    `--print-after stage`, then the answers. *)
+%use "std/reflect".
 expr : type.
 ctx : type.
 typ : type.

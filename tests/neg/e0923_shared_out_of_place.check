@@ -8,21 +8,21 @@ error[E0923]: a shared data declaration that is not at the top level of a file
   = help: move the declaration and its constructors to the top level of the file
 
 error[E0923]: `single` declares a constructor of the shared type `list` outside its file
-  --> tests/neg/e0923_shared_out_of_place.hgn:6:1
-   |
- 6 | single : A -> list A. (*~ E0923 *)
-   | ^^^^^^ a constructor of a closed type
-  ::> <stdlib>/prelude.hgn:12:1: `list` and its constructors are declared here
-   |
-   = note: the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors
-   = help: declare the constructor with the shared type, or declare an object type (`: type`) that is open
+ --> tests/neg/e0923_shared_out_of_place.hgn:6:1
+  |
+6 | single : A -> list A. (*~ E0923 *)
+  | ^^^^^^ a constructor of a closed type
+ ::> <stdlib>/std/reflect.hgn:9:1: `list` and its constructors are declared here
+  |
+  = note: the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors
+  = help: declare the constructor with the shared type, or declare an object type (`: type`) that is open
 
 error[E0923]: `nothing` declares a constructor of the shared type `option` outside its file
   --> tests/neg/e0923_shared_out_of_place.hgn:7:1
    |
  7 | nothing : option int. (*~ E0923 *)
    | ^^^^^^^ a constructor of a closed type
-  ::> <stdlib>/prelude.hgn:22:1: `option` and its constructors are declared here
+  ::> <stdlib>/std/reflect.hgn:14:1: `option` and its constructors are declared here
    |
    = note: the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors
    = help: declare the constructor with the shared type, or declare an object type (`: type`) that is open

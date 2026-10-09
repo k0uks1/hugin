@@ -3,6 +3,7 @@
    compiler attaches. Where a `decl` is expected, a name is quoted as its declaration (`@r` as that of
    a rule). The prefix form `%d a₁ … aₙ` before a declaration applies a `decl -> decl` directive to it;
    directives compose like functions. *)
+%use "std/reflect". %use "std/graph". %use "std/list".
 node : type.
 a : node. b : node. c : node.
 

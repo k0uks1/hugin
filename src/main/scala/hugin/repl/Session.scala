@@ -74,7 +74,9 @@ final class Session(settings: Settings = Settings(), initialStats: Boolean = fal
 
   /** The files imported (transitively) by the session, in dependency order; the prelude is not listed. */
   def imports: List[String] =
-    db(Compile, key).context.unit.libraries.values.filterNot(_.isPrelude).map(_.path).toList
+    // the prelude and the bundled files it imports come first; they are not the session's imports
+    val libs = db(Compile, key).context.unit.libraries.values.toList
+    libs.drop(libs.indexWhere(_.isPrelude) + 1).map(_.path)
 
   /** Executes a command, or adds program items (declarations, rules, queries) to the session. */
   def execute(input: String): Reply = Input.status(input) match

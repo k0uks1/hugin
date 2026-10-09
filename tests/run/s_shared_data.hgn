@@ -3,6 +3,7 @@
    (`T.lift`, inserted by stage inference), and reified as `term` data at a hole of a quote (`T.reify`).
    Nested types (`list (tree A)`), mutually recursive types (`stmt`, `cond`), floats and strings, and
    compile-time lists of object code (`list (⇑int)`) are covered. *)
+%use "std/reflect".
 
 tree A : data.
 leaf : A -> tree A.

@@ -69,7 +69,7 @@
   }
 }
 --> {"jsonrpc":"2.0","method":"initialized","params":{}}
---> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nsize (suc N) = size N + 1.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc N).\nquad : nat -> nat.\nquad N = d.\nperson : type.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- fr }.\n%sy\n","uri":"untitled:c.hgn","version":1}}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nsize (suc N) = size N + 1.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc N).\nquad : nat -> nat.\nquad N = d.\nperson : type.\nfriend : person -> person -> rel.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- fr }.\n%sy\n%use \"std/reflect\".\n","uri":"untitled:c.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/completion","params":{"position":{"character":10,"line":10},"textDocument":{"uri":"untitled:c.hgn"}}}
 <-- {
   "jsonrpc": "2.0",
@@ -138,7 +138,7 @@
         "codeDescription": {
           "href": "https://k0uks1.github.io/hugin/errors/E0001.html"
         },
-        "message": "expected `.` after the directive, found end of file\nexpected `.` here\nhelp: every item ends with a period",
+        "message": "expected `.` after the directive, found `%use`\nexpected `.` here\nhelp: every item ends with a period",
         "range": {
           "end": {
             "character": 3,
@@ -149,6 +149,24 @@
             "line": 15
           }
         },
+        "relatedInformation": [
+          {
+            "location": {
+              "range": {
+                "end": {
+                  "character": 4,
+                  "line": 16
+                },
+                "start": {
+                  "character": 0,
+                  "line": 16
+                }
+              },
+              "uri": "untitled:c.hgn"
+            },
+            "message": "next item starts here"
+          }
+        ],
         "severity": 1,
         "source": "hugin"
       }
@@ -161,76 +179,10 @@
   "jsonrpc": "2.0",
   "result": [
     {
-      "detail": "meta definition dallneeds : list formula -> list string",
-      "kind": 9,
-      "label": "dallneeds",
-      "sortText": "1dallneeds"
-    },
-    {
-      "detail": "meta definition dbody Ls : sym -> list sym -> modes Ls -> rule -> list rule\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dbody",
-      "sortText": "1dbody"
-    },
-    {
-      "detail": "meta definition dcall Ls : sym -> list sym -> modes Ls -> list formula -> formula -> list rule\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dcall",
-      "sortText": "1dcall"
-    },
-    {
-      "detail": "meta definition dcallOf : list sym -> formula -> bool",
-      "kind": 9,
-      "label": "dcallOf",
-      "sortText": "1dcallOf"
-    },
-    {
-      "detail": "meta definition dcalls Ls : sym -> list sym -> modes Ls -> list formula -> list formula -> list rule\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dcalls",
-      "sortText": "1dcalls"
-    },
-    {
-      "detail": "meta definition dcolumns Ls : sym -> index -> modes Ls -> list column",
-      "kind": 9,
-      "label": "dcolumns",
-      "sortText": "1dcolumns"
-    },
-    {
-      "detail": "meta definition dconst : sym -> list attr -> decl",
-      "kind": 9,
-      "label": "dconst",
-      "sortText": "1dconst"
-    },
-    {
-      "detail": "meta definition ddemand Ls : bool -> sym -> list sym -> modes Ls -> list formula -> list term -> list rule\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "ddemand",
-      "sortText": "1ddemand"
-    },
-    {
-      "detail": "meta definition ddemanded : module -> list sym",
-      "kind": 9,
-      "label": "ddemanded",
-      "sortText": "1ddemanded"
-    },
-    {
-      "detail": "meta definition decl : Type",
-      "kind": 9,
-      "label": "decl",
-      "sortText": "1decl"
-    },
-    {
       "detail": "meta definition demand : (r : sym) -> modes (labels r) -> module -> module\n(directive, module-wide: it rewrites the module)",
       "kind": 9,
       "label": "demand",
       "sortText": "1demand"
-    },
-    {
-      "detail": "meta definition dequation : bool -> bool -> term -> term -> list string",
-      "kind": 9,
-      "label": "dequation",
-      "sortText": "1dequation"
     },
     {
       "detail": "meta definition derivations : decl -> decl\n(directive, local: it changes a declaration)",
@@ -239,167 +191,11 @@
       "sortText": "1derivations"
     },
     {
-      "detail": "meta definition derive : sym -> string -> sym",
-      "kind": 9,
-      "label": "derive",
-      "sortText": "1derive"
-    },
-    {
-      "detail": "meta definition derived : sym -> bool",
-      "kind": 9,
-      "label": "derived",
-      "sortText": "1derived"
-    },
-    {
-      "detail": "meta definition derror : string -> decl",
-      "kind": 9,
-      "label": "derror",
-      "sortText": "1derror"
-    },
-    {
-      "detail": "meta definition dguard Ls : sym -> modes Ls -> list term -> formula",
-      "kind": 9,
-      "label": "dguard",
-      "sortText": "1dguard"
-    },
-    {
-      "detail": "meta definition dguardOf Ls : sym -> modes Ls -> rule -> list formula -> list formula",
-      "kind": 9,
-      "label": "dguardOf",
-      "sortText": "1dguardOf"
-    },
-    {
-      "detail": "meta definition dguardSel : bool -> bool -> formula -> list formula -> list formula",
-      "kind": 9,
-      "label": "dguardSel",
-      "sortText": "1dguardSel"
-    },
-    {
-      "detail": "meta definition dguarded : formula -> sym -> list term -> list formula -> ((rule -> item)) -> item\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dguarded",
-      "sortText": "1dguarded"
-    },
-    {
-      "detail": "meta definition dhead Ls : bool -> bool -> sym -> list sym -> modes Ls -> list formula -> sym -> list term -> list formula -> ((rule -> item)) -> module\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dhead",
-      "sortText": "1dhead"
-    },
-    {
-      "detail": "meta definition dinner Ls : sym -> list sym -> modes Ls -> list formula -> formula -> list rule\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dinner",
-      "sortText": "1dinner"
-    },
-    {
-      "detail": "meta definition dinputs Ls : modes Ls -> list term -> list term",
-      "kind": 9,
-      "label": "dinputs",
-      "sortText": "1dinputs"
-    },
-    {
-      "detail": "meta definition ditems : list rule -> module\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "ditems",
-      "sortText": "1ditems"
-    },
-    {
-      "detail": "meta definition dkeepCalls : list sym -> list string -> list formula -> list formula",
-      "kind": 9,
-      "label": "dkeepCalls",
-      "sortText": "1dkeepCalls"
-    },
-    {
-      "detail": "meta definition dkeepF : list sym -> list string -> formula -> list formula -> list formula",
-      "kind": 9,
-      "label": "dkeepF",
-      "sortText": "1dkeepF"
-    },
-    {
-      "detail": "meta definition dkeepIf : bool -> bool -> formula -> list formula -> list formula",
-      "kind": 9,
-      "label": "dkeepIf",
-      "sortText": "1dkeepIf"
-    },
-    {
-      "detail": "meta definition dkeepS : bool -> string -> list string -> list string",
-      "kind": 9,
-      "label": "dkeepS",
-      "sortText": "1dkeepS"
-    },
-    {
-      "detail": "meta definition dmodule Ls : sym -> list sym -> modes Ls -> list formula -> module -> module\n(directive, module-wide: it rewrites the module)",
-      "kind": 9,
-      "label": "dmodule",
-      "sortText": "1dmodule"
-    },
-    {
-      "detail": "meta definition dname : string -> term -> term",
-      "kind": 9,
-      "label": "dname",
-      "sortText": "1dname"
-    },
-    {
-      "detail": "meta definition dnamed Ls : string -> modes Ls -> list term -> list term",
-      "kind": 9,
-      "label": "dnamed",
-      "sortText": "1dnamed"
-    },
-    {
-      "detail": "meta definition dnames : string -> list term -> list term",
-      "kind": 9,
-      "label": "dnames",
-      "sortText": "1dnames"
-    },
-    {
-      "detail": "meta definition dneed : list sym -> list formula -> list formula -> list term -> list string",
-      "kind": 9,
-      "label": "dneed",
-      "sortText": "1dneed"
-    },
-    {
-      "detail": "meta definition dothers : list sym -> ((formula -> list string)) -> list formula -> list string",
-      "kind": 9,
-      "label": "dothers",
-      "sortText": "1dothers"
-    },
-    {
       "detail": "meta definition double : nat -> nat",
       "kind": 9,
       "label": "double",
       "preselect": true,
       "sortText": "0double"
-    },
-    {
-      "detail": "meta definition dprefix : list sym -> list term -> list formula -> list formula",
-      "kind": 9,
-      "label": "dprefix",
-      "sortText": "1dprefix"
-    },
-    {
-      "detail": "meta definition dpruned : list sym -> list formula -> list string -> list formula",
-      "kind": 9,
-      "label": "dpruned",
-      "sortText": "1dpruned"
-    },
-    {
-      "detail": "meta definition drule : string -> list attr -> decl",
-      "kind": 9,
-      "label": "drule",
-      "sortText": "1drule"
-    },
-    {
-      "detail": "meta definition dstep Ls : sym -> list sym -> modes Ls -> list formula -> rule -> ((rule -> item)) -> module\n(directive, additive: it adds items)",
-      "kind": 9,
-      "label": "dstep",
-      "sortText": "1dstep"
-    },
-    {
-      "detail": "meta definition dunless : bool -> list string -> list string",
-      "kind": 9,
-      "label": "dunless",
-      "sortText": "1dunless"
     }
   ]
 }

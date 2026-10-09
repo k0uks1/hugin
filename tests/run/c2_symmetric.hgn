@@ -1,6 +1,7 @@
 (* A user-defined directive (docs/REDESIGN.md §8.5): `symmetric` returns items, so `%symmetric friend.`
    adds them where it stands (an additive directive). The relation is passed as object code
    `⇑(A -> A -> rel)`; in the quoted rule, `R` is that relation. *)
+%use "std/reflect".
 person : type.
 ann : person. bob : person. cid : person.
 

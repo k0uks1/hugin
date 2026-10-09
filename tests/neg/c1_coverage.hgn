@@ -1,5 +1,5 @@
 (* Quoted patterns are constructor patterns: their clauses must cover every case, and recursion must be
-   structural. *)
+   structural. *) %use "std/reflect".
 typed : int -> rel.
 
 guard : rule -> list rule. (*~ E0911 *)
