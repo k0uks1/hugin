@@ -118,7 +118,8 @@ can represent it.
 - A shared data type is closed. It is an error ([E0922](../errors/E0922.md)) if a subtyping edge
   `τ <: T` or a refinement `a : type <: T` names it, and an error ([E0923](../errors/E0923.md)) if a
   constructor of it is declared in another file. A program cannot add constructors to `list` or `option`.
-- It is an error ([E0923](../errors/E0923.md)) if a shared data type is declared in a module body.
+- It is an error ([E0923](../errors/E0923.md)) if a shared data type is declared in a module body or in
+  a [`where`](where.md) block.
 
 The following declaration is rejected: the argument of `dots` has the meta type `nat`, which has no
 object counterpart.
