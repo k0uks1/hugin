@@ -86,3 +86,10 @@ class GluedSuite extends munit.FunSuite:
     )
     assertEquals(e.errors, Nil)
   }
+
+  test("a type former is never unfolded: a definition of one is compared by its arguments") {
+    // as the prelude's `quoted`: a family without definition; `qi` is a definition of one of its types
+    val text = firstError("wrap : ⇑type -> Type.\nqi : Type = wrap int.\na : qi.\nb : wrap string = a.\n")
+    assert(text.contains("expected `wrap ⟨string⟩`, found `qi`"), text)
+    ok("wrap : ⇑type -> Type.\nqi : Type = wrap int.\na : qi.\nb : wrap int = a.\n")
+  }
