@@ -12,8 +12,8 @@ ModuleBody ::= "{" Item* "}"
 ```
 
 A *module body* is a sequence of items in braces: declarations, definitions, clauses, rules, queries and
-local directives. Its value is a module: a record with a field for every constant it declares. A member is
-selected with a path `m.r`; paths nest (`lib.reach`).
+local directives. Its value is a module: a record with a field for every constant it declares. A member
+is selected with a path `m.r`; paths nest (`lib.reach`).
 
 The items of a body are elaborated in a scope of their own, inside the scope of the enclosing file. They
 see the body's members, the parameters of an enclosing functor and the names of the file.
@@ -26,8 +26,8 @@ constants, reflected items `$e.`, and additive or module-wide directives. It is 
 
 A module body is *generative*: evaluating it creates fresh object constants for the object constants it
 declares, and stages its rules and queries with them. A definition `m = { … }.` or `m = f a.` is
-evaluated once, so all uses of `m` share one *instance*. Two definitions that evaluate the same body, also
-by applying a functor to the same arguments, create two instances with distinct relations.
+evaluated once, so all uses of `m` share one *instance*. Two definitions that evaluate the same body,
+also by applying a functor to the same arguments, create two instances with distinct relations.
 
 The object constants of an instance are named after the definition that created it: the relation `path`
 of the instance `r1` is `r1.path`. An instance that no definition names is called `_m1`, `_m2`, …; a name
@@ -90,21 +90,22 @@ Signature   ::= "{" SigField ("," SigField)* "}"
 SigField    ::= NAME ":" Type | "%complete" NAME
 ```
 
-A *signature* is a record type used as the type of modules: `graph : Type = { node : type, edge : node ->
-node -> rel }.` A field whose type is an object constant type is matched by an object constant of that
-kind: a relation field by a relation, a constructor field `c : τ̄ -> a` by a constructor (or, for a
-constant `c : a`, by a value). Signatures are [records](meta/records.md), and the rules of record
-subtyping apply: a module may have more fields than the signature.
+A *signature* is a record type used as the type of modules:
+`graph : Type = { node : type, edge : node -> node -> rel }.` A field whose type is an object constant
+type is matched by an object constant of that kind: a relation field by a relation, and a constructor
+field `c : τ̄ -> a` by a constructor. A field `c : a` without columns is matched by a value of type `a`.
+Signatures are [records](meta/records.md), and the rules of record subtyping apply: a module may have
+more fields than the signature.
 
 *Ascription* `m : sig = e.` gives the module `e` the type `sig`. It is transparent: the types of the
 signature are the types of `e` (`m.shape` is `e`'s `shape`), but only the fields of `sig` are visible
 through `m`. It is an error ([E0204](errors/E0204.md)) if `e` lacks a field of `sig` or a field has
 another kind or type.
 
-A field `%complete l` *requires* that the relation in the field `l` is [complete](object/negation.md#completeness).
-A functor that negates or aggregates over a relation of its parameter must require it; it is an error
-([E0210](errors/E0210.md)) otherwise. It is an error ([E0208](errors/E0208.md)) to apply a functor to a
-module whose relation does not satisfy a requirement.
+A field `%complete l` *requires* that the relation in the field `l` is
+[complete](object/negation.md#completeness). A functor that negates or aggregates over a relation of its
+parameter must require it; it is an error ([E0210](errors/E0210.md)) otherwise. It is an error
+([E0208](errors/E0208.md)) to apply a functor to a module whose relation does not satisfy a requirement.
 
 The following functor finds the nodes without outgoing edges. It negates the parameter's `edge`, so its
 signature requires `%complete edge`.
@@ -138,13 +139,13 @@ definition `geo = %import "lib/geo".` binds the module, and `geo.place` selects 
 
 A file is elaborated and evaluated once per compilation, however often it is imported, so every importer
 sees the same object constants. The object constants of an imported file are named after the file:
-`geo.here` for the constant `here` of `lib/geo.hgn` (`geo2.here` if two imported files have the same name).
-An imported file sees the prelude, and the files it imports itself, but not the program that imports it.
-The import graph must be acyclic. It is an error ([E0108](errors/E0108.md)) if an imported file does not
-exist or if imports form a cycle.
+`geo.here` for the constant `here` of `lib/geo.hgn` (`geo2.here` if two imported files have the same
+name). An imported file sees the prelude, and the files it imports itself, but not the program that
+imports it. The import graph must be acyclic. It is an error ([E0108](errors/E0108.md)) if an imported
+file does not exist or if imports form a cycle.
 
-The following program imports a library and uses its type and relation. (It is not run here, since it
-needs the file `lib/geo.hgn`.)
+The following program imports a library and uses its type and relation. It is not checked, since it
+needs the file `lib/geo.hgn`.
 
 ```hugin,ignore
 geo = %import "lib/geo".
@@ -152,7 +153,8 @@ reachable : geo.place -> rel.
 reachable X :- geo.near X.
 ```
 
-An import may be ascribed a signature, which hides the other members of the file:
+An import may be ascribed a signature, which hides the other members of the file. The following
+definition is not checked either.
 
 ```hugin,ignore
 shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : shape -> int -> rel }.

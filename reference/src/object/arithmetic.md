@@ -16,7 +16,8 @@ Term      ::= Term ("+" | "-" | "^") Term
 Comparison ::= Term ("=" | "<>" | "<" | "<=" | ">" | ">=") Term
 ```
 
-The precedence of the operators is given in [Lexical structure](../lexical-structure.md#operators-and-precedence).
+The precedence of the operators is given in [Lexical
+structure](../lexical-structure.md#operators-and-precedence).
 
 ## Arithmetic
 
@@ -39,16 +40,16 @@ instance does not fire. The operations never produce a NaN.
 An arithmetic term in an argument of a body atom is computed, not matched: its variables must be bound
 before the atom ([range restriction](rules.md#range-restriction)).
 
-The following program computes with integers, floats and strings. Integer division rounds toward zero;
-the division by zero makes its rule instance not fire.
+The following program computes with integers, floats and strings. Integer division rounds toward zero.
+The rule instance that divides by zero does not fire.
 
 ```hugin,run
-n : int -> rel.
-n 7. n 0.
+sample : int -> rel.
+sample 7. sample 0.
 quotient : int -> int -> rel.
-quotient X Q :- n X, Q = -X / 2.
+quotient X Q :- sample X, Q = -X / 2.
 inverse : int -> int -> rel.
-inverse X I :- n X, I = 100 / X.
+inverse X I :- sample X, I = 100 / X.
 half : float -> rel.
 half H :- H = 7.0 / 2.0.
 greeting : string -> rel.
@@ -70,7 +71,8 @@ An arithmetic term whose operands are literals is computed when the program is c
 undefined, its formula never holds, and the compiler warns ([W0001](../errors/W0001.md), lint
 `undefined_constant_expressions`).
 
-The following program has a constant expression that overflows; its rule never fires.
+The following program has a constant expression that overflows. Its rule never fires, and the compiler
+warns about it.
 
 ```hugin,run
 overflow : int -> rel.

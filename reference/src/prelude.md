@@ -23,8 +23,8 @@ includes the prelude ([Object types](object/types.md#base-types)).
 | `option A : data.` | optional values, with `none : option A` and `some : A -> option A` |
 | `pair A B : type = { fst : A, snd : B }.` | a struct of two values |
 
-`list` and `option` are [shared data types](meta/families.md#shared-data): each is a meta inductive family
-and an object family, with the derived functions `list.lift`, `list.reify`, `option.lift` and
+`list` and `option` are [shared data types](meta/families.md#shared-data): each is a meta inductive
+family and an object family, with the derived functions `list.lift`, `list.reify`, `option.lift` and
 `option.reify`. A list computed at compile time is a meta list, and it is used as an object list where
 one is expected ([Staging](meta/staging.md#lifting)). `pair` is an object struct only; meta code uses
 record types. `bool` is a meta type only: at the object level, truth is the presence of a fact.
@@ -113,8 +113,8 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 
 The helper functions of `demand` have names that start with `d` (`dmodule`, `dprefix`, …), with the
 set operations `member`, `sdiff` and `shares` on lists of strings and the binding analysis `tvarsOf`,
-`tsvars`, `fvars`, `fbound`, `fneeds` and `plain`. They are not meant to be used by programs, but they are
-ordinary definitions and may be.
+`tsvars`, `fvars`, `fbound`, `fneeds` and `plain`. They are ordinary definitions, which programs may use,
+but they are not part of the documented interface of the prelude.
 
 ## Booleans and primitives
 

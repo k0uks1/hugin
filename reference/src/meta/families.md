@@ -19,9 +19,10 @@ A meta declaration without a definition and without clauses is classified by its
 - any other meta declaration declares a postulate ([The meta level](index.md#meta-items)).
 
 The constructors of a family are the constructor declarations that return it, in the order of the file.
-A constructor must return the family applied to all of its arguments; it is an error otherwise
-([E0914](../errors/E0914.md), or [E0901](../errors/E0901.md) if the result is not a type). A program cannot add constructors to a family of the prelude or
-of another file: `x : formula.` in a program declares a postulate.
+A constructor must return the family applied to all of its arguments. It is an error otherwise
+([E0914](../errors/E0914.md), or [E0901](../errors/E0901.md) if the result is not a type). A program
+cannot add constructors to a family of the prelude or of another file: `x : formula.` in a program
+declares a postulate.
 
 Free uppercase variables in the type of a constructor are implicit arguments
 ([Functions](functions.md#implicit-arguments)): `vcons : A -> vec A N -> vec A (suc N).` has the implicit
@@ -62,12 +63,15 @@ of an arrow. It may occur in an argument of another family if that family is str
 argument, as in `tapp : sym -> list term -> term` of the prelude. It is an error
 ([E0913](../errors/E0913.md)) otherwise.
 
+The following declaration is rejected: `lam` takes a function from `value` as its argument, so `value`
+occurs to the left of an arrow.
+
 ```hugin,compile_fail,E0913
-bad : Type.
-mk : (bad -> int) -> bad.
+value : Type.
+lam : (value -> value) -> value.
 ```
 
-> **Rationale.** A constructor such as `mk` allows a value that applies itself, and with it a
+> **Rationale.** A constructor such as `lam` allows a value that applies itself, and with it a
 > non-terminating computation without recursion.
 
 ## Universe levels
@@ -101,8 +105,8 @@ shared data types ([The prelude](../prelude.md#lists-options-and-pairs)).
 
 ### Restrictions
 
-A shared data type `T a₁ … aₙ` is a family of first-order types in its parameters, so that both stages can
-represent it.
+A shared data type `T a₁ … aₙ` is a family of first-order types in its parameters, so that both stages
+can represent it.
 
 - Every argument of a constructor of `T` has a *shareable* type: a parameter `aᵢ`, a base type, or a
   shared type applied to shareable types. It is an error ([E0920](../errors/E0920.md)) otherwise, for
@@ -116,6 +120,9 @@ represent it.
   constructor of it is declared in another file. A program cannot add constructors to `list` or `option`.
 - It is an error ([E0923](../errors/E0923.md)) if a shared data type is declared in a module body.
 
+The following declaration is rejected: the argument of `dots` has the meta type `nat`, which has no
+object counterpart.
+
 ```hugin,compile_fail,E0920
 nat : Type.
 zero : nat.
@@ -128,8 +135,8 @@ dots : (amount : nat) -> shape.
 The declaration of `T` with the constructors `cᵢ : σ̄ᵢ -> T ā` declares, under the names `T` and `cᵢ`,
 
 - the meta inductive family `T : Type -> … -> Type` with the meta constructors `cᵢ : σ̄ᵢ -> T ā`;
-- the object family `T` of object constants (an object type if `T` has no parameters) with the
-  constructors `cᵢ`, which are fact constructors ([Facts and identity](../object/facts.md));
+- the object family `T` of object constants, an object type if `T` has no parameters, with the
+  constructors `cᵢ`, whose terms are facts ([Facts and identity](../object/facts.md));
 
 and two meta functions, defined by one clause per constructor:
 
@@ -138,13 +145,13 @@ T.lift  : (a₁ -> ⇑b₁) -> … -> (aₙ -> ⇑bₙ) -> T a₁ … aₙ -> �
 T.reify : (a₁ -> term) -> … -> (aₙ -> term) -> T a₁ … aₙ -> term
 ```
 
-`T.lift f̄ (cᵢ x̄)` is the object term `cᵢ` applied to the arguments `x̄`, each turned into object code: by
-`fⱼ` for a parameter `aⱼ`, as a literal for a base type, by the `lift` of its type for a shared type.
+`T.lift f̄ (cᵢ x̄)` is the object term `cᵢ` applied to the arguments `x̄`, each turned into object code:
+by `fⱼ` for a parameter `aⱼ`, as a literal for a base type, by the `lift` of its type for a shared type.
 `T.reify ḡ (cᵢ x̄)` is the [term data](../reflection.md#the-reflective-types) of the same object term,
 `'{ cᵢ $(…) … }`. `T.reify` exists where the prelude's reflective types are in scope. Both are checked
 for coverage and termination like functions written by hand. Stage inference inserts them
-([Staging](staging.md#lifting), [Reflection](../reflection.md#holes)); a program names them only to
-pass them as arguments, as `list.lift`.
+([Staging](staging.md#lifting), [Reflection](../reflection.md#holes)); a program names them only to pass
+them as arguments, as `list.lift`.
 
 > **Note.** An argument whose type nests the declared type in another shared type, such as
 > `node : list (tree A) -> tree A`, is converted by an auxiliary function `tree.lift.1` (`tree.reify.1`),
@@ -189,5 +196,5 @@ R = 2.
 > **Rationale.** A shared type is a polynomial functor in its parameters. Its meta side is the initial
 > algebra, the object constructors form an algebra on `⇑(T b̄)`, and `T.lift` is the fold between them.
 > Everything a declaration generates can be written by hand, so it adds no rule to the core calculus. A
-> lifted value is a closed object term: in a head it derives the fact and its subfacts, in a body it is
-> an existence check, as the same term written by hand.
+> lifted value is a closed object term: in a head it derives the fact and its nested facts, in a body it
+> is an existence check, as the same term written by hand.

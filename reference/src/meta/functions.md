@@ -37,17 +37,17 @@ far to the right as possible. Application is juxtaposition and associates to the
 ## Implicit arguments
 
 At an application of a function with implicit arguments, the compiler inserts a fresh unknown for each
-implicit argument and solves it by unification with the types around it (higher-order pattern
-unification, as in Kovács's elaboration-zoo). It is an error ([E0903](../errors/E0903.md)) if an
-implicit argument or a type is not determined. Implicit arguments cannot be written explicitly; they are
-inferred from the explicit arguments and the expected type.
+implicit argument and solves it by higher-order pattern unification with the types around it. It is an
+error ([E0903](../errors/E0903.md)) if an implicit argument or a type is not determined. Implicit
+arguments cannot be written explicitly; they are inferred from the explicit arguments and the expected
+type.
 
-The free uppercase variables of the type of a declaration `x : A.` or `x : A = e.` are implicit
-arguments of `x`. So `ident : A -> A = [x] x.` declares `ident : {A : Type} -> A -> A`. The free uppercase
+The free uppercase variables of the type of a declaration `x : A.` or `x : A = e.` are implicit arguments
+of `x`. So `ident : A -> A = [x] x.` declares `ident : {A : Type} -> A -> A`. The free uppercase
 variables in the parameter types of a definition, `f (x : A) = e.` or `f (x : A) : B = e.`, and in its
 result type are implicit arguments as well: `ident (x : A) : A = x.` declares
-`ident : {A : Type} -> A -> A`. The type of such a variable is unknown; it is tried as a meta type first, then as an
-object type.
+`ident : {A : Type} -> A -> A`. The type of such a variable is not given. The compiler tries it as a meta
+type first, then as an object type.
 
 The following program composes two functions on compile-time integers. `compose` has three implicit
 arguments, which are inferred as `int` at its application.
@@ -94,12 +94,13 @@ Hole      ::= "?" | "?" NAME_CHARS
 
 A *typed hole* `?` or `?name` stands for an expression that is still to be written. It is checked like
 any expression: its type, the *goal*, is the type its position expects, and it is an unknown that the
-rest of the item may constrain. It is an error ([E0924](../errors/E0924.md)) for every hole of a program,
-which reports the goal and the variables in scope; the items around the holes are elaborated, so all
-holes are found at once, and the compilation stops before staging. A hole is written while a program is
-developed step by step (the language server shows its goal and offers to split cases and to add the
-clauses that are missing, with holes for their right-hand sides). The name of a hole only identifies it
-in messages.
+rest of the item may constrain. Every hole is an error ([E0924](../errors/E0924.md)), whose diagnostic
+reports the goal and the variables in scope. The items around a hole are still elaborated, so all holes
+are reported at once; compilation stops before staging. The name of a hole only identifies it in
+messages.
+
+The following program leaves the argument of the outer `suc` as a hole. The compiler reports its goal,
+`nat`.
 
 ```hugin,compile_fail,E0924
 nat : Type.
@@ -110,11 +111,14 @@ double zero = zero.
 double (suc N) = suc (suc ?).
 ```
 
+> **Note.** Holes support writing a program step by step. The language server shows the goal of a hole,
+> and offers to split cases and to add missing clauses, with holes for their right-hand sides.
+
 ## Literals and primitive operations
 
-A literal checked against a meta type is a meta value: `3 : int` is a compile-time integer. A literal
-checked against a type with a constant constructor and a constructor with one recursive argument, such
-as `nat` with `zero` and `suc`, is the numeral `suc (… zero)` ([Inductive families](families.md#numerals)).
+A literal checked against a meta type is a *meta value*: `3 : int` is a compile-time integer. A literal
+checked against a type with a constant constructor and a constructor with one recursive argument, such as
+`nat` with `zero` and `suc`, is the numeral `suc (… zero)` ([Inductive families](families.md#numerals)).
 A literal whose type is not determined is a meta value of its base type.
 
 The arithmetic operators `+`, `-`, `*`, `/` and `^` apply to meta values of the base types as they do to

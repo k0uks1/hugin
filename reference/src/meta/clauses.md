@@ -1,9 +1,10 @@
 # Clauses
 
-A meta function can be defined by *clauses*: equations whose left sides are patterns over the
-function's arguments. The clauses are compiled into a case tree that splits on the arguments' meta
-constructors (Cockx and Abel 2018). This chapter defines clauses, patterns and their evaluation;
-[Coverage](coverage.md) and [Termination of meta functions](termination.md) define the totality checks.
+A meta function can be defined by *clauses*: equations whose left sides are patterns over the function's
+arguments. The clauses are compiled into a case tree that splits on the arguments' meta constructors
+([Cockx and Abel 2018](../notation.md#references)). This chapter defines clauses, patterns and their
+evaluation; [Coverage](coverage.md) and [Termination of meta functions](termination.md) define the
+totality checks.
 
 ## Syntax
 
@@ -20,8 +21,8 @@ may end with a [`where`](where.md) block.
 
 It is an error ([E0915](../errors/E0915.md)) if a function has clauses but no declaration, or if its
 clauses have different numbers of patterns or more patterns than the function has explicit arguments. It
-is an error ([E0914](../errors/E0914.md)) to give clauses to a constant that is not a meta function, such as
-a relation or a constructor.
+is an error ([E0914](../errors/E0914.md)) to give clauses to a constant that is not a meta function, such
+as a relation or a constructor.
 
 ## Patterns
 
@@ -47,9 +48,9 @@ defines a function.
 
 ## Evaluation
 
-An application of a function to as many arguments as it has clauses' patterns (and the implicit ones
-before them) evaluates its case tree. The first clause whose patterns match the arguments gives the
-value. If a split is on an argument that is not yet a constructor application (a variable of an
+An application of a function to as many arguments as its clauses have patterns, with the implicit
+arguments before them, evaluates its case tree. The first clause whose patterns match the arguments gives
+the value. If a split is on an argument that is not yet a constructor application (a variable of an
 enclosing function, a postulate), the application stays unevaluated until the argument is known.
 
 Applications to closed arguments are memoised by their normal forms. Since meta functions are total and
