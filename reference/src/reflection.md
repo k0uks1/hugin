@@ -437,8 +437,8 @@ A *typed atom* is a `quoted A` whose type `A` is a [type of facts](object/types.
 terms, so a term of the fact type `edge` is an atom of `edge`. A `quoted A` is accepted where a `formula`
 is expected if `A` is a type of facts, and the prelude's primitive `qatom : quoted A -> formula` is
 inserted. `qatom` turns the data `qterm (tapp s ts)` into the atom `fatom s ts`. So a typed atom stands
-in a quote as a head, a formula of a body, a fact or an item. It is an error ([E0901](errors/E0901.md)) if
-`A` is not a type of facts, such as a base type.
+in a quote as a head, a formula of a body, a fact or an item. It is an error
+([E0901](errors/E0901.md)) if `A` is not a type of facts, such as a base type.
 
 A quote checked against `quoted A` is checked at the positions of a head, so a typed atom that it builds
 fits both a head and a body. `qatom` applied to the data of another term than an application, which only
@@ -474,6 +474,57 @@ The following quote is rejected: `int` is not a type of facts, so a `quoted int`
 size : quoted int = '{ 3 }.
 bad : formula = '{ $size }.
 ```
+
+### Typed variables
+
+The prelude's `qvar : string -> quoted A` makes a *typed variable*: `qvar n` is the object variable named
+by the hint `n`, as a quoted term of type `A`. Its name is `n#v`, a form that source syntax cannot write,
+so it is never a variable that a program writes; query answers do not show it. The same hint in one rule
+gives the same variable, and two hints give two variables. `A` is the type that the program states where
+it binds the value, by a declared type or a parameter type; `qvar` checks nothing, since a variable has
+the meet of the types of its positions ([Typing of rules](object/types.md#typing-of-rules)).
+
+Code built apart shares a variable through a typed variable: each quote that uses it is typed with it at
+`A`. A variable shared by its plain name instead is typed only when the rule is reflected.
+
+The following program builds the transitive closure of `edge` from a piece `step` and three typed
+variables. The values `x` and `x2` are made from the same hint, so they are one variable in `both_ends`.
+
+```hugin,run
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+loop : node -> rel.
+edge a b. edge b c. edge c a.
+step : quoted node -> quoted node -> formula.
+step X Y = '{ edge $X $Y }.
+x : quoted node = qvar "x".
+y : quoted node = qvar "y".
+z : quoted node = qvar "z".
+x2 : quoted node = qvar "x".
+$'{
+  path $x $y :- $(step x y).
+  path $x $z :- path $x $y, $(step y z).
+}.
+both_ends : rule = '{ loop $x :- path $x $x2 }.
+$[both_ends].
+%output loop.
+```
+
+```output
+loop a.
+loop b.
+loop c.
+```
+
+A plain variable of the head of a quoted rule that no formula of the quote binds, while the body has a
+hole of type `formula`, a sequence hole or a hole of type `term` outside `not`, can only be bound by the
+name that the data in the hole uses. The compiler warns about it ([W0007](errors/W0007.md), lint
+`hole_capture`).
+
+> **Note.** The warning names the typed rewrite: the code that builds the hole's data takes the variable
+> as a `quoted A`, as in `born F = '{ born $c :- $(F c) } where c : quoted city = qvar "c".` with
+> `F : quoted city -> formula`.
 
 ## Reflecting data into the program
 

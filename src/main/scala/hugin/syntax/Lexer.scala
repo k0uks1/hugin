@@ -292,6 +292,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
               catch
                 case _: NumberFormatException =>
                   err(SyntaxError.InvalidUnicodeEscape(hex, _), escStart, pos)
+            case _ if pos >= s.length => // `\` at the end of the input: the string is unterminated
             case _ =>
               pos += 1
               err(SyntaxError.InvalidEscape(_), escStart, pos)
