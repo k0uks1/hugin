@@ -26,6 +26,7 @@ trait Evaluation:
     case Tm.Meta(m) => metaValue(m)
     case Tm.AppPruning(t, pr) => appPruning(env, eval(env, t), pr)
     case Tm.Lam(x, i, b) => Lam(x, i, Closure(env, b))
+    case Tm.App(_, Tm.App(_, _: Tm.App, _), _) => evalArgChain(env, t)
     case Tm.App(f, a, i) => app(eval(env, f), eval(env, a), i)
     case Tm.Pi(x, i, a, b) => Pi(x, i, eval(env, a), Closure(env, b))
     case Tm.Let(_, _, d, b) => eval(eval(env, d) :: env, b)
@@ -50,6 +51,26 @@ trait Evaluation:
     case Tm.Module(b, menv) => evalModule(b, menv.map(eval(env, _)))
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
+
+  /** `t`, an application whose argument is an application whose argument is one, and so on (`cons x1 (cons x2 (… nil))`, the
+   *  data of a long list): evaluated with a loop down the chain of arguments instead of a recursion per
+   *  element (issue #88). The order is that of the recursion: functions and arguments left to right, each
+   *  application done after its argument is evaluated. */
+  private def evalArgChain(env: List[Val], t: Tm): Val =
+    var fs: List[(Val, Icit)] = Nil
+    var cur = t
+    while cur match
+        case Tm.App(_, _: Tm.App, _) => true
+        case _ => false
+    do
+      val Tm.App(f, a, i) = cur: @unchecked
+      fs = (eval(env, f), i) :: fs
+      cur = a
+    var v = eval(env, cur)
+    while fs.nonEmpty do
+      v = app(fs.head._1, v, fs.head._2)
+      fs = fs.tail
+    v
 
   /** Object code at the position `sp`, a splice or a persisted value, observed. */
   private def observed(env: List[Val], sp: hugin.util.Span, inner: Tm): Val =

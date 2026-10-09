@@ -59,6 +59,21 @@ class HandoverSuite extends munit.FunSuite:
     assert(p.contains("abs : (body : var | abs) -> rel."), p)
   }
 
+  test("forward references to constructors; cycles through constructors are predeclared (#86)") {
+    // a forward reference is resolved by retrying the item after the declaration
+    val fwd = staged("uses : (x : c) -> rel.\nt : type.\nc : (v : int) -> t.\n")
+    assert(fwd.contains("uses : (x : c) -> rel."), fwd)
+    // a cycle needs the constructor predeclared (its result type is an open type of the module), in
+    // either order of the declarations
+    val cycle = "neg : (e : small) -> expr.\nlit : (v : int) -> expr.\nsmall : type = lit | neg.\n"
+    for code <- List("expr : type.\n" + cycle, cycle + "expr : type.\n") do
+      val p = staged(code)
+      assert(p.contains("neg : (e : lit | neg) -> expr."), p)
+    assertEquals(errors("expr : type.\n" + cycle + "lit 1.\nneg (lit 1).\n"), Nil)
+    // the result of a predeclared constructor must be an open type: a struct is not
+    assertEquals(errors("s : type = { a : int }.\nk : (e : u) -> s.\nu : type = k.\n").nonEmpty, true)
+  }
+
   test("object typing is the object typer's: subtyping is not rejected by the core, type errors come from it") {
     assertEquals(errors("a : type.\nb : type.\nx : a.\nr : b -> rel.\nr x.\n"), List("E0402"))
     assertEquals(errors("age : type <: int.\nr : age -> rel.\nr 30.\n"), Nil)

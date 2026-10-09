@@ -23,12 +23,20 @@ trait Matching:
       val args = first.reverse.collect { case Elim.EApp(a, _) => a }
       if args.length != arity then None
       else
-        val key = closedKeyIds(args).map((id, _))
-        key.flatMap(memo.get).orElse {
-          val r = runTree(tree, args.toVector)
-          for k <- key; v <- r do memo(k) = v
-          r
-        }.map(appSp(_, later))
+        // straight-line code rather than `Option` combinators: a meta function's recursion nests
+        // `eval` -> `reduceFunction` -> `runTree` -> `eval` once per call, so every frame here is paid
+        // once per level of the recursion (issue #88)
+        val key = closedKeyIds(args) match
+          case Some(ids) => (id, ids)
+          case None => null
+        val hit = if key == null then null else memo.getOrElse(key, null)
+        val r =
+          if hit != null then hit
+          else
+            val v = runTree(tree, args.toVector)
+            if key != null && v != null then memo(key) = v
+            v
+        if r == null then None else Some(appSp(r, later))
     case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
       val (later, first) = sp.splitAt(sp.length - op.arity)
       if !first.forall(_.isInstanceOf[Elim.EApp]) then None
@@ -39,19 +47,27 @@ trait Matching:
       if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
     case _ => None
 
-  private def runTree(tree: CaseTree, env: Vector[Val]): Option[Val] = tree match
+  /** The value of the case tree `tree` for the variables `env`, or `null` if a split meets a neutral (or a
+   *  value that matches no branch). A loop rather than a recursion through the splits: the JVM stack a
+   *  meta function's recursion uses per level does not grow with the depth of its case tree, which is
+   *  large for quoted patterns (`mirror ('{ edge $X $Y :- $..B } :: Rest)`, issue #88). */
+  @scala.annotation.tailrec
+  private def runTree(tree: CaseTree, env: Vector[Val]): Val | Null = tree match
     case CaseTree.Leaf(body, size, order, _, _) =>
-      Option.when(env.length == size)(eval(order.reverseIterator.map(env).toList, body))
+      if env.length == size then eval(order.reverseIterator.map(env).toList, body) else null
     case CaseTree.Split(level, branches) =>
       forceData(env(level)) match
         case Rigid(Head.Glob(c), csp) =>
-          branches.find(_.ctor == c).flatMap { b =>
-            val args = csp.reverse.collect { case Elim.EApp(a, _) => a }
-            if args.length == b.arity then runTree(b.tree, env ++ args) else None
-          }
-        case _ => None
+          branches.find(_.ctor == c) match
+            case Some(b) =>
+              val args = csp.reverse.collect { case Elim.EApp(a, _) => a }
+              if args.length == b.arity then runTree(b.tree, env ++ args) else null
+            case None => null
+        case _ => null
     case CaseTree.SplitAtom(level, branches, default) =>
-      atomKey(env(level)).flatMap(k => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env))
+      atomKey(env(level)) match
+        case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env)
+        case None => null
 
   /** A value forced, without the positions around it (reflected data carries the positions of the object
    *  syntax it was reified from, reference: reflection). */
