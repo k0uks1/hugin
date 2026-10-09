@@ -1833,6 +1833,7 @@ prelude's `quoted`, `qatom` of #96) are never `Top`s, so nothing unfolds them.
 
 No golden changes: the states decide how much is unfolded on the way, not which programs are accepted
 or how their unknowns are solved.
+
 ## Notation of the code types (#106)
 
 Decided by the designer in the issue: `^A` spells `⇑A` in ASCII (Kovács's staged elaborator,
