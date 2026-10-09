@@ -47,15 +47,25 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
      *  check, read as `(c t̄ as X)`: [[BodyOp.Lookup]] fails if `c t̄` is not a fact. So
      *  every fact-constructor subterm of a bound value is a fact. An ascription of a constructor term
      *  accepted by the typer always holds (the fact type is a subtype of the ascribed type, or equal to
-     *  it), so it is dropped. */
-    def bindingValue(t: Term, out: mutable.ListBuffer[BodyOp]): Expr = t match
+     *  it), so it is dropped.
+     *
+     *  The check reads `c` like an atom does: if `c` belongs to the rule's component (a rule that builds
+     *  `c` in its head depends on the rules that check `c`'s facts, reference: object/facts), it is a
+     *  recursive read and gets a version window in semi-naive evaluation (issue #83). */
+    def bindingValue(t: Term, out: mutable.ListBuffer[BodyOp], versioned: Boolean): Expr = t match
       case Term.App(RelRef.Sym(c), as) =>
-        val args = as.map(bindingValue(_, out)).toArray
+        val args = as.map(bindingValue(_, out, versioned)).toArray
         val y = fresh()
-        out += BodyOp.Lookup(y, c.tag, args)
+        out += BodyOp.Lookup(y, c.tag, recIndex(c, versioned), args)
         Expr.Reg(y)
-      case Term.Ascr(x: Term.App, _) => bindingValue(x, out)
+      case Term.Ascr(x: Term.App, _) => bindingValue(x, out, versioned)
       case other => expr(other)
+
+    /** The index of a recursive read of `c` (an atom or an existence check), or -1 if `c` is not in the
+     *  rule's component or the read is unversioned (inside a negation or an aggregate). */
+    def recIndex(c: RelSym, versioned: Boolean): Int =
+      if versioned && currentComp.isDefined && compOf.get(c) == currentComp then { recAtoms += 1; recAtoms - 1 }
+      else -1
 
     /** Whether a term is fully bound (it can be compared as a value). */
     def isBound(t: Term): Boolean = Moding.vars(t).forall(bound)
@@ -127,9 +137,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
           }.getOrElse(if versioned && propagating(a) then fresh() else -1)
           if versioned && propagating(a) then limitRegs += asReg
           val (binds, checks, nested) = columns(a.args)
-          val recIdx =
-            if versioned && currentComp.isDefined && compOf.get(c) == currentComp then { recAtoms += 1; recAtoms - 1 }
-            else -1
+          val recIdx = recIndex(c, versioned)
           if checks.nonEmpty then indexes.getOrElseUpdate(c.tag, mutable.Set.empty) += checks.map(_._1).toVector.sorted
           out += BodyOp.Scan(c.tag, recIdx, asReg, binds, checks.sortBy(_._1))
           nested.foreach((t, r) => matchReg(t, r, out))
@@ -138,7 +146,7 @@ final class Lowering(p: ObjProgram, ops: TypeOps)(using Context):
       case a: Formula.Atom => atom(a, out, versioned)
       case Formula.Cmp(CmpOp.Eq, l, r) if !(isBound(l) && isBound(r)) =>
         val (pat, value) = if isBound(r) then (l, r) else (r, l)
-        bindingValue(value, out) match
+        bindingValue(value, out, versioned) match
           case Expr.Reg(y) if !value.isInstanceOf[Term.Var] => matchReg(pat, y, out)
           case e =>
             val y = fresh()

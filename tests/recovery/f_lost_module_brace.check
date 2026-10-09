@@ -1,0 +1,20 @@
+error[E0001]: expected `.` or `where`, found `:`
+ --> tests/recovery/f_lost_module_brace.hgn:8:7
+  |
+7 | select (p : A -> prop) (r : A -> rel) =
+  | ------ this definition starts here
+8 |   sel : A -> rel. (*~ E0001 *)
+  |       ^ expected `.` or `where`
+
+error[E0001]: unmatched `}`
+  --> tests/recovery/f_lost_module_brace.hgn:10:1
+   |
+10 | }. (*~ E0001 *)
+   | ^ no module body to close
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+expensive : item -> rel.
+expensive I :- listed I, I.price >= 10.

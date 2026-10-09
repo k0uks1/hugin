@@ -41,8 +41,10 @@ enum BodyOp:
   case Test(op: CmpOp, a: Expr, b: Expr)
 
   /** The existence check of a fact-constructor term in a binding equation (`X = c t̄`, read as
-   *  `(c t̄ as X)`): the identity of the fact, or failure if `c t̄` is not a fact. */
-  case Lookup(dst: Int, rel: Int, args: Array[Expr])
+   *  `(c t̄ as X)`): the identity of the fact, or failure if `c t̄` is not a fact. It reads `rel` like an
+   *  atom: `recIdx` ≥ 0 if `rel` belongs to the current component, and the check then sees only the
+   *  version (old, delta, full) of the round, like a [[Scan]] (issue #83). */
+  case Lookup(dst: Int, rel: Int, recIdx: Int, args: Array[Expr])
   case NotIn(ops: Array[BodyOp])
   case Agg(dst: Int, kind: AggKind, term: Expr, locals: Array[Int], ops: Array[BodyOp])
 

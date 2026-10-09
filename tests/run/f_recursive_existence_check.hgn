@@ -1,0 +1,22 @@
+(* An existence check `X = c t̄` reads the facts of `c` like an atom (reference: object/facts). When a
+   rule of the same component builds `c t̄` in its head, the check is a recursive read and must see the
+   facts derived in later rounds of semi-naive evaluation (issue #83: the engine checked only once).
+   `some 0` is built by the second rule of `d1`, so `d0 0` holds; `reach` needs one round per step. *)
+src : int -> rel.
+src 0.
+d0 : int -> rel.
+d1 : option int -> rel.
+d0 N :- src N, _X = some N.
+d1 (some 0) :- src 0.
+d1 (some N) :- d0 N.
+%output d0.
+%output d1.
+
+step : int -> int -> rel.
+step 0 1. step 1 2. step 2 3. step 5 6.
+reach : int -> rel.
+reach N :- step M N, _X = some M.
+mark : option int -> rel.
+mark (some N) :- reach N.
+%output reach.
+%output mark.

@@ -1285,6 +1285,94 @@ expected, a quote at `seq formula`). New: `neg/e0919_quote_without_type`, `recov
 form in parentheses and in a list, an unclosed `'{`), `run/c3_demand_meta_values`,
 `run/c3_demand_ascription`.
 
+## Fuzz failures (#83)
+
+Failures of `GeneratedFuzzSuite` and `RecoveryFuzzSuite` with non-default seeds (42, 7), each shrunk,
+classified (program/generator, property, or compiler/engine) and fixed at the source.
+
+**Recursive existence checks (engine).** `d0 N :- src N, _X = some N.` together with
+`d1 (some N) :- d0 N.` puts `d0` and `some[int]` into one component: the existence check reads
+`some[int]` (reference: object/facts, *Bodies never create facts*), and the head of `d1` builds facts of
+`some[int]`, which the compiler derives in `some[int]`'s component (*Facts derived in other components*).
+The lowering marked only atoms (`Scan`) as recursive reads; the `Lookup` of an existence check always
+read the whole relation and did not count as a recursive atom. A rule whose only recursive read is an
+existence check therefore had `recursiveAtoms = 0` and fired once, in the initial round, before the
+rules of its component had derived anything; its facts were lost (the engine disagreed with the naive
+evaluator). Fix (`ir/Lower.scala`, `runtime/Engine.scala`, `ir/IR.scala`): `Lookup` carries a recursive
+index like `Scan`, assigned by the same counter in body order, and reads the version window of the round
+(old before the delta read, delta at it, full after it). Correctness: a `Lookup` of `c t̄` is the atom
+`c t̄` with every column checked (`(c t̄ as X)`), so semi-naive evaluation with one variant per recursive
+read is exactly the standard differential of the rule; identities are in assertion order, so the window
+test on the identity found is the same test a scan of the relation would make. Inside negations and
+aggregates reads stay unversioned (stratification puts their relations in earlier components). Golden:
+`tests/run/f_recursive_existence_check` (the shrunk program, and a chain that needs one round per step;
+expected output derived by hand).
+
+**Existence checks of built types (generator).** The other failures of seeds 7 and 42 in all three
+properties (differential, metamorphic, demand) were one generator bug: `ProgramGen.equation` produced
+`V = some X`, an existence check of `some[int]` (a *built* type, whose facts heads of later relations
+construct). The checking relation then depends on `some[int]`, which depends on the bodies of every rule
+that builds `some …` in its head; with a negation or aggregate over the checking relation in such a body
+the program has a genuine cycle through negation, and E0601 is correct (reference: object/facts, the
+note under *Facts derived in other components*). The W0002 warnings in the reports are incidental (the
+generator often leaves singleton variables; warnings do not make a program rejected) and the demand
+property failed only because both variants were rejected. Fix (`fuzz/ProgramGen.scala`): binding
+equations check only constructors of read types (`cons X nil`) and `pt`, as the generator's invariant
+for built types already said; recursive existence checks keep their coverage through a dedicated shape
+(`existenceChain`: `xr N :- xs M N, _X = some M.`, `xm (some N) :- xr N.`), which nothing else reads, so
+no negation joins its component. With the engine fix reverted, seed 7 finds the engine bug again through
+this shape.
+
+**A stray opener before an aggregate's braces (parser).** `RecoveryFuzzSuite` (seed 7) inserted `(` in
+`C = count { X | f X ; g X N }, …`, which gave 3 syntax errors (> k = 2): `expected {` at `(`; then
+`( { X` was parsed as a parenthesised brace expression whose recovery resynchronised, so the `|` was
+reported by the end of the item, and the `(` was reported unclosed. The mutant is one mistake, and the
+intended text is evident: an opening delimiter directly followed by `{` after an aggregate keyword is a
+stray token. Fix (`syntax/ExprSyntax.scala`, `parseAggregate`): `(` or `[` followed by `{` there is
+reported once (`expected {`), skipped, and the aggregate is parsed from the brace and marked damaged (an
+inserted or skipped delimiter is a guess, so the rule is not elaborated, as for E0005). The property is
+unchanged (k = 2). Golden: `tests/recovery/f_aggregate_stray_paren` (one error per rule, the items after
+them elaborated). The seed no longer reproduces the mutant on its own, because the new goldens change the
+corpus the mutants are drawn from; the shape was reproduced from three corpus files by hand.
+
+**A stray `}` with its period (parser).** Verifying with more seeds, `RecoveryFuzzSuite` failed for seeds
+19, 2024 and 77777 (on the merged quotes base) with the same tail: a quote that ended early (`'{ } R Y X
+:- …. }.`, an entry `-> q …` after a period, an aggregate whose `{` was deleted, so its `}` closed the
+quote) leaves the quote's own `}.` at the top level, reported as an unmatched `}` and then as an item
+starting with `.`, which with the first error makes 3. The period right after a stray `}` is the end of the
+item that `}` closed, not a mistake of its own. Fix (`syntax/ParserBase.scala`, `parseItems`): a stray `}`
+directly followed by `.` on its line is skipped together with it. Golden:
+`tests/recovery/f_stray_brace_period`.
+
+**A use of a dropped declaration in a module body (elaborator).** Seed 23 deleted the `:` of `node : type.`
+in `tests/run/c1_patterns`: `edge : node -> node -> rel.` is then dropped (its type uses the erroneous
+`node`), and the module `m = { edge a c. }` (elaborated in the same round, before `dropPending` removes
+the pending global `edge` from the scope) got E0101 "`edge` is used before its declaration", at the
+dropped declaration: an unresolved name outside the damaged line, i.e. a cascade. The same happens
+without any syntax error (`a : nodee.` with `nodee` undeclared). Fix (`core/elab/ObjectDecls.scala`,
+`requireDeclared`): a pending global whose name is erroneous (its declaration was dropped for a reported
+error) gives a silent error, as `Names.unresolved` does for erroneous names. Golden:
+`tests/neg/f_dropped_declaration_in_module`. Not fixed (outside the property, which looks only at E0101
+and syntax errors): in the same mutant, `$sappend (reverse '{ edge a b }) (reverse '{ m.edge b c }).`
+reports E0901 at `sappend` when an argument fails silently; the splice-application fallback reports the
+type of the bare splice instead of staying silent.
+
+**A module body whose `{` was lost (parser).** Seed 19 (after the goldens above changed the corpus) deleted
+the `{` of `select … = { sel : A -> rel. @s sel X :- r X, p X. }.` in `examples/formula_functions`: the
+definition is damaged at `:`, `skipItem` stopped at the first period, and the indented members became
+top-level items (`sel` unresolved in the rule, outside the damaged line; and `}` and `.` before the fix
+above). Top-level items start in column 0 (the line heuristic of #53), so indented text after a period of
+a damaged top-level item belongs to that item. Fix (`syntax/ParserBase.scala`, `skipItem`): at the top
+level (no enclosing body or quote), a period followed by an indented line does not end the skip; the
+skip ends before the next token in column 0 as before. Inside bodies and quotes, whose members are
+indented, nothing changes. Golden: `tests/recovery/f_lost_module_brace` (2 errors, the items after the
+body elaborated).
+
+**Verification (#83).** With all fixes, at 100 tests per property: `GeneratedFuzzSuite` passes for seeds
+1, 3, 5, 7, 11, 13, 19, 23, 42, 101, 314, 999, 2024, 31337, 77777; `RecoveryFuzzSuite` for the same 15
+seeds; `MutationFuzzSuite` (10 tests per property) for seeds 1, 7, 42; and all fuzz suites with the
+default seed. No property was weakened.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

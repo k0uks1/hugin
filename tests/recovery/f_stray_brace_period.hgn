@@ -1,0 +1,10 @@
+(* A `}` that ends a quote early (issue #83): the rest of the entry is reported once, the `}` that was
+   meant to close the quote is reported as unmatched, and the period right after it belongs to that `}`
+   (it is not reported as a third error). The items after the damaged line are elaborated. *)
+knows : (a : int) -> (b : int) -> rel.
+knows 1 2.
+symmetric : (r : ⇑(A -> A -> rel)) -> seq item.
+symmetric R = '{ } R Y X :- R X Y. }. (*~ E0001 *) (*~ E0001 *)
+twice : (r : ⇑(A -> A -> rel)) -> seq item.
+twice R = '{ R X X :- R X _. }.
+%twice knows.

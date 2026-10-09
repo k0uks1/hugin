@@ -187,14 +187,17 @@ private[syntax] trait ExprSyntax extends ParserBase:
       case Tok.KwSum => AggKind.Sum
       case Tok.KwMin => AggKind.Min
       case _ => AggKind.Max
-    expect(Tok.LBrace) match
+    // a stray opening delimiter before the braces (`count ( { X | p X }`): reported once and skipped, and
+    // the aggregate is parsed (damaged), so that its `|` and `}` are not errors of their own (issue #83)
+    val stray = (at(Tok.LParen) || at(Tok.LBrack)) && peekTok(1).kind == Tok.LBrace
+    expect(Tok.LBrace).orElse(Option.when(stray) { advance(); advance() }) match
       case None => ErrorTree(Nil)(spanFrom(start))
       case Some(open) =>
         val term = parseExpr(LvlCmp)
         val bar = expect(Tok.Bar).isDefined
         val body = if bar then parseExpr(LvlSemi) else ErrorTree(Nil)(insertionPoint)
         val closed = close(open, Tok.RBrace)
-        checked(Agg(k, term, body)(spanFrom(start)), bar && closed)
+        checked(Agg(k, term, body)(spanFrom(start)), !stray && bar && closed)
 
   /** A variable after `as` or before `with`; a lowercase name there is reported (and taken as the variable). */
   private def variable(): Option[VarRef] =

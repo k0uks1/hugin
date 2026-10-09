@@ -1,0 +1,8 @@
+(* A declaration dropped for an error is not reported again where a module body in the same round uses
+   its name (issue #83): before, `edge a a` in `m` gave "`edge` is used before its declaration", at the
+   dropped declaration. *)
+a : nodee. (*~ E0101 *)
+edge : nodee -> nodee -> rel. (*~ E0101 *)
+m = {
+  edge a a.
+}.

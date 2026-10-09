@@ -242,7 +242,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   protected var bodies = 0
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
-   *  closing the enclosing body, or the end of the file. */
+   *  closing the enclosing body, or the end of the file. At the top level, a period followed by an
+   *  indented line does not end the skip: top-level items start in column 0, so the indented text belongs
+   *  to the damaged item (the members of a module body whose `{` was lost; issue #83). */
   protected def skipItem(): Unit =
     var depth = 0
     var done = false
@@ -252,7 +254,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
         case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
         case Tok.RBrace =>
           if depth == 0 && bodies > 0 then done = true else { depth = (depth - 1).max(0); advance() }
-        case Tok.Period if depth == 0 => advance(); done = true
+        case Tok.Period if depth == 0 =>
+          advance()
+          done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)
         case _ => advance()
 
   /** Whether a token can start an item (in recovery: whether skipping can stop before it). */
@@ -273,7 +277,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
 
   /** The items of a file, a module body or a `where` block, while `more` holds: each item is a recovery
    *  region. A token that cannot start an item is reported by `unexpected` and skipped with the rest of
-   *  its item (a period or `}` alone is skipped by itself). If it follows an item on the same line, that
+   *  its item (a period or `}` alone is skipped by itself, a `}` with a period right after it with that period). If it follows an item on the same line, that
    *  item's period may be the mistake (`go : nat . -> int.`): the item is damaged too (not for a second
    *  period, which is harmless). With whether no
    *  tokens were skipped (else a member may have been lost: the enclosing construct is damaged). */
@@ -293,7 +297,10 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
         error(unexpected(tok))
         clean = false
         val t = advance()
-        if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
+        // a stray `}` directly followed by `.` closed an item whose opening was lost (a quote or module
+        // body that ended early): the period is that item's end, not a mistake of its own (issue #83)
+        if t.kind == Tok.RBrace && at(Tok.Period) && tok.span.startLine == t.span.startLine then advance()
+        else if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
     (items.toList, clean)
 
 object ParserBase:

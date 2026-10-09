@@ -1,0 +1,22 @@
+error[E0001]: expected `{`, found `(`
+ --> tests/recovery/f_aggregate_stray_paren.hgn:8:25
+  |
+8 | c N M :- p N, M = count ( { X | p X ; q X }, M > 0. (*~ E0001 *)
+  |                         ^ expected `{`
+
+error[E0001]: expected `{`, found `[`
+  --> tests/recovery/f_aggregate_stray_paren.hgn:10:16
+   |
+10 | s M :- M = sum [ { X | p X }. (*~ E0001 *)
+   |                ^ expected `{`
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+p : int -> rel.
+q : int -> rel.
+p 1.
+p 2.
+q 2.
+c : int -> int -> rel.
+s : int -> rel.
+c N 0 :- q N.

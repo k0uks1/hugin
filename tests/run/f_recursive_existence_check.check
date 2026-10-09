@@ -1,0 +1,8 @@
+d0 0.
+d1 (some 0).
+mark (some 1).
+mark (some 2).
+mark (some 3).
+reach 1.
+reach 2.
+reach 3.
