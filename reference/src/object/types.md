@@ -202,6 +202,35 @@ odd : rel.
 odd :- lives X _, lives _ X.
 ```
 
+## Where object code is typed
+
+These rules apply to object code wherever it is written: in rules and queries, in the clauses of formula
+functions, in object code that meta functions return (`⇑A`), and in [quotes](../reflection.md#quotes).
+Meta code inserted into object code is a term of the type its lift gives: a meta value `e : ⇑τ` spliced
+into a column of type `σ` must have `τ ≤ σ` in a head, and `τ` and `σ` must have a meet in a body. So a
+meta function that can only build well-typed object code is accepted, and one that can build ill-typed
+code is rejected where it is defined, whether or not it is used.
+
+In a [functor](../modules.md)'s body the types that the functor's parameter gives are *abstract*: such a
+type is a subtype only of itself, so the body is checked once, for every argument. Checks that depend on
+what an abstract type is (a comparison, arithmetic, a literal in its column, a meet with another type)
+are made for each instance.
+
+After [staging](../meta/staging.md), an item whose code came from meta code is checked again: the
+variables of the staged item may meet types that the item did not show, such as the type at which a
+formula function uses its argument.
+
+The following program is rejected where `swap` is defined: its first argument is put in a column of
+type `expr`.
+
+```hugin,compile_fail,E0402
+expr : type.
+typ : type.
+typed : (e : expr) -> (t : typ) -> rel.
+swap : ⇑expr -> ⇑typ -> ⇑prop.
+swap E T = typed T E.
+```
+
 ## Ascriptions
 
 ```text

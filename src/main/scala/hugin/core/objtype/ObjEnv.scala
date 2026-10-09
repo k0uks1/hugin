@@ -12,6 +12,7 @@ final class ObjEnv(val core: Core, locals: ObjEnv.Locals = ObjEnv.NoLocals):
   /** Object types from values (forced; positions and bound columns looked through). */
   def oty(v: Val): OTy = Val.unloc(force(v)) match
     case Val.Base(b, _) => OTy.Base(b)
+    case Val.Quote(t) => oty(t)
     case Val.RelT => OTy.RelTop
     case Val.FactTy(r) => head(r).map((h, as) => OTy.Fact(h, as)).getOrElse(OTy.Unknown)
     case Val.Obj(ObjForm.Union, ms) => OTy.union(ms.map(oty))
@@ -98,7 +99,7 @@ final class ObjEnv(val core: Core, locals: ObjEnv.Locals = ObjEnv.NoLocals):
     case other => other
 
   private def familyBody(ty: Val, vals: List[Val]): Option[Val] = force(ty) match
-    case Val.Pi(_, _, _, cl) => familyBody(inst(cl, vals.headOption.getOrElse(Val.Wild)), vals.drop(1))
+    case Val.Pi(_, _, _, cl) => familyBody(inst(cl, vals.headOption.getOrElse(Val.Quote(Val.Wild))), vals.drop(1))
     case Val.Lift(t) => Some(t)
     case _ => None
 

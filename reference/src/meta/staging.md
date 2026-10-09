@@ -18,7 +18,8 @@ For an object type `A`, the meta type `⇑A` (*lift* of `A`) is the type of *obj
 term of the object level that is not evaluated at compile time. Its values can be passed around, stored
 in records and returned by functions, and they are inserted into object items, but they cannot be
 inspected: a meta function cannot match on a value of type `⇑A`. Programs that inspect object syntax use
-the [reflective types](../reflection.md).
+the [reflective types](../reflection.md). Object code is [object-typed](../object/types.md#where-object-code-is-typed)
+where it is written.
 
 The types of relations (`node -> node -> rel`) and of formulas (`prop`) are object types in this sense:
 a meta value of type `node -> node -> rel` is object code that denotes a relation, and one of type `prop`
@@ -36,7 +37,9 @@ conversion ([Kovács 2022](../notation.md#references)):
 - a *splice* `$e` turns a meta value `e : ⇑A` into object code of type `A`;
 - a meta value of a base type or of a [shared data type](families.md#shared-data) used as object code is
   converted by its [lifting](#lifting);
-- `⇑` is inserted where an object type is used as a meta type.
+- `⇑` is inserted where an object type is used as a meta type;
+- `⇑` is *covariant*: a value of type `⇑A` is accepted where `⇑B` is expected if `A` is a
+  [subtype](../object/types.md#subtyping) of `B`. Nothing is inserted.
 
 Functions are converted by eta-expansion: a relation of type `⇑(A -> rel)` can be passed where a formula
 function `⇑A -> ⇑prop` is expected. `--print-after elaborate` shows the inserted quotes and splices.
@@ -52,6 +55,31 @@ nat : Type.
 zero : nat.
 level : int -> rel.
 level zero.
+```
+
+The following program passes object code of type `var` where object code of type `expr` is expected.
+
+```hugin,run
+expr : type.
+var : type.
+var <: expr.
+v : int -> var.
+term : (x : expr) -> rel.
+mentioned : expr -> prop.
+mentioned X = term X.
+named : var -> prop.
+named X = mentioned X.
+term (v 1).
+vars : (x : var) -> rel.
+vars (v 1). vars (v 2).
+found : (x : var) -> rel.
+found X :- vars X, named X.
+?- found X.
+```
+
+```output
+?- found X.
+X = v 1.
 ```
 
 The explicit splice `$e` states a conversion that stage inference would insert: `e` is meta code, and a

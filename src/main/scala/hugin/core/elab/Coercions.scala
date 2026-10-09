@@ -16,7 +16,11 @@ trait Coercions:
   def coe(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm = coercing(span) {
     reflectiveKind(a).filter(k => s == Stage.S1 && s2 == Stage.S0 && (k == RKind.Formula || k == RKind.Term)) match
       case Some(k) => reflectCode(c, t, k, span, Some(a2))._1
-      case None => coeStaged(c, span, t, a, s, a2, s2)
+      case None =>
+        quotedIndex(a).filter(_ => s == Stage.S1 && s2 == Stage.S0) match
+          // a quoted term in object code stands for its term
+          case Some(x) => reflectCode(c, rawTerm(c, x, t), RKind.Term, span, Some(a2))._1
+          case None => coeStaged(c, span, t, a, s, a2, s2)
   }
 
   private def coeStaged(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
@@ -130,6 +134,7 @@ trait Coercions:
       case (Val.RelT, Val.PropT) => None
       case (ty, Val.PropT) if s == Stage.S0 && isConstructorAtom(t, ty) => None
       case (rt: Val.RecTy, rt2: Val.RecTy) => coeRecord(c, t, rt, s, rt2, s2)
+      case (from, to) if s == Stage.S1 && s2 == Stage.S1 && coeQuoted(c, t, from, to).isDefined => coeQuoted(c, t, from, to).get
       case _ => justUnify(c, t, a, s, a2, s2)
 
   /** A constructor application of an object type, used as a formula: an atom of the constructor's
@@ -180,6 +185,10 @@ trait Coercions:
     reflectiveKind(aty).filter(k => k == RKind.Formula || k == RKind.Term) match
       case Some(k) =>
         val (tm, ty) = reflectCode(c, at, k, span, None)
+        (tm, ty, Stage.S0)
+      case None if quotedIndex(aty).isDefined =>
+        // a quoted term stands for its term
+        val (tm, ty) = reflectCode(c, rawTerm(c, quotedIndex(aty).get, at), RKind.Term, span, None)
         (tm, ty, Stage.S0)
       case None => splicedCode(c, at, aty, a.span, span)
 

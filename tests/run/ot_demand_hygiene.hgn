@@ -1,0 +1,11 @@
+(* The variables `%demand` invents for the wildcards of a guarded head have a reserved form (`_a#0`), so
+   a variable of the program with the same written name (`_a`) is not captured: `reach _ Y` still
+   holds for every node with an edge from a start, whatever the demand for the first column is. *)
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+start : node -> rel.
+reach : (from : node) -> (to : node) -> rel.
+%demand reach +from -to.
+edge a b. edge c a. start c.
+reach _ Y :- start _a, edge _a Y.
+?- reach b Y.
