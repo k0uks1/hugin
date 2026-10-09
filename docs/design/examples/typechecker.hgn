@@ -5,10 +5,10 @@
    a meta function.
 
    The file has a module-wide directive (`%demand`), so its rules are reified as data before they are
-   elaborated. A rule that uses a meta value as object code (`program (liftE idf)`, or even a persisted
-   `int`) is rejected there with E0917, so this file converts into reflected syntax (`term`) and writes
-   the holes explicitly. Outside such a file, the conversion would be a function into `⇑expr`
-   (see lists.hgn), a third copy of the same fold. *)
+   elaborated. Until #79 a rule that used a meta value as object code (`program (liftE idf)`, or even a
+   persisted `int`) was rejected there with E0917, so this file converts into reflected syntax (`term`)
+   and writes the holes explicitly; since #79 the meta subterms are evaluated and their values reified,
+   and a conversion into `⇑expr` (see lists.hgn), a third copy of the same fold, would do as well. *)
 
 (* The object syntax and the object checker, as in examples/typechecker.hgn. *)
 name : type = string.
@@ -36,18 +36,17 @@ mexpr : Type.  mref : string -> mexpr.  mlam : string -> mtyp -> mexpr -> mexpr.
 mtyp : Type.   mbase : string -> mtyp.   marrow : mtyp -> mtyp -> mtyp.
 mctx : Type.   mempty : mctx.   mbind : mctx -> string -> mtyp -> mctx.
 
-(* The conversions: one clause per constructor, each the constructor of the other stage. With the
-   explicit quotes of issue #76 a clause reads `reifyT (marrow A B) = '{ arrow $(reifyT A) $(reifyT B) }`.
-   The facts `program $(reifyE idf).` below use a `term` in an object position; their form after #76
-   follows #76's rule for data in object positions. *)
+(* The conversions: one clause per constructor, each the constructor of the other stage, in a quote
+   `'{ … }` (issue #76) with holes. The facts `program $(reifyE idf).` below use a `term` in an object
+   position, which stands for the term it describes. *)
 reifyT : mtyp -> term.
-reifyT (mbase S) = base $(tstr S).
-reifyT (marrow A B) = arrow $(reifyT A) $(reifyT B).
+reifyT (mbase S) = '{ base $(tstr S) }.
+reifyT (marrow A B) = '{ arrow $(reifyT A) $(reifyT B) }.
 
 reifyE : mexpr -> term.
-reifyE (mref X) = ref $(tstr X).
-reifyE (mlam X T B) = lam $(tstr X) $(reifyT T) $(reifyE B).
-reifyE (mapp F A) = app $(reifyE F) $(reifyE A).
+reifyE (mref X) = '{ ref $(tstr X) }.
+reifyE (mlam X T B) = '{ lam $(tstr X) $(reifyT T) $(reifyE B) }.
+reifyE (mapp F A) = '{ app $(reifyE F) $(reifyE A) }.
 
 (* The checker as a meta function. *)
 maybe : Type -> Type.  nothing : maybe A.  just : A -> maybe A.

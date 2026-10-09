@@ -6,7 +6,7 @@ import hugin.syntax.Trees.*
 import hugin.util.*
 import scala.collection.mutable
 
-/** Quoted patterns (reference: reflection): object syntax in a pattern of a reflective type elaborates to a
+/** Quoted patterns (reference: reflection): a quote `'{ … }` in a pattern of a reflective type elaborates to a
  *  constructor pattern over the reflective types, so that coverage, termination and index unification
  *  apply unchanged. `$X` binds a meta variable, `$_` matches anything, `$..Xs` the rest of a sequence; a
  *  plain variable matches any object variable and `_` the object wildcard; object constants and literals
@@ -27,7 +27,7 @@ trait QuotedPatterns:
     try (f, buf.toList)
     finally derived = saved
 
-  def quotedPattern(t: Tree, k: RKind): Pat = patternOf(quoted(Cxt.empty, t, k, Nil))
+  def quotedPattern(t: Quote, k: RKind): Pat = patternOf(quotedContent(Cxt.empty, t, k))
 
   private def patternOf(q: Q): Pat =
     val r = reflective(spanOf(q))
@@ -36,6 +36,7 @@ trait QuotedPatterns:
       case Q.Hole(Wildcard(), _, sp) => Pat.PWild(sp)
       case Q.Hole(Parens(x), k, sp) => patternOf(Q.Hole(x, k, sp))
       case Q.Hole(x, _, _) => fail(ReflectionProblem.HoleNotVariable(x.span))
+      case Q.EntryHole(x, k, sp) => patternOf(Q.Hole(x, k, sp))
       case Q.SeqHole(_, _, sp) => fail(ReflectionProblem.MisplacedSequenceHole(sp))
       case Q.HigherOrder(f, args, k, sp) => higherOrder(f, args, k, sp)
       case Q.Con(n, args, _, sp) => Pat.PCon(r.ctor(n), args.map(patternOf), sp)
@@ -76,6 +77,7 @@ trait QuotedPatterns:
 
   private def spanOf(q: Q): Span = q match
     case Q.Hole(_, _, s) => s
+    case Q.EntryHole(_, _, s) => s
     case Q.SeqHole(_, _, s) => s
     case Q.HigherOrder(_, _, _, s) => s
     case Q.Con(_, _, _, s) => s

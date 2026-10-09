@@ -135,6 +135,7 @@ enum Code(
   case E0916 extends Code(916, Phase.Elaboration, "type binder used in a definition")
   case E0917 extends Code(917, Phase.Elaboration, "invalid quoted syntax")
   case E0918 extends Code(918, Phase.Elaboration, "reflection failure")
+  case E0919 extends Code(919, Phase.Elaboration, "quote without a reflective type")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
   case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")

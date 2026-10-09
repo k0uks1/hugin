@@ -137,6 +137,6 @@ class ParserSuite extends munit.FunSuite:
   test("the parser never gets stuck: every prefix of a program parses") {
     val text = "graph : Type = { node : type, edge : node -> node -> rel }.\n" +
       "tc (g : graph) = { path : g.node -> g.node -> rel. path X Y :- g.edge X Y. }.\n" +
-      "q N :- N = count { X | p X [1, 2] }, (Y with { a = 1 }), $..xs, (h :- b).\n%demand typed +e -t."
+      "q N :- N = count { X | p X [1, 2] }, (Y with { a = 1 }), $..xs, '{ h :- b. ?- c }, f '{ x }.\n%demand typed +e -t."
     for n <- 0 to text.length do parse(text.take(n))
   }

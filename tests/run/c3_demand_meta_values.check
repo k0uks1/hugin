@@ -1,0 +1,3 @@
+?- reach start Y, held N.
+Y = b, N = 3.
+Y = c, N = 3.

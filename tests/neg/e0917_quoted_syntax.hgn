@@ -1,21 +1,28 @@
-(* Quoted syntax that has no reflective representation, and holes in the wrong places (E0917). *)
+(* Quoted syntax that has no reflective representation, holes in the wrong places, and quotes whose
+   content is not of the category the expected type needs (E0917). *)
 p : int -> rel.
 q : int -> int -> rel.
 f : int -> int.
 
-asRule : rule = (p X :- (q X Y as F)). (*~ E0917 *)
-ascription : rule = (p X :- p (X : int)). (*~ E0917 *)
-projection : rule = (p X :- q X Y, p Y.l). (*~ E0917 *)
-misplaced : formula = $..Xs. (*~ E0917 *)
+asRule : rule = '{ p X :- (q X Y as F) }. (*~ E0917 *)
+ascription : rule = '{ p X :- p (X : int) }. (*~ E0917 *)
+projection : rule = '{ p X :- q X Y, p Y.l }. (*~ E0917 *)
+misplaced : formula = '{ $..Xs }. (*~ E0917 *)
 
 firstArgs : formula -> seq term.
-firstArgs (q $..Xs $Y) = Xs. (*~ E0917 *)
+firstArgs '{ q $..Xs $Y } = Xs. (*~ E0917 *)
 firstArgs _ = [].
 
 hole : formula -> int.
-hole (p $(f 1)) = 1. (*~ E0917 *)
+hole '{ p $(f 1) } = 1. (*~ E0917 *)
 hole _ = 0.
 
 higher : formula -> int.
-higher (p $F[X]) = 1. (*~ E0917 *)
+higher '{ p $F[X] } = 1. (*~ E0917 *)
 higher _ = 0.
+
+(* holes outside a quote, a rule where a formula is expected, a quote of formulas as a list *)
+outside : seq term = [$..Ts]. (*~ E0917 *)
+shape : formula = '{ p 1 :- q 1 2 }. (*~ E0917 *)
+several : rule = '{ p 1. p 2. }. (*~ E0917 *)
+category : seq formula = '{ p 1, p 2 }. (*~ E0917 *)

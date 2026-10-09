@@ -82,6 +82,7 @@
     },
     "punctuation": {
       "patterns": [
+        { "name": "punctuation.section.quote.begin.hugin", "match": "(?<![\\w'])'(?=\\{)" },
         { "name": "punctuation.accessor.hugin", "match": "(?<=[A-Za-z0-9_'])\\.(?=[a-z])" },
         { "name": "punctuation.terminator.hugin", "match": "\\." },
         { "name": "punctuation.separator.hugin", "match": "[,;]" }

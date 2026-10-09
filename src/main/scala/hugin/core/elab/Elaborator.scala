@@ -100,8 +100,8 @@ final class ElabState(val scope: NameScope = NameScope()):
  *    [[Clauses]], [[IndexUnifier]]: functions defined by clauses, elaborated into case trees with
  *    coverage checking; [[SizeChange]]: their termination;
  *  - [[Contexts]], [[Names]], [[ElabErrors]]: contexts and metas, name resolution, diagnostics;
- *  - [[Reflective]], [[Quotes]], [[QuotedPatterns]], [[Reflection]]: object syntax as data (reference:
- *    reflection): the prelude's reflective types, reification of quoted syntax in expressions and
+ *  - [[Reflective]], [[Quotes]], [[QuoteTerms]], [[QuotedPatterns]], [[Reflection]]: object syntax as data
+ *    (reference: reflection): the prelude's reflective types, quotes `'{ … }` in expressions and
  *    patterns, reflection of data back into object code.
  */
 class Elaborator(
@@ -138,6 +138,7 @@ class Elaborator(
     with ObjectItems
     with Reflective
     with Quotes
+    with QuoteTerms
     with QuotedPatterns
     with Reflection
     with Directives

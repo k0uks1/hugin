@@ -17,8 +17,9 @@ enum Footprint:
   case ModuleWide
 
 /** Directives are meta functions (reference: directives): `%d a₁ … aₙ.` resolves `d` like any name, elaborates the
- *  arguments against `d`'s parameter types (with stage inference and reification: where a `decl` is
- *  expected, a name is quoted as the declaration of its object constant), and the type of the
+ *  arguments against `d`'s parameter types (with stage inference; an argument at a parameter of a
+ *  reflective type is object syntax, quoted implicitly as if written `'{ … }`: where a `decl` is
+ *  expected, a name is the declaration of its object constant), and the type of the
  *  application gives its footprint ([[Footprint]]). In the prefix form `%d a₁ … aₙ DECL`, `d a₁ … aₙ` must
  *  have type `decl -> decl` and is applied to the declaration that follows.
  *
@@ -66,7 +67,7 @@ trait Directives:
     val n = d.kind
     if !c.scope.contains(n) && lookupGlobal(n).isEmpty then unknownDirective(c, d)
     val fn: Tree = Ident(n)(d.kindSpan)
-    val app = args.map(modeData(c, _)).foldLeft(fn)((f, a) => Apply(f, a)(f.span.to(a.span)))
+    val app = args.map(a => quoteImplicitly(modeData(c, a))).foldLeft(fn)((f, a) => Apply(f, a)(f.span.to(a.span)))
     val (tm, ty, st) = insertAll(c, d.span, infer(c, app))
     def notADirective = fail(DirectiveProblem.NotADirective(shown(d), show(c, ty), d.span))
     if st != Stage.S1 then notADirective

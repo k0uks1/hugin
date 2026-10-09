@@ -39,7 +39,9 @@ object Printer:
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
     case ListLit(es) => es.map(show).mkString("[", ", ", "]")
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
-    case RuleQuote(hs, b) => s"(${hs.map(show).mkString(", ")} :-${b.map(x => " " + show(x)).getOrElse("")})"
+    case Quote(es, terminated) =>
+      val shown = es.map(showItem(_).stripSuffix("."))
+      if shown.isEmpty then "'{ }" else shown.mkString("'{ ", ". ", if terminated then ". }" else " }")
     case SpliceSeq(a) => s"$$..${showArg(a)}"
     case SpliceHO(f, as) => s"$$${showArg(f)}${as.map(show).mkString("[", ", ", "]")}"
     case SymRef(_, n) => n

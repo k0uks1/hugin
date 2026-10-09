@@ -742,9 +742,9 @@ and patterns), splits by identity in case trees, and reflection (data → syntax
 
 | file | contents |
 |---|---|
-| `syntax/QuoteSyntax.scala` | holes `$x`, `$..xs`, `$f[t̄]`; lists `[ē]`, `e :: es`; rules as expressions `(h̄ :- b)` |
+| `syntax/QuoteSyntax.scala` | holes `$x`, `$..xs`, `$f[t̄]`; lists `[ē]`, `e :: es`; rules as expressions `(h̄ :- b)` (since #76: quotes `'{ … }` instead) |
 | `core/elab/Reflective.scala` | the prelude's reflective globals, the kind of an expected type (`RKind`), data constructors |
-| `core/elab/Quotes.scala` | when syntax is quoted, its analysis (`Q`), reification in expressions, meta lists |
+| `core/elab/Quotes.scala` | when syntax is quoted, its analysis (`Q`), reification in expressions, meta lists (since #76: the analysis; `QuoteTerms.scala` the rest) |
 | `core/elab/QuotedPatterns.scala` | quoted patterns (`Q` → `Pat`), higher-order holes |
 | `core/elab/Reflection.scala` | data → syntax with resolved symbols (`SymRef`), items `$e.`, formulas and terms in object code |
 | `core/elab/ReflectionProblems.scala` | E0917 (invalid quoted syntax), E0918 (reflection failure) |
@@ -778,7 +778,8 @@ and patterns), splits by identity in case trees, and reflection (data → syntax
   symbol, so it cannot name undeclared ones, and matching is by symbol: a pattern on `edge` does not match
   the `edge` of a module (`m.edge`), nor a program's `edge` that shadows the one in scope where the
   pattern is written.
-* **What is quoted.** Where a reflective type is expected, syntax is quoted if it is object syntax of that
+* **What is quoted.** [Superseded by #76: only the content of a quote `'{ … }` (and a directive's
+  arguments) is quoted; see "Explicit quotes (#76)".] Where a reflective type is expected, syntax is quoted if it is object syntax of that
   kind: an object constant (also a path `m.r`) or a hole `$r` applied to arguments, a rule `(h :- b)`, a
   formula (`,` `;` `not`, comparisons, aggregates `X = k { … }`), arithmetic or a literal for a term, a
   hole. Anything else is meta code of the reflective type (`R`, `guard R`, `fatom S Ts`, list syntax),
@@ -791,7 +792,8 @@ and patterns), splits by identity in case trees, and reflection (data → syntax
 * **Sequences.** `$..Xs` stands for the arguments of an atom, the heads or body conjuncts of a rule, or
   the elements of a list. In an expression it may be anywhere (`sappend` joins); in a pattern it must end
   its sequence (E0917). A list element may be a rule whose body extends to the closing `]`
-  (`[h :- a, b]` is one rule, as in §6.8); several rules with bodies are parenthesised.
+  (`[h :- a, b]` is one rule, as in §6.8); several rules with bodies are parenthesised. [Superseded by
+  #76: rules in lists are quotes, `['{ h :- a, b }]`; `$..` is a hole of quotes only.]
 * **Aggregates are locally nameless.** In `X = k { t | φ }`, if `t` is a variable `V`, `V` is bound: its
   occurrences in `t` and `φ` are `tbound` indices (one binder per aggregate). Reflection names it afresh
   (`V#1`): the variable is local to the aggregate even where the source used the same name outside it.
@@ -1188,6 +1190,100 @@ taken while the designer was unavailable.
 * *Changed goldens:* `tests/neg/syntax_recovery.check` and `tests/neg/facts_errors.check` (wording of
   the missing-period message: "expected `.` after the declaration" / "after the fact" instead of
   "expected `.` after declaration" / "expected `.`, `,` or `:-`"). No other golden changed.
+
+## Explicit quotes (#76)
+
+Reflection has Scala-style quotes `'{ … }` (issue #76, approved). Before, object syntax was reified *by
+expected type*: unmarked syntax where a reflective type was expected became data, and `(h :- b)` /
+`(h :-)` was a rule. That made categories ambiguous (`(h :-)` existed only to force the rule category)
+and collided with staging: `$[$(flip (edge a b))].` was elaborated as a staged list (E0901). Now
+reflective data is always marked; staging stays inferred (Kovács) and unchanged.
+
+| file | contents |
+|---|---|
+| `syntax/Lexer.scala` | `Tok.Quote`: a `'` at the start of a token directly before `{` (the `{` stays a token, so every depth count sees a brace); a prime elsewhere is a name character (`x'`) |
+| `syntax/QuoteSyntax.scala` | `parseQuote`: entries `[@n] e [:- b]` and `?- b` separated by periods, closed with `close` (E0005 for an unclosed `'{`); `:-` in parentheses or a list is E0001 with the quote syntax as help (`SyntaxHelp.RuleOutsideQuote`) |
+| `syntax/Trees.scala` | `Quote(entries: List[Item], terminated)`; `RuleQuote` is gone. A fact's single head is kept whole (`p X, q X` without `:-` is one formula) |
+| `core/elab/Quotes.scala` | the analysis `Q`: `quotedContent` (a quote at a kind), `entry` (an entry as a rule or item), `quoted` (raw syntax) |
+| `core/elab/QuoteTerms.scala` | quotes as terms (`reify`, `reifyQ`, whole-entry holes), implicit quotes of directive arguments, meta values in reified rules (#79), meta lists |
+| `core/elab/ReflectionProblems.scala` | E0917 also for the shape of a quote's content and holes outside quotes; E0919 (new) for a quote without a reflective type |
+
+**The grammar.**
+
+```text
+Quote ::= "'{" (Entry ("." Entry)* "."?)? "}"
+Entry ::= RuleName? Expr (":-" Formula)? | "?-" Formula
+Hole  ::= "$" Expr | "$" ".." Expr | "$" Expr "[" Expr ("," Expr)* "]"      (inside a quote only)
+```
+
+**Decisions.**
+
+* **Categories by expected type, no prefixes.** `module`/`seq item` and `seq rule`: the entries, each an
+  element (with its period, the last optional). `item`: one entry (a rule `irule`, a named rule `inamed`,
+  a query `iquery`). `rule`: one entry without name or query; a fact is a rule without body. `formula`,
+  `term`, `sym`, `decl`, `measure`: one entry without `:-`, name or period, read as before. Other list
+  kinds (`seq formula`, `seq term`) are E0917 with a note to use a meta list of quotes. Lean-style
+  category prefixes (`'rule{ … }`) are not added: every context that needs a quote has an expected type
+  or can get one by an ascription, and a quote without one is E0919 with that help ("give the type:
+  `('{ p X :- q X } : rule)`, or declare it"). The item `$e.` checks a quote (and a list that has no type
+  of its own) against `module`, so `$'{ … }.` needs no ascription.
+* **Holes only in quotes.** `$..xs` and `$f[t̄]` outside a quote are E0917 ("a hole outside a quote");
+  `$x` outside a quote is the staging splice, everywhere. So meta lists lost `[a, $..xs]` (no program
+  used it; `sappend` joins). The top-level item `$e.` is the splice applied to reflected data and stays.
+  A hole's expression is meta code again, in which quotes may nest (`'{ p $(g '{ X }) }`); a quote
+  directly inside quoted syntax is E0917.
+* **Whole-entry holes.** A hole that is a whole entry (`'{ $r }`, `'{ a. $i. }`) has the entry's kind (a
+  rule, an item). In an expression it may also be a `formula` (the fact) or, for an item, a `rule`: the
+  hole's expression is inferred first, and its type chooses (so `$'{ $(flip '{ edge a b }). }.` works,
+  the motivating example of #76). In a pattern it binds the whole entry. `'{ $..is. }` in a module is a
+  sequence hole of items.
+* **Directive arguments are quoted implicitly.** Requiring `%input '{ edge }.` or `%terminates '{ N }
+  '{ hop _ _ N }.` would be noise without information: a directive is object syntax already, marked by
+  its `%`. So an argument at a parameter of a reflective type (not a list) is read as the content of a
+  quote (`QuoteTerms.implicitQuote`, by tree identity: `Directives.application` registers its argument
+  trees); an explicit quote is accepted too. A meta value is passed in a hole, `%d $x.`. At `decl` and
+  `sym` parameters only names (and holes) are quoted, so `%input 3.` stays a type mismatch (E0901). The
+  prefix form `%d DECL` reifies the declaration as before. This is the one place where unmarked syntax is
+  data; outside directives `'{ edge }` is written for a symbol (`$reversed '{ edge }.`, `fatom '{ p } []`).
+* **Relations given by meta code** (a parameter `R : ⇑(A -> rel)`, a functor's `g.edge`) are symbols
+  inside a quote, written as names (`symmetric R = '{ R Y X :- R X Y. }.`): they are object constants for
+  the code, not meta values of a reflective type.
+* **Unresolved names in quotes** are E0101 (with similar names) as in other code, not E0917: a name that is
+  no symbol is elaborated once to report it. A member of a module whose declaration has a syntax error is
+  silent (#53's rule for erroneous names).
+* **Layout.** As in a module body, an entry of a quote does not start in column 0, so an unclosed `'{`
+  ends before the next item (E0005) instead of swallowing the rest of the file (found by
+  `RecoveryFuzzSuite`).
+* **Printing.** `Printer.show` prints a quote as `'{ e₁. e₂ }` (the parser phase's output). Reflected data
+  is printed by `--print-after elaborate` as constructor terms (`horn (scons …)`), as before; no printed
+  output contained the old quote syntax, so no golden changed for printing.
+* **Explanations.** E0917 is rewritten (no named patterns, no `(h :-)`, the categories of quotes, holes only
+  in quotes); E0919 is new; E0918, E1001, E1003 use the new syntax. `(h :-)` and `[h :- b]` are E0001.
+
+**#79 (fixed here).** A module-wide directive reifies the file's rules (`ModuleDirectives.reifyItem`), and
+the reification met meta subterms: `k : int = 3. held : int -> rel. held k.` was E0917 with `%demand` in
+the file, fine without. Now the rules are reified in a mode (`QuoteTerms.reifyingFile`) in which a term or
+formula whose head is not an object constant (nor a hole) is elaborated as meta code and evaluated
+(`metaValue`): a value of the expected reflective kind is used as it is (a `formula` meta constant in a
+body), a base value becomes a literal (`tint 3`, also persisted values), object code becomes its syntax
+(object constants applied to terms, arithmetic; implicit arguments dropped). Anything else is the old
+E0917. An ascription in a term (`V = (nil : list int)`), which reflective data does not represent, is
+left out when a rule of the file is reified (its type is checked again when the reflected rule is
+elaborated); before, such a rule was E0917 with `%demand` in the file (found by `GeneratedFuzzSuite`
+with a random seed). Goldens: `tests/run/c3_demand_meta_values` (a persisted `int` and an `⇑node`
+constant in a file with `%demand`), `tests/run/c3_demand_ascription`; `docs/design/examples/typechecker.hgn` notes that the workaround it describes is no longer
+needed.
+
+**Changed `.check` files.** Only the syntax of programs changed; all answers are identical (every
+`tests/run` golden passed unchanged after its program was rewritten). The negative goldens whose
+snippets quote the rewritten lines changed in their source lines and columns only:
+`neg/c1_coverage` (the clause of `loop`), `neg/c1_reflected_diagnostics` (`mk`, `typo`),
+`neg/e0918_reflection` (the label now spans the entry `p 1 :- $opaque` of the quote instead of the
+parenthesised rule), `neg/e0917_quoted_syntax` (same messages, new lines; E0917's general note reworded;
+four new cases: a hole outside a quote, a rule where a formula is expected, two items where a rule is
+expected, a quote at `seq formula`). New: `neg/e0919_quote_without_type`, `recovery/quotes` (the old rule
+form in parentheses and in a list, an unclosed `'{`), `run/c3_demand_meta_values`,
+`run/c3_demand_ascription`.
 
 ## Possible next steps
 

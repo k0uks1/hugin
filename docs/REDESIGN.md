@@ -553,6 +553,14 @@ so reflected programs cannot refer to undeclared names. Object variables are rep
 
 ### 6.9 Quoted patterns and holes
 
+[Superseded by #76: explicit quotes `'{ … }`. Object syntax is no longer reified by expected type, and
+the rule form `(h :- b)` / `(h :-)` is removed: reflective data is written in a quote whose content is
+ordinary object syntax, read in the category the expected type gives (`'{ edge 1 2. path X Y :- edge X Y. }`
+as a `module`, `'{ path X Y :- edge X Y }` as a `rule`, `'{ edge X Y, not p X }` as a `formula`). Holes
+`$X`, `$..Xs`, `$F[V]` exist only inside a quote; outside, `$` is the staging splice. Quoted patterns use
+the same syntax: `flip '{ $R $X $Y } = '{ $R $Y $X }.` A directive's arguments are quoted implicitly. See
+the reference (Reflection, "Quotes") and docs/NOTES.md, "Explicit quotes (#76)".]
+
 Meta functions can **pattern-match on object code** by writing the pattern in object syntax, as with
 Scala 3's quoted patterns (`case '{ $x + $y } =>`) or Lean's `` `($a + $b) `` patterns. (MetaOCaml is
 deliberately generate-only: its code values are opaque, like our `⇑`.) Quoted patterns are syntax over

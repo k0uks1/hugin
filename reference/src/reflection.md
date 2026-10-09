@@ -3,8 +3,9 @@
 *Reflection* represents object syntax as meta data that programs can build, inspect and turn back into
 object code. Object code of type `⇑A` ([Staging](meta/staging.md)) is opaque; the *reflective types* of
 the prelude are ordinary inductive types whose values describe terms, formulas, rules and items. This
-chapter defines the reflective types, how object syntax is turned into their values (*reification*), the
-quoted patterns that match on them, and how data becomes part of the program again (*reflection*).
+chapter defines the reflective types, the quotes `'{ … }` that turn object syntax into their values
+(*reification*), the quoted patterns that match on them, and how data becomes part of the program again
+(*reflection*).
 
 Reflection is untyped: the data does not record object types, and reflected code is elaborated and
 checked again like code written by hand.
@@ -37,45 +38,69 @@ prelude's scope, not in the program's.
 ## Lists
 
 ```text
-List    ::= "[" (Element ("," Element)*)? "]"
+List    ::= "[" (Expr ("," Expr)*)? "]"
 Cons    ::= Expr "::" Expr
-Element ::= Expr | Expr ":-" Formula
 ```
 
 `[e₁, …, eₙ]` is the sequence of the elements, `e :: es` the sequence with first element `e`. A `[`
-starts a list unless it has the shape of a lambda `[x] e`. An element of a list may be a rule `h :- φ`,
-whose body extends to the closing `]`: `[h :- a, b]` is one rule. Several rules with bodies are
-parenthesised: `[(h₁ :- a), (h₂ :- b)]`.
+starts a list unless it has the shape of a lambda `[x] e`.
 
-## Reification
+## Quotes
 
-Where a reflective type is expected, object syntax of that kind is *quoted*: it denotes the data that
-describes it. Quoted are
+```text
+Quote   ::= "'{" (Entry ("." Entry)* "."?)? "}"
+Entry   ::= RuleName? Expr (":-" Formula)? | "?-" Formula
+```
 
-- an object constant (also a path `m.r`) or a hole applied to arguments, as an atom or a term;
-- a rule `(h :- φ)` or `(h :-)` without body, and a single atom where a rule is expected (a fact);
-- a formula: `,`, `;`, `not`, comparisons and aggregates;
-- arithmetic and literals where a term is expected;
-- a rule where an item is expected, as `irule`;
-- a named pattern `r { l = t, .. }`, as the atom with its arguments in column order.
+A *quote* `'{ … }` holds object syntax as data, written as in a file: its content is a sequence of
+entries (rules, facts and queries) separated by periods, the last period optional. Like the items of a
+module body, an entry does not start in column 0: a quote over several lines indents its entries. The
+`'` must be directly followed by `{`; a prime inside or after a name is part of the name (`x'`). Which data a quote
+denotes depends on the reflective type expected where it stands, which gives the *category* of its
+content:
 
-Inside quoted syntax a plain uppercase identifier is an object variable (`tvar "X"`), and `_` is the
-wildcard `twild`. Any other expression of a reflective type is meta code: a variable `R`, an application
-`guard R`, a constructor application `fatom S Ts`, a list. In a quoted position, a meta variable is
-written as a hole `$R`. It is an error ([E0917](errors/E0917.md)) to quote `as`, an ascription, a
-projection or an update, which have no representation.
+| expected type | content | example |
+|---|---|---|
+| `module`, `seq item` | items, each with its period | `'{ edge 1 2. path X Y :- edge X Y. }` |
+| `seq rule` | rules, each with its period | `'{ p X :- q X. r 1. }` |
+| `item` | one rule, named rule (`inamed`) or query (`iquery`) | `'{ @step path X Z :- path X Y, edge Y Z }` |
+| `rule` | one rule; a fact is a rule without body | `'{ path X Y :- edge X Y }`, `'{ edge 1 2 }` |
+| `formula` | a formula, without `:-` or period | `'{ edge X Y, not p X }` |
+| `term` | a term | `'{ f X 1 }`, `'{ N + 1 }` |
+| `sym` | the name of an object constant | `'{ edge }` |
+| `decl` | the name of an object constant, or a rule name | `'{ edge }`, `'{ @step }` |
+| `measure` | a measure of `%terminates` | `'{ (X, Y) }` |
 
-The following program builds a list of rules as data and reflects it into the program.
+In the content,
+
+- an object constant (also a path `m.r`) or a hole applied to arguments is an atom or a term;
+- a variable or parameter whose type is object code of a relation or constructor type
+  (`R : ⇑(A -> rel)`, a functor's parameter `g.edge`) stands for that constant, like a name;
+- `,`, `;`, `not`, comparisons and aggregates are formulas, arithmetic and literals terms;
+- a named pattern `r { l = t, .. }` is the atom with its arguments in column order;
+- a plain uppercase identifier is an object variable (`tvar "X"`), and `_` the wildcard `twild`.
+
+Meta values are written as holes (see below): `'{ $R X :- $..Body }`. It is an error
+([E0917](errors/E0917.md)) to quote `as`, an ascription, a projection or an update, which have no
+representation, or content of another category than the expected type's (two items where a rule is
+expected, a rule where a formula is expected). A quote where no reflective type is expected (the type is
+another one, or it is not known, as for a definition without a declared type) is an error
+([E0919](errors/E0919.md)): ascribe it, `('{ p X } : formula)`, or declare the type. An item `$e.` expects
+reflected items, so `$'{ … }.` needs no ascription. Object syntax outside a quote is never data: the
+arguments of directives are the exception, as they are object syntax themselves; an argument at a
+parameter of a reflective type is quoted implicitly ([Directives](directives.md)).
+
+The following program builds a module as data and reflects it into the program.
 
 ```hugin,run
 edge : int -> int -> rel.
 path : int -> int -> rel.
-rules : seq rule = [
-  (edge 1 2 :-),
-  (edge 2 3 :-),
-  (path X Y :- edge X Y),
-  (path X Z :- edge X Y, path Y Z)
-].
+rules : module = '{
+  edge 1 2.
+  edge 2 3.
+  path X Y :- edge X Y.
+  path X Z :- edge X Y, path Y Z.
+}.
 $rules.
 ?- path 1 Z.
 ```
@@ -92,11 +117,15 @@ Z = 3.
 Hole ::= "$" Expr | "$" ".." Expr | "$" Expr "[" Expr ("," Expr)* "]"
 ```
 
-A *hole* marks a place in quoted syntax where a meta value stands.
+A *hole* marks a place in a quote where a meta value stands. Holes exist only inside a quote; outside,
+`$e` is the splice of [staging](meta/staging.md), and `$..` and `$F[…]` are errors
+([E0917](errors/E0917.md)).
 
-- `$X` is a single value: a term, a formula, a symbol in the place of a relation, a rule.
+- `$X` is a single value: a term, a formula, a symbol in the place of a relation. A hole that is a whole
+  entry (`'{ $R }`, `'{ edge 1 2. $I. }`) is a value of the entry's kind (a rule, an item); in an
+  expression it may also be a formula (the fact) or, for an item, a rule.
 - `$..Xs` is a sequence: the arguments of an atom, the heads or the body conjuncts of a rule, or the
-  elements of a list.
+  entries of a module.
 - `$F[t₁, …, tₙ]` is a *higher-order hole*: `F` applied to object terms. The `[` follows `F` directly,
   without a space.
 
@@ -107,8 +136,8 @@ hole is in a place it cannot stand for.
 
 ## Quoted patterns
 
-A clause pattern whose argument has a reflective type may be written in object syntax: a *quoted
-pattern*. It is elaborated to a pattern over the constructors of the reflective types, so
+A clause pattern whose argument has a reflective type may be a quote: a *quoted pattern*, with the
+syntax and the categories of quotes in expressions. It is elaborated to a pattern over the constructors of the reflective types, so
 [coverage](meta/coverage.md) and [termination](meta/termination.md) apply unchanged.
 
 - An object constant in a quoted pattern matches that constant by identity. A pattern on `edge` does not
@@ -129,9 +158,9 @@ The following function swaps the arguments of every binary atom; `$R` matches th
 node : type. a : node. b : node.
 edge : node -> node -> rel.
 flip : formula -> formula.
-flip ($R $X $Y) = ($R $Y $X).
+flip '{ $R $X $Y } = '{ $R $Y $X }.
 flip F = F.
-$[($(flip (edge a b)) :-)].
+$'{ $(flip '{ edge a b }). }.
 %output edge.
 ```
 
@@ -148,9 +177,9 @@ stock : item -> rel.
 excluded : item -> rel.
 count_ok : int -> rel.
 restrict : rule -> rule.
-restrict (count_ok $X :- $Y = count { V | $F[V] }) = (count_ok $X :- $Y = count { V | $F[V], not excluded V }).
+restrict '{ count_ok $X :- $Y = count { V | $F[V] } } = '{ count_ok $X :- $Y = count { V | $F[V], not excluded V } }.
 restrict R = R.
-$restrict (count_ok N :- N = count { I | stock I }).
+$restrict '{ count_ok N :- N = count { I | stock I } }.
 stock pen. stock ink. stock cap.
 excluded cap.
 %output count_ok.
@@ -167,7 +196,8 @@ SpliceItem ::= "$" Expr "."
 ```
 
 An item `$e.`, where `e` has type `rule`, `item`, `seq rule` or `module`, stands for the rules, queries and
-declarations that `e` evaluates to. `$f a.` is read as `$(f a).` The data is evaluated during
+declarations that `e` evaluates to: it is the staging splice applied to reflected data. `$f a.` is read
+as `$(f a).`; a quote or a list in `$e.` is checked against `module` (`$'{ p 1. }.`). The data is evaluated during
 elaboration, turned into syntax whose object constants are already resolved, and elaborated and checked
 like a hand-written item, at the object level too (typing, stratification, termination). It is an error
 ([E0918](errors/E0918.md)) if the data is not closed (it depends on a postulate or on a parameter of a
@@ -190,8 +220,8 @@ The following program uses a formula and a term as data in rules.
 p : int -> rel.
 q : int -> rel.
 r : int -> int -> rel.
-body : formula = (q X, X > 1).
-three : term = 1 + 2.
+body : formula = '{ q X, X > 1 }.
+three : term = '{ 1 + 2 }.
 q 1. q 2. q 3.
 p X :- $body.
 r X $three :- body.
@@ -207,8 +237,8 @@ r 3 3.
 
 ## Symbols and derived constants
 
-A *symbol* is a value of type `sym`: a reference to an object constant. Where a `sym` is expected, the
-name of an object constant is quoted as its symbol. Symbols have no constructors; they are compared by
+A *symbol* is a value of type `sym`: a reference to an object constant, written as a quote of its name
+(`'{ edge }`). Symbols have no constructors; they are compared by
 identity. The prelude declares four primitive operations on symbols and literals:
 
 | primitive | meaning |
@@ -235,13 +265,14 @@ node : type. a : node. b : node.
 edge : (src : node) -> (dst : node) -> rel.
 edge a b.
 reversed : sym -> module.
-reversed R = [ irelation (derive R "rev") [colof R 1, colof R 0],
-               irule ($(derive R "rev") Y X :- $R X Y),
-               iquery [$(derive R "rev") Y X] ].
-$reversed edge.
+reversed R = irelation (derive R "rev") [colof R 1, colof R 0] :: '{
+  $(derive R "rev") Y X :- $R X Y.
+  ?- $(derive R "rev") Y X.
+}.
+$reversed '{ edge }.
 ```
 
 ```output
-$reversed edge.
+$reversed '{ edge }.
 Y = b, X = a.
 ```

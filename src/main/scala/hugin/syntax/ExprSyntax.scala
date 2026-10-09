@@ -94,7 +94,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
 
   private def startsArg(t: Token): Boolean = !atColumn0(i) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
-    case Tok.Dollar | Tok.Up => true
+    case Tok.Dollar | Tok.Up | Tok.Quote => true
     case Tok.LBrack => listAhead
     case Tok.Name => !infixOps.contains(t.text)
     case _ => false
@@ -170,6 +170,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
       case Tok.Dollar =>
         advance()
         parseDollar(start)
+      case Tok.Quote => parseQuote()
       case Tok.Up =>
         advance()
         // the operand does not start in column 0 (it would be the next item)
@@ -249,7 +250,10 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val t = parseType()
         val closed = close(open, Tok.RParen)
         checked(Ascribe(inner, t)(spanFrom(start)), closed)
-      case Tok.Turnstile => ruleQuoteRest(open, inner)
+      case Tok.Turnstile =>
+        ruleOutsideQuote()
+        close(open, Tok.RParen)
+        damaged(inner)
       case _ =>
         val closed = close(open, Tok.RParen)
         checked(Parens(inner)(spanFrom(start)), closed)

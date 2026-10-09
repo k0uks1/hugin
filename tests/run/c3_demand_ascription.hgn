@@ -1,0 +1,11 @@
+(* A rule with an ascription in a file with a module-wide directive: the rules of the file are reified for
+   the directive, and the ascription, which reflective data does not represent, is left out (found by
+   GeneratedFuzzSuite with a random seed). *)
+e1 : string -> list int -> rel.
+e1 "a" nil.
+e1 "b" (cons 1 nil).
+d1 : (a : string) -> (b : list int) -> rel.
+%demand d1 +a -b.
+d1 S V1 :- e1 S V1, V1 = (nil : list int).
+?- d1 "a" L.
+?- d1 "b" L.

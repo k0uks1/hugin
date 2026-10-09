@@ -1,53 +1,85 @@
 error[E0917]: `as` cannot be quoted as a formula
- --> tests/neg/e0917_quoted_syntax.hgn:6:25
+ --> tests/neg/e0917_quoted_syntax.hgn:7:27
   |
-6 | asRule : rule = (p X :- (q X Y as F)). (*~ E0917 *)
-  |                         ^^^^^^^^^^^^ not supported in quoted syntax
+7 | asRule : rule = '{ p X :- (q X Y as F) }. (*~ E0917 *)
+  |                           ^^^^^^^^^^^^ not supported in quoted syntax
   |
   = note: reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates
 
 error[E0917]: an ascription cannot be quoted as a term
- --> tests/neg/e0917_quoted_syntax.hgn:7:31
+ --> tests/neg/e0917_quoted_syntax.hgn:8:33
   |
-7 | ascription : rule = (p X :- p (X : int)). (*~ E0917 *)
-  |                               ^^^^^^^^^ not supported in quoted syntax
+8 | ascription : rule = '{ p X :- p (X : int) }. (*~ E0917 *)
+  |                                 ^^^^^^^^^ not supported in quoted syntax
   |
   = note: reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates
 
 error[E0917]: expected object syntax of a term
- --> tests/neg/e0917_quoted_syntax.hgn:8:38
+ --> tests/neg/e0917_quoted_syntax.hgn:9:40
   |
-8 | projection : rule = (p X :- q X Y, p Y.l). (*~ E0917 *)
-  |                                      ^^^ not object syntax
+9 | projection : rule = '{ p X :- q X Y, p Y.l }. (*~ E0917 *)
+  |                                        ^^^ not object syntax
   |
-  = note: in a position of a reflective type, object syntax is quoted: an object constant applied to terms, a hole `$x`, or a formula
+  = note: quoted object syntax is an object constant applied to terms, a variable, a literal, a hole `$x`, or a formula
 
 error[E0917]: a sequence hole `$..` where a single element is expected
- --> tests/neg/e0917_quoted_syntax.hgn:9:23
-  |
-9 | misplaced : formula = $..Xs. (*~ E0917 *)
-  |                       ^^^^^ sequence hole
+  --> tests/neg/e0917_quoted_syntax.hgn:10:26
+   |
+10 | misplaced : formula = '{ $..Xs }. (*~ E0917 *)
+   |                          ^^^^^ sequence hole
 
 error[E0917]: a sequence hole `$..` must end its sequence in a pattern
-  --> tests/neg/e0917_quoted_syntax.hgn:12:14
+  --> tests/neg/e0917_quoted_syntax.hgn:13:16
    |
-12 | firstArgs (q $..Xs $Y) = Xs. (*~ E0917 *)
-   |              ^^^^^ more elements follow
+13 | firstArgs '{ q $..Xs $Y } = Xs. (*~ E0917 *)
+   |                ^^^^^ more elements follow
    |
    = note: a pattern can only match a sequence by its first elements and the rest
 
 error[E0917]: a hole in a pattern must be a variable or `_`
-  --> tests/neg/e0917_quoted_syntax.hgn:16:11
+  --> tests/neg/e0917_quoted_syntax.hgn:17:13
    |
-16 | hole (p $(f 1)) = 1. (*~ E0917 *)
-   |           ^^^ expected `$X` or `$_`
+17 | hole '{ p $(f 1) } = 1. (*~ E0917 *)
+   |             ^^^ expected `$X` or `$_`
 
 error[E0917]: the arguments of a higher-order hole must be variables bound by an aggregate
-  --> tests/neg/e0917_quoted_syntax.hgn:20:14
+  --> tests/neg/e0917_quoted_syntax.hgn:21:16
    |
-20 | higher (p $F[X]) = 1. (*~ E0917 *)
-   |              ^ expected a variable bound by an enclosing aggregate
+21 | higher '{ p $F[X] } = 1. (*~ E0917 *)
+   |                ^ expected a variable bound by an enclosing aggregate
    |
    = note: `$F[V]` matches a formula that may mention `V`, the variable an enclosing aggregate binds; `F` is then a function of type `term -> formula`
 
-7 errors found
+error[E0917]: a hole outside a quote
+  --> tests/neg/e0917_quoted_syntax.hgn:25:23
+   |
+25 | outside : seq term = [$..Ts]. (*~ E0917 *)
+   |                       ^^^^^ only inside `'{ … }`
+   |
+   = note: `$..xs` and `$f[V]` are holes of quoted syntax; outside a quote, `$x` is the staging splice
+
+error[E0917]: expected a formula in this quote, found a rule
+  --> tests/neg/e0917_quoted_syntax.hgn:26:19
+   |
+26 | shape : formula = '{ p 1 :- q 1 2 }. (*~ E0917 *)
+   |                   ^^^^^^^^^^^^^^^^^ in this quote
+   |
+   = note: a `module` (or `seq rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
+
+error[E0917]: expected a rule in this quote, found 2 items
+  --> tests/neg/e0917_quoted_syntax.hgn:27:18
+   |
+27 | several : rule = '{ p 1. p 2. }. (*~ E0917 *)
+   |                  ^^^^^^^^^^^^^^ in this quote
+   |
+   = note: a `module` (or `seq rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
+
+error[E0917]: a quote cannot denote a list of formulas
+  --> tests/neg/e0917_quoted_syntax.hgn:28:26
+   |
+28 | category : seq formula = '{ p 1, p 2 }. (*~ E0917 *)
+   |                          ^^^^^^^^^^^^^ quoted here
+   |
+   = note: a list of formulas or terms is a meta list of quotes: `['{ p X }, '{ q X }]`
+
+11 errors found

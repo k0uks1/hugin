@@ -1,0 +1,15 @@
+(* A quote where no reflective type is expected (E0919): its category (a module, a rule, a formula, …)
+   comes from the expected type, so a quote without one, or against a type that is not reflective, is
+   an error. *)
+p : int -> rel.
+
+untyped = '{ p 1 }. (*~ E0919 *)
+number : int = '{ 1 }. (*~ E0919 *)
+
+num : int -> int.
+num '{ 1 } = 1. (*~ E0919 *)
+num _ = 0.
+
+$['{ p 1 }, '{ p 2 }].
+ok : rule = ('{ p 3 } : rule).
+$[ok].

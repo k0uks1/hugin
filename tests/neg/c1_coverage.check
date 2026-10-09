@@ -12,8 +12,8 @@ error[E0912]: cannot show that `loop` terminates
   |
 8 | loop : formula -> int. (*~ E0912 *)
   | ^^^^ possibly non-terminating
-9 | loop (typed $E) = loop (typed $E).
-  | ---------------------------------- in this clause: `loop (fatom ⟨typed⟩ (scons {term} E (snil {term})))`
+9 | loop '{ typed $E } = loop '{ typed $E }.
+  | ---------------------------------------- in this clause: `loop (fatom ⟨typed⟩ (scons {term} E (snil {term})))`
   |
   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
 

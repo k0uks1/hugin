@@ -9,11 +9,11 @@ lift : (A -> ⇑B) -> seq A -> ⇑(list B).
 lift F [] = nil.
 lift F (X :: Xs) = cons (F X) (lift F Xs).
 
-(* The same conversion into reflected syntax, for directives that build rules. With the explicit quotes
-   of issue #76 the second clause reads `reify F (X :: Xs) = '{ cons $(F X) $(reify F Xs) }`. *)
+(* The same conversion into reflected syntax, for directives that build rules: quotes `'{ … }` of the
+   object constructors (issue #76), with holes for the converted elements. *)
 reify : (A -> term) -> seq A -> term.
-reify F [] = nil.
-reify F (X :: Xs) = cons $(F X) $(reify F Xs).
+reify F [] = '{ nil }.
+reify F (X :: Xs) = '{ cons $(F X) $(reify F Xs) }.
 
 (* The length at compile time; the prelude's `len` is the length of the lists that are facts. *)
 slen : seq A -> int.
@@ -29,11 +29,11 @@ primes : seq int = [2, 3, 5, 7].
 held : list int -> rel.
 held (lift persist primes).
 
-(* A directive-style generator: one fact per suffix, built as data. With #76 the element is the fact
-   `'{ held $(reify tint (X :: Xs)) }`; the empty-body form `(h :-)` goes away. *)
+(* A directive-style generator: one fact per suffix, built as data (a quoted fact is a rule without
+   body). *)
 suffixes : seq int -> seq rule.
 suffixes [] = [].
-suffixes (X :: Xs) = (held $(reify tint (X :: Xs)) :-) :: suffixes Xs.
+suffixes (X :: Xs) = '{ held $(reify tint (X :: Xs)) } :: suffixes Xs.
 $suffixes [11, 13].
 
 static_len : int -> rel.
