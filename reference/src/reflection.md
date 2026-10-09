@@ -375,7 +375,9 @@ A quoted term `q : quoted A` may be used as follows:
 - in object code, with or without `$`, `q` stands for the term it describes, which is reflected and
   typed like a term written in its place; as for a `term` in object code, the data must be closed
   ([E0918](errors/E0918.md));
-- as the value of a hole of a quote, `q` is a term of type `A` ([Quotes](#quotes)).
+- as the value of a hole of a quote, `q` is a term of type `A` ([Quotes](#quotes));
+- where a `formula` is expected, `q` is accepted if `A` is a type of facts, and `qatom q` is inserted
+  ([Typed atoms](#typed-atoms)).
 
 It is an error ([E0901](errors/E0901.md)) to use a quoted term otherwise. In particular, a `term` is not
 a `quoted A`, `quoted A` is not `quoted B` unless `A` is a subtype of `B`, and a quoted term is not
@@ -427,6 +429,50 @@ asked (neg (lit 1)) empty.
 ?- typed X empty T.
 X = lit 1, T = tint.
 X = neg (lit 1), T = tint.
+```
+
+### Typed atoms
+
+A *typed atom* is a `quoted A` whose type `A` is a [type of facts](object/types.md#unions): facts are
+terms, so a term of the fact type `edge` is an atom of `edge`. A `quoted A` is accepted where a `formula`
+is expected if `A` is a type of facts, and the prelude's primitive `qatom : quoted A -> formula` is
+inserted. `qatom` turns the data `qterm (tapp s ts)` into the atom `fatom s ts`. So a typed atom stands
+in a quote as a head, a formula of a body, a fact or an item. It is an error ([E0901](errors/E0901.md)) if
+`A` is not a type of facts, such as a base type.
+
+A quote checked against `quoted A` is checked at the positions of a head, so a typed atom that it builds
+fits both a head and a body. `qatom` applied to the data of another term than an application, which only
+`qterm` can build, stays unevaluated; it is an error ([E0918](errors/E0918.md)) to reflect it.
+
+The following program builds the atoms of `edge` and `path` with generators that are checked where they
+are defined, and uses them as facts, in a head, in a body and under `not`.
+
+```hugin,run
+node : type. a : node. b : node. c : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+closed : node -> rel.
+link : quoted node -> quoted node -> quoted edge.
+link X Y = '{ edge $X $Y }.
+reach : quoted node -> quoted node -> quoted path.
+reach X Y = '{ path $X $Y }.
+x : quoted node = qterm (tvar "X").
+y : quoted node = qterm (tvar "Y").
+$'{ $(link '{ a } '{ b }). $(link '{ b } '{ c }). }.
+closed b.
+$'{ $(reach x y) :- $(link x y), not closed $x. }.
+%output path.
+```
+
+```output
+path a b.
+```
+
+The following quote is rejected: `int` is not a type of facts, so a `quoted int` is not an atom.
+
+```hugin,compile_fail,E0901
+size : quoted int = '{ 3 }.
+bad : formula = '{ $size }.
 ```
 
 ## Reflecting data into the program

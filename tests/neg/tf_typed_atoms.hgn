@@ -1,0 +1,19 @@
+(* A `quoted A` is an atom only if `A` is a type of facts (E0901 where it is used as one), and the data of
+   an atom must be an application (E0918 when it is reflected). *)
+node : type. a : node.
+edge : node -> node -> rel.
+age : type <: int.
+
+n : quoted int = '{ 1 }.
+bad : formula = '{ $n }. (*~ E0901 *)
+
+m : quoted age = '{ 2 }.
+fact : rule = '{ $m }. (*~ E0901 *)
+
+(* a generator of atoms is checked where it is defined *)
+link : quoted node -> quoted int -> quoted edge.
+link X Y = '{ edge $X $Y }. (*~ E0402 *)
+
+(* the unchecked `qterm` makes an atom that is not an application *)
+v : quoted edge = qterm (tvar "E").
+$'{ $v. }. (*~ E0918 *)

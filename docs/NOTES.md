@@ -1721,6 +1721,30 @@ three batches.
   The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
   for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
   a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+* **Batch 2, typed atoms.** `qatom : quoted A -> formula = %builtin qatom.` is a primitive
+  (`PrimOp.QAtom`, with `fatom`, `tapp` and `qterm` found from its declared type): it reduces the data
+  `qterm (tapp s ts)` to `fatom s ts` (the same spine, with the positions of the quoted syntax kept) and
+  is stuck otherwise. It is not a definition, so glued evaluation (#66) never unfolds it, and `quoted`
+  stays a postulated type former. `TypedQuotes.coeQuoted` inserts it where a `formula` is expected and
+  the index is a type of facts (`ObjTypes.isRelLike`, which also admits an index the core does not know,
+  such as an unsolved one: reflection checks the data then); otherwise E0901 with a note. A whole entry
+  `'{ $a }` of a typed atom is its fact (`QuoteTerms.entryHole`). Reflection reports a `qatom` stuck on
+  closed data as E0918 ("the term `tvar "E"` of a `quoted` atom is not an atom"). The quote reader needs
+  no change: a typed atom's columns were checked where it was built, at constructing positions.
+  Deviation from the design note: open types are types of facts (their values are facts of their
+  members, and every constructor is a relation), so `quoted node` for an open type `node` is an atom;
+  the note's example of a rejected index is a base type. The section "Typed terms" of the reference keeps
+  its name (its anchor is linked from other chapters) and gains a subsection "Typed atoms".
+  Goldens `run/tf_typed_atoms` (atoms as facts, items, heads, bodies, under `not`, and taken apart by a
+  quoted pattern), `neg/tf_typed_atoms`. Changed: `neg/core_e0901_occurs` (numbers of unknowns, which
+  count the prelude's declarations).
+  The new golden shifted the mutants that `RecoveryFuzzSuite` draws from its fixed seed onto a weakness
+  of the parser that it had not met: `?-` at the end of a line took the declaration in column 0 of the
+  next line as its formula, so the declaration was lost (E0101 for its uses). The formula of a query and
+  the body of a rule now do not start in column 0, like an argument and the operand of `⇑`
+  (`ItemSyntax`); no program of `tests/`, `examples/`, `docs/`, `bench/`, the reference or the prelude
+  starts one there. Reference: lexical-structure ("Items"); `docs/PARSER.md` 4.2; golden
+  `recovery/r_col0_formula`.
 
 ## Possible next steps
 

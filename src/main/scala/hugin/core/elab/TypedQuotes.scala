@@ -36,10 +36,29 @@ trait TypedQuotes:
   def qtermOf(c: Cxt, a: Val, d: Tm): Tm =
     Tm.App(Tm.App(Tm.Global(typed("qterm").get), quote(c.lvl, a), Icit.Impl), d, Icit.Expl)
 
-  /** The coercions of `quoted`: to `term` (forgetting the index), and covariantly in the index. */
+  /** `qatom {A} t`: the term `t : quoted A` of a type of facts as an atom. */
+  def qatomOf(c: Cxt, a: Val, t: Tm): Tm =
+    Tm.App(Tm.App(Tm.Global(typed("qatom").get), quote(c.lvl, a), Icit.Impl), t, Icit.Expl)
+
+  /** Whether `A` of `quoted A` is a type of facts (or a type the core does not know). */
+  private def factIndex(c: Cxt, a: Val): Boolean =
+    val env = objEnv(c)
+    ObjTypes(env).isRelLike(env.oty(a))
+
+  /** The coercions of `quoted`: to `term` (forgetting the index), to `formula` for a type of facts (an
+   *  atom, by `qatom`), and covariantly in the index. */
   def coeQuoted(c: Cxt, t: Tm, a: Val, a2: Val): Option[Option[Tm]] =
     (quotedIndex(a), quotedIndex(a2)) match
       case (Some(x), _) if reflectiveKind(a2).contains(RKind.Term) => Some(Some(rawTerm(c, x, t)))
+      case (Some(x), _) if reflectiveKind(a2).contains(RKind.Formula) && typed("qatom").isDefined =>
+        if !factIndex(c, x) then
+          fail(TypeProblem.Mismatch(
+            show(c, a2),
+            show(c, a),
+            coercionAt,
+            List(s"a `quoted` term is an atom only if its type is a type of facts, and `${show(c, x)}` is not one")
+          ))
+        Some(Some(qatomOf(c, x, t)))
       case (Some(x), Some(y)) =>
         try undoOnFailure(unify(c.lvl, x, y))
         catch case e: UnifyError => if !liftSubtype(c, x, y) then throw e

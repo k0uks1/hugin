@@ -185,6 +185,7 @@ Recovery happens at the innermost construct that can continue:
 | construct | separator / end | on an unexpected token |
 |---|---|---|
 | file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period or the next token in column 0 |
+| query, rule body (after `?-`, `:-`) | formula | a token in column 0 is the next item: the formula is missing (`ErrorTree`), as for the operand of `⇑` |
 | item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token, or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
