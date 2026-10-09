@@ -79,6 +79,9 @@ object Printer:
       args match
         case DirArgs.Infix(a, p, n) => s"%$k $a $p ${n.name}."
         case DirArgs.Apply(as, decl) => (s"%$k" :: as.map(showArg)).mkString(" ") + decl.fold(".")(_ => "") // the declaration follows
+        case DirArgs.Use(Import(path), ns) => s"%use ${Literal.quote(path)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."
+        case DirArgs.Use(m, ns) => s"%use ${showArg(m)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."
+        case DirArgs.Export(s) => s"%export ${showArg(s)}."
 
   /** A `%terminates` measure: one name, or a parenthesised tuple. */
   def measure(names: List[String]): String = names match

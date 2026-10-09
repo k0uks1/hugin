@@ -1,0 +1,2 @@
+(* `std/` paths denote the bundled standard library, which has no module `std/geometry` *)
+%use "std/geometry". (*~ E0108 *)

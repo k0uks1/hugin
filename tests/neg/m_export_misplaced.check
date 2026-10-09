@@ -1,0 +1,19 @@
+error[E0110]: a file has at most one `%export`
+ --> tests/neg/m_export_misplaced.hgn:3:1
+  |
+2 | %export { a : int, b : int }.
+  | ----------------------------- first `%export`
+3 | %export { b : int }. (*~ E0110 *)
+  | ^^^^^^^^^^^^^^^^^^^^ second `%export`
+  |
+  = help: put the fields of both signatures into one `%export`
+
+error[E0110]: `%export` is not allowed in a module body
+ --> tests/neg/m_export_misplaced.hgn:8:7
+  |
+8 | m = { %export { c : int }. c : int = 3. }. (*~ E0110 *)
+  |       ^^^^^^^^^^^^^^^^^^^^ in a module body
+  |
+  = note: `%export` states the signature of a file; a module body is ascribed where it is defined, `m : S = { … }.`
+
+2 errors found

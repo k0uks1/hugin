@@ -1,0 +1,6 @@
+(* a field outside a file's `%export` is not a member of the import, and a name list of `%use` names
+   only members; an `%export` the file does not match is reported in that file *)
+s = %import "lib/palette_ref".
+x : int = s.scale 2. (*~ E0906 *)
+%use s (brightness, scale). (*~ E0906 *)
+n = %import "lib/narrow".

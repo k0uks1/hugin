@@ -47,6 +47,14 @@ final class ElabState(val scope: NameScope = NameScope()):
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
+  /** The names opened by `%use` (reference: modules), with the globals they denote and the `%use` items
+   *  that opened them: between the file's declarations and the enclosing scope. A name opened for two
+   *  different globals is ambiguous ([[Uses]]). */
+  var opened: Map[Name, List[(Int, hugin.util.Span)]] = Map.empty
+
+  /** The file's `%export` (reference: modules): its span, and the module value and type it exports. */
+  var exported: Option[(hugin.util.Span, ImportedModule)] = None
+
   /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
   var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
 
@@ -93,6 +101,8 @@ final class ElabState(val scope: NameScope = NameScope()):
     val s = ElabState(scope.copy())
     s.functionNames = functionNames
     s.declaredHere = declaredHere
+    s.opened = opened
+    s.exported = exported
     s.signatures = signatures
     s.erroneous = erroneous
     s.unelaborated = unelaborated
@@ -154,6 +164,7 @@ class Elaborator(
     with FormulaFunctions
     with ModuleBodies
     with Imports
+    with Uses
     with CompleteParameters
     with ObjectItems
     with Reflective

@@ -1,0 +1,24 @@
+(* a library that exports a signature: `mix` and `scale` are outside it *)
+%export {
+  color : type, red : color, blue : color, paint : color -> rel,
+  shade : Type, light : shade, dark : shade, brightness : shade -> int
+}.
+color : type.
+red : color.
+blue : color.
+green : color.
+paint : color -> rel.
+paint red.
+paint blue.
+shade : Type.
+light : shade.
+dark : shade.
+brightness : shade -> int.
+brightness S = scale (base S).
+base : shade -> int.
+base light = 9.
+base dark = 2.
+scale : int -> int.
+scale N = N * 10.
+mix : color -> color -> rel.
+mix red blue.

@@ -1,0 +1,36 @@
+(* `%use` opens a module's fields (reference: modules): a file's, as its `%export` states them, also
+   before the definition that names the module; a module instance's; a list of names. The file's own
+   declarations shadow opened names, and opened constructors are constructors in patterns. *)
+%use "lib/palette".
+%use paths.
+%use "lib/geo" (place, here).
+
+level : shade -> int.
+level light = 1.
+level dark = 2.
+lit : int -> rel.
+lit (level dark + brightness 1).
+
+(* shadows the opened `brightness` in the whole file *)
+brightness : int -> int.
+brightness N = N + 100.
+
+painted : color -> rel.
+painted C :- paint C.
+
+graph : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+next : color -> color -> rel.
+next red blue.
+next blue red.
+paths = tc { node = color, edge = next }.
+loop : color -> rel.
+loop C :- path C C.
+
+start : place -> rel.
+start here.
+%output lit. %output painted. %output loop. %output start.

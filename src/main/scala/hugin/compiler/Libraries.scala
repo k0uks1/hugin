@@ -24,6 +24,10 @@ object SourceLoader:
   val StdlibPrefix = "<stdlib>/"
   val PreludePath: String = StdlibPrefix + "prelude.hgn"
 
+  /** Import paths with this prefix denote the modules of the bundled standard library: `std/graph` is
+   *  `<stdlib>/std/graph.hgn`, not a path relative to the importing file. */
+  val StdPrefix = "std/"
+
   /** The text of a bundled standard library file. */
   def stdlib(path: String): Option[String] =
     if !path.startsWith(StdlibPrefix) then None
@@ -49,12 +53,22 @@ object SourceLoader:
    *  A path that is not a valid file path (a NUL character, characters the file system cannot encode, a
    *  root without a file name) is returned unchanged; loading it then fails with "cannot find". */
   def resolve(from: String, path: String): String =
-    try
-      val hasExt = Option(Path.of(path).getFileName).exists(_.toString.contains('.'))
-      val withExt = if hasExt then path else path + ".hgn"
-      val parent = Option(Path.of(from).getParent)
-      parent.map(_.resolve(withExt)).getOrElse(Path.of(withExt)).normalize.toString
-    catch case _: InvalidPathException => path
+    // the bundled standard library, whatever the importing file (reference: modules); a path that leaves
+    // `std/` (`std/../x`) is an ordinary relative path
+    val std = Option.when(path.startsWith(StdPrefix)) {
+      try Path.of(path).normalize.toString.replace('\\', '/')
+      catch case _: InvalidPathException => ""
+    }.filter(_.startsWith(StdPrefix))
+    if std.isDefined then
+      val p = std.get
+      StdlibPrefix + (if Option(Path.of(p).getFileName).exists(_.toString.contains('.')) then p else p + ".hgn")
+    else
+      try
+        val hasExt = Option(Path.of(path).getFileName).exists(_.toString.contains('.'))
+        val withExt = if hasExt then path else path + ".hgn"
+        val parent = Option(Path.of(from).getParent)
+        parent.map(_.resolve(withExt)).getOrElse(Path.of(withExt)).normalize.toString
+      catch case _: InvalidPathException => path
 
 /** The import graph of a program, from a walk of its imports in depth-first order (the prelude's
  *  imports first): `files` are the files to include in dependency order (a file after the files it

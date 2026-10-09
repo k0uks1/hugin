@@ -1,0 +1,9 @@
+error[E0108]: cannot find `std/geometry`
+ --> tests/neg/m_use_std_missing.hgn:2:6
+  |
+2 | %use "std/geometry". (*~ E0108 *)
+  |      ^^^^^^^^^^^^^^ no such file
+  |
+  = note: resolved to `<stdlib>/std/geometry.hgn`
+
+1 error found
