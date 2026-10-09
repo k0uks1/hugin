@@ -122,8 +122,10 @@ select a field or a column label. Every other `.` ends an item.
 Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'{ }` are pairs. It is an error
 ([E0005](errors/E0005.md)) if an item ends before an opening one is closed.
 
-`⇑` (U+21D1) is the lift of [staging](meta/staging.md); `$` starts a splice, or inside a quote a
-[hole](reflection.md#holes).
+`⇑` (U+21D1) is the lift of [staging](meta/staging.md), and `^` where an operand starts is its ASCII
+spelling: `^int` is `⇑int`. `$` starts a splice, or inside a quote a [hole](reflection.md#holes). A `<`
+where an operand starts opens a [staging quote](meta/staging.md#explicit-quotes) `<t>`, which the next
+`>` closes.
 
 A question mark `?` that is not followed by `-` is a [typed hole](meta/functions.md#typed-holes),
 together with the name characters directly after it: `?`, `?rest`.
@@ -144,7 +146,7 @@ The productions of the items are given in the chapters that define them:
 and [directives](directives.md). Several items may share a line.
 
 An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
-of `$` or `⇑`, the body of a lambda `[x] e`, the formula of a query after `?-` or the body of a rule
+of `$`, `⇑` or `^`, the content of a staging quote `<t>`, the body of a lambda `[x] e`, the formula of a query after `?-` or the body of a rule
 after `:-`. So a missing period, or a missing formula, at the end of a line is reported where the next
 item starts, and that item is still parsed. It is an error ([E0001](errors/E0001.md)) if an item does not
 end with a period.
@@ -209,6 +211,12 @@ Application by juxtaposition (`edge X Y`) binds tighter than every binary operat
 `e.l` binds tighter than application. The prefix operators `not` and unary `-` apply to an application:
 `not edge X Y` is `not (edge X Y)`. Comparison operators do not associate: `A < B < C` is an error
 ([E0001](errors/E0001.md)).
+
+Three tokens are prefix where an operand starts and binary between operands: `-` is negation or
+subtraction, `^` is the lift `⇑` or string concatenation, and `<` opens a staging quote or compares. So
+`f -1` is a subtraction and `f ^A` a concatenation; an argument that starts with one of them is
+parenthesised: `f (-1)`, `f (^A)`, `f (<t>)`. The content of `<t>` is parsed above the comparison level,
+so a comparison in it is parenthesised: `<(X > 1)>`.
 
 The head of a rule is parsed above the comparison level: in `p X, q X :- r X.` the comma separates two
 heads. Inside a type, the comparison operators end the type, so that `x : int = 5.` parses.

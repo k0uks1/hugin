@@ -96,8 +96,12 @@ object Trees:
   /** `$t`: an explicit splice (reference: meta/staging), normally inferred; inside a quote, a hole. */
   final case class SpliceE(arg: Tree)(val span: Span) extends Tree
 
-  /** `⇑t`: the lift of an object type to the meta level; normally inferred. */
+  /** `⇑t` (ASCII `^t`): the lift of an object type to the meta level; normally inferred. */
   final case class LiftE(arg: Tree)(val span: Span) extends Tree
+
+  /** `<t>`: an explicit staging quote, object code `t` as a meta value of type `⇑A` (reference:
+   *  meta/staging); normally inferred. */
+  final case class CodeQuote(arg: Tree)(val span: Span) extends Tree
 
   /** `?` or `?name`: a typed hole, an expression still to be written (reference: meta/functions). */
   final case class Hole(name: Option[String])(val span: Span) extends Tree

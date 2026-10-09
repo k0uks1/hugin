@@ -442,6 +442,12 @@ X = lit 1, T = tint.
 X = neg (lit 1), T = tint.
 ```
 
+> **Note.** The name `quoted` follows Lean's Qq library, where the type of expressions of type `α` is
+> `Quoted α`, defined as `Expr` and written `Q(α)`. MetaOCaml's `'a code`, typed Template Haskell's
+> `Code m a` and the `□ A` (or `Code A`) of Kovács's dtt-rtcg are the type of code that can only be
+> generated, not inspected: that type is `⇑A` here ([Staging](meta/staging.md)), and a `quoted A` is
+> syntax that a program can take apart.
+
 ### Typed atoms
 
 A *typed atom* is a `quoted A` whose type `A` is a [type of facts](object/types.md#unions): facts are

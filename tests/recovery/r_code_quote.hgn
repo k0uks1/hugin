@@ -1,0 +1,10 @@
+(* A staging quote `<t>` that is not closed is one error (E0005), and the next item is parsed; a quote
+   as an argument without parentheses is read as comparisons. *)
+city : type. oslo : city. rome : city.
+road : city -> city -> rel.
+trip : ^prop = <road oslo rome. (*~ E0005 *)
+f : ^prop -> ^prop = [x] x.
+g : ^prop = f <road oslo rome>. (*~ E0001 *)
+h : ^prop = f (<road oslo rome>).
+linked : rel.
+linked :- $h.

@@ -262,12 +262,14 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   /** Whether a token can start an item (in recovery: whether skipping can stop before it). */
   protected def startsItem(t: Tok): Boolean = t match
     case Tok.Directive | Tok.Query | Tok.RuleName => true
+    // `<t>` and `^A` are operands, never an item's head
+    case Tok.Lt | Tok.Caret => false
     case other => startsExpression(other)
 
   protected def startsExpression(t: Tok): Boolean = t match
     case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok
           .Quote | Tok.Hole |
-        Tok.KwNot | Tok.Minus | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
+        Tok.KwNot | Tok.Minus | Tok.Lt | Tok.Caret | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
         Tok.Directive | Tok.RuleName | Tok.Error =>
       true
     case _ => false
