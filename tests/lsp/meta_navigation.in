@@ -1,0 +1,20 @@
+// Navigation on the meta level: through patterns, constructors in patterns, `where`, lambdas and quotes.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:n.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble zero = zero.\ndouble (suc N) = suc (suc (double N)).\ntoInt : nat -> int.\ntoInt zero = 0.\ntoInt (suc N) = toInt N + one\n  where one = 1.\ntwice : (int -> int) -> int -> int = [f] [x] f (f x).\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nfriend : person -> person -> rel.\n%symmetric friend.\n"}}}
+// a pattern variable's use: its binding in the pattern
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/definition", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 5, "character": 34}}}
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/references", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 5, "character": 12}, "context": {"includeDeclaration": true}}}
+// a constructor in a pattern: its declaration, and all its uses
+{"jsonrpc": "2.0", "id": 4, "method": "textDocument/definition", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 5, "character": 8}}}
+{"jsonrpc": "2.0", "id": 5, "method": "textDocument/references", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 1, "character": 0}, "context": {"includeDeclaration": true}}}
+// a `where` binding
+{"jsonrpc": "2.0", "id": 6, "method": "textDocument/definition", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 8, "character": 26}}}
+// a lambda's parameter
+{"jsonrpc": "2.0", "id": 7, "method": "textDocument/references", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 10, "character": 38}, "context": {"includeDeclaration": true}}}
+// a pattern variable used in a reflection quote
+{"jsonrpc": "2.0", "id": 8, "method": "textDocument/references", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 12, "character": 10}, "context": {"includeDeclaration": true}}}
+// the relation a directive is applied to
+{"jsonrpc": "2.0", "id": 9, "method": "textDocument/definition", "params": {"textDocument": {"uri": "untitled:n.hgn"}, "position": {"line": 15, "character": 11}}}
+{"jsonrpc": "2.0", "id": 10, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

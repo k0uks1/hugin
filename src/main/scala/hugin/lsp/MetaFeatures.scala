@@ -2,7 +2,7 @@ package hugin.lsp
 
 import com.google.gson.{JsonArray, JsonElement, JsonObject}
 import hugin.compiler.MetaIndex.HintKind
-import hugin.query.{CompileKey, Database, MetaIde, Parse}
+import hugin.query.{CompileKey, Database, Expansion, MetaIde, Parse}
 import hugin.syntax.{Lexer, Tok}
 import hugin.util.{Diagnostic as HDiagnostic, Reporter, SourceFile, Span}
 import hugin.util.diagnostics.Code
@@ -96,16 +96,22 @@ final class MetaFeatures(using db: Database):
     val skeleton = MetaIde.skeletonAt(k, from).filter(s => s.decl.source.path == path).map { s =>
       action(s"Add a clause for `${s.fn}`", CodeActionKind.QuickFix, uri, s.decl.endPoint, "\n" + s.clause)
     }
-    val missing = for
-      (d, lsp) <- diagnostics if d.code == Code.E0911
-      m <- MetaIde.missingAt(k, d.primarySpan).toList if m.after.source.path == path
-    yield
-      val n = m.clauses.length
-      val a = action(if n == 1 then "Add the missing clause" else s"Add the $n missing clauses", CodeActionKind.QuickFix, uri, m.after.endPoint,
-        m.clauses.map("\n" + _).mkString)
-      a.setDiagnostics(List(lsp).asJava)
-      a.setIsPreferred(true)
-      a
+    val missing =
+      for
+        (d, lsp) <- diagnostics if d.code == Code.E0911
+        m <- MetaIde.missingAt(k, d.primarySpan).toList if m.after.source.path == path
+      yield
+        val n = m.clauses.length
+        val a = action(
+          if n == 1 then "Add the missing clause" else s"Add the $n missing clauses",
+          CodeActionKind.QuickFix,
+          uri,
+          m.after.endPoint,
+          m.clauses.map("\n" + _).mkString
+        )
+        a.setDiagnostics(List(lsp).asJava)
+        a.setIsPreferred(true)
+        a
     missing ++ split.toList ++ skeleton.toList
 
   private def action(title: String, kind: String, uri: String, at: Span, text: String): CodeAction =
@@ -127,6 +133,25 @@ final class MetaFeatures(using db: Database):
       action(s"Split on `${s.name}`", CodeActionKind.RefactorRewrite, uri, s.clause, clauses.mkString("\n" + indent))
     }
 
+  // ---------------------------------------------------------------------------------------- expansion
+
+  /** The staged result of the meta code at an offset ([[Expansion]]), as Hugin text. */
+  def expansion(path: String, offset: Int): Option[String] = Expansion.render(key(path), offset)
+
+  /** A lens "Show expansion" on every directive or functor application of the file that produced object
+   *  items; it runs the client command `hugin.showExpansion` with the URI and position, which asks the
+   *  server for the text with the command [[MetaFeatures.ExpansionCommand]]. */
+  def codeLenses(uri: String, path: String): List[CodeLens] =
+    Expansion.sites(key(path), path).map { (frame, n) =>
+      val at = Positions.position(frame.span.source, frame.span.start)
+      val args = List[Object](uri, Int.box(at.getLine), Int.box(at.getCharacter))
+      CodeLens(
+        Positions.range(frame.span),
+        Command(s"Show expansion (${if n == 1 then "1 item" else s"$n items"})", "hugin.showExpansion", args.asJava),
+        null
+      )
+    }
+
   // --------------------------------------------------------------------------------------- completion
 
   /** Type-directed completion: whether a candidate's result fits the type expected at the identifier
@@ -135,6 +160,29 @@ final class MetaFeatures(using db: Database):
     MetaIde.expectedAt(key(path), path, start, offset)
 
 object MetaFeatures:
+  /** The command (`workspace/executeCommand`) that returns the expansion at a position, with the
+   *  arguments `[uri, line, character]` (0-based) or `[{ "uri", "position" }]`: the text, or null. */
+  val ExpansionCommand = "hugin.expansion"
+
+  /** The URI and position of the arguments of [[ExpansionCommand]]. */
+  def positionArgs(args: List[Any]): Option[(String, Position)] =
+    def str(a: Any) = a match
+      case p: com.google.gson.JsonPrimitive if p.isString => Some(p.getAsString)
+      case s: String => Some(s)
+      case _ => None
+    def num(a: Any) = a match
+      case p: com.google.gson.JsonPrimitive if p.isNumber => Some(p.getAsInt)
+      case n: Number => Some(n.intValue)
+      case _ => None
+    args match
+      case List(u, l, c) => for uri <- str(u); line <- num(l); char <- num(c) yield (uri, Position(line, char))
+      case List(o: JsonObject) =>
+        Try {
+          val p = o.getAsJsonObject("position")
+          (o.get("uri").getAsString, Position(p.get("line").getAsInt, p.get("character").getAsInt))
+        }.toOption
+      case _ => None
+
   /** Whether a completion candidate (by its kind) is object syntax, as written in a quote. */
   def isObjectKind(kind: String): Boolean =
     Set("relation", "constructor", "struct", "object type", "base type", "type definition", "variable", "label")(kind)
@@ -142,7 +190,8 @@ object MetaFeatures:
   /** If `offset` is inside a reflection quote `'{ … }`: whether the name there follows `$` (a hole, a meta
    *  value). */
   def inQuote(text: String, offset: Int): Option[Boolean] =
-    val toks = Lexer(SourceFile.virtual("", text.substring(0, offset.min(text.length))), Reporter()).tokenize().filter(_.kind != Tok.EOF).toVector
+    val toks =
+      Lexer(SourceFile.virtual("", text.substring(0, offset.min(text.length))), Reporter()).tokenize().filter(_.kind != Tok.EOF).toVector
     val braces = scala.collection.mutable.Stack.empty[Boolean]
     for (t, i) <- toks.zipWithIndex do
       t.kind match

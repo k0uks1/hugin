@@ -279,7 +279,9 @@ class LanguageServerSuite extends munit.FunSuite:
       hover("X = k", 4),
       "```hugin\nmeta definition k : int\n```\n\npersisted: the compile-time value `42` is embedded as a literal\n\n`k` : `int`  \nstage: object"
     )
-    assert(hover("cons 1", 0).startsWith("```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data"))
+    assert(
+      hover("cons 1", 0).startsWith("```hugin\nconstructor cons A : A -> list A -> list A\n```\n\ninstance: `cons[int]`\n\nshared data")
+    )
   }
 
   private def actions(s: HuginLanguageServer, at: Position): List[CodeAction] =

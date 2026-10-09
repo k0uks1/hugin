@@ -54,6 +54,8 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     caps.setSemanticTokensProvider(SemanticTokensWithRegistrationOptions(legend, true))
     caps.setCodeActionProvider(CodeActionOptions(List(CodeActionKind.QuickFix, CodeActionKind.RefactorRewrite).asJava))
     caps.setInlayHintProvider(true)
+    caps.setCodeLensProvider(CodeLensOptions(false))
+    caps.setExecuteCommandProvider(ExecuteCommandOptions(List(MetaFeatures.ExpansionCommand).asJava))
     features.meta.hintSettings = HintSettings.from(params.getInitializationOptions, features.meta.hintSettings)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
@@ -122,6 +124,9 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     override def semanticTokensFull(params: SemanticTokensParams): CompletableFuture[SemanticTokens] =
       completedFuture(features.semanticTokens(params.getTextDocument.getUri))
 
+    override def codeLens(params: CodeLensParams): CompletableFuture[java.util.List[? <: CodeLens]] =
+      completedFuture(features.codeLenses(params.getTextDocument.getUri).asJava)
+
     override def inlayHint(params: InlayHintParams): CompletableFuture[java.util.List[InlayHint]] =
       completedFuture(features.inlayHints(params.getTextDocument.getUri, params.getRange).asJava)
 
@@ -133,6 +138,17 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
     override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
       features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
+
+    /** `hugin.expansion` ([[MetaFeatures.ExpansionCommand]]): the expansion at a position, or null. */
+    override def executeCommand(params: ExecuteCommandParams): CompletableFuture[Object] =
+      val result =
+        if params.getCommand != MetaFeatures.ExpansionCommand then None
+        else
+          MetaFeatures.positionArgs(Option(params.getArguments).fold(Nil)(_.asScala.toList)).flatMap((uri, pos) =>
+            features.expansion(uri, pos)
+          )
+      completedFuture(result.orNull)
+
     override def didChangeWatchedFiles(params: DidChangeWatchedFilesParams): Unit =
       params.getChanges.asScala.foreach(e => features.changedOnDisk(e.getUri))
       publish()

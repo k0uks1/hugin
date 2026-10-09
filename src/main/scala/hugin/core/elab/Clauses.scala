@@ -44,6 +44,8 @@ trait Clauses:
    *  lifted local function sees (from the arguments at a leaf): name, type, value. */
   def elabFunction(id: Int, clauses: List[SurfaceClause], prelude: Vector[Val] => List[(Name, Val, Val)] = _ => Nil): Unit =
     val g = globals(id)
+    // the clauses' names are uses of the function (for tooling)
+    for cl <- clauses if cl.name.span.text == g.name do recordUse(cl.name.span, id)
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
     val n = clauses.head.pats.length

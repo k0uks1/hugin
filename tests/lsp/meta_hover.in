@@ -1,0 +1,24 @@
+// Hover on the meta level: elaborated types and stages, implicit arguments, pattern variables and lambda parameters, a directive's application, shared data.
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:m.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\nplus : nat -> nat -> nat.\nplus zero N = N.\nplus (suc M) N = suc (plus M N).\nident : A -> A = [x] x.\nthree : int = ident 3.\ncode : ⇑int = 4.\nsymmetric : (r : ⇑(A -> A -> rel)) -> list item.\nsymmetric R = '{ R Y X :- R X Y. }.\nperson : type.\nann : person. bob : person.\nfriend : person -> person -> rel.\n%symmetric friend.\nfriend ann bob.\ntotal : int -> rel.\ntotal three.\ntotal code.\nprimes : list int = [2, 3].\nlisted : list int -> rel.\nlisted primes.\n"}}}
+// an application in a clause: its type and stage
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 5, "character": 23}}}
+// a pattern variable
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 5, "character": 27}}}
+// a lambda's parameter, at its use
+{"jsonrpc": "2.0", "id": 4, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 6, "character": 21}}}
+// an application with an inferred implicit argument
+{"jsonrpc": "2.0", "id": 5, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 7, "character": 14}}}
+// object code checked under an inferred quote
+{"jsonrpc": "2.0", "id": 6, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 8, "character": 14}}}
+// a directive: its declaration's footprint and this application's type
+{"jsonrpc": "2.0", "id": 7, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 14, "character": 1}}}
+// a pattern variable used in a reflection quote
+{"jsonrpc": "2.0", "id": 8, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 10, "character": 26}}}
+// a shared type: both stages and the derived functions
+{"jsonrpc": "2.0", "id": 9, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 19, "character": 9}}}
+// a meta value of a shared type lifted into object code
+{"jsonrpc": "2.0", "id": 10, "method": "textDocument/hover", "params": {"textDocument": {"uri": "untitled:m.hgn"}, "position": {"line": 21, "character": 7}}}
+{"jsonrpc": "2.0", "id": 11, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}

@@ -99,8 +99,9 @@ trait Coercions:
             val body = coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2)
             Some(Tm.Lam(if x2 == "_" then x else x2, i, body.getOrElse(Tm.App(tw, cv, i))))
       case (Val.U0, Val.U1(_)) =>
-        insertedLift()
-        Some(liftType(c, t))
+        val lifted = liftType(c, t)
+        if lifted.isInstanceOf[Tm.Lift] then insertedLift()
+        Some(lifted)
       case (rel, Val.U0) if isFactConstantType(rel) => Some(Tm.FactTy(t))
       case (rel, Val.U1(_)) if isFactConstantType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
       case (Val.U1(l), Val.U1(l2)) =>

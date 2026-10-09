@@ -134,7 +134,8 @@ final class Features(using db: Database):
     if isFacts(path) then None
     else
       val off = offset(path, pos)
-      val base = Ide.hoverInfo(key(path), off).toList.flatMap(info => info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes)
+      val base =
+        Ide.hoverInfo(key(path), off).toList.flatMap(info => info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes)
       val parts = base ++ meta.hover(path, off).filterNot(base.contains)
       Option.when(parts.nonEmpty)(Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n"))))
 
@@ -164,11 +165,13 @@ final class Features(using db: Database):
     else
       val off = offset(path, pos)
       val text = source(path).content
-      val start = Iterator.iterate(off)(_ - 1).find(i => i <= 0 || !(text.charAt(i - 1).isLetterOrDigit || "_'".contains(text.charAt(i - 1)))).get
+      val start =
+        Iterator.iterate(off)(_ - 1).find(i => i <= 0 || !(text.charAt(i - 1).isLetterOrDigit || "_'".contains(text.charAt(i - 1)))).get
       val prefix = text.substring(start, off.min(text.length))
       val base = Ide.completions(key(path), off)
       val expected = if start > 0 && ".%{".contains(text.charAt(start - 1)) then None else meta.expected(path, start, off)
-      val locals = expected.toList.flatMap(_._2).filter(_._1.startsWith(prefix)).map((x, t) => hugin.query.CompletionItem(x, "meta parameter", t))
+      val locals =
+        expected.toList.flatMap(_._2).filter(_._1.startsWith(prefix)).map((x, t) => hugin.query.CompletionItem(x, "meta parameter", t))
       val candidates = MetaFeatures.inQuote(text, start) match
         case Some(afterDollar) => (locals ++ base).filter(c => MetaFeatures.isObjectKind(c.kind) != afterDollar)
         case None => locals ++ base
@@ -245,6 +248,17 @@ final class Features(using db: Database):
     if isFacts(path) then SemanticTokens(List.empty[Integer].asJava)
     else Tokens.of(db(Compile, key(path)).index, source(path), path)
 
+  // ------------------------------------------------------------------------------------------ expansion
+
+  /** The staged result of the meta code at a position (command `hugin.expansion`). */
+  def expansion(uri: String, pos: Position): Option[String] =
+    val path = Uris.path(uri)
+    if isFacts(path) then None else meta.expansion(path, offset(path, pos))
+
+  def codeLenses(uri: String): List[CodeLens] =
+    val path = Uris.path(uri)
+    if isFacts(path) then Nil else meta.codeLenses(uri, path)
+
   // ---------------------------------------------------------------------------------------- inlay hints
 
   def inlayHints(uri: String, range: Range): List[InlayHint] =
@@ -264,18 +278,19 @@ final class Features(using db: Database):
     val src = source(path)
     val (from, to) = (Positions.offset(src, range.getStart), Positions.offset(src, range.getEnd))
     val here = compilerDiagnostics(path).filter(d => inFile(d.primarySpan, path) && d.primarySpan.start <= to && from <= d.primarySpan.end)
-    val fixes = for
-      d <- here
-      preferred = d.suggestions.find(_.isMachineApplicable)
-      s <- d.suggestions
-      edits <- workspaceEdit(s).toList
-    yield
-      val action = CodeAction(s.message.capitalize)
-      action.setKind(CodeActionKind.QuickFix)
-      action.setDiagnostics(List(toLsp(d)).asJava)
-      action.setEdit(edits)
-      action.setIsPreferred(preferred.exists(_ eq s))
-      action
+    val fixes =
+      for
+        d <- here
+        preferred = d.suggestions.find(_.isMachineApplicable)
+        s <- d.suggestions
+        edits <- workspaceEdit(s).toList
+      yield
+        val action = CodeAction(s.message.capitalize)
+        action.setKind(CodeActionKind.QuickFix)
+        action.setDiagnostics(List(toLsp(d)).asJava)
+        action.setEdit(edits)
+        action.setIsPreferred(preferred.exists(_ eq s))
+        action
     fixes ++ meta.codeActions(uri, path, from, to, here.map(d => (d, toLsp(d))))
 
   /** The edits of a suggestion by document, or `None` if one of them lies in a file without a URI. */

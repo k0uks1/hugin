@@ -10,6 +10,9 @@
           "refactor.rewrite"
         ]
       },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
       "completionProvider": {
         "resolveProvider": false,
         "triggerCharacters": [
@@ -20,6 +23,11 @@
       },
       "definitionProvider": true,
       "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
       "hoverProvider": true,
       "inlayHintProvider": true,
       "referencesProvider": true,
@@ -372,7 +380,7 @@
       0,
       0,
       6,
-      0,
+      12,
       3,
       0,
       18,
@@ -397,7 +405,7 @@
       0,
       4,
       6,
-      0,
+      12,
       2,
       1,
       2,

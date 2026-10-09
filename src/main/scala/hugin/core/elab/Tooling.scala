@@ -102,6 +102,7 @@ trait Tooling:
         force(g.ty) match
           case _: Val.RecTy => Role.Module
           case _: Val.Pi => Role.Function
+          case Val.U1(_) | Val.U0 => Role.Family
           case _ =>
             g.kind match
               case GlobalKind.Definition(_, v) if force(v).isInstanceOf[Val.RecTy] => Role.Module
