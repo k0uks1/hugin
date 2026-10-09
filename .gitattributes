@@ -1,1 +1,1 @@
-*.fs linguist-language=SupportedLanguage linguist-vendored
+*.hgn linguist-language=F# linguist-vendored
