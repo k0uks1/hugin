@@ -117,6 +117,35 @@ program imports it.
 recovery tests the `%use` item is on the line that ends the leading comment, so that the lines of the
 diagnostics do not move. The REPL's `:imports` leaves out the prelude's chain.
 
+### Lazy re-export (#61, batch B2)
+
+A file that the prelude opens with a selective `%use` of an import is left out of the prelude's chain for
+a program that cannot use it (`compiler/LazyStdlib.scala`, reference: modules, the note at the end of
+"Opening modules"). Today this is `std/demand`. The file is still parsed with the prelude and stays in the
+import graph, which is static. It is left out if all of the following hold:
+
+* no other file of the chain or of the program imports it;
+* no file of the program (outside the chain) contains one of the names opened from it, as a name, a field
+  or the name of a directive, nor a name for which E0101 would suggest one of them (the same case of the
+  first letter, edit distance at most a third of the written name's length);
+* it declares no object constants (`StdlibCache.declaresObjects`): its items are declarations,
+  definitions, clauses, `%use` of imports, `%infix` and `%export`; its declarations, elaborated without
+  the clauses of its functions (`ProgramElab.signatures`, about a third of the file's cost), are no
+  object constants, shared data or modules with a definition, and report no error. The result is cached
+  per process and text.
+
+The files that only a left-out file imports are left out with it. The prelude's `%use` of a file that is
+not in the chain is dropped silently, as any `%use` of a missing import (its error was reported, or here,
+there is none). Since such a file creates no object constant, a program elaborated without it has the
+same output and diagnostics; `LazyStdlibSuite` compares lazy and eager compilations of golden programs.
+The language server and the REPL elaborate the whole chain (the `EagerStdlib` input of the query
+database), since completion offers every name in scope.
+
+`StdlibCache` now shares each library of the chain with the files before it, not only the whole chain, so
+that the chains with and without a lazy file share `std/reflect`. In the query database, `StdChain` gives
+the files of the chain a program elaborates; it is cut off unless they change, so an edit elaborates the
+chain again only when the program starts or stops using a lazy file.
+
 ## Diagnostics
 
 Spans carry their source file, so diagnostics in an imported file point into that file. A file is

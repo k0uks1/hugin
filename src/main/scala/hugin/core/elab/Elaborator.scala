@@ -25,7 +25,11 @@ final case class FileEnv(
     lintUnused: Boolean = false,
     /** Whether `int`, `float` and `string` are in scope without a declaration: in core tests, not in a
      *  compilation without the prelude (which declares them). */
-    builtinNames: Boolean = true
+    builtinNames: Boolean = true,
+    /** Whether only the declarations are elaborated, without the clauses of functions and `%export`: their
+     *  kinds and types, which tell whether a file declares object constants (a lazy re-export,
+     *  [[hugin.compiler.LazyStdlib]]). */
+    signaturesOnly: Boolean = false
 ):
   /** The name of an object constant declared as `n`. */
   def objectName(n: Name): Name =
