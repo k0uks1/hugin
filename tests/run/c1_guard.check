@@ -1,7 +1,10 @@
 (* ---------------- after stage ---------------- *)
+bool : type.
 expr : type.
 ctx : type.
 typ : type.
+true : bool.
+false : bool.
 ref : string -> expr.
 app : expr -> expr -> expr.
 emp : ctx.

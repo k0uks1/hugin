@@ -161,6 +161,7 @@ enum Code(
       extends Code(5, Phase.Lints, "formula function without clauses", Level.Warning, lint = Some(Lint.EmptyFormulaFunctions))
   case W0006 extends Code(6, Phase.Lints, "unreachable clause", Level.Warning, lint = Some(Lint.UnreachableClauses), unnecessary = true)
   case W0007 extends Code(7, Phase.Lints, "variable bound by name through a hole", Level.Warning, lint = Some(Lint.HoleCapture))
+  case W0008 extends Code(8, Phase.Lints, "constant used as a formula", Level.Warning, lint = Some(Lint.ConstantFormulas))
 
   /** The code as users see it: `E0602`, `W0002`. */
   def id: String = (if lint.isDefined then "W" else "E") + f"$number%04d"

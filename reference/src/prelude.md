@@ -22,7 +22,7 @@ So the names in scope in every file are:
 | names | what | defined in |
 |---|---|---|
 | `int`, `float`, `string` | the base types, built into the compiler | [Object types](object/types.md#base-types) |
-| `bool`, `true`, `false`, `if` | meta booleans and the choice between two values | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
+| `bool`, `true`, `false`, `if` | booleans, shared by both stages, and the choice between two values | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `same` | equality of symbols and literals (primitive) | [`std/reflect`](std/reflect.md#primitives) |
 | `list`, `nil`, `cons`, `append` | lists, shared by both stages, and the concatenation of meta lists | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `option`, `none`, `some` | optional values, shared by both stages | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |

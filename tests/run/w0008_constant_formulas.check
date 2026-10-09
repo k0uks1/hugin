@@ -1,0 +1,75 @@
+// warning[W0008]: the constant `false` is used as a formula
+//  --> tests/run/w0008_constant_formulas.hgn:8:12
+//   |
+// 8 | blocked :- false.
+//   |            ^^^^^ holds if `false` is a fact
+//   |
+//   = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `false`
+//   = note: `-W constant_formulas` is on by default
+//   = help: to test a value, match it in an atom of a relation, as in `enabled X false`
+// 
+// warning[W0008]: the constant `quiet` is used as a formula
+//   --> tests/run/w0008_constant_formulas.hgn:10:14
+//    |
+// 10 | open_ :- not quiet.
+//    |              ^^^^^ holds if `quiet` is a fact
+//    |
+//    = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `quiet`
+//    = note: `-W constant_formulas` is on by default
+//    = help: to test a value, match it in an atom of a relation, as in `enabled X quiet`
+// 
+// warning[W0008]: the constant `verbose` is used as a formula
+//   --> tests/run/w0008_constant_formulas.hgn:12:9
+//    |
+// 12 | loud :- verbose ; quiet.
+//    |         ^^^^^^^ holds if `verbose` is a fact
+//    |
+//    = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `verbose`
+//    = note: `-W constant_formulas` is on by default
+//    = help: to test a value, match it in an atom of a relation, as in `enabled X verbose`
+// 
+// warning[W0008]: the constant `quiet` is used as a formula
+//   --> tests/run/w0008_constant_formulas.hgn:12:19
+//    |
+// 12 | loud :- verbose ; quiet.
+//    |                   ^^^^^ holds if `quiet` is a fact
+//    |
+//    = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `quiet`
+//    = note: `-W constant_formulas` is on by default
+//    = help: to test a value, match it in an atom of a relation, as in `enabled X quiet`
+// 
+// warning[W0008]: the constant `true` is used as a formula
+//   --> tests/run/w0008_constant_formulas.hgn:14:41
+//    |
+// 14 | counted N :- N = count { I | check I _, true }.
+//    |                                         ^^^^ holds if `true` is a fact
+//    |
+//    = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `true`
+//    = note: `-W constant_formulas` is on by default
+//    = help: to test a value, match it in an atom of a relation, as in `enabled X true`
+// 
+// warning[W0008]: the constant `verbose` is used as a formula
+//   --> tests/run/w0008_constant_formulas.hgn:27:4
+//    |
+// 27 | ?- verbose.
+//    |    ^^^^^^^ holds if `verbose` is a fact
+//    |
+//    = note: a constant is a fact once a head or an input file builds it, so the formula does not test a value: it holds as soon as any fact contains `verbose`
+//    = note: `-W constant_formulas` is on by default
+//    = help: to test a value, match it in an atom of a relation, as in `enabled X verbose`
+// 
+// 6 warnings found
+?- blocked.
+yes.
+?- open_.
+yes.
+?- loud.
+no.
+?- counted N.
+N = 2.
+?- ready.
+yes.
+?- failed I.
+I = 2.
+?- verbose.
+no.

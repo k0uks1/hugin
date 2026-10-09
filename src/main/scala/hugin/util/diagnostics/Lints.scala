@@ -13,6 +13,7 @@ enum Lint(val name: String):
   case EmptyFormulaFunctions extends Lint("empty_formula_functions")
   case UnreachableClauses extends Lint("unreachable_clauses")
   case HoleCapture extends Lint("hole_capture")
+  case ConstantFormulas extends Lint("constant_formulas")
 
   /** The warning code this lint reports. */
   def code: Code = Code.values.find(_.lint.contains(this)).getOrElse(sys.error(s"lint $name has no code"))

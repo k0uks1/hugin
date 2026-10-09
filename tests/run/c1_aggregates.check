@@ -1,5 +1,8 @@
 (* ---------------- after stage ---------------- *)
+bool : type.
 item : type.
+true : bool.
+false : bool.
 pen : item.
 ink : item.
 cap : item.

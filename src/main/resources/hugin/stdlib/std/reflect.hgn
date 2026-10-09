@@ -1,5 +1,5 @@
 (* std/reflect: the vocabulary the compiler knows by name (reference: prelude). Lists and options
-   (shared by both stages), meta booleans, object syntax as data (reference: reflection), declarations
+   (shared by both stages), booleans (shared), object syntax as data (reference: reflection), declarations
    as data and the primitive directives (reference: directives), and the primitive operations on
    symbols. The compiler finds these declarations in this file, whatever the names in scope of a
    program; the prelude opens the ones that nearly every program uses. *)
@@ -15,8 +15,9 @@ option A : data.
 none : option A.
 some : A -> option A.
 
-(* Meta booleans, and the choice between two values by one *)
-bool : Type.
+(* Booleans, shared like lists: at the object level a type of columns (data with boolean values), whose
+   constants are facts. `if` chooses between two values by a meta boolean. *)
+bool : data.
 true : bool.
 false : bool.
 

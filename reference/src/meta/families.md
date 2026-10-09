@@ -100,7 +100,7 @@ family are.
 Shared ::= NAME VAR* ":" "data" "."
 ```
 
-`data` is a keyword only as the whole type of a declaration. The `list` and `option` of the
+`data` is a keyword only as the whole type of a declaration. The `list`, `option` and `bool` of the
 standard library are shared data types ([`std/reflect`](../std/reflect.md#lists-options-and-booleans)).
 
 ### Restrictions

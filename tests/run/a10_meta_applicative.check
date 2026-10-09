@@ -1,6 +1,9 @@
 (* ---------------- after stage ---------------- *)
+bool : type.
 city : type.
 box[int] : type.
+true : bool.
+false : bool.
 berlin : city.
 paris : city.
 road : city -> city -> rel.
