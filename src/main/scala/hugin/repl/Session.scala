@@ -36,6 +36,7 @@ final case class CommandInfo(name: String, args: String, help: String, aliases: 
  */
 final class Session(settings: Settings = Settings(), initialStats: Boolean = false):
   private given db: Database = Database()
+  db.set(EagerStdlib, (), true) // completion offers every name in scope ([[hugin.compiler.LazyStdlib]])
 
   /** The session's query database: every input, probe and `:reload` compiles in it, so the prelude and
    *  imported files are elaborated once for the whole session (for tests). */

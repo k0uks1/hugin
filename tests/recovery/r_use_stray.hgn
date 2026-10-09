@@ -1,0 +1,8 @@
+(* A stray token after the period of `%use` is one error; the `%use` is kept, so the names it opens
+   resolve (a lost declaration name, found by RecoveryFuzzSuite). *)
+%use "std/reflect". : int -> rel. (*~ E0001 *)
+held : int -> rel.
+hold : quoted int -> list item.
+hold Q = ['( held $Q )].
+%hold 3.
+?- held X.

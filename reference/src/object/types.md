@@ -279,7 +279,7 @@ during elaboration. Each of the following is typed as a whole, once it is elabor
   block: the object code that the right-hand side is, inside the parameters of the definition, the object
   code in the fields of a record value, and the object code (terms and formulas) that it passes to the
   meta functions it applies, at their parameter types, also where the application is itself object code;
-- a [quote](../reflection.md#quotes) `'{ … }`.
+- a [quote](../reflection.md#quotes) `'( … )`.
 
 Each of these is typed whether or not anything uses it, so a meta function whose right-hand side can
 build ill-typed object code is rejected where it is defined.

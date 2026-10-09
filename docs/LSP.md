@@ -36,7 +36,7 @@ not work (see "Deferred" in `docs/NOTES.md`, "LSP for the meta level (#54)").
 - **Navigation**: pattern variables, lambda parameters and `where` bindings are declared and their uses
   recorded (also in reflection quotes); constructors in patterns and clause names are references.
 - **Semantic tokens**: legend types `namespace type struct function enumMember macro parameter variable`
-  (as before) plus `decorator` (directives), `keyword` (`'{`, `}` of quotes), `operator` (`$`, `$..`,
+  (as before) plus `decorator` (directives), `keyword` (`'(`, `)` of quotes), `operator` (`$`, `$..`,
   `⇑`), `method` (meta functions), `class` (meta families and types), `label` (typed holes); modifiers
   `declaration`, `meta`, `object`, `defaultLibrary` (prelude names).
 - **Inlay hints** (`inlayHintProvider`): the quotes, splices, liftings and lifts stage inference inserted

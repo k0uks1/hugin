@@ -162,6 +162,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     var depth = 0
     while k < toks.length do
       val t = toks(k).kind
+      // the closer itself may be in column 0 (`}` closing a body over several lines); any other token there
+      // starts the next item
+      if t == closer && depth == 0 && k > i then return k
       if t == Tok.EOF || (k > i && atColumn0(k)) then return -1
       t match
         case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
@@ -170,11 +173,17 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
           // is then found by the period or the column-0 token after it
           if depth == 0 && t == closer then return k
           depth = (depth - 1).max(0)
-        // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`)
-        case Tok.Period if depth == 0 && !closerOnLine(k + 1, closer) => return -1
+        // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`) or
+        // what follows it cannot start an item (`{ a : t ., b : u }`, over several lines)
+        case Tok.Period if depth == 0 && !closerOnLine(k + 1, closer) && endsItemAt(k + 1) => return -1
         case _ =>
       k += 1
     -1
+
+  /** Whether a period before the token at index `k` can end an item: the token starts an item, starts a
+   *  line, or is the end of the file. */
+  private def endsItemAt(k: Int): Boolean =
+    k >= toks.length || toks(k).kind == Tok.EOF || startsLine(k) || startsItem(toks(k).kind)
 
   /** Whether `closer` follows at depth 0 on the line of the token at index `k`. */
   private def closerOnLine(k: Int, closer: Tok): Boolean =
@@ -229,8 +238,8 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     else if tok.kind == Tok.Error then
       skipItem()
       false
-    else if at(Tok.EOF) || startsLine(i) || (at(Tok.RBrace) && bodies > 0) then
-      val next = Option.when(tok.kind != Tok.EOF && tok.kind != Tok.RBrace)(tok.span)
+    else if at(Tok.EOF) || startsLine(i) || atBodyCloser then
+      val next = Option.when(tok.kind != Tok.EOF && !atBodyCloser)(tok.span)
       error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, next))
       firstOnLine(context.start)
     else
@@ -238,8 +247,20 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
       skipItem()
       false
 
-  /** The number of module bodies the parser is in: a `}` outside of them is a stray token. */
-  protected var bodies = 0
+  /** The closers of the bodies the parser is in, innermost first: `}` for a module body, `)` for a
+   *  reflection quote, whose entries are items too. Recovery inside an item stops at the innermost one. */
+  protected var bodyClosers: List[Tok] = Nil
+
+  protected def bodies: Int = bodyClosers.length
+
+  /** At the closer of the innermost body. */
+  protected def atBodyCloser: Boolean = bodyClosers.headOption.contains(kind)
+
+  /** Runs `f` inside a body closed by `closer`. */
+  protected def inBody[A](closer: Tok)(f: => A): A =
+    bodyClosers = closer :: bodyClosers
+    try f
+    finally bodyClosers = bodyClosers.tail
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
    *  closing the enclosing body, or the end of the file. At the top level, a period followed by an
@@ -251,9 +272,8 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     while !done && !at(Tok.EOF) && !(atColumn0(i) && depth == 0 && !at(Tok.Period)) do
       kind match
         case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1; advance()
-        case Tok.RParen | Tok.RBrack => depth = (depth - 1).max(0); advance()
-        case Tok.RBrace =>
-          if depth == 0 && bodies > 0 then done = true else { depth = (depth - 1).max(0); advance() }
+        case Tok.RParen | Tok.RBrack | Tok.RBrace =>
+          if depth == 0 && atBodyCloser then done = true else { depth = (depth - 1).max(0); advance() }
         case Tok.Period if depth == 0 =>
           advance()
           done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)
@@ -262,12 +282,14 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
   /** Whether a token can start an item (in recovery: whether skipping can stop before it). */
   protected def startsItem(t: Tok): Boolean = t match
     case Tok.Directive | Tok.Query | Tok.RuleName => true
+    // `<t>` and `^A` are operands, never an item's head
+    case Tok.Lt | Tok.Caret => false
     case other => startsExpression(other)
 
   protected def startsExpression(t: Tok): Boolean = t match
     case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok
           .Quote | Tok.Hole |
-        Tok.KwNot | Tok.Minus | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
+        Tok.KwNot | Tok.Minus | Tok.Lt | Tok.Caret | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
         Tok.Directive | Tok.RuleName | Tok.Error =>
       true
     case _ => false

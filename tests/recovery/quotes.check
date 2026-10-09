@@ -4,7 +4,7 @@ error[E0001]: a rule outside a quote
 5 | old : rule = (p X :- q X). (*~ E0001 *)
   |                   ^^ `:-` outside a quote
   |
-  = help: a rule as data is written in a quote: `'{ h :- b }`
+  = help: a rule as data is written in a quote: `'( h :- b )`
 
 error[E0001]: a rule outside a quote
  --> tests/recovery/quotes.hgn:6:27
@@ -12,14 +12,14 @@ error[E0001]: a rule outside a quote
 6 | inList : list rule = [p X :- q X]. (*~ E0001 *)
   |                           ^^ `:-` outside a quote
   |
-  = help: a rule as data is written in a quote: `'{ h :- b }`
+  = help: a rule as data is written in a quote: `'( h :- b )`
 
-error[E0005]: unclosed `'{`
+error[E0005]: unclosed `'(`
  --> tests/recovery/quotes.hgn:8:32
   |
-8 | unclosed : rule = '{ p X :- q X (*~ E0005 *)
-  |                   --           ^ expected `}` here
-  |                   this `'{` is never closed
+8 | unclosed : rule = '( p X :- q X (*~ E0005 *)
+  |                   --           ^ expected `)` here
+  |                   this `'(` is never closed
 
 3 errors found
 (* ---------------- after elaborate ---------------- *)

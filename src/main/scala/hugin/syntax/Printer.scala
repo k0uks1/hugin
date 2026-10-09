@@ -35,6 +35,7 @@ object Printer:
     case Import(path) => s"%import ${Literal.quote(path)}"
     case SpliceE(a) => s"$$${showArg(a)}"
     case LiftE(a) => s"⇑${showArg(a)}"
+    case CodeQuote(a) => s"<${show(a)}>"
     case Hole(n) => "?" + n.getOrElse("")
     case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
@@ -42,7 +43,7 @@ object Printer:
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
     case Quote(es, terminated) =>
       val shown = es.map(showItem(_).stripSuffix("."))
-      if shown.isEmpty then "'{ }" else shown.mkString("'{ ", ". ", if terminated then ". }" else " }")
+      if shown.isEmpty then "'( )" else shown.mkString("'( ", ". ", if terminated then ". )" else " )")
     case SpliceSeq(a) => s"$$..${showArg(a)}"
     case SpliceHO(f, as) => s"$$${showArg(f)}${as.map(show).mkString("[", ", ", "]")}"
     case SymRef(_, n) => n

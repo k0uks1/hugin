@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 /** The grammar of reflection (reference: reflection), mixed into [[Parser]]:
  *
- *  - quotes `'{ … }`: object syntax as data. The content is a sequence of entries as in a file, separated
+ *  - quotes `'( … )`: object syntax as data. The content is a sequence of entries as in a file, separated
  *    by periods (the last period optional): `[@name] e [:- b]` (a rule, or a fact whose head `e` is kept
  *    whole: a formula, a term, a measure) and `?- b` (a query). The expected type chooses the category;
  *  - holes `$x`, sequence holes `$..xs` and higher-order holes `$f[t̄]` (the `[` directly after `f`), which
@@ -13,53 +13,53 @@ import scala.collection.mutable
  *    lambda `[x] e` (one name, optionally typed, followed by an expression).
  */
 private[syntax] trait QuoteSyntax extends ParserBase:
-  /** `'{ … }`, at `'`. An unclosed quote is E0005 (the `'{` never closed); the entries are recovery
+  /** `'( … )`, at `'`. An unclosed quote is E0005 (the `'(` never closed); the entries are recovery
    *  regions, like the items of a module body, and like them they do not start in column 0 (a quote over
    *  several lines indents its entries), so that an unclosed quote ends before the next item. */
   protected def parseQuote(): Tree =
     val q = advance()
-    val brace = advance()
-    val open = Token(Tok.LBrace, "'{", q.span.to(brace.span), q.spaceBefore)
+    val paren = advance()
+    val open = Token(Tok.LParen, "'(", q.span.to(paren.span), q.spaceBefore)
     val entries = mutable.ListBuffer.empty[Trees.Item]
     var terminated = false
-    var more = !at(Tok.RBrace) && startsEntry && !atColumn0(position)
-    // the quote is a body: recovery inside an entry stops at the quote's `}` instead of skipping past it
-    bodies += 1
+    var more = !at(Tok.RParen) && startsEntry && !atColumn0(position)
     var periods = 0
-    while more do
-      entries += parseEntry()
-      terminated = at(Tok.Period)
-      if terminated then
-        periods += 1
-        advance()
-        resync()
-      else if periods > 0 && strayBrace then
-        // `N = } count { … }.` in a quote of several entries (a module): a `}` in the middle of an entry,
-        // with the entry going on after it on the same line, is a stray token, not the end of the quote
-        // (in a one-entry quote `f '{ X } Y` the `}` may well end it)
-        expected(List(Expect.period))
-        advance()
-        skipItem()
-        terminated = toks(position - 1).kind == Tok.Period
-        resync()
-      else if !at(Tok.RBrace) && !at(Tok.EOF) && !atColumn0(position) then
-        // a damaged entry: skip to its period (or to the quote's `}`) and go on with the next entry
-        expected(List(Expect.period))
-        skipItem()
-        terminated = toks(position - 1).kind == Tok.Period
-        resync()
-      // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
-      more = terminated && !at(Tok.RBrace) && startsEntry && !atColumn0(position)
-    bodies -= 1
-    val closed = close(open, Tok.RBrace)
+    // the quote is a body: recovery inside an entry stops at the quote's `)` instead of skipping past it
+    inBody(Tok.RParen) {
+      while more do
+        entries += parseEntry()
+        terminated = at(Tok.Period)
+        if terminated then
+          periods += 1
+          advance()
+          resync()
+        else if periods > 0 && strayCloser then
+          // `N = ) count { … }.` in a quote of several entries (a module): a `)` in the middle of an entry,
+          // with the entry going on after it on the same line, is a stray token, not the end of the quote
+          // (in a one-entry quote `f '( X ) Y` the `)` may well end it)
+          expected(List(Expect.period))
+          advance()
+          skipItem()
+          terminated = toks(position - 1).kind == Tok.Period
+          resync()
+        else if !at(Tok.RParen) && !at(Tok.EOF) && !atColumn0(position) then
+          // a damaged entry: skip to its period (or to the quote's `)`) and go on with the next entry
+          expected(List(Expect.period))
+          skipItem()
+          terminated = toks(position - 1).kind == Tok.Period
+          resync()
+        // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
+        more = terminated && !at(Tok.RParen) && startsEntry && !atColumn0(position)
+    }
+    val closed = close(open, Tok.RParen)
     checked(Trees.Quote(entries.toList, terminated)(spanFrom(q.span.start)), closed)
 
   private def startsEntry: Boolean = kind == Tok.Query || startsExpression(kind)
 
-  /** At a `}` that an unterminated entry ran into: whether the entry continues after it on the same line
-   *  (anything but the end of the item, `.`, `,` or another closer), so that the `}` is stray. */
-  private def strayBrace: Boolean =
-    at(Tok.RBrace) && position + 1 < toks.length && {
+  /** At a `)` that an unterminated entry ran into: whether the entry continues after it on the same line
+   *  (anything but the end of the item, `.`, `,` or another closer), so that the `)` is stray. */
+  private def strayCloser: Boolean =
+    at(Tok.RParen) && position + 1 < toks.length && {
       val next = toks(position + 1)
       next.span.startLine == tok.span.startLine && (next.kind match
         case Tok.Period | Tok.Comma | Tok.RParen | Tok.RBrack | Tok.RBrace | Tok.EOF => false

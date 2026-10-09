@@ -192,18 +192,19 @@ object MetaFeatures:
   def isObjectKind(kind: String): Boolean =
     Set("relation", "constructor", "struct", "object type", "base type", "type definition", "variable", "label")(kind)
 
-  /** If `offset` is inside a reflection quote `'{ … }`: whether the name there follows `$` (a hole, a meta
+  /** If `offset` is inside a reflection quote `'( … )`: whether the name there follows `$` (a hole, a meta
    *  value). */
   def inQuote(text: String, offset: Int): Option[Boolean] =
     val toks =
       Lexer(SourceFile.virtual("", text.substring(0, offset.min(text.length))), Reporter()).tokenize().filter(_.kind != Tok.EOF).toVector
-    val braces = scala.collection.mutable.Stack.empty[Boolean]
+    // the parentheses open at `offset`, each marked if it opens a quote `'(`
+    val parens = scala.collection.mutable.Stack.empty[Boolean]
     for (t, i) <- toks.zipWithIndex do
       t.kind match
-        case Tok.LBrace => braces.push(i > 0 && toks(i - 1).kind == Tok.Quote)
-        case Tok.RBrace => if braces.nonEmpty then braces.pop()
+        case Tok.LParen => parens.push(i > 0 && toks(i - 1).kind == Tok.Quote)
+        case Tok.RParen => if parens.nonEmpty then parens.pop()
         case _ =>
-    Option.when(braces.contains(true)) {
+    Option.when(parens.contains(true)) {
       // the token before the name being typed (if any): `$` or `$..`
       val typing = toks.lastOption.exists(t => t.span.end == offset && (t.kind == Tok.Var || t.kind == Tok.Name))
       val prev = if typing then toks.dropRight(1).lastOption else toks.lastOption

@@ -33,10 +33,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
    *  (`docs/PARSER.md`, §4.3). */
   private def parseModuleBody(open: Token): Tree =
     val column0Members = atColumn0(position)
-    bodies += 1
     val (items, clean) =
-      try parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody)
-      finally bodies -= 1
+      inBody(Tok.RBrace)(parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody))
     if at(Tok.RBrace) then
       advance()
       checked(ModuleBody(items)(spanFrom(open.span.start)), clean)

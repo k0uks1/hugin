@@ -67,7 +67,7 @@
       ]
     },
     "meta": {
-      "comment": "the meta level's syntax: typed holes `?` and `?name` (not `?-`), quote holes `$..xs` and splices `$x`, the lift, `::`, and reflection quotes `'{ … }` (braces nest inside)",
+      "comment": "the meta level's syntax: typed holes `?` and `?name` (not `?-`), quote holes `$..xs` and splices `$x`, the lift, `::`, and reflection quotes `'( … )` (parentheses nest inside)",
       "patterns": [
         { "name": "keyword.other.hole.hugin", "match": "\\?(?!-)[A-Za-z0-9_']*" },
         { "name": "keyword.operator.splice.sequence.hugin", "match": "\\$\\.\\." },
@@ -76,19 +76,19 @@
         { "name": "keyword.operator.cons.hugin", "match": "::" },
         {
           "name": "meta.quote.hugin",
-          "begin": "(?<![\\w'])'\\{",
-          "end": "\\}",
+          "begin": "(?<![\\w'])'\\(",
+          "end": "\\)",
           "beginCaptures": { "0": { "name": "punctuation.section.quote.begin.hugin" } },
           "endCaptures": { "0": { "name": "punctuation.section.quote.end.hugin" } },
-          "patterns": [{ "include": "#braces" }, { "include": "$self" }]
+          "patterns": [{ "include": "#parens" }, { "include": "$self" }]
         }
       ]
     },
-    "braces": {
-      "comment": "braces inside a quote, so that the quote ends at its own `}`",
-      "begin": "\\{",
-      "end": "\\}",
-      "patterns": [{ "include": "#braces" }, { "include": "$self" }]
+    "parens": {
+      "comment": "parentheses inside a quote, so that the quote ends at its own `)`",
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [{ "include": "#parens" }, { "include": "$self" }]
     },
     "variable": {
       "patterns": [

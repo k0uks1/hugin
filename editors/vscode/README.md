@@ -5,7 +5,7 @@ Editor support for [Hugin](https://github.com/k0uks1/hugin) programs (`.hgn`) an
 - syntax highlighting (TextMate grammar `syntaxes/hugin.tmLanguage.json`): nested `(* *)` comments,
   keywords (also `Type`, `data`, `where`), directives (`%output`), rule names (`@r`), variables, strings
   with `\u{...}` escapes, numbers, operators (`:-`, `?-`, `->`, `<:`, `|`), and the meta level's syntax:
-  reflection quotes `'{ … }`, splices and quote holes `$x`, `$..xs`, the lift `⇑` and typed holes
+  reflection quotes `'( … )`, splices and quote holes `$x`, `$..xs`, the lift `⇑` and typed holes
   `?`, `?name`;
 - comment toggling, bracket matching and auto-closing;
 - the Hugin language server (`hugin lsp`): diagnostics, hover (types; on the meta level the elaborated

@@ -10,16 +10,16 @@ edge : node -> node -> rel.
 
 (* a hole of type `quoted typ` in a column of type `expr` *)
 guard : rule -> list rule.
-guard '{ typed $E $G $T :- $..B } = ['{ asked $T $G }]. (*~ E0402 *)
+guard '( typed $E $G $T :- $..B ) = ['( asked $T $G )]. (*~ E0402 *)
 guard R = [R].
 
 (* a quoted term checked against `quoted typ` *)
-one : quoted typ = '{ lit 1 }. (*~ E0402 *)
+one : quoted typ = '( lit 1 ). (*~ E0402 *)
 
 (* a quote without holes *)
-loop : rule = '{ edge 1 "x" }. (*~ E0402 *)
+loop : rule = '( edge 1 "x" ). (*~ E0402 *)
 
 (* the unchecked `qterm` is checked when its term is reflected *)
 held : int -> rel.
 bad : quoted int = qterm (tstr "x").
-$'{ held $bad. }. (*~ E0402 *)
+$'( held $bad. ). (*~ E0402 *)

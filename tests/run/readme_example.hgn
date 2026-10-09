@@ -10,7 +10,7 @@ knows dan ann.
 
 (* a directive is a meta function; this one returns rules *)
 symmetric : (r : ⇑(A -> A -> rel)) -> list item.
-symmetric R = '{ R Y X :- R X Y. }.
+symmetric R = '( R Y X :- R X Y. ).
 %symmetric knows.
 
 (* `tc` is a functor from the prelude: transitive closure of a graph *)

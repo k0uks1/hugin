@@ -13,7 +13,7 @@ import hugin.util.*
  *  - an object family (or type) `T : ⇑type → … → ⇑type` with fact constructors `cᵢ : {ā : ⇑type} → ⇑(σ̄ᵢ → T ā)`;
  *  - two meta functions by clauses, checked for coverage and termination like hand-written ones:
  *    `T.lift : (a₁ → ⇑b₁) → … → T ā → ⇑(T b̄)`, `T.lift f̄ (cᵢ x̄) = cᵢ (L[σ] x)…` (the fold into object code), and
- *    `T.reify : (a₁ → term) → … → T ā → term`, `T.reify ḡ (cᵢ x̄) = '{ cᵢ $(R[σ] x)… }` (into `term` data).
+ *    `T.reify : (a₁ → term) → … → T ā → term`, `T.reify ḡ (cᵢ x̄) = '( cᵢ $(R[σ] x)… )` (into `term` data).
  *
  *  The meta constants are the names in scope; a name is the object constant at an object position
  *  ([[sharedAt]], by the stage of the position, [[ElabState.stage]]). The constructors' arguments are

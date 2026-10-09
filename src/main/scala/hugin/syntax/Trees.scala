@@ -96,8 +96,12 @@ object Trees:
   /** `$t`: an explicit splice (reference: meta/staging), normally inferred; inside a quote, a hole. */
   final case class SpliceE(arg: Tree)(val span: Span) extends Tree
 
-  /** `⇑t`: the lift of an object type to the meta level; normally inferred. */
+  /** `⇑t` (ASCII `^t`): the lift of an object type to the meta level; normally inferred. */
   final case class LiftE(arg: Tree)(val span: Span) extends Tree
+
+  /** `<t>`: an explicit staging quote, object code `t` as a meta value of type `⇑A` (reference:
+   *  meta/staging); normally inferred. */
+  final case class CodeQuote(arg: Tree)(val span: Span) extends Tree
 
   /** `?` or `?name`: a typed hole, an expression still to be written (reference: meta/functions). */
   final case class Hole(name: Option[String])(val span: Span) extends Tree
@@ -116,7 +120,7 @@ object Trees:
   /** `e :: es`: a meta list with head `e`. */
   final case class ConsE(head: Tree, tail: Tree)(val span: Span) extends Tree
 
-  /** `'{ … }`: a reflection quote, object syntax as data (reference: reflection). Its content is a sequence
+  /** `'( … )`: a reflection quote, object syntax as data (reference: reflection). Its content is a sequence
    *  of entries as in a file: rules and facts ([[Rule]], a fact's single head unsplit, so that `p X, q X`
    *  without `:-` is one formula) and queries ([[Query]]), separated by periods; `terminated` if the last
    *  entry ends with a period. Which syntactic category the content denotes (a module, a rule, an item, a

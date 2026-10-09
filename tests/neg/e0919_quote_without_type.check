@@ -1,28 +1,28 @@
 error[E0919]: a quote where no reflective type is expected
  --> tests/neg/e0919_quote_without_type.hgn:6:11
   |
-6 | untyped = '{ p 1 }. (*~ E0919 *)
+6 | untyped = '( p 1 ). (*~ E0919 *)
   |           ^^^^^^^^ the type of this quote is not known
   |
   = note: the category of a quote's content (a module, a rule, a formula, a term, …) is given by the expected reflective type
-  = help: give the type: `('{ p X :- q X } : rule)`, or declare it, as in `r : rule = '{ p X :- q X }.`
+  = help: give the type: `('( p X :- q X ) : rule)`, or declare it, as in `r : rule = '( p X :- q X ).`
 
 error[E0919]: a quote where no reflective type is expected
  --> tests/neg/e0919_quote_without_type.hgn:7:16
   |
-7 | number : int = '{ 1 }. (*~ E0919 *)
+7 | number : int = '( 1 ). (*~ E0919 *)
   |                ^^^^^^ the expected type is `int`
   |
   = note: the category of a quote's content (a module, a rule, a formula, a term, …) is given by the expected reflective type
-  = help: give the type: `('{ p X :- q X } : rule)`, or declare it, as in `r : rule = '{ p X :- q X }.`
+  = help: give the type: `('( p X :- q X ) : rule)`, or declare it, as in `r : rule = '( p X :- q X ).`
 
 error[E0919]: a quote where no reflective type is expected
   --> tests/neg/e0919_quote_without_type.hgn:10:5
    |
-10 | num '{ 1 } = 1. (*~ E0919 *)
+10 | num '( 1 ) = 1. (*~ E0919 *)
    |     ^^^^^^ the expected type is `int`
    |
    = note: the category of a quote's content (a module, a rule, a formula, a term, …) is given by the expected reflective type
-   = help: give the type: `('{ p X :- q X } : rule)`, or declare it, as in `r : rule = '{ p X :- q X }.`
+   = help: give the type: `('( p X :- q X ) : rule)`, or declare it, as in `r : rule = '( p X :- q X ).`
 
 3 errors found

@@ -149,7 +149,7 @@ T.reify : (a₁ -> term) -> … -> (aₙ -> term) -> T a₁ … aₙ -> term
 `T.lift f̄ (cᵢ x̄)` is the object term `cᵢ` applied to the arguments `x̄`, each turned into object code:
 by `fⱼ` for a parameter `aⱼ`, as a literal for a base type, by the `lift` of its type for a shared type.
 `T.reify ḡ (cᵢ x̄)` is the [term data](../reflection.md#the-reflective-types) of the same object term,
-`'{ cᵢ $(…) … }`. `T.reify` exists where the reflective types of `std/reflect` are part of the
+`'( cᵢ $(…) … )`. `T.reify` exists where the reflective types of `std/reflect` are part of the
 compilation. Both are checked for coverage and termination like functions written by hand. Stage
 inference inserts them ([Staging](staging.md#lifting), [Reflection](../reflection.md#holes)); a program
 names them only to pass them as arguments, as `list.lift`.
@@ -163,7 +163,7 @@ names them only to pass them as arguments, as `list.lift`.
 
 A name declared by a shared data declaration denotes the constant at the stage of its position
 ([The meta level](index.md#stages)): the object constant in a rule, a query, an object type, under `⇑`
-and inside a quote `'{ … }`; the meta constant in a clause, a meta type, a definition and in the
+and inside a quote `'( … )`; the meta constant in a clause, a meta type, a definition and in the
 arguments of a directive outside quotes. In a declared type whose stage is inferred, the position has
 the stage of the declared constant's result: `wrap : list int -> box.`, where `box` is an object type,
 declares an object constructor with an object list column, and `size : list int -> int.` a meta

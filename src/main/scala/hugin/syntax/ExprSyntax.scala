@@ -172,11 +172,19 @@ private[syntax] trait ExprSyntax extends ParserBase:
         parseDollar(start)
       case Tok.Quote => parseQuote()
       case Tok.Hole => advance(); Hole(Option(t.text.drop(1)).filter(_.nonEmpty))(t.span)
-      case Tok.Up =>
+      case Tok.Up | Tok.Caret =>
+        // `^` where an operand starts is the ASCII spelling of `⇑`; between operands it is `^` (concatenation)
         advance()
         // the operand does not start in column 0 (it would be the next item)
         val arg = if atColumn0(position) then missing(Expect.tpe) else parsePostfix()
         LiftE(arg)(spanFrom(start))
+      case Tok.Lt =>
+        // `<t>` where an operand starts is a staging quote; between operands `<` is a comparison. Its content
+        // is parsed above the comparisons, so that `>` closes it: `<(X > 1)>` parenthesises one
+        val open = advance()
+        val arg = if atColumn0(position) then missing(Expect.expression) else parseExpr(LvlHead)
+        val ok = close(open, Tok.Gt)
+        checked(CodeQuote(arg)(spanFrom(start)), ok)
       case _ => missing(if inType then Expect.tpe else Expect.expression)
 
   /** `count { t | b }`, `sum`, `min`, `max`, at the keyword. */

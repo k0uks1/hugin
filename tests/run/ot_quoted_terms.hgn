@@ -3,7 +3,7 @@
 %use "std/reflect".
 r : int -> int -> rel.
 q : int -> rel.
-three : quoted int = '{ 1 + 2 }.
+three : quoted int = '( 1 + 2 ).
 asTerm : term = three.
 q 1. q 2.
 r X $three :- q X.

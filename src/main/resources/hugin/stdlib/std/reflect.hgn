@@ -25,8 +25,8 @@ if : bool -> A -> A -> A.
 if true X Y = X.
 if false X Y = Y.
 
-(* Reflection (reference: reflection): object syntax as data. A quote `'{ … }` where one of these
-   types is expected is data of it (`'{ p X :- q X }`, `'{ edge 1 2. edge 2 3. }`); in a pattern it is
+(* Reflection (reference: reflection): object syntax as data. A quote `'( … )` where one of these
+   types is expected is data of it (`'( p X :- q X )`, `'( edge 1 2. edge 2 3. )`); in a pattern it is
    a quoted pattern with holes `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the
    program. Sequences of syntax are meta lists (`list term`). *)
 append : list A -> list A -> list A.

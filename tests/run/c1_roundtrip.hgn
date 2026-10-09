@@ -11,7 +11,7 @@ q : int -> string -> rel.
 r : int -> rel.
 w : float -> rel.
 
-data : module = '{
+data : module = '(
   num z.
   num (s X) :- X = z, not w 2.0.
   q K "x" :- p _ K, K >= 1, K <= 2 ; K = -1 * 2 + 4 / 2 - (0 - 1).
@@ -20,7 +20,7 @@ data : module = '{
   p X 1 :- num X, X = z.
   w 1.5.
   p (s z) 2 :- num (s z).
-}.
+).
 $data.
 
 ?- q K S.

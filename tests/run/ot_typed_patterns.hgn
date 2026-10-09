@@ -11,16 +11,16 @@ typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
 asked : (e : expr) -> (g : ctx) -> rel.
 
 guard : rule -> list rule.
-guard '{ typed (neg $E) $G $T :- $..B } = ['{ typed (neg $E) $G $T :- asked (neg $E) $G, $..B }, '{ asked $sub $G :- asked (neg $E) $G }]
+guard '( typed (neg $E) $G $T :- $..B ) = ['( typed (neg $E) $G $T :- asked (neg $E) $G, $..B ), '( asked $sub $G :- asked (neg $E) $G )]
   where sub : quoted expr = E.
 guard R = [R].
 
 (* the identity on rules of `typed`, through the typed holes *)
 same : rule -> rule.
-same '{ typed $E $G $T :- $..B } = '{ typed $E $G $T :- $..B }.
+same '( typed $E $G $T :- $..B ) = '( typed $E $G $T :- $..B ).
 same R = R.
 
-$guard '{ typed (neg E) G tint :- typed E G tint }.
-$[same '{ typed (lit N) G tint :- asked (lit N) G, N = 1 }].
+$guard '( typed (neg E) G tint :- typed E G tint ).
+$[same '( typed (lit N) G tint :- asked (lit N) G, N = 1 )].
 asked (neg (lit 1)) empty.
 ?- typed X empty T.

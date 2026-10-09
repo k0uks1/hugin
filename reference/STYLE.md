@@ -234,11 +234,11 @@ the goal of a hole, and offers to split cases and to add missing clauses."
 **Parentheses inside a list item** (`meta/staging.md`):
 
 > a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A` (it is inserted, never written;
-> the quotes `'{ … }` of reflection are another construct: they make data of the reflective types, not
+> the quotes `'( … )` of reflection are another construct: they make data of the reflective types, not
 > object code);
 
 Better: "a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A`. It is inserted, never
-written. The quotes `'{ … }` of reflection are a different construct, which makes data of the reflective
+written. The quotes `'( … )` of reflection are a different construct, which makes data of the reflective
 types;"
 
 **"In Hugin" and the citation as a noun** (`object/facts.md`):

@@ -3,8 +3,8 @@
 typed : int -> rel.
 
 guard : rule -> list rule. (*~ E0911 *)
-guard '{ typed $E :- $..Body } = [].
+guard '( typed $E :- $..Body ) = [].
 
 loop : formula -> int. (*~ E0912 *)
-loop '{ typed $E } = loop '{ typed $E }.
+loop '( typed $E ) = loop '( typed $E ).
 loop _ = 0.

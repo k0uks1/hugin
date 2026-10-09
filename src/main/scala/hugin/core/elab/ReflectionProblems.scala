@@ -96,7 +96,7 @@ enum ReflectionProblem extends Problem:
     case _: NotObjectSyntax => msg"not object syntax"
     case _: QuoteShape => msg"in this quote"
     case _: QuoteCategory => msg"quoted here"
-    case _: HoleOutsideQuote => msg"only inside `'{ … }`"
+    case _: HoleOutsideQuote => msg"only inside `'( … )`"
     case QuoteWithoutType(Some(t), _) => msg"the expected type is ${Src(t)}"
     case QuoteWithoutType(None, _) => msg"the type of this quote is not known"
     case _: MisplacedSequenceHole => msg"sequence hole"
@@ -112,7 +112,7 @@ enum ReflectionProblem extends Problem:
     case _ => Nil
 
   override def helps: List[Msg] = this match
-    case _: QuoteWithoutType => List(msg"give the type: `('{ p X :- q X } : rule)`, or declare it, as in `r : rule = '{ p X :- q X }.`")
+    case _: QuoteWithoutType => List(msg"give the type: `('( p X :- q X ) : rule)`, or declare it, as in `r : rule = '( p X :- q X ).`")
     case _ => Nil
 
   override def notes: List[Msg] = this match
@@ -130,7 +130,7 @@ enum ReflectionProblem extends Problem:
       List(
         msg"a `module` (or `list rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period"
       )
-    case _: QuoteCategory => List(msg"a list of formulas or terms is a meta list of quotes: `['{ p X }, '{ q X }]`")
+    case _: QuoteCategory => List(msg"a list of formulas or terms is a meta list of quotes: `['( p X ), '( q X )]`")
     case _: HoleOutsideQuote =>
       List(msg"`$$..xs` and `$$f[V]` are holes of quoted syntax; outside a quote, `$$x` is the staging splice")
     case _: QuoteWithoutType =>

@@ -12,16 +12,16 @@ on_duty : staff -> rel.
 
 (* two body positions without a common type *)
 g : quoted staff -> rule.
-g X = '{ both :- teaches $X, cleans $X }. (*~ E0401 *)
+g X = '( both :- teaches $X, cleans $X ). (*~ E0401 *)
 
 (* the same in a formula and in a query *)
 f : quoted staff -> formula.
-f X = '{ teaches $X, cleans $X }. (*~ E0401 *)
+f X = '( teaches $X, cleans $X ). (*~ E0401 *)
 q : quoted staff -> item.
-q X = '{ ?- paid $X, teaches $X, cleans $X }. (*~ E0401 *)
+q X = '( ?- paid $X, teaches $X, cleans $X ). (*~ E0401 *)
 
 (* accepted: a common type, a head and a body, one occurrence each *)
 narrow : quoted staff -> rule.
-narrow X = '{ on_duty $X :- paid $X, teaches $X }.
+narrow X = '( on_duty $X :- paid $X, teaches $X ).
 once : quoted staff -> rule.
-once X = '{ both :- teaches $X, cleans (janitor "x") }.
+once X = '( both :- teaches $X, cleans (janitor "x") ).

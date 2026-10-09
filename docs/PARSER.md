@@ -131,17 +131,17 @@ the CST can be added below the typed trees then.
 | `ItemSyntax.scala` | programs and items: declarations, definitions, clauses with `where`, edges, rules, queries; declaration heads |
 | `ExprSyntax.scala` | expressions: operators, prefix forms, application, selection, primaries, parentheses |
 | `RecordSyntax.scala` | braces: record types and values, implicit binders, module bodies |
-| `QuoteSyntax.scala` | reflection: quotes `'{ … }` (since #76), holes, lists |
+| `QuoteSyntax.scala` | reflection: quotes `'( … )` (since #76), holes, lists |
 | `DirectiveSyntax.scala` | directives, mode items, attached declarations |
 | `SyntaxProblems.scala` | the inventory of syntax errors (E0001–E0005) |
 
 The parts are traits over the concrete `ParserBase` class (the cursor is a field, not a set of abstract
 hooks), mixed into `final class Parser`. Quoted syntax has its own part (`QuoteSyntax`), and the recovery
 primitives (closing a delimiter, ending an item, skipping to a recovery set) are generic. The explicit
-quotes `'{ … }` of issue #76 use them: the lexer makes `'` a token only before `{` (the `{` stays a token
+quotes `'( … )` of issue #76 use them: the lexer makes `'` a token only before `{` (the `{` stays a token
 of its own, so every depth count treats the quote as a brace), the entries are parsed like rules and
 queries (`[@n] e [:- b]`, `?- b`) separated by periods, and the quote is closed with `close`, so an
-unclosed `'{` is E0005 with the usual insertion suggestion.
+unclosed `'(` is E0005 with the usual insertion suggestion.
 
 ## 4. The resilient parser
 
@@ -158,8 +158,8 @@ unclosed `'{` is E0005 with the usual insertion suggestion.
   (`1 : rel.`) cannot declare anything; only that declaration is dropped. Tokens that cannot start an item
   are skipped with the rest of their item, with one error; if they follow an item on the same line, that
   item's period may have been the mistake (`go : nat . -> int.`), and it is damaged too (not for a second
-  period, which is harmless). Junk skipped in a module body or a `where` block damages the body or the
-  clause (a member may have been lost).
+  period, which is harmless, and not for `%use` or `%export`, whose argument is complete). Junk skipped
+  in a module body or a `where` block damages the body or the clause (a member may have been lost).
 
 A *repair* is a recovery that is certain about the intended text. The item is then complete, reported,
 and elaborated as usual (with a machine-applicable suggestion where there is an edit):
@@ -189,7 +189,7 @@ Recovery happens at the innermost construct that can continue:
 | item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token, or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
-| `( … )`, `[ … ]`, `{ … }`, `'{ … }`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
+| `( … )`, `[ … ]`, `{ … }`, `'( … )`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
 | record type / value, list, higher-order hole | `,` | an entry without a label ends the entries, and the closing brace recovers |
 | declaration | `:` type `<:` `=` | each part is parsed on its own; a broken definition leaves the name and the type in the tree |
 
@@ -205,8 +205,9 @@ reported it.
 
 When the parser expects a closing delimiter and finds something else, it looks for the delimiter ahead,
 within the current item: over balanced brackets, ignoring closing delimiters of other kinds, stopping at a
-token in column 0, the end of the file, or a period at depth 0 (unless the delimiter follows the period on
-its line: `count { X . | p X }`).
+token in column 0 other than the delimiter itself (a `}` in column 0 closes a body over several lines), the
+end of the file, or a period at depth 0. A period does not stop the search if the delimiter follows it on
+its line (`count { X . | p X }`) or if the token after it cannot start an item (`{ a : t ., b : u }`).
 
 - found: the tokens before it are junk; one error (``expected `)`, found …``) and they are skipped;
 - not found: the delimiter is missing. One error, *unclosed delimiter* (E0005), at the insertion point (the
@@ -292,7 +293,7 @@ label on the opener. Specific messages replace the generic one for common mistak
 | `:=` in a definition header | expected a type, found `=`; a definition without a type is `name = expr.` | remove `:` (machine-applicable) |
 | `=` in a record type, `:` in a record value | ``expected `:`, found `=` ``: record types use `:`, record values `=` | replace (maybe incorrect) |
 | `$` not followed by an expression | expected an expression; how holes and splices are written | — |
-| `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'{ h :- b }` (#76) | — |
+| `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'( h :- b )` (#76) | — |
 | `}` without an open module body | unmatched `}` | — |
 | `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
 

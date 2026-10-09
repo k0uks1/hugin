@@ -1,6 +1,6 @@
 package hugin.lsp
 
-import hugin.query.Database
+import hugin.query.{Database, EagerStdlib}
 import java.io.{InputStream, OutputStream}
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
@@ -21,6 +21,7 @@ import scala.jdk.CollectionConverters.*
  */
 final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   private given db: Database = Database()
+  db.set(EagerStdlib, (), true) // completion offers every name in scope ([[hugin.compiler.LazyStdlib]])
   private var client: Option[LanguageClient] = None
   private var shutdownRequested = false
 

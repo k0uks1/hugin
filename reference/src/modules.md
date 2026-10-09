@@ -286,6 +286,14 @@ distance (12 * factor).
 `%use` and `%export` are not directives (meta functions): they change scopes and the module of a file,
 which no meta function can.
 
+> **Note.** A file that the [prelude](prelude.md) opens with a selective `%use "f" (x, …)` and that
+> declares no object constants (only meta declarations, definitions and functions; no object type,
+> relation, constructor, shared data, rule or module instance) is elaborated only for a program that may
+> use one of the names opened from it, such as `std/demand` for a program that writes `%demand`. A file
+> that does declare object constants is always elaborated. Since such a file creates nothing that the
+> object program contains, a program cannot tell the difference: its meaning, output and diagnostics are
+> the same either way. Only compile time changes.
+
 
 ## Scopes
 

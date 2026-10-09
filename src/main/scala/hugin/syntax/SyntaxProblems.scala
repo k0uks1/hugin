@@ -59,7 +59,7 @@ enum SyntaxHelp:
   /** `$` not followed by the expression of a hole or splice. */
   case DollarWithoutExpression
 
-  /** `:-` in parentheses or a list: a rule as data, which is written in a quote `'{ h :- b }`. */
+  /** `:-` in parentheses or a list: a rule as data, which is written in a quote `'( h :- b )`. */
   case RuleOutsideQuote(at: Span)
 
 /** The problems of the lexer and the parser (E0001–E0005): the inventory of the syntax phase. */
@@ -207,7 +207,7 @@ enum SyntaxError extends Problem:
           List(msg"a record value gives its fields with `=`, a record type declares them with `:`")
         case SyntaxHelp.LowercaseVariable(_, _) => List(msg"variables start with an uppercase letter or `_`")
         case SyntaxHelp.DollarWithoutExpression => List(msg"a hole or splice is written `$$x`, `$$(f x)`, `$$..xs` or `$$f[V]`")
-        case _: SyntaxHelp.RuleOutsideQuote => List(msg"a rule as data is written in a quote: `'{ h :- b }`")
+        case _: SyntaxHelp.RuleOutsideQuote => List(msg"a rule as data is written in a quote: `'( h :- b )`")
     case _: MissingPeriod => List(msg"every item ends with a period")
     case _: RuleNameOnDeclaration => List(msg"rule names are written `@name head :- body.`; declarations have no `@`")
     case _: NonAssociativeChain => List(msg"add parentheses")

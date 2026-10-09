@@ -3,8 +3,8 @@
 p : int -> rel.
 
 opaque : formula.
-$'{ p 1 :- $opaque. }. (*~ E0918 *)
+$'( p 1 :- $opaque. ). (*~ E0918 *)
 
-unnamed : rule = horn [fatom '{ p } [tvar ""]] [].
+unnamed : rule = horn [fatom '( p ) [tvar ""]] [].
 $[unnamed]. (*~ E0918 *)
 $[horn [] []]. (*~ E0918 *)

@@ -5,7 +5,7 @@ import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Quoted syntax as terms (reference: reflection): the data a quote `'{ … }` denotes where a reflective
+/** Quoted syntax as terms (reference: reflection): the data a quote `'( … )` denotes where a reflective
  *  type is expected, the implicit quotes of a directive's arguments, the meta values in the rules of a
  *  file that a module-wide directive reifies, and the meta lists `[ē]`, `e :: es`. */
 trait QuoteTerms:

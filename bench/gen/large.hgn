@@ -12,13 +12,17 @@ g0_e1 : int -> int -> int -> rel.
 g0_e2 : int -> rel.
 g0_d0 : (a : int) -> rel.
 g0_d1 : (a : int) -> (b : box) -> (c : int) -> rel.
-g0_d2 : (a : int) -> rel.
-g0_d3 : (a : int) -> rel.
+g0_d2 : (a : option int) -> (b : int) -> (c : int) -> rel.
+g0_d3 : (a : box) -> (b : int) -> rel.
+g0_counter : int -> rel.
+%terminates N (g0_counter N).
 g0_wg : int -> int -> int -> rel.
 g0_ws : int -> int -> rel.
 g0_w0 : (a : int) -> (b : min int) -> rel.
-g0_w1 : (a : int) -> (b : max int) -> rel.
 g0_wr : int -> int -> rel.
+g0_xs : int -> int -> rel.
+g0_xr : int -> rel.
+g0_xm : option int -> rel.
 g0_e0 (some 3) 3 (some (-3)).
 g0_e0 (some 2) 0 (some 4).
 g0_e0 (some 4) 1 (some 4).
@@ -29,36 +33,43 @@ g0_e1 3 4 2.
 g0_e1 (-2) 1 2.
 g0_e1 3 4 1.
 g0_e2 4.
-g0_wg 3 2 0.
-g0_wg 4 0 4.
-g0_wg 2 1 4.
-g0_wg 0 2 4.
-g0_wg 0 3 1.
-g0_wg 3 0 4.
-g0_ws 4 1.
-g0_ws 2 (-3).
+g0_counter 2.
+g0_wg 3 4 1.
+g0_wg 3 1 2.
+g0_wg 1 4 4.
+g0_wg 3 1 0.
+g0_ws 0 0.
+g0_ws 2 3.
+g0_xs 0 2.
+g0_xs 1 3.
+g0_xs 1 4.
+g0_xs 3 4.
+g0_xm (some 3).
 g0_d0 V3 :- g0_e2 V1, g0_e2 V1, g0_e1 0 V2 V3, V5 = count { V4 | g0_e2 V4 ; g0_e0 _ V4 _ }, not g0_e1 V5 V5 V5, V7 = count { V6 | g0_e0 _ _ V6 }.
 g0_d0 V1 :- g0_d0 V1, g0_e2 _, g0_d0 4.
 g0_d1 V3 (mk V2) V2 :- g0_e0 V1 V2 _, g0_e1 V3 V3 V3, g0_e2 V2, V6 = min { V4 | g0_e1 0 V4 V5 }, (V2 < 2 ; V3 = 1), V8 = count { V7 | g0_e2 V7 }.
-g0_d1 0 (mk 0) V1 :- g0_e2 V1, g0_e1 V2 V3 3, V4 = cons V3 nil, V6 = count { V5 | g0_e2 V5 ; g0_e0 _ V5 _ }, V7 = V2 - V1.
-g0_d2 V3 :- g0_e2 1, g0_e1 V1 V1 V2, V3 = V2 * 0, V4 = V3 * V2, V5 = V2 - V1.
-g0_d2 V4 :- g0_e0 V1 V2 _, V4 = max { V3 | (g0_d0 V3, V3 > 3) ; (g0_e0 _ V3 _, V3 <> 4) }.
-g0_d2 V3 :- g0_d1 V1 V2 V3, g0_e0 V4 V1 _, V6 = count { V5 | (g0_d0 V5, V5 <> 2) ; g0_d0 V5 }.
-g0_d3 V1 :- g0_d1 V1 _ 2, g0_e2 V2.
-g0_d3 V3 :- g0_d1 V1 V2 V3, g0_e2 V3, g0_e0 V4 V3 V5.
-g0_d3 V1 :- g0_d1 V1 V2 V1, g0_e2 V3, g0_d0 V3.
+g0_d1 V1 (mk (-1)) V1 :- g0_e2 V1, g0_e1 V2 V3 3, V4 = cons V3 nil, not g0_e0 _ 1 _, V3 <> 3.
+g0_d2 V1 V3 V3 :- g0_e0 _ 3 V1, g0_d1 1 V2 V3, g0_d0 V3, (V3 < 3 ; V3 = 1), V3 <= 1, (V3 < 0 ; V3 = 1).
+g0_d2 (some V2) V2 V4 :- g0_e0 V1 V2 _, V4 = count { V3 | g0_e1 V2 V3 _ }.
+g0_d2 (some V2) V2 V1 :- g0_e1 V1 V1 V1, V2 = V1 - 3, V2 > 3.
+g0_d3 V4 V7 :- g0_e1 2 V1 V2, g0_d0 V2, g0_d1 V3 V4 V5, not g0_d0 _, V7 = max { V6 | g0_d0 V6 }.
+g0_d3 (mk V1) V3 :- g0_d2 _ V1 V2, g0_e2 V3, g0_e0 V4 V2 V4.
+g0_counter M :- g0_counter N, N < 4, M = N + 2.
 g0_w0 K V :- g0_ws K V.
-g0_w0 L (2 * V + C) :- g0_w0 K V, g0_wg K L C.
-g0_w1 K (0 - V) :- g0_w0 K V.
-g0_w0 K (0 - V) :- g0_w1 K V.
-g0_wr K V :- g0_w0 K V, V < 3.
+g0_w0 L (V + C) :- g0_w0 K V, g0_wg K L C.
+g0_w0 L (V + C) :- g0_w0 K V, g0_wg K L C, V <= 5.
+g0_wr K V :- g0_w0 K V, V < 2.
+g0_xr N :- g0_xs M N, _X = some M.
+g0_xm (some N) :- g0_xr N.
 %output g0_d0.
 %output g0_d1.
 %output g0_d2.
 %output g0_d3.
-%output g0_w1.
+%output g0_counter.
 %output g0_w0.
 %output g0_wr.
+%output g0_xr.
+%output g0_xm.
 g1_e0 : int -> color -> int -> rel.
 %input g1_e0.
 g1_e1 : int -> rel.
@@ -92,10 +103,8 @@ g2_e1 : int -> rel.
 g2_e2 : int -> box -> rel.
 g2_d0 : (a : int) -> rel.
 g2_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
-g2_d2 : (a : int) -> rel.
-g2_d3 : (a : int) -> (b : int) -> rel.
-g2_counter : int -> rel.
-%terminates N (g2_counter N).
+g2_d2 : (a : int) -> (b : option int) -> (c : int) -> rel.
+g2_d3 : (a : int) -> (b : option int) -> (c : box) -> rel.
 g2_wg : int -> int -> int -> rel.
 g2_ws : int -> int -> rel.
 g2_w0 : (a : int) -> (b : min int) -> rel.
@@ -104,28 +113,26 @@ g2_e0 4 1.
 g2_e0 0 4.
 g2_e0 2 0.
 g2_e2 4 (mk 3).
-g2_counter 2.
-g2_wg 1 2 0.
-g2_wg 4 0 2.
+g2_wg 0 1 2.
+g2_wg 0 0 2.
+g2_wg 1 0 0.
 g2_wg 1 4 0.
-g2_ws 3 (-3).
-g2_d0 V3 :- g2_e0 _ V1, V2 = some V1, V3 = V1 * 4, (V3 < 2 ; V3 = 1).
-g2_d1 V1 V1 V1 :- g2_e2 V1 V2, V1 < (-2).
-g2_d2 V1 :- g2_d0 V1, g2_e0 V2 V2, not g2_e0 V1 2.
-g2_d2 V1 :- g2_e2 V1 V2, (V1 < (-1) ; V1 = (-2)).
-g2_d2 V3 :- g2_e1 V1, g2_e1 V2, g2_d0 V3.
-g2_d3 V2 V2 :- g2_e1 1, not g2_e0 0 1, V2 = max { V1 | g2_e1 V1 ; g2_d0 V1 }, V2 = 2.
-g2_d3 V1 V1 :- g2_d2 V1, V2 = cons V1 nil, (V1 < 3 ; V1 = 0).
-g2_counter M :- g2_counter N, N < 4, M = N + 2.
+g2_wg 0 2 3.
+g2_ws 1 2.
+g2_d0 V3 :- g2_e0 _ V1, V2 = pt V1, V3 = V1 + 3, (V1 < 2 ; V1 = 0).
+g2_d1 V2 V2 V1 :- g2_d0 V1, g2_e2 V2 V3.
+g2_d2 V1 none V1 :- g2_d0 V1, g2_e0 V2 V2, not g2_e0 V1 2.
+g2_d2 V3 (some 3) V3 :- g2_e1 V1, g2_e1 V2, g2_d0 V3.
+g2_d2 V5 none V3 :- g2_e2 V1 V2, g2_d1 (-1) V3 V3, g2_e1 4, V4 = pt V1, V5 = V3 + 2, V6 = pt V3.
+g2_d3 V1 (some 4) (mk (-3)) :- g2_e0 2 V1, V4 = max { V2 | g2_d1 V2 _ V3 ; g2_e0 V2 V1 }, V1 <> (-1).
 g2_w0 K V :- g2_ws K V.
-g2_w0 L (V + C) :- g2_w0 K V, g2_wg K L C, V <= 3.
-g2_w0 L (V + C) :- g2_w0 K V, g2_wg K L C.
-g2_wr K V :- g2_w0 K V, V < 1.
+g2_w0 L (V + C) :- g2_w0 K V, g2_wg K L C, V <= 5.
+g2_w0 L (2 * V + C) :- g2_w0 K V, g2_wg K L C.
+g2_wr K V :- g2_w0 K V, V < (-3).
 %output g2_d0.
 %output g2_d1.
 %output g2_d2.
 %output g2_d3.
-%output g2_counter.
 %output g2_w0.
 %output g2_wr.
 g3_e0 : int -> int -> rel.
@@ -185,6 +192,9 @@ g4_d0 V1 V4 V3 :- g4_e0 V1 V2 V3, (V1 < 4 ; V1 = 3), V4 = V1 - 1.
 %output g4_d0.
 g5_e0 : string -> list int -> list int -> rel.
 g5_d0 : (a : string) -> (b : list int) -> (c : box) -> rel.
+g5_xs : int -> int -> rel.
+g5_xr : int -> rel.
+g5_xm : option int -> rel.
 pt 3.
 pt 4.
 g5_e0 "b" (cons 3 (cons 0 (cons 3 nil))) (cons 0 (cons 1 (cons 1 nil))).
@@ -194,8 +204,19 @@ g5_e0 "a" (cons 2 (cons 2 (cons 1 nil))) nil.
 g5_e0 "a" (cons 0 nil) (cons 3 (cons 3 nil)).
 g5_e0 "b" (cons 0 (cons 2 nil)) (cons 0 (cons 2 (cons 3 nil))).
 g5_e0 "c" nil (cons 3 (cons 3 (cons 1 nil))).
+g5_xs 4 2.
+g5_xs 4 3.
+g5_xs 2 3.
+g5_xs 1 1.
+g5_xs 4 1.
+g5_xs 4 1.
+g5_xm (some 2).
 g5_d0 V2 V1 (mk 4) :- g5_e0 _ V1 V1, g5_e0 V2 V3 _, V2 = "c".
+g5_xr N :- g5_xs M N, _X = some M.
+g5_xm (some N) :- g5_xr N.
 %output g5_d0.
+%output g5_xr.
+%output g5_xm.
 g6_e0 : list int -> int -> rel.
 g6_d0 : (a : int) -> rel.
 g6_counter : int -> rel.
@@ -276,13 +297,7 @@ g9_e0 : int -> rel.
 g9_e1 : color -> rel.
 g9_e2 : color -> rel.
 g9_d0 : (a : color) -> rel.
-g9_d1 : (a : int) -> rel.
-g9_counter : int -> rel.
-%terminates N (g9_counter N).
-g9_wg : int -> int -> int -> rel.
-g9_ws : int -> int -> rel.
-g9_w0 : (a : int) -> (b : min int) -> rel.
-g9_wr : int -> int -> rel.
+g9_d1 : (a : box) -> (b : int) -> (c : int) -> rel.
 pt 4.
 g9_e1 blue.
 g9_e2 blue.
@@ -290,37 +305,25 @@ g9_e2 blue.
 g9_e2 blue.
 g9_e2 green.
 g9_e2 red.
-g9_counter 2.
-g9_wg 3 0 1.
-g9_wg 2 4 2.
-g9_wg 2 1 1.
-g9_wg 4 4 2.
-g9_ws 0 3.
-g9_ws 0 0.
 g9_d0 V2 :- g9_e0 V1, g9_e1 V2, not g9_e2 _.
 g9_d0 V2 :- g9_e0 V1, g9_e1 V2, g9_e2 V3, (V1 < 2 ; V1 = (-2)), (V1 < 1 ; V1 = 0), V4 = cons V1 nil.
-g9_d1 V2 :- g9_e2 _, g9_e2 V1, g9_e0 V2.
-g9_d1 V2 :- g9_d0 V1, g9_e0 V2, V4 = count { V3 | g9_e2 V3 }, V5 = V4 - 0.
-g9_counter M :- g9_counter N, N < 5, M = N + 1.
-g9_w0 K V :- g9_ws K V.
-g9_w0 L (2 * V + C) :- g9_w0 K V, g9_wg K L C, V <= 5.
-g9_wr K V :- g9_w0 K V, V < 0.
+g9_d1 (mk 0) 0 4 :- g9_e1 V1, g9_d0 V2.
 %output g9_d0.
 %output g9_d1.
-%output g9_counter.
-%output g9_w0.
-%output g9_wr.
 g10_e0 : option int -> rel.
 g10_e1 : int -> list int -> rel.
 g10_d0 : (a : box) -> rel.
-g10_d1 : (a : int) -> (b : box) -> (c : box) -> rel.
-g10_d2 : (a : box) -> rel.
-g10_d3 : (a : box) -> (b : int) -> rel.
+g10_d1 : (a : int) -> (b : int) -> (c : box) -> rel.
+g10_d2 : (a : option int) -> (b : int) -> (c : box) -> rel.
+g10_d3 : (a : int) -> rel.
 g10_wg : int -> int -> int -> rel.
 g10_ws : int -> int -> rel.
-g10_w0 : (a : int) -> (b : max int) -> rel.
-g10_w1 : (a : int) -> (b : min int) -> rel.
+g10_w0 : (a : int) -> (b : min int) -> rel.
+g10_w1 : (a : int) -> (b : max int) -> rel.
 g10_wr : int -> int -> rel.
+g10_xs : int -> int -> rel.
+g10_xr : int -> rel.
+g10_xm : option int -> rel.
 pt 4.
 pt 4.
 g10_e0 (some 0).
@@ -332,21 +335,35 @@ g10_e0 (some 3).
 g10_e1 3 (cons 2 nil).
 g10_e1 (-1) (cons 1 (cons 3 (cons 1 nil))).
 g10_wg 1 4 0.
-g10_ws 0 4.
+g10_wg 3 4 0.
+g10_wg 4 3 3.
+g10_wg 3 4 0.
+g10_ws 2 1.
+g10_ws 4 4.
+g10_xs 3 1.
+g10_xs 2 2.
+g10_xs 1 3.
+g10_xs 3 2.
+g10_xs 2 4.
+g10_xs 2 4.
+g10_xm (some 0).
 g10_d0 (mk 2) :- g10_e1 V1 V2, g10_e1 V1 V2.
 g10_d0 (mk (-1)) :- g10_e1 V1 V2, g10_e1 V1 V2, g10_e1 4 V2.
-g10_d0 (mk 1) :- g10_e1 V1 V2, g10_e0 V3, g10_e1 V4 (cons V1 V5), V6 = cons V4 nil, V7 = V1 - V1, not g10_e1 V1 V2, len V5 V8.
-g10_d1 V4 V1 V1 :- g10_d0 _, g10_d0 V1, g10_e1 (-2) V2, V2 <> nil, V4 = count { V3 | g10_e1 V3 V2 ; g10_e1 V3 _ }.
-g10_d1 0 V1 V1 :- g10_d0 _, g10_d0 V1, g10_e0 V2.
-g10_d1 V1 V2 V2 :- g10_d1 V1 V2 V2.
-g10_d2 (mk 3) :- g10_e1 V1 V2, g10_e1 _ V3, g10_e1 V1 V2.
-g10_d2 V2 :- g10_e0 V1, g10_d0 V2.
-g10_d3 (mk V2) V2 :- g10_d0 V1, g10_d0 _, g10_d1 V2 _ _, V2 = 4, V2 = 4.
+g10_d0 (mk 0) :- g10_e1 V1 V2, g10_e0 V3, g10_e1 V4 (cons V1 V5), V6 = pt V4, V8 = count { V7 | (g10_e1 V7 _, V7 <> 1) }, (V1 < 1 ; V1 = 0), len V2 V9.
+g10_d1 V5 V3 (mk 4) :- g10_e1 V1 _, V1 <> 1, V3 = count { V2 | g10_d0 V2 ; g10_d0 V2 }, V1 <> V3, V5 = count { V4 | g10_e0 V4 }.
+g10_d1 (-2) (-2) (mk (-3)) :- g10_e0 V1, g10_e0 V2, g10_e0 V3.
+g10_d1 (-1) 1 (mk 3) :- g10_e0 _, g10_d0 _, g10_e0 V1, not g10_d0 _.
+g10_d2 none V5 (mk 2) :- g10_e1 1 V1, V4 = min { V2 | g10_e1 V2 V3 }, len V1 V5.
+g10_d3 V5 :- g10_d1 V1 4 V2, g10_e0 V3, V4 = cons V1 nil, len V4 V5.
+g10_d3 V5 :- g10_d1 V1 V1 _, g10_d1 V1 V2 V3, g10_d2 V4 V5 _, V8 = count { V6 | g10_d2 _ V7 V6 }, V5 = 0, (V8 < 2 ; V5 = 4).
+g10_d3 V8 :- g10_d0 _, g10_d1 V1 V2 V3, g10_e1 V1 V4, V5 = V1 * 4, V1 <> V1, V8 = sum { V6 | (g10_e1 V6 V7, V6 < 0) }.
 g10_w0 K V :- g10_ws K V.
-g10_w0 L (V + C) :- g10_w0 K V, g10_wg K L C.
+g10_w0 L (2 * V + C) :- g10_w0 K V, g10_wg K L C.
 g10_w1 K (0 - V) :- g10_w0 K V.
 g10_w0 K (4 - V) :- g10_w1 K V.
-g10_wr K V :- g10_w0 K V, V > 2.
+g10_wr K V :- g10_w0 K V, V < (-2).
+g10_xr N :- g10_xs M N, _X = some M.
+g10_xm (some N) :- g10_xr N.
 %output g10_d0.
 %output g10_d1.
 %output g10_d2.
@@ -354,11 +371,16 @@ g10_wr K V :- g10_w0 K V, V > 2.
 %output g10_w1.
 %output g10_w0.
 %output g10_wr.
+%output g10_xr.
+%output g10_xm.
 g11_e0 : int -> int -> rel.
 g11_e1 : color -> string -> list int -> rel.
 %input g11_e1.
 g11_d0 : (a : int) -> (b : string) -> (c : int) -> rel.
 g11_d1 : (a : string) -> (b : int) -> (c : color) -> rel.
+g11_xs : int -> int -> rel.
+g11_xr : int -> rel.
+g11_xm : option int -> rel.
 pt 1.
 pt 2.
 g11_e0 0 4.
@@ -368,14 +390,20 @@ g11_e0 1 4.
 g11_e0 1 4.
 g11_e0 3 2.
 g11_e0 2 3.
+g11_xs 4 2.
+g11_xm (some 1).
 g11_d0 V7 V2 1 :- g11_e1 V1 V2 _, g11_e0 V3 V3, g11_e1 V4 _ V5, V7 = count { V6 | g11_e0 V3 V6 ; (g11_e0 V6 _, V6 <> 0) }, len V5 V8.
 g11_d0 1 V2 V5 :- g11_e1 V1 V2 (cons 3 (cons 0 (cons 2 nil))), V4 = count { V3 | (g11_e0 _ V3, V3 <> (-1)) }, (V4 < 3 ; V4 = 4), V5 = V4 + 2.
 g11_d0 (-2) V5 4 :- g11_e1 V1 V2 V3, g11_e1 V4 V5 V3, not g11_e0 0 4, V5 = "a".
 g11_d1 "b" V8 V2 :- g11_e0 V1 V1, g11_e1 V2 V3 V4, V8 = count { V5 | (g11_d0 V5 V6 V7, V5 < 3) }, V10 = count { V9 | g11_e0 _ V9 }, len V4 V11.
 g11_d1 V5 4 V4 :- g11_e0 V1 V1, g11_e0 V2 V3, V1 >= V2, V1 >= 0, g11_e1 V4 V5 V6.
 g11_d1 V4 V5 V1 :- g11_e0 _ _, g11_e1 V1 V2 V3, g11_d1 V4 V5 V1, (V5 < 2 ; V5 = 1), V1 <> green, V8 = count { V6 | (g11_e0 V7 V6, V6 > 3) ; g11_e0 V6 2 }.
+g11_xr N :- g11_xs M N, _X = some M.
+g11_xm (some N) :- g11_xr N.
 %output g11_d0.
 %output g11_d1.
+%output g11_xr.
+%output g11_xm.
 g12_e0 : int -> color -> rel.
 g12_e1 : int -> int -> rel.
 %input g12_e1.
@@ -405,6 +433,9 @@ g13_d2 : (a : box) -> (b : box) -> (c : int) -> rel.
 g13_d3 : (a : color) -> rel.
 g13_counter : int -> rel.
 %terminates N (g13_counter N).
+g13_xs : int -> int -> rel.
+g13_xr : int -> rel.
+g13_xm : option int -> rel.
 pt 4.
 g13_e1 blue 3 (cons 1 (cons 3 (cons 1 nil))).
 g13_e1 blue 4 (cons 2 (cons 0 nil)).
@@ -415,6 +446,11 @@ g13_e1 blue 2 (cons 0 nil).
 g13_e1 green 4 (cons 0 (cons 3 nil)).
 g13_e1 green 2 nil.
 g13_counter 2.
+g13_xs 1 4.
+g13_xs 4 1.
+g13_xs 3 3.
+g13_xs 4 1.
+g13_xm (some 2).
 g13_d0 "b" (mk 3) :- g13_e1 V1 V2 (cons V3 (cons 3 nil)), V5 = max { V4 | g13_e1 V1 V4 _ }.
 g13_d0 "" V2 :- g13_e2 V1 V2, g13_e1 V1 (-2) nil, (V1 = green ; V1 = blue), not g13_e0 "".
 g13_d1 V1 :- g13_e1 blue V1 (cons 0 (cons 3 nil)), g13_e0 V2.
@@ -424,28 +460,44 @@ g13_d2 V2 V2 4 :- g13_e2 V1 V2, g13_e0 V3.
 g13_d3 V2 :- g13_d2 _ V1 (-1), g13_e1 V2 V3 V4.
 g13_d3 V1 :- g13_e2 V1 V2, g13_d1 V3, V3 >= 3, not g13_e2 _ _.
 g13_counter M :- g13_counter N, N < 5, M = N + 1.
+g13_xr N :- g13_xs M N, _X = some M.
+g13_xm (some N) :- g13_xr N.
 %output g13_d0.
 %output g13_d1.
 %output g13_d2.
 %output g13_d3.
 %output g13_counter.
+%output g13_xr.
+%output g13_xm.
 g14_e0 : int -> color -> rel.
 %input g14_e0.
 g14_e1 : option int -> int -> rel.
 %input g14_e1.
 g14_d0 : (a : int) -> (b : box) -> (c : color) -> rel.
 g14_d1 : (a : color) -> rel.
+g14_xs : int -> int -> rel.
+g14_xr : int -> rel.
+g14_xm : option int -> rel.
 pt 0.
+g14_xs 1 3.
+g14_xm (some 3).
 g14_d0 V2 (mk 4) V5 :- g14_e1 V1 _, g14_e1 V1 V2, g14_e1 V1 V3, V3 = 1, g14_e0 V4 V5.
 g14_d1 V5 :- g14_e1 V1 V2, g14_d0 1 V3 _, g14_e1 V1 V2, g14_e0 V4 V5.
+g14_xr N :- g14_xs M N, _X = some M.
+g14_xm (some N) :- g14_xr N.
 %output g14_d0.
 %output g14_d1.
+%output g14_xr.
+%output g14_xm.
 g15_e0 : int -> rel.
 g15_e1 : int -> rel.
 g15_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g15_d1 : (a : option int) -> (b : int) -> rel.
 g15_counter : int -> rel.
 %terminates N (g15_counter N).
+g15_xs : int -> int -> rel.
+g15_xr : int -> rel.
+g15_xm : option int -> rel.
 g15_e0 4.
 g15_e0 1.
 g15_e0 4.
@@ -461,13 +513,24 @@ g15_e1 4.
 g15_e1 4.
 g15_e1 3.
 g15_counter 0.
+g15_xs 2 4.
+g15_xs 2 4.
+g15_xs 1 1.
+g15_xs 0 2.
+g15_xs 4 4.
+g15_xs 3 2.
+g15_xm (some 1).
 g15_d0 V1 V1 V1 :- g15_e0 V1, g15_e0 V1, V1 >= 0.
 g15_d0 V3 V4 V3 :- g15_e0 3, g15_e0 V1, g15_e0 V2, g15_d0 V2 V3 V4, V6 = count { V5 | g15_e0 V5 ; (g15_e1 V5, V5 <> 4) }.
 g15_d1 (some 0) V3 :- g15_d0 V1 (-1) V1, g15_e0 4, not g15_e0 _, V3 = count { V2 | g15_e1 V2 }.
 g15_counter M :- g15_counter N, N < 8, M = N + 2.
+g15_xr N :- g15_xs M N, _X = some M.
+g15_xm (some N) :- g15_xr N.
 %output g15_d0.
 %output g15_d1.
 %output g15_counter.
+%output g15_xr.
+%output g15_xm.
 g16_e0 : int -> box -> int -> rel.
 g16_d0 : (a : int) -> (b : option int) -> (c : int) -> rel.
 g16_counter : int -> rel.
@@ -511,6 +574,9 @@ g18_ws : int -> int -> rel.
 g18_w0 : (a : int) -> (b : max int) -> rel.
 g18_w1 : (a : int) -> (b : min int) -> rel.
 g18_wr : int -> int -> rel.
+g18_xs : int -> int -> rel.
+g18_xr : int -> rel.
+g18_xm : option int -> rel.
 pt 1.
 pt 4.
 pt 4.
@@ -522,6 +588,8 @@ g18_wg 4 3 1.
 g18_wg 2 1 4.
 g18_wg 1 0 3.
 g18_ws 0 2.
+g18_xs 3 1.
+g18_xm (some 3).
 g18_d0 1 V1 0 :- g18_e1 V1, g18_e0 V2 _ V3.
 g18_d0 (-2) V1 1 :- g18_e1 V1, V1 = blue.
 g18_d1 V4 (mk 4) :- g18_e1 V1, g18_e1 V1, V1 = red, (V1 = red ; V1 = blue), V4 = sum { V2 | (g18_d0 V2 V3 1, V2 < 0) }.
@@ -532,22 +600,25 @@ g18_w0 L (V + C) :- g18_w0 K V, g18_wg K L C, V >= 3.
 g18_w1 K (0 - V) :- g18_w0 K V.
 g18_w0 K (2 - V) :- g18_w1 K V.
 g18_wr K V :- g18_w0 K V, V > 3.
+g18_xr N :- g18_xs M N, _X = some M.
+g18_xm (some N) :- g18_xr N.
 %output g18_d0.
 %output g18_d1.
 %output g18_d2.
 %output g18_w1.
 %output g18_w0.
 %output g18_wr.
+%output g18_xr.
+%output g18_xm.
 g19_e0 : int -> rel.
 g19_e1 : box -> int -> rel.
 g19_e2 : int -> rel.
 g19_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g19_d1 : (a : int) -> (b : box) -> rel.
 g19_d2 : (a : int) -> rel.
-g19_wg : int -> int -> int -> rel.
-g19_ws : int -> int -> rel.
-g19_w0 : (a : int) -> (b : max int) -> rel.
-g19_wr : int -> int -> rel.
+g19_xs : int -> int -> rel.
+g19_xr : int -> rel.
+g19_xm : option int -> rel.
 pt 0.
 pt 0.
 pt 4.
@@ -567,31 +638,35 @@ g19_e2 0.
 g19_e2 4.
 g19_e2 (-1).
 g19_e2 2.
-g19_wg 1 4 0.
-g19_wg 1 2 2.
-g19_wg 2 1 (-2).
-g19_wg 4 1 (-3).
-g19_ws 2 3.
-g19_ws 0 4.
+g19_xs 0 1.
+g19_xs 2 4.
+g19_xs 2 2.
+g19_xs 2 1.
+g19_xs 3 0.
+g19_xm (some 4).
 g19_d0 1 V2 V2 :- g19_e1 V1 V2, g19_e1 V3 V2, g19_e0 V2.
 g19_d1 V1 (mk 4) :- g19_d0 0 V1 _.
 g19_d1 V4 V2 :- g19_d1 V1 _, g19_d1 V1 V2, g19_d1 V1 _, V4 = count { V3 | g19_e0 V3 }.
 g19_d2 V4 :- g19_d1 V1 V2, g19_e1 V3 V1, g19_e1 _ V4, V5 = cons V1 nil.
-g19_d2 V1 :- g19_d1 V1 _, g19_e0 V1, g19_e2 V2.
-g19_w0 K V :- g19_ws K V.
-g19_w0 L (V + C) :- g19_w0 K V, g19_wg K L C.
-g19_wr K V :- g19_w0 K V, V > 3.
+g19_d2 V1 :- g19_d2 V1, g19_e0 V1, V1 > 1.
+g19_xr N :- g19_xs M N, _X = some M.
+g19_xm (some N) :- g19_xr N.
 %output g19_d0.
 %output g19_d1.
 %output g19_d2.
-%output g19_w0.
-%output g19_wr.
+%output g19_xr.
+%output g19_xm.
 g20_e0 : list int -> rel.
 g20_e1 : color -> color -> rel.
 g20_e2 : int -> int -> int -> rel.
 g20_d0 : (a : int) -> (b : box) -> (c : int) -> rel.
-g20_d1 : (a : option int) -> (b : int) -> (c : option int) -> rel.
-g20_d2 : (a : box) -> (b : box) -> (c : box) -> rel.
+g20_d1 : (a : int) -> rel.
+g20_d2 : (a : int) -> (b : int) -> rel.
+g20_wg : int -> int -> int -> rel.
+g20_ws : int -> int -> rel.
+g20_w0 : (a : int) -> (b : min int) -> rel.
+g20_w1 : (a : int) -> (b : max int) -> rel.
+g20_wr : int -> int -> rel.
 g20_e0 (cons 2 (cons 2 nil)).
 g20_e0 (cons 3 nil).
 g20_e1 blue green.
@@ -608,75 +683,117 @@ g20_e2 3 3 0.
 g20_e2 0 4 4.
 g20_e2 2 1 0.
 g20_e2 3 2 2.
-g20_d0 3 (mk 4) V1 :- g20_e2 V1 V1 V1, g20_e0 V2, g20_e1 V3 V3, V1 <= 0, V4 = cons V1 nil, (V1 < 2 ; V1 = (-3)).
-g20_d0 1 (mk 3) 1 :- g20_e1 V1 _, g20_e0 (cons 1 (cons 0 (cons 3 nil))).
-g20_d0 2 (mk 4) 1 :- g20_e1 V1 green.
-g20_d1 none V1 (some (-3)) :- g20_d0 V1 V2 V1.
-g20_d1 (some 1) V3 (some V3) :- g20_e2 V1 V2 V3, V2 = 4.
-g20_d2 V2 V2 (mk V3) :- g20_d0 V1 V2 V3, V4 = some V1.
-g20_d2 V1 V1 V1 :- g20_d2 _ _ V1, g20_e1 V2 V2, not g20_d0 3 V1 _, V2 <> green.
+g20_wg 0 2 0.
+g20_ws 0 1.
+g20_d0 1 (mk 2) V5 :- g20_e2 V1 V1 V1, g20_e0 V2, g20_e1 V3 V3, V1 <= 0, V4 = pt V1, V5 = V1 * 2.
+g20_d0 V2 (mk 3) V6 :- g20_e1 red V1, g20_e2 V2 V3 V4, V2 > 4, V5 = pt V3, V6 = V3 - V2.
+g20_d0 V4 (mk 2) V4 :- g20_e0 V1, g20_e1 V2 V3, (V2 = red ; V2 = red), not g20_e2 _ _ _, len V1 V4.
+g20_d1 V3 :- g20_e2 3 V1 V1, g20_e2 3 V2 V3, g20_e2 V4 V5 V6, V3 > V4, V7 = V5 - 2.
+g20_d1 V1 :- g20_e2 V1 1 0, g20_e1 V2 V3, V4 = cons V1 nil.
+g20_d2 V1 V5 :- g20_e2 _ 3 V1, g20_e1 V2 _, V5 = count { V3 | g20_e1 V3 blue ; g20_e1 V4 V3 }, not g20_d0 V1 _ V1.
+g20_d2 V4 V1 :- g20_e2 V1 V1 V1, V4 = count { V2 | g20_d0 V1 V3 V2 ; g20_e2 V2 V1 (-1) }.
+g20_d2 V2 3 :- g20_e0 V1, g20_d2 V2 V2.
+g20_w0 K V :- g20_ws K V.
+g20_w0 L (V + C) :- g20_w0 K V, g20_wg K L C, V <= 4.
+g20_w0 L (V + C) :- g20_w0 K V, g20_wg K L C, V <= 1.
+g20_w1 K (0 - V) :- g20_w0 K V.
+g20_w0 K ((-3) - V) :- g20_w1 K V.
+g20_wr K V :- g20_w0 K V, V < 3.
 %output g20_d0.
 %output g20_d1.
 %output g20_d2.
+%output g20_w1.
+%output g20_w0.
+%output g20_wr.
 g21_e0 : int -> int -> rel.
 g21_e1 : int -> rel.
 g21_d0 : (a : int) -> (b : int) -> rel.
 g21_d1 : (a : int) -> (b : int) -> rel.
 g21_d2 : (a : int) -> rel.
-g21_d3 : (a : option int) -> rel.
+g21_d3 : (a : box) -> rel.
+g21_counter : int -> rel.
+%terminates N (g21_counter N).
 g21_wg : int -> int -> int -> rel.
 g21_ws : int -> int -> rel.
 g21_w0 : (a : int) -> (b : min int) -> rel.
-g21_w1 : (a : int) -> (b : max int) -> rel.
 g21_wr : int -> int -> rel.
+g21_xs : int -> int -> rel.
+g21_xr : int -> rel.
+g21_xm : option int -> rel.
 pt 3.
 pt 3.
 pt 1.
 g21_e0 2 1.
 g21_e0 (-3) 2.
 g21_e1 4.
-g21_wg 3 2 2.
-g21_wg 0 2 1.
-g21_wg 4 3 3.
-g21_wg 3 2 1.
-g21_wg 1 0 3.
-g21_ws 0 1.
-g21_ws 0 2.
+g21_counter 0.
+g21_wg 1 2 0.
+g21_wg 1 2 0.
+g21_wg 1 3 1.
+g21_wg 3 0 3.
+g21_wg 1 4 3.
+g21_wg 0 2 0.
+g21_ws 1 4.
+g21_ws 1 4.
+g21_xs 0 3.
+g21_xm (some 2).
 g21_d0 V1 V1 :- g21_e1 V1, g21_e1 V1, g21_e0 _ V2, V3 = V1 + V2.
 g21_d1 V4 V1 :- g21_e0 V1 _, g21_e1 _, V1 > 2, V4 = sum { V2 | g21_e0 V2 V3 ; g21_e0 V1 V2 }, V1 <= V1.
 g21_d2 V2 :- g21_d0 V1 V1, g21_e1 4, g21_d0 V2 V1, V3 = V2 - (-3).
-g21_d2 V1 :- g21_e1 V1, V2 = some V1, (V1 < 0 ; V1 = 3), V1 >= 1.
-g21_d2 V2 :- g21_d0 V1 V2, not g21_d0 4 4.
-g21_d3 none :- g21_d2 V1, V1 <= 4, V3 = min { V2 | g21_d2 V2 ; g21_d1 V2 V1 }, V1 = V1.
-g21_d3 (some (-1)) :- g21_e1 V1.
+g21_d2 V1 :- g21_e1 V1, V2 = cons V1 nil, V3 = pt V1.
+g21_d2 V1 :- g21_d0 V1 V2, g21_d0 V3 V4, g21_e1 V5, V7 = min { V6 | g21_e1 V6 }, V8 = pt V2.
+g21_d3 (mk (-1)) :- g21_d0 V1 V1, g21_e1 V1, (V1 < (-3) ; V1 = 0).
+g21_d3 (mk 2) :- g21_d1 _ V1, g21_e0 V1 V2, V3 = pt V1, V5 = count { V4 | g21_e0 V4 _ }.
+g21_d3 (mk V1) :- g21_e0 V1 V1, V4 = count { V2 | g21_e0 V2 V3 }.
+g21_counter M :- g21_counter N, N < 4, M = N + 1.
 g21_w0 K V :- g21_ws K V.
-g21_w0 L (V + C) :- g21_w0 K V, g21_wg K L C, V <= 0.
 g21_w0 L (V + C) :- g21_w0 K V, g21_wg K L C.
-g21_w1 K (0 - V) :- g21_w0 K V.
-g21_w0 K (3 - V) :- g21_w1 K V.
-g21_wr K V :- g21_w0 K V, V < 0.
+g21_wr K V :- g21_w0 K V, V < 4.
+g21_xr N :- g21_xs M N, _X = some M.
+g21_xm (some N) :- g21_xr N.
 %output g21_d0.
 %output g21_d1.
 %output g21_d2.
 %output g21_d3.
-%output g21_w1.
+%output g21_counter.
 %output g21_w0.
 %output g21_wr.
+%output g21_xr.
+%output g21_xm.
 g22_e0 : color -> option int -> int -> rel.
 g22_d0 : (a : int) -> (b : int) -> rel.
+g22_xs : int -> int -> rel.
+g22_xr : int -> rel.
+g22_xm : option int -> rel.
 pt 0.
 g22_e0 blue none 4.
+g22_xs 3 1.
+g22_xs 3 4.
+g22_xs 0 1.
+g22_xs 4 2.
+g22_xm (some 2).
 g22_d0 V4 V4 :- g22_e0 V1 _ 3, V4 = count { V2 | g22_e0 V1 V3 V2 }.
 g22_d0 1 V4 :- g22_e0 blue V1 _, V4 = min { V2 | (g22_e0 green _ V2, V2 < 4) ; (g22_e0 V3 V1 V2, V2 > 0) }, V4 <= 4, V4 >= (-1).
 g22_d0 V5 V3 :- g22_e0 V1 V2 V3, g22_e0 V4 V2 V5, g22_e0 _ V6 0, V1 <> blue.
+g22_xr N :- g22_xs M N, _X = some M.
+g22_xm (some N) :- g22_xr N.
 %output g22_d0.
+%output g22_xr.
+%output g22_xm.
 g23_e0 : box -> int -> int -> rel.
 g23_e1 : int -> string -> rel.
 g23_e2 : box -> rel.
 g23_d0 : (a : string) -> rel.
 g23_d1 : (a : string) -> (b : int) -> (c : string) -> rel.
 g23_d2 : (a : string) -> (b : string) -> rel.
-g23_d3 : (a : int) -> rel.
+g23_d3 : (a : box) -> (b : int) -> (c : string) -> rel.
+g23_counter : int -> rel.
+%terminates N (g23_counter N).
+g23_wg : int -> int -> int -> rel.
+g23_ws : int -> int -> rel.
+g23_w0 : (a : int) -> (b : max int) -> rel.
+g23_w1 : (a : int) -> (b : min int) -> rel.
+g23_wr : int -> int -> rel.
 pt 3.
 g23_e0 (mk 0) 0 0.
 g23_e0 (mk 1) 1 1.
@@ -688,19 +805,36 @@ g23_e1 4 "a".
 g23_e1 0 "c".
 g23_e1 1 "b".
 g23_e2 (mk 1).
+g23_counter 0.
+g23_wg 3 0 2.
+g23_wg 1 2 0.
+g23_wg 3 3 2.
+g23_wg 4 0 3.
+g23_wg 1 3 1.
+g23_wg 0 3 3.
+g23_ws 4 4.
 g23_d0 "a" :- g23_e2 V1, g23_e0 V2 (-1) V3, V5 = count { V4 | (g23_e1 V4 "", V4 < 1) }, (V5 < (-1) ; V3 = 4).
 g23_d0 "c" :- g23_e2 _.
 g23_d0 "c" :- g23_e2 _, g23_e2 V1.
 g23_d1 "" V2 "c" :- g23_e0 V1 V2 V2, g23_e0 _ V3 V4, V2 > 2.
 g23_d1 V1 V2 V3 :- g23_d1 V1 V2 V3.
-g23_d2 "c" "b" :- g23_e2 V1, g23_e0 V1 _ V2, V2 > 0, V3 = cons V2 nil, V6 = count { V4 | g23_e1 V4 V5 }.
-g23_d3 V2 :- g23_e0 V1 V2 2, g23_e0 V1 3 _, g23_e2 V1, V4 = max { V3 | g23_d1 _ V3 _ }, V7 = sum { V5 | g23_e1 V5 V6 }, V7 < V2.
-g23_d3 V1 :- g23_d3 _, g23_d3 V1, (V1 < 0 ; V1 = 0).
-g23_d3 V5 :- g23_e1 _ V1, g23_d0 V1, g23_e2 V2, V5 = sum { V3 | g23_d1 _ V3 V4 }, (V5 < 4 ; V5 = 3).
+g23_d2 "b" "c" :- g23_e2 V1, g23_e0 V1 _ V2, V2 > 0, V3 = cons V2 nil, (V2 < 1 ; V2 = 0).
+g23_d3 V1 V2 "" :- g23_e2 V1, g23_e1 V2 _, V4 = count { V3 | g23_e2 V3 ; g23_e2 V3 }.
+g23_counter M :- g23_counter N, N < 5, M = N + 2.
+g23_w0 K V :- g23_ws K V.
+g23_w0 L (V + C) :- g23_w0 K V, g23_wg K L C.
+g23_w0 L (V + C) :- g23_w0 K V, g23_wg K L C.
+g23_w1 K (0 - V) :- g23_w0 K V.
+g23_w0 K (0 - V) :- g23_w1 K V.
+g23_wr K V :- g23_w0 K V, V > (-3).
 %output g23_d0.
 %output g23_d1.
 %output g23_d2.
 %output g23_d3.
+%output g23_counter.
+%output g23_w1.
+%output g23_w0.
+%output g23_wr.
 g24_e0 : string -> int -> int -> rel.
 g24_e1 : int -> box -> string -> rel.
 g24_d0 : (a : int) -> (b : box) -> rel.
@@ -764,6 +898,9 @@ g27_d0 : (a : color) -> (b : int) -> (c : color) -> rel.
 g27_d1 : (a : color) -> (b : int) -> (c : option int) -> rel.
 g27_d2 : (a : box) -> (b : int) -> rel.
 g27_d3 : (a : color) -> (b : color) -> rel.
+g27_xs : int -> int -> rel.
+g27_xr : int -> rel.
+g27_xm : option int -> rel.
 g27_e0 "c" 4.
 g27_e0 "b" 4.
 g27_e0 "" 0.
@@ -776,22 +913,35 @@ g27_e1 4 blue 4.
 g27_e1 0 green 0.
 g27_e1 1 green 1.
 g27_e1 1 green 4.
+g27_xs 2 1.
+g27_xs 4 2.
+g27_xs 0 3.
+g27_xs 2 2.
+g27_xs 1 3.
+g27_xm (some 1).
 g27_d0 V3 V2 V3 :- g27_e0 V1 V2, g27_e1 V2 V3 V2.
 g27_d1 V1 V6 (some (-3)) :- g27_d0 V1 V2 V3, g27_d0 V1 _ V1, V6 = count { V4 | g27_e1 V5 V1 V4 }, not g27_e1 V2 _ _.
 g27_d2 (mk 1) V1 :- g27_e0 _ V1, g27_e0 V2 V1.
 g27_d3 V2 V2 :- g27_e1 V1 V2 V1, g27_e1 V1 V2 V3, g27_e0 V4 0, V1 >= V3, V5 = V3 + V1, not g27_d1 V2 _ _.
 g27_d3 V5 V5 :- g27_e0 V1 _, g27_e0 V1 V2, g27_d2 V3 V4, (V2 < 3 ; V4 = 1), V1 = "", g27_e1 1 V5 V2.
 g27_d3 V1 V1 :- g27_d1 V1 V2 V3, g27_d0 V4 V2 V4, g27_e1 V2 V5 _, V2 <> 2.
+g27_xr N :- g27_xs M N, _X = some M.
+g27_xm (some N) :- g27_xr N.
 %output g27_d0.
 %output g27_d1.
 %output g27_d2.
 %output g27_d3.
+%output g27_xr.
+%output g27_xm.
 g28_e0 : int -> rel.
 g28_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g28_wg : int -> int -> int -> rel.
 g28_ws : int -> int -> rel.
 g28_w0 : (a : int) -> (b : max int) -> rel.
 g28_wr : int -> int -> rel.
+g28_xs : int -> int -> rel.
+g28_xr : int -> rel.
+g28_xm : option int -> rel.
 pt 3.
 g28_e0 2.
 g28_e0 0.
@@ -801,15 +951,25 @@ g28_wg 0 1 2.
 g28_wg 1 1 2.
 g28_ws 2 (-3).
 g28_ws 2 (-2).
+g28_xs 4 2.
+g28_xs 4 2.
+g28_xs 0 0.
+g28_xs 0 1.
+g28_xs 1 4.
+g28_xm (some 0).
 g28_d0 V3 V3 3 :- g28_e0 V1, V1 >= (-1), V3 = count { V2 | g28_e0 V2 ; g28_e0 V2 }.
 g28_d0 V1 V1 V1 :- g28_e0 V1.
 g28_d0 0 (-2) 2 :- g28_e0 _, g28_e0 _, not g28_e0 (-1).
 g28_w0 K V :- g28_ws K V.
 g28_w0 L (2 * V + C) :- g28_w0 K V, g28_wg K L C, V >= 3.
 g28_wr K V :- g28_w0 K V, V > 0.
+g28_xr N :- g28_xs M N, _X = some M.
+g28_xm (some N) :- g28_xr N.
 %output g28_d0.
 %output g28_w0.
 %output g28_wr.
+%output g28_xr.
+%output g28_xm.
 g29_e0 : int -> rel.
 g29_d0 : (a : box) -> (b : int) -> rel.
 g29_d1 : (a : option int) -> rel.
@@ -828,24 +988,22 @@ g29_e0 0.
 g29_e0 4.
 g29_e0 1.
 g29_counter 1.
-g29_wg 1 0 4.
-g29_wg 1 3 4.
-g29_wg 4 4 0.
-g29_ws 3 3.
-g29_ws 0 (-1).
+g29_wg 4 1 2.
+g29_wg 1 2 (-3).
+g29_ws 0 (-3).
 g29_d0 (mk 3) V1 :- g29_e0 V1, g29_e0 _, g29_e0 0.
 g29_d0 V1 V3 :- g29_d0 V1 3, V3 = count { V2 | (g29_e0 V2, V2 <> 4) }, V3 > 1.
 g29_d0 (mk V1) V1 :- g29_e0 (-3), g29_e0 V1, not g29_e0 3, (V1 < 2 ; V1 = 3).
 g29_d1 (some (-2)) :- g29_d0 V1 V2.
 g29_d1 (some 2) :- g29_d0 V1 V2.
-g29_d2 V2 (mk V2) :- g29_d0 V1 V2, g29_d1 _, V3 = pt V2, V4 = V2 + 0.
-g29_d2 4 (mk 0) :- g29_d1 V1, g29_d1 _.
-g29_d2 V1 (mk 3) :- g29_d0 _ V1.
+g29_d2 V2 (mk V4) :- g29_d0 V1 V2, g29_d1 _, V3 = cons V2 nil, V4 = V2 - 2.
+g29_d2 V1 (mk 1) :- g29_e0 V1, g29_e0 _, g29_e0 V2, not g29_e0 _, V2 >= 0.
+g29_d2 V4 (mk V4) :- g29_d0 V1 V2, g29_e0 V2, (V2 < 4 ; V2 = (-2)), V4 = count { V3 | g29_d0 V3 _ }.
 g29_counter M :- g29_counter N, N < 5, M = N + 1.
 g29_w0 K V :- g29_ws K V.
+g29_w0 L (V + C) :- g29_w0 K V, g29_wg K L C, V >= (-1).
 g29_w0 L (V + C) :- g29_w0 K V, g29_wg K L C.
-g29_w0 L (V + C) :- g29_w0 K V, g29_wg K L C, V >= 1.
-g29_wr K V :- g29_w0 K V, V > (-3).
+g29_wr K V :- g29_w0 K V, V > (-1).
 %output g29_d0.
 %output g29_d1.
 %output g29_d2.
@@ -891,22 +1049,34 @@ g32_wg : int -> int -> int -> rel.
 g32_ws : int -> int -> rel.
 g32_w0 : (a : int) -> (b : min int) -> rel.
 g32_wr : int -> int -> rel.
+g32_xs : int -> int -> rel.
+g32_xr : int -> rel.
+g32_xm : option int -> rel.
 pt 1.
 pt 0.
 g32_e0 2 4.
 g32_wg 3 4 2.
 g32_ws 0 3.
 g32_ws 2 0.
+g32_xs 0 3.
+g32_xs 4 1.
+g32_xs 0 2.
+g32_xs 3 1.
+g32_xm (some 0).
 g32_d0 V2 :- g32_e0 2 V1, g32_e0 V1 V1, V2 = V1 + 0, (V2 < 1 ; V2 = 3).
 g32_d1 (mk 3) :- g32_d0 0.
 g32_w0 K V :- g32_ws K V.
 g32_w0 L (V + C) :- g32_w0 K V, g32_wg K L C.
 g32_w0 L (V + C) :- g32_w0 K V, g32_wg K L C.
 g32_wr K V :- g32_w0 K V, V < 0.
+g32_xr N :- g32_xs M N, _X = some M.
+g32_xm (some N) :- g32_xr N.
 %output g32_d0.
 %output g32_d1.
 %output g32_w0.
 %output g32_wr.
+%output g32_xr.
+%output g32_xm.
 g33_e0 : color -> int -> int -> rel.
 %input g33_e0.
 g33_e1 : int -> rel.
@@ -917,12 +1087,18 @@ g33_ws : int -> int -> rel.
 g33_w0 : (a : int) -> (b : max int) -> rel.
 g33_w1 : (a : int) -> (b : min int) -> rel.
 g33_wr : int -> int -> rel.
+g33_xs : int -> int -> rel.
+g33_xr : int -> rel.
+g33_xm : option int -> rel.
 pt 0.
 pt 3.
 pt 0.
 g33_e1 0.
 g33_wg 4 4 1.
 g33_ws 3 3.
+g33_xs 0 2.
+g33_xs 2 2.
+g33_xm (some 2).
 g33_d0 V3 V1 (mk 0) :- g33_e0 V1 0 V2, g33_e1 V3, g33_e0 V1 V4 V3, not g33_e0 V1 1 _.
 g33_d0 V3 V1 (mk V3) :- g33_e0 V1 V2 V2, g33_e0 V1 V2 4, g33_e1 V3, V3 < 4, (V2 < 2 ; V2 = 1).
 g33_d1 V3 :- g33_e1 (-3), g33_e0 V1 V2 V3, g33_d0 _ green _, V3 = 1.
@@ -931,15 +1107,22 @@ g33_w0 L (V + C) :- g33_w0 K V, g33_wg K L C, V >= 1.
 g33_w1 K (0 - V) :- g33_w0 K V.
 g33_w0 K (3 - V) :- g33_w1 K V.
 g33_wr K V :- g33_w0 K V, V > 4.
+g33_xr N :- g33_xs M N, _X = some M.
+g33_xm (some N) :- g33_xr N.
 %output g33_d0.
 %output g33_d1.
 %output g33_w1.
 %output g33_w0.
 %output g33_wr.
+%output g33_xr.
+%output g33_xm.
 g34_e0 : int -> int -> color -> rel.
 g34_e1 : int -> int -> box -> rel.
 g34_d0 : (a : color) -> (b : box) -> (c : int) -> rel.
 g34_d1 : (a : int) -> (b : int) -> rel.
+g34_xs : int -> int -> rel.
+g34_xr : int -> rel.
+g34_xm : option int -> rel.
 g34_e0 2 (-3) red.
 g34_e1 1 2 (mk (-2)).
 g34_e1 4 1 (mk 2).
@@ -948,23 +1131,30 @@ g34_e1 0 1 (mk 2).
 g34_e1 3 0 (mk (-1)).
 g34_e1 2 (-1) (mk 0).
 g34_e1 4 2 (mk (-1)).
+g34_xs 4 1.
+g34_xm (some 4).
 g34_d0 V8 (mk V2) V2 :- g34_e1 V1 V2 _, g34_e1 V3 V1 V4, V6 = count { V5 | g34_e1 4 V5 V4 }, g34_e0 _ V7 V8.
 g34_d0 V5 V2 V3 :- g34_e1 V1 V1 V2, g34_e1 1 V3 _, g34_e0 V3 V4 V5, g34_d0 V5 _ V6, V3 <= (-3).
 g34_d0 V2 (mk V1) V1 :- g34_e0 V1 V1 blue, (V1 < 4 ; V1 = 0), g34_e0 V1 1 V2.
 g34_d1 V1 V1 :- g34_d0 blue _ V1, not g34_d0 green _ V1, V1 >= 0.
+g34_xr N :- g34_xs M N, _X = some M.
+g34_xm (some N) :- g34_xr N.
 %output g34_d0.
 %output g34_d1.
+%output g34_xr.
+%output g34_xm.
 g35_e0 : int -> int -> rel.
 %input g35_e0.
 g35_e1 : box -> int -> int -> rel.
 g35_e2 : color -> rel.
 g35_d0 : (a : int) -> (b : box) -> (c : box) -> rel.
-g35_d1 : (a : box) -> rel.
-g35_d2 : (a : int) -> (b : option int) -> (c : int) -> rel.
-g35_wg : int -> int -> int -> rel.
-g35_ws : int -> int -> rel.
-g35_w0 : (a : int) -> (b : max int) -> rel.
-g35_wr : int -> int -> rel.
+g35_d1 : (a : option int) -> rel.
+g35_d2 : (a : int) -> rel.
+g35_counter : int -> rel.
+%terminates N (g35_counter N).
+g35_xs : int -> int -> rel.
+g35_xr : int -> rel.
+g35_xm : option int -> rel.
 pt (-2).
 g35_e1 (mk 4) 4 1.
 g35_e1 (mk 4) 1 0.
@@ -977,27 +1167,29 @@ g35_e2 blue.
 g35_e2 green.
 g35_e2 green.
 g35_e2 green.
-g35_wg 2 4 3.
-g35_wg 2 1 0.
-g35_wg 1 1 4.
-g35_wg 4 4 3.
-g35_ws 1 3.
+g35_counter 0.
+g35_xs 4 3.
+g35_xs 1 1.
+g35_xs 4 4.
+g35_xs 3 1.
+g35_xs 2 2.
+g35_xm (some 0).
 g35_d0 2 (mk 2) (mk 1) :- g35_e2 V1, (V1 = blue ; V1 = green), V1 <> red, V1 = blue.
-g35_d0 V3 V2 V2 :- g35_e2 _, g35_e2 V1, g35_e1 V2 V3 (-1), V4 = some V3.
-g35_d0 2 V2 V2 :- g35_e2 V1, g35_d0 _ _ V2, V1 <> green.
-g35_d1 (mk V1) :- g35_e2 _, g35_e1 _ V1 V1, (V1 < 0 ; V1 = 3).
-g35_d2 V2 (some 3) V2 :- g35_e1 V1 _ V2, g35_d1 V3, not g35_e2 _.
-g35_d2 V1 none V1 :- g35_e0 V1 V1.
-g35_d2 V3 (some V3) V3 :- g35_d1 V1, g35_e1 V2 V3 V3.
-g35_w0 K V :- g35_ws K V.
-g35_w0 L (V + C) :- g35_w0 K V, g35_wg K L C.
-g35_w0 L (2 * V + C) :- g35_w0 K V, g35_wg K L C, V >= 1.
-g35_wr K V :- g35_w0 K V, V > 4.
+g35_d0 V3 V2 (mk 0) :- g35_e2 _, g35_e2 V1, g35_e1 V2 V3 (-1), V4 = pt V3.
+g35_d0 V2 (mk V2) V1 :- g35_e1 V1 V2 V3.
+g35_d1 (some 0) :- g35_e0 V1 _, V2 = V1 * 4.
+g35_d1 (some 0) :- g35_e0 V1 V1, g35_e2 _, g35_e1 V2 V3 _, V4 = V3 - 4, V5 = V4 - V4, (V5 < 2 ; V3 = 3).
+g35_d1 (some 1) :- g35_d0 V1 _ _, not g35_e0 V1 V1, (V1 < 1 ; V1 = 2), V1 < 0.
+g35_d2 2 :- g35_e2 V1.
+g35_counter M :- g35_counter N, N < 0, M = N + 2.
+g35_xr N :- g35_xs M N, _X = some M.
+g35_xm (some N) :- g35_xr N.
 %output g35_d0.
 %output g35_d1.
 %output g35_d2.
-%output g35_w0.
-%output g35_wr.
+%output g35_counter.
+%output g35_xr.
+%output g35_xm.
 g36_e0 : box -> rel.
 g36_e1 : int -> int -> rel.
 g36_e2 : int -> box -> box -> rel.
@@ -1047,35 +1239,28 @@ g38_e0 : int -> option int -> int -> rel.
 %input g38_e0.
 g38_d0 : (a : option int) -> rel.
 g38_d1 : (a : int) -> (b : option int) -> rel.
-g38_d2 : (a : option int) -> (b : int) -> rel.
-g38_d3 : (a : int) -> (b : int) -> rel.
-g38_wg : int -> int -> int -> rel.
-g38_ws : int -> int -> rel.
-g38_w0 : (a : int) -> (b : max int) -> rel.
-g38_wr : int -> int -> rel.
+g38_d2 : (a : int) -> (b : int) -> rel.
+g38_d3 : (a : box) -> rel.
+g38_counter : int -> rel.
+%terminates N (g38_counter N).
 pt 2.
 pt 3.
-g38_wg 4 0 2.
-g38_wg 1 2 3.
-g38_wg 2 3 4.
-g38_ws 3 3.
+g38_counter 0.
 g38_d0 (some V6) :- g38_e0 V1 V2 V1, g38_e0 V3 V4 V5, g38_e0 1 V4 V6.
 g38_d0 V2 :- g38_e0 V1 V2 V1, g38_e0 V1 V2 V3, g38_e0 3 V4 V3, V5 = V3 * 1, V1 > 2.
-g38_d1 V5 (some V1) :- g38_e0 V1 V2 V3, g38_e0 V4 V2 V5, g38_e0 _ V6 V7, V8 = pt V3, V8 = (pt (-1)).
-g38_d1 V4 V1 :- g38_d0 V1, g38_d1 _ V2, V4 = count { V3 | g38_e0 4 V3 4 }, not g38_e0 V4 _ V4.
-g38_d1 V1 V3 :- g38_e0 V1 V2 V1, g38_d0 V2, g38_d1 V1 V3.
-g38_d2 (some V1) V3 :- g38_e0 V1 V2 V3, g38_d0 V4, g38_d0 V5.
-g38_d3 V3 V3 :- g38_d0 V1, g38_d1 4 _, not g38_d2 V1 _, V3 = count { V2 | g38_d2 V1 V2 }.
-g38_d3 3 V1 :- g38_d3 _ V1, g38_e0 V1 V2 _, g38_d1 V3 V4, V3 < V3, V7 = count { V5 | g38_d1 V5 V6 }.
-g38_w0 K V :- g38_ws K V.
-g38_w0 L (V + C) :- g38_w0 K V, g38_wg K L C, V >= 2.
-g38_wr K V :- g38_w0 K V, V > 1.
+g38_d1 V3 V6 :- g38_e0 V1 V2 V3, g38_e0 V4 V2 V5, g38_e0 _ V6 V7, V8 = pt V3, V8 = (pt (-1)), V9 = pt V4.
+g38_d1 V1 (some V1) :- g38_e0 V1 _ V2, g38_e0 _ V3 3, g38_d1 V1 V3.
+g38_d1 3 V2 :- g38_e0 V1 V2 V3, V3 = V1.
+g38_d2 (-2) V3 :- g38_d1 V1 V2, not g38_d1 2 V2, V3 = V1 - 1.
+g38_d2 V2 V2 :- g38_d0 V1, g38_e0 V2 V3 V2, (V2 < 0 ; V2 = 2), not g38_d0 V3, V2 <> 0.
+g38_d2 V1 V3 :- g38_e0 V1 _ 0, g38_e0 _ V2 _, g38_d0 V2, V3 = V1 - 4, V1 = 2, V3 < 2.
+g38_d3 (mk 2) :- g38_d1 V1 V2, g38_d2 V3 4.
+g38_counter M :- g38_counter N, N < 5, M = N + 2.
 %output g38_d0.
 %output g38_d1.
 %output g38_d2.
 %output g38_d3.
-%output g38_w0.
-%output g38_wr.
+%output g38_counter.
 g39_e0 : int -> rel.
 g39_e1 : int -> int -> list int -> rel.
 %input g39_e1.
@@ -1086,6 +1271,9 @@ g39_wg : int -> int -> int -> rel.
 g39_ws : int -> int -> rel.
 g39_w0 : (a : int) -> (b : min int) -> rel.
 g39_wr : int -> int -> rel.
+g39_xs : int -> int -> rel.
+g39_xr : int -> rel.
+g39_xm : option int -> rel.
 pt 1.
 pt 0.
 pt (-1).
@@ -1100,6 +1288,9 @@ g39_wg 1 4 2.
 g39_wg 4 3 2.
 g39_ws 1 1.
 g39_ws 3 0.
+g39_xs 1 0.
+g39_xs 0 1.
+g39_xm (some 0).
 g39_d0 (mk (-2)) V4 :- g39_e1 V1 V2 V3, g39_e1 V2 V4 nil, g39_e0 V1, V1 > 2.
 g39_d1 V2 :- g39_d0 V1 0, g39_e1 V2 V2 _, g39_e1 V2 V2 V3.
 g39_d2 (some 1) (mk V5) :- g39_e1 V1 V1 nil, g39_e1 V2 V3 V4, len V4 V5, V5 > (-2), V6 = V1 - V1.
@@ -1107,11 +1298,15 @@ g39_d2 (some V2) (mk V1) :- g39_d1 V1, g39_d1 V2.
 g39_w0 K V :- g39_ws K V.
 g39_w0 L (V + C) :- g39_w0 K V, g39_wg K L C, V <= 0.
 g39_wr K V :- g39_w0 K V, V < 1.
+g39_xr N :- g39_xs M N, _X = some M.
+g39_xm (some N) :- g39_xr N.
 %output g39_d0.
 %output g39_d1.
 %output g39_d2.
 %output g39_w0.
 %output g39_wr.
+%output g39_xr.
+%output g39_xm.
 g40_e0 : int -> color -> rel.
 g40_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g40_d1 : (a : color) -> (b : option int) -> rel.
@@ -1158,6 +1353,9 @@ g41_ws : int -> int -> rel.
 g41_w0 : (a : int) -> (b : max int) -> rel.
 g41_w1 : (a : int) -> (b : min int) -> rel.
 g41_wr : int -> int -> rel.
+g41_xs : int -> int -> rel.
+g41_xr : int -> rel.
+g41_xm : option int -> rel.
 g41_e0 1 3.
 g41_e0 3 3.
 g41_counter 2.
@@ -1166,6 +1364,11 @@ g41_wg 3 3 1.
 g41_wg 2 3 1.
 g41_wg 1 3 0.
 g41_ws 1 0.
+g41_xs 0 0.
+g41_xs 2 1.
+g41_xs 2 0.
+g41_xs 4 3.
+g41_xm (some 2).
 g41_d0 V1 :- g41_e0 _ _, g41_e0 2 V1, V4 = count { V2 | g41_e0 _ V2 ; (g41_e0 V2 V3, V2 < 0) }, not g41_e0 V1 _.
 g41_d0 3 :- g41_d0 _.
 g41_d0 V2 :- g41_e0 V1 V2, g41_d0 _.
@@ -1181,6 +1384,8 @@ g41_w0 L (V + C) :- g41_w0 K V, g41_wg K L C.
 g41_w1 K (0 - V) :- g41_w0 K V.
 g41_w0 K (3 - V) :- g41_w1 K V.
 g41_wr K V :- g41_w0 K V, V > 3.
+g41_xr N :- g41_xs M N, _X = some M.
+g41_xm (some N) :- g41_xr N.
 %output g41_d0.
 %output g41_d1.
 %output g41_d2.
@@ -1189,6 +1394,8 @@ g41_wr K V :- g41_w0 K V, V > 3.
 %output g41_w1.
 %output g41_w0.
 %output g41_wr.
+%output g41_xr.
+%output g41_xm.
 g42_e0 : int -> int -> rel.
 g42_e1 : color -> rel.
 %input g42_e1.
@@ -1221,6 +1428,10 @@ g43_e1 : list int -> rel.
 g43_d0 : (a : box) -> (b : list int) -> rel.
 g43_d1 : (a : option int) -> rel.
 g43_d2 : (a : box) -> (b : option int) -> rel.
+g43_wg : int -> int -> int -> rel.
+g43_ws : int -> int -> rel.
+g43_w0 : (a : int) -> (b : min int) -> rel.
+g43_wr : int -> int -> rel.
 pt 4.
 pt 1.
 pt 3.
@@ -1231,15 +1442,26 @@ g43_e1 (cons 1 (cons 2 (cons 1 nil))).
 g43_e1 (cons 3 (cons 3 nil)).
 g43_e1 (cons 1 nil).
 g43_e1 (cons 3 nil).
-g43_d0 (mk 3) V1 :- g43_e0 V1 V2, g43_e0 V1 _, g43_e0 V1 V3, nil = V1.
-g43_d0 (mk 3) V1 :- g43_e1 V1, g43_e0 V1 V2.
-g43_d0 (mk 2) V1 :- g43_e1 V1, g43_e0 nil V2, g43_e1 _.
-g43_d1 (some 3) :- g43_e1 (cons 2 nil), g43_e1 nil.
-g43_d1 V3 :- g43_e0 V1 V2, g43_e0 _ V3, g43_d1 V2.
-g43_d2 (mk 2) (some 3) :- g43_d1 _.
+g43_wg 0 1 1.
+g43_wg 3 0 3.
+g43_ws 0 2.
+g43_d0 (mk (-2)) V1 :- g43_e0 V1 V2, g43_e0 V1 _, g43_e0 V1 V3, V1 = (cons 1 (cons 1 (cons 2 nil))).
+g43_d0 (mk 4) V1 :- g43_e0 V1 V2, len V1 V3.
+g43_d0 (mk 4) V1 :- g43_e1 V1, (cons 1 (cons 0 nil)) <> V1.
+g43_d1 (some 3) :- g43_e0 _ _, g43_e1 _.
+g43_d1 V3 :- g43_d0 V1 _, g43_e0 V2 V3.
+g43_d1 V2 :- g43_e1 V1, g43_e0 nil V2, V1 = (cons 2 (cons 0 nil)).
+g43_d2 (mk 0) (some V2) :- g43_e0 (cons 3 nil) _, g43_d1 V1, g43_e1 (cons V2 V3), (cons 0 (cons 0 (cons 2 nil))) = V3.
+g43_d2 V1 V4 :- g43_d0 V1 V2, g43_d2 V3 V4.
+g43_w0 K V :- g43_ws K V.
+g43_w0 L (2 * V + C) :- g43_w0 K V, g43_wg K L C.
+g43_w0 L (V + C) :- g43_w0 K V, g43_wg K L C, V <= 0.
+g43_wr K V :- g43_w0 K V, V < 0.
 %output g43_d0.
 %output g43_d1.
 %output g43_d2.
+%output g43_w0.
+%output g43_wr.
 g44_e0 : int -> rel.
 %input g44_e0.
 g44_e1 : color -> list int -> rel.
@@ -1282,12 +1504,7 @@ g46_e2 : option int -> color -> rel.
 g46_d0 : (a : int) -> rel.
 g46_d1 : (a : color) -> (b : int) -> (c : box) -> rel.
 g46_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
-g46_d3 : (a : int) -> (b : int) -> (c : int) -> rel.
-g46_wg : int -> int -> int -> rel.
-g46_ws : int -> int -> rel.
-g46_w0 : (a : int) -> (b : min int) -> rel.
-g46_w1 : (a : int) -> (b : max int) -> rel.
-g46_wr : int -> int -> rel.
+g46_d3 : (a : int) -> (b : color) -> (c : option int) -> rel.
 pt 1.
 pt (-2).
 g46_e0 (-1) red.
@@ -1301,26 +1518,14 @@ g46_e1 1.
 g46_e1 4.
 g46_e1 1.
 g46_e1 1.
-g46_wg 1 2 4.
-g46_ws 2 4.
-g46_ws 4 1.
 g46_d0 V1 :- g46_e0 0 green, g46_e0 V1 _.
 g46_d1 V3 V1 (mk V1) :- g46_d0 V1, g46_e0 V2 V3.
-g46_d2 V2 V2 V2 :- g46_d1 V1 V2 _, V2 <> 0, V3 = pt V2.
-g46_d3 V2 V2 3 :- g46_d0 _, g46_e1 _, g46_d1 V1 V2 V3.
-g46_w0 K V :- g46_ws K V.
-g46_w0 L (V + C) :- g46_w0 K V, g46_wg K L C, V <= 4.
-g46_w0 L (V + C) :- g46_w0 K V, g46_wg K L C, V <= 4.
-g46_w1 K (0 - V) :- g46_w0 K V.
-g46_w0 K ((-2) - V) :- g46_w1 K V.
-g46_wr K V :- g46_w0 K V, V < 4.
+g46_d2 V5 V2 V5 :- g46_d1 V1 V2 _, V2 <> 0, V3 = cons V2 nil, V5 = count { V4 | g46_d0 V4 }.
+g46_d3 3 V2 (some 3) :- g46_e0 V1 V2, g46_d0 _.
 %output g46_d0.
 %output g46_d1.
 %output g46_d2.
 %output g46_d3.
-%output g46_w1.
-%output g46_w0.
-%output g46_wr.
 g47_e0 : int -> rel.
 g47_e1 : int -> box -> list int -> rel.
 g47_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
@@ -1366,14 +1571,24 @@ g48_d0 2 V2 :- g48_e0 V1 V2 V2, g48_e0 _ _ V2, V1 = red, V2 < 0, (V2 < 4 ; V2 = 
 %output g48_d0.
 g49_e0 : int -> rel.
 g49_d0 : (a : box) -> (b : int) -> (c : int) -> rel.
+g49_xs : int -> int -> rel.
+g49_xr : int -> rel.
+g49_xm : option int -> rel.
 pt (-2).
 g49_e0 1.
 g49_e0 3.
 g49_e0 0.
 g49_e0 2.
 g49_e0 4.
+g49_xs 0 1.
+g49_xs 0 2.
+g49_xm (some 3).
 g49_d0 (mk 1) V4 V2 :- g49_e0 V1, g49_e0 V2, g49_e0 V2, V4 = count { V3 | (g49_e0 V3, V3 < 1) ; g49_e0 V3 }.
+g49_xr N :- g49_xs M N, _X = some M.
+g49_xm (some N) :- g49_xr N.
 %output g49_d0.
+%output g49_xr.
+%output g49_xm.
 g50_e0 : color -> color -> color -> rel.
 %input g50_e0.
 g50_e1 : list int -> rel.
@@ -1387,30 +1602,48 @@ g50_e1 nil.
 g50_e1 (cons 2 (cons 3 nil)).
 g50_e1 nil.
 g50_d0 V3 (mk 2) none :- g50_e0 V1 V2 V3.
-g50_d0 V2 (mk 2) none :- g50_e1 V1, V1 = (cons 0 nil), g50_e0 V2 V2 red.
-g50_d1 (mk 4) :- g50_e0 _ _ V1, g50_e0 green V1 V2, g50_e0 red V3 V2, V1 = green, V1 = blue.
-g50_d1 V3 :- g50_e0 V1 V2 _, g50_d1 V3, (V2 = red ; V2 = blue), (V1 = green ; V1 = red), (V2 = red ; V2 = red).
+g50_d0 V3 (mk 2) none :- g50_e1 V1, (nil : list int) = V1, g50_e0 V2 V2 V3.
+g50_d1 (mk 0) :- g50_e0 _ _ V1, g50_e0 green V1 V2, g50_e0 red V3 V2, V1 = green, V1 = green, V6 = count { V4 | g50_d0 V4 V5 _ }.
+g50_d1 V2 :- g50_e0 _ red V1, g50_d1 V2.
 %output g50_d0.
 %output g50_d1.
 g51_e0 : list int -> rel.
 %input g51_e0.
 g51_d0 : (a : list int) -> (b : list int) -> rel.
 pt 0.
-g51_d0 V1 V1 :- g51_e0 V1, g51_e0 (cons 1 (cons 3 (cons 1 nil))), (nil : list int) <> V1, V3 = count { V2 | g51_e0 V2 ; g51_e0 V2 }, len V1 V4.
+g51_d0 V1 V1 :- g51_e0 V1, g51_e0 (cons 1 (cons 3 (cons 1 nil))), nil = V1, V3 = count { V2 | g51_e0 V2 ; g51_e0 V2 }, len V1 V4.
 g51_d0 V3 V3 :- g51_e0 _, g51_e0 (cons 1 (cons 1 (cons 3 nil))), g51_e0 (cons 2 (cons 3 nil)), V2 = count { V1 | g51_e0 V1 ; g51_e0 V1 }, g51_e0 V3.
 %output g51_d0.
 g52_e0 : int -> int -> list int -> rel.
 %input g52_e0.
 g52_d0 : (a : box) -> (b : int) -> rel.
 g52_d1 : (a : int) -> rel.
+g52_counter : int -> rel.
+%terminates N (g52_counter N).
+g52_wg : int -> int -> int -> rel.
+g52_ws : int -> int -> rel.
+g52_w0 : (a : int) -> (b : min int) -> rel.
+g52_wr : int -> int -> rel.
 pt 3.
-g52_d0 (mk 4) V3 :- g52_e0 4 V1 V2, V3 = V1 + 0, V4 = cons V1 nil, (V3 < 2 ; V3 = 1).
-g52_d0 (mk V1) 4 :- g52_e0 V1 V2 V3, V4 = some V1.
-g52_d1 4 :- g52_d0 V1 V2, g52_e0 _ V2 V3, g52_e0 1 V4 (cons 0 (cons 1 nil)), V3 <> (cons 1 (cons 2 nil)), V2 > V2, (V2 < 1 ; V2 = 3).
-g52_d1 V1 :- g52_d1 V1, g52_d1 V1.
-g52_d1 V2 :- g52_d0 V1 V2, g52_d1 V3.
+g52_counter 2.
+g52_wg 4 1 3.
+g52_wg 0 4 3.
+g52_wg 1 4 0.
+g52_wg 3 0 1.
+g52_ws 3 1.
+g52_ws 3 0.
+g52_d0 (mk 0) V3 :- g52_e0 4 V1 V2, V3 = V1 + 0, V4 = pt V1.
+g52_d0 (mk (-2)) V6 :- g52_e0 1 V1 V2, g52_e0 V3 V3 (cons 0 (cons 3 nil)), g52_e0 V4 V5 (cons 1 (cons 2 (cons 2 nil))), len V2 V6.
+g52_d1 V2 :- g52_e0 3 V1 nil, g52_e0 V2 V2 V3, g52_d0 V4 V2.
+g52_counter M :- g52_counter N, N < 1, M = N + 2.
+g52_w0 K V :- g52_ws K V.
+g52_w0 L (2 * V + C) :- g52_w0 K V, g52_wg K L C, V <= 3.
+g52_wr K V :- g52_w0 K V, V < 4.
 %output g52_d0.
 %output g52_d1.
+%output g52_counter.
+%output g52_w0.
+%output g52_wr.
 g53_e0 : string -> option int -> string -> rel.
 g53_e1 : option int -> rel.
 %input g53_e1.
@@ -1418,30 +1651,62 @@ g53_e2 : int -> int -> rel.
 %input g53_e2.
 g53_d0 : (a : option int) -> (b : int) -> rel.
 g53_d1 : (a : string) -> (b : int) -> (c : string) -> rel.
-g53_d2 : (a : int) -> rel.
-g53_d3 : (a : int) -> (b : string) -> (c : int) -> rel.
+g53_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
+g53_d3 : (a : string) -> (b : int) -> rel.
 g53_counter : int -> rel.
 %terminates N (g53_counter N).
+g53_wg : int -> int -> int -> rel.
+g53_ws : int -> int -> rel.
+g53_w0 : (a : int) -> (b : min int) -> rel.
+g53_w1 : (a : int) -> (b : max int) -> rel.
+g53_wr : int -> int -> rel.
+g53_xs : int -> int -> rel.
+g53_xr : int -> rel.
+g53_xm : option int -> rel.
 g53_e0 "a" (some (-1)) "b".
 g53_e0 "b" (some (-1)) "".
-g53_counter 2.
+g53_counter 1.
+g53_wg 2 3 1.
+g53_wg 4 3 0.
+g53_wg 1 0 (-2).
+g53_wg 2 4 4.
+g53_wg 3 4 1.
+g53_ws 2 2.
+g53_xs 3 3.
+g53_xs 3 3.
+g53_xs 0 0.
+g53_xs 4 2.
+g53_xs 1 2.
+g53_xm (some 1).
 g53_d0 (some V3) V3 :- g53_e0 V1 V2 V1, g53_e2 V3 _, g53_e1 V2.
 g53_d0 (some V3) V3 :- g53_e0 V1 V2 V1, g53_e2 V3 V4, g53_e0 V1 V5 "", V7 = sum { V6 | (g53_e2 V6 V3, V6 > 3) }.
 g53_d0 V2 V4 :- g53_e0 V1 V2 V1, g53_e1 V3, g53_e2 _ V4.
 g53_d1 V3 V1 V3 :- g53_e2 V1 V1, g53_e2 V1 V2, g53_e0 V3 V4 V3.
 g53_d1 V1 3 V1 :- g53_d1 V1 0 "b".
-g53_d1 "" V1 V3 :- g53_d0 _ V1, g53_e0 _ V2 V3, g53_d0 _ V1, V4 = some V1.
-g53_d2 V4 :- g53_d1 V1 V2 V1, g53_d1 V3 V4 V3, g53_e1 _, V5 = some V2, V8 = sum { V6 | g53_d1 _ V6 V7 }, (V4 < 3 ; V2 = 4).
-g53_d2 1 :- g53_e0 _ V1 V2, g53_e1 _, g53_e1 V1, V2 <> "c".
-g53_d2 V2 :- g53_d0 V1 V2, V2 >= 3.
-g53_d3 V2 "" V2 :- g53_d0 V1 V2, g53_d2 _, (V2 < 4 ; V2 = (-3)), V2 >= 2.
-g53_d3 1 "b" 0 :- g53_e1 V1, g53_d2 (-1).
-g53_counter M :- g53_counter N, N < 3, M = N + 1.
+g53_d1 V3 V1 V3 :- g53_d0 _ V1, g53_e0 _ V2 V3, g53_d0 _ V1, V4 = cons V1 nil.
+g53_d2 V1 V1 V3 :- g53_e2 _ V1, g53_d1 V2 V3 V2, g53_e1 _, V4 = cons V1 nil, V5 = V1 * 2.
+g53_d2 V1 V2 V1 :- g53_e2 V1 V2, g53_d1 V3 (-3) V4, (V2 < 1 ; V2 = 0), V1 = V2.
+g53_d2 V4 V7 V7 :- g53_e1 V1, V4 = count { V2 | g53_d0 V2 V3 }, V7 = count { V5 | (g53_e2 V5 V6, V5 < 0) }.
+g53_d3 "a" V1 :- g53_e2 V1 _, g53_d1 "a" V1 "", g53_e1 V2, V4 = count { V3 | g53_d0 V3 _ }.
+g53_counter M :- g53_counter N, N < 0, M = N + 1.
+g53_w0 K V :- g53_ws K V.
+g53_w0 L (V + C) :- g53_w0 K V, g53_wg K L C, V <= 2.
+g53_w0 L (V + C) :- g53_w0 K V, g53_wg K L C.
+g53_w1 K (0 - V) :- g53_w0 K V.
+g53_w0 K (1 - V) :- g53_w1 K V.
+g53_wr K V :- g53_w0 K V, V < 2.
+g53_xr N :- g53_xs M N, _X = some M.
+g53_xm (some N) :- g53_xr N.
 %output g53_d0.
 %output g53_d1.
 %output g53_d2.
 %output g53_d3.
 %output g53_counter.
+%output g53_w1.
+%output g53_w0.
+%output g53_wr.
+%output g53_xr.
+%output g53_xm.
 g54_e0 : int -> int -> rel.
 g54_e1 : int -> string -> rel.
 g54_d0 : (a : int) -> rel.
@@ -1490,14 +1755,27 @@ g54_wr K V :- g54_w0 K V, V < 0.
 %output g54_wr.
 g55_e0 : list int -> box -> rel.
 g55_d0 : (a : box) -> rel.
+g55_xs : int -> int -> rel.
+g55_xr : int -> rel.
+g55_xm : option int -> rel.
 g55_e0 (cons 3 (cons 1 nil)) (mk 3).
+g55_xs 1 1.
+g55_xs 0 4.
+g55_xm (some 3).
 g55_d0 (mk (-3)) :- g55_e0 V1 V2.
+g55_xr N :- g55_xs M N, _X = some M.
+g55_xm (some N) :- g55_xr N.
 %output g55_d0.
+%output g55_xr.
+%output g55_xm.
 g56_e0 : option int -> rel.
 %input g56_e0.
 g56_e1 : color -> rel.
 g56_e2 : color -> int -> int -> rel.
 g56_d0 : (a : int) -> rel.
+g56_xs : int -> int -> rel.
+g56_xr : int -> rel.
+g56_xm : option int -> rel.
 pt 3.
 pt 3.
 pt 0.
@@ -1510,8 +1788,16 @@ g56_e2 red 4 0.
 g56_e2 green 2 0.
 g56_e2 green 4 4.
 g56_e2 blue 1 4.
+g56_xs 1 1.
+g56_xs 1 3.
+g56_xs 2 0.
+g56_xm (some 1).
 g56_d0 V2 :- g56_e2 V1 V2 _, g56_e1 V1, g56_e1 V1.
+g56_xr N :- g56_xs M N, _X = some M.
+g56_xm (some N) :- g56_xr N.
 %output g56_d0.
+%output g56_xr.
+%output g56_xm.
 g57_e0 : string -> int -> color -> rel.
 g57_d0 : (a : string) -> (b : int) -> (c : int) -> rel.
 g57_wg : int -> int -> int -> rel.
@@ -1546,10 +1832,11 @@ g58_e0 : int -> rel.
 g58_d0 : (a : int) -> rel.
 g58_d1 : (a : int) -> (b : box) -> rel.
 g58_d2 : (a : box) -> rel.
+g58_counter : int -> rel.
+%terminates N (g58_counter N).
 g58_wg : int -> int -> int -> rel.
 g58_ws : int -> int -> rel.
-g58_w0 : (a : int) -> (b : min int) -> rel.
-g58_w1 : (a : int) -> (b : max int) -> rel.
+g58_w0 : (a : int) -> (b : max int) -> rel.
 g58_wr : int -> int -> rel.
 pt 0.
 g58_e0 4.
@@ -1558,24 +1845,22 @@ g58_e0 0.
 g58_e0 0.
 g58_e0 4.
 g58_e0 1.
-g58_wg 3 0 3.
-g58_wg 4 3 4.
-g58_ws 4 0.
-g58_ws 4 3.
+g58_counter 2.
+g58_wg 1 3 0.
+g58_ws 3 3.
 g58_d0 3 :- g58_e0 0, g58_e0 _, not g58_e0 2.
 g58_d1 V1 (mk 1) :- g58_e0 V1, g58_e0 V1, (V1 < 3 ; V1 = (-2)).
 g58_d2 (mk V1) :- g58_d0 V1, g58_d1 V2 V3, V1 <= 4.
-g58_d2 V2 :- g58_d1 V1 V2, V3 = some V1, V4 = pt V1.
-g58_d2 (mk 0) :- g58_e0 V1, V2 = V1 - 3, (V2 < 3 ; V1 = 3), V1 <> 4.
+g58_d2 (mk V1) :- g58_d1 V1 V2, V3 = cons V1 nil, not g58_d1 _ _.
+g58_d2 V3 :- g58_d0 V1, g58_d0 V2, g58_d1 1 V3.
+g58_counter M :- g58_counter N, N < 1, M = N + 1.
 g58_w0 K V :- g58_ws K V.
 g58_w0 L (V + C) :- g58_w0 K V, g58_wg K L C.
-g58_w1 K (0 - V) :- g58_w0 K V.
-g58_w0 K (2 - V) :- g58_w1 K V.
-g58_wr K V :- g58_w0 K V, V < 1.
+g58_wr K V :- g58_w0 K V, V > 4.
 %output g58_d0.
 %output g58_d1.
 %output g58_d2.
-%output g58_w1.
+%output g58_counter.
 %output g58_w0.
 %output g58_wr.
 g59_e0 : int -> option int -> rel.
@@ -1602,11 +1887,7 @@ g60_e0 : color -> rel.
 g60_e1 : int -> option int -> rel.
 g60_e2 : int -> rel.
 g60_d0 : (a : int) -> (b : int) -> rel.
-g60_d1 : (a : color) -> rel.
-g60_wg : int -> int -> int -> rel.
-g60_ws : int -> int -> rel.
-g60_w0 : (a : int) -> (b : max int) -> rel.
-g60_wr : int -> int -> rel.
+g60_d1 : (a : color) -> (b : option int) -> rel.
 g60_e0 red.
 g60_e0 red.
 g60_e0 blue.
@@ -1614,27 +1895,18 @@ g60_e0 blue.
 g60_e0 blue.
 g60_e1 (-1) (some 2).
 g60_e2 (-1).
-g60_wg 4 1 0.
-g60_wg 1 2 4.
-g60_wg 4 2 4.
-g60_ws 4 (-2).
-g60_d0 V1 V1 :- g60_e1 V1 V2, g60_e2 _, V1 = 1, V3 = some V1.
-g60_d1 V4 :- g60_d0 V1 _, V2 = V1 - 2, V3 = pt V1, (V1 < 3 ; V2 = 3), g60_e0 V4.
-g60_d1 V5 :- g60_e1 V1 V2, g60_e1 V1 V3, g60_d0 V4 V1, V4 > 0, g60_e0 V5.
-g60_d1 V7 :- g60_d0 V1 V2, g60_d0 V2 V3, g60_e1 V4 V5, V6 = V2 - V3, g60_e0 V7.
-g60_w0 K V :- g60_ws K V.
-g60_w0 L (V + C) :- g60_w0 K V, g60_wg K L C.
-g60_w0 L (V + C) :- g60_w0 K V, g60_wg K L C.
-g60_wr K V :- g60_w0 K V, V > 4.
+g60_d0 V1 V1 :- g60_e1 V1 V2, g60_e2 _, V1 = 1, V3 = cons V1 nil.
+g60_d1 V2 (some 3) :- g60_d0 _ V1, g60_e2 1, (V1 < 4 ; V1 = 1), g60_e0 V2.
 %output g60_d0.
 %output g60_d1.
-%output g60_w0.
-%output g60_wr.
 g61_e0 : box -> int -> rel.
 g61_e1 : int -> int -> int -> rel.
 %input g61_e1.
 g61_d0 : (a : box) -> (b : int) -> (c : option int) -> rel.
 g61_d1 : (a : int) -> rel.
+g61_xs : int -> int -> rel.
+g61_xr : int -> rel.
+g61_xm : option int -> rel.
 g61_e0 (mk 0) 4.
 g61_e0 (mk 1) (-3).
 g61_e0 (mk 4) 3.
@@ -1643,11 +1915,18 @@ g61_e0 (mk 4) 2.
 g61_e0 (mk 4) 4.
 g61_e0 (mk 2) 0.
 g61_e0 (mk 1) 4.
+g61_xs 4 0.
+g61_xs 3 4.
+g61_xm (some 0).
 g61_d0 (mk V1) V1 (some 0) :- g61_e1 V1 _ V1.
 g61_d0 (mk 1) V6 (some V4) :- g61_e1 _ V1 V2, g61_e1 V3 4 V1, g61_e1 2 V4 V1, g61_d0 V5 V6 V7, (V6 < (-1) ; V4 = 0).
 g61_d1 V1 :- g61_e0 _ V1, g61_d0 _ V1 V2.
+g61_xr N :- g61_xs M N, _X = some M.
+g61_xm (some N) :- g61_xr N.
 %output g61_d0.
 %output g61_d1.
+%output g61_xr.
+%output g61_xm.
 g62_e0 : int -> rel.
 %input g62_e0.
 g62_e1 : int -> int -> rel.
@@ -1676,8 +1955,15 @@ g63_e1 : string -> int -> int -> rel.
 g63_e2 : box -> list int -> rel.
 g63_d0 : (a : int) -> (b : string) -> rel.
 g63_d1 : (a : int) -> (b : option int) -> (c : int) -> rel.
-g63_d2 : (a : int) -> (b : list int) -> rel.
-g63_d3 : (a : box) -> rel.
+g63_d2 : (a : int) -> rel.
+g63_d3 : (a : option int) -> rel.
+g63_wg : int -> int -> int -> rel.
+g63_ws : int -> int -> rel.
+g63_w0 : (a : int) -> (b : max int) -> rel.
+g63_wr : int -> int -> rel.
+g63_xs : int -> int -> rel.
+g63_xr : int -> rel.
+g63_xm : option int -> rel.
 pt 1.
 pt 3.
 g63_e0 4 0 0.
@@ -1698,19 +1984,37 @@ g63_e2 (mk 4) (cons 3 (cons 3 (cons 2 nil))).
 g63_e2 (mk 3) (cons 1 nil).
 g63_e2 (mk 4) (cons 2 (cons 3 (cons 0 nil))).
 g63_e2 (mk 4) (cons 2 (cons 1 (cons 2 nil))).
+g63_wg 3 2 0.
+g63_wg 1 1 3.
+g63_wg 3 2 0.
+g63_wg 0 0 4.
+g63_ws 2 1.
+g63_ws 1 4.
+g63_xs 2 1.
+g63_xs 2 2.
+g63_xm (some 4).
 g63_d0 V2 V1 :- g63_e1 V1 V2 2.
 g63_d0 V3 "a" :- g63_e1 "" V1 V2, g63_e0 V3 V1 V1, not g63_e1 _ 3 V1.
 g63_d1 V3 (some V3) V3 :- g63_e2 V1 V2, g63_e0 2 V3 V3, V3 > 0, V3 >= 4.
 g63_d1 V2 (some V3) V2 :- g63_e1 V1 _ V2, g63_e1 V1 V3 _.
-g63_d1 V4 V7 V3 :- g63_e2 _ V1, g63_e1 V2 V3 V4, g63_d1 V5 V6 V3, nil = V1, V7 = some V4.
-g63_d2 V6 V5 :- g63_d1 V1 V2 V3, g63_e2 V4 V5, g63_d1 V6 _ V1, V9 = max { V7 | g63_e1 V8 V7 V6 ; g63_d0 V7 "a" }, not g63_e1 _ V1 V9, (V3 < 0 ; V9 = 3).
-g63_d2 V2 V4 :- g63_e0 V1 _ V2, g63_e2 V3 V4.
-g63_d3 (mk V2) :- g63_e0 V1 V1 V2, g63_e2 V3 nil, V1 = V1.
-g63_d3 (mk 3) :- g63_d2 (-1) _, g63_d3 V1, g63_e2 V2 V3.
+g63_d1 V3 V6 V5 :- g63_e2 _ V1, g63_e1 V2 V3 V4, g63_d1 V5 V6 V3, (cons 0 (cons 0 nil)) = V1, V7 = pt V4.
+g63_d2 V6 :- g63_d1 V1 V2 V3, g63_e2 V4 V5, g63_d1 V6 _ V1, V9 = max { V7 | g63_e1 V8 V7 V6 ; g63_d0 V7 "a" }, not g63_e1 _ V1 V9, (V3 < 0 ; V9 = 3).
+g63_d2 V4 :- g63_d0 V1 V2, g63_d0 V1 V3, g63_d0 V4 V3.
+g63_d3 none :- g63_e1 V1 V2 V3, g63_d0 V4 V5, not g63_d0 _ _.
+g63_d3 none :- g63_e0 _ 0 (-1), g63_e2 V1 nil, not g63_d1 _ _ _.
+g63_w0 K V :- g63_ws K V.
+g63_w0 L (V + C) :- g63_w0 K V, g63_wg K L C, V >= 4.
+g63_wr K V :- g63_w0 K V, V > 4.
+g63_xr N :- g63_xs M N, _X = some M.
+g63_xm (some N) :- g63_xr N.
 %output g63_d0.
 %output g63_d1.
 %output g63_d2.
 %output g63_d3.
+%output g63_w0.
+%output g63_wr.
+%output g63_xr.
+%output g63_xm.
 g64_e0 : box -> rel.
 g64_e1 : int -> int -> int -> rel.
 %input g64_e1.
@@ -1773,6 +2077,9 @@ g66_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
 g66_d2 : (a : color) -> (b : box) -> (c : int) -> rel.
 g66_counter : int -> rel.
 %terminates N (g66_counter N).
+g66_xs : int -> int -> rel.
+g66_xr : int -> rel.
+g66_xm : option int -> rel.
 pt 4.
 pt 1.
 g66_e0 blue.
@@ -1782,6 +2089,13 @@ g66_e1 1.
 g66_e1 2.
 g66_e1 0.
 g66_counter 2.
+g66_xs 0 0.
+g66_xs 1 3.
+g66_xs 3 4.
+g66_xs 3 1.
+g66_xs 2 3.
+g66_xs 3 3.
+g66_xm (some 4).
 g66_d0 (mk 2) :- g66_e0 V1, V1 = red.
 g66_d1 V1 V3 V1 :- g66_e1 V1, g66_e1 V1, V1 <= 4, V3 = max { V2 | g66_e1 V2 ; g66_e1 V2 }, not g66_d0 _.
 g66_d1 V3 V3 V3 :- g66_e0 V1, g66_d1 V2 V2 V3.
@@ -1789,10 +2103,14 @@ g66_d2 V2 V1 2 :- g66_d0 V1, not g66_e1 1, g66_e0 V2.
 g66_d2 V4 (mk V3) V3 :- g66_e1 V1, g66_d1 V1 V2 0, g66_e1 V2, V2 <> 0, V3 = V1 * V1, g66_e0 V4.
 g66_d2 V2 (mk (-1)) V1 :- g66_d0 _, g66_e1 V1, g66_e0 V2.
 g66_counter M :- g66_counter N, N < 6, M = N + 1.
+g66_xr N :- g66_xs M N, _X = some M.
+g66_xm (some N) :- g66_xr N.
 %output g66_d0.
 %output g66_d1.
 %output g66_d2.
 %output g66_counter.
+%output g66_xr.
+%output g66_xm.
 g67_e0 : color -> int -> rel.
 %input g67_e0.
 g67_e1 : list int -> list int -> rel.
@@ -1801,29 +2119,28 @@ g67_e2 : int -> int -> list int -> rel.
 %input g67_e2.
 g67_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g67_d1 : (a : color) -> (b : int) -> (c : int) -> rel.
-g67_d2 : (a : color) -> (b : option int) -> rel.
-g67_wg : int -> int -> int -> rel.
-g67_ws : int -> int -> rel.
-g67_w0 : (a : int) -> (b : max int) -> rel.
-g67_wr : int -> int -> rel.
+g67_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
+g67_xs : int -> int -> rel.
+g67_xr : int -> rel.
+g67_xm : option int -> rel.
 pt 2.
 pt 2.
 pt 0.
-g67_wg 4 3 3.
-g67_ws 0 2.
+g67_xs 4 1.
+g67_xs 2 4.
+g67_xs 2 4.
+g67_xm (some 2).
 g67_d0 V2 1 V2 :- g67_e0 V1 V2, g67_e2 _ V2 nil, not g67_e2 V2 V2 (cons 3 (cons 3 nil)).
 g67_d0 V2 3 4 :- g67_e1 V1 V1, len V1 V2.
-g67_d1 V5 V1 V1 :- g67_d0 V1 _ 4, g67_e1 V2 V3, V4 = cons V1 nil, g67_e0 V5 1.
-g67_d2 V1 V7 :- g67_d1 V1 0 V2, V4 = count { V3 | g67_e0 V3 _ }, V6 = count { V5 | g67_d1 V5 _ _ }, V7 = some V2.
-g67_d2 V1 V2 :- g67_d2 V1 V2, V1 <> blue.
-g67_w0 K V :- g67_ws K V.
-g67_w0 L (2 * V + C) :- g67_w0 K V, g67_wg K L C, V >= 1.
-g67_wr K V :- g67_w0 K V, V > 4.
+g67_d1 V5 V6 V6 :- g67_d0 V1 _ 4, g67_e1 V2 V3, V4 = pt V1, g67_e0 V5 V6.
+g67_d2 V1 V1 V1 :- g67_e2 V1 _ V2, g67_d0 _ V1 1.
+g67_xr N :- g67_xs M N, _X = some M.
+g67_xm (some N) :- g67_xr N.
 %output g67_d0.
 %output g67_d1.
 %output g67_d2.
-%output g67_w0.
-%output g67_wr.
+%output g67_xr.
+%output g67_xm.
 g68_e0 : int -> rel.
 g68_e1 : int -> int -> option int -> rel.
 %input g68_e1.
@@ -1834,6 +2151,9 @@ g68_wg : int -> int -> int -> rel.
 g68_ws : int -> int -> rel.
 g68_w0 : (a : int) -> (b : min int) -> rel.
 g68_wr : int -> int -> rel.
+g68_xs : int -> int -> rel.
+g68_xr : int -> rel.
+g68_xm : option int -> rel.
 pt 3.
 pt 4.
 g68_e0 2.
@@ -1848,6 +2168,11 @@ g68_wg 3 1 2.
 g68_wg 2 2 4.
 g68_ws 2 2.
 g68_ws 3 3.
+g68_xs 2 3.
+g68_xs 3 2.
+g68_xs 2 1.
+g68_xs 1 2.
+g68_xm (some 2).
 g68_d0 V3 V1 :- g68_e1 V1 V2 V3, not g68_e1 V2 V1 _, V2 >= 4, not g68_e0 _.
 g68_d0 (some V2) V2 :- g68_e1 V1 V2 _, g68_e0 V3, g68_e1 (-2) V1 _, (V1 < 0 ; V2 = 2).
 g68_d1 V2 :- g68_e1 V1 V2 V3, V2 <> 3, V2 = V2.
@@ -1858,11 +2183,15 @@ g68_w0 K V :- g68_ws K V.
 g68_w0 L (V + C) :- g68_w0 K V, g68_wg K L C, V <= 5.
 g68_w0 L (2 * V + C) :- g68_w0 K V, g68_wg K L C.
 g68_wr K V :- g68_w0 K V, V < 4.
+g68_xr N :- g68_xs M N, _X = some M.
+g68_xm (some N) :- g68_xr N.
 %output g68_d0.
 %output g68_d1.
 %output g68_d2.
 %output g68_w0.
 %output g68_wr.
+%output g68_xr.
+%output g68_xm.
 g69_e0 : int -> string -> int -> rel.
 g69_e1 : int -> int -> int -> rel.
 g69_e2 : int -> int -> rel.
@@ -1872,8 +2201,10 @@ g69_counter : int -> rel.
 g69_wg : int -> int -> int -> rel.
 g69_ws : int -> int -> rel.
 g69_w0 : (a : int) -> (b : min int) -> rel.
-g69_w1 : (a : int) -> (b : max int) -> rel.
 g69_wr : int -> int -> rel.
+g69_xs : int -> int -> rel.
+g69_xr : int -> rel.
+g69_xm : option int -> rel.
 pt 1.
 g69_e0 1 "a" 3.
 g69_e0 1 "c" 4.
@@ -1886,28 +2217,30 @@ g69_e1 4 0 2.
 g69_e1 1 (-1) 4.
 g69_e2 1 0.
 g69_counter 2.
-g69_wg 4 4 (-2).
-g69_wg 1 4 1.
-g69_wg 3 2 4.
-g69_wg 2 1 (-3).
-g69_wg 4 3 0.
-g69_wg 4 1 1.
-g69_ws 2 2.
-g69_ws 1 1.
-g69_d0 V1 3 V1 :- g69_e2 V1 0, V2 = some V1, not g69_e2 V1 V1, V1 <> 1.
-g69_d0 V3 V2 V3 :- g69_e0 _ V1 V2, g69_e1 _ _ _, not g69_e1 V2 (-2) 3, V3 = V2 - 2, V4 = some V3.
-g69_counter M :- g69_counter N, N < 2, M = N + 1.
+g69_wg 3 3 (-1).
+g69_wg 1 0 3.
+g69_wg 2 2 1.
+g69_ws 1 2.
+g69_ws 2 1.
+g69_xs 2 4.
+g69_xs 4 0.
+g69_xs 0 3.
+g69_xm (some 1).
+g69_d0 V5 V5 V1 :- g69_e2 V1 0, V2 = pt V1, V5 = count { V3 | g69_e0 2 _ V3 ; (g69_e0 _ V4 V3, V3 > 1) }.
+g69_d0 V3 V1 V1 :- g69_e0 V1 V2 V3, g69_e0 3 V4 V5, V1 < 2, not g69_e0 V5 V2 _.
+g69_counter M :- g69_counter N, N < 4, M = N + 1.
 g69_w0 K V :- g69_ws K V.
-g69_w0 L (V + C) :- g69_w0 K V, g69_wg K L C, V <= 6.
-g69_w0 L (V + C) :- g69_w0 K V, g69_wg K L C, V <= 2.
-g69_w1 K (0 - V) :- g69_w0 K V.
-g69_w0 K (3 - V) :- g69_w1 K V.
-g69_wr K V :- g69_w0 K V, V < (-2).
+g69_w0 L (V + C) :- g69_w0 K V, g69_wg K L C.
+g69_w0 L (2 * V + C) :- g69_w0 K V, g69_wg K L C.
+g69_wr K V :- g69_w0 K V, V < 4.
+g69_xr N :- g69_xs M N, _X = some M.
+g69_xm (some N) :- g69_xr N.
 %output g69_d0.
 %output g69_counter.
-%output g69_w1.
 %output g69_w0.
 %output g69_wr.
+%output g69_xr.
+%output g69_xm.
 g70_e0 : int -> int -> rel.
 g70_e1 : color -> color -> string -> rel.
 g70_d0 : (a : int) -> rel.
@@ -1941,6 +2274,9 @@ g71_wg : int -> int -> int -> rel.
 g71_ws : int -> int -> rel.
 g71_w0 : (a : int) -> (b : min int) -> rel.
 g71_wr : int -> int -> rel.
+g71_xs : int -> int -> rel.
+g71_xr : int -> rel.
+g71_xm : option int -> rel.
 g71_e0 3 (mk (-1)).
 g71_e0 4 (mk 4).
 g71_e0 0 (mk 3).
@@ -1950,26 +2286,59 @@ g71_wg 1 3 4.
 g71_wg 2 0 4.
 g71_ws 1 3.
 g71_ws 0 4.
+g71_xs 3 1.
+g71_xs 4 2.
+g71_xm (some 3).
 g71_d0 (mk V2) (some V2) :- g71_e1 V1 V2, g71_e0 _ V3, g71_e1 V2 V1.
 g71_w0 K V :- g71_ws K V.
 g71_w0 L (V + C) :- g71_w0 K V, g71_wg K L C.
 g71_wr K V :- g71_w0 K V, V < (-2).
+g71_xr N :- g71_xs M N, _X = some M.
+g71_xm (some N) :- g71_xr N.
 %output g71_d0.
 %output g71_w0.
 %output g71_wr.
+%output g71_xr.
+%output g71_xm.
 g72_e0 : int -> int -> rel.
 %input g72_e0.
 g72_d0 : (a : box) -> (b : int) -> (c : int) -> rel.
-g72_d1 : (a : int) -> (b : int) -> rel.
+g72_d1 : (a : option int) -> (b : box) -> (c : int) -> rel.
+g72_wg : int -> int -> int -> rel.
+g72_ws : int -> int -> rel.
+g72_w0 : (a : int) -> (b : max int) -> rel.
+g72_w1 : (a : int) -> (b : min int) -> rel.
+g72_wr : int -> int -> rel.
+g72_xs : int -> int -> rel.
+g72_xr : int -> rel.
+g72_xm : option int -> rel.
 pt 3.
 pt 0.
 pt 4.
+g72_wg 2 1 4.
+g72_ws 3 3.
+g72_xs 0 0.
+g72_xs 1 2.
+g72_xm (some 0).
 g72_d0 (mk 2) V1 V1 :- g72_e0 V1 1, (V1 < 2 ; V1 = 1).
-g72_d0 (mk V3) V2 V3 :- g72_e0 V1 V2, g72_e0 V1 V3, g72_e0 V4 V1, V5 = cons V3 nil, V4 >= V1.
-g72_d1 V2 V3 :- g72_d0 V1 V2 V3, g72_e0 V4 V4, g72_e0 V5 _, V6 = cons V5 nil, V6 <> (nil : list int).
-g72_d1 V2 3 :- g72_d1 1 _, g72_d0 V1 _ V2, g72_d1 V3 V3.
+g72_d0 (mk 2) V4 V4 :- g72_e0 V1 V2, g72_e0 V1 V3, g72_e0 V4 V1, V5 = pt V3, V7 = count { V6 | g72_e0 V6 0 }.
+g72_d1 (some V2) (mk 4) 1 :- g72_d0 _ V1 3, not g72_e0 _ _, V2 = V1 * 0.
+g72_d1 (some 0) (mk 0) V3 :- g72_e0 V1 V2, g72_e0 V2 V3, V4 = pt V3.
+g72_w0 K V :- g72_ws K V.
+g72_w0 L (2 * V + C) :- g72_w0 K V, g72_wg K L C.
+g72_w0 L (V + C) :- g72_w0 K V, g72_wg K L C.
+g72_w1 K (0 - V) :- g72_w0 K V.
+g72_w0 K (1 - V) :- g72_w1 K V.
+g72_wr K V :- g72_w0 K V, V > 1.
+g72_xr N :- g72_xs M N, _X = some M.
+g72_xm (some N) :- g72_xr N.
 %output g72_d0.
 %output g72_d1.
+%output g72_w1.
+%output g72_w0.
+%output g72_wr.
+%output g72_xr.
+%output g72_xm.
 g73_e0 : int -> int -> box -> rel.
 g73_e1 : int -> box -> option int -> rel.
 g73_e2 : color -> option int -> color -> rel.
@@ -2024,26 +2393,46 @@ g74_e1 : int -> int -> rel.
 %input g74_e1.
 g74_d0 : (a : color) -> rel.
 g74_d1 : (a : box) -> rel.
-g74_d2 : (a : int) -> (b : int) -> rel.
-g74_counter : int -> rel.
-%terminates N (g74_counter N).
+g74_d2 : (a : int) -> (b : box) -> rel.
+g74_wg : int -> int -> int -> rel.
+g74_ws : int -> int -> rel.
+g74_w0 : (a : int) -> (b : max int) -> rel.
+g74_w1 : (a : int) -> (b : min int) -> rel.
+g74_wr : int -> int -> rel.
+g74_xs : int -> int -> rel.
+g74_xr : int -> rel.
+g74_xm : option int -> rel.
 pt 4.
 pt 4.
 pt 1.
-g74_counter 0.
-g74_d0 V3 :- g74_e1 V1 V2, g74_e0 _ V3, g74_e1 V4 4, V5 = cons V4 nil, V1 >= V1, V6 = V4 + 2.
-g74_d0 V2 :- g74_e0 V1 V2, g74_e1 V1 V3, g74_e1 V4 V4, V1 = V4.
-g74_d1 (mk 2) :- g74_d0 _, g74_d0 V1, g74_e0 V2 V3, V1 = blue, (V2 < 4 ; V2 = 0), V2 = 3.
-g74_d1 V1 :- g74_d1 V1, g74_e0 V2 V3, V2 >= 4.
-g74_d1 V2 :- g74_d1 _, g74_e1 V1 V1, g74_d1 V2, V1 = 2.
-g74_d2 V1 V1 :- g74_e1 _ V1, g74_d0 red.
-g74_d2 V2 V2 :- g74_d1 V1, g74_e1 V2 V3.
-g74_d2 4 3 :- g74_e0 _ V1.
-g74_counter M :- g74_counter N, N < 7, M = N + 1.
+g74_wg 2 1 4.
+g74_wg 0 0 2.
+g74_ws 0 4.
+g74_ws 0 1.
+g74_xs 1 4.
+g74_xs 1 1.
+g74_xm (some 3).
+g74_d0 V3 :- g74_e1 V1 V2, g74_e0 _ V3, g74_e1 V4 4, V5 = pt V4, not g74_e1 V1 _, (V4 < 0 ; V1 = (-2)).
+g74_d0 V3 :- g74_e1 V1 V1, g74_e1 V1 1, g74_e0 V2 V3.
+g74_d1 (mk 1) :- g74_d0 blue, g74_d0 _, g74_d0 V1, (V1 = blue ; V1 = green).
+g74_d1 (mk 4) :- g74_d0 V1, g74_d1 _, not g74_e1 _ 4, V3 = count { V2 | (g74_e1 V2 _, V2 <> 3) ; g74_e0 V2 V1 }.
+g74_d2 3 V1 :- g74_d1 V1, not g74_d1 _, not g74_e1 1 _.
+g74_d2 V1 (mk V1) :- g74_e0 V1 V2, g74_d2 V1 V3, V1 <= 0, V1 < 3.
+g74_w0 K V :- g74_ws K V.
+g74_w0 L (2 * V + C) :- g74_w0 K V, g74_wg K L C, V >= 4.
+g74_w1 K (0 - V) :- g74_w0 K V.
+g74_w0 K (2 - V) :- g74_w1 K V.
+g74_wr K V :- g74_w0 K V, V > 1.
+g74_xr N :- g74_xs M N, _X = some M.
+g74_xm (some N) :- g74_xr N.
 %output g74_d0.
 %output g74_d1.
 %output g74_d2.
-%output g74_counter.
+%output g74_w1.
+%output g74_w0.
+%output g74_wr.
+%output g74_xr.
+%output g74_xm.
 g75_e0 : string -> rel.
 %input g75_e0.
 g75_d0 : (a : string) -> rel.
@@ -2063,7 +2452,7 @@ g75_wg 2 0 3.
 g75_ws 3 3.
 g75_d0 V1 :- g75_e0 V1, g75_e0 V2.
 g75_d1 "c" "c" (mk 3) :- g75_d0 "b", g75_e0 "c".
-g75_d1 V2 V1 (mk 1) :- g75_e0 V1, g75_e0 V2, g75_e0 V1, V1 <> V2.
+g75_d1 V2 V1 (mk 1) :- g75_e0 V1, g75_e0 V2, g75_e0 V1, V1 = V2.
 g75_d1 V1 V1 (mk 2) :- g75_e0 V1, g75_d0 V1, g75_d0 V1, V1 = "".
 g75_d2 (mk 1) (some 4) (mk 2) :- g75_d1 V1 V2 _, not g75_d0 V1, V1 <> "c".
 g75_d2 (mk 1) (some 1) (mk 0) :- g75_d0 V1, g75_e0 V1, g75_d0 "", V1 <> "b", V1 <> "".
@@ -2088,6 +2477,9 @@ g76_ws : int -> int -> rel.
 g76_w0 : (a : int) -> (b : max int) -> rel.
 g76_w1 : (a : int) -> (b : min int) -> rel.
 g76_wr : int -> int -> rel.
+g76_xs : int -> int -> rel.
+g76_xr : int -> rel.
+g76_xm : option int -> rel.
 g76_e0 (cons 1 (cons 1 nil)) (cons 2 (cons 1 nil)).
 g76_e0 (cons 3 nil) nil.
 g76_e0 nil nil.
@@ -2103,16 +2495,22 @@ g76_wg 4 4 1.
 g76_wg 3 2 1.
 g76_ws 2 3.
 g76_ws 0 4.
+g76_xs 0 1.
+g76_xm (some 2).
 g76_d0 V4 (mk 4) (mk 3) :- g76_e0 (cons V1 V2) nil, g76_e0 _ V3, g76_e0 (cons 2 (cons 3 nil)) V4, V1 = 2.
 g76_w0 K V :- g76_ws K V.
 g76_w0 L (V + C) :- g76_w0 K V, g76_wg K L C.
 g76_w1 K (0 - V) :- g76_w0 K V.
 g76_w0 K (1 - V) :- g76_w1 K V.
 g76_wr K V :- g76_w0 K V, V > 1.
+g76_xr N :- g76_xs M N, _X = some M.
+g76_xm (some N) :- g76_xr N.
 %output g76_d0.
 %output g76_w1.
 %output g76_w0.
 %output g76_wr.
+%output g76_xr.
+%output g76_xm.
 g77_e0 : int -> rel.
 g77_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
 g77_e0 0.
@@ -2124,19 +2522,28 @@ g77_d0 V4 V1 1 :- g77_d0 V1 V1 V2, g77_e0 V2, g77_d0 V3 V4 V1.
 g78_e0 : int -> int -> rel.
 g78_d0 : (a : int) -> (b : int) -> (c : option int) -> rel.
 g78_d1 : (a : int) -> rel.
+g78_xs : int -> int -> rel.
+g78_xr : int -> rel.
+g78_xm : option int -> rel.
 pt 4.
 pt 3.
 pt 0.
 g78_e0 0 3.
 g78_e0 3 2.
 g78_e0 2 4.
+g78_xs 1 3.
+g78_xm (some 2).
 g78_d0 V1 V1 (some V2) :- g78_e0 2 1, g78_e0 4 _, g78_e0 V1 V2.
 g78_d0 V3 V2 (some V2) :- g78_e0 V1 V2, g78_e0 V3 V4, (V2 < 3 ; V4 = 0).
 g78_d1 V3 :- g78_e0 V1 V1, g78_d0 _ V1 V2, g78_e0 V3 V4, not g78_e0 _ _, V4 = 1.
 g78_d1 V4 :- g78_d0 V1 4 V2, g78_d0 V3 2 _, g78_e0 4 _, g78_d1 V4.
 g78_d1 V1 :- g78_e0 V1 V1, g78_d1 0, V3 = count { V2 | g78_e0 3 V2 ; g78_e0 _ V2 }, (V3 < 3 ; V3 = 2), not g78_e0 V1 _.
+g78_xr N :- g78_xs M N, _X = some M.
+g78_xm (some N) :- g78_xr N.
 %output g78_d0.
 %output g78_d1.
+%output g78_xr.
+%output g78_xm.
 g79_e0 : int -> int -> rel.
 g79_e1 : int -> int -> rel.
 g79_d0 : (a : int) -> rel.
@@ -2144,6 +2551,9 @@ g79_d1 : (a : box) -> rel.
 g79_d2 : (a : int) -> (b : option int) -> (c : int) -> rel.
 g79_counter : int -> rel.
 %terminates N (g79_counter N).
+g79_xs : int -> int -> rel.
+g79_xr : int -> rel.
+g79_xm : option int -> rel.
 g79_e0 4 3.
 g79_e0 2 2.
 g79_e0 4 3.
@@ -2153,16 +2563,25 @@ g79_e0 1 4.
 g79_e1 (-3) 4.
 g79_e1 (-3) 4.
 g79_counter 0.
+g79_xs 2 0.
+g79_xs 1 2.
+g79_xs 2 4.
+g79_xs 4 3.
+g79_xm (some 2).
 g79_d0 V1 :- g79_e1 V1 3, g79_e0 V2 3.
 g79_d1 (mk 3) :- g79_d0 1.
 g79_d2 V2 (some V2) V2 :- g79_e1 V1 _, g79_e1 V2 4, (V2 < 2 ; V2 = 2).
 g79_d2 4 (some 2) 2 :- g79_d0 2, g79_e1 _ _, not g79_e0 _ _.
 g79_d2 V3 (some 2) V2 :- g79_d0 _, g79_e0 V1 V2, V1 < V2, V3 = V1 + V1.
 g79_counter M :- g79_counter N, N < 6, M = N + 2.
+g79_xr N :- g79_xs M N, _X = some M.
+g79_xm (some N) :- g79_xr N.
 %output g79_d0.
 %output g79_d1.
 %output g79_d2.
 %output g79_counter.
+%output g79_xr.
+%output g79_xm.
 g80_e0 : option int -> int -> rel.
 g80_e1 : int -> int -> list int -> rel.
 g80_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
@@ -2218,34 +2637,35 @@ g82_d0 V3 :- g82_e0 V1 V2, g82_e1 0 (cons 3 (cons 2 nil)), g82_e1 V3 (cons 2 (co
 %output g82_d0.
 g83_e0 : int -> list int -> rel.
 g83_d0 : (a : box) -> (b : int) -> (c : int) -> rel.
-g83_d1 : (a : int) -> (b : int) -> rel.
+g83_d1 : (a : box) -> (b : int) -> rel.
+g83_counter : int -> rel.
+%terminates N (g83_counter N).
 g83_wg : int -> int -> int -> rel.
 g83_ws : int -> int -> rel.
-g83_w0 : (a : int) -> (b : min int) -> rel.
-g83_w1 : (a : int) -> (b : max int) -> rel.
+g83_w0 : (a : int) -> (b : max int) -> rel.
 g83_wr : int -> int -> rel.
 pt 1.
 pt 4.
 g83_e0 4 nil.
 g83_e0 2 nil.
 g83_e0 3 nil.
-g83_wg 3 4 2.
-g83_wg 1 4 3.
-g83_wg 3 3 2.
-g83_ws 0 2.
-g83_ws 3 4.
-g83_d0 (mk 2) V1 V1 :- g83_e0 V1 V2, V3 = some V1, V1 <= (-3).
-g83_d0 (mk 3) V2 V2 :- g83_e0 _ V1, g83_e0 V2 (cons 3 (cons 3 nil)), (V2 < 0 ; V2 = 4), len V1 V3, len V1 V4.
-g83_d0 (mk 0) V3 V3 :- g83_e0 V1 _, V3 = count { V2 | g83_e0 V2 (cons 0 (cons 2 nil)) }.
-g83_d1 V1 V1 :- g83_d0 _ V1 V1, not g83_d0 _ _ 1.
+g83_counter 2.
+g83_wg 1 3 3.
+g83_wg 4 3 3.
+g83_ws 4 1.
+g83_d0 (mk 4) V1 V1 :- g83_e0 V1 V2, V3 = cons V1 nil, not g83_e0 _ V2.
+g83_d0 (mk 0) V7 V1 :- g83_e0 V1 V2, g83_e0 0 (cons 2 (cons 3 (cons 3 nil))), g83_e0 V3 V2, V4 = V1 * 3, len V2 V5, V7 = count { V6 | (g83_e0 V6 V2, V6 < 0) }, len V2 V8.
+g83_d0 (mk 2) V1 V1 :- g83_e0 V1 _, g83_e0 V2 V3, g83_e0 2 V3, V4 = cons V2 nil, V1 >= 2, V6 = count { V5 | (g83_e0 V5 _, V5 <> 4) ; g83_e0 V5 _ }.
+g83_d1 V1 V3 :- g83_d0 V1 _ V2, g83_e0 V3 V4, g83_e0 V5 (cons 2 (cons 2 (cons 1 nil))).
+g83_d1 V2 (-2) :- g83_e0 V1 (cons V1 _), g83_d1 V2 V3.
+g83_d1 (mk V3) V1 :- g83_e0 V1 V2, g83_d0 _ V1 V3, g83_d1 V4 V1.
+g83_counter M :- g83_counter N, N < 6, M = N + 2.
 g83_w0 K V :- g83_ws K V.
-g83_w0 L (2 * V + C) :- g83_w0 K V, g83_wg K L C, V <= 5.
-g83_w1 K (0 - V) :- g83_w0 K V.
-g83_w0 K (3 - V) :- g83_w1 K V.
-g83_wr K V :- g83_w0 K V, V < 2.
+g83_w0 L (V + C) :- g83_w0 K V, g83_wg K L C, V >= 0.
+g83_wr K V :- g83_w0 K V, V > 1.
 %output g83_d0.
 %output g83_d1.
-%output g83_w1.
+%output g83_counter.
 %output g83_w0.
 %output g83_wr.
 g84_e0 : box -> rel.
@@ -2382,8 +2802,8 @@ g87_d1 1 V2 V3 :- g87_e1 V1, g87_e2 V1, g87_e0 V1 V2 V3.
 g87_d1 V1 V2 V3 :- g87_e2 V1, g87_d0 V2 V3.
 g87_d1 V1 V2 V1 :- g87_e2 V1, g87_e1 V1, g87_d0 V2 _.
 g87_d2 (some V2) :- g87_e0 _ V1 V2.
-g87_d2 (some V2) :- g87_d1 0 V1 V2, V2 >= 2, V3 = some V2, (V2 < 3 ; V2 = 2).
-g87_d2 (some V2) :- g87_e1 V1, g87_e2 V2, g87_e2 V2, V3 = cons V1 nil.
+g87_d2 (some 4) :- g87_d1 0 V1 V2, V2 >= 2, V3 = cons V2 nil, V4 = pt V2.
+g87_d2 (some 4) :- g87_e1 V1, g87_e2 V2, g87_e2 V2, V3 = pt V1.
 %output g87_d0.
 %output g87_d1.
 %output g87_d2.
@@ -2393,11 +2813,14 @@ g88_e2 : int -> color -> int -> rel.
 g88_d0 : (a : option int) -> rel.
 g88_d1 : (a : int) -> rel.
 g88_d2 : (a : color) -> rel.
-g88_d3 : (a : int) -> (b : box) -> rel.
+g88_d3 : (a : int) -> rel.
 g88_wg : int -> int -> int -> rel.
 g88_ws : int -> int -> rel.
-g88_w0 : (a : int) -> (b : min int) -> rel.
+g88_w0 : (a : int) -> (b : max int) -> rel.
 g88_wr : int -> int -> rel.
+g88_xs : int -> int -> rel.
+g88_xr : int -> rel.
+g88_xm : option int -> rel.
 g88_e0 (-2).
 g88_e0 3.
 g88_e0 2.
@@ -2413,35 +2836,46 @@ g88_e2 0 blue 4.
 g88_e2 4 blue 1.
 g88_e2 3 green 4.
 g88_e2 2 red 4.
-g88_wg 3 4 0.
-g88_wg 3 0 (-1).
-g88_wg 0 3 2.
-g88_wg 1 1 2.
-g88_wg 0 1 3.
-g88_ws 1 0.
+g88_wg 3 0 3.
+g88_wg 2 1 0.
+g88_ws 1 3.
+g88_ws 3 4.
+g88_xs 2 3.
+g88_xs 3 1.
+g88_xs 1 3.
+g88_xm (some 2).
 g88_d0 (some (-1)) :- g88_e2 V1 V2 _, g88_e0 V1, not g88_e2 _ red V1.
-g88_d0 V2 :- g88_d0 _, g88_e0 V1, g88_d0 V2, V3 = some V1.
-g88_d1 V4 :- g88_d0 V1, g88_e2 V2 V3 V4, g88_e1 _.
-g88_d2 V2 :- g88_e2 V1 V2 V1, g88_e1 V1, (V1 < (-3) ; V1 = 4), (V1 < 1 ; V1 = 1), V4 = min { V3 | g88_d1 V3 }.
-g88_d2 V1 :- g88_e2 2 V1 V2, g88_e1 V3, g88_d1 V3, V4 = cons V2 nil.
-g88_d3 V2 (mk V2) :- g88_d0 V1, g88_d0 V1, g88_d1 V2.
+g88_d0 V2 :- g88_d0 _, g88_e0 V1, g88_d0 V2, V3 = pt V1.
+g88_d1 V2 :- g88_e1 V1, g88_e0 V2, V1 >= 2, not g88_d0 _.
+g88_d1 V2 :- g88_d0 V1, g88_e2 V2 V3 V2.
+g88_d1 V1 :- g88_e0 V1, V4 = count { V2 | g88_e2 _ V3 V2 }, V6 = min { V5 | (g88_e0 V5, V5 > 4) }.
+g88_d2 V6 :- g88_d1 V1, g88_e0 V1, V3 = min { V2 | g88_e1 V2 }, (V1 < 3 ; V1 = 0), V5 = count { V4 | g88_e1 V4 }, g88_e2 V3 V6 _.
+g88_d3 0 :- g88_d1 1.
+g88_d3 3 :- g88_e2 V1 V2 V3, g88_e1 V3, V6 = sum { V4 | g88_e2 V3 V5 V4 }, (V6 < 0 ; V6 = 2), V7 = V6 * 3.
 g88_w0 K V :- g88_ws K V.
-g88_w0 L (V + C) :- g88_w0 K V, g88_wg K L C, V <= 6.
-g88_w0 L (V + C) :- g88_w0 K V, g88_wg K L C, V <= 0.
-g88_wr K V :- g88_w0 K V, V < 1.
+g88_w0 L (V + C) :- g88_w0 K V, g88_wg K L C.
+g88_wr K V :- g88_w0 K V, V > 2.
+g88_xr N :- g88_xs M N, _X = some M.
+g88_xm (some N) :- g88_xr N.
 %output g88_d0.
 %output g88_d1.
 %output g88_d2.
 %output g88_d3.
 %output g88_w0.
 %output g88_wr.
+%output g88_xr.
+%output g88_xm.
 g89_e0 : int -> list int -> color -> rel.
 g89_e1 : box -> int -> rel.
 g89_e2 : color -> int -> option int -> rel.
 g89_d0 : (a : option int) -> (b : int) -> (c : int) -> rel.
 g89_d1 : (a : int) -> (b : option int) -> (c : int) -> rel.
-g89_d2 : (a : list int) -> (b : color) -> rel.
-g89_d3 : (a : int) -> (b : int) -> rel.
+g89_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
+g89_d3 : (a : int) -> (b : int) -> (c : int) -> rel.
+g89_wg : int -> int -> int -> rel.
+g89_ws : int -> int -> rel.
+g89_w0 : (a : int) -> (b : max int) -> rel.
+g89_wr : int -> int -> rel.
 g89_e0 2 (cons 2 (cons 1 nil)) green.
 g89_e0 2 (cons 0 nil) blue.
 g89_e1 (mk 2) 0.
@@ -2449,16 +2883,28 @@ g89_e2 blue 3 (some 2).
 g89_e2 green 0 (some (-2)).
 g89_e2 red 1 (some 3).
 g89_e2 red 4 none.
+g89_wg 1 2 2.
+g89_wg 0 3 0.
+g89_wg 0 3 1.
+g89_wg 4 1 4.
+g89_ws 0 4.
+g89_ws 3 (-3).
 g89_d0 (some 2) V2 V2 :- g89_e1 V1 V2, g89_e1 V3 (-2).
-g89_d1 V1 (some V1) V5 :- g89_e1 _ V1, g89_e1 V2 4, V3 = cons V1 nil, V1 >= 2, V5 = count { V4 | (g89_e1 _ V4, V4 <> (-2)) ; g89_e0 V4 _ _ }.
-g89_d1 V1 (some V1) V8 :- g89_e1 _ V1, g89_e1 V2 1, g89_d1 V1 V3 V1, V4 = pt V1, V8 = min { V5 | g89_e1 V6 V5 ; g89_d0 V7 V5 V1 }, V9 = pt V1.
-g89_d2 V5 V6 :- g89_d1 V1 V2 V3, g89_e0 V4 V5 blue, g89_e2 V6 V7 _.
-g89_d3 V2 4 :- g89_d0 V1 _ V2.
-g89_d3 V2 V2 :- g89_e1 V1 V2, g89_d2 nil V3.
+g89_d1 V5 (some 1) V1 :- g89_e1 _ V1, g89_e1 V2 4, V3 = cons V1 nil, V5 = max { V4 | (g89_e1 _ V4, V4 <> 4) ; g89_e2 green V4 _ }, not g89_e1 V2 V5.
+g89_d1 V5 V1 V5 :- g89_d0 V1 _ V2, V5 = sum { V3 | g89_e0 V3 V4 red }.
+g89_d2 V4 V1 V4 :- g89_d1 V1 V2 V1, g89_d0 V2 V3 V4, V5 = pt V4.
+g89_d3 0 3 0 :- g89_d0 _ _ 3, g89_d1 _ V1 V2, not g89_d0 V1 V2 _, V3 = pt V2, V5 = count { V4 | g89_e0 _ (cons 0 nil) V4 ; g89_e2 V4 3 V1 }.
+g89_d3 V4 V4 2 :- g89_e0 V1 V2 green, len V2 V3, not g89_e2 _ V1 _, len V2 V4.
+g89_w0 K V :- g89_ws K V.
+g89_w0 L (V + C) :- g89_w0 K V, g89_wg K L C.
+g89_w0 L (2 * V + C) :- g89_w0 K V, g89_wg K L C, V >= 2.
+g89_wr K V :- g89_w0 K V, V > (-2).
 %output g89_d0.
 %output g89_d1.
 %output g89_d2.
 %output g89_d3.
+%output g89_w0.
+%output g89_wr.
 g90_e0 : color -> rel.
 g90_e1 : option int -> color -> rel.
 g90_d0 : (a : option int) -> rel.
@@ -2595,30 +3041,34 @@ g94_d0 : (a : int) -> (b : box) -> rel.
 g94_d1 : (a : int) -> (b : color) -> (c : option int) -> rel.
 g94_d2 : (a : option int) -> (b : option int) -> rel.
 g94_d3 : (a : int) -> rel.
-g94_counter : int -> rel.
-%terminates N (g94_counter N).
+g94_xs : int -> int -> rel.
+g94_xr : int -> rel.
+g94_xm : option int -> rel.
 pt 4.
 g94_e0 1 1 green.
 g94_e0 4 (-2) blue.
-g94_counter 0.
+g94_xs 1 3.
+g94_xm (some 3).
 g94_d0 V3 (mk 2) :- g94_e0 V1 1 V2, g94_e0 3 V3 V4.
-g94_d0 V2 (mk V3) :- g94_e0 V1 V2 red, g94_e0 V3 _ _, V4 = pt V3.
-g94_d0 V1 (mk 4) :- g94_e0 V1 1 green, g94_e0 V2 V3 V4, g94_e0 V5 V6 V4, V8 = min { V7 | g94_e0 V3 V7 V4 }, V10 = count { V9 | g94_e0 V9 _ V4 }, V13 = count { V11 | g94_e0 V11 V12 green }.
+g94_d0 V2 (mk 0) :- g94_e0 V1 V2 red, g94_e0 V3 _ _, V4 = cons V3 nil.
+g94_d0 V1 (mk 4) :- g94_e0 V1 _ green, g94_e0 V2 V3 V4, g94_e0 V5 V6 V4, V8 = min { V7 | g94_e0 V3 V7 V4 }, V10 = count { V9 | g94_e0 V9 _ V4 }, V13 = count { V11 | g94_e0 V11 V12 green }.
 g94_d1 4 V2 (some 2) :- g94_e0 V1 1 V2, g94_e0 V3 V3 V2.
 g94_d1 V4 V2 (some 2) :- g94_e0 1 V1 V2, g94_e0 V1 V3 _, g94_e0 V4 V1 V2, not g94_e0 V3 V4 _.
 g94_d1 V4 V5 (some V1) :- g94_e0 2 V1 _, g94_d0 V1 V2, V3 = V1 - 1, V3 < V3, V1 < 4, g94_e0 V3 V4 V5.
 g94_d2 V2 V2 :- g94_d1 3 V1 V2, (V1 = green ; V1 = red).
 g94_d2 (some V10) (some V10) :- g94_e0 _ V1 V2, g94_e0 V1 V3 _, g94_d1 V4 V5 V6, V10 = count { V7 | g94_d1 V7 V8 V6 ; g94_e0 V7 V9 V2 }, (V3 < 0 ; V10 = (-2)).
 g94_d2 (some 3) (some V1) :- g94_e0 V1 V1 blue, g94_e0 V1 V2 V3, g94_d0 V4 _.
-g94_d3 V1 :- g94_d0 V1 V2, V3 = cons V1 nil.
-g94_d3 V3 :- g94_e0 _ _ red, g94_e0 V1 _ V2, g94_d3 V3, V4 = some V1.
-g94_d3 V3 :- g94_d1 2 V1 V2, g94_d3 V3, not g94_d1 _ V1 V2, (V3 < 2 ; V3 = 1).
-g94_counter M :- g94_counter N, N < 1, M = N + 1.
+g94_d3 V1 :- g94_d0 V1 V2, V3 = cons V1 nil, V4 = cons V1 nil.
+g94_d3 V1 :- g94_d3 V1.
+g94_d3 V1 :- g94_d3 V1, g94_d0 V1 V2, g94_e0 4 V3 V4.
+g94_xr N :- g94_xs M N, _X = some M.
+g94_xm (some N) :- g94_xr N.
 %output g94_d0.
 %output g94_d1.
 %output g94_d2.
 %output g94_d3.
-%output g94_counter.
+%output g94_xr.
+%output g94_xm.
 g95_e0 : color -> option int -> int -> rel.
 %input g95_e0.
 g95_d0 : (a : color) -> (b : int) -> (c : box) -> rel.
@@ -2637,7 +3087,7 @@ g96_e1 : box -> rel.
 g96_e2 : list int -> rel.
 g96_d0 : (a : color) -> rel.
 g96_d1 : (a : int) -> rel.
-g96_d2 : (a : int) -> (b : color) -> (c : int) -> rel.
+g96_d2 : (a : color) -> rel.
 pt 1.
 g96_e1 (mk (-1)).
 g96_e1 (mk 4).
@@ -2649,9 +3099,10 @@ g96_d0 V3 :- g96_e0 _ 0 _, g96_e2 V1, g96_e0 V2 V2 V3.
 g96_d0 V3 :- g96_e2 V1, g96_e0 V2 V2 V3.
 g96_d0 V1 :- g96_e0 (-2) _ V1, V1 = red.
 g96_d1 V4 :- g96_e0 V1 V2 V3, g96_e0 4 V4 V5, V8 = min { V6 | (g96_e0 V6 V1 V7, V6 > 2) }.
-g96_d1 V1 :- g96_e2 (cons V1 V2), g96_e2 V3, g96_e1 _, V4 = some V1, V1 > 3, V1 < 4, len V3 V5.
-g96_d1 1 :- g96_e1 _.
-g96_d2 4 V2 V1 :- g96_e0 V1 V1 V2, g96_d0 V2, g96_e1 _.
+g96_d1 V1 :- g96_e2 (cons V1 V2), g96_e2 V3, g96_e1 _, V4 = cons V1 nil, len V2 V5, not g96_e1 _.
+g96_d1 2 :- g96_d0 V1, g96_d0 V2.
+g96_d2 V2 :- g96_e0 0 V1 V2, V4 = count { V3 | g96_e1 V3 ; g96_e1 V3 }.
+g96_d2 V4 :- g96_e2 V1, g96_e0 V2 V3 V4, g96_e1 V5, not g96_d1 _, not g96_d1 V2, len V1 V6.
 %output g96_d0.
 %output g96_d1.
 %output g96_d2.
@@ -2662,14 +3113,11 @@ g97_d0 : (a : int) -> (b : option int) -> (c : int) -> rel.
 g97_d1 : (a : box) -> (b : int) -> rel.
 g97_d2 : (a : string) -> rel.
 g97_d3 : (a : int) -> (b : int) -> rel.
-g97_counter : int -> rel.
-%terminates N (g97_counter N).
 pt (-1).
 pt 3.
 pt 1.
 g97_e1 1 1.
 g97_e1 1 2.
-g97_counter 0.
 g97_d0 V2 (some V1) V3 :- g97_e1 V1 V2, g97_e1 V2 V3.
 g97_d0 V1 V2 V1 :- g97_d0 V1 V2 V1.
 g97_d0 V1 V2 V1 :- g97_d0 V1 V2 V3, (V3 < 4 ; V1 = 0), not g97_e1 _ V1.
@@ -2678,13 +3126,11 @@ g97_d1 (mk V5) V5 :- g97_e0 V1 (-2), g97_d0 V2 V3 V4, g97_e1 V5 _, V9 = count { 
 g97_d2 V1 :- g97_e0 V1 V2, g97_e1 V3 V4, V3 >= V3.
 g97_d2 V2 :- g97_d2 V1, g97_d2 "c", g97_d2 V2, V4 = min { V3 | g97_e0 _ V3 }.
 g97_d3 V3 V3 :- g97_d0 V1 V2 V3, g97_d0 V4 V2 V3, g97_d0 V5 V6 V4.
-g97_d3 V1 V1 :- g97_d3 V1 V2, g97_d1 V3 V2, g97_d2 V4, (V2 < 4 ; V1 = (-2)), V5 = cons V2 nil, not g97_e0 V4 V1.
-g97_counter M :- g97_counter N, N < 4, M = N + 2.
+g97_d3 V2 V2 :- g97_d3 V1 V2, g97_d1 V3 V2, g97_d2 V4, (V2 < 4 ; V1 = (-2)), V5 = cons V2 nil, (V1 < 0 ; V2 = 2).
 %output g97_d0.
 %output g97_d1.
 %output g97_d2.
 %output g97_d3.
-%output g97_counter.
 g98_e0 : list int -> color -> rel.
 g98_e1 : int -> int -> int -> rel.
 g98_e2 : option int -> color -> rel.
@@ -2724,6 +3170,9 @@ g99_d0 : (a : int) -> (b : int) -> rel.
 g99_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
 g99_d2 : (a : int) -> (b : box) -> (c : int) -> rel.
 g99_d3 : (a : int) -> (b : int) -> rel.
+g99_xs : int -> int -> rel.
+g99_xr : int -> rel.
+g99_xm : option int -> rel.
 pt 1.
 pt 3.
 g99_e0 (cons 0 (cons 1 nil)) green 4.
@@ -2738,6 +3187,9 @@ g99_e1 (mk 4) 3 1.
 g99_e1 (mk (-2)) 2 4.
 g99_e1 (mk 3) 1 4.
 g99_e1 (mk 2) 4 2.
+g99_xs 1 0.
+g99_xs 2 4.
+g99_xm (some 1).
 g99_d0 1 4 :- g99_e0 V1 V2 _.
 g99_d0 V2 V2 :- g99_e1 V1 4 V2, g99_e2 V3 V4 V5.
 g99_d1 2 V1 V1 :- g99_d0 V1 _, V1 >= 2, (V1 < 2 ; V1 = 3).
@@ -2746,10 +3198,14 @@ g99_d2 V5 (mk 4) 1 :- g99_e0 V1 V2 _, V5 = count { V3 | g99_d1 _ V3 V4 ; g99_d0 
 g99_d2 V1 V2 V1 :- g99_d2 V1 V2 4, g99_d2 V1 V2 V1, g99_e0 V3 V4 V5.
 g99_d3 V5 V5 :- g99_e0 (cons V1 V2) green V1, g99_e2 V2 V3 V4, g99_e1 _ V1 V5.
 g99_d3 2 0 :- g99_e2 _ V1 _.
+g99_xr N :- g99_xs M N, _X = some M.
+g99_xm (some N) :- g99_xr N.
 %output g99_d0.
 %output g99_d1.
 %output g99_d2.
 %output g99_d3.
+%output g99_xr.
+%output g99_xm.
 g100_e0 : string -> rel.
 g100_d0 : (a : string) -> (b : option int) -> rel.
 g100_d1 : (a : box) -> (b : option int) -> (c : string) -> rel.
@@ -2801,7 +3257,7 @@ g102_e1 : int -> string -> list int -> rel.
 g102_e2 : int -> int -> rel.
 g102_d0 : (a : box) -> (b : int) -> (c : int) -> rel.
 g102_d1 : (a : int) -> (b : string) -> (c : string) -> rel.
-g102_d2 : (a : int) -> (b : int) -> rel.
+g102_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
 g102_counter : int -> rel.
 %terminates N (g102_counter N).
 pt 0.
@@ -2826,13 +3282,12 @@ g102_e2 4 0.
 g102_e2 1 3.
 g102_e2 2 4.
 g102_e2 1 4.
-g102_counter 1.
+g102_counter 0.
 g102_d0 (mk 1) V1 V1 :- g102_e1 V1 V2 V3, g102_e1 V1 V4 V3.
-g102_d1 V1 "c" "c" :- g102_e2 V1 0, V2 = some V1.
-g102_d2 V1 V1 :- g102_e2 V1 _, g102_d0 V2 (-1) _.
-g102_d2 V4 V1 :- g102_e2 V1 2, g102_e0 V2 V1, g102_e2 V3 V4, not g102_e1 1 _ (cons 0 (cons 3 (cons 0 nil))).
-g102_d2 V1 3 :- g102_e0 _ V1, g102_e1 4 V2 V3, V4 = some V1, V6 = count { V5 | g102_e0 V5 0 }.
-g102_counter M :- g102_counter N, N < 5, M = N + 1.
+g102_d1 V1 "c" "c" :- g102_e2 V1 0, V2 = pt V1.
+g102_d2 3 0 0 :- g102_e1 _ V1 nil.
+g102_d2 V5 V2 V4 :- g102_d0 V1 V2 2, g102_e0 V3 V2, g102_e2 V4 V5, not g102_e1 1 _ (cons 0 (cons 3 (cons 0 nil))).
+g102_counter M :- g102_counter N, N < 8, M = N + 1.
 %output g102_d0.
 %output g102_d1.
 %output g102_d2.
@@ -2862,8 +3317,7 @@ g104_e2 : int -> color -> int -> rel.
 g104_d0 : (a : int) -> (b : string) -> (c : string) -> rel.
 g104_wg : int -> int -> int -> rel.
 g104_ws : int -> int -> rel.
-g104_w0 : (a : int) -> (b : max int) -> rel.
-g104_w1 : (a : int) -> (b : min int) -> rel.
+g104_w0 : (a : int) -> (b : min int) -> rel.
 g104_wr : int -> int -> rel.
 g104_e1 0 (mk 2) green.
 g104_e1 3 (mk 2) red.
@@ -2872,27 +3326,22 @@ g104_e1 1 (mk 3) blue.
 g104_e1 0 (mk 2) red.
 g104_e1 0 (mk 4) green.
 g104_e1 (-2) (mk 0) blue.
-g104_wg 4 3 4.
-g104_wg 1 2 0.
-g104_wg 3 2 3.
-g104_wg 1 1 1.
-g104_ws 1 1.
+g104_wg 3 0 1.
+g104_ws 0 3.
+g104_ws 2 3.
 g104_d0 V5 V2 V2 :- g104_e0 V1 V2 V3, g104_e2 _ V4 V5, g104_e1 V3 V6 V7.
 g104_d0 V3 "a" "c" :- g104_e1 _ _ V1, g104_e2 _ V2 V3.
-g104_d0 V1 "" "" :- g104_e2 V1 V2 V1, V3 = some V1.
+g104_d0 V1 "" "c" :- g104_e2 V1 V2 V1, V3 = cons V1 nil.
 g104_w0 K V :- g104_ws K V.
-g104_w0 L (V + C) :- g104_w0 K V, g104_wg K L C, V >= 4.
-g104_w1 K (0 - V) :- g104_w0 K V.
-g104_w0 K (0 - V) :- g104_w1 K V.
-g104_wr K V :- g104_w0 K V, V > 2.
+g104_w0 L (V + C) :- g104_w0 K V, g104_wg K L C, V <= 6.
+g104_wr K V :- g104_w0 K V, V < 2.
 %output g104_d0.
-%output g104_w1.
 %output g104_w0.
 %output g104_wr.
 g105_e0 : box -> int -> rel.
 g105_d0 : (a : int) -> (b : int) -> rel.
 g105_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
-g105_d2 : (a : int) -> (b : option int) -> (c : option int) -> rel.
+g105_d2 : (a : option int) -> rel.
 pt 0.
 g105_e0 (mk (-3)) 3.
 g105_e0 (mk 0) 3.
@@ -2900,10 +3349,11 @@ g105_e0 (mk 2) 2.
 g105_e0 (mk 3) 4.
 g105_d0 V1 V1 :- g105_e0 _ V1, g105_e0 V2 _.
 g105_d0 V3 V3 :- g105_e0 V1 V2, g105_e0 V1 (-1), g105_e0 _ V3, V3 <= V2.
-g105_d1 V1 V4 V2 :- g105_d0 V1 V2, g105_e0 V3 V4, g105_d0 V1 _, V5 = cons V2 nil.
-g105_d1 V1 V1 V1 :- g105_d0 V1 V1, V1 > 1.
-g105_d1 V3 V3 V2 :- g105_e0 V1 _, g105_e0 V1 V2, g105_d0 V3 _, not g105_d0 V3 _, (V3 < 0 ; V3 = 0), V5 = max { V4 | (g105_d0 V4 _, V4 > 3) }.
-g105_d2 V4 V5 V5 :- g105_d0 _ V1, g105_e0 V2 V3, g105_d1 V4 V4 V1, V5 = some V1.
+g105_d1 V1 V2 V1 :- g105_d0 V1 V2, g105_e0 V3 V4, g105_d0 V1 _, V5 = pt V2.
+g105_d1 V4 1 0 :- g105_e0 _ V1, g105_e0 V2 V3, g105_d0 _ V4, (V4 < 0 ; V1 = 3).
+g105_d1 3 V2 V2 :- g105_e0 V1 V2, V3 = pt V2, (V2 < 0 ; V2 = 2).
+g105_d2 (some 3) :- g105_e0 V1 0, g105_e0 _ V2.
+g105_d2 (some (-2)) :- g105_e0 V1 V2, (V2 < 4 ; V2 = 4).
 %output g105_d0.
 %output g105_d1.
 %output g105_d2.
@@ -2913,10 +3363,15 @@ g106_e1 : int -> rel.
 g106_d0 : (a : int) -> (b : int) -> rel.
 g106_d1 : (a : int) -> (b : int) -> rel.
 g106_d2 : (a : option int) -> rel.
+g106_counter : int -> rel.
+%terminates N (g106_counter N).
 g106_wg : int -> int -> int -> rel.
 g106_ws : int -> int -> rel.
-g106_w0 : (a : int) -> (b : min int) -> rel.
+g106_w0 : (a : int) -> (b : max int) -> rel.
 g106_wr : int -> int -> rel.
+g106_xs : int -> int -> rel.
+g106_xr : int -> rel.
+g106_xm : option int -> rel.
 g106_e0 4.
 g106_e0 0.
 g106_e0 3.
@@ -2925,24 +3380,39 @@ g106_e0 0.
 g106_e0 4.
 g106_e0 2.
 g106_e0 4.
+g106_counter 1.
+g106_wg 3 3 2.
+g106_wg 1 1 4.
+g106_wg 1 1 0.
 g106_wg 3 0 2.
 g106_wg 3 3 4.
 g106_ws 2 4.
+g106_xs 3 4.
+g106_xs 3 4.
+g106_xs 0 4.
+g106_xs 3 3.
+g106_xm (some 2).
 g106_d0 3 3 :- g106_e0 1.
 g106_d0 V1 V1 :- g106_e1 V1, g106_e0 V1.
 g106_d0 V1 V1 :- g106_e1 V1, V1 < 2.
 g106_d1 2 0 :- g106_e1 _.
-g106_d2 none :- g106_d0 V1 V2, V3 = cons V2 nil, V5 = count { V4 | g106_d0 _ V4 }.
-g106_d2 V2 :- g106_d0 _ 3, g106_d0 V1 V1, g106_d2 V2, not g106_d0 V1 _.
-g106_d2 (some V1) :- g106_e1 V1, g106_d0 V2 V3, g106_e1 V2, not g106_e0 0.
+g106_d2 none :- g106_d0 V1 V2, V3 = pt V2, V5 = count { V4 | g106_d0 _ V4 }, V6 = cons V2 nil.
+g106_d2 none :- g106_d2 _, not g106_d0 _ _.
+g106_d2 (some 3) :- g106_d2 V1, g106_d1 V2 1, g106_e1 V3.
+g106_counter M :- g106_counter N, N < 7, M = N + 1.
 g106_w0 K V :- g106_ws K V.
-g106_w0 L (V + C) :- g106_w0 K V, g106_wg K L C, V <= 6.
-g106_wr K V :- g106_w0 K V, V < 3.
+g106_w0 L (V + C) :- g106_w0 K V, g106_wg K L C, V >= 2.
+g106_wr K V :- g106_w0 K V, V > 2.
+g106_xr N :- g106_xs M N, _X = some M.
+g106_xm (some N) :- g106_xr N.
 %output g106_d0.
 %output g106_d1.
 %output g106_d2.
+%output g106_counter.
 %output g106_w0.
 %output g106_wr.
+%output g106_xr.
+%output g106_xm.
 g107_e0 : int -> rel.
 g107_e1 : color -> string -> rel.
 g107_e2 : option int -> rel.
@@ -2950,7 +3420,14 @@ g107_e2 : option int -> rel.
 g107_d0 : (a : color) -> (b : int) -> rel.
 g107_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
 g107_d2 : (a : string) -> (b : option int) -> rel.
-g107_d3 : (a : string) -> (b : color) -> (c : box) -> rel.
+g107_d3 : (a : box) -> (b : string) -> rel.
+g107_wg : int -> int -> int -> rel.
+g107_ws : int -> int -> rel.
+g107_w0 : (a : int) -> (b : min int) -> rel.
+g107_wr : int -> int -> rel.
+g107_xs : int -> int -> rel.
+g107_xr : int -> rel.
+g107_xm : option int -> rel.
 pt 2.
 pt 1.
 g107_e0 2.
@@ -2967,24 +3444,51 @@ g107_e1 red "b".
 g107_e1 green "".
 g107_e1 green "b".
 g107_e1 green "b".
+g107_wg 3 4 1.
+g107_wg 3 4 2.
+g107_wg 4 3 2.
+g107_wg 1 0 1.
+g107_wg 1 2 4.
+g107_wg 0 4 (-2).
+g107_ws 0 (-3).
+g107_ws 2 2.
+g107_xs 1 0.
+g107_xs 1 0.
+g107_xs 4 4.
+g107_xs 4 0.
+g107_xm (some 4).
 g107_d0 V1 2 :- g107_e0 3, g107_e1 V1 V2.
 g107_d1 3 0 1 :- g107_e1 V1 _, V1 <> blue.
 g107_d1 3 0 0 :- g107_e1 red V1, g107_e1 V2 V3, g107_e1 _ V4.
 g107_d2 "" (some 4) :- g107_e1 V1 "", g107_e0 V2, g107_d0 V3 V2.
-g107_d2 "" (some V1) :- g107_e0 V1, g107_e2 V2, V3 = V1 * 2, V4 = some V3.
-g107_d3 "c" V2 (mk 1) :- g107_d1 V1 V1 V1, g107_e0 V1, not g107_d1 _ V1 _, not g107_d1 _ 2 0, V1 > 0, g107_e1 V2 "b".
+g107_d2 "a" V2 :- g107_e0 V1, g107_e2 V2, V3 = V1 * 2, V4 = pt V3.
+g107_d3 (mk 1) V1 :- g107_d2 V1 V2, g107_d1 _ V3 V3.
+g107_d3 (mk 2) V3 :- g107_d0 V1 V2, g107_d3 _ V3, V2 >= 0, (V2 < 0 ; V2 = 1).
+g107_d3 V2 V3 :- g107_e1 V1 _, g107_d3 V2 V3.
+g107_w0 K V :- g107_ws K V.
+g107_w0 L (V + C) :- g107_w0 K V, g107_wg K L C.
+g107_wr K V :- g107_w0 K V, V < 3.
+g107_xr N :- g107_xs M N, _X = some M.
+g107_xm (some N) :- g107_xr N.
 %output g107_d0.
 %output g107_d1.
 %output g107_d2.
 %output g107_d3.
+%output g107_w0.
+%output g107_wr.
+%output g107_xr.
+%output g107_xm.
 g108_e0 : int -> rel.
 g108_e1 : box -> rel.
 g108_d0 : (a : option int) -> (b : int) -> (c : box) -> rel.
 g108_d1 : (a : option int) -> (b : int) -> (c : int) -> rel.
-g108_d2 : (a : box) -> (b : int) -> (c : int) -> rel.
-g108_d3 : (a : int) -> (b : int) -> rel.
+g108_d2 : (a : int) -> rel.
+g108_d3 : (a : int) -> rel.
 g108_counter : int -> rel.
 %terminates N (g108_counter N).
+g108_xs : int -> int -> rel.
+g108_xr : int -> rel.
+g108_xm : option int -> rel.
 pt (-3).
 pt 1.
 pt 3.
@@ -2997,20 +3501,28 @@ g108_e1 (mk 3).
 g108_e1 (mk (-1)).
 g108_e1 (mk 1).
 g108_counter 0.
+g108_xs 2 3.
+g108_xs 4 2.
+g108_xs 2 0.
+g108_xs 4 0.
+g108_xm (some 3).
 g108_d0 none V2 (mk 1) :- g108_e1 _, V2 = max { V1 | g108_e0 V1 }, V2 = 4.
 g108_d1 none (-2) V5 :- g108_d0 V1 V2 V3, g108_d0 V4 V5 _, g108_d0 V6 V7 _, V5 >= 0.
-g108_d1 V1 V2 V2 :- g108_e1 _, g108_d0 V1 V2 V3, V2 > 4, V4 = some V2.
-g108_d2 (mk 2) V1 V2 :- g108_d1 _ V1 V2, g108_e1 _, not g108_d0 _ V2 _.
-g108_d2 V3 0 V2 :- g108_d0 V1 V2 V3, g108_d2 V3 V2 V4.
-g108_d3 V2 V3 :- g108_d1 V1 _ V2, g108_d1 V1 V2 _, g108_e1 _, V2 = 2, V3 = V2 * 3.
-g108_d3 V3 V3 :- g108_e0 V1, V1 = 4, V3 = count { V2 | g108_d0 V2 _ _ ; g108_d1 V2 V1 3 }, not g108_d2 _ _ (-1).
-g108_d3 V2 V2 :- g108_d1 V1 V2 1, V3 = pt V2.
-g108_counter M :- g108_counter N, N < 4, M = N + 1.
+g108_d1 none V2 V2 :- g108_e1 _, g108_d0 V1 V2 V3, V2 > 4, V4 = pt V2.
+g108_d2 V2 :- g108_e0 _, g108_d0 _ 4 V1, g108_e0 V2.
+g108_d3 V4 :- g108_d0 V1 _ V2, g108_d0 V3 V4 V5, g108_d2 V4, not g108_d0 _ 0 _.
+g108_d3 V1 :- g108_e0 V1, g108_d1 V2 V1 (-3), g108_d0 _ V1 V3, (V1 < (-3) ; V1 = 4), V4 = pt V1.
+g108_d3 V3 :- g108_d0 _ 2 V1, V3 = count { V2 | g108_d0 V2 _ _ }, V3 > 4.
+g108_counter M :- g108_counter N, N < 1, M = N + 1.
+g108_xr N :- g108_xs M N, _X = some M.
+g108_xm (some N) :- g108_xr N.
 %output g108_d0.
 %output g108_d1.
 %output g108_d2.
 %output g108_d3.
 %output g108_counter.
+%output g108_xr.
+%output g108_xm.
 g109_e0 : int -> rel.
 %input g109_e0.
 g109_e1 : box -> rel.
@@ -3022,11 +3534,20 @@ g109_wg : int -> int -> int -> rel.
 g109_ws : int -> int -> rel.
 g109_w0 : (a : int) -> (b : max int) -> rel.
 g109_wr : int -> int -> rel.
+g109_xs : int -> int -> rel.
+g109_xr : int -> rel.
+g109_xm : option int -> rel.
 g109_e2 4.
 g109_e2 2.
 g109_wg 3 2 1.
 g109_wg 3 1 3.
 g109_ws 4 3.
+g109_xs 1 2.
+g109_xs 3 2.
+g109_xs 1 3.
+g109_xs 0 0.
+g109_xs 1 2.
+g109_xm (some 4).
 g109_d0 (mk 4) V1 V1 :- g109_e2 3, g109_e2 V1, g109_e0 V2, not g109_e0 _, not g109_e2 V2, V2 = (-2).
 g109_d0 (mk 1) V1 V1 :- g109_e0 V1, g109_e2 V2.
 g109_d1 (some 2) V1 :- g109_e2 _, g109_e0 V1, g109_d0 V2 V3 V3, V1 <= 1.
@@ -3034,10 +3555,14 @@ g109_d1 V2 V1 :- g109_e0 V1, g109_d1 V2 V1, g109_e2 V1, not g109_e1 _.
 g109_w0 K V :- g109_ws K V.
 g109_w0 L (2 * V + C) :- g109_w0 K V, g109_wg K L C.
 g109_wr K V :- g109_w0 K V, V > 0.
+g109_xr N :- g109_xs M N, _X = some M.
+g109_xm (some N) :- g109_xr N.
 %output g109_d0.
 %output g109_d1.
 %output g109_w0.
 %output g109_wr.
+%output g109_xr.
+%output g109_xm.
 g110_e0 : list int -> rel.
 %input g110_e0.
 g110_e1 : color -> rel.
@@ -3051,6 +3576,9 @@ g110_ws : int -> int -> rel.
 g110_w0 : (a : int) -> (b : min int) -> rel.
 g110_w1 : (a : int) -> (b : max int) -> rel.
 g110_wr : int -> int -> rel.
+g110_xs : int -> int -> rel.
+g110_xr : int -> rel.
+g110_xm : option int -> rel.
 pt 3.
 g110_e1 green.
 g110_e1 blue.
@@ -3061,6 +3589,10 @@ g110_e2 4 2 0.
 g110_wg 0 3 1.
 g110_ws 2 4.
 g110_ws 0 4.
+g110_xs 4 2.
+g110_xs 2 0.
+g110_xs 2 2.
+g110_xm (some 3).
 g110_d0 V3 2 :- g110_e0 (cons V1 V2), V1 < 4, V3 = V1 + 2, len V2 V4.
 g110_d1 V5 :- g110_d0 V1 V2, V1 >= V1, V4 = count { V3 | g110_e2 _ _ V3 }, g110_e0 V5.
 g110_d1 V3 :- g110_e1 V1, g110_e2 V2 1 V2, g110_d0 V2 V2, not g110_e2 _ V2 4, g110_e0 V3.
@@ -3073,6 +3605,8 @@ g110_w0 L (V + C) :- g110_w0 K V, g110_wg K L C.
 g110_w1 K (0 - V) :- g110_w0 K V.
 g110_w0 K (3 - V) :- g110_w1 K V.
 g110_wr K V :- g110_w0 K V, V < (-1).
+g110_xr N :- g110_xs M N, _X = some M.
+g110_xm (some N) :- g110_xr N.
 %output g110_d0.
 %output g110_d1.
 %output g110_d2.
@@ -3080,6 +3614,8 @@ g110_wr K V :- g110_w0 K V, V < (-1).
 %output g110_w1.
 %output g110_w0.
 %output g110_wr.
+%output g110_xr.
+%output g110_xm.
 g111_e0 : int -> int -> rel.
 g111_e1 : int -> string -> rel.
 g111_e2 : color -> int -> int -> rel.
@@ -3211,15 +3747,17 @@ g114_e1 (mk 3).
 g114_e1 (mk 1).
 g114_e1 (mk 1).
 g114_e1 (mk 4).
+g114_wg 4 2 2.
+g114_wg 1 1 4.
 g114_wg 2 2 4.
 g114_wg 3 1 (-3).
 g114_wg 1 1 3.
 g114_wg 0 0 4.
 g114_ws 3 4.
 g114_d0 1 "a" :- g114_e1 V1, g114_e1 _, g114_e1 V1.
-g114_d1 "" V1 :- g114_d0 V1 _, g114_e1 V2, V1 >= 2, V3 = pt V1, V6 = count { V4 | (g114_e0 V4 V5 blue, V4 > 0) }.
-g114_d1 "" 2 :- g114_e1 V1, g114_d1 V2 4, V2 = "".
-g114_d1 V3 V2 :- g114_d1 V1 V2, g114_d0 V2 _, g114_d0 V2 V3.
+g114_d1 "" V1 :- g114_d0 V1 _, g114_e1 V2, V1 >= 2, V3 = cons V1 nil.
+g114_d1 V1 V4 :- g114_d1 V1 V2, g114_d1 V1 V2, V2 = 0, V4 = count { V3 | g114_e1 V3 }.
+g114_d1 V2 V3 :- g114_e1 V1, g114_d1 V2 V3, V3 <> 2.
 g114_w0 K V :- g114_ws K V.
 g114_w0 L (V + C) :- g114_w0 K V, g114_wg K L C, V >= 2.
 g114_w0 L (V + C) :- g114_w0 K V, g114_wg K L C, V >= 0.
@@ -3235,95 +3773,81 @@ g115_e0 : int -> int -> rel.
 g115_e1 : int -> rel.
 %input g115_e1.
 g115_d0 : (a : int) -> rel.
-g115_d1 : (a : int) -> (b : int) -> rel.
+g115_d1 : (a : int) -> rel.
 g115_e0 3 2.
 g115_e0 3 (-3).
 g115_e0 0 (-2).
 g115_e0 2 4.
 g115_e0 (-1) (-1).
 g115_d0 V1 :- g115_e1 V1, g115_e1 V1, g115_e0 2 V1, (V1 < 4 ; V1 = 2), (V1 < 0 ; V1 = 0).
-g115_d0 V1 :- g115_e1 V1, g115_e1 V2, V3 = cons V1 nil, V4 = V1 + V1.
-g115_d0 V4 :- g115_e0 V1 V1, g115_e1 V1, g115_e1 _, V3 = count { V2 | g115_e0 V2 _ }, not g115_e1 V3, V4 = V3 * V1.
-g115_d1 V3 0 :- g115_e1 V1, g115_e0 V2 V3.
-g115_d1 0 V1 :- g115_e1 V1, g115_e0 (-3) V1, V2 = pt V1, V4 = count { V3 | g115_e1 V3 }.
+g115_d0 V1 :- g115_e1 V1, g115_e1 V2, V3 = cons V1 nil, V3 = (cons 1 nil).
+g115_d0 V1 :- g115_e0 V1 V1, g115_e1 _, g115_e1 V1, V1 < 1, (V1 < 3 ; V1 = (-1)).
+g115_d1 V1 :- g115_e0 V1 2, g115_e0 V1 V2.
+g115_d1 V1 :- g115_e0 V1 _.
+g115_d1 3 :- g115_e0 V1 V1, g115_e1 V2, V3 = pt V2.
 %output g115_d0.
 %output g115_d1.
 g116_e0 : string -> int -> box -> rel.
 g116_e1 : color -> int -> rel.
 g116_d0 : (a : int) -> (b : string) -> rel.
 g116_d1 : (a : int) -> rel.
-g116_d2 : (a : int) -> (b : color) -> rel.
-g116_wg : int -> int -> int -> rel.
-g116_ws : int -> int -> rel.
-g116_w0 : (a : int) -> (b : max int) -> rel.
-g116_w1 : (a : int) -> (b : min int) -> rel.
-g116_wr : int -> int -> rel.
+g116_d2 : (a : color) -> (b : int) -> (c : box) -> rel.
 g116_e0 "a" (-1) (mk (-2)).
 g116_e1 blue 3.
 g116_e1 red 4.
 g116_e1 red 1.
 g116_e1 red 1.
 g116_e1 red 1.
-g116_wg 0 0 4.
-g116_wg 2 2 4.
-g116_wg 3 1 (-2).
-g116_ws 4 3.
 g116_d0 V1 "" :- g116_e0 "c" V1 _, not g116_e1 blue V1.
 g116_d0 V2 V1 :- g116_e0 V1 V2 V3, not g116_e0 V1 1 V3, V1 = "c".
 g116_d0 V4 V1 :- g116_e0 V1 V2 V3, g116_e0 "c" V4 V3, g116_e1 V5 V4, V4 < 1.
-g116_d1 V1 :- g116_d0 V1 _, g116_e0 V2 V1 V3, V4 = some V1, V1 > 3.
-g116_d2 V3 V2 :- g116_e0 "a" V1 _, g116_e1 V2 V3.
-g116_w0 K V :- g116_ws K V.
-g116_w0 L (V + C) :- g116_w0 K V, g116_wg K L C.
-g116_w1 K (0 - V) :- g116_w0 K V.
-g116_w0 K (1 - V) :- g116_w1 K V.
-g116_wr K V :- g116_w0 K V, V > 1.
+g116_d1 V1 :- g116_d0 V1 _, g116_e0 V2 V1 V3, V4 = pt V1, V1 = 3.
+g116_d2 V5 V1 (mk 4) :- g116_d0 V1 V2, g116_d1 V1, V3 = pt V1, V4 = cons V1 nil, g116_e1 V5 V1.
+g116_d2 V2 V1 (mk V1) :- g116_d0 V1 _, g116_d1 V1, g116_e1 V2 V1.
+g116_d2 V5 V2 V3 :- g116_e0 V1 V2 V3, g116_d1 V2, g116_d0 V2 V4, V2 <= 3, (V2 < 2 ; V2 = 3), V2 <> 2, g116_e1 V5 V6.
 %output g116_d0.
 %output g116_d1.
 %output g116_d2.
-%output g116_w1.
-%output g116_w0.
-%output g116_wr.
 g117_e0 : int -> int -> rel.
 g117_e1 : int -> int -> rel.
 g117_d0 : (a : box) -> rel.
-g117_d1 : (a : int) -> (b : int) -> (c : box) -> rel.
-g117_wg : int -> int -> int -> rel.
-g117_ws : int -> int -> rel.
-g117_w0 : (a : int) -> (b : min int) -> rel.
-g117_wr : int -> int -> rel.
+g117_d1 : (a : int) -> (b : int) -> rel.
+g117_counter : int -> rel.
+%terminates N (g117_counter N).
+g117_xs : int -> int -> rel.
+g117_xr : int -> rel.
+g117_xm : option int -> rel.
 g117_e0 3 (-2).
 g117_e0 3 0.
 g117_e0 0 3.
 g117_e1 3 4.
-g117_wg 0 3 3.
-g117_wg 1 4 4.
-g117_wg 1 3 (-1).
-g117_wg 0 0 1.
-g117_ws 2 1.
-g117_ws 0 1.
-g117_d0 (mk 1) :- g117_e0 V1 V2, g117_e1 V3 V4, g117_e0 V1 V1, V5 = cons V3 nil, not g117_e0 V1 3.
-g117_d0 (mk V1) :- g117_e1 _ V1, g117_d0 V2.
-g117_d1 V1 V1 (mk 4) :- g117_e0 V1 V2, g117_e0 3 V1.
-g117_d1 V2 (-1) (mk 2) :- g117_e1 V1 V1, g117_d0 _, g117_e0 V2 V3.
-g117_d1 2 2 V1 :- g117_d0 V1.
-g117_w0 K V :- g117_ws K V.
-g117_w0 L (V + C) :- g117_w0 K V, g117_wg K L C, V <= 2.
-g117_w0 L (V + C) :- g117_w0 K V, g117_wg K L C.
-g117_wr K V :- g117_w0 K V, V < 4.
+g117_counter 1.
+g117_xs 3 2.
+g117_xs 1 1.
+g117_xs 1 0.
+g117_xs 4 4.
+g117_xs 4 1.
+g117_xm (some 1).
+g117_d0 (mk V1) :- g117_e0 V1 V2, g117_e1 V3 V4, g117_e0 V1 V1, V5 = pt V3.
+g117_d0 (mk 0) :- g117_e1 3 4.
+g117_d1 1 1 :- g117_d0 V1.
+g117_d1 V6 V4 :- g117_d0 V1, g117_e1 V2 V3, g117_e1 V2 V4, V6 = max { V5 | g117_e1 _ V5 }, V7 = cons V2 nil.
+g117_d1 V3 V1 :- g117_e1 V1 2, g117_e0 V2 V1, g117_e0 V3 V4, V5 = V3 * 2, V7 = min { V6 | g117_e1 V6 _ }, (V5 < (-1) ; V5 = 1).
+g117_counter M :- g117_counter N, N < 0, M = N + 2.
+g117_xr N :- g117_xs M N, _X = some M.
+g117_xm (some N) :- g117_xr N.
 %output g117_d0.
 %output g117_d1.
-%output g117_w0.
-%output g117_wr.
+%output g117_counter.
+%output g117_xr.
+%output g117_xm.
 g118_e0 : int -> box -> color -> rel.
 %input g118_e0.
 g118_e1 : box -> int -> int -> rel.
 g118_d0 : (a : int) -> (b : int) -> (c : int) -> rel.
-g118_wg : int -> int -> int -> rel.
-g118_ws : int -> int -> rel.
-g118_w0 : (a : int) -> (b : min int) -> rel.
-g118_w1 : (a : int) -> (b : max int) -> rel.
-g118_wr : int -> int -> rel.
+g118_xs : int -> int -> rel.
+g118_xr : int -> rel.
+g118_xm : option int -> rel.
 pt 3.
 g118_e1 (mk 4) 4 2.
 g118_e1 (mk 2) 1 3.
@@ -3332,25 +3856,16 @@ g118_e1 (mk 2) 0 2.
 g118_e1 (mk 4) 3 3.
 g118_e1 (mk 2) 3 0.
 g118_e1 (mk 4) 0 2.
-g118_wg 2 0 3.
-g118_wg 1 0 (-3).
-g118_wg 2 1 4.
-g118_wg 2 4 4.
-g118_wg 1 0 (-2).
-g118_wg 0 2 (-2).
-g118_ws 0 3.
+g118_xs 3 1.
+g118_xm (some 0).
 g118_d0 V4 V4 V4 :- g118_e0 V1 V2 V3, V3 = green, V4 = V1 + 4.
 g118_d0 V3 V4 V4 :- g118_e0 V1 V2 red, g118_e1 V2 V3 V4.
-g118_d0 V1 V1 V1 :- g118_e0 V1 V2 V3, V3 = green, V4 = cons V1 nil.
-g118_w0 K V :- g118_ws K V.
-g118_w0 L (V + C) :- g118_w0 K V, g118_wg K L C.
-g118_w1 K (0 - V) :- g118_w0 K V.
-g118_w0 K (2 - V) :- g118_w1 K V.
-g118_wr K V :- g118_w0 K V, V < 0.
+g118_d0 V1 V1 V1 :- g118_e0 V1 V2 V3, V3 = green, V4 = cons V1 nil, V5 = cons V1 nil.
+g118_xr N :- g118_xs M N, _X = some M.
+g118_xm (some N) :- g118_xr N.
 %output g118_d0.
-%output g118_w1.
-%output g118_w0.
-%output g118_wr.
+%output g118_xr.
+%output g118_xm.
 g119_e0 : list int -> color -> rel.
 g119_e1 : option int -> rel.
 g119_e2 : int -> list int -> rel.
@@ -3401,8 +3916,8 @@ g121_e0 : box -> color -> int -> rel.
 g121_e1 : color -> int -> rel.
 g121_d0 : (a : int) -> rel.
 g121_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
-g121_d2 : (a : int) -> (b : option int) -> (c : int) -> rel.
-g121_d3 : (a : int) -> (b : option int) -> (c : color) -> rel.
+g121_d2 : (a : color) -> (b : option int) -> (c : option int) -> rel.
+g121_d3 : (a : color) -> rel.
 pt 0.
 g121_e0 (mk 4) green 1.
 g121_e0 (mk (-3)) green 4.
@@ -3415,11 +3930,11 @@ g121_e1 green 2.
 g121_d0 V3 :- g121_e0 V1 V2 V3, V6 = count { V4 | g121_e1 V4 V5 }.
 g121_d0 3 :- g121_e1 V1 V2.
 g121_d0 V4 :- g121_e1 red V1, g121_e0 V2 _ 1, g121_e1 V3 V4, V4 = 4, not g121_e1 red V4.
-g121_d1 V6 V6 V3 :- g121_e0 V1 V2 V3, V4 = some V3, V6 = count { V5 | g121_e1 V2 V5 }, V2 = red.
-g121_d1 4 V1 V1 :- g121_d0 V1, V3 = sum { V2 | g121_e0 _ red V2 }.
-g121_d2 V1 (some 4) V1 :- g121_d0 V1, g121_e1 _ V2, V1 >= 4, V1 >= V2.
-g121_d3 V5 (some 0) V7 :- g121_e0 V1 _ V2, g121_d0 V3, g121_d0 4, V4 = V3 - V2, V5 = V3 - 1, V6 = some V2, g121_e1 V7 V2.
-g121_d3 V4 (some V4) V3 :- g121_e1 V1 V2, g121_e1 V3 V4, g121_d0 _.
+g121_d1 4 V3 V3 :- g121_e0 V1 V2 V3, V4 = cons V3 nil, (V3 < (-1) ; V3 = 3), V5 = pt V3.
+g121_d1 V2 V4 V2 :- g121_e1 V1 V2, g121_e0 V3 V1 V4, g121_e0 V3 V1 V5, V6 = V5 * 0, V4 = (-3).
+g121_d2 V1 none (some 0) :- g121_e0 _ V1 V2, g121_d0 V2.
+g121_d3 V6 :- g121_e0 V1 _ V2, g121_d0 V3, g121_d0 4, V5 = min { V4 | g121_d1 V4 _ V2 ; (g121_e1 _ V4, V4 < 3) }, (V2 < 0 ; V5 = 4), g121_d2 V6 V7 V8.
+g121_d3 V2 :- g121_d3 _, g121_e0 V1 V2 V3, g121_d1 V4 V3 V5.
 %output g121_d0.
 %output g121_d1.
 %output g121_d2.
@@ -3475,7 +3990,11 @@ g124_e2 : color -> int -> rel.
 g124_d0 : (a : int) -> rel.
 g124_d1 : (a : color) -> (b : int) -> (c : int) -> rel.
 g124_d2 : (a : int) -> (b : option int) -> (c : int) -> rel.
-g124_d3 : (a : int) -> (b : int) -> (c : int) -> rel.
+g124_d3 : (a : int) -> (b : int) -> rel.
+g124_wg : int -> int -> int -> rel.
+g124_ws : int -> int -> rel.
+g124_w0 : (a : int) -> (b : min int) -> rel.
+g124_wr : int -> int -> rel.
 pt 1.
 pt 1.
 pt 3.
@@ -3494,21 +4013,37 @@ g124_e2 red (-2).
 g124_e2 blue 1.
 g124_e2 green 1.
 g124_e2 red 1.
+g124_wg 2 1 0.
+g124_wg 0 2 1.
+g124_wg 2 0 1.
+g124_wg 4 4 4.
+g124_wg 1 2 (-1).
+g124_ws 3 3.
+g124_ws 3 1.
 g124_d0 1 :- g124_e2 V1 1, g124_e2 V1 1.
 g124_d1 V1 1 V3 :- g124_d0 4, g124_e2 V1 V2, g124_e1 V2 V3.
 g124_d1 V3 V1 V4 :- g124_e2 _ V1, V2 = V1 - 3, g124_e2 V3 V4.
 g124_d2 V2 (some V3) 4 :- g124_e1 V1 V2, g124_e0 V1 2 V2, g124_e1 V2 V3.
-g124_d2 V5 V6 V5 :- g124_e1 V1 V2, g124_e0 V1 V3 V4, g124_e0 V5 _ _, V6 = some V1.
-g124_d2 V1 (some 4) V1 :- g124_e1 V1 V2, V3 = cons V1 nil, not g124_d1 green _ V2.
-g124_d3 V1 V1 V1 :- g124_d2 V1 V2 V1, g124_e0 _ V1 4, V3 = some V1, not g124_e1 V1 3.
-g124_d3 V1 V1 V1 :- g124_e1 V1 V1, g124_d1 V2 4 V1.
+g124_d2 V3 (some 4) V1 :- g124_e1 V1 V2, g124_e0 V1 V3 V4, g124_e0 V5 _ _, V6 = pt V1.
+g124_d2 V4 (some 4) V1 :- g124_e0 2 V1 _, g124_e0 _ V2 V3, g124_e0 _ V4 1, (V4 < 1 ; V1 = 2).
+g124_d3 V4 V4 :- g124_e2 V1 V2, g124_d1 V1 V2 1, g124_d1 V3 V4 V2.
+g124_d3 V1 V1 :- g124_d3 V1 V1, g124_e1 V1 V1, (V1 < (-1) ; V1 = (-2)).
+g124_d3 V2 V2 :- g124_d1 V1 V2 _, g124_d3 V3 V3, V4 = pt V2, V3 >= (-3), V8 = count { V5 | g124_d1 V5 V6 V7 }.
+g124_w0 K V :- g124_ws K V.
+g124_w0 L (V + C) :- g124_w0 K V, g124_wg K L C, V <= 2.
+g124_wr K V :- g124_w0 K V, V < 0.
 %output g124_d0.
 %output g124_d1.
 %output g124_d2.
 %output g124_d3.
+%output g124_w0.
+%output g124_wr.
 g125_e0 : int -> rel.
 g125_e1 : int -> rel.
 g125_d0 : (a : option int) -> (b : option int) -> rel.
+g125_xs : int -> int -> rel.
+g125_xr : int -> rel.
+g125_xm : option int -> rel.
 pt 1.
 pt 4.
 pt 2.
@@ -3525,15 +4060,25 @@ g125_e1 4.
 g125_e1 4.
 g125_e1 2.
 g125_e1 2.
+g125_xs 2 0.
+g125_xs 4 0.
+g125_xm (some 2).
 g125_d0 (some V1) (some 4) :- g125_e0 V1, g125_e1 V2, V1 = V2, V3 = V2 * V2.
 g125_d0 (some V3) (some 1) :- g125_e1 V1, (V1 < (-1) ; V1 = 3), V3 = max { V2 | g125_e1 V2 }, V4 = V1 - V3.
+g125_xr N :- g125_xs M N, _X = some M.
+g125_xm (some N) :- g125_xr N.
 %output g125_d0.
+%output g125_xr.
+%output g125_xm.
 g126_e0 : int -> color -> list int -> rel.
 %input g126_e0.
 g126_e1 : int -> int -> rel.
 g126_d0 : (a : int) -> (b : color) -> (c : int) -> rel.
 g126_d1 : (a : int) -> (b : box) -> (c : int) -> rel.
 g126_d2 : (a : box) -> (b : int) -> rel.
+g126_xs : int -> int -> rel.
+g126_xr : int -> rel.
+g126_xm : option int -> rel.
 pt 0.
 g126_e1 2 2.
 g126_e1 0 3.
@@ -3542,6 +4087,11 @@ g126_e1 3 0.
 g126_e1 4 2.
 g126_e1 0 4.
 g126_e1 0 2.
+g126_xs 3 2.
+g126_xs 4 0.
+g126_xs 4 4.
+g126_xs 2 1.
+g126_xm (some 3).
 g126_d0 V2 V3 V1 :- g126_e1 V1 V1, g126_e1 3 3, g126_e1 _ V2, g126_e0 V1 V3 V4.
 g126_d1 V1 (mk 1) V1 :- g126_e1 V1 V1.
 g126_d1 V3 (mk (-2)) V3 :- g126_d0 V1 V2 (-2), g126_d1 V3 _ _, V3 <> 3.
@@ -3549,9 +4099,13 @@ g126_d1 2 (mk 1) V3 :- g126_d0 V1 red V1, g126_d0 V1 V2 V3, V3 <> 4.
 g126_d2 (mk 0) V4 :- g126_d0 V1 V2 V1, g126_d0 V3 _ _, g126_d0 V4 V2 _, V7 = count { V5 | g126_d1 V5 _ V6 ; g126_e1 V4 V5 }.
 g126_d2 (mk 4) V2 :- g126_e1 V1 V2.
 g126_d2 (mk V4) 2 :- g126_d0 V1 V2 V3, g126_e1 2 V4, g126_d2 V5 V4.
+g126_xr N :- g126_xs M N, _X = some M.
+g126_xm (some N) :- g126_xr N.
 %output g126_d0.
 %output g126_d1.
 %output g126_d2.
+%output g126_xr.
+%output g126_xm.
 g127_e0 : int -> int -> int -> rel.
 g127_e1 : option int -> rel.
 g127_e2 : int -> option int -> int -> rel.
@@ -3577,23 +4131,26 @@ g127_e2 (-3) (some 3) (-3).
 g127_e2 0 (some 0) 2.
 g127_e2 2 (some 4) 4.
 g127_e2 3 (some 2) 4.
-g127_counter 1.
+g127_counter 0.
 g127_d0 (mk 4) V4 :- g127_e1 V1, V4 = count { V2 | (g127_e0 V3 V2 _, V2 <> (-3)) }.
 g127_d0 (mk 4) 4 :- g127_e0 V1 V1 V1, g127_e2 V1 V2 V1, g127_d0 _ V3, not g127_e0 4 V3 _, V5 = count { V4 | g127_e0 V4 2 _ }.
 g127_d0 (mk (-3)) V3 :- g127_e1 V1, g127_d0 V2 V3.
-g127_d1 V7 V3 V2 :- g127_e2 _ V1 _, g127_d0 V2 V3, g127_e2 V4 V5 V6, V7 = V4 - V4, V4 >= V4, V8 = some V4.
-g127_d1 V3 V1 (mk 1) :- g127_e1 _, g127_e0 V1 V2 _, g127_e0 V1 V3 _, (V1 < (-1) ; V1 = 4), V5 = max { V4 | g127_e2 V4 _ 3 }.
-g127_d1 V2 2 V4 :- g127_e0 _ V1 V2, g127_e1 V3, g127_d0 V4 _.
-g127_counter M :- g127_counter N, N < 2, M = N + 1.
+g127_d1 V4 V6 (mk V4) :- g127_e2 _ V1 _, g127_d0 V2 V3, g127_e2 V4 V5 V6, V7 = V4 - V4, V4 >= V4, V8 = cons V4 nil.
+g127_d1 V4 V3 V2 :- g127_e1 V1, g127_d0 V2 V3, g127_e0 _ V3 V3, V3 <> 4, V4 = V3 - (-1).
+g127_d1 V1 3 (mk V4) :- g127_e2 V1 V2 V1, g127_e2 4 V3 3, g127_e2 V1 V3 V4.
+g127_counter M :- g127_counter N, N < 0, M = N + 2.
 %output g127_d0.
 %output g127_d1.
 %output g127_counter.
 g128_e0 : list int -> box -> rel.
 g128_e1 : list int -> string -> rel.
 g128_d0 : (a : option int) -> (b : box) -> rel.
-g128_d1 : (a : list int) -> (b : string) -> (c : box) -> rel.
+g128_d1 : (a : string) -> (b : box) -> rel.
 g128_d2 : (a : string) -> (b : list int) -> rel.
-g128_d3 : (a : option int) -> (b : string) -> rel.
+g128_d3 : (a : list int) -> (b : box) -> (c : option int) -> rel.
+g128_xs : int -> int -> rel.
+g128_xr : int -> rel.
+g128_xm : option int -> rel.
 pt 4.
 pt 0.
 pt 3.
@@ -3605,18 +4162,27 @@ g128_e0 nil (mk 1).
 g128_e0 (cons 0 nil) (mk 2).
 g128_e1 nil "c".
 g128_e1 (cons 1 (cons 1 (cons 0 nil))) "a".
+g128_xs 0 3.
+g128_xs 1 2.
+g128_xs 2 0.
+g128_xs 1 0.
+g128_xm (some 2).
 g128_d0 (some 3) (mk 1) :- g128_e1 nil V1, g128_e1 _ V2, g128_e1 V3 V2.
 g128_d0 V3 V4 :- g128_e1 V1 V2, g128_d0 V3 V4, g128_d0 V5 _, V7 = count { V6 | g128_e0 V6 _ }, V9 = count { V8 | g128_e1 V8 _ }.
-g128_d0 V4 (mk 2) :- g128_e0 (cons 0 (cons 1 nil)) V1, g128_e1 V2 V3, g128_d0 V4 V5, (cons 2 nil) <> V2.
-g128_d1 V2 "a" V1 :- g128_d0 _ V1, g128_e0 V2 V1.
-g128_d2 "" V3 :- g128_d0 V1 V2, g128_d1 V3 _ _, g128_e0 (cons 0 (cons 2 nil)) _, V3 = (cons 3 (cons 3 nil)).
-g128_d2 "a" V1 :- g128_e0 V1 V2, g128_e0 V3 V2.
-g128_d2 V4 V3 :- g128_d0 V1 V2, g128_e1 V3 V4.
-g128_d3 (some V5) V2 :- g128_d1 V1 V2 V3, g128_d0 V4 _, len V1 V5, not g128_d0 _ _, len V1 V6.
+g128_d0 (some 2) V1 :- g128_e0 (cons 0 (cons 1 nil)) V1, g128_e1 V2 V3, g128_d0 V4 V5, V2 = (cons 3 (cons 2 nil)).
+g128_d1 "b" V1 :- g128_d0 _ V1, g128_e0 V2 V1.
+g128_d2 V6 V5 :- g128_d0 V1 V2, g128_d1 V3 _, g128_d0 V4 _, V3 <> "a", g128_e1 V5 V6.
+g128_d2 "a" V1 :- g128_e0 V1 _, g128_e0 _ V2, g128_e1 V1 "a".
+g128_d2 V1 V5 :- g128_d1 V1 V2, g128_d1 V1 _, V4 = count { V3 | g128_d0 V3 V2 }, g128_e1 V5 V1.
+g128_d3 V1 (mk (-2)) (some 0) :- g128_e1 V1 V2.
+g128_xr N :- g128_xs M N, _X = some M.
+g128_xm (some N) :- g128_xr N.
 %output g128_d0.
 %output g128_d1.
 %output g128_d2.
 %output g128_d3.
+%output g128_xr.
+%output g128_xm.
 g129_e0 : int -> rel.
 g129_e1 : list int -> color -> color -> rel.
 g129_d0 : (a : int) -> (b : option int) -> rel.
@@ -3637,7 +4203,7 @@ g129_wg 1 4 1.
 g129_ws 0 0.
 g129_ws 3 3.
 g129_d0 V1 (some 2) :- g129_e0 V1, g129_e1 nil V2 V3, V1 > 4, (V1 < 4 ; V1 = 3).
-g129_d0 V1 V2 :- g129_e0 V1, g129_e0 V1, V2 = some V1.
+g129_d0 V1 none :- g129_e0 V1, g129_e0 V1, V2 = cons V1 nil.
 g129_d1 (mk 1) V1 2 :- g129_e1 V1 blue _, g129_e1 V1 V2 V3.
 g129_w0 K V :- g129_ws K V.
 g129_w0 L (V + C) :- g129_w0 K V, g129_wg K L C.
@@ -3652,15 +4218,17 @@ g130_e0 : int -> rel.
 g130_d0 : (a : int) -> (b : int) -> rel.
 g130_d1 : (a : int) -> (b : int) -> rel.
 g130_d2 : (a : int) -> (b : int) -> rel.
-g130_d3 : (a : box) -> (b : int) -> (c : box) -> rel.
+g130_d3 : (a : int) -> (b : option int) -> rel.
 pt 1.
 pt 2.
 g130_d0 V4 V2 :- g130_e0 V1, g130_e0 V1, g130_e0 V2, not g130_e0 V1, V4 = count { V3 | g130_e0 V3 }.
 g130_d1 3 V3 :- g130_e0 V1, g130_e0 V1, V3 = count { V2 | g130_d0 V1 V2 }, (V1 < (-3) ; V1 = 0), not g130_d0 _ V1.
 g130_d2 V1 V1 :- g130_e0 V1, g130_e0 0.
-g130_d2 V3 V2 :- g130_d1 2 _, g130_d1 V1 V2, g130_d0 V3 V4, V5 = some V2, V6 = V3 + V4.
-g130_d2 V3 V5 :- g130_d1 V1 V2, g130_d1 V3 _, V5 = count { V4 | g130_e0 V4 }, V7 = sum { V6 | g130_d0 V3 V6 ; g130_d0 V6 2 }, not g130_d1 V5 V1.
-g130_d3 (mk 0) 2 (mk (-1)) :- g130_e0 4.
+g130_d2 3 V4 :- g130_d1 2 _, g130_d1 V1 V2, g130_d0 V3 V4, V5 = cons V2 nil, V7 = min { V6 | (g130_d0 _ V6, V6 <> 2) }.
+g130_d2 V2 V1 :- g130_d0 V1 V2, g130_d1 V1 V2, V2 = 1, V1 = V1.
+g130_d3 V2 (some V2) :- g130_d0 V1 V2, g130_e0 _, V2 <> V1.
+g130_d3 2 (some 4) :- g130_d3 V1 _, g130_d0 V1 V1, g130_d2 V1 V2, (V1 < 1 ; V2 = 2), V1 = 2, V1 >= 2.
+g130_d3 V1 none :- g130_d0 V1 V1, g130_d1 V2 V2, g130_d1 _ 2, V2 <> 2.
 %output g130_d0.
 %output g130_d1.
 %output g130_d2.
@@ -3688,10 +4256,10 @@ g132_e0 0 1.
 g132_e0 4 2.
 g132_e1 4 3 (some 2).
 g132_counter 1.
-g132_d0 V4 :- g132_e1 V1 _ V2, g132_e0 V3 _, g132_e1 V4 V4 V2, V1 < 0, V5 = pt V4, not g132_e0 1 _.
-g132_d0 V2 :- g132_d0 V1, g132_d0 V2, g132_e1 3 V1 _, V2 > V2.
-g132_d0 V1 :- g132_e1 3 V1 V2.
-g132_counter M :- g132_counter N, N < 7, M = N + 1.
+g132_d0 V1 :- g132_e1 V1 _ V2, g132_e0 V3 _, g132_e1 V4 V4 V2, V1 < 0, V5 = cons V4 nil.
+g132_d0 V1 :- g132_e1 V1 V2 _, g132_e0 V3 V4, g132_d0 V4, V6 = min { V5 | g132_e0 _ V5 ; g132_e1 _ V5 _ }.
+g132_d0 V1 :- g132_d0 V1, (V1 < 3 ; V1 = (-3)).
+g132_counter M :- g132_counter N, N < 1, M = N + 1.
 %output g132_d0.
 %output g132_counter.
 g133_e0 : int -> int -> rel.
@@ -3726,9 +4294,11 @@ g134_e0 : color -> int -> rel.
 g134_e1 : box -> list int -> option int -> rel.
 g134_e2 : int -> rel.
 g134_d0 : (a : box) -> rel.
-g134_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
-g134_counter : int -> rel.
-%terminates N (g134_counter N).
+g134_d1 : (a : int) -> (b : option int) -> rel.
+g134_wg : int -> int -> int -> rel.
+g134_ws : int -> int -> rel.
+g134_w0 : (a : int) -> (b : min int) -> rel.
+g134_wr : int -> int -> rel.
 pt 3.
 pt 3.
 g134_e0 blue 1.
@@ -3750,17 +4320,24 @@ g134_e2 0.
 g134_e2 0.
 g134_e2 0.
 g134_e2 2.
-g134_counter 0.
+g134_wg 3 4 3.
+g134_wg 4 4 2.
+g134_wg 3 0 4.
+g134_ws 1 4.
+g134_ws 2 0.
 g134_d0 (mk V1) :- g134_e2 V1, not g134_e0 _ V1.
-g134_d0 (mk V1) :- g134_e2 _, g134_e2 V1, V2 = pt V1.
-g134_d0 (mk V1) :- g134_e2 V1, g134_e2 V2.
-g134_d1 V3 V3 V3 :- g134_d0 V1, g134_e1 V1 V2 _, g134_e2 V3.
-g134_d1 V1 V1 V1 :- g134_e2 V1, not g134_e2 _.
-g134_d1 V6 V6 V7 :- g134_e1 V1 _ V2, g134_e0 V3 V4, V6 = min { V5 | g134_e2 V5 ; g134_e2 V5 }, V7 = V4 - 0, V8 = some V4, V10 = count { V9 | g134_e2 V9 ; (g134_e0 red V9, V9 > 1) }.
-g134_counter M :- g134_counter N, N < 0, M = N + 2.
+g134_d0 (mk 4) :- g134_e2 _, g134_e2 V1, V2 = cons V1 nil.
+g134_d0 (mk 0) :- g134_e2 V1, g134_e0 blue V1, g134_e2 0, (V1 < 0 ; V1 = 3).
+g134_d1 V1 (some 3) :- g134_d0 _, g134_e2 V1, V1 <= (-2), V1 <> 0.
+g134_d1 V2 V6 :- g134_e1 V1 (cons V2 (cons V3 V4)) _, g134_e1 V5 (cons 1 (cons 3 nil)) V6, g134_e1 V7 (cons 3 V4) V6, V2 > V2, V2 <> V3.
+g134_d1 V1 V3 :- g134_e2 V1, g134_e1 _ V2 V3, g134_d0 V4, V5 = cons V1 nil, V6 = cons V1 nil, V1 = 2.
+g134_w0 K V :- g134_ws K V.
+g134_w0 L (2 * V + C) :- g134_w0 K V, g134_wg K L C, V <= 2.
+g134_wr K V :- g134_w0 K V, V < 0.
 %output g134_d0.
 %output g134_d1.
-%output g134_counter.
+%output g134_w0.
+%output g134_wr.
 g135_e0 : list int -> int -> int -> rel.
 g135_d0 : (a : int) -> rel.
 g135_d1 : (a : box) -> (b : int) -> rel.
@@ -3772,6 +4349,9 @@ g135_wg : int -> int -> int -> rel.
 g135_ws : int -> int -> rel.
 g135_w0 : (a : int) -> (b : min int) -> rel.
 g135_wr : int -> int -> rel.
+g135_xs : int -> int -> rel.
+g135_xr : int -> rel.
+g135_xm : option int -> rel.
 pt (-3).
 g135_e0 (cons 3 (cons 0 nil)) 3 0.
 g135_e0 nil 1 0.
@@ -3783,6 +4363,9 @@ g135_wg 3 4 2.
 g135_wg 4 1 4.
 g135_wg 0 3 1.
 g135_ws 2 1.
+g135_xs 3 4.
+g135_xs 0 3.
+g135_xm (some 1).
 g135_d0 V2 :- g135_e0 V1 V2 V3, g135_e0 V1 V3 V2, g135_e0 V4 V5 1.
 g135_d1 (mk 4) V2 :- g135_e0 _ V1 V1, g135_e0 _ V2 V2, V2 <> V2, (V2 < 4 ; V1 = 1).
 g135_d2 3 V1 :- g135_e0 V1 (-3) V2, g135_d1 V3 V2, g135_e0 (cons _ V4) V5 V6, len V1 V7, V8 = V5 + V2.
@@ -3796,6 +4379,8 @@ g135_w0 K V :- g135_ws K V.
 g135_w0 L (2 * V + C) :- g135_w0 K V, g135_wg K L C.
 g135_w0 L (V + C) :- g135_w0 K V, g135_wg K L C.
 g135_wr K V :- g135_w0 K V, V < 3.
+g135_xr N :- g135_xs M N, _X = some M.
+g135_xm (some N) :- g135_xr N.
 %output g135_d0.
 %output g135_d1.
 %output g135_d2.
@@ -3803,6 +4388,8 @@ g135_wr K V :- g135_w0 K V, V < 3.
 %output g135_counter.
 %output g135_w0.
 %output g135_wr.
+%output g135_xr.
+%output g135_xm.
 g136_e0 : int -> box -> rel.
 g136_e1 : int -> box -> rel.
 g136_e2 : int -> rel.
@@ -3840,25 +4427,41 @@ g136_counter M :- g136_counter N, N < 3, M = N + 2.
 %output g136_counter.
 g137_e0 : int -> int -> int -> rel.
 g137_d0 : (a : int) -> (b : box) -> (c : int) -> rel.
-g137_d1 : (a : int) -> (b : int) -> rel.
-g137_d2 : (a : int) -> (b : option int) -> rel.
+g137_d1 : (a : int) -> rel.
+g137_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
 g137_d3 : (a : int) -> (b : int) -> (c : option int) -> rel.
+g137_wg : int -> int -> int -> rel.
+g137_ws : int -> int -> rel.
+g137_w0 : (a : int) -> (b : min int) -> rel.
+g137_wr : int -> int -> rel.
 pt 0.
 g137_e0 0 0 (-3).
 g137_e0 4 3 (-2).
 g137_e0 1 2 3.
 g137_e0 3 4 0.
 g137_e0 4 4 (-1).
+g137_wg 3 0 1.
+g137_wg 3 4 3.
+g137_wg 4 0 3.
+g137_wg 3 0 4.
+g137_wg 1 1 3.
+g137_ws 2 4.
+g137_ws 1 0.
 g137_d0 1 (mk 4) V1 :- g137_e0 3 V1 V1, V1 = 2, (V1 < 4 ; V1 = 1).
-g137_d0 V3 (mk 4) V3 :- g137_e0 V1 V2 _, g137_e0 _ _ V3, V4 = cons V3 nil, (V1 < 2 ; V2 = 3).
-g137_d1 V2 V4 :- g137_d0 1 V1 V2, g137_e0 _ 0 V2, g137_d0 _ V3 V4, V6 = count { V5 | g137_d0 1 _ V5 }.
-g137_d2 V1 (some 3) :- g137_d0 V1 V2 V1.
-g137_d3 V2 V1 (some V2) :- g137_e0 V1 _ V1, g137_d2 V2 V3, g137_d0 _ V4 _, (V1 < 3 ; V1 = 2).
-g137_d3 V2 V1 (some 0) :- g137_d0 V1 _ V1, g137_e0 _ V2 V1, g137_d0 V2 V3 V1, V4 = V1 * 3, not g137_d2 V1 _.
+g137_d0 V2 (mk 0) V3 :- g137_e0 V1 V2 _, g137_e0 _ _ V3, V4 = cons V3 nil, (V3 < (-2) ; V2 = 0).
+g137_d1 1 :- g137_d0 1 V1 0, g137_d0 0 V1 4, g137_d0 V2 V1 V3.
+g137_d2 V1 V1 V2 :- g137_e0 V1 V1 0, g137_e0 V1 V2 V3, V2 <= V2.
+g137_d3 V3 V3 (some V3) :- g137_e0 V1 _ V1, g137_d2 V2 V1 _, g137_d2 V3 0 _, V4 = pt V1.
+g137_d3 V3 V3 (some V1) :- g137_d0 V1 _ V1, g137_d1 V1, g137_e0 V2 V1 V3, V1 > V2, (V1 < 4 ; V3 = 3), (V1 < 1 ; V2 = 3).
+g137_w0 K V :- g137_ws K V.
+g137_w0 L (V + C) :- g137_w0 K V, g137_wg K L C, V <= 1.
+g137_wr K V :- g137_w0 K V, V < 0.
 %output g137_d0.
 %output g137_d1.
 %output g137_d2.
 %output g137_d3.
+%output g137_w0.
+%output g137_wr.
 g138_e0 : box -> list int -> int -> rel.
 g138_d0 : (a : box) -> (b : int) -> (c : int) -> rel.
 pt 4.
@@ -3879,6 +4482,9 @@ g139_wg : int -> int -> int -> rel.
 g139_ws : int -> int -> rel.
 g139_w0 : (a : int) -> (b : max int) -> rel.
 g139_wr : int -> int -> rel.
+g139_xs : int -> int -> rel.
+g139_xr : int -> rel.
+g139_xm : option int -> rel.
 g139_e0 (-1) 2.
 g139_e1 0 blue.
 g139_e1 2 blue.
@@ -3892,6 +4498,12 @@ g139_wg 3 2 3.
 g139_wg 1 2 1.
 g139_ws 4 4.
 g139_ws 3 0.
+g139_xs 2 2.
+g139_xs 3 4.
+g139_xs 1 0.
+g139_xs 2 0.
+g139_xs 1 0.
+g139_xm (some 2).
 g139_d0 (some 1) V1 :- g139_e0 V1 V1, g139_e1 V1 blue, V3 = count { V2 | (g139_e1 V2 _, V2 < 4) ; g139_e0 V2 _ }.
 g139_d0 (some V1) V1 :- g139_e1 V1 V2, g139_e1 V1 V2.
 g139_d1 V2 (mk 1) :- g139_e0 V1 V2.
@@ -3901,18 +4513,43 @@ g139_w0 K V :- g139_ws K V.
 g139_w0 L (V + C) :- g139_w0 K V, g139_wg K L C.
 g139_w0 L (V + C) :- g139_w0 K V, g139_wg K L C.
 g139_wr K V :- g139_w0 K V, V > 0.
+g139_xr N :- g139_xs M N, _X = some M.
+g139_xm (some N) :- g139_xr N.
 %output g139_d0.
 %output g139_d1.
 %output g139_d2.
 %output g139_counter.
 %output g139_w0.
 %output g139_wr.
+%output g139_xr.
+%output g139_xm.
 g140_e0 : int -> string -> rel.
 %input g140_e0.
 g140_d0 : (a : box) -> (b : int) -> rel.
-g140_d0 (mk 2) V1 :- g140_e0 V1 V2, V3 = cons V1 nil.
-g140_d0 (mk 4) V5 :- g140_e0 _ V1, g140_e0 V2 V3, V5 = min { V4 | g140_e0 V4 V1 }.
+g140_wg : int -> int -> int -> rel.
+g140_ws : int -> int -> rel.
+g140_w0 : (a : int) -> (b : min int) -> rel.
+g140_w1 : (a : int) -> (b : max int) -> rel.
+g140_wr : int -> int -> rel.
+g140_wg 2 0 2.
+g140_wg 2 0 2.
+g140_wg 4 0 1.
+g140_wg 4 4 0.
+g140_wg 2 0 4.
+g140_ws 0 1.
+g140_ws 2 (-3).
+g140_d0 (mk (-1)) V1 :- g140_e0 V1 V2, V3 = pt V1.
+g140_d0 (mk 1) V1 :- g140_e0 V1 V2.
+g140_w0 K V :- g140_ws K V.
+g140_w0 L (2 * V + C) :- g140_w0 K V, g140_wg K L C, V <= 4.
+g140_w0 L (V + C) :- g140_w0 K V, g140_wg K L C.
+g140_w1 K (0 - V) :- g140_w0 K V.
+g140_w0 K (1 - V) :- g140_w1 K V.
+g140_wr K V :- g140_w0 K V, V < 0.
 %output g140_d0.
+%output g140_w1.
+%output g140_w0.
+%output g140_wr.
 g141_e0 : option int -> rel.
 %input g141_e0.
 g141_e1 : string -> int -> rel.
@@ -3920,31 +4557,45 @@ g141_e1 : string -> int -> rel.
 g141_d0 : (a : int) -> (b : box) -> rel.
 g141_d1 : (a : int) -> (b : option int) -> rel.
 g141_d2 : (a : int) -> (b : int) -> (c : int) -> rel.
-g141_d3 : (a : int) -> (b : string) -> (c : option int) -> rel.
+g141_d3 : (a : string) -> (b : option int) -> rel.
+g141_xs : int -> int -> rel.
+g141_xr : int -> rel.
+g141_xm : option int -> rel.
 pt 0.
 pt 0.
+g141_xs 0 4.
+g141_xs 3 2.
+g141_xs 1 2.
+g141_xm (some 2).
 g141_d0 3 (mk 4) :- g141_e0 V1, g141_e0 V1, g141_e0 V1.
 g141_d0 V4 (mk (-2)) :- g141_e0 V1, V4 = min { V2 | g141_e1 V3 V2 }.
 g141_d1 4 V1 :- g141_e0 V1, g141_e0 V2, not g141_e0 _.
 g141_d1 V1 (some 1) :- g141_d0 V1 _, not g141_e1 _ 0, V1 >= 4.
 g141_d2 V1 V1 V1 :- g141_e1 "c" V1.
-g141_d2 V4 V1 V2 :- g141_e1 "" V1, g141_d1 V2 V3, g141_d1 V4 V5, V6 = some V2.
-g141_d3 0 "a" V1 :- g141_d1 1 V1.
-g141_d3 4 "b" V1 :- g141_e0 V1.
-g141_d3 V4 "a" V1 :- g141_e0 V1, g141_d0 V2 V3, g141_d2 V2 _ V4, not g141_d0 V2 _, V5 = pt V4.
+g141_d2 V1 V2 V1 :- g141_e1 "" V1, g141_d1 V2 V3, g141_d1 V4 V5, V6 = pt V2.
+g141_d3 "" V1 :- g141_d1 1 V1.
+g141_d3 "c" V1 :- g141_e0 _, g141_e0 V1.
+g141_d3 "a" V1 :- g141_e0 V1.
+g141_xr N :- g141_xs M N, _X = some M.
+g141_xm (some N) :- g141_xr N.
 %output g141_d0.
 %output g141_d1.
 %output g141_d2.
 %output g141_d3.
+%output g141_xr.
+%output g141_xm.
 g142_e0 : int -> string -> int -> rel.
 g142_e1 : int -> rel.
 g142_d0 : (a : string) -> (b : int) -> rel.
-g142_d1 : (a : box) -> rel.
-g142_d2 : (a : int) -> (b : box) -> (c : string) -> rel.
+g142_d1 : (a : int) -> (b : int) -> rel.
+g142_d2 : (a : option int) -> (b : int) -> rel.
 g142_wg : int -> int -> int -> rel.
 g142_ws : int -> int -> rel.
-g142_w0 : (a : int) -> (b : max int) -> rel.
+g142_w0 : (a : int) -> (b : min int) -> rel.
 g142_wr : int -> int -> rel.
+g142_xs : int -> int -> rel.
+g142_xr : int -> rel.
+g142_xm : option int -> rel.
 pt 0.
 pt 0.
 g142_e0 0 "" 4.
@@ -3954,36 +4605,57 @@ g142_e0 (-3) "c" 1.
 g142_e0 1 "b" 0.
 g142_e1 1.
 g142_e1 4.
-g142_wg 1 2 1.
-g142_wg 0 3 1.
-g142_ws 2 2.
-g142_ws 2 (-1).
-g142_d0 "a" V3 :- g142_e0 _ V1 V2, g142_e0 V3 V1 2, g142_e1 V2, V4 = pt V3.
-g142_d0 "a" V1 :- g142_e1 V1.
-g142_d0 V2 V1 :- g142_e0 V1 V2 V3, g142_e1 V4, V5 = V4 + V3.
-g142_d1 (mk (-3)) :- g142_d0 V1 V2, g142_e0 V3 V1 V2, g142_e0 V2 V4 V3, V2 = V3, (V3 < 1 ; V2 = 2), V5 = cons V3 nil.
-g142_d2 V1 (mk 1) "c" :- g142_e0 V1 "" V2, g142_e1 V1, V2 = V2, not g142_d0 "b" 0, V1 <= 4.
+g142_wg 0 3 2.
+g142_wg 4 2 2.
+g142_wg 3 2 1.
+g142_wg 2 4 3.
+g142_ws 4 0.
+g142_xs 0 1.
+g142_xm (some 4).
+g142_d0 V1 V3 :- g142_e0 _ V1 V2, g142_e0 V3 V1 2, g142_e1 V2, V4 = cons V3 nil.
+g142_d0 V1 V4 :- g142_e0 4 V1 V2, g142_e0 V2 "" V3, g142_e1 V4.
+g142_d0 V1 V3 :- g142_e0 _ V1 4, g142_e0 V2 V1 _, g142_e0 V2 V1 V3, (V2 < 2 ; V3 = 2), not g142_e1 1.
+g142_d1 V3 V2 :- g142_e1 V1, g142_e1 4, g142_e0 V2 "" V3, V2 <= V1.
+g142_d1 3 4 :- g142_e1 V1, V2 = pt V1.
+g142_d2 (some 0) V1 :- g142_e1 (-1), g142_d1 _ V1, V1 <= 4, V1 = (-1).
+g142_d2 V1 V4 :- g142_d2 V1 _, V4 = count { V2 | g142_d1 V3 V2 }.
 g142_w0 K V :- g142_ws K V.
 g142_w0 L (V + C) :- g142_w0 K V, g142_wg K L C.
-g142_w0 L (V + C) :- g142_w0 K V, g142_wg K L C.
-g142_wr K V :- g142_w0 K V, V > (-1).
+g142_wr K V :- g142_w0 K V, V < 1.
+g142_xr N :- g142_xs M N, _X = some M.
+g142_xm (some N) :- g142_xr N.
 %output g142_d0.
 %output g142_d1.
 %output g142_d2.
 %output g142_w0.
 %output g142_wr.
+%output g142_xr.
+%output g142_xm.
 g143_e0 : int -> rel.
 %input g143_e0.
 g143_d0 : (a : box) -> (b : option int) -> (c : int) -> rel.
+g143_xs : int -> int -> rel.
+g143_xr : int -> rel.
+g143_xm : option int -> rel.
 pt 1.
+g143_xs 1 4.
+g143_xs 2 0.
+g143_xm (some 2).
 g143_d0 (mk 0) (some V1) V1 :- g143_e0 V1, g143_e0 V1, g143_e0 4, not g143_e0 V1.
-g143_d0 (mk 0) (some V1) V3 :- g143_e0 V1, V3 = count { V2 | g143_e0 V2 }, V4 = cons V1 nil.
-g143_d0 V3 V4 V2 :- g143_e0 V1, g143_e0 V2, g143_d0 V3 V4 V2, V6 = min { V5 | (g143_e0 V5, V5 > 0) }.
+g143_d0 (mk V1) (some 2) V3 :- g143_e0 V1, V3 = count { V2 | g143_e0 V2 }, V4 = pt V1.
+g143_d0 (mk V2) (some 4) V2 :- g143_e0 _, g143_e0 V1, g143_e0 V2, not g143_e0 _, not g143_e0 (-2).
+g143_xr N :- g143_xs M N, _X = some M.
+g143_xm (some N) :- g143_xr N.
 %output g143_d0.
+%output g143_xr.
+%output g143_xm.
 g144_e0 : option int -> int -> rel.
 g144_e1 : int -> rel.
 g144_d0 : (a : int) -> (b : int) -> rel.
 g144_d1 : (a : int) -> (b : int) -> (c : int) -> rel.
+g144_xs : int -> int -> rel.
+g144_xr : int -> rel.
+g144_xm : option int -> rel.
 pt 1.
 g144_e0 (some 2) 3.
 g144_e0 (some 2) 3.
@@ -3991,14 +4663,24 @@ g144_e1 3.
 g144_e1 2.
 g144_e1 4.
 g144_e1 1.
+g144_xs 1 1.
+g144_xs 1 4.
+g144_xs 4 0.
+g144_xs 0 3.
+g144_xs 2 4.
+g144_xm (some 1).
 g144_d0 V3 V3 :- g144_e0 _ _, g144_e0 V1 V2, g144_e1 V3.
 g144_d0 V3 V3 :- g144_e0 V1 V2, g144_e0 V1 V2, g144_d0 V3 V3, V2 >= 2, V3 > 3, V2 > 0.
 g144_d0 3 V1 :- g144_d0 V1 V1, g144_e0 V2 V1, (V1 < 4 ; V1 = 0).
 g144_d1 1 V2 V2 :- g144_e1 _, g144_e1 0, V2 = count { V1 | g144_e0 _ V1 }.
 g144_d1 V2 V2 V2 :- g144_e0 V1 V2, g144_e1 V2, (V2 < 3 ; V2 = 1).
 g144_d1 V1 V1 V1 :- g144_d0 _ V1, g144_e0 _ V1, V1 <> 3.
+g144_xr N :- g144_xs M N, _X = some M.
+g144_xm (some N) :- g144_xr N.
 %output g144_d0.
 %output g144_d1.
+%output g144_xr.
+%output g144_xm.
 g145_e0 : option int -> color -> rel.
 g145_e1 : int -> rel.
 %input g145_e1.
@@ -4057,11 +4739,9 @@ g146_e0 : int -> color -> rel.
 %input g146_e0.
 g146_e1 : int -> color -> rel.
 g146_d0 : (a : option int) -> (b : int) -> rel.
-g146_counter : int -> rel.
-%terminates N (g146_counter N).
 g146_wg : int -> int -> int -> rel.
 g146_ws : int -> int -> rel.
-g146_w0 : (a : int) -> (b : min int) -> rel.
+g146_w0 : (a : int) -> (b : max int) -> rel.
 g146_wr : int -> int -> rel.
 pt 2.
 pt 2.
@@ -4073,24 +4753,19 @@ g146_e1 0 red.
 g146_e1 0 blue.
 g146_e1 (-3) red.
 g146_e1 3 green.
-g146_counter 0.
+g146_wg 3 4 2.
 g146_wg 3 2 4.
 g146_wg 0 0 1.
-g146_wg 3 2 1.
-g146_wg 3 3 4.
-g146_wg 0 4 2.
-g146_ws 0 1.
-g146_ws 0 3.
+g146_ws 2 1.
+g146_ws 3 4.
 g146_d0 none V1 :- g146_e0 V1 V2, g146_e0 V3 V4.
 g146_d0 (some V1) V1 :- g146_e1 V1 V2, V5 = count { V3 | (g146_e1 V3 V4, V3 < 3) ; g146_e0 V3 _ }, V1 <= 4.
-g146_d0 V3 V1 :- g146_e1 V1 V2, V3 = some V1, V1 < 2.
-g146_counter M :- g146_counter N, N < 1, M = N + 2.
+g146_d0 none V1 :- g146_e1 V1 V2, V3 = cons V1 nil, V4 = V1 - 1.
 g146_w0 K V :- g146_ws K V.
-g146_w0 L (V + C) :- g146_w0 K V, g146_wg K L C, V <= 3.
 g146_w0 L (2 * V + C) :- g146_w0 K V, g146_wg K L C.
-g146_wr K V :- g146_w0 K V, V < 0.
+g146_w0 L (V + C) :- g146_w0 K V, g146_wg K L C, V >= 0.
+g146_wr K V :- g146_w0 K V, V > 3.
 %output g146_d0.
-%output g146_counter.
 %output g146_w0.
 %output g146_wr.
 g147_e0 : int -> color -> rel.
@@ -4153,15 +4828,8 @@ g149_e1 : box -> color -> rel.
 g149_e2 : int -> rel.
 g149_d0 : (a : int) -> (b : box) -> rel.
 g149_d1 : (a : int) -> (b : box) -> (c : int) -> rel.
-g149_d2 : (a : int) -> rel.
-g149_d3 : (a : color) -> (b : int) -> rel.
-g149_counter : int -> rel.
-%terminates N (g149_counter N).
-g149_wg : int -> int -> int -> rel.
-g149_ws : int -> int -> rel.
-g149_w0 : (a : int) -> (b : min int) -> rel.
-g149_w1 : (a : int) -> (b : max int) -> rel.
-g149_wr : int -> int -> rel.
+g149_d2 : (a : int) -> (b : int) -> rel.
+g149_d3 : (a : int) -> (b : color) -> rel.
 pt 0.
 pt 1.
 pt (-3).
@@ -4170,33 +4838,13 @@ g149_e1 (mk 2) red.
 g149_e1 (mk 4) green.
 g149_e2 0.
 g149_e2 2.
-g149_counter 1.
-g149_wg 3 2 1.
-g149_wg 4 0 2.
-g149_wg 3 4 (-1).
-g149_wg 2 4 4.
-g149_wg 1 4 0.
-g149_wg 3 3 (-3).
-g149_ws 0 2.
-g149_ws 2 2.
 g149_d0 (-2) V1 :- g149_e1 V1 V2, g149_e1 V1 V3.
-g149_d1 V2 V3 V2 :- g149_e0 V1, g149_e2 V2, g149_d0 V2 V3, not g149_e1 V3 _, V2 > 4, V4 = some V2.
-g149_d2 V1 :- g149_e2 _, g149_d0 V1 _.
-g149_d3 V4 V1 :- g149_e2 V1, g149_e0 V2, V1 >= 0, (V1 < 2 ; V1 = 0), g149_e1 V3 V4.
-g149_d3 V2 (-1) :- g149_e1 V1 V2, (V2 = green ; V2 = green), (V2 = green ; V2 = red).
-g149_d3 V3 V1 :- g149_d1 V1 _ V1, g149_d1 V1 _ 0, g149_e0 _, V1 <= 1, not g149_d0 V1 _, g149_e1 V2 V3.
-g149_counter M :- g149_counter N, N < 4, M = N + 1.
-g149_w0 K V :- g149_ws K V.
-g149_w0 L (V + C) :- g149_w0 K V, g149_wg K L C, V <= 1.
-g149_w0 L (2 * V + C) :- g149_w0 K V, g149_wg K L C, V <= 4.
-g149_w1 K (0 - V) :- g149_w0 K V.
-g149_w0 K (2 - V) :- g149_w1 K V.
-g149_wr K V :- g149_w0 K V, V < 3.
+g149_d1 V2 V3 V2 :- g149_e0 V1, g149_e2 V2, g149_d0 V2 V3, not g149_e1 V3 _, V2 > 4, V4 = pt V2.
+g149_d2 V3 V3 :- g149_e1 _ V1, g149_d0 V2 _, V3 = V2 * 4, V2 <= V2.
+g149_d3 V3 V5 :- g149_e0 V1, V3 = min { V2 | g149_d2 _ V2 }, V4 = cons V3 nil, g149_e1 _ V5.
+g149_d3 V1 V3 :- g149_d1 V1 _ V1, g149_d1 V1 _ 0, g149_e0 _, V1 <= 1, not g149_d0 V1 _, g149_e1 V2 V3.
+g149_d3 (-1) V2 :- g149_e1 V1 V2, g149_d1 (-2) V3 V4.
 %output g149_d0.
 %output g149_d1.
 %output g149_d2.
 %output g149_d3.
-%output g149_counter.
-%output g149_w1.
-%output g149_w0.
-%output g149_wr.

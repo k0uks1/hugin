@@ -24,6 +24,18 @@ class ParserSuite extends munit.FunSuite:
     assertEquals(item("p X :- g.edge X Y, Y < limit."), "p X :- g.edge X Y, (Y < limit).")
   }
 
+  test("`^` and `<` are prefix where an operand starts, binary between operands (#106)") {
+    assertEquals(item("x : ^int -> ^prop = f."), "x : (⇑int -> ⇑prop) = f.")
+    assertEquals(item("s = \"a\" ^ \"b\"."), "s = (\"a\" ^ \"b\").")
+    assertEquals(item("e = <edge a b>."), "e = <edge a b>.")
+    assertEquals(item("e = [x] <edge $x b>."), "e = [x] <edge $x b>.")
+    assertEquals(item("p X :- X < 3, X > 1."), "p X :- (X < 3), (X > 1).")
+    assertEquals(item("e = <(X > 1)>."), "e = <((X > 1))>.")
+    // an unclosed quote is one error, E0005
+    val (_, r) = parse("e = <edge a b.\nq : rel.")
+    assertEquals(r.diagnostics.map(_.code.id), List("E0005"))
+  }
+
   test("comparison operators are non-associative") {
     val (_, r) = parse("p X :- 1 < X < 3.")
     assertEquals(r.diagnostics.map(_.code).map(_.id), List("E0001"))
@@ -148,6 +160,6 @@ class ParserSuite extends munit.FunSuite:
   test("the parser never gets stuck: every prefix of a program parses") {
     val text = "graph : Type = { node : type, edge : node -> node -> rel }.\n" +
       "tc (g : graph) = { path : g.node -> g.node -> rel. path X Y :- g.edge X Y. }.\n" +
-      "q N :- N = count { X | p X [1, 2] }, (Y with { a = 1 }), $..xs, '{ h :- b. ?- c }, f '{ x }.\n%demand typed +e -t."
+      "q N :- N = count { X | p X [1, 2] }, (Y with { a = 1 }), $..xs, '( h :- b. ?- c ), f '( x ).\n%demand typed +e -t."
     for n <- 0 to text.length do parse(text.take(n))
   }
