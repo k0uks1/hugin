@@ -112,6 +112,10 @@ trait Bidirectional:
     case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined => reify(c, t, implicitQuote(t, ty).get)
     case (Parens(i), _) => check(c, i, a, st)
     case (h: Hole, _) => checkHole(c, h, a, st)
+    case (q: Quote, ty) if st == Stage.S1 && quotedIndex(ty).isDefined =>
+      // a quoted term of a known object type: checked at it
+      val a = quotedIndex(ty).get
+      qtermOf(c, a, reify(c, q, RKind.Term, Some(a)))
     case (q: Quote, ty) =>
       reflectiveKind(ty) match
         case Some(k) if st == Stage.S1 => reify(c, q, k)

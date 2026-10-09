@@ -560,7 +560,8 @@ dropped and elaboration continues with the next one.
   staged program carries them into `obj.Trees` and the object-level diagnostics point where the old
   pipeline pointed (also into the bodies of meta functions that produced the code). Unification and
   application look through positions; the innermost position wins (`(X)` has the position of `X`).
-* **Object typing is deferred** (the risk noted for B3). The core unifies object types where it can
+* **Object typing is deferred** (the risk noted for B3). [Superseded by #56: object typing runs in the
+  core at the end of each scope; see "Typed object code (#56)".] The core unifies object types where it can
   (that solves implicit arguments and the types of rule variables) but never rejects object code for its
   object types: between two object data types that do not unify, `Coercions.coe` keeps the term
   (`coeObjectData`); literals in object code are object literals of any type; arithmetic operand types
@@ -729,6 +730,7 @@ dropped and elaboration continues with the next one.
   items are re-elaborated at assembly (correct, not incremental).
 * An implicit type argument that only the object typer could determine (the type of an object variable
   constrained by nothing in the core) stays unknown and is reported at staging (E0909), not as E0206.
+  [Resolved by #56: object typing solves it, or it is E0206 at the item.]
 * E0202's concepts (shape, stage, unbound aggregate) still share a code; "no member" is E0906.
 * Phase C: reflection (§6.8), quoted patterns and `$`/`$..` holes (§6.9) (done in C1, see "Reflection"
   below), directives as meta functions
@@ -773,7 +775,8 @@ and patterns), splits by identity in case trees, and reflection (data → syntax
   There is no `Var` type: variable names are `string`s. `Decl` is not there yet: reflected declarations
   create object constants, which C2 (directives adding declarations) and C3 (`%demand` declaring
   `r.check`) need and will design; `irule` and `iquery` are the items for now.
-* **Untyped reflection** (Q5, first version): `sym` is one type for all object constants (not
+* **Untyped reflection** (Q5, first version; [#56 added `quoted A` and typed quotes and holes, see "Typed
+  object code (#56)"]): `sym` is one type for all object constants (not
   `⇑(τ̄ → rel)`), `term` is untyped; reflected code is re-checked. Data refers to object constants by
   symbol, so it cannot name undeclared ones, and matching is by symbol: a pattern on `edge` does not match
   the `edge` of a module (`m.edge`), nor a program's `edge` that shadows the one in scope where the
@@ -1620,11 +1623,80 @@ open type, no parameters, refinement or definition), as the design note of B3 ("
 declarations") describes. `HandoverSuite` covers a forward reference, the cycle in both orders and facts
 of the cycle's constructors.
 
+## Typed object code (#56)
+
+Object code is typed in the meta level where it is written, and reflection has a typed layer. The design
+is `docs/design/typed-object-code.md` (a survey of Lean 4, Qq, Scala 3, Kovács's staged elaborator and
+typed Template Haskell from their sources), approved by the designer as written; it covers the triage
+items C1 and C2 of `docs/history/TRIAGE.md`. Batch A (object typing in the core) is PR #93; batch B (typed
+reflection) follows it.
+
+| file | contents |
+|---|---|
+| `core/objtype/OTy.scala`, `ObjEnv.scala` | object types by their heads (globals, and context variables during elaboration), the constants and edges in scope, values to types |
+| `core/objtype/ObjTypes.scala` | subtyping, members, meets, joins (ported from `obj/typing/TypeOps`); abstract types |
+| `core/objtype/Typed.scala`, `ObjWalk.scala` | object code as the checker reads it, from core terms (elaborated or staged) |
+| `core/objtype/ObjCheck.scala`, `ObjRecords.scala`, `ObjProblems.scala` | the checker (ported from `RuleTyper`): meets of variables, equations, subsumption, operands, projections; E0303–E0305, E0401–E0405 |
+| `core/elab/ObjectTyping.scala` | the end of each scope: rules, queries, formula-function clauses, object code in meta definitions, clauses and meta-function arguments; `⇑` covariance |
+| `core/handover/StagedTyping.scala` | the check of staged items, and the variable types of every item for the object phases |
+| `core/elab/TypedQuotes.scala` | `quoted A`, its coercions, the types of holes, the check of quotes |
+
+Decisions:
+
+* **One checker, read from core terms.** The design note has the elaborator feed constraints while it
+  elaborates; the implementation reads the elaborated core terms at the end of each scope instead, with
+  the context's types and the constants' types, and the types of spliced meta code read off the types
+  of variables and globals applied to arguments. Elaboration still unifies object types where it can and
+  keeps a term whose types do not unify (that solves implicit arguments); object typing decides. The
+  same checker reads staged items after the handover (Lean's kernel boundary): it reports only for items
+  that involve meta code (a splice, a persisted value, `fresh`, a module instance, a generic rule,
+  reflected code), and gives every item the variable types that `records` and `disjunction` use. Variable
+  types found by meets solve the unknown types of variables, which determines implicit type arguments
+  (the case under "Open issues (after Phase B)").
+* **Functor bodies (C1)** are typed once: the types a parameter gives (`g.node`) are abstract, a subtype
+  only of themselves (and of what edges say), so `out X :- g.edge X X.` with `out : (x : expr) -> rel` is
+  E0402 at the body. Operand checks over an abstract type (comparisons, arithmetic, a literal in its
+  column, projections) and meets with it are left to the instances. A probe over every program of
+  `tests/`, `examples/` and the design examples found no program that the rule rejects.
+* **`⇑` is covariant (C2)**: `⇑τ` is accepted for `⇑σ` if `τ ≤ σ`, also where a quote cancels a splice
+  (`w X = up X` with `X : ⇑var`, `up : expr -> prop`). Spliced code at an object position is coerced
+  like other object data, so a misplaced one is E0402 (was E0901).
+* **E0404** is reported by the declarations: an edge's member at the edge, refinements and union columns
+  after the file's declarations. The edges of a module body are elaborated before its rules.
+* **`quoted A`** is a prelude inductive type former with the unchecked constructor `qterm` (the escape
+  hatch, Qq's `unsafeMk`) and `raw`; it is not a definition, so that conversion never unfolds it into
+  `term` (#66). It is accepted as a `term`, covariantly in `A`, and stands for its term in object code.
+* **Quotes are checked from their analysis.** The design note has quote content elaborated as object
+  code and reified from the core term; the implementation checks the existing analysis of a quote (`Q`,
+  the one reading shared by expressions and patterns) with the same checker and reifies from it as
+  before. Elaborating holes of type `term` as object code would need placeholders instead of reflection
+  (which fails on open data, E0918), and named patterns and dropped implicit arguments would need cases
+  of their own; with one reading the risk the note names (two readings that disagree) does not arise.
+  Holes are checked at their types: `quoted A` at `A`, `term` at an unknown type, a base or shared value
+  at the type it lifts to. The rules of a file reified for a module-wide directive are not checked again.
+* **Typed holes** of quoted patterns: a hole at a column of a resolved constant with a base type or a
+  constant's type binds `X : quoted τ`, through a variable for the data and `X = (qterm X#data : quoted τ)`
+  in the clause's `where` block (as higher-order holes do); case trees and coverage are unchanged, and
+  the type is not tested when matching (reflection checks the data again).
+* **Hygiene of generated names.** `%demand` names the wildcards of guarded heads `_a#0`, `_ba#0`, …:
+  source syntax cannot write `#`, so a program's `_a` is not captured (it was: `run/ot_demand_hygiene`
+  answered `no.`). Names still display as `_a`.
+* **Cost.** Measured in process (gen_large, 10 warm runs): the checks during elaboration 3–4 % of the
+  run, the check of staged items 1.5–3 %; the warm bench set is within noise of the base (interleaved runs
+  against a build of 50a893c). The columns of global constants are cached with the core.
+
+Goldens: `neg/ot_generators`, `neg/ot_functor_once`, `neg/ot_typed_quotes`, `run/ot_lift_upcast`,
+`run/ot_meet_implicit`, `run/ot_typed_patterns` (with a round trip), `run/ot_quoted_terms`,
+`run/ot_demand_hygiene`. Changed: `neg/c1_coverage` (`raw` in a printed clause),
+`neg/c1_reflected_diagnostics` (an ill-typed quote is reported at the quote), `neg/core_e0901_occurs`
+(numbers of unknowns). Two unit tests of `HandoverSuite` and `ModulesSuite` were ill-typed (they stopped
+before the object typer ran) and were made well-typed.
+
 ## Frozen metas (#66, Batch 1)
 
-Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.1. Each declaration, clause
-group, formula function and object item is a *block* (`Core.inBlock`, called by `Items`). While a block
-is elaborated, the metas that existed when it started are frozen: `Core.solveMeta` refuses them
+Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.1. Each declaration,
+clause group, formula function and object item is a *block* (`Core.inBlock`, called by `Items`). While a
+block is elaborated, the metas that existed when it started are frozen: `Core.solveMeta` refuses them
 (`UnifyFailure.Frozen`), `unify` treats them as rigid (against an active meta it solves the active one;
 the same frozen meta on both sides compares the spines), and `pruneFlex` does not prune them. A block
 inside a block is part of it. Outside blocks nothing is frozen, because staging solves the unknowns of a
@@ -1632,17 +1704,31 @@ generic item for each instance (`Core.tentatively`).
 
 Before, an unknown that may stay unsolved (a hole) could be solved by a later item: `t : Type = ?t.`
 followed by `x : t = 5.` solved `?t := int`, and `y : t = "s".` then reported "expected `int`". The
-reference already said a hole is constrained by its item only. A frozen hole now makes the later item fail
-silently (`ElabErrors.mismatch`): its E0924 is the error. A spike that logged every cross-block solution
-found none in the golden, core, reference, LSP and incrementality suites, so no other program changes.
-Object typing (#56) solves its store inside the block, before the block ends, so freezing follows it.
+reference already said a hole is constrained by its item only. A frozen hole now makes the later item
+fail silently (`ElabErrors.mismatch`): its E0924 is the error. A spike that logged every cross-block
+solution found none in the golden, core, reference, LSP and incrementality suites, so no other program
+changes. Object typing (#56) solves its store inside the block, before the block ends, so freezing
+follows it.
 
 Unknowns print numbered from the start of their block (`Printing.showMeta`): `?3` instead of `?167`, so
 messages do not depend on the number of metas in the prelude. `Core.fork` keeps its copy-on-write of meta
-entries: an item's fork can no longer solve a base meta, but `allowUnsolved` still writes entries, and
-a parent core may go on elaborating after a fork.
+entries: an item's fork can no longer solve a base meta, but `allowUnsolved` still writes entries, and a
+parent core may go on elaborating after a fork.
 
 ## Possible next steps
 
-* Object-level typing of functor bodies with abstract types (earlier errors for functors).
 * A faster engine (columnar storage, join planning) behind the same core IR.
+
+## The reference moves with the language (designer rule, 2026-10-09)
+
+The designer made this a hard rule: no change to the syntax, the semantics or any other part of the
+language's definition is merged without the matching change to the language reference, in the same
+pull request. The trigger was #56 batch A (PR #93). It changed the static semantics: object code is
+checked at the definition of a meta function, `⇑` became covariant, and functor bodies are typed once.
+It was merged without touching the reference, and the reference followed only in batch C (PR #94). Splitting
+"code" and "docs" into separate batches is not allowed any more: each pull request updates the reference
+for what it changes. CONTRIBUTING.md, "Changing the language", states the rule. CI enforces the
+mechanical part with `scripts/check-reference-impact.sh`: a pull request that touches `syntax/`, `core/`,
+`obj/`, `runtime/`, `Code.scala` or the bundled library must also touch `reference/src/` or
+`docs/errors/`, or carry the line `Reference: no change, <reason>` in its description. `CLAUDE.md` repeats
+the rule for agents.

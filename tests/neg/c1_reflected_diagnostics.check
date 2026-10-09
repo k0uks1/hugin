@@ -18,10 +18,5 @@ error[E0402]: type mismatch
    |                    ^^^^^ expected `int`, found `string`
    |
    = note: in column 1 of `p`
-note: in code reflected by `$[typo]`
-  --> tests/neg/c1_reflected_diagnostics.hgn:12:1
-   |
-12 | $[typo].
-   | ^^^^^^^^
 
 2 errors found
