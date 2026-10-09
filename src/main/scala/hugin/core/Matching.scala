@@ -71,7 +71,13 @@ trait Matching:
 
   /** A value forced, without the positions around it (reflected data carries the positions of the object
    *  syntax it was reified from, reference: reflection). */
-  def forceData(v: Val): Val = force(Val.unloc(force(v)))
+  def forceData(v: Val): Val =
+    val f = force(v)
+    val u = Val.unloc(f)
+    // forced again only if a position was removed: forcing a stuck application tries to reduce it, which
+    // forces the value it splits on, so forcing twice per split doubled the work at every level of a
+    // stuck value (2^depth, issue #108)
+    if u eq f then f else force(u)
 
   /** The key of a canonical atom (a reference to an object constant, a meta literal), as split on by
    *  [[CaseTree.SplitAtom]]; `None` for a value that is not one (yet). */

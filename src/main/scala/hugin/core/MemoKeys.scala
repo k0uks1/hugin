@@ -33,7 +33,8 @@ trait MemoKeys:
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
   def closedKey(args: List[Val]): Option[List[Tm]] =
-    val tms = args.map(a => quoteKey(a)._1)
+    // one read-back for all arguments: values they share are read back once (issue #108)
+    val tms = sharingReadBack(args.map(a => quoteKey(a)._1))
     Option.when(tms.forall(closedId))(tms)
 
   /** The ids of the normal forms of `args`, if they are all closed ([[closedKey]]). */

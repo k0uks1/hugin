@@ -109,7 +109,8 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
    *  variables `names` (at level `lvl`). */
   private def observing[A](names: List[Name], lvl: Int)(f: => A): A =
     import hugin.compiler.SemanticIndex.Stage
-    def show(v: Val) = showTm(names, quote(lvl, v))
+    // bounded: a persisted value may be stuck code with an exponential tree (issue #108)
+    def show(v: Val) = showTmBounded(names, quote(lvl, v))
     val saved = observer
     observer = new StagingObserver:
       def quoted(span: Span, code: Val): Unit = index.staged(span, Stage.Quoted, show(code))

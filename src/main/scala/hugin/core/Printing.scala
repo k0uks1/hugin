@@ -18,6 +18,17 @@ trait Printing:
 
   def showTm(names: List[Name], t: Tm): String = go(names, t, 0)
 
+  /** At most `limit` nodes of the terms printed (`…` for the rest): a term that diagnostics show may be a
+   *  normal form whose tree is exponential in its size (stuck meta code that shares values, issue #108). */
+  private var budget = Int.MaxValue
+
+  /** [[showTm]], with at most `limit` nodes shown. */
+  def showTmBounded(names: List[Name], t: Tm, limit: Int = 60): String =
+    val saved = budget
+    budget = limit
+    try go(names, t, 0)
+    finally budget = saved
+
   /** An unknown, numbered from the start of its top-level block (`?0` is the block's first), so that
    *  messages do not depend on the metas of the prelude and of earlier items. An unknown of an earlier
    *  block is a hole (shown as written) or keeps its global number. */
@@ -92,7 +103,13 @@ trait Printing:
   // arithmetic, 5 application, 6 projections, 7 atoms (the operands of `$` and `⇑`)
   private def par(p: Int, q: Int, s: String) = if p > q then s"($s)" else s
 
-  private def go(ns: List[Name], t: Tm, p: Int): String = t match
+  private def go(ns: List[Name], t: Tm, p: Int): String =
+    if budget <= 0 then "…"
+    else
+      if budget != Int.MaxValue then budget -= 1
+      node(ns, t, p)
+
+  private def node(ns: List[Name], t: Tm, p: Int): String = t match
     case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
     case Tm.Meta(m) => showMeta(m)
@@ -104,8 +121,10 @@ trait Printing:
       val bind = if i == Icit.Impl then s"{$y}" else y
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
     case Tm.App(f, a, i) =>
+      // the function first: with a budget ([[showTmBounded]]) the head is shown and the last arguments elided
+      val fun = go(ns, f, 5)
       val arg = if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6)
-      par(p, 5, s"${go(ns, f, 5)} $arg")
+      par(p, 5, s"$fun $arg")
     case Tm.Pi(x, i, a, b) =>
       val y = fresh(ns, x)
       val dom =
