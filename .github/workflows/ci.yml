@@ -27,6 +27,19 @@ jobs:
       - name: Check the wording of the reference and the error explanations (reference/STYLE.md)
         run: scripts/check-style.sh
 
+  reference-impact:
+    name: Reference updated with the language
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: A change to the language changes the reference (CONTRIBUTING.md, "Changing the language")
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: scripts/check-reference-impact.sh "origin/${{ github.base_ref }}"
+
   test:
     name: Build and test (JDK ${{ matrix.java }})
     runs-on: ubuntu-latest
