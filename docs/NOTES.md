@@ -1816,6 +1816,23 @@ Decisions:
   written (a signature's name).
 * Object typing (#56) forces every value before matching on it, so `core/objtype` needed no change.
 
+## Approximate conversion (#66, Batch 3)
+
+Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.3. `unify` takes a
+`ConvState`, smalltt's three states. In `Rigid` (the start), two applications of the same definition are
+compared by their arguments in `Flex`, and both are unfolded and compared in `Full` if that fails; of two
+different definitions the later one (the larger global id) is unfolded first, since a definition refers
+only to globals elaborated before it; a definition against anything else is unfolded. `Flex` solves no
+meta (`UnifyFailure.FlexSolution`), unfolds no definition and adds no universe level constraint (a level
+equation holds there only if the levels are the same). `Full` unfolds at once. In `Rigid` and `Full`, an
+unknown against a definition is solved with the folded form, and with the unfolded value if that fails
+(Batch 2's rule, now also below an unfolding). Applications of a function defined by clauses that are
+stuck keep the approximate comparison by their arguments in every state, as before; the reference now
+states that rule (meta/functions, implicit arguments). Type formers, postulates and primitives (the
+prelude's `quoted`, `qatom` of #96) are never `Top`s, so nothing unfolds them.
+
+No golden changes: the states decide how much is unfolded on the way, not which programs are accepted
+or how their unknowns are solved.
 ## Notation of the code types (#106)
 
 Decided by the designer in the issue: `^A` spells `⇑A` in ASCII (Kovács's staged elaborator,

@@ -177,3 +177,58 @@ class UnificationSuite extends munit.FunSuite:
       assertEquals(f.solution(m), "p")
     }
   }
+
+  // Approximate conversion (issue #66, Batch 3): smalltt's states Rigid, Flex and Full.
+
+  /** A definition `name : ty = tm` in the fixture's core. */
+  private def define(f: Fixture, name: String, ty: Tm, tm: Tm): Int =
+    f.core.addGlobal(GlobalEntry(name, f.core.eval(Nil, ty), ty, Stage.S1, GlobalKind.Definition(tm, f.core.eval(Nil, tm)), Span.NoSpan))
+
+  private val AtoAtoA = (f: Fixture) => Pi("x", E, Global(f.A), Pi("y", E, Global(f.A), Global(f.A)))
+
+  test("approximate: the same definition with different arguments is unfolded when the arguments differ") {
+    val f = Fixture()
+    val k = define(f, "k", AtoAtoA(f), Lam("x", E, Lam("y", E, Var(1))))
+    // k p (g p) = k p p: the arguments differ, the values (both p) agree
+    f.unify(0, f.glob(k, f.glob(f.p), f.glob(f.g, f.glob(f.p))), f.glob(k, f.glob(f.p), f.glob(f.p)))
+    assertEquals(f.failure(0, f.glob(k, f.glob(f.p), f.glob(f.p)), f.glob(k, f.glob(f.g, f.glob(f.p)), f.glob(f.p))), UnifyFailure.Mismatch)
+  }
+
+  test("approximate: Flex solves no meta and unfolds no definition") {
+    val f = Fixture()
+    val m = f.meta(0)
+    assertEquals(intercept[UnifyError](f.core.unify(0, f.flex(m), f.glob(f.p), ConvState.Flex)).failure, UnifyFailure.FlexSolution)
+    assertEquals(f.solution(m), "unsolved")
+    val d = define(f, "d", Global(f.A), App(Global(f.g), Global(f.p), E))
+    intercept[UnifyError](f.core.unify(0, f.glob(d), f.glob(f.g, f.glob(f.p)), ConvState.Flex))
+    // in the default state the definition is unfolded
+    f.unify(0, f.glob(d), f.glob(f.g, f.glob(f.p)))
+  }
+
+  test("approximate: Flex adds no universe level constraint") {
+    val f = Fixture()
+    val a = f.core.levels.fresh()
+    val b = f.core.levels.fresh()
+    assertEquals(intercept[UnifyError](f.core.unify(0, Val.U1(a), Val.U1(b), ConvState.Flex)).failure, UnifyFailure.Universe)
+    // a < b is still possible: no a = b was added
+    assert(f.core.levels.lt(a, b))
+  }
+
+  test("approximate: an unknown is solved with the folded definition, also after unfolding") {
+    val f = Fixture()
+    val d = define(f, "d", Global(f.A), App(Global(f.g), Global(f.p), E))
+    val k = define(f, "k", AtoAtoA(f), Lam("x", E, Lam("y", E, Var(1))))
+    val m = f.meta(0)
+    // k ?m p = k d p: the arguments do not match without solving ?m, so both sides are unfolded (Full)
+    f.unify(0, f.glob(k, f.flex(m), f.glob(f.p)), f.glob(k, f.glob(d), f.glob(f.p)))
+    assertEquals(f.solution(m), "d")
+  }
+
+  test("approximate: of two definitions the later one is unfolded first") {
+    val f = Fixture()
+    val d = define(f, "d", Global(f.A), App(Global(f.g), Global(f.p), E))
+    val alias = define(f, "alias", Global(f.A), Global(d))
+    f.unify(0, f.glob(alias), f.glob(d))
+    f.unify(0, f.glob(d), f.glob(alias))
+    f.unify(0, f.glob(alias), f.glob(f.g, f.glob(f.p)))
+  }

@@ -64,12 +64,12 @@ trait Families:
   /** `inst sp =? fam ā $ sp2` where `inst` is an instance of `fam` (a family applied to unknown types
    *  denotes the instance at the types that solve them): the arguments are unified with the instance's,
    *  the rest of the spines with each other. */
-  def unifyInstance(l: Int, inst: Int, sp: Spine, famSp: Spine): Unit =
+  def unifyInstance(l: Int, inst: Int, sp: Spine, famSp: Spine, cs: ConvState = ConvState.Rigid): Unit =
     val key = globals(inst).instanceOf.get._2
     famSp.reverse.splitAt(key.length) match
       case (args, Elim.ESplice :: rest) if args.forall(_.isInstanceOf[Elim.EApp]) =>
-        args.zip(key).foreach { case (Elim.EApp(a, _), k) => unify(l, a, eval(Nil, k)); case _ => }
-        unifySp(l, sp, rest.reverse)
+        args.zip(key).foreach { case (Elim.EApp(a, _), k) => unify(l, a, eval(Nil, k), cs); case _ => }
+        unifySp(l, sp, rest.reverse, cs)
       case _ => throw UnifyError(UnifyFailure.Mismatch)
 
   private def showInstanceArg(t: Tm): String = t match
