@@ -1,0 +1,11 @@
+(* A stray `(` between an aggregate's keyword and its braces (issue #83): one error; the aggregate is
+   parsed, so its `|`, `;`, `}` and the rest of the body are not errors of their own, and the items
+   after the rule are elaborated. *)
+p : int -> rel.
+q : int -> rel.
+p 1.  p 2.  q 2.
+c : int -> int -> rel.
+c N M :- p N, M = count ( { X | p X ; q X }, M > 0. (*~ E0001 *)
+s : int -> rel.
+s M :- M = sum [ { X | p X }. (*~ E0001 *)
+c N 0 :- q N.

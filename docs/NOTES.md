@@ -1323,6 +1323,18 @@ for built types already said; recursive existence checks keep their coverage thr
 no negation joins its component. With the engine fix reverted, seed 7 finds the engine bug again through
 this shape.
 
+**A stray opener before an aggregate's braces (parser).** `RecoveryFuzzSuite` (seed 7) inserted `(` in
+`C = count { X | f X ; g X N }, …`, which gave 3 syntax errors (> k = 2): `expected {` at `(`; then
+`( { X` was parsed as a parenthesised brace expression whose recovery resynchronised, so the `|` was
+reported by the end of the item, and the `(` was reported unclosed. The mutant is one mistake, and the
+intended text is evident: an opening delimiter directly followed by `{` after an aggregate keyword is a
+stray token. Fix (`syntax/ExprSyntax.scala`, `parseAggregate`): `(` or `[` followed by `{` there is
+reported once (`expected {`), skipped, and the aggregate is parsed from the brace and marked damaged (an
+inserted or skipped delimiter is a guess, so the rule is not elaborated, as for E0005). The property is
+unchanged (k = 2). Golden: `tests/recovery/f_aggregate_stray_paren` (one error per rule, the items after
+them elaborated). The seed no longer reproduces the mutant on its own, because the new goldens change the
+corpus the mutants are drawn from; the shape was reproduced from three corpus files by hand.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
