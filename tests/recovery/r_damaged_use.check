@@ -1,0 +1,9 @@
+error[E0001]: expected an item, found `:`
+ --> tests/recovery/r_damaged_use.hgn:4:21
+  |
+4 | %use "std/reflect". : int -> rel. (*~ E0001 *)
+  |                     ^ expected an item
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+

@@ -1,0 +1,6 @@
+(* An unexpected token after a `%use` on its line damages the `%use` (its period may be the mistake): it
+   opens nothing, and the names it might have opened are not reported as unresolved, only the syntax
+   error is. *)
+%use "std/reflect". : int -> rel. (*~ E0001 *)
+hold : quoted int -> list item.
+hold Q = ['{ held $Q }].
