@@ -1285,6 +1285,29 @@ expected, a quote at `seq formula`). New: `neg/e0919_quote_without_type`, `recov
 form in parentheses and in a list, an unclosed `'{`), `run/c3_demand_meta_values`,
 `run/c3_demand_ascription`.
 
+## Fuzz failures (#83)
+
+Failures of `GeneratedFuzzSuite` and `RecoveryFuzzSuite` with non-default seeds (42, 7), each shrunk,
+classified (program/generator, property, or compiler/engine) and fixed at the source.
+
+**Recursive existence checks (engine).** `d0 N :- src N, _X = some N.` together with
+`d1 (some N) :- d0 N.` puts `d0` and `some[int]` into one component: the existence check reads
+`some[int]` (reference: object/facts, *Bodies never create facts*), and the head of `d1` builds facts of
+`some[int]`, which the compiler derives in `some[int]`'s component (*Facts derived in other components*).
+The lowering marked only atoms (`Scan`) as recursive reads; the `Lookup` of an existence check always
+read the whole relation and did not count as a recursive atom. A rule whose only recursive read is an
+existence check therefore had `recursiveAtoms = 0` and fired once, in the initial round, before the
+rules of its component had derived anything; its facts were lost (the engine disagreed with the naive
+evaluator). Fix (`ir/Lower.scala`, `runtime/Engine.scala`, `ir/IR.scala`): `Lookup` carries a recursive
+index like `Scan`, assigned by the same counter in body order, and reads the version window of the round
+(old before the delta read, delta at it, full after it). Correctness: a `Lookup` of `c t̄` is the atom
+`c t̄` with every column checked (`(c t̄ as X)`), so semi-naive evaluation with one variant per recursive
+read is exactly the standard differential of the rule; identities are in assertion order, so the window
+test on the identity found is the same test a scan of the relation would make. Inside negations and
+aggregates reads stay unversioned (stratification puts their relations in earlier components). Golden:
+`tests/run/f_recursive_existence_check` (the shrunk program, and a chain that needs one round per step;
+expected output derived by hand).
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

@@ -108,7 +108,7 @@ final class NaiveEvaluator(prog: CoreProgram):
           (eval(a, regs, None), eval(b, regs, None)) match
             case (Some(x), Some(y)) if compare(op, x, y) => LazyList(regs)
             case _ => LazyList.empty
-        case BodyOp.Lookup(dst, rel, as) =>
+        case BodyOp.Lookup(dst, rel, _, as) =>
           // a fact-constructor term in a binding equation must be a fact
           val vs = as.toVector.map(eval(_, regs, None))
           if vs.forall(_.isDefined) && facts(rel).contains(vs.map(_.get)) then LazyList(regs + (dst -> Fact(rel, vs.map(_.get))))

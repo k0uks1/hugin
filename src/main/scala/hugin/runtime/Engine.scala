@@ -110,6 +110,14 @@ final class Engine(prog: CoreProgram):
       scanIndexes.put(scan, idx)
     idx
 
+  /** The window of identities that a read of `rel` with recursive index `recIdx` sees in the current
+   *  round (Section 9.5): the delta `[oldEnd, deltaEnd)` for the delta atom, the old part `[0, oldEnd)`
+   *  before it, the full relation `[0, deltaEnd)` after it; everything for a non-recursive read. */
+  private inline def windowLo(rel: Int, recIdx: Int): Int = if recIdx >= 0 && recIdx == deltaAt then oldEnd(rel) else 0
+
+  private inline def windowHi(rel: Int, recIdx: Int): Int =
+  if recIdx < 0 then Int.MaxValue else if deltaAt >= 0 && recIdx < deltaAt then oldEnd(rel) else deltaEnd(rel)
+
   /** Runs ops(i..) and calls `k` for every solution. Returns false to stop early. */
   private def exec(ops: Array[BodyOp], i: Int, regs: Array[Any], k: Array[Any] => Boolean): Boolean =
     if i == ops.length then return k(regs)
@@ -117,11 +125,8 @@ final class Engine(prog: CoreProgram):
       case scan @ BodyOp.Scan(rel, recIdx, asReg, binds, checks) =>
         val r = store(rel)
         // the window the atom reads (Section 9.5): old = [0, oldEnd), delta = [oldEnd, deltaEnd), full
-        val lo = if recIdx >= 0 && recIdx == deltaAt then oldEnd(rel) else 0
-        val hi =
-          (if recIdx < 0 then Int.MaxValue
-           else if deltaAt >= 0 && recIdx < deltaAt then oldEnd(rel)
-           else deltaEnd(rel)) .min(r.size)
+        val lo = windowLo(rel, recIdx)
+        val hi = windowHi(rel, recIdx).min(r.size)
         // identities are in assertion order (see [[Relation]]). A tuple found through the index of the
         // checked columns has those values (the index compares with `equals`, which implies `==`), so
         // its checks are not evaluated again.
@@ -203,12 +208,14 @@ final class Engine(prog: CoreProgram):
         (eval(a, regs, InBody), eval(b, regs, InBody)) match
           case (Some(x), Some(y)) if compare(op, x, y) => exec(ops, i + 1, regs, k)
           case _ => true
-      case BodyOp.Lookup(dst, rel, as) =>
+      case BodyOp.Lookup(dst, rel, recIdx, as) =>
         val vs = as.map(eval(_, regs, InBody))
         if vs.exists(_.isEmpty) then true
         else
           val n = store(rel).lookup(vs.map(_.get))
-          if n >= 0 then { regs(dst) = Id(rel, n); exec(ops, i + 1, regs, k) }
+          // a recursive existence check sees the version window of the round, like a recursive scan
+          if n >= 0 && (recIdx < 0 || (n >= windowLo(rel, recIdx) && n < windowHi(rel, recIdx))) then
+            regs(dst) = Id(rel, n); exec(ops, i + 1, regs, k)
           else true
       case BodyOp.NotIn(sub) =>
         var found = false
@@ -289,6 +296,7 @@ final class Engine(prog: CoreProgram):
       rels = Array.fill(r.recursiveAtoms)(-1)
       def visit(ops: Array[BodyOp]): Unit = ops.foreach {
         case BodyOp.Scan(rel, recIdx, _, _, _) if recIdx >= 0 => rels(recIdx) = rel
+        case BodyOp.Lookup(_, rel, recIdx, _) if recIdx >= 0 => rels(recIdx) = rel
         case BodyOp.NotIn(sub) => visit(sub)
         case BodyOp.Agg(_, _, _, _, sub) => visit(sub)
         case _ =>

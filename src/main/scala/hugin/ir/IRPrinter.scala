@@ -23,8 +23,9 @@ object IRPrinter:
     case BodyOp.Tag(src, tags) => s"${ind}Tag r$src in {${tags.toList.sorted.map(p.rels(_).name).mkString(", ")}}"
     case BodyOp.Eval(dst, e) => s"${ind}Eval r$dst := ${expr(e, p)}"
     case BodyOp.Test(o, a, b) => s"${ind}Test ${expr(a, p)} ${o.show} ${expr(b, p)}"
-    case BodyOp.Lookup(dst, rel, as) =>
-      s"${ind}Lookup r$dst := ${p.rels(rel).name}(${as.map(expr(_, p)).mkString(", ")})"
+    case BodyOp.Lookup(dst, rel, ri, as) =>
+      val v = if ri >= 0 then s"<rec $ri>" else ""
+      s"${ind}Lookup r$dst := ${p.rels(rel).name}$v(${as.map(expr(_, p)).mkString(", ")})"
     case BodyOp.NotIn(ops) => s"${ind}NotIn {\n${ops.map(this.op(_, p, ind + "  ")).mkString("\n")}\n$ind}"
     case BodyOp.Agg(dst, k, t, _, ops) =>
       s"${ind}Agg r$dst := ${k.show} { ${expr(t, p)} |\n${ops.map(this.op(_, p, ind + "  ")).mkString("\n")}\n$ind}"
