@@ -158,8 +158,8 @@ unclosed `'{` is E0005 with the usual insertion suggestion.
   (`1 : rel.`) cannot declare anything; only that declaration is dropped. Tokens that cannot start an item
   are skipped with the rest of their item, with one error; if they follow an item on the same line, that
   item's period may have been the mistake (`go : nat . -> int.`), and it is damaged too (not for a second
-  period, which is harmless). Junk skipped in a module body or a `where` block damages the body or the
-  clause (a member may have been lost).
+  period, which is harmless, and not for `%use` or `%export`, whose argument is complete). Junk skipped
+  in a module body or a `where` block damages the body or the clause (a member may have been lost).
 
 A *repair* is a recovery that is certain about the intended text. The item is then complete, reported,
 and elaborated as usual (with a machine-applicable suggestion where there is an edit):
@@ -205,8 +205,9 @@ reported it.
 
 When the parser expects a closing delimiter and finds something else, it looks for the delimiter ahead,
 within the current item: over balanced brackets, ignoring closing delimiters of other kinds, stopping at a
-token in column 0, the end of the file, or a period at depth 0 (unless the delimiter follows the period on
-its line: `count { X . | p X }`).
+token in column 0 other than the delimiter itself (a `}` in column 0 closes a body over several lines), the
+end of the file, or a period at depth 0. A period does not stop the search if the delimiter follows it on
+its line (`count { X . | p X }`) or if the token after it cannot start an item (`{ a : t ., b : u }`).
 
 - found: the tokens before it are junk; one error (``expected `)`, found …``) and they are skipped;
 - not found: the delimiter is missing. One error, *unclosed delimiter* (E0005), at the insertion point (the

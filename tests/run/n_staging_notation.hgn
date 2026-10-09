@@ -1,0 +1,19 @@
+(* The ASCII lift `^A` (printed `⇑A`) and explicit staging quotes `<t>` (#106): the same as the inferred
+   forms. `^` between operands is string concatenation, and `<` between operands a comparison. *)
+city : type. oslo : city. rome : city. paris : city.
+road : city -> city -> rel.
+road oslo rome. road rome paris.
+trip = <road oslo rome>.
+back : ^city -> ^city -> ^prop = [x] [y] <road $y $x>.
+names : string -> rel.
+names ("ro" ^ "ad").
+size : int -> rel.
+size $(<1 + 2>).
+size (2 + 3).
+small : int -> rel.
+small N :- size N, N < 4, (N > 1).
+linked : rel.
+linked :- $trip.
+returns : rel.
+returns :- $(back (<rome>) (<oslo>)).
+%output linked. %output returns. %output names. %output small.

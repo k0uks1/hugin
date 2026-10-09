@@ -1,0 +1,7 @@
+(* A stray period inside a record type over several lines, whose `}` is in column 0, is one error: the
+   `}` is found ahead and the tokens before it are skipped. *)
+shapes : Type = {
+  side : int, area : int ., colour : string (*~ E0001 *)
+}.
+size : int -> rel.
+size 3.

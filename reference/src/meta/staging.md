@@ -2,13 +2,14 @@
 
 *Staging* turns a Hugin program into an object program: the compiler evaluates the meta code that object
 items use and keeps the object code that results. This chapter defines object code as a meta value, the
-lift `⇑`, the inferred quotes and splices, the explicit splice `$`, the lifting of meta values into
-object code, formula functions, and the instances that staging creates.
+lift `⇑`, the inferred quotes and splices, the explicit quote `<t>` and splice `$`, the lifting of meta
+values into object code, formula functions, and the instances that staging creates.
 
 ## Syntax
 
 ```text
-Lift    ::= "⇑" Expr
+Lift    ::= ("⇑" | "^") Expr
+Quote   ::= "<" Expr ">"
 Splice  ::= "$" Expr
 ```
 
@@ -31,9 +32,10 @@ Every term is elaborated at the stage of its expected type ([The meta level](ind
 expected type is object code and the term is a meta value, or the reverse, the compiler inserts the
 conversion ([Kovács 2022](../notation.md#references)):
 
-- a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A`. It is inserted, never written.
-  The quotes `'{ … }` of [reflection](../reflection.md#quotes) are a different construct, which makes
-  data of the reflective types;
+- a *quote* `⟨t⟩` turns object code `t` into a meta value of type `⇑A`. It is inserted, or written as
+  `<t>` ([Explicit quotes](#explicit-quotes)). The quotes `'{ … }` of
+  [reflection](../reflection.md#quotes) are a different construct, which makes data of the reflective
+  types;
 - a *splice* `$e` turns a meta value `e : ⇑A` into object code of type `A`;
 - a meta value of a base type or of a [shared data type](families.md#shared-data) used as object code is
   converted by its [lifting](#lifting);
@@ -108,7 +110,48 @@ widen X = narrow X.
 The explicit splice `$e` states a conversion that stage inference would insert: `e` is meta code, and a
 value of a type with a lifting is lifted. It is needed where the context of a term does not determine
 its stage. Inside a reflection quote `'{ … }`, `$` marks a [hole](../reflection.md#holes) instead;
-outside a quote it is always the splice. The explicit lift `⇑A` writes the type of object code.
+outside a quote it is always the splice. The explicit lift `⇑A` writes the type of object code; `^A` is
+its ASCII spelling, and the compiler prints `⇑A`.
+
+## Explicit quotes
+
+An *explicit quote* `<t>` states the quote that stage inference would insert: `t` is object code, and
+`<t>` is a meta value of type `⇑A`, where `A` is the object type of `t`. Checked against `⇑A`, `t` is
+checked against `A` at the object stage, with the rules of stage inference inside it: a meta value of
+type `⇑B` in `t` is spliced, by `$` or by inference. `<$e>` is `e`, and `$<t>` is `t`. The compiler prints
+an inserted or written quote as `⟨t⟩`.
+
+`<` opens a quote only where an operand starts; between two operands it is a comparison
+([Operators and precedence](../lexical-structure.md#operators-and-precedence)). The content of a quote
+is parsed above the comparisons, so that the next `>` closes it, and an argument that is a quote is
+parenthesised: `f (<t>)`. It is an error ([E0005](../errors/E0005.md)) if a quote is not closed.
+
+The following program writes the quotes of two definitions. Stage inference would give them the same
+types without the quotes: `trip = road oslo rome.` is also a value of type `⇑rel`.
+
+```hugin,run
+city : type. oslo : city. rome : city.
+road : city -> city -> rel.
+road oslo rome.
+trip = <road oslo rome>.
+back : ^city -> ^city -> ^prop = [x] [y] <road $y $x>.
+linked : rel.
+linked :- $trip.
+returns : rel.
+returns :- $(back (<rome>) (<oslo>)).
+%output linked. %output returns.
+```
+
+```output
+linked.
+returns.
+```
+
+> **Rationale.** The splice stays `$`, which is already explicit and is inferred where it is left out.
+> Kovács's language dtt-rtcg (`AndrasKovacs/dtt-rtcg`) pairs `<t>` with a splice `~t`, and his staged
+> elaborator ([Kovács 2022](../notation.md#references)) with `[t]`; a second splice
+> notation would give one operation two spellings. Inside a reflection quote, `$` marks a hole: there
+> too it inserts a meta value into quoted syntax, and the quote around it says which kind.
 
 ## Lifting
 

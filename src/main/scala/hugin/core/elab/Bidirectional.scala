@@ -33,6 +33,10 @@ trait Bidirectional:
     case ImplicitBinder(_, _) =>
       fail(TypeProblem.ImplicitBinderAlone(t.span))
     case LiftE(a) => inferLift(c, a)
+    case CodeQuote(a) =>
+      // `<t>`: `t` is object code of type `A`, and the quote a meta value of type `⇑A`
+      val (tm, ty) = inferS(c, a, Stage.S0)
+      (Tm.quote(tm), Val.Lift(ty), Stage.S1)
     case SpliceE(a) => inferSplice(c, a, t.span)
     case RecordType(entries) =>
       val l = levels.fresh()
@@ -114,6 +118,7 @@ trait Bidirectional:
         case Some(a) => qtermOf(c, a, reify(c, t, RKind.Term, Some(a)))
         case None => reify(c, t, implicitQuote(t, ty).get)
     case (Parens(i), _) => check(c, i, a, st)
+    case (CodeQuote(i), Val.Lift(ty)) if st == Stage.S1 => Tm.quote(check(c, i, ty, Stage.S0))
     case (h: Hole, _) => checkHole(c, h, a, st)
     case (q: Quote, ty) if st == Stage.S1 && quotedIndex(ty).isDefined =>
       // a quoted term of a known object type: checked at it

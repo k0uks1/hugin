@@ -24,6 +24,18 @@ class ParserSuite extends munit.FunSuite:
     assertEquals(item("p X :- g.edge X Y, Y < limit."), "p X :- g.edge X Y, (Y < limit).")
   }
 
+  test("`^` and `<` are prefix where an operand starts, binary between operands (#106)") {
+    assertEquals(item("x : ^int -> ^prop = f."), "x : (⇑int -> ⇑prop) = f.")
+    assertEquals(item("s = \"a\" ^ \"b\"."), "s = (\"a\" ^ \"b\").")
+    assertEquals(item("e = <edge a b>."), "e = <edge a b>.")
+    assertEquals(item("e = [x] <edge $x b>."), "e = [x] <edge $x b>.")
+    assertEquals(item("p X :- X < 3, X > 1."), "p X :- (X < 3), (X > 1).")
+    assertEquals(item("e = <(X > 1)>."), "e = <((X > 1))>.")
+    // an unclosed quote is one error, E0005
+    val (_, r) = parse("e = <edge a b.\nq : rel.")
+    assertEquals(r.diagnostics.map(_.code.id), List("E0005"))
+  }
+
   test("comparison operators are non-associative") {
     val (_, r) = parse("p X :- 1 < X < 3.")
     assertEquals(r.diagnostics.map(_.code).map(_.id), List("E0001"))

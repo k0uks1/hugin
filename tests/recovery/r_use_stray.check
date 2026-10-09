@@ -1,0 +1,13 @@
+error[E0001]: expected an item, found `:`
+ --> tests/recovery/r_use_stray.hgn:3:21
+  |
+3 | %use "std/reflect". : int -> rel. (*~ E0001 *)
+  |                     ^ expected an item
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+held : int -> rel.
+hold : quoted ⟨int⟩ -> list item.
+  hold Q = cons (irule (horn (cons {formula} (fatom ⟨held⟩ (cons {term} (raw {⟨int⟩} Q) (nil {term}))) (nil {formula})) (nil {formula}))) nil.
+held 3.
+?- held X.

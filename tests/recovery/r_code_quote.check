@@ -1,0 +1,25 @@
+error[E0005]: unclosed `<`
+ --> tests/recovery/r_code_quote.hgn:5:31
+  |
+5 | trip : ^prop = <road oslo rome. (*~ E0005 *)
+  |                -              ^ expected `>` here
+  |                this `<` is never closed
+
+error[E0001]: operator `>` is non-associative
+ --> tests/recovery/r_code_quote.hgn:7:30
+  |
+7 | g : ^prop = f <road oslo rome>. (*~ E0001 *)
+  |                              ^ cannot chain this operator
+  |
+  = help: add parentheses
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+city : type.
+oslo : city.
+rome : city.
+road : city -> city -> rel.
+f : ⇑prop -> ⇑prop = [x] ⟨$x⟩.
+h : ⇑prop = ⟨$(f ⟨road oslo rome⟩)⟩.
+linked : rel.
+linked :- road oslo rome.
