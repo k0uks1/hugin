@@ -162,6 +162,9 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
     var depth = 0
     while k < toks.length do
       val t = toks(k).kind
+      // the closer itself may be in column 0 (`}` closing a body over several lines); any other token there
+      // starts the next item
+      if t == closer && depth == 0 && k > i then return k
       if t == Tok.EOF || (k > i && atColumn0(k)) then return -1
       t match
         case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
@@ -170,11 +173,17 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
           // is then found by the period or the column-0 token after it
           if depth == 0 && t == closer then return k
           depth = (depth - 1).max(0)
-        // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`)
-        case Tok.Period if depth == 0 && !closerOnLine(k + 1, closer) => return -1
+        // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`) or
+        // what follows it cannot start an item (`{ a : t ., b : u }`, over several lines)
+        case Tok.Period if depth == 0 && !closerOnLine(k + 1, closer) && endsItemAt(k + 1) => return -1
         case _ =>
       k += 1
     -1
+
+  /** Whether a period before the token at index `k` can end an item: the token starts an item, starts a
+   *  line, or is the end of the file. */
+  private def endsItemAt(k: Int): Boolean =
+    k >= toks.length || toks(k).kind == Tok.EOF || startsLine(k) || startsItem(toks(k).kind)
 
   /** Whether `closer` follows at depth 0 on the line of the token at index `k`. */
   private def closerOnLine(k: Int, closer: Tok): Boolean =

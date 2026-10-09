@@ -68,6 +68,9 @@ private[syntax] trait ItemSyntax extends ParserBase:
       )
     case d @ Directive(_, DirArgs.Apply(args, decl)) =>
       Some(Directive(d.kind, DirArgs.Apply(args :+ ErrorTree(Nil)(d.span), decl))(d.span, d.kindSpan))
+    // `%use m.` and `%export S.` end with a complete argument: a stray token after the period does not
+    // change what they open or export, so they are kept (dropping `%use` would leave its names unresolved)
+    case d @ Directive(_, _: DirArgs.Use | _: DirArgs.Export) => Some(d)
     case _: Directive => None
 
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:` (or a `::` reported already).

@@ -1816,6 +1816,42 @@ Decisions:
   written (a signature's name).
 * Object typing (#56) forces every value before matching on it, so `core/objtype` needed no change.
 
+## Notation of the code types (#106)
+
+Decided by the designer in the issue: `^A` spells `⇑A` in ASCII (Kovács's staged elaborator,
+`demo/Parser.hs`: `Lift <$> (char '^' *> pAtom)`), an optional explicit staging quote `<t>`, reflection
+quotes `'( … )`, and the name `quoted` (Qq's `Quoted`, a Note in the reference's reflection chapter).
+
+* **`^` and `<` by position.** Both are tokens already (`Tok.Caret`, `Tok.Lt`). Where an operand starts
+  (`ExprSyntax.parsePrimary`) `^` is the lift and `<` opens a staging quote; between operands they stay
+  concatenation and comparison, as `-` is negation or subtraction. Neither starts an argument
+  (`startsArg`), so `f ^A` and `f <t>` are binary (`f (<t>)` passes a quote), and neither starts an item
+  (`startsItem`), so recovery treats a stray one as before; both start an expression, so that `[x] <t>`
+  is a lambda.
+* **`<t>`** is `Trees.CodeQuote`, parsed at `LvlHead` (above the comparisons) and closed by `>`;
+  `close(open, Tok.Gt)` never finds a `>` by looking ahead (it matches brackets only), so a missing `>` is
+  E0005 at the insertion point. Elaboration is Kovács's: checked against `⇑A`, its content is checked
+  against `A` at stage 0; inferred, it is `⇑` of the content's type (`Bidirectional`). The printer shows
+  `<t>` in surface trees and `⟨t⟩` in elaborated ones.
+* **The splice stays `$`** (reference: the Rationale in meta/staging). dtt-rtcg's `Parser.hs` has
+  `char '<' *> tm <* char '>'` and `char '~' *> splice`; its `Elaboration.hs` checks `(P.Quote t, VBox a)`
+  against `a` and `(P.Splice t, a)` against `□ a`, with inferred staging elsewhere. Neither language has
+  comparison operators, so the positional rule is Hugin's own.
+
+Goldens `run/n_staging_notation`, `recovery/r_code_quote`; `ParserSuite`.
+
+The new goldens shift the mutants of `RecoveryFuzzSuite`, which then found two recovery gaps older than
+this change, fixed at the root:
+
+* a stray token after the period of `%use m.` damaged the `%use` and dropped it, so every name it opens
+  was unresolved; `%use` and `%export` are now kept, since their argument is complete
+  (`ItemSyntax.damagedItem`; golden `recovery/r_use_stray`);
+* the search for a missing delimiter (`ParserBase.closerAhead`) stopped at every token in column 0,
+  also at the `}` it was looking for, and at every period at depth 0. It now accepts the delimiter in
+  column 0 (a body over several lines ends with `}` there) and passes a period after which no item can
+  start (`{ a : t ., b : u }`), so a stray period in a record type over several lines is one error, not
+  three (golden `recovery/r_record_stray_period`).
+
 ## Possible next steps
 
 * A faster engine (columnar storage, join planning) behind the same core IR.

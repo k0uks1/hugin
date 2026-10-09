@@ -1,0 +1,10 @@
+error[E0001]: expected `}`, found `.`
+ --> tests/recovery/r_record_stray_period.hgn:4:26
+  |
+4 |   side : int, area : int ., colour : string (*~ E0001 *)
+  |                          ^ expected `}`
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+size : int -> rel.
+size 3.
