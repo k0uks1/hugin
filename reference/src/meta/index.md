@@ -69,6 +69,12 @@ declaration and to each other, and then the object items: rules, queries and dir
 definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
 reported and left out; elaboration continues with the next item.
 
+The unknowns that the compiler creates while it elaborates an item (implicit arguments, inferred types,
+holes) belong to that item. The clauses of one function, and of one formula function, count as one item.
+An item solves its own unknowns; the unknowns of earlier items are fixed while it is elaborated, so a
+later item never changes what an earlier one means. Unknowns are numbered from `?0` within each item in
+diagnostics.
+
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted
 quotes `⟨…⟩`, splices `$…` and implicit arguments, the compiled clauses of functions, and the object
 items after staging.
