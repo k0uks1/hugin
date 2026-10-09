@@ -96,6 +96,7 @@ not use them:
 | derived constant | an object constant `r.l` named after another constant `r` by the primitive `derive` | [Reflection](reflection.md#symbols-and-derived-constants) |
 | descent (A) | the termination argument by which every cycle of derivation steps makes an argument smaller | [Termination](object/termination.md#descent-along-derivations-a) |
 | directive | an item `%d a₁ … aₙ.` that applies the meta function `d` to change the program | [Directives](directives.md) |
+| export signature | the signature `S` of an item `%export S.`, which an import of the file is ascribed | [Modules](modules.md#export-signatures) |
 | fact | a ground atom that holds in the database; it has an identity | [Facts and identity](object/facts.md) |
 | fact type | the type `c` of a relation, struct or constructor `c`, whose values are the identities of the facts of `c` | [Object types](object/types.md#fact-types) |
 | family | a declaration with type parameters (`list A : type.`); its applications to object types are instances | [Families](object/types.md#families) |
@@ -134,6 +135,7 @@ not use them:
 | object level | the evaluated language: Datalog∃! (stage 0) | [The object level](object/index.md) |
 | object type | a type of object values, of the universe `type` | [Object types](object/types.md) |
 | object variable | an uppercase variable of a rule or query | [Rules](object/rules.md#variables) |
+| open (a module) | to make the fields of a module names of a file, with `%use` | [Modules](modules.md#opening-modules) |
 | open type | an object type `a : type.` whose members are the constructors and relations declared into it | [Object types](object/types.md#open-types) |
 | pattern | the left side of a clause, matched against arguments | [Clauses](meta/clauses.md#patterns) |
 | postulate | a meta constant with a type and no value | [The meta level](meta/index.md#meta-items) |

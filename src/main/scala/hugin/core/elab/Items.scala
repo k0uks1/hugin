@@ -36,6 +36,8 @@ trait Items:
       // dropped with the declarations, which record the names they might declare ([[elabDeclarations]])
       case item if hasSyntaxErrors(item) => true
       case r: Rule => clauseName(r, declared).isDefined || clauseOf(formulaFunctions)(r).isDefined
+      // `%use` and `%export` belong to the file's scope ([[Uses]])
+      case Directive(_, _: DirArgs.Use | _: DirArgs.Export) => true
       case _: Query | _: Directive => false
       case _ => true
     }
@@ -48,7 +50,11 @@ trait Items:
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
-    val (formulaClauses, meta) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    val (formulaClauses, meta0) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    // `%use` first (the names it opens are retried for), `%export` after all declarations ([[Uses]])
+    val (exports, nonExports) = meta0.partition(isExport)
+    val (uses, others) = nonExports.partition(isUse)
+    val meta = uses ++ others
     // the names that items with syntax errors might declare: their uses are not reported (if no other
     // item declares them); the items are dropped silently by `elabItem`
     state.erroneous ++= prog.filter(hasSyntaxErrors).flatMap(mightDeclare)
@@ -65,7 +71,16 @@ trait Items:
     elabClauseGroups(clauses)
     for f <- formulaFunctions if !state.unelaborated(f) do
       elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r })
+    exports.foreach(elabItemReporting)
     flushTooling(success = true)
+
+  private def isUse(item: Item): Boolean = item match
+    case Directive(_, _: DirArgs.Use) => true
+    case _ => false
+
+  private def isExport(item: Item): Boolean = item match
+    case Directive(_, _: DirArgs.Export) => true
+    case _ => false
 
   /** The names an item with a syntax error might have been meant to declare: its name, or the name of
    *  the head of a rule (a declaration whose `:` is missing is a rule). */
@@ -97,8 +112,11 @@ trait Items:
       // how many of this round's items declare a name: a name is declared by a later item if another
       // one does (counted once per round instead of listing the others for every item)
       val declaring = pending.flatMap((i, _) => declares(i)).groupMapReduce(identity)(_ => 1)(_ + _)
+      // a pending `%use` may open the name
+      val uses = pending.count((i, _) => isUse(i))
       pending = pending.flatMap { (item, _) =>
-        def later(n: Name) = declaring.getOrElse(n, 0) > (if declares(item).contains(n) then 1 else 0)
+        def later(n: Name) =
+          declaring.getOrElse(n, 0) > (if declares(item).contains(n) then 1 else 0) || uses > (if isUse(item) then 1 else 0)
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
@@ -235,6 +253,8 @@ trait Items:
     case d: Def => elabDef(d.name, d.params, d.rhs, d.span)
     case r: Rule => elabRule(r)
     case q: Query => elabQuery(q)
+    case d @ Directive(_, DirArgs.Use(m, ns)) => elabUse(d, m, ns)
+    case d @ Directive(_, DirArgs.Export(s)) => elabExport(d, s)
     case d: Directive => items ++= directiveItems(Cxt.empty, d, inBody = false)
     case e: SubEdge => elabEdge(e)
     case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))

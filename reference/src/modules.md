@@ -97,9 +97,11 @@ field `c : τ̄ -> a` by a constructor. A field `c : a` without columns is match
 Signatures are [records](meta/records.md), and the rules of record subtyping apply: a module may have
 more fields than the signature.
 
-*Ascription* `m : sig = e.` gives the module `e` the type `sig`. It is transparent: the types of the
-signature are the types of `e` (`m.shape` is `e`'s `shape`), but only the fields of `sig` are visible
-through `m`. It is an error ([E0204](errors/E0204.md)) if `e` lacks a field of `sig` or a field has
+*Ascription* `m : sig = e.` gives the module `e` the type `sig`; the expression `(e : sig)` does the
+same without a name. Ascription is *transparent*: the definition `m` unfolds to its value, so the types of
+the signature are the types of `e` (`m.shape` is `e`'s `shape`), and a constructor of `e` stays a
+constructor. Only the fields of `sig` are fields of `m`: it is an error ([E0906](errors/E0906.md)) to
+select another. It is an error ([E0204](errors/E0204.md)) if `e` lacks a field of `sig` or a field has
 another kind or type.
 
 A field `%complete l` *requires* that the relation in the field `l` is
@@ -134,8 +136,10 @@ Import ::= "%import" STRING
 ```
 
 `%import "path"` is an expression whose value is the module of another source file. The path is resolved
-relative to the directory of the importing file; `.hgn` is appended if the path has no extension. A
-definition `geo = %import "lib/geo".` binds the module, and `geo.place` selects a member.
+relative to the directory of the importing file; `.hgn` is appended if the path has no extension. A path
+that starts with `std/` names a module of the standard library bundled with the compiler: `std/graph` is
+the bundled file `std/graph.hgn`, whatever the importing file. A definition `geo = %import "lib/geo".`
+binds the module, and `geo.place` selects a member.
 
 A file is elaborated and evaluated once per compilation, however often it is imported, so every importer
 sees the same object constants. The object constants of an imported file are named after the file:
@@ -167,10 +171,120 @@ The following program imports a file that does not exist.
 lib = %import "missing".
 ```
 
+The following program imports a module of the standard library that does not exist.
+
+```hugin,compile_fail,E0108
+lib = %import "std/geometry".
+```
+
+### Export signatures
+
+```text
+Export ::= "%export" Atom "."
+```
+
+A file's module is the record of its declarations. An *export signature* `%export S.` replaces it with
+the ascription `(file : S)`: an import of the file has exactly the fields of the signature `S`, and the
+other declarations of the file are not fields of it. Ascription is transparent, so the exported types,
+constructors and relations are those of the file. A declaration that `S` leaves out still exists: its
+rules are evaluated and its facts keep their identity. `S` is elaborated after the declarations of the
+file and may refer to them. A file without `%export` exports all of its declarations.
+
+It is an error ([E0204](errors/E0204.md)) if the file does not match its export signature, and
+([E0110](errors/E0110.md)) if a file has more than one `%export` or a module body has one.
+
+The following file exports `area` but not its helper `square`, so an importer that selects `square` gets
+an error ([E0906](errors/E0906.md)). It is not checked, since its point is what an importer of it sees.
+
+```hugin,ignore
+%export { area : int -> int }.
+area : int -> int.
+area R = 3 * square R.
+square : int -> int.
+square N = N * N.
+```
+
+The following file has two export signatures.
+
+```hugin,compile_fail,E0110
+%export { width : int }.
+%export { height : int }.
+width : int = 3.
+height : int = 4.
+size : int -> rel.
+size (width * height).
+```
+
+## Opening modules
+
+```text
+Use ::= "%use" (STRING | Atom) ("(" NAME ("," NAME)* ")")? "."
+```
+
+An item `%use m.` *opens* the module `m`: the fields of `m` become names of the file. `m` is an atom: a
+name, a path or a parenthesised expression whose value is a module; `%use "path".` opens the file
+`path`, as `%use %import "path".` does. With a list of names, `%use m (x, y).` opens only those fields; it
+is an error ([E0906](errors/E0906.md)) if one is not a field of `m`.
+
+The fields are those of the type of `m`, so a signature decides what is opened: `%use` of a file opens its
+export signature, and `%use (m : sig).` opens the fields of `sig`. An opened name denotes the field: a
+constructor stays a constructor, also in patterns, and a relation the same relation. `%use` may come
+before the definition of the module it opens. It is an error ([E0107](errors/E0107.md)) if `m` is not a
+module, and ([E0907](errors/E0907.md)) to write `%use` in a module body.
+
+The following program opens a module value and then the relation of a functor's instance.
+
+```hugin,run
+metric = { unit : string = "km". factor : int = 1000. }.
+%use metric.
+graph : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+city : type. berlin : city. paris : city. rome : city.
+road : (from : city) -> (to : city) -> (length : int) -> rel.
+road berlin paris 1054. road paris rome 1421.
+edge : city -> city -> rel.
+edge X Y :- road X Y _.
+%use (tc { node = city, edge = edge }).
+metres : string -> city -> int -> rel.
+metres unit Y M :- road berlin Y L, M = L * factor.
+?- path berlin X.
+%output metres.
+```
+
+```output
+metres "km" paris 1054000.
+?- path berlin X.
+X = paris.
+X = rome.
+```
+
+Names opened by `%use` are shadowed by the declarations of the file, in the whole file. It is an error
+([E0109](errors/E0109.md)) to use a name that two `%use` items open for different declarations; opening
+the same declaration twice is not an error. The following program opens `factor` from two modules.
+
+```hugin,compile_fail,E0109
+metric = { unit : string = "km". factor : int = 1000. }.
+imperial = { unit : string = "mi". factor : int = 1609. }.
+%use metric.
+%use imperial (factor).
+distance : int -> rel.
+distance (12 * factor).
+```
+
+`%use` and `%export` are not directives (meta functions): they change scopes and the module of a file,
+which no meta function can.
+
+
 ## Scopes
 
 The scopes of a compilation are nested as follows: the prelude encloses every file; each file is a scope
-of its own; each module body is a scope inside the scope where it is written. A name declared in a scope
-shadows the same name of an enclosing scope, in the whole scope, also before its declaration. When a
+of its own; each module body is a scope inside the scope where it is written. The names that a file opens
+with `%use` lie between the file and the enclosing scope. A name declared in a scope shadows the same name
+of an enclosing scope, in the whole scope, also before its declaration. The names the prelude opens are in
+scope in every file. When a
 program declares an object constant with the name of a prelude constant, the prelude's constant is
 displayed as `prelude.n`.

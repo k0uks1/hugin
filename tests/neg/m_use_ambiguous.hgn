@@ -1,0 +1,5 @@
+(* two `%use` items open `double` for different functions *)
+%use "lib/twice_a".
+%use "lib/twice_b".
+n : int -> rel.
+n (double 4). (*~ E0109 *)

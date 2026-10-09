@@ -16,7 +16,11 @@ trait Names:
 
   /** A top-level name: the file's, or the enclosing scope's (the prelude's) unless the file declares the
    *  name (also later in the file: a declaration shadows the prelude's in the whole file). */
-  def lookupGlobal(n: Name): Option[Int] = scope.get(n).orElse(if state.declaredHere(n) then None else file.parent.get(n))
+  def lookupGlobal(n: Name): Option[Int] =
+    scope.get(n).orElse(
+      if state.declaredHere(n) then None
+      else openedGlobal(n).getOrElse(file.parent.get(n)) // the names opened by `%use` ([[Uses]])
+    )
 
   def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
     c.scope.get(n) match
@@ -48,8 +52,9 @@ trait Names:
   /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
    *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
+    checkAmbiguous(n, span)
     if state.erroneous(n) then throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
-    val candidates = (c.scope.keys ++ scope.keys ++ file.parent.keys).toList.distinct
+    val candidates = (c.scope.keys ++ scope.keys ++ state.opened.keys ++ file.parent.keys).toList.distinct
       .filter(k => k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
     val similar = similarName(n, candidates)
     throw ElabError(ElabProblem.UnresolvedName(n, span, similar, span.text == n).toDiagnostic, unresolved = Some(n))

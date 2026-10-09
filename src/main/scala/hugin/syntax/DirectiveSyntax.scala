@@ -38,6 +38,38 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
           case (Some(a), Some(p), Some(n)) if ok =>
             List(directive(DirArgs.Infix(a.text, p.value match { case l: Long => l.toInt; case _ => 0 }, Ident(n.text)(n.span))))
           case _ => Nil
+      case "use" =>
+        // `%use "f"` opens a file (an import, so that the import graph sees it), `%use m` a module value
+        val module =
+          if at(Tok.StrLit) then
+            val p = advance()
+            Import(p.value.asInstanceOf[String])(p.span, p.span)
+          else if startsPrimary then parsePostfix()
+          else
+            expected(List(Expect.Thing("a module or the path of a file")), Some(context))
+            ErrorTree(Nil)(insertionPoint)
+        val names = Option.when(at(Tok.LParen)) {
+          val open = advance()
+          val ns = mutable.ListBuffer.empty[Ident]
+          var more = true
+          while more do
+            expect(Tok.Name, Some(context)) match
+              case Some(n) => ns += Ident(n.text)(n.span)
+              case None => more = false
+            if more && at(Tok.Comma) then advance() else more = false
+          close(open, Tok.RParen, Some(context))
+          ns.toList
+        }
+        val ok = endItem(context, List(Expect.period))
+        List(directive(DirArgs.Use(if ok then module else damaged(module), names)))
+      case "export" =>
+        val signature =
+          if startsPrimary then parsePostfix()
+          else
+            expected(List(Expect.Thing("a signature")), Some(context))
+            ErrorTree(Nil)(insertionPoint)
+        val ok = endItem(context, List(Expect.period))
+        List(directive(DirArgs.Export(if ok then signature else damaged(signature))))
       case "partial" | "complete" =>
         error(if name == "partial" then SyntaxError.RemovedPartial(d.span) else SyntaxError.CompleteOutsideSignature(d.span))
         if !at(Tok.Period) then skipItem() else advance()
