@@ -10,6 +10,9 @@ enum UnifyFailure:
   case Universe
   case NonPattern
 
+  /** The unknown `m` belongs to an earlier top-level block: it is frozen ([[Core.isFrozen]]). */
+  case Frozen(m: Int)
+
   /** A record lacks a field of the expected record type (a module lacks a member of its signature). */
   case MissingField(label: Name)
 
@@ -196,9 +199,13 @@ trait Unification:
     case (t1, Lam(_, i, c2)) => unify(l + 1, app(t1, Val.local(l), i), inst(c2, Val.local(l)))
     case (Lam(_, i, c), u1) => unify(l + 1, inst(c, Val.local(l)), app(u1, Val.local(l), i))
     case (Flex(m, sp), Flex(m2, sp2)) =>
-      if m == m2 then intersect(l, m, sp, sp2) else flexFlex(l, m, sp, m2, sp2)
-    case (Flex(m, sp), u1) => solve(l, m, sp, u1)
-    case (t1, Flex(m, sp)) => solve(l, m, sp, t1)
+      if m == m2 then if isFrozen(m) then unifySp(l, sp, sp2) else intersect(l, m, sp, sp2)
+      else if isFrozen(m) && isFrozen(m2) then fail(UnifyFailure.Frozen(m))
+      else if isFrozen(m) then solve(l, m2, sp2, Flex(m, sp))
+      else if isFrozen(m2) then solve(l, m, sp, Flex(m2, sp2))
+      else flexFlex(l, m, sp, m2, sp2)
+    case (Flex(m, sp), u1) => if isFrozen(m) then fail(UnifyFailure.Frozen(m)) else solve(l, m, sp, u1)
+    case (t1, Flex(m, sp)) => if isFrozen(m) then fail(UnifyFailure.Frozen(m)) else solve(l, m, sp, t1)
     // η for code: ⟨t⟩ = u iff t = $u
     case (Quote(a), u1 @ Rigid(_, _)) => unify(l, a, vSplice(u1))
     case (t1 @ Rigid(_, _), Quote(b)) => unify(l, vSplice(t1), b)

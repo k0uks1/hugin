@@ -1706,6 +1706,29 @@ E0923; an equation that is a conjunct of the body meets the type of a variable w
 alternative of a disjunction). The generated fuzz programs no longer equate a variable with constants of
 two constructors, which is now a rule that never fires (E0401).
 
+## Frozen metas (#66, Batch 1)
+
+Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.1. Each declaration,
+clause group, formula function and object item is a *block* (`Core.inBlock`, called by `Items`). While a
+block is elaborated, the metas that existed when it started are frozen: `Core.solveMeta` refuses them
+(`UnifyFailure.Frozen`), `unify` treats them as rigid (against an active meta it solves the active one;
+the same frozen meta on both sides compares the spines), and `pruneFlex` does not prune them. A block
+inside a block is part of it. Outside blocks nothing is frozen, because staging solves the unknowns of a
+generic item for each instance (`Core.tentatively`).
+
+Before, an unknown that may stay unsolved (a hole) could be solved by a later item: `t : Type = ?t.`
+followed by `x : t = 5.` solved `?t := int`, and `y : t = "s".` then reported "expected `int`". The
+reference already said a hole is constrained by its item only. A frozen hole now makes the later item
+fail silently (`ElabErrors.mismatch`): its E0924 is the error. A spike that logged every cross-block
+solution found none in the golden, core, reference, LSP and incrementality suites, so no other program
+changes. Object typing (#56) solves its store inside the block, before the block ends, so freezing
+follows it.
+
+Unknowns print numbered from the start of their block (`Printing.showMeta`): `?3` instead of `?167`, so
+messages do not depend on the number of metas in the prelude. `Core.fork` keeps its copy-on-write of meta
+entries: an item's fork can no longer solve a base meta, but `allowUnsolved` still writes entries, and a
+parent core may go on elaborating after a fork.
+
 ## Typed reflection beyond terms (#96)
 
 The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
@@ -1721,6 +1744,30 @@ three batches.
   The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
   for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
   a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+* **Batch 2, typed atoms.** `qatom : quoted A -> formula = %builtin qatom.` is a primitive
+  (`PrimOp.QAtom`, with `fatom`, `tapp` and `qterm` found from its declared type): it reduces the data
+  `qterm (tapp s ts)` to `fatom s ts` (the same spine, with the positions of the quoted syntax kept) and
+  is stuck otherwise. It is not a definition, so glued evaluation (#66) never unfolds it, and `quoted`
+  stays a postulated type former. `TypedQuotes.coeQuoted` inserts it where a `formula` is expected and
+  the index is a type of facts (`ObjTypes.isRelLike`, which also admits an index the core does not know,
+  such as an unsolved one: reflection checks the data then); otherwise E0901 with a note. A whole entry
+  `'{ $a }` of a typed atom is its fact (`QuoteTerms.entryHole`). Reflection reports a `qatom` stuck on
+  closed data as E0918 ("the term `tvar "E"` of a `quoted` atom is not an atom"). The quote reader needs
+  no change: a typed atom's columns were checked where it was built, at constructing positions.
+  Deviation from the design note: open types are types of facts (their values are facts of their
+  members, and every constructor is a relation), so `quoted node` for an open type `node` is an atom;
+  the note's example of a rejected index is a base type. The section "Typed terms" of the reference keeps
+  its name (its anchor is linked from other chapters) and gains a subsection "Typed atoms".
+  Goldens `run/tf_typed_atoms` (atoms as facts, items, heads, bodies, under `not`, and taken apart by a
+  quoted pattern), `neg/tf_typed_atoms`. Changed: `neg/core_e0901_occurs` (numbers of unknowns, which
+  count the prelude's declarations).
+  The new golden shifted the mutants that `RecoveryFuzzSuite` draws from its fixed seed onto a weakness
+  of the parser that it had not met: `?-` at the end of a line took the declaration in column 0 of the
+  next line as its formula, so the declaration was lost (E0101 for its uses). The formula of a query and
+  the body of a rule now do not start in column 0, like an argument and the operand of `⇑`
+  (`ItemSyntax`); no program of `tests/`, `examples/`, `docs/`, `bench/`, the reference or the prelude
+  starts one there. Reference: lexical-structure ("Items"); `docs/PARSER.md` 4.2; golden
+  `recovery/r_col0_formula`.
 
 ## Possible next steps
 

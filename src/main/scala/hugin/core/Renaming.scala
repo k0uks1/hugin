@@ -115,6 +115,8 @@ trait Renaming:
 
   /** Prunes the arguments of a flex that the partial substitution does not cover. */
   def pruneFlex(psub: PSub, m: Int, sp: Spine): (Int, Spine) =
+    // a frozen meta is not pruned: its arguments must be in scope as they are
+    if isFrozen(m) then return (m, sp)
     val (m1, sp1) =
       try expandFlex(m, sp)
       catch case _: UnifyError => (m, sp)

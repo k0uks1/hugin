@@ -186,7 +186,35 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
     metas += MetaEntry(ty, st, span, what, allowUnsolved)
     metas.length - 1
 
+  // ------------------------------------------------------------------ blocks and frozen metas
+
+  /** Metas below this index are *frozen*: created before the top-level block being elaborated (a
+   *  declaration, a clause group, an object item), so unification never solves or prunes them; they are
+   *  rigid unknowns (reference: meta/functions, a hole is constrained by its item only). 0 outside blocks:
+   *  staging solves the unknowns of a generic item for an instance. */
+  private var frozen = 0
+  private var blockDepth = 0
+
+  /** The number of metas when the current (or last) block started: unknowns print relative to it. */
+  var blockStart = 0
+
+  def isFrozen(m: Int): Boolean = m < frozen
+
+  /** Runs `f` as a top-level block: the metas that exist now are frozen while it runs. A block inside a
+   *  block (an item elaborated while another is) is part of the outer one. */
+  def inBlock[A](f: => A): A =
+    if blockDepth > 0 then f
+    else
+      blockDepth = 1
+      frozen = metas.length
+      blockStart = metas.length
+      try f
+      finally
+        blockDepth = 0
+        frozen = 0
+
   def solveMeta(m: Int, v: Val): Unit =
+    if m < frozen then throw UnifyError(UnifyFailure.Frozen(m))
     if openCheckpoints > 0 then trail += ((m, metas(m).solution))
     ownMeta(m).solution = Some(v)
 

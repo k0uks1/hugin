@@ -1,0 +1,19 @@
+error[E0924]: unsolved goal `?t`
+ --> tests/neg/e0924_frozen_hole.hgn:7:12
+  |
+7 | t : Type = ?t. (*~ E0924 *)
+  |            ^^ goal: `Type`
+  |
+  = note: the hole stands for a meta value of type `Type`
+  = help: replace the hole with an expression of type `Type`
+
+error[E0924]: unsolved goal `?k`
+  --> tests/neg/e0924_frozen_hole.hgn:10:11
+   |
+10 | k : nat = ?k. (*~ E0924 *)
+   |           ^^ goal: `nat`
+   |
+   = note: the hole stands for a meta value of type `nat`
+   = help: replace the hole with an expression of type `nat`
+
+2 errors found
