@@ -23,18 +23,49 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     val entries = mutable.ListBuffer.empty[Trees.Item]
     var terminated = false
     var more = !at(Tok.RBrace) && startsEntry && !atColumn0(position)
+    // the quote is a body: recovery inside an entry stops at the quote's `}` instead of skipping past it
+    bodies += 1
+    var periods = 0
     while more do
       entries += parseEntry()
       terminated = at(Tok.Period)
       if terminated then
+        periods += 1
         advance()
+        resync()
+      else if periods > 0 && strayBrace then
+        // `N = } count { … }.` in a quote of several entries (a module): a `}` in the middle of an entry,
+        // with the entry going on after it on the same line, is a stray token, not the end of the quote
+        // (in a one-entry quote `f '{ X } Y` the `}` may well end it)
+        expected(List(Expect.period))
+        advance()
+        skipItem()
+        terminated = toks(position - 1).kind == Tok.Period
+        resync()
+      else if !at(Tok.RBrace) && !at(Tok.EOF) && !atColumn0(position) then
+        // a damaged entry: skip to its period (or to the quote's `}`) and go on with the next entry
+        expected(List(Expect.period))
+        skipItem()
+        terminated = toks(position - 1).kind == Tok.Period
         resync()
       // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
       more = terminated && !at(Tok.RBrace) && startsEntry && !atColumn0(position)
+    bodies -= 1
     val closed = close(open, Tok.RBrace)
     checked(Trees.Quote(entries.toList, terminated)(spanFrom(q.span.start)), closed)
 
   private def startsEntry: Boolean = kind == Tok.Query || startsExpression(kind)
+
+  /** At a `}` that an unterminated entry ran into: whether the entry continues after it on the same line
+   *  (anything but the end of the item, `.`, `,` or another closer), so that the `}` is stray. */
+  private def strayBrace: Boolean =
+    at(Tok.RBrace) && position + 1 < toks.length && {
+      val next = toks(position + 1)
+      next.span.startLine == tok.span.startLine && (next.kind match
+        case Tok.Period | Tok.Comma | Tok.RParen | Tok.RBrack | Tok.RBrace | Tok.EOF => false
+        case _ => true
+      )
+    }
 
   private def parseEntry(): Trees.Item =
     val start = tok.span.start
