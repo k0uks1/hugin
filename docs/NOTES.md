@@ -1692,6 +1692,22 @@ Goldens: `neg/ot_generators`, `neg/ot_functor_once`, `neg/ot_typed_quotes`, `run
 (numbers of unknowns). Two unit tests of `HandoverSuite` and `ModulesSuite` were ill-typed (they stopped
 before the object typer ran) and were made well-typed.
 
+## Typed reflection beyond terms (#96)
+
+The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
+Twelf and Abella read from source), approved by the designer as written: no context index and no typed
+formula type; the context of a generated piece is the meta context of its `quoted A` values. It lands in
+three batches.
+
+* **Batch 1, repeated holes.** `TypedQuotes.QuoteReader` reads a hole `$X` (a variable of type `quoted A`
+  with a known `A`) that occurs more than once in the body of a quoted rule, query or formula as one
+  object variable `$X`, with `A` as a further bound (`OFormula.Expect`), so the checker's meets apply
+  (E0401 at the generator). A hole used once keeps the per-position check of #56 (so no diagnostic of an
+  existing program changes), and a hole in a head keeps `A ≤ σ`, since the data may be a constructor term.
+  The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
+  for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
+  a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+
 ## Frozen metas (#66, Batch 1)
 
 Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.1. Each declaration,

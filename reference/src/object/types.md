@@ -268,6 +268,8 @@ Each of these is typed whether or not anything uses it, so a meta function whose
 build ill-typed object code is rejected where it is defined. Object code in other places of meta code,
 such as a field of a record value or a definition of a [`where`](../meta/where.md) block, is typed only
 after staging, in the items that use it (see below).
+In a quote, the occurrences of one hole of type `quoted A` in a body are one variable for the meet
+([Quotes](../reflection.md#quotes)).
 
 The following formula function is rejected where it is defined, although nothing uses it: `lit N` is an
 `expr`, in a column of type `typ`.
