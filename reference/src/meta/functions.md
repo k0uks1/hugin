@@ -40,9 +40,44 @@ At an application of a function with implicit arguments, the compiler inserts a 
 implicit argument and solves it by higher-order pattern unification with the types around it. An unknown
 belongs to the item that creates it (see [the order of items](index.md)): it is solved within that item,
 and later items cannot solve it. It is an error ([E0903](../errors/E0903.md)) if an implicit argument or
-a type is not determined by the end of its item. Implicit
-arguments cannot be written explicitly; they are inferred from the explicit arguments and the expected
-type.
+a type is not determined by the end of its item. Implicit arguments cannot be written explicitly; they
+are inferred from the explicit arguments and the expected type.
+
+Unification compares two terms up to their values: a definition is equal to its value, and an
+application of a function defined by clauses that reduces is equal to its result. Two applications of
+the same definition are first compared by their arguments, and by their values if the arguments differ.
+An application of a function defined by clauses that does not reduce, because a split meets a variable
+or an unknown, is compared with another application of the same function by its arguments, which may
+solve an unknown that the function's result does not determine: with `c : nat -> nat` defined by
+`c zero = zero.` and `c (suc N) = zero.`, an unknown *α* in the equation `c` *α* `= c Y` is solved as
+*α* `:= Y`, although `c` ignores its argument.
+
+In the following program the argument written `_` in `same` is determined only by comparing
+`c` *α* with `c Y` by their arguments, which solves *α* `:= Y`.
+
+```hugin,run
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+c : nat -> nat.
+c zero = zero.
+c (suc N) = zero.
+pick : (x : nat) -> (y : nat) -> eqn (c x) (c y) -> nat.
+pick X Y E = X.
+same : nat -> nat.
+same Y = pick _ Y refl.
+size : nat -> int.
+size zero = 0.
+size (suc N) = size N + 1.
+answer : int -> rel.
+answer (size (same (suc (suc zero)))).
+```
+
+```output
+answer 2.
+```
 
 The free uppercase variables of the type of a declaration `x : A.` or `x : A = e.` are implicit arguments
 of `x`. So `ident : A -> A = [x] x.` declares `ident : {A : Type} -> A -> A`. The free uppercase
