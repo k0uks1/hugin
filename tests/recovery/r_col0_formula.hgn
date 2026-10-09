@@ -1,0 +1,11 @@
+(* The formula of a query (after `?-`) or the body of a rule (after `:-`) does not start in column 0: a
+   token there starts the next item, which is parsed as usual. One error each, at the next item. *)
+node : type. a : node. b : node.
+edge : node -> node -> rel. ?-
+linked : node -> rel. (*~ E0001 *)
+linked X :- edge X _.
+reaches : node -> rel.
+reaches X :-
+edge a b. (*~ E0001 *)
+reaches X :- linked X.
+?- reaches X.

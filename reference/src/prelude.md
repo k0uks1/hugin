@@ -97,6 +97,7 @@ Sequences of syntax are meta lists (`list term`, `list formula`, `module = list 
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
 | `quoted : ⇑type -> Type`, `qterm : term -> quoted A`, `raw : quoted A -> term` | quoted terms: a term of the object type `A`, the constructor that makes one from a `term` without a check, and the term of one ([Reflection](reflection.md#typed-terms)) |
 | `term`, `formula`, `rule`, `item`, `module` | object syntax as data, without object types, written as quotes `'{ … }` ([Reflection](reflection.md#quotes)) |
+| `qatom : quoted A -> formula` | a term of a type of facts as an atom (primitive, [Reflection](reflection.md#typed-atoms)) |
 | `column`, `colof` | the column of an object constant at an index |
 | `pick`, `openT`, `openTs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
 
@@ -129,6 +130,7 @@ prelude.
 | `labels : sym -> list string` | the labels of a constant's columns (primitive) |
 | `derive : sym -> string -> sym` | the derived constant `r.l` (primitive) |
 | `derived : sym -> bool` | whether a constant is derived (primitive) |
+| `qatom : quoted A -> formula` | a typed atom as a formula (primitive) |
 
 A primitive is declared `x : A = %builtin p.`; it is an error ([E0103](errors/E0103.md)) if `A` is not
 the type of the primitive `p`.
