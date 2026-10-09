@@ -1882,10 +1882,6 @@ this change, fixed at the root:
   start (`{ a : t ., b : u }`), so a stray period in a record type over several lines is one error, not
   three (golden `recovery/r_record_stray_period`).
 
-## Possible next steps
-
-* A faster engine (columnar storage, join planning) behind the same core IR.
-
 ## The reference moves with the language (designer rule, 2026-10-09)
 
 The designer made this a hard rule: no change to the syntax, the semantics or any other part of the
