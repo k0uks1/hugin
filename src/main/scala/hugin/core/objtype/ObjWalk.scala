@@ -159,6 +159,9 @@ final class ObjWalk(env: ObjEnv, scope: ObjWalk.Scope):
         case Some(Val.Pi(_, _, dom, cl)) =>
           if i == Icit.Expl then k += 1
           (Tm.unloc(a), force(dom)) match
+            case (Tm.Quote(code), Val.Lift(x)) if isFormula(x) =>
+              // a formula passed to a meta function: part of the scope's body
+              expects ++= formula(code, spanOf(a, Span.NoSpan), s)
             case (Tm.Quote(code), Val.Lift(x)) if isData(x) =>
               val where = s"argument $k of `$fname`"
               val ot = term(code, spanOf(a, Span.NoSpan), s)
@@ -169,6 +172,8 @@ final class ObjWalk(env: ObjEnv, scope: ObjWalk.Scope):
             try Some(inst(cl, eval(s.env, a)))
             catch case _: Exception => None
         case _ => ty = None
+
+  private def isFormula(x: Val): Boolean = force(x) == Val.PropT
 
   private def isData(x: Val): Boolean = force(x) match
     case Val.PropT | Val.U0 | Val.Pi(_, _, _, _) => false
