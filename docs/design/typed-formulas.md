@@ -1,8 +1,9 @@
 # Typed reflection beyond terms: formulas, rules and items
 
 Design note for [issue #96](https://github.com/k0uks1/hugin/issues/96), the follow-up of #56
-(`docs/design/typed-object-code.md`). Status: proposed, for review by the designer. Nothing is
-implemented.
+(`docs/design/typed-object-code.md`). Status: approved by the designer as written; implemented in
+the three batches of section 7. The decisions of the implementation are in `docs/NOTES.md`, "Typed
+reflection beyond terms (#96)".
 
 Contents: 1 recommendations, 2 Hugin today, 3 prior art, 4 assessments, 5 alternatives rejected,
 6 effects, 7 batches, 8 sources.

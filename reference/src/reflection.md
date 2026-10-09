@@ -93,6 +93,25 @@ type `quoted A` is a term of type `A`, a hole of type `term` a term of any type,
 base or shared type a term of the type it lifts to. It is an error ([E0402](errors/E0402.md),
 [E0401](errors/E0401.md)) if the content is ill-typed, whether or not the quote is ever reflected.
 
+A variable `X` of type `quoted A` that is a hole `$X` at several places of the body of one quoted rule,
+query or formula is one object variable there: its type is the meet of the types of these positions and
+of `A`, as for a variable of a rule. It is an error ([E0401](errors/E0401.md)) if the meet is empty,
+since the data in the hole may be a variable. In a head, `$X` is a term of type `A`, as above.
+
+The following generator is rejected where it is defined: a value that the hole `$X` holds would have to
+be both a `teacher` and a `janitor`.
+
+```hugin,compile_fail,E0401
+staff : type.
+teacher : (name : string) -> staff.
+janitor : (name : string) -> staff.
+teaches : teacher -> rel.
+cleans : janitor -> rel.
+busy : rel.
+both : quoted staff -> rule.
+both X = '{ busy :- teaches $X, cleans $X }.
+```
+
 Meta values are written as holes (see below): `'{ $R X :- $..Body }`. It is an error
 ([E0917](errors/E0917.md)) to quote `as`, an ascription, a projection or an update, which have no
 representation, or content of another category than the expected type's (two items where a rule is

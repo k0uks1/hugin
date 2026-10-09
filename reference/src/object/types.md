@@ -210,6 +210,8 @@ Meta code inserted into object code is a term of the type its lift gives: a meta
 into a column of type `σ` must have `τ ≤ σ` in a head, and `τ` and `σ` must have a meet in a body. So a
 meta function that can only build well-typed object code is accepted, and one that can build ill-typed
 code is rejected where it is defined, whether or not it is used.
+In a quote, the occurrences of one hole of type `quoted A` in a body are one variable for the meet
+([Quotes](../reflection.md#quotes)).
 
 In a [functor](../modules.md)'s body the types that the functor's parameter gives are *abstract*: such a
 type is a subtype only of itself, so the body is checked once, for every argument. Checks that depend on

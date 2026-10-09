@@ -1,0 +1,31 @@
+error[E0401]: no value can occur in all these positions
+  --> tests/neg/tf_repeated_holes.hgn:15:37
+   |
+15 | g X = '{ both :- teaches $X, cleans $X }. (*~ E0401 *)
+   |                          --         ^^ `$X` has type `janitor` here
+   |                          `$X` has type `staff` here
+   |                          `$X` has type `teacher` here
+   |
+   = note: `$X` is expected to have type `teacher` (column 1 of `teaches`), `janitor` (column 1 of `cleans`), `staff` (the type of `$X`)
+
+error[E0401]: no value can occur in all these positions
+  --> tests/neg/tf_repeated_holes.hgn:19:29
+   |
+19 | f X = '{ teaches $X, cleans $X }. (*~ E0401 *)
+   |                  --         ^^ `$X` has type `janitor` here
+   |                  `$X` has type `staff` here
+   |                  `$X` has type `teacher` here
+   |
+   = note: `$X` is expected to have type `teacher` (column 1 of `teaches`), `janitor` (column 1 of `cleans`), `staff` (the type of `$X`)
+
+error[E0401]: no value can occur in all these positions
+  --> tests/neg/tf_repeated_holes.hgn:21:41
+   |
+21 | q X = '{ ?- paid $X, teaches $X, cleans $X }. (*~ E0401 *)
+   |                  --          --         ^^ `$X` has type `janitor` here
+   |                              `$X` has type `teacher` here
+   |                  `$X` has type `staff` here
+   |
+   = note: `$X` is expected to have type `staff` (column 1 of `paid`), `teacher` (column 1 of `teaches`), `janitor` (column 1 of `cleans`), `staff` (the type of `$X`)
+
+3 errors found
