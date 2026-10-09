@@ -1,0 +1,5 @@
+static_len 4.
+?- held L, len L N.
+L = cons 11 (cons 13 nil), N = 2.
+L = cons 13 nil, N = 1.
+L = cons 2 (cons 3 (cons 5 (cons 7 nil))), N = 4.

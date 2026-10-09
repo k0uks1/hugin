@@ -1,0 +1,7 @@
+(* A shared data type used at other arguments than its parameters (E0921): an index in a constructor's
+   result, polymorphic recursion, and a typed parameter. *)
+tree A : data.
+leaf : tree int. (*~ E0921 *)
+node : tree (list A) -> tree A. (*~ E0921 *)
+fine : A -> tree A -> tree A -> tree A.
+nums (A : Type) : data. (*~ E0921 *)

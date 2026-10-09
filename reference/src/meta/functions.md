@@ -99,7 +99,7 @@ A literal operand takes the type and stage of the other operand. Comparisons are
 formulas; the meta level has no comparison operators.
 
 A meta value of a base type used as object code is *persisted* as a literal
-([Staging](staging.md#persistence)). It is an error ([E0909](../errors/E0909.md)) if its computation is
+([Staging](staging.md#lifting)). It is an error ([E0909](../errors/E0909.md)) if its computation is
 undefined (an overflow, a division by zero) or stuck.
 
 The following program computes a constant at compile time and uses it in object code.

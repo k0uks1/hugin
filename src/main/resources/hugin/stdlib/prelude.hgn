@@ -7,9 +7,9 @@
    record type); the functors `tc` and `bounded` are functions returning module bodies; the lines
    of this file are those of the prelude before the redesign. *)
 
-(* Lists (Section 13.3). Like every constructor, `nil` and `cons` are fact constructors: a list is a fact
-   (with its sublists) once a head or an input file builds it. *)
-list A : type.
+(* Lists (Section 13.3), shared by both stages (`[a, b]`, `x :: xs`; reference: meta/families). At the object
+   level `nil` and `cons` are fact constructors: a list is a fact once a head or an input file builds it. *)
+list A : data.
 nil : list A.
 cons : A -> list A -> list A.
 
@@ -18,8 +18,8 @@ len : (l : list A) -> (n : int) -> rel.
 len nil 0.
 len (cons X L) M :- cons X L, len L N, M = N + 1.
 
-(* Optional values and pairs *)
-option A : type.
+(* Optional values (shared, like lists) and pairs (an object struct; meta code uses record types) *)
+option A : data.
 none : option A.
 some : A -> option A.
 
@@ -44,14 +44,10 @@ bounded (g : graph) (limit : int) = {
 (* Reflection (reference: reflection): object syntax as data. A quote `'{ … }` where one of these
    types is expected is data of it (`'{ p X :- q X }`, `'{ edge 1 2. edge 2 3. }`); in a pattern it is
    a quoted pattern with holes `$X`, `$..Xs` and `$F[V]`; an item `$e.` reflects rules back into the
-   program. *)
-seq : Type -> Type.
-snil : seq A.
-scons : A -> seq A -> seq A.
-
-sappend : seq A -> seq A -> seq A.
-sappend snil Ys = Ys.
-sappend (scons X Xs) Ys = scons X (sappend Xs Ys).
+   program. Sequences of syntax are meta lists (`list term`). *)
+append : list A -> list A -> list A.
+append [] Ys = Ys.
+append (X :: Xs) Ys = X :: append Xs Ys.
 
 (* References to object constants, compared by identity *)
 sym : Type = %builtin symbol.
@@ -89,12 +85,12 @@ twild : term.
 tint : int -> term.
 tfloat : float -> term.
 tstr : string -> term.
-tapp : sym -> seq term -> term.
+tapp : sym -> list term -> term.
 tarith : arith_op -> term -> term -> term.
 tneg : term -> term.
 
 formula : Type.
-fatom : sym -> seq term -> formula.
+fatom : sym -> list term -> formula.
 fcmp : cmp_op -> term -> term -> formula.
 fnot : formula -> formula.
 fconj : formula -> formula -> formula.
@@ -103,7 +99,7 @@ fdisj : formula -> formula -> formula.
 fagg : agg_op -> term -> term -> formula -> formula.
 
 rule : Type.
-horn : seq formula -> seq formula -> rule.
+horn : list formula -> list formula -> rule.
 
 (* A column of an object constant: the column at an index of a constant, with its label and type (types
    are not data, Q5, but they can be referred to) *)
@@ -112,15 +108,15 @@ colof : sym -> index -> column.
 
 item : Type.
 irule : rule -> item.
-iquery : seq formula -> item.
+iquery : list formula -> item.
 (* a rule with a name `@n` *)
 inamed : string -> rule -> item.
 (* an error reported where the items are reflected (a directive rejecting its arguments) *)
 ierror : string -> item.
 (* the declaration of a relation with the given columns: of a constant derived from another (`derive`) *)
-irelation : sym -> seq column -> item.
+irelation : sym -> list column -> item.
 
-module : Type = seq item.
+module : Type = list item.
 
 (* Instantiating the variable bound at index K by W (what a higher-order hole `$F[V]` abstracts) *)
 pick : index -> index -> term -> term -> term.
@@ -136,9 +132,9 @@ openT K W (tarith O A B) = tarith O (openT K W A) (openT K W B).
 openT K W (tneg A) = tneg (openT K W A).
 openT K W T = T.
 
-openTs : index -> term -> seq term -> seq term.
-openTs K W snil = snil.
-openTs K W (scons T Ts) = scons (openT K W T) (openTs K W Ts).
+openTs : index -> term -> list term -> list term.
+openTs K W [] = [].
+openTs K W (T :: Ts) = openT K W T :: openTs K W Ts.
 
 openF : index -> term -> formula -> formula.
 openF K W (fatom S Ts) = fatom S (openTs K W Ts).
@@ -152,15 +148,15 @@ openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isu
    application says what it changes. A directive returning a `decl` changes the declaration of an object
    constant (local: `%input r.`; in the prefix form `%d a₁ … aₙ` before a declaration, `d a₁ … aₙ` has type
    `decl -> decl` and is applied to it); one of type `module -> module` rewrites the file's rules and
-   queries (module-wide); one returning items (`seq item`, `item`, `rule`, `seq rule`) adds them. The
+   queries (module-wide); one returning items (`list item`, `item`, `rule`, `list rule`) adds them. The
    arguments of a directive are object syntax: at a parameter of a reflective type, an argument is quoted
    implicitly (where a `decl` is expected, the name of an object constant or a rule name `@r` is its
    declaration). *)
 
 (* What directives attach to a declaration; the compiler implements them *)
 measure : Type.
-mvars : seq string -> measure.        (* `%terminates X (r X _)`, `%terminates (X, Y) (r X Y)` *)
-mlabels : seq string -> measure.      (* `%terminates n r`, `%terminates (n, m) r` *)
+mvars : list string -> measure.        (* `%terminates X (r X _)`, `%terminates (X, Y) (r X Y)` *)
+mlabels : list string -> measure.      (* `%terminates n r`, `%terminates (n, m) r` *)
 
 attr : Type.
 ainput : attr.
@@ -168,16 +164,16 @@ aoutput : attr.
 aopen : attr.
 aderivations : attr.
 (* a measure, with the arguments of the call pattern for a measure of variables *)
-aterminates : measure -> seq term -> attr.
+aterminates : measure -> list term -> attr.
 
 decl : Type.
-dconst : sym -> seq attr -> decl.     (* an object constant (relation, constructor, type) *)
-drule : string -> seq attr -> decl.   (* a named rule `@r` *)
+dconst : sym -> list attr -> decl.     (* an object constant (relation, constructor, type) *)
+drule : string -> list attr -> decl.   (* a named rule `@r` *)
 derror : string -> decl.              (* an error, reported at the directive *)
 
 attach : attr -> decl -> decl.
-attach A (dconst S As) = dconst S (sappend As [A]).
-attach A (drule N As) = drule N (sappend As [A]).
+attach A (dconst S As) = dconst S (append As [A]).
+attach A (drule N As) = drule N (append As [A]).
 attach A (derror M) = derror M.
 
 (* The primitive directives (reference: directives) *)
@@ -210,40 +206,40 @@ false : bool.
 (* whether two atoms (literals, symbols) are equal; stuck on anything else *)
 same : A -> A -> bool = %builtin same.
 (* the labels of the columns of a constant (`""` for a column without one) *)
-labels : sym -> seq string = %builtin labels.
+labels : sym -> list string = %builtin labels.
 (* the constant `r.l` derived from `r`, declared by an item `irelation`; and whether a constant is one *)
 derive : sym -> string -> sym = %builtin derive.
 derived : sym -> bool = %builtin derived.
 
 (* one mode per column, indexed by the columns' labels: `+e -t` is `minput "e" (moutput "t" mnone)` *)
-modes : seq string -> Type.
-mnone : modes snil.
-minput : (l : string) -> modes Ls -> modes (scons l Ls).
-moutput : (l : string) -> modes Ls -> modes (scons l Ls).
+modes : list string -> Type.
+mnone : modes [].
+minput : (l : string) -> modes Ls -> modes (l :: Ls).
+moutput : (l : string) -> modes Ls -> modes (l :: Ls).
 
 demand : (r : sym) -> modes (labels r) -> module -> module.
 demand R M Is = irelation (derive R "check") (dcolumns R izero M) :: dmodule R (derive R "check" :: ddemanded Is) M [] Is.
 
 (* The demand relations declared in the module *)
-ddemanded : module -> seq sym.
+ddemanded : module -> list sym.
 ddemanded [] = [].
 ddemanded (irelation D Cols :: Is) = D :: ddemanded Is.
 ddemanded (I :: Is) = ddemanded Is.
 
 (* The columns of the demand relation: the inputs of `r` *)
-dcolumns : sym -> index -> modes Ls -> seq column.
+dcolumns : sym -> index -> modes Ls -> list column.
 dcolumns R K mnone = [].
 dcolumns R K (minput L M) = colof R K :: dcolumns R (isuc K) M.
 dcolumns R K (moutput L M) = dcolumns R (isuc K) M.
 
 (* The arguments at the inputs *)
-dinputs : modes Ls -> seq term -> seq term.
+dinputs : modes Ls -> list term -> list term.
 dinputs (minput L M) (T :: Ts) = T :: dinputs M Ts.
 dinputs (moutput L M) (T :: Ts) = dinputs M Ts.
 dinputs M Ts = [].
 
 (* The wildcards of the inputs of a guarded head named (`_a`, `_ba`, …), so that the guard binds them *)
-dnamed : string -> modes Ls -> seq term -> seq term.
+dnamed : string -> modes Ls -> list term -> list term.
 dnamed P (minput L M) (T :: Ts) = dname (P ^ "a") T :: dnamed (P ^ "b") M Ts.
 dnamed P (moutput L M) (T :: Ts) = T :: dnamed (P ^ "b") M Ts.
 dnamed P M Ts = Ts.
@@ -253,75 +249,75 @@ dname P twild = tvar P.
 dname P (tapp S Ts) = tapp S (dnames P Ts).
 dname P T = T.
 
-dnames : string -> seq term -> seq term.
+dnames : string -> list term -> list term.
 dnames P [] = [].
 dnames P (T :: Ts) = dname (P ^ "a") T :: dnames (P ^ "b") Ts.
 
 (* The module: `G` is the guard of the last rule of `r`; the rules derived from a rule follow it, so the
    demand rules an earlier `%demand` generated from a rule of `r` are guarded with it (the order of the
    `%demand` directives does not matter) *)
-dmodule : sym -> seq sym -> modes Ls -> seq formula -> module -> module.
+dmodule : sym -> list sym -> modes Ls -> list formula -> module -> module.
 dmodule R Cs M G [] = [].
-dmodule R Cs M G (irule Rl :: Is) = sappend (dstep R Cs M G Rl irule) (dmodule R Cs M (dguardOf R M Rl G) Is).
-dmodule R Cs M G (inamed N Rl :: Is) = sappend (dstep R Cs M G Rl (inamed N)) (dmodule R Cs M (dguardOf R M Rl G) Is).
-dmodule R Cs M G (iquery B :: Is) = iquery B :: sappend (ditems (dcalls R Cs M [] B)) (dmodule R Cs M [] Is).
+dmodule R Cs M G (irule Rl :: Is) = append (dstep R Cs M G Rl irule) (dmodule R Cs M (dguardOf R M Rl G) Is).
+dmodule R Cs M G (inamed N Rl :: Is) = append (dstep R Cs M G Rl (inamed N)) (dmodule R Cs M (dguardOf R M Rl G) Is).
+dmodule R Cs M G (iquery B :: Is) = iquery B :: append (ditems (dcalls R Cs M [] B)) (dmodule R Cs M [] Is).
 dmodule R Cs M G (I :: Is) = I :: dmodule R Cs M [] Is.
 
 (* A rule: of `r` guarded, with the demand of its calls; derived from the last rule of `r`, guarded like
    it; any other with the demand of its calls *)
-dstep : sym -> seq sym -> modes Ls -> seq formula -> rule -> (rule -> item) -> module.
+dstep : sym -> list sym -> modes Ls -> list formula -> rule -> (rule -> item) -> module.
 dstep R Cs M G '{ $S $..Ts :- $..B } Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
 dstep R Cs M G Rl Mk = Mk Rl :: ditems (dbody R Cs M Rl).
 
-dhead : bool -> bool -> sym -> seq sym -> modes Ls -> seq formula -> sym -> seq term -> seq formula -> (rule -> item) -> module.
+dhead : bool -> bool -> sym -> list sym -> modes Ls -> list formula -> sym -> list term -> list formula -> (rule -> item) -> module.
 dhead true D R Cs M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R Cs M [dguard R M Ts] B).
-dhead false true R Cs M G S Ts B Mk = [Mk (horn [fatom S Ts] (dprefix Cs Ts (sappend G B)))].
+dhead false true R Cs M G S Ts B Mk = [Mk (horn [fatom S Ts] (dprefix Cs Ts (append G B)))].
 dhead false false R Cs M G S Ts B Mk = Mk '{ $S $..Ts :- $..B } :: ditems (dcalls R Cs M [] B).
 
-dguarded : formula -> sym -> seq term -> seq formula -> (rule -> item) -> item.
+dguarded : formula -> sym -> list term -> list formula -> (rule -> item) -> item.
 dguarded F S Ts B Mk = Mk '{ $S $..Ts :- $F, $..B }.
 
 (* The guard of a rule of `r` with head arguments `Ts` *)
-dguard : sym -> modes Ls -> seq term -> formula.
+dguard : sym -> modes Ls -> list term -> formula.
 dguard R M Ts = fatom (derive R "check") (dinputs M (dnamed "_" M Ts)).
 
 (* The guard the rules after `Rl` get: `Rl`'s if it is a rule of `r`, `G` if it is derived *)
-dguardOf : sym -> modes Ls -> rule -> seq formula -> seq formula.
+dguardOf : sym -> modes Ls -> rule -> list formula -> list formula.
 dguardOf R M '{ $S $..Ts :- $..B } G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
 dguardOf R M Rl G = [].
 
-dguardSel : bool -> bool -> formula -> seq formula -> seq formula.
+dguardSel : bool -> bool -> formula -> list formula -> list formula.
 dguardSel true D F G = [F].
 dguardSel false true F G = G.
 dguardSel false false F G = [].
 
-dbody : sym -> seq sym -> modes Ls -> rule -> seq rule.
+dbody : sym -> list sym -> modes Ls -> rule -> list rule.
 dbody R Cs M (horn Hs B) = dcalls R Cs M [] B.
 
 (* The demand of the calls of `r` among the formulas `Fs`, each from the formulas before it *)
-dcalls : sym -> seq sym -> modes Ls -> seq formula -> seq formula -> seq rule.
+dcalls : sym -> list sym -> modes Ls -> list formula -> list formula -> list rule.
 dcalls R Cs M Pre [] = [].
-dcalls R Cs M Pre (F :: Fs) = sappend (dcall R Cs M Pre F) (dcalls R Cs M (sappend Pre [F]) Fs).
+dcalls R Cs M Pre (F :: Fs) = append (dcall R Cs M Pre F) (dcalls R Cs M (append Pre [F]) Fs).
 
-dcall : sym -> seq sym -> modes Ls -> seq formula -> formula -> seq rule.
+dcall : sym -> list sym -> modes Ls -> list formula -> formula -> list rule.
 dcall R Cs M Pre (fatom S Ts) = ddemand (same R S) R Cs M Pre Ts.
 dcall R Cs M Pre (fnot F) = dcall R Cs M Pre F.
-dcall R Cs M Pre (fconj F G) = sappend (dcall R Cs M Pre F) (dcall R Cs M (sappend Pre [F]) G).
-dcall R Cs M Pre (fdisj F G) = sappend (dcall R Cs M Pre F) (dcall R Cs M Pre G).
+dcall R Cs M Pre (fconj F G) = append (dcall R Cs M Pre F) (dcall R Cs M (append Pre [F]) G).
+dcall R Cs M Pre (fdisj F G) = append (dcall R Cs M Pre F) (dcall R Cs M Pre G).
 dcall R Cs M Pre (fagg O X T F) = dinner R Cs M Pre F.
 dcall R Cs M Pre F = [].
 
 (* In an aggregate, the demand of a call is built from the formulas before the aggregate (the formulas
    in it may mention its variable): the call's inputs must be bound outside it *)
-dinner : sym -> seq sym -> modes Ls -> seq formula -> formula -> seq rule.
+dinner : sym -> list sym -> modes Ls -> list formula -> formula -> list rule.
 dinner R Cs M Pre (fatom S Ts) = ddemand (same R S) R Cs M Pre Ts.
 dinner R Cs M Pre (fnot F) = dinner R Cs M Pre F.
-dinner R Cs M Pre (fconj F G) = sappend (dinner R Cs M Pre F) (dinner R Cs M Pre G).
-dinner R Cs M Pre (fdisj F G) = sappend (dinner R Cs M Pre F) (dinner R Cs M Pre G).
+dinner R Cs M Pre (fconj F G) = append (dinner R Cs M Pre F) (dinner R Cs M Pre G).
+dinner R Cs M Pre (fdisj F G) = append (dinner R Cs M Pre F) (dinner R Cs M Pre G).
 dinner R Cs M Pre (fagg O X T F) = dinner R Cs M Pre F.
 dinner R Cs M Pre F = [].
 
-ddemand : bool -> sym -> seq sym -> modes Ls -> seq formula -> seq term -> seq rule.
+ddemand : bool -> sym -> list sym -> modes Ls -> list formula -> list term -> list rule.
 ddemand true R Cs M Pre Ts = [horn [fatom (derive R "check") (dinputs M Ts)] (dprefix Cs (dinputs M Ts) Pre)].
 ddemand false R Cs M Pre Ts = [].
 
@@ -333,91 +329,91 @@ ddemand false R Cs M Pre Ts = [].
    earlier call, and it never depends negatively on the relations that call it. Keeping fewer formulas
    only adds demand, never answers. Demand rules generated earlier (by `%demand` of another relation)
    are pruned in the same way. *)
-dprefix : seq sym -> seq term -> seq formula -> seq formula.
+dprefix : list sym -> list term -> list formula -> list formula.
 dprefix Cs Is Pre = dpruned Cs Pre (dneed Cs Pre (dkeepCalls Cs (dneed Cs Pre [] Is) Pre) Is).
 
 (* The variables needed by the inputs and by the formulas `Kept` (all, or kept by a first round, which
    adds the needs of a kept aggregate) that the other formulas do not bind *)
-dneed : seq sym -> seq formula -> seq formula -> seq term -> seq string.
+dneed : list sym -> list formula -> list formula -> list term -> list string.
 dneed Cs Pre Kept Is =
-  sdiff (sappend (tsvars Is) (sappend (dothers Cs fneeds Pre) (dallneeds Kept))) (dothers Cs fbound Pre).
+  sdiff (append (tsvars Is) (append (dothers Cs fneeds Pre) (dallneeds Kept))) (dothers Cs fbound Pre).
 
-dallneeds : seq formula -> seq string.
+dallneeds : list formula -> list string.
 dallneeds [] = [].
-dallneeds (F :: Fs) = sappend (fneeds F) (dallneeds Fs).
+dallneeds (F :: Fs) = append (fneeds F) (dallneeds Fs).
 
-dpruned : seq sym -> seq formula -> seq string -> seq formula.
+dpruned : list sym -> list formula -> list string -> list formula.
 dpruned Cs Pre Need = dkeepCalls Cs Need Pre.
 
-dkeepCalls : seq sym -> seq string -> seq formula -> seq formula.
+dkeepCalls : list sym -> list string -> list formula -> list formula.
 dkeepCalls Cs Need [] = [].
 dkeepCalls Cs Need (F :: Fs) = dkeepF Cs Need F (dkeepCalls Cs Need Fs).
 
-dkeepF : seq sym -> seq string -> formula -> seq formula -> seq formula.
+dkeepF : list sym -> list string -> formula -> list formula -> list formula.
 dkeepF Cs Need (fatom S Ts) Fs = dkeepIf (msym (derive S "check") Cs) (shares (tsvars Ts) Need) (fatom S Ts) Fs.
 dkeepF Cs Need (fnot F) Fs = Fs.
 dkeepF Cs Need (fagg O X T F) Fs = dkeepIf true (shares (tvarsOf X) Need) (fagg O X T F) Fs.
 dkeepF Cs Need F Fs = F :: Fs.
 
-dkeepIf : bool -> bool -> formula -> seq formula -> seq formula.
+dkeepIf : bool -> bool -> formula -> list formula -> list formula.
 dkeepIf true false F Fs = Fs.
 dkeepIf C N F Fs = F :: Fs.
 
 (* Whether a formula may be left out of a demand rule *)
-dcallOf : seq sym -> formula -> bool.
+dcallOf : list sym -> formula -> bool.
 dcallOf Cs (fatom S Ts) = msym (derive S "check") Cs.
 dcallOf Cs (fnot F) = true.
 dcallOf Cs (fagg O X T F) = true.
 dcallOf Cs F = false.
 
-msym : sym -> seq sym -> bool.
+msym : sym -> list sym -> bool.
 msym S [] = false.
 msym S (C :: Cs) = bor (same S C) (msym S Cs).
 
 (* The variables `V` gives of the formulas that are not such calls *)
-dothers : seq sym -> (formula -> seq string) -> seq formula -> seq string.
+dothers : list sym -> (formula -> list string) -> list formula -> list string.
 dothers Cs V [] = [].
-dothers Cs V (F :: Fs) = sappend (dunless (dcallOf Cs F) (V F)) (dothers Cs V Fs).
+dothers Cs V (F :: Fs) = append (dunless (dcallOf Cs F) (V F)) (dothers Cs V Fs).
 
-dunless : bool -> seq string -> seq string.
+dunless : bool -> list string -> list string.
 dunless true Xs = [].
 dunless false Xs = Xs.
 
 (* Variables of terms and formulas; those a formula binds (an atom all of its own, an equation those of
    its sides without arithmetic, an aggregate its result) and those it needs bound *)
-tvarsOf : term -> seq string.
+tvarsOf : term -> list string.
 tvarsOf (tvar X) = [X].
 tvarsOf (tapp S Ts) = tsvars Ts.
-tvarsOf (tarith O A B) = sappend (tvarsOf A) (tvarsOf B).
+tvarsOf (tarith O A B) = append (tvarsOf A) (tvarsOf B).
 tvarsOf (tneg A) = tvarsOf A.
 tvarsOf T = [].
 
-tsvars : seq term -> seq string.
+tsvars : list term -> list string.
 tsvars [] = [].
-tsvars (T :: Ts) = sappend (tvarsOf T) (tsvars Ts).
+tsvars (T :: Ts) = append (tvarsOf T) (tsvars Ts).
 
-fvars : formula -> seq string.
+fvars : formula -> list string.
 fvars (fatom S Ts) = tsvars Ts.
-fvars (fcmp C A B) = sappend (tvarsOf A) (tvarsOf B).
+fvars (fcmp C A B) = append (tvarsOf A) (tvarsOf B).
 fvars (fnot F) = fvars F.
-fvars (fconj F G) = sappend (fvars F) (fvars G).
-fvars (fdisj F G) = sappend (fvars F) (fvars G).
-fvars (fagg O X T F) = sappend (tvarsOf X) (sappend (tvarsOf T) (fvars F)).
+fvars (fconj F G) = append (fvars F) (fvars G).
+fvars (fdisj F G) = append (fvars F) (fvars G).
+fvars (fagg O X T F) = append (tvarsOf X) (append (tvarsOf T) (fvars F)).
 
-fbound : formula -> seq string.
+fbound : formula -> list string.
 fbound (fatom S Ts) = tsvars Ts.
 fbound (fcmp ceq A B) = dequation (plain A) (plain B) A B.
 fbound (fagg O X T F) = tvarsOf X.
-fbound (fconj F G) = sappend (fbound F) (fbound G).
+fbound (fconj F G) = append (fbound F) (fbound G).
 fbound F = [].
 
-dequation : bool -> bool -> term -> term -> seq string.
-dequation true true A B = sappend (tvarsOf A) (tvarsOf B).
+dequation : bool -> bool -> term -> term -> list string.
+dequation true true A B = append (tvarsOf A) (tvarsOf B).
 dequation true false A B = tvarsOf A.
 dequation false true A B = tvarsOf B.
 dequation false false A B = [].
 
-fneeds : formula -> seq string.
+fneeds : formula -> list string.
 fneeds F = sdiff (fvars F) (fbound F).
 
 (* a term without arithmetic: a pattern *)
@@ -427,7 +423,7 @@ plain (tarith O A B) = false.
 plain (tneg A) = false.
 plain T = true.
 
-plains : seq term -> bool.
+plains : list term -> bool.
 plains [] = true.
 plains (T :: Ts) = band (plain T) (plains Ts).
 
@@ -440,22 +436,22 @@ bor : bool -> bool -> bool.
 bor true B = true.
 bor false B = B.
 
-member : string -> seq string -> bool.
+member : string -> list string -> bool.
 member X [] = false.
 member X (Y :: Ys) = bor (same X Y) (member X Ys).
 
-sdiff : seq string -> seq string -> seq string.
+sdiff : list string -> list string -> list string.
 sdiff [] Ys = [].
 sdiff (X :: Xs) Ys = dkeepS (member X Ys) X (sdiff Xs Ys).
 
-dkeepS : bool -> string -> seq string -> seq string.
+dkeepS : bool -> string -> list string -> list string.
 dkeepS true X Zs = Zs.
 dkeepS false X Zs = X :: Zs.
 
-shares : seq string -> seq string -> bool.
+shares : list string -> list string -> bool.
 shares [] Ys = false.
 shares (X :: Xs) Ys = bor (member X Ys) (shares Xs Ys).
 
-ditems : seq rule -> module.
+ditems : list rule -> module.
 ditems [] = [].
 ditems (Rl :: Rls) = irule Rl :: ditems Rls.

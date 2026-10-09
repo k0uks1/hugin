@@ -61,7 +61,7 @@ application `d a₁ … aₙ`, with implicit arguments inserted.
 |---|---|---|
 | `decl` | local | attaches attributes to the declaration that the application describes |
 | `decl -> decl` (prefix form only) | local | the same, for the declaration that follows the directive |
-| `seq item`, `item`, `rule`, `seq rule` | additive | adds the items at the place of the directive |
+| `list item`, `item`, `rule`, `list rule` | additive | adds the items at the place of the directive |
 | `module -> module` | module-wide | rewrites the rules and queries of the file |
 
 It is an error ([E1001](errors/E1001.md)) if the application has another type. In the prefix form, it is
@@ -118,7 +118,7 @@ mirror : module -> module.
 mirror [] = [].
 mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y $X :- $..B } :: mirror Rest.
 mirror (I :: Rest) = I :: mirror Rest.
-loop : term -> seq item.
+loop : term -> list item.
 loop N = '{ edge $N d. }.
 %loop c.
 %mirror.
@@ -179,7 +179,7 @@ A directive is any meta function whose application has a directive type. The fol
 
 ```hugin,run
 person : type. ann : person. bob : person. cid : person.
-symmetric : (r : ⇑(A -> A -> rel)) -> seq item.
+symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '{ R Y X :- R X Y. }.
 friend : person -> person -> rel.
 %symmetric friend.

@@ -1,0 +1,5 @@
+?- painted X.
+X = colors.green.
+X = colors.mix colors.red colors.green.
+?- pure X.
+X = colors.green.

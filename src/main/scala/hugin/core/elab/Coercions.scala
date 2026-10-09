@@ -5,7 +5,8 @@ import hugin.syntax.Tree
 import hugin.util.*
 
 /** Stage inference and subtyping by coercion (Kovács, ICFP 2022, §4): `coe` inserts quotes, splices,
- *  lifts, persistence of primitives and record coercions, and falls back to unification. */
+ *  lifts, the lifting of meta values into object code (the rule Lift, [[Liftings]]: persistence of
+ *  primitives, `T.lift` for shared data) and record coercions, and falls back to unification. */
 trait Coercions:
   self: Elaborator =>
   import core.*
@@ -20,8 +21,8 @@ trait Coercions:
   private def coeStaged(c: Cxt, span: Span, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Tm =
     try
       if s2 == Stage.S0 && isObjectData(a2) then
-        // object data is coerced softly (the object typer decides), also a persisted meta primitive
-        val moved = if s == Stage.S1 && isMetaPrim(a).isDefined then adjustStage(c, t, a, s, s2) else None
+        // object data is coerced softly (the object typer decides), also a lifted meta value
+        val moved = if s == Stage.S1 && !forceData(a).isInstanceOf[Val.Lift] then liftCode(c, t, a) else None
         moved match
           case Some((t1, a1)) => coeObjectData(c, t1, a1, a2)
           case None if s == Stage.S0 && isObjectData(a) => coeObjectData(c, t, a, a2)
@@ -58,13 +59,12 @@ trait Coercions:
     (s, s2) match
       case (Stage.S0, Stage.S1) => Some((Tm.quote(t), Val.Lift(a)))
       case (Stage.S1, Stage.S0) =>
-        force(a) match
-          case Val.Lift(x) => Some((Tm.splice(t), x))
-          case Val.Base(b, Stage.S1) => Some((Tm.Persist(t), Val.Base(b, Stage.S0)))
-          case other =>
-            val m = ev(c, freshMeta(c, Val.U0, Stage.S0, Span.NoSpan, "object type"))
-            unify(c.lvl, other, Val.Lift(m))
-            Some((Tm.splice(t), m))
+        // the rule Lift; a meta value of unknown type is object code
+        liftCode(c, t, a).orElse {
+          val m = ev(c, freshMeta(c, Val.U0, Stage.S0, Span.NoSpan, "object type"))
+          unify(c.lvl, a, Val.Lift(m))
+          Some((Tm.splice(t), m))
+        }
       case _ => None
 
   private def justUnify(c: Cxt, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Option[Tm] =
@@ -106,7 +106,10 @@ trait Coercions:
       case (Val.Flex(_, _), _) | (_, Val.Flex(_, _)) => justUnify(c, t, a, s, a2, s2)
       case (Val.Lift(x), _) => Some(coeOpt(c, Tm.splice(t), x, Stage.S0, a2, s2).getOrElse(Tm.splice(t)))
       case (_, Val.Lift(y)) => Some(Tm.quote(coeOpt(c, t, a, s, y, Stage.S0).getOrElse(t)))
-      case (Val.Base(b, Stage.S1), Val.Base(b2, Stage.S0)) if b == b2 => Some(Tm.Persist(t))
+      case (from, to) if s == Stage.S1 && stageOfType(to) == Stage.S0 && !isUniverse(to) && liftCode(c, t, from).isDefined =>
+        // the rule Lift: a meta value of a base or shared type as object code
+        val (t1, a1) = liftCode(c, t, from).get
+        Some(coeOpt(c, t1, a1, Stage.S0, a2, s2).getOrElse(t1))
       case (Val.RelT, Val.PropT) => None
       case (ty, Val.PropT) if s == Stage.S0 && isConstructorAtom(t, ty) => None
       case (rt: Val.RecTy, rt2: Val.RecTy) => coeRecord(c, t, rt, s, rt2, s2)
@@ -145,10 +148,10 @@ trait Coercions:
   def inferLift(c: Cxt, a: Tree): (Tm, Val, Stage) =
     (Tm.Lift(check(c, a, Val.U0, Stage.S0)), Val.U1(Level.zero), Stage.S1)
 
-  /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta primitive
-   *  value (persisted as a literal). */
+  /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta value
+   *  with a lifting (the rule Lift: a primitive persisted as a literal, a value of a shared type lifted). */
   def inferSplice(c: Cxt, a: Tree, span: Span): (Tm, Val, Stage) =
-    val (at, aty, s) = infer(c, a)
+    val (at, aty, s) = atStage(Stage.S1)(infer(c, a))
     if s == Stage.S0 then
       fail(TypeProblem.SpliceOfObjectCode(a.span))
     reflectiveKind(aty).filter(k => k == RKind.Formula || k == RKind.Term) match
@@ -158,12 +161,11 @@ trait Coercions:
       case None => splicedCode(c, at, aty, a.span, span)
 
   private def splicedCode(c: Cxt, at: Tm, aty: Val, argSpan: Span, span: Span): (Tm, Val, Stage) =
-    force(aty) match
-      case Val.Lift(x) => (Tm.splice(at), x, Stage.S0)
-      case Val.Base(b, Stage.S1) => (Tm.Persist(at), Val.Base(b, Stage.S0), Stage.S0)
-      case other =>
+    liftCode(c, at, aty) match
+      case Some((t, o)) => (t, o, Stage.S0)
+      case None =>
         val m = ev(c, freshMeta(c, Val.U0, Stage.S0, span, "the object type of a splice"))
-        unifyAt(c, argSpan, Val.Lift(m), other)
+        unifyAt(c, argSpan, Val.Lift(m), aty)
         (Tm.splice(at), m, Stage.S0)
 
   /** Moves an inferred term to another stage. */

@@ -21,6 +21,8 @@ trait Universes:
     case Kw.Type => (Tm.U0, Val.U0, Stage.S0)
     case Kw.Rel => (Tm.RelT, Val.U0, Stage.S0)
     case Kw.Prop => (Tm.PropT, Val.U0, Stage.S0)
+    // `T ā : data.` in a module body or a `where` block (at the top level, [[SharedData.elabData]])
+    case Kw.Data => fail(SharedProblem.NotTopLevel(k.span))
 
   /** Whether a `%builtin` is being elaborated as the definition `b : type = %builtin n.` of a base type. */
   private var builtinDefinition = false

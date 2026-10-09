@@ -60,8 +60,8 @@ final class DeclAttributes(core: Core):
     case (other, s) => notClosed(other, s)
 
   private def list(v: Val, sp: Span): List[Val] = ctor(v, sp) match
-    case ("snil", Nil, _) => Nil
-    case ("scons", List(x, xs), s) => x :: list(xs, s)
+    case ("nil", Nil, _) => Nil
+    case ("cons", List(x, xs), s) => x :: list(xs, s)
     case (_, _, s) => notClosed(v, s)
 
   private def string(v: Val, sp: Span): String = peel(v, sp) match

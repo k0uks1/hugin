@@ -1,0 +1,7 @@
+(* A shared data type is closed: no type becomes a subtype of it (E0922). *)
+color : data.
+red : color.
+green : color.
+paint : type.
+paint <: color. (*~ E0922 *)
+shade : type <: color. (*~ E0922 *)

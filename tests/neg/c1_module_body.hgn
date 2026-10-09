@@ -1,6 +1,6 @@
 (* Reflected items are not supported in module bodies yet. *)
 p : int -> rel.
-rs : seq rule = '{ p 1. }.
+rs : list rule = '{ p 1. }.
 m = {
   q : int -> rel.
   $rs. (*~ E0907 *)

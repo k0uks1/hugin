@@ -54,8 +54,8 @@ trait Quotes:
   /** The object constant (relation, constructor, type, or family of them) a head denotes. */
   def objectConstant(c: Cxt, h: Tree): Option[Int] = h match
     case Parens(i) => objectConstant(c, i)
-    case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).filter(isObjectConstant)
-    case SymRef(id, _) => Some(id).filter(isObjectConstant)
+    case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).map(sharedAt(_, Stage.S0)).filter(isObjectConstant)
+    case SymRef(id, _) => Some(sharedAt(id, Stage.S0)).filter(isObjectConstant)
     case s: Select =>
       try undoOnFailure(constantOf(ev(c, infer(c, s)._1)))
       catch case _: ElabError => None
@@ -87,7 +87,7 @@ trait Quotes:
     globals(id).stage == Stage.S0 || globals(id).kind.isInstanceOf[GlobalKind.Family]
 
   private def constantOf(v: Val): Option[Int] = forceData(v) match
-    case Val.Rigid(Head.Glob(id), Nil) if isObjectConstant(id) => Some(id)
+    case Val.Rigid(Head.Glob(id), Nil) if isObjectConstant(sharedAt(id, Stage.S0)) => Some(sharedAt(id, Stage.S0))
     case Val.Quote(x) => constantOf(x)
     case _ => None
 
@@ -123,6 +123,7 @@ trait Quotes:
           case -1 => Q.Var(n, sp)
           case i => Q.Bound(i, sp)
       case (RKind.Term, Wildcard()) => Q.Wild(sp)
+      case (RKind.Term, _: ListLit | _: ConsE) => q(objectList(t), k)
       case (RKind.Term, Lit(l)) =>
         val ctor = l match
           case Literal.IntL(_) => "tint"
@@ -190,7 +191,7 @@ trait Quotes:
 
   private def noAttributes(sp: Span): Q =
     val r = reflective(sp)
-    Q.Raw(Tm.App(Tm.Global(r.snil), Tm.Global(r.ctor("attr")), Icit.Impl), sp)
+    Q.Raw(Tm.App(Tm.Global(r.nil), Tm.Global(r.ctor("attr")), Icit.Impl), sp)
 
   /** `X`, `(X, Y)`: `mvars`; `l`, `(l, m)`: `mlabels`. */
   private def measure(t: Tree): Q =
@@ -272,7 +273,6 @@ trait Quotes:
     case _: With => Some("a functional update `with`")
     case _: Lambda => Some("a lambda")
     case _: RecordLit | _: RecordType | _: ModuleBody => Some("a record")
-    case _: ListLit | _: ConsE => Some("a meta list")
     case _ => None
 
   private def sequence(c: Cxt, elems: List[Tree], k: RKind, bound: List[Name], span: Span): Q =

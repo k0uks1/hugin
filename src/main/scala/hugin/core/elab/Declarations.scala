@@ -33,10 +33,16 @@ trait Declarations:
   private def declareNew(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span): Int =
     if scope.contains(name.name) then
       fail(ElabProblem.DuplicateMember(name.name, name.span, globals(scope(name.name)).span))
+    val id = declareHidden(name, ty, stage, kind, declSpan)
+    scope(name.name) = id
+    id
+
+  /** Adds a global and its item without a name in scope (the object side of a shared declaration, which
+   *  is found through its meta side, [[SharedData]]). */
+  def declareHidden(name: Ident, ty: Tm, stage: Stage, kind: GlobalKind, declSpan: Span): Int =
     val objectLike = stage == Stage.S0 || kind.isInstanceOf[GlobalKind.Family]
     val gname = if objectLike then file.objectName(name.name) else name.name
     val id = addGlobal(GlobalEntry(gname, eval(Nil, ty), ty, stage, kind, name.span, declSpan))
-    scope(name.name) = id
     items += CoreItem.GlobalItem(id)
     id
 
@@ -115,13 +121,13 @@ trait Declarations:
       .collectFirst { case Some(r) => r }
       .getOrElse(throw firstError.get)
 
-  private def declTypeWith(d: Decl, unknown: Stage, inferred: Boolean, base: Cxt): (Tm, Stage) =
+  def declTypeWith(d: Decl, unknown: Stage, inferred: Boolean, base: Cxt): (Tm, Stage) =
     state.unknownTypesAre = unknown
     try
       val (c2, imps, ps) = declContext(d, base)
       val (body, st) =
         if inferred then
-          val (b, s, _) = inferU(c2, d.tpe)
+          val (b, s, _) = atStage(positionStage(c2, d.tpe, unknown))(inferU(c2, d.tpe))
           if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b)) then
             fail(TypeProblem.NotObjectConstantType(d.tpe.span))
           (b, s)
@@ -132,20 +138,30 @@ trait Declarations:
         (pis(imps, Icit.Impl, pis(ps, Icit.Expl, body1)), Stage.S1)
     finally state.unknownTypesAre = Stage.S1
 
+  /** The stage of the positions in a declared type whose stage is inferred, where a name of a shared data
+   *  declaration denotes its constant at that stage: the stage of the declared constant's result. A type
+   *  ending in an object type (`wrap : list int -> box.`) declares an object constant, so its shared types
+   *  are object types; otherwise they are meta types (`size : list int -> int.`: a meta function). With
+   *  unknown types taken as object types, object. */
+  private def positionStage(c: Cxt, tpe: Tree, unknown: Stage): Stage =
+    if unknown == Stage.S0 then Stage.S0
+    else
+      tentatively {
+        try inferU(c, hugin.syntax.TreeOps.codomain(tpe))._2
+        catch case _: ElabError => Stage.S1
+      }
+
   def elabDecl(d: Decl): Unit =
-    if isStructDecl(d) then elabStruct(d)
+    if isDataDecl(d) then elabData(d)
+    else if isStructDecl(d) then elabStruct(d)
     else if d.sup.isDefined then elabRefinement(d)
     else elabPlainDecl(d)
 
   private def elabPlainDecl(d: Decl): Unit =
     d.defn match
+      case None if sharedResult(d).isDefined => elabSharedConstructor(d, sharedResult(d).get)
       case None =>
-        val (ty, st) = declType(d)
-        val zty = zonk(Nil, 0, ty)
-        val tv = eval(Nil, zty)
-        val kind =
-          if st == Stage.S0 then GlobalKind.Object(objectDecl(d, tv))
-          else familyKind(d, tv).getOrElse(classifyMetaConstant(d, tv))
+        val (zty, st, kind) = constant(d, declType(d))
         val id = declare(d.name, zty, st, kind, d.span)
         kind match
           case GlobalKind.Constructor(fam) => addConstructor(fam, id)
@@ -160,6 +176,16 @@ trait Declarations:
       case Some(e) =>
         val (ty, tm) = declDefinition(Cxt.empty, d, e)
         define(d.name, ty, tm, d.span)
+
+  /** The declared constant `d` of type `ty` at stage `st`: its zonked type, its stage and its kind. */
+  def constant(d: Decl, typed: (Tm, Stage)): (Tm, Stage, GlobalKind) =
+    val (ty, st) = typed
+    val zty = zonk(Nil, 0, ty)
+    val tv = eval(Nil, zty)
+    val kind =
+      if st == Stage.S0 then GlobalKind.Object(objectDecl(d, tv))
+      else familyKind(d, tv).getOrElse(classifyMetaConstant(d, tv))
+    (zty, st, kind)
 
   /** `x params : A = e.` in context `c`: its type and definition. Checking `e` against the full type
    *  introduces the implicit lambdas. With both implicit binders and parameters (`ident (x : A) : A = x.`),
@@ -281,7 +307,7 @@ trait Declarations:
       case _ => None
     val expected = op match
       case PrimOp.Same => "A -> A -> bool"
-      case PrimOp.Labels => "sym -> seq string"
+      case PrimOp.Labels => "sym -> list string"
       case PrimOp.Derived => "sym -> bool"
       case PrimOp.Derive => "sym -> string -> sym"
     found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))

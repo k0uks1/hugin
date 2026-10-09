@@ -14,7 +14,7 @@ error[E0001]: unmatched `}`
 (* ---------------- after elaborate ---------------- *)
 knows : (a : int) -> (b : int) -> rel.
 knows 1 2.
-symmetric : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> seq item.
-twice : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> seq item.
-  twice R = scons (irule (horn (scons {formula} (fatom R (scons {term} (tvar "X") (scons {term} (tvar "X") (snil {term})))) (snil {formula})) (scons {formula} (fatom R (scons {term} (tvar "X") (scons {term} twild (snil {term})))) (snil {formula})))) snil.
+symmetric : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> list item.
+twice : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> list item.
+  twice R = cons (irule (horn (cons {formula} (fatom R (cons {term} (tvar "X") (cons {term} (tvar "X") (nil {term})))) (nil {formula})) (cons {formula} (fatom R (cons {term} (tvar "X") (cons {term} twild (nil {term})))) (nil {formula})))) nil.
 knows X X :- knows X _.

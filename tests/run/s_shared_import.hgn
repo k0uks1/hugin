@@ -1,0 +1,13 @@
+(* A shared data type declared in an imported file: a member `c.color` is the meta type in meta code and
+   the object type (named after the file, `colors.red`) in object code; meta values are lifted. *)
+c = %import "lib/colors".
+favourite : c.color = c.mix c.red c.green.
+painted : c.color -> rel.
+painted favourite.
+painted c.green.
+pure : c.color -> rel.
+pure X :- painted X, not mixed X.
+mixed : c.color -> rel.
+mixed X :- painted X, X = c.mix _ _.
+?- painted X.
+?- pure X.

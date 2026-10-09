@@ -17,7 +17,7 @@ mirror ('{ edge $X $Y :- $..B } :: Rest) = '{ edge $X $Y :- $..B } :: '{ edge $Y
 mirror (I :: Rest) = I :: mirror Rest.
 
 (* an edge from a node to `d` *)
-loop : term -> seq item.
+loop : term -> list item.
 loop N = '{ edge $N d. }.
 
 %loop c.

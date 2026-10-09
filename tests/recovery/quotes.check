@@ -7,10 +7,10 @@ error[E0001]: a rule outside a quote
   = help: a rule as data is written in a quote: `'{ h :- b }`
 
 error[E0001]: a rule outside a quote
- --> tests/recovery/quotes.hgn:6:26
+ --> tests/recovery/quotes.hgn:6:27
   |
-6 | inList : seq rule = [p X :- q X]. (*~ E0001 *)
-  |                          ^^ `:-` outside a quote
+6 | inList : list rule = [p X :- q X]. (*~ E0001 *)
+  |                           ^^ `:-` outside a quote
   |
   = help: a rule as data is written in a quote: `'{ h :- b }`
 
@@ -25,8 +25,8 @@ error[E0005]: unclosed `'{`
 (* ---------------- after elaborate ---------------- *)
 p : int -> rel.
 q : int -> rel.
-fine : rule = horn (scons {formula} (fatom ⟨p⟩ (scons {term} (tvar "X") (snil {term}))) (snil {formula})) (scons {formula} (fatom ⟨q⟩ (scons {term} (tvar "X") (snil {term}))) (snil {formula})).
-after : rule = horn (scons {formula} (fatom ⟨q⟩ (scons {term} (tint 1) (snil {term}))) (snil {formula})) (snil {formula}).
+fine : rule = horn (cons {formula} (fatom ⟨p⟩ (cons {term} (tvar "X") (nil {term}))) (nil {formula})) (cons {formula} (fatom ⟨q⟩ (cons {term} (tvar "X") (nil {term}))) (nil {formula})).
+after : rule = horn (cons {formula} (fatom ⟨q⟩ (cons {term} (tint 1) (nil {term}))) (nil {formula})) (nil {formula}).
 p X :- q X.
 q 1.
 q 2.

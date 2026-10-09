@@ -43,7 +43,7 @@ trait Patterns:
 
   /** A surface pattern, with the type it matches if that is known and closed: a quote `'{ … }` is a
    *  quoted pattern ([[QuotedPatterns]]), which needs a reflective type; list syntax is the prelude's
-   *  `seq`. */
+   *  meta `list`. */
   def pattern(t: Tree, expected: Option[Val] = None): Pat = t match
     case q: Quote =>
       expected.flatMap(reflectiveKind) match
@@ -59,8 +59,10 @@ trait Patterns:
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
-        case (id @ Ident(n), args) =>
-          val c = constructorNamed(n, id.span)
+        case (h @ (_: Ident | _: SymRef), args) =>
+          val (c, n) = h match
+            case SymRef(id, n) if isConstructor(id) => (id, n) // a generated pattern ([[DerivedFunctions]])
+            case _ => (constructorNamed(nameOf(h), h.span), nameOf(h))
           val types = constructorArgTypes(c, expected)
           if types.length != args.length then
             fail(ClauseProblem.PatternArity(n, types.length, args.length, t.span))
@@ -75,13 +77,13 @@ trait Patterns:
     t match
       case Parens(i) => listPattern(i, elem)
       case ListLit(es) =>
-        es.foldRight(Pat.PCon(r.snil, Nil, t.span)) { (e, acc) => Pat.PCon(r.scons, List(pattern(e, elem), acc), t.span) }
-      case ConsE(h, tl) => Pat.PCon(r.scons, List(pattern(h, elem), pattern(tl, listTy)), t.span)
+        es.foldRight(Pat.PCon(r.nil, Nil, t.span)) { (e, acc) => Pat.PCon(r.cons, List(pattern(e, elem), acc), t.span) }
+      case ConsE(h, tl) => Pat.PCon(r.cons, List(pattern(h, elem), pattern(tl, listTy)), t.span)
       case other => pattern(other, listTy)
 
   /** The types of the explicit arguments of constructor `c` matched against `expected`, where they are
-   *  closed: the implicit arguments are taken from the expected type (`scons : A -> seq A -> seq A`
-   *  against `seq formula`). */
+   *  closed: the implicit arguments are taken from the expected type (`cons : A -> list A -> list A`
+   *  against `list formula`). */
   private def constructorArgTypes(c: Int, expected: Option[Val]): List[Option[Val]] =
     val (_, result) = telescope(globals(c).ty)
     val known: Map[Int, Val] = (expected.map(forceData), forceData(result)) match

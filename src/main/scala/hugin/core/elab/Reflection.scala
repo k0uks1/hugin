@@ -156,11 +156,11 @@ trait Reflection:
   private def malformed(what: String, s: Span): Nothing = fail(ReflectionProblem.MalformedData(what, s))
 
   private def elements(v: Val, sp: Span, t: Target): List[(Val, Span)] = ctorApp(v, sp, t) match
-    case ("snil", Nil, _) => Nil
-    case ("scons", List(x, xs), s) => (x, s) :: elements(xs, s, t)
+    case ("nil", Nil, _) => Nil
+    case ("cons", List(x, xs), s) => (x, s) :: elements(xs, s, t)
     case (_, _, s) => malformed("not a list", s)
 
-  /** The rules and queries that the closed value `v` of kind `k` (`rule`, `item` or a `seq` of them)
+  /** The rules and queries that the closed value `v` of kind `k` (`rule`, `item` or a `list` of them)
    *  describes, as syntax at `span` (where the data has no positions of its own). */
   def reflectedItems(v: Val, k: RKind, span: Span): List[Item] = reflectItems(v, k, Target(None, span))
 

@@ -1,11 +1,11 @@
 error[E0911]: the clauses of `guard` do not cover all cases
  --> tests/neg/c1_coverage.hgn:5:1
   |
-5 | guard : rule -> seq rule. (*~ E0911 *)
-  | ^^^^^ missing: `guard (horn snil _)`
+5 | guard : rule -> list rule. (*~ E0911 *)
+  | ^^^^^ missing: `guard (horn nil _)`
   |
   = note: meta functions are total: every argument must match a clause
-  = help: add a clause `guard (horn snil _) = ….`
+  = help: add a clause `guard (horn nil _) = ….`
 
 error[E0912]: cannot show that `loop` terminates
  --> tests/neg/c1_coverage.hgn:8:1
@@ -13,7 +13,7 @@ error[E0912]: cannot show that `loop` terminates
 8 | loop : formula -> int. (*~ E0912 *)
   | ^^^^ possibly non-terminating
 9 | loop '{ typed $E } = loop '{ typed $E }.
-  | ---------------------------------------- in this clause: `loop (fatom ⟨typed⟩ (scons {term} E (snil {term})))`
+  | ---------------------------------------- in this clause: `loop (fatom ⟨typed⟩ (cons {term} E (nil {term})))`
   |
   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
 

@@ -1,22 +1,20 @@
-(* Today's duplication in a type checker (issue #52). The syntax of the simply typed lambda calculus is
-   declared twice: as object types, whose terms are facts that the relation `typed` checks at run time,
-   and as meta types, whose values a meta function builds and checks at compile time. Conversion
-   functions turn the meta syntax into object syntax, and the checker is written twice: as rules and as
-   a meta function.
+(* A type checker over shared syntax (issues #52, #80). The syntax of the simply typed lambda calculus
+   is declared once, as shared data types: each is a meta inductive family (whose values a meta function
+   builds and checks at compile time) and an object family (whose terms are facts that the relation
+   `typed` checks at run time). A program built at compile time is stated as a fact directly
+   (`program idf.`: `expr.lift` is inserted). Before #80 the syntax was declared twice, with conversion
+   functions between the stages and a local `maybe` type; now only the two checkers remain, and they are
+   different programs on purpose (rules with demand, and a total function returning an `option`).
 
-   The file has a module-wide directive (`%demand`), so its rules are reified as data before they are
-   elaborated. Until #79 a rule that used a meta value as object code (`program (liftE idf)`, or even a
-   persisted `int`) was rejected there with E0917, so this file converts into reflected syntax (`term`)
-   and writes the holes explicitly; since #79 the meta subterms are evaluated and their values reified,
-   and a conversion into `⇑expr` (see lists.hgn), a third copy of the same fold, would do as well. *)
+   The file has a module-wide directive (`%demand`), so its rules are reified before they are elaborated;
+   the meta values in them are evaluated and reified as their object constructors (#79). *)
 
-(* The object syntax and the object checker, as in examples/typechecker.hgn. *)
-name : type = string.
-expr : type.   ref : name -> expr.   lam : name -> typ -> expr -> expr.   app : expr -> expr -> expr.
-typ  : type.   base : string -> typ.   arrow : typ -> typ -> typ.
-ctx  : type.   empty : ctx.   bind : ctx -> name -> typ -> ctx.
+expr : data.  ref : string -> expr.  lam : string -> typ -> expr -> expr.  app : expr -> expr -> expr.
+typ  : data.  base : string -> typ.  arrow : typ -> typ -> typ.
+ctx  : data.  empty : ctx.  bind : ctx -> string -> typ -> ctx.
 
-lookup : (g : ctx) -> (x : name) -> (t : typ) -> rel.
+(* The object checker, as in examples/typechecker.hgn. *)
+lookup : (g : ctx) -> (x : string) -> (t : typ) -> rel.
 %demand lookup +g +x -t.
 lookup (bind _ X T) X T.
 lookup (bind G Y _) X T :- lookup G X T, X <> Y.
@@ -31,73 +29,53 @@ program : expr -> rel.
 result : (e : expr) -> (t : typ) -> rel.
 result E T :- program E, typed E empty T.
 
-(* The same syntax as meta types. *)
-mexpr : Type.  mref : string -> mexpr.  mlam : string -> mtyp -> mexpr -> mexpr.  mapp : mexpr -> mexpr -> mexpr.
-mtyp : Type.   mbase : string -> mtyp.   marrow : mtyp -> mtyp -> mtyp.
-mctx : Type.   mempty : mctx.   mbind : mctx -> string -> mtyp -> mctx.
-
-(* The conversions: one clause per constructor, each the constructor of the other stage, in a quote
-   `'{ … }` (issue #76) with holes. The facts `program $(reifyE idf).` below use a `term` in an object
-   position, which stands for the term it describes. *)
-reifyT : mtyp -> term.
-reifyT (mbase S) = '{ base $(tstr S) }.
-reifyT (marrow A B) = '{ arrow $(reifyT A) $(reifyT B) }.
-
-reifyE : mexpr -> term.
-reifyE (mref X) = '{ ref $(tstr X) }.
-reifyE (mlam X T B) = '{ lam $(tstr X) $(reifyT T) $(reifyE B) }.
-reifyE (mapp F A) = '{ app $(reifyE F) $(reifyE A) }.
-
-(* The checker as a meta function. *)
-maybe : Type -> Type.  nothing : maybe A.  just : A -> maybe A.
-
-teq : mtyp -> mtyp -> bool.
-teq (mbase A) (mbase B) = same A B.
-teq (marrow A B) (marrow C D) = band (teq A C) (teq B D).
+(* The checker as a meta function, over the meta side of the same types. *)
+teq : typ -> typ -> bool.
+teq (base A) (base B) = same A B.
+teq (arrow A B) (arrow C D) = band (teq A C) (teq B D).
 teq A B = false.
 
-mlookup : mctx -> string -> maybe mtyp.
-mlookup mempty X = nothing.
-mlookup (mbind G Y T) X = pickT (same X Y) T (mlookup G X).
+mlookup : ctx -> string -> option typ.
+mlookup empty X = none.
+mlookup (bind G Y T) X = pickT (same X Y) T (mlookup G X).
 
-pickT : bool -> mtyp -> maybe mtyp -> maybe mtyp.
-pickT true T M = just T.
+pickT : bool -> typ -> option typ -> option typ.
+pickT true T M = some T.
 pickT false T M = M.
 
-infer : mctx -> mexpr -> maybe mtyp.
-infer G (mref X) = mlookup G X.
-infer G (mlam X T B) = arrowOf T (infer (mbind G X T) B).
-infer G (mapp F A) = applyT (infer G F) (infer G A).
+infer : ctx -> expr -> option typ.
+infer G (ref X) = mlookup G X.
+infer G (lam X T B) = arrowOf T (infer (bind G X T) B).
+infer G (app F A) = applyT (infer G F) (infer G A).
 
-arrowOf : mtyp -> maybe mtyp -> maybe mtyp.
-arrowOf T nothing = nothing.
-arrowOf T (just U) = just (marrow T U).
+arrowOf : typ -> option typ -> option typ.
+arrowOf T none = none.
+arrowOf T (some U) = some (arrow T U).
 
-applyT : maybe mtyp -> maybe mtyp -> maybe mtyp.
-applyT (just (marrow A B)) (just C) = checkArg (teq A C) B.
-applyT F A = nothing.
+applyT : option typ -> option typ -> option typ.
+applyT (some (arrow A B)) (some C) = checkArg (teq A C) B.
+applyT F A = none.
 
-checkArg : bool -> mtyp -> maybe mtyp.
-checkArg true B = just B.
-checkArg false B = nothing.
+checkArg : bool -> typ -> option typ.
+checkArg true B = some B.
+checkArg false B = none.
 
 (* Test programs built at compile time; `twice N` is ill typed for N > 0, and both checkers say so. *)
 nat : Type.  zero : nat.  suc : nat -> nat.
-o : mtyp = mbase "o".
-idf : mexpr = mlam "x" o (mref "x").
-twice : nat -> mexpr.
+o : typ = base "o".
+idf : expr = lam "x" o (ref "x").
+twice : nat -> expr.
 twice zero = idf.
-twice (suc N) = mlam "f" (marrow o o) (mapp (mref "f") (mapp (twice N) (mref "f"))).
+twice (suc N) = lam "f" (arrow o o) (app (ref "f") (app (twice N) (ref "f"))).
 
-(* The meta checker's verdict, persisted as a fact, and the object checker's answers on the lifted
-   programs. *)
-okAtCompileTime : maybe mtyp -> int.
-okAtCompileTime nothing = 0.
-okAtCompileTime (just T) = 1.
+(* The meta checker's verdict, as a fact, and the object checker's answers on the lifted programs. *)
+okAtCompileTime : option typ -> int.
+okAtCompileTime none = 0.
+okAtCompileTime (some T) = 1.
 static_ok : int -> rel.
-static_ok $(tint (okAtCompileTime (infer mempty (twice 2)))).
+static_ok (okAtCompileTime (infer empty (twice 2))).
 
-program $(reifyE idf).
-program $(reifyE (twice 1)).
+program idf.
+program (twice 1).
 %output static_ok.
 %output result.

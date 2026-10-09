@@ -30,8 +30,9 @@ trait Names:
             // a function whose clauses have a syntax error: its uses are not elaborated
             state.used += id
             throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
-          case Some(id) =>
-            state.used += id
+          case Some(found) =>
+            val id = sharedAt(found, state.stage)
+            state.used += found
             recordUse(span, id)
             globalRef(id)
           case None =>

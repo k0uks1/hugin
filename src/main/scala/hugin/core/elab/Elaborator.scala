@@ -68,6 +68,14 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */
   var typePosition: Boolean = false
 
+  /** The shared families the file declares, whose `T.lift` and `T.reify` are derived once their
+   *  constructors are declared ([[DerivedFunctions]]). */
+  var sharedDeclared: List[Int] = Nil
+
+  /** The stage of the position being elaborated (set by `check` and `inferS`, meta outside them): a name
+   *  of a shared data declaration denotes its constant at this stage ([[SharedData]]). */
+  var stage: Stage = Stage.S1
+
   /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
   var objectHead: Boolean = false
 
@@ -91,8 +99,11 @@ final class ElabState(val scope: NameScope = NameScope()):
  *    arguments are metas solved by higher-order pattern unification, [[hugin.core.Unification]]);
  *  - [[Coercions]]: **stage inference** — every term has a stage (the stage of its type's universe); where
  *    the expected stage differs, quotes `⟨t⟩`, splices `$t` and lifts `⇑A` are inserted, and checking
- *    against `⇑A` checks object code at stage 0 under a quote (Kovács, ICFP 2022, §4); **cross-stage
- *    persistence** of primitive values; record subtyping by coercion;
+ *    against `⇑A` checks object code at stage 0 under a quote (Kovács, ICFP 2022, §4); the rule **Lift**
+ *    ([[Liftings]]) turns meta values of base and shared types into object code; record subtyping by
+ *    coercion;
+ *  - [[SharedData]]: shared data declarations `T ā : data.`, a meta family and an object family under one
+ *    name, with the derived `T.lift` and `T.reify`;
  *  - [[Universes]]: `type` (object types) and `Type` (meta types, levels inferred and cumulative);
  *  - [[Records]]: dependent records and projections; [[Operators]]: arithmetic and formulas;
  *  - [[Items]], [[Declarations]], [[ObjectItems]]: items, declarations and definitions, rules and queries;
@@ -143,6 +154,9 @@ class Elaborator(
     with Reflection
     with Directives
     with ModuleDirectives
+    with SharedData
+    with DerivedFunctions
+    with Liftings
     with Tooling:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =

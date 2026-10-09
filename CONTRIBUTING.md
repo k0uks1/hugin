@@ -168,6 +168,17 @@ with it, and adds a demand rule for every call of `typed` in the module (`typed.
 demand rules build ordinary facts (contexts become `bind` facts) and are checked for termination like any
 rule; `--print-after stage` shows them. See `docs/NOTES.md`, "Demand in the prelude (redesign Phase C3)".
 
+### Shared data
+
+`T ā : data.` declares a type at both stages (issue #80, reference: [meta/families](https://k0uks1.github.io/hugin/meta/families.html#shared-data)):
+a meta inductive family and an object family under one name (`core/elab/SharedData.scala`, linked by
+`SharedLink` on the two `GlobalEntry`s), and the meta functions `T.lift` and `T.reify`, generated as
+surface clauses (`core/elab/DerivedFunctions.scala`). A name of a shared declaration denotes the constant
+at the stage of its position (`ElabState.stage`). Stage inference converts meta values into object code
+by one rule, Lift (`core/elab/Liftings.scala`): a base value is persisted, object code spliced, a value of a
+shared type lifted by `T.lift`; a hole of a quote at a term reifies a value by `T.reify`. The prelude's
+`list` and `option` are shared. See `docs/NOTES.md`, "Shared data (#80)".
+
 ### Bound columns
 
 The last column of a relation can be a **bound column** `min τ` or `max τ` (`τ` an integer type, Limit
@@ -197,7 +208,7 @@ the prelude but not the program that imports it. Its object declarations are nam
 The prelude, [`prelude.hgn`](src/main/resources/hugin/stdlib/prelude.hgn), is ordinary Hugin source
 bundled with the compiler and included in every program (unless `--no-prelude`). The base types
 `int`, `float` and `string` are not declared there: they are built-in names (`builtinTypes` in
-`core/elab/Names.scala`), found when no declaration of the name is in scope. The prelude declares lists with `len`, `option`, `pair`, the signature `graph` and the
+`core/elab/Names.scala`), found when no declaration of the name is in scope. The prelude declares the shared data types `list` (with `len` and `append`) and `option`, `pair`, the signature `graph` and the
 functors `tc` and `bounded` of Section 13.1, the reflective types of object syntax, and the primitive
 directives. Its names can be shadowed by the program. The design and its
 relation to Section 4 are described in [`docs/LIBRARIES.md`](docs/LIBRARIES.md).
@@ -208,7 +219,7 @@ a program can define directives of its own, such as `symmetric R = '{ R Y X :- R
 `%symmetric friend.` Object syntax as data is written in a reflection quote `'{ … }`, whose category
 (module, rule, formula, term, …) the expected type gives ([reference:
 reflection](https://k0uks1.github.io/hugin/reflection.html)). The type of the application says what a
-directive changes: a declaration (`decl`), the items added in its place (`seq item`) or all rules of the
+directive changes: a declaration (`decl`), the items added in its place (`list item`) or all rules of the
 file (`module -> module`). Written without `.` before a declaration (`%output path : node -> rel.`), it
 applies to that declaration. Mode items `+e -t` are arguments of their own (the prelude's `modes` data,
 `%demand typed +e +g -t.`); `%infix` has a syntax of its own.
@@ -267,7 +278,7 @@ the phase started from, or the reference chapter ("ref.").
 | phase | section | what it does |
 |---|---|---|
 | `parser` | 2 | hand-written lexer and resilient recursive-descent parser (precedence climbing for operators; error nodes instead of discarded items, see `docs/PARSER.md`); `%infix` operators are resolved into applications |
-| `elaborate` | ref. meta | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
+| `elaborate` | ref. meta | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`, the liftings of base and shared data), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
 | `stage` | ref. meta/staging | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); hands the object program over to the object level |
 | `directives` | Fig. 2 | attaches `%terminates %open %input %output %derivations` to relations |
 | `constFold` | 3.3 | folds literal arithmetic (Prop. 3.1); undefined folds are warnings (the rule never fires) |

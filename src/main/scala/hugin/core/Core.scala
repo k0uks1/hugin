@@ -35,8 +35,8 @@ enum GlobalKind:
   case Function(arity: Int, tree: Option[CaseTree])
 
   /** A primitive operation of the prelude (`eqsym : sym -> sym -> bool = %builtin eqsym.`), reduced by
-   *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `snil`,
-   *  `scons`). */
+   *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `nil`,
+   *  `cons`). */
   case Primitive(op: PrimOp, ctors: List[Int])
 
 /** What an object constant declares (reference: object/index). The core only needs to know that it is an object
@@ -79,7 +79,19 @@ final class GlobalEntry(
     /** Where the constant is placed in the object program (the object level orders the members of a
      *  closed type by symbol id): its declaration, or the item that created a module instance. */
     val placedAt: Span = Span.NoSpan
-)
+):
+  /** For a constant of a shared data declaration (`list A : data.`): its side and the constant of the
+   *  same name at the other stage ([[SharedLink]]). */
+  var shared: Option[SharedLink] = None
+
+/** The link between the two constants a shared data declaration declares under one name (reference:
+ *  meta/families, shared data): the meta inductive family (or meta constructor) at `side` S1, the
+ *  object family, type or constructor at `side` S0. On the meta family, `lift` and `reify` are the
+ *  derived functions `T.lift` and `T.reify` once they are declared (-1 before; `reify` stays -1 without
+ *  the reflective types of the prelude). */
+final class SharedLink(val side: Stage, val counterpart: Int):
+  var lift: Int = -1
+  var reify: Int = -1
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).
  *  `what` describes it for diagnostics; metas with `allowUnsolved` (the types of object variables, which

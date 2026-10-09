@@ -16,14 +16,14 @@ The prelude declares the following types ([The prelude](prelude.md#reflection)).
 
 | type | constructors | describes |
 |---|---|---|
-| `seq A` | `snil`, `scons` | sequences; written `[]`, `[a, b]` and `x :: xs` |
+| `list A` | `nil`, `cons` | sequences: the prelude's shared `list` ([Inductive families](meta/families.md#shared-data)) at the meta level, written `[]`, `[a, b]` and `x :: xs` |
 | `sym` | none | references to object constants, compared by identity |
 | `index` | `izero`, `isuc` | de Bruijn indices of variables bound by aggregates |
-| `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (seq term)`, `tarith arith_op term term`, `tneg term` | terms |
-| `formula` | `fatom sym (seq term)`, `fcmp cmp_op term term`, `fnot formula`, `fconj formula formula`, `fdisj formula formula`, `fagg agg_op term term formula` | formulas |
-| `rule` | `horn (seq formula) (seq formula)` | a rule: its heads and its body conjuncts |
-| `item` | `irule rule`, `iquery (seq formula)`, `inamed string rule`, `ierror string`, `irelation sym (seq column)` | items |
-| `module` | (a definition: `seq item`) | the rules and queries of a file |
+| `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (list term)`, `tarith arith_op term term`, `tneg term` | terms |
+| `formula` | `fatom sym (list term)`, `fcmp cmp_op term term`, `fnot formula`, `fconj formula formula`, `fdisj formula formula`, `fagg agg_op term term formula` | formulas |
+| `rule` | `horn (list formula) (list formula)` | a rule: its heads and its body conjuncts |
+| `item` | `irule rule`, `iquery (list formula)`, `inamed string rule`, `ierror string`, `irelation sym (list column)` | items |
+| `module` | (a definition: `list item`) | the rules and queries of a file |
 | `column` | `colof sym index` | the column of an object constant at an index |
 
 `arith_op`, `cmp_op` and `agg_op` enumerate the operators `+ - * / ^`, the comparisons and the
@@ -42,7 +42,9 @@ List    ::= "[" (Expr ("," Expr)*)? "]"
 Cons    ::= Expr "::" Expr
 ```
 
-`[e₁, …, eₙ]` is the sequence of the elements, `e :: es` the sequence with first element `e`. A `[`
+`[e₁, …, eₙ]` is the list of the elements, `e :: es` the list with first element `e`: `cons` and `nil` of
+the prelude's `list`, at the stage of the position. In meta code it is a meta list; in object code and
+inside a quote it is the object list (`[X, Y]` in a rule head is the term `cons X (cons Y nil)`). A `[`
 starts a list unless it has the shape of a lambda `[x] e`.
 
 ## Quotes
@@ -61,8 +63,8 @@ content:
 
 | expected type | content | example |
 |---|---|---|
-| `module`, `seq item` | items, each with its period | `'{ edge 1 2. path X Y :- edge X Y. }` |
-| `seq rule` | rules, each with its period | `'{ p X :- q X. r 1. }` |
+| `module`, `list item` | items, each with its period | `'{ edge 1 2. path X Y :- edge X Y. }` |
+| `list rule` | rules, each with its period | `'{ p X :- q X. r 1. }` |
 | `item` | one rule, named rule (`inamed`) or query (`iquery`) | `'{ @step path X Z :- path X Y, edge Y Z }` |
 | `rule` | one rule; a fact is a rule without body | `'{ path X Y :- edge X Y }`, `'{ edge 1 2 }` |
 | `formula` | a formula, without `:-` or period | `'{ edge X Y, not p X }` |
@@ -130,9 +132,32 @@ A *hole* marks a place in a quote where a meta value stands. Holes exist only in
   without a space.
 
 In an expression, a hole splices a value into the quoted syntax; a sequence hole may be anywhere in its
-sequence. In a pattern, `$X` binds the meta variable `X` to the data at its place, `$_` matches anything,
+sequence. A hole `$e` at a term whose value is not `term` data but a meta value of a base type or of a
+[shared data type](meta/families.md#shared-data) stands for the value's *reification*: `tint e`,
+`tfloat e` or `tstr e` for a base type, `T.reify ḡ e` for a shared type, with the element functions given
+by the type. The reified data describes exactly the object code that the value [lifts](meta/staging.md#lifting)
+to, so reflecting `'{ p $e }` gives the rule `p e` with `e` lifted. There is no such conversion in
+patterns. In a pattern, `$X` binds the meta variable `X` to the data at its place, `$_` matches anything,
 and `$..Xs` binds the rest of a sequence and must end it. It is an error ([E0917](errors/E0917.md)) if a
 hole is in a place it cannot stand for.
+
+The following program generates one fact per suffix of a compile-time list. The hole `$(X :: Xs)` is a
+meta list, so its reification `list.reify tint (X :: Xs)` is inserted.
+
+```hugin,run
+held : list int -> rel.
+suffixes : list int -> list rule.
+suffixes [] = [].
+suffixes (X :: Xs) = '{ held $(X :: Xs) } :: suffixes Xs.
+$suffixes [1, 2].
+?- held L.
+```
+
+```output
+?- held L.
+L = cons 1 (cons 2 nil).
+L = cons 2 nil.
+```
 
 ## Quoted patterns
 
@@ -195,7 +220,7 @@ count_ok 2.
 SpliceItem ::= "$" Expr "."
 ```
 
-An item `$e.`, where `e` has type `rule`, `item`, `seq rule` or `module`, stands for the rules, queries and
+An item `$e.`, where `e` has type `rule`, `item`, `list rule` or `module`, stands for the rules, queries and
 declarations that `e` evaluates to: it is the staging splice applied to reflected data. `$f a.` is read
 as `$(f a).`; a quote or a list in `$e.` is checked against `module` (`$'{ p 1. }.`). The data is evaluated during
 elaboration, turned into syntax whose object constants are already resolved, and elaborated and checked
@@ -244,7 +269,7 @@ identity. The prelude declares four primitive operations on symbols and literals
 | primitive | meaning |
 |---|---|
 | `same : A -> A -> bool` | whether two symbols or two literals are equal |
-| `labels : sym -> seq string` | the labels of the columns of a constant, `""` for a column without one |
+| `labels : sym -> list string` | the labels of the columns of a constant, `""` for a column without one |
 | `derive : sym -> string -> sym` | the constant `r.l` *derived* from `r` with the label `l` |
 | `derived : sym -> bool` | whether a symbol is a derived constant |
 

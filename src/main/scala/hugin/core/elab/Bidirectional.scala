@@ -48,10 +48,11 @@ trait Bidirectional:
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
       fail(TypeProblem.CannotInferWildcard(t.span))
-    case SymRef(id, _) => globalRef(id)
+    case SymRef(id, _) => globalRef(sharedAt(id, state.stage))
     case NamedVar(n) =>
       val a = freshMeta(c, Val.U0, Stage.S0, t.span, s"the type of `$n`", allowUnsolved = true)
       (Tm.Obj(ObjForm.Named(n), Nil), ev(c, a), Stage.S0)
+    case ListLit(_) | ConsE(_, _) if state.stage == Stage.S0 => infer(c, objectList(t))
     case ListLit(_) | ConsE(_, _) => inferList(c, t)
     case q: Quote => quoteWithoutType(c, q, None)
     case _: SpliceSeq | _: SpliceHO => fail(ReflectionProblem.HoleOutsideQuote(t.span))
@@ -59,8 +60,15 @@ trait Bidirectional:
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
   def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) =
-    val (tm, ty) = inferAt(c, t, st)
+    val (tm, ty) = atStage(st)(inferAt(c, t, st))
     (located(t.span, tm, ty, st), ty)
+
+  /** Runs `f` with `st` as the stage of the position ([[ElabState.stage]]). */
+  def atStage[A](st: Stage)(f: => A): A =
+    val saved = state.stage
+    state.stage = st
+    try f
+    finally state.stage = saved
 
   private def inferAt(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
     case Parens(i) => inferS(c, i, st)
@@ -83,7 +91,7 @@ trait Bidirectional:
   def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
     val saved = state.typePosition
     state.typePosition = isUniverse(a)
-    try located(t.span, checkAt(c, t, a, st), a, st)
+    try located(t.span, atStage(st)(checkAt(c, t, a, st)), a, st)
     finally state.typePosition = saved
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
@@ -93,7 +101,8 @@ trait Bidirectional:
       reflectiveKind(ty) match
         case Some(k) if st == Stage.S1 => reify(c, q, k)
         case _ => quoteWithoutType(c, q, Some(ty))
-    case (ListLit(_) | ConsE(_, _), _) if st == Stage.S1 => checkList(c, t, a)
+    case (ListLit(_) | ConsE(_, _), ty) if st == Stage.S1 && !ty.isInstanceOf[Val.Lift] => checkList(c, t, a)
+    case (ListLit(_) | ConsE(_, _), _) if st == Stage.S0 => check(c, objectList(t), a, st)
     case (Lit(l), ty) if st == Stage.S0 =>
       // the literal's type determines unknowns (`cons "b" nil`); refinements of it are the object typer's
       coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)

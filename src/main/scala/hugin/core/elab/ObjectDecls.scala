@@ -91,6 +91,9 @@ trait ObjectDecls:
     d.tpe match
       case Keyword(Kw.Type) if d.params.isEmpty && d.defn.isEmpty =>
         val base = check(Cxt.empty, d.sup.get, Val.U0, Stage.S0)
+        force(eval(Nil, base)) match
+          case Val.Rigid(Head.Glob(id), Nil) if sharedType(id).isDefined => intoShared(sharedType(id).get, d.sup.get.span)
+          case _ =>
         declare(d.name, Tm.U0, Stage.S0, GlobalKind.Object(ObjDecl.Refinement(zonk(Nil, 0, base))), d.span)
       case _ =>
         fail(ElabProblem.RefinementOfNonType(d.sup.get.span))
@@ -103,11 +106,22 @@ trait ObjectDecls:
     val sub = check(c, e.sub, Val.U0, Stage.S0)
     val sup = check(c, e.sup, Val.U0, Stage.S0)
     force(ev(c, sup)) match
+      case Val.Rigid(Head.Glob(id), Nil) if sharedType(id).isDefined => intoShared(sharedType(id).get, e.sup.span)
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).kind == GlobalKind.Object(ObjDecl.OpenType) =>
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).stage == Stage.S0 =>
         fail(ElabProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
       case _ => fail(ElabProblem.EdgeTarget(e.sup.span))
     CoreItem.EdgeItem(zonk(c.env, c.lvl, sub), zonk(c.env, c.lvl, sup), e.span)
+
+  /** The object side of a shared type (or an instance of a shared family): the shared object global. */
+  private def sharedType(id: Int): Option[Int] =
+    val g = globals(id)
+    val decl = g.instanceOf.map(_._1).getOrElse(id)
+    Option.when(globals(decl).shared.isDefined)(decl)
+
+  /** E0922: a type made a subtype of the shared type `id`. */
+  private def intoShared(id: Int, at: Span): Nothing =
+    fail(SharedProblem.EdgeIntoShared(globals(id).name, at, globals(id).declSpan))
 
   // ------------------------------------------------------------------ cycles between object declarations
 

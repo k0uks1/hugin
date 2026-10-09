@@ -94,6 +94,7 @@ section that defines it.
 | key | the columns of a bound relation other than its bound column | [Bound columns](object/bound-columns.md) |
 | label | the name `l` of a column declared `(l : τ)` | [Declarations](object/declarations.md#columns-and-labels) |
 | level | the index *i* of a universe `Typeᵢ` | [Universes](meta/universes.md) |
+| lifting | the meta function `τ -> ⇑τ⁰` that turns compile-time values of a base type, object code or a shared data type into object code; stage inference inserts it | [Staging](meta/staging.md#lifting) |
 | measure | a tuple of argument positions that guarded induction orders | [Termination](object/termination.md#guarded-induction-b) |
 | meta constant | a constant whose type is a meta type: a function, definition, inductive family, meta constructor or postulate | [The meta level](meta/index.md) |
 | meta constructor | a constructor of an inductive family | [Inductive families](meta/families.md) |
@@ -113,9 +114,10 @@ section that defines it.
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |
 | reflect | turn reflective data into object items of the program | [Reflection](reflection.md#reflecting-data-into-the-program) |
 | reflective type | one of the prelude types `term`, `formula`, `rule`, `item`, `module` (and `sym`, `decl`, `measure`) that represent object syntax as data | [Reflection](reflection.md) |
-| reify | turn object syntax into reflective data, by a quote | [Reflection](reflection.md#quotes) |
+| reify | turn object syntax into reflective data, by a quote; a meta value of a base or shared data type at a hole is reified by `tint`, … or `T.reify` | [Reflection](reflection.md#quotes) |
 | relation | an object constant `r : τ̄ -> rel`; a set of facts | [Declarations](object/declarations.md) |
 | rule | an item `h̄ :- φ.` that derives the heads `h̄` for every valuation that satisfies `φ` | [Rules](object/rules.md) |
+| shared data type | a type declared `T ā : data.` that exists at both stages: a meta inductive family and an object family under one name, with the derived `T.lift` and `T.reify` | [Inductive families](meta/families.md#shared-data) |
 | signature | a record type used as the type of modules | [Modules](modules.md#signatures) |
 | splice | `$e`: meta code that computes object code, inserted into object code | [Staging](meta/staging.md) |
 | stage | 0 for the object level, 1 for the meta level | [Staging](meta/staging.md) |

@@ -126,7 +126,7 @@ class ReflectionSuite extends munit.FunSuite:
     assertEquals(e.eval("size '{ edge a b, edge b a, edge b b }"), "3")
     // the body of the aggregate with its bound variable instantiated by `W`
     val opened = e.eval("body '{ N = count { V | edge V a, edge a V } }")
-    assert(opened.startsWith("fconj (fatom ⟨edge⟩ (scons {term} (tvar \"W\")"), opened)
+    assert(opened.startsWith("fconj (fatom ⟨edge⟩ (cons {term} (tvar \"W\")"), opened)
   }
 
   test("quoted patterns are checked for coverage and termination") {

@@ -51,10 +51,10 @@ error[E0917]: the arguments of a higher-order hole must be variables bound by an
    = note: `$F[V]` matches a formula that may mention `V`, the variable an enclosing aggregate binds; `F` is then a function of type `term -> formula`
 
 error[E0917]: a hole outside a quote
-  --> tests/neg/e0917_quoted_syntax.hgn:25:23
+  --> tests/neg/e0917_quoted_syntax.hgn:25:24
    |
-25 | outside : seq term = [$..Ts]. (*~ E0917 *)
-   |                       ^^^^^ only inside `'{ … }`
+25 | outside : list term = [$..Ts]. (*~ E0917 *)
+   |                        ^^^^^ only inside `'{ … }`
    |
    = note: `$..xs` and `$f[V]` are holes of quoted syntax; outside a quote, `$x` is the staging splice
 
@@ -64,7 +64,7 @@ error[E0917]: expected a formula in this quote, found a rule
 26 | shape : formula = '{ p 1 :- q 1 2 }. (*~ E0917 *)
    |                   ^^^^^^^^^^^^^^^^^ in this quote
    |
-   = note: a `module` (or `seq rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
+   = note: a `module` (or `list rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
 
 error[E0917]: expected a rule in this quote, found 2 items
   --> tests/neg/e0917_quoted_syntax.hgn:27:18
@@ -72,13 +72,13 @@ error[E0917]: expected a rule in this quote, found 2 items
 27 | several : rule = '{ p 1. p 2. }. (*~ E0917 *)
    |                  ^^^^^^^^^^^^^^ in this quote
    |
-   = note: a `module` (or `seq rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
+   = note: a `module` (or `list rule`) quote holds items with their periods, a `rule` or `item` quote one item, a `formula`, `term`, `sym`, `decl` or `measure` quote one of them without a period
 
 error[E0917]: a quote cannot denote a list of formulas
-  --> tests/neg/e0917_quoted_syntax.hgn:28:26
+  --> tests/neg/e0917_quoted_syntax.hgn:28:27
    |
-28 | category : seq formula = '{ p 1, p 2 }. (*~ E0917 *)
-   |                          ^^^^^^^^^^^^^ quoted here
+28 | category : list formula = '{ p 1, p 2 }. (*~ E0917 *)
+   |                           ^^^^^^^^^^^^^ quoted here
    |
    = note: a list of formulas or terms is a meta list of quotes: `['{ p X }, '{ q X }]`
 

@@ -1,0 +1,2 @@
+result (lam "x" (base "o") (ref "x")) (arrow (base "o") (base "o")).
+static_ok 0.

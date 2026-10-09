@@ -10,7 +10,7 @@ import scala.collection.mutable
  *  - `same : A -> A -> bool`: whether two atoms (meta literals, symbols: the values with decidable
  *    equality that clauses split on) are equal (the first constructor of `bool` if so, the second
  *    otherwise); stuck on other values;
- *  - `labels : sym -> seq string`: the labels of a constant's columns (`""` for a column without one), the
+ *  - `labels : sym -> list string`: the labels of a constant's columns (`""` for a column without one), the
  *    index of the typed modes of `%demand` (`modes (labels r)`);
  *  - `derive : sym -> string -> sym`: the object constant `r.l` *derived* from `r` (`typed.check`),
  *    created once per constant and label, so its name is stable and cannot capture a name of the program.
@@ -86,11 +86,11 @@ trait Primitives:
     case _ => true
 
   private def stringList(xs: List[String], ctors: List[Int]): Val =
-    val (snil, scons) = (ctors(0), ctors(1))
+    val (nil, cons) = (ctors(0), ctors(1))
     val str = Base(hugin.obj.BaseType.StringT, Stage.S1)
-    xs.foldRight(Rigid(Head.Glob(snil), List(Elim.EApp(str, Icit.Impl))): Val) { (x, acc) =>
+    xs.foldRight(Rigid(Head.Glob(nil), List(Elim.EApp(str, Icit.Impl))): Val) { (x, acc) =>
       Rigid(
-        Head.Glob(scons),
+        Head.Glob(cons),
         List(Elim.EApp(acc, Icit.Expl), Elim.EApp(Lit(Literal.StrL(x), Stage.S1), Icit.Expl), Elim.EApp(str, Icit.Impl))
       )
     }

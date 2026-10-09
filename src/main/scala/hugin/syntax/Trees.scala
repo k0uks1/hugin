@@ -63,7 +63,9 @@ object Trees:
   final case class Arrow(label: Option[Ident], dom: Tree, cod: Tree)(val span: Span) extends Tree
   final case class Union(lhs: Tree, rhs: Tree)(val span: Span) extends Tree
   enum Kw:
-    case Type, Rel, Prop
+    /** `data` is a keyword only as the whole type of a declaration (`list A : data.`, a shared data
+     *  declaration); elsewhere it is a name. */
+    case Type, Rel, Prop, Data
   final case class Keyword(kw: Kw)(val span: Span) extends Tree
   final case class RecordType(entries: List[SigEntry])(val span: Span) extends Tree
   final case class ModuleBody(items: List[Item])(val span: Span) extends Tree

@@ -2,7 +2,7 @@
    structural. *)
 typed : int -> rel.
 
-guard : rule -> seq rule. (*~ E0911 *)
+guard : rule -> list rule. (*~ E0911 *)
 guard '{ typed $E :- $..Body } = [].
 
 loop : formula -> int. (*~ E0912 *)

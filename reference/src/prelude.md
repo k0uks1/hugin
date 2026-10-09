@@ -17,13 +17,20 @@ includes the prelude ([Object types](object/types.md#base-types)).
 
 | declaration | meaning |
 |---|---|
-| `list A : type.` | lists of `A`, with the constructors `nil : list A` and `cons : A -> list A -> list A` |
+| `list A : data.` | lists of `A`, with the constructors `nil : list A` and `cons : A -> list A -> list A`, written `[]`, `[a, b]` and `x :: xs` |
 | `len : (l : list A) -> (n : int) -> rel.` | the length of every list that is a fact |
-| `option A : type.` | optional values, with `none : option A` and `some : A -> option A` |
+| `append : list A -> list A -> list A` | the concatenation of meta lists |
+| `option A : data.` | optional values, with `none : option A` and `some : A -> option A` |
 | `pair A B : type = { fst : A, snd : B }.` | a struct of two values |
 
-Like every constructor, `nil` and `cons` build facts: a list is a fact once a rule head or an input file
-builds it. `len` is defined by guarded induction on the list:
+`list` and `option` are [shared data types](meta/families.md#shared-data): each is a meta inductive family
+and an object family, with the derived functions `list.lift`, `list.reify`, `option.lift` and
+`option.reify`. A list computed at compile time is a meta list, and it is used as an object list where
+one is expected ([Staging](meta/staging.md#lifting)). `pair` is an object struct only; meta code uses
+record types. `bool` is a meta type only: at the object level, truth is the presence of a fact.
+
+At the object level, like every constructor, `nil` and `cons` build facts: a list is a fact once a rule
+head or an input file builds it. `len` is defined by guarded induction on the list:
 
 ```hugin,ignore
 len nil 0.
@@ -38,7 +45,7 @@ The following program measures a list given as a fact.
 
 ```hugin,run
 words : list string -> rel.
-words (cons "a" (cons "b" nil)).
+words ["a", "b"].
 ?- words L, len L N.
 ```
 
@@ -77,11 +84,11 @@ short.hop paris rome 1.
 
 ## Reflection
 
-The reflective types and their helpers are described in [Reflection](reflection.md).
+The reflective types and their helpers are described in [Reflection](reflection.md). Sequences of
+syntax are meta lists (`list term`, `list formula`, `module = list item`).
 
 | declaration | meaning |
 |---|---|
-| `seq A`, `snil`, `scons`, `sappend` | meta sequences, written `[]`, `[a, b]`, `x :: xs`; `sappend` concatenates |
 | `sym` | references to object constants (`%builtin symbol`) |
 | `index`, `izero`, `isuc` | de Bruijn indices of variables bound by aggregates |
 | `arith_op` (`oadd`, `osub`, `omul`, `odiv`, `ocat`) | arithmetic operators |
@@ -105,7 +112,7 @@ The reflective types and their helpers are described in [Reflection](reflection.
 | `demand : (r : sym) -> modes (labels r) -> module -> module` | the directive `%demand` |
 
 The helper functions of `demand` have names that start with `d` (`dmodule`, `dprefix`, …), with the
-set operations `member`, `sdiff` and `shares` on sequences of strings and the binding analysis `tvarsOf`,
+set operations `member`, `sdiff` and `shares` on lists of strings and the binding analysis `tvarsOf`,
 `tsvars`, `fvars`, `fbound`, `fneeds` and `plain`. They are not meant to be used by programs, but they are
 ordinary definitions and may be.
 
@@ -116,7 +123,7 @@ ordinary definitions and may be.
 | `bool` (`true`, `false`) | meta booleans |
 | `band`, `bor` | conjunction and disjunction of meta booleans |
 | `same : A -> A -> bool` | equality of symbols and literals (primitive) |
-| `labels : sym -> seq string` | the labels of a constant's columns (primitive) |
+| `labels : sym -> list string` | the labels of a constant's columns (primitive) |
 | `derive : sym -> string -> sym` | the derived constant `r.l` (primitive) |
 | `derived : sym -> bool` | whether a constant is derived (primitive) |
 
