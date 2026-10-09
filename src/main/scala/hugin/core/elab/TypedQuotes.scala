@@ -50,16 +50,34 @@ trait TypedQuotes:
 
   private val holeTypes = java.util.IdentityHashMap[Q, OTy]()
 
+  /** The holes whose value is a `quoted A` of a known type, by the name of the meta variable they refer
+   *  to: the occurrences of one such hole in the body of a quoted rule are one object variable. */
+  private val quotedHoles = java.util.IdentityHashMap[Q, String]()
+
   /** Records the object type of the hole `q` (from the type `ty` of its meta value). */
   def recordHole(c: Cxt, q: Q, tm: Tm, ty: Val): Unit =
     val env = objEnv(c)
     val t = quotedIndex(ty) match
-      case Some(a) => env.oty(a)
+      case Some(a) =>
+        val o = env.oty(a)
+        holeVariable(c, q).filter(_ => !o.vague).foreach(n => quotedHoles.put(q, n))
+        o
       case None if reflectiveKind(ty).isDefined => OTy.Unknown
       case None =>
         try undoOnFailure(liftCode(c, tm, ty)).map((_, o) => env.oty(o)).getOrElse(OTy.Unknown)
         catch case _: ElabError => OTy.Unknown
     holeTypes.put(q, t)
+
+  /** The name of the meta variable a hole `$X` refers to (in the context of its quote). */
+  private def holeVariable(c: Cxt, q: Q): Option[String] =
+    import hugin.syntax.Trees.{Parens, VarRef}
+    def go(t: hugin.syntax.Tree): Option[String] = t match
+      case Parens(i) => go(i)
+      case VarRef(n) => Some(n)
+      case _ => None
+    q match
+      case Q.Hole(t, _, _) => go(t)
+      case _ => None
 
   // ---------------------------------------------------------------- checking a quote
 
@@ -72,7 +90,7 @@ trait TypedQuotes:
       case RKind.Term =>
         val t = reader.term(q, Nil)
         ObjCheck(ObjTypes(env), Nil, Nil, List((t, at.map(env.oty).getOrElse(OTy.Unknown), "the quoted term"))).run()._1
-      case RKind.Formula => ObjCheck(ObjTypes(env), Nil, reader.formulas(q, Nil)).run()._1
+      case RKind.Formula => ObjCheck(ObjTypes(env), Nil, reader.body(q)).run()._1
       case RKind.Rule | RKind.Item => reader.entry(q)
       case RKind.List(RKind.Rule | RKind.Item) =>
         q match
@@ -85,6 +103,32 @@ trait TypedQuotes:
   private final class QuoteReader(c: Cxt, env: ObjEnv):
     private var wild = 0
     private val types = ObjTypes(env)
+
+    /** The typed holes that occur more than once in the body of the scope being read: they are read as
+     *  one variable `$X`, bounded by the hole's type (reference: reflection). */
+    private var shared: Set[String] = Set.empty
+    private var bounds: List[OFormula] = Nil
+
+    private def children(q: Q): List[Q] = q match
+      case Q.Con(_, args, _, _) => args
+      case Q.QList(es, _, _) => es
+      case Q.HigherOrder(_, args, _, _) => args
+      case _ => Nil
+
+    private def typedHoles(q: Q): List[String] =
+      Option(quotedHoles.get(q)).toList ++ children(q).flatMap(typedHoles)
+
+    /** Reads the body `qs` of a scope with the typed holes it repeats as variables. */
+    private def scoped(qs: List[Q])(read: => List[OFormula]): List[OFormula] =
+      val saved = (shared, bounds)
+      shared = qs.flatMap(typedHoles).groupBy(identity).collect { case (n, os) if os.length > 1 => n }.toSet
+      bounds = Nil
+      try
+        val fs = read
+        fs ++ bounds.reverse
+      finally
+        shared = saved._1
+        bounds = saved._2
 
     private def fresh(prefix: String): String =
       wild += 1
@@ -101,17 +145,26 @@ trait TypedQuotes:
       case Q.QList(es, _, _) => es
       case _ => Nil
 
+    /** A formula as the body of a scope. */
+    def body(q: Q): List[OFormula] = scoped(List(q))(formulas(q, Nil))
+
     def entry(q: Q): List[hugin.util.diagnostics.Problem] = q match
       case Q.Con("irule" | "inamed", args, _, _) => args.lastOption.toList.flatMap(entry)
-      case Q.Con("iquery", List(body), _, _) => ObjCheck(types, Nil, elems(body).flatMap(formulas(_, Nil))).run()._1
+      case Q.Con("iquery", List(body), _, _) =>
+        ObjCheck(types, Nil, scoped(List(body))(elems(body).flatMap(formulas(_, Nil)))).run()._1
       case Q.Con("horn", List(hs, body), _, _) =>
         val heads = elems(hs).flatMap(h => headTerm(h))
-        ObjCheck(types, heads, elems(body).flatMap(formulas(_, Nil))).run()._1
+        ObjCheck(types, heads, scoped(List(body))(elems(body).flatMap(formulas(_, Nil)))).run()._1
       case _ => Nil
 
-    private def headTerm(q: Q): Option[OTerm] = q match
-      case Q.Con("fatom", List(sym, args), _, sp) => Some(OTerm.App(relation(sym), elems(args).map(term(_, Nil)), sp))
-      case _ => None
+    private def headTerm(q: Q): Option[OTerm] =
+      val saved = shared
+      shared = Set.empty // a hole in a head may hold a term: it keeps its type there
+      try
+        q match
+          case Q.Con("fatom", List(sym, args), _, sp) => Some(OTerm.App(relation(sym), elems(args).map(term(_, Nil)), sp))
+          case _ => None
+      finally shared = saved
 
     def term(q: Q, bound: List[String]): OTerm = q match
       case Q.Var(n, sp) => OTerm.Var(n, sp)
@@ -122,7 +175,15 @@ trait TypedQuotes:
       case Q.Con("tarith", List(Q.Con(op, _, _, _), a, b), _, sp) =>
         arithOp(op).map(o => OTerm.Arith(o, term(a, bound), term(b, bound), sp)).getOrElse(OTerm.Code(OTy.Unknown, sp))
       case Q.Con("tneg", List(a), _, sp) => OTerm.Neg(term(a, bound), sp)
-      case h @ Q.Hole(_, _, sp) => OTerm.Code(Option(holeTypes.get(h)).getOrElse(OTy.Unknown), sp)
+      case h @ Q.Hole(_, _, sp) =>
+        val ty = Option(holeTypes.get(h)).getOrElse(OTy.Unknown)
+        Option(quotedHoles.get(h)).filter(shared) match
+          case Some(n) =>
+            val v = OTerm.Var(s"$$$n", sp)
+            if !bounds.exists { case OFormula.Expect(OTerm.Var(m, _), _, _, _) => m == s"$$$n"; case _ => false } then
+              bounds = OFormula.Expect(v, ty, s"the type of `$$$n`", sp) :: bounds
+            v
+          case None => OTerm.Code(ty, sp)
       case other => OTerm.Code(OTy.Unknown, spanOf(other))
 
     def formulas(q: Q, bound: List[String]): List[OFormula] = q match
