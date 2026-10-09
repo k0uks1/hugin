@@ -59,6 +59,36 @@ A *formula* is a condition on the variables of a rule. The forms are:
   ([E0202](../errors/E0202.md)) if `not` is applied to anything but an atom.
 - An *aggregate* binds a variable to a count, sum, minimum or maximum ([Aggregates](aggregates.md)).
 
+### Constants as formulas
+
+A constant without arguments, such as `no : flag.` or the constants `true` and `false` of the shared type
+`bool` ([`std/reflect`](../std/reflect.md#lists-options-and-booleans)), is a term. Used as a formula, it
+is an atom of its constructor: it holds if the constant is a fact. A constant is a fact once a head or an
+input file builds it ([Facts and identity](facts.md)), also inside another fact. So the formula does not
+test a value. `blocked :- false.` derives `blocked` as soon as any fact contains `false`. The compiler
+warns about every such formula ([W0008](../errors/W0008.md), lint `constant_formulas`, on by default).
+
+```hugin,run
+check : (id : int) -> (ok : bool) -> rel.
+check 1 true. check 2 false.
+blocked : rel.
+blocked :- false.
+failed : int -> rel.
+failed I :- check I false.
+?- blocked.
+?- failed I.
+```
+
+```output
+?- blocked.
+yes.
+?- failed I.
+I = 2.
+```
+
+A rule whose body is false is not written, and a fact is written without a body. The match of a value in
+an atom, as `check I false` above, is what tests a boolean column.
+
 ## Variables
 
 The variables of a rule are its *object variables*: the uppercase identifiers in its heads and body.

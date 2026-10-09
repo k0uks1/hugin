@@ -1,0 +1,27 @@
+(* W0008: a constant without arguments used as a formula holds if the constant is a fact, which a head
+   or an input file makes it, also inside another fact. In bodies, under `not`, in aggregates, in
+   disjunctions and in queries; a relation without columns is not a constant. *)
+setting : type. verbose : setting. quiet : setting.
+check : (id : int) -> (ok : bool) -> rel.
+check 1 true. check 2 false.
+blocked : rel.
+blocked :- false.
+open_ : rel.
+open_ :- not quiet.
+loud : rel.
+loud :- verbose ; quiet.
+counted : int -> rel.
+counted N :- N = count { I | check I _, true }.
+on : rel.
+on.
+ready : rel.
+ready :- on.
+failed : int -> rel.
+failed I :- check I false.
+?- blocked.
+?- open_.
+?- loud.
+?- counted N.
+?- ready.
+?- failed I.
+?- verbose.

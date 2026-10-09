@@ -1,11 +1,11 @@
 (* Stuck meta code that shares a value (issue #108): `undecided` is a postulate, so `pick undecided R R`
    and `first R` do not reduce, and each level of `grow` refers to the level below twice and splits on
    it. The value has linear size but an exponential tree; compilation reports it at once and shows it in
-   part. *)
-undecided : bool.
-pick : bool -> A -> A -> A.
-pick true X Y = X.
-pick false X Y = Y.
+   part. *) %use "std/reflect" (term, tint).
+undecided : term.
+pick : term -> A -> A -> A.
+pick (tint _) X Y = X.
+pick _ X Y = Y.
 first : list int -> int.
 first [] = 0.
 first (X :: Xs) = X.

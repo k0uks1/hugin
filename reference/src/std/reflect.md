@@ -13,16 +13,19 @@ rest with `%use "std/reflect".`
 | `list A : data.` | lists of `A`, with the constructors `nil : list A` and `cons : A -> list A -> list A`, written `[]`, `[a, b]` and `x :: xs` |
 | `append : list A -> list A -> list A` | the concatenation of meta lists |
 | `option A : data.` | optional values, with `none : option A` and `some : A -> option A` |
-| `bool : Type.` | meta booleans, with `true` and `false` |
+| `bool : data.` | booleans, with `true` and `false` |
 | `if : bool -> A -> A -> A` | `if true x y` is `x`, `if false x y` is `y` |
 
-`list` and `option` are [shared data types](../meta/families.md#shared-data): each is a meta inductive
-family and an object family, with the derived functions `list.lift`, `list.reify`, `option.lift` and
-`option.reify`. A list computed at compile time is a meta list, and it is used as an object list where
-one is expected ([Staging](../meta/staging.md#lifting)). At the object level, like every constructor,
-`nil` and `cons` build facts: a list is a fact once a rule head or an input file builds it. `bool` is a
-meta type only: at the object level, truth is the presence of a fact. Both arguments of `if` are
-evaluated.
+`list`, `option` and `bool` are [shared data types](../meta/families.md#shared-data): each is a meta
+inductive family and an object family, with the derived functions `list.lift`, `list.reify`,
+`option.lift`, `option.reify`, `bool.lift` and `bool.reify`. A list computed at compile time is a meta
+list, and it is used as an object list where one is expected ([Staging](../meta/staging.md#lifting)). At
+the object level, like every constructor, `nil` and `cons` build facts: a list is a fact once a rule head
+or an input file builds it. `bool` is a type of columns at the object level, for data with boolean
+values: a meta boolean, such as the result of `same`, is used as an object `bool` where one is expected.
+Truth of a condition is still the presence of a fact: `true` and `false` used as formulas are constants,
+which hold if they are facts ([Constants as formulas](../object/rules.md#constants-as-formulas)). Both
+arguments of `if` are evaluated.
 
 The following program measures a meta list with `if`.
 
@@ -37,6 +40,20 @@ nonzero (nonzeros [3, 0, 5]).
 
 ```output
 nonzero 2.
+```
+
+The following program stores meta booleans, computed by `same`, in a column of type `bool`.
+
+```hugin,run
+equal : (a : int) -> (b : int) -> (same : bool) -> rel.
+equal 1 1 (same 1 1).
+equal 1 2 (same 1 2).
+%output equal.
+```
+
+```output
+equal 1 1 true.
+equal 1 2 false.
 ```
 
 ## Reflection

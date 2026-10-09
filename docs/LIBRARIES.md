@@ -146,6 +146,21 @@ that the chains with and without a lazy file share `std/reflect`. In the query d
 the files of the chain a program elaborates; it is cut off unless they change, so an edit elaborates the
 chain again only when the program starts or stops using a lazy file.
 
+### Shared `bool` (#61, batch B3)
+
+`bool : data.` in `std/reflect`: `true` and `false` are shared constructors, so `bool` is also an object
+type, for data with boolean columns (reference: `std/reflect`). The meta `bool` and its uses (`if`,
+`same`, `derived`) do not change; a meta boolean is used as an object `bool` where one is expected
+(`bool.lift`). There is still no formula `true` or `false`: a constant used as a formula is an atom of its
+constructor, which holds if the constant is a fact. W0008 (lint `constant_formulas`, on by default,
+`obj/typing/ConstFold.scala`) reports every constant without arguments used as a formula of a body or a
+query, also under `not`, in aggregates and in disjunctions (reference: rules, "Constants as formulas").
+
+Consequences: every staged program declares `bool : type.`, `true : bool.` and `false : bool.` (as it
+declares every object constant it includes), which `--print-after stage` shows; and a declaration
+`x : bool.` outside `std/reflect` is a constructor of the closed type `bool` (E0923), so a meta postulate
+of type `bool` is no longer possible (`neg/e0909_stuck_shared` postulates a `term` instead).
+
 ## Diagnostics
 
 Spans carry their source file, so diagnostics in an imported file point into that file. A file is

@@ -6,7 +6,9 @@ import hugin.compiler.*
 import hugin.syntax.Literal
 
 /** Mini phase: fold object-level arithmetic over literals (Proposition 3.1). Undefined folds are kept
- *  (the rule then never fires) and reported as a warning. */
+ *  (the rule then never fires) and reported as a warning (W0001). A constant without arguments used as a
+ *  formula of a body or query (`p :- false.`), which holds if the constant is a fact, is reported too
+ *  (W0008, reference: object/rules). */
 final class ConstFold extends MiniPhase:
   def phaseName = "constFold"
   def description = "fold literal arithmetic"
@@ -38,17 +40,31 @@ final class ConstFold extends MiniPhase:
     case g @ Formula.Agg(res, k, t, b) => Formula.Agg(res, k, fold(t, warn), b.map(foldF(_, warn)))(g.span)
     case d @ Formula.Disj(alts) => Formula.Disj(alts.map(_.map(foldF(_, warn))))(d.span)
 
+  /** W0008 for every atom of a constructor without arguments in `body`, also under `not`, in aggregates
+   *  and in disjunctions. */
+  private def constantFormulas(body: List[Formula], warn: Diagnostic => Unit): Unit =
+    def go(f: Formula): Unit = f match
+      case a @ Formula.Atom(r, Nil, _) if r.sym.isCtor => warn(TypingWarning.ConstantFormula(r.show, a.span).toDiagnostic)
+      case _: Formula.Atom | _: Formula.Cmp => ()
+      case Formula.Not(a) => go(a)
+      case Formula.Agg(_, _, _, b) => b.foreach(go)
+      case Formula.Disj(alts) => alts.foreach(_.foreach(go))
+    body.foreach(go)
+
   def start(using Context): MiniPhase.Transformer = Folder
 
   /** Stateless: one transformer serves every traversal. */
   private object Folder extends MiniPhase.Transformer:
     override def transformRule(r: Rule)(using Context): List[Rule] =
       val warn = (d: Diagnostic) => ctx.report(Diag.rule(r)(d))
+      constantFormulas(r.body, warn)
       val nr = r.withParts(heads = r.heads.map(fold(_, warn)), body = r.body.map(foldF(_, warn)))
       keepTypes(r, nr)
       List(nr)
     override def transformQuery(q: Query)(using Context): Query =
-      val nq = q.withBody(q.body.map(foldF(_, d => ctx.report(Diag.query(q)(d)))))
+      val warn = (d: Diagnostic) => ctx.report(Diag.query(q)(d))
+      constantFormulas(q.body, warn)
+      val nq = q.withBody(q.body.map(foldF(_, warn)))
       keepTypes(q, nq)
       nq
 
