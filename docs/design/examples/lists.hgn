@@ -1,39 +1,26 @@
-(* Today's duplication of lists (issue #52). The prelude declares the object type `list` (`nil`, `cons`)
-   and the meta type `seq` (`snil`, `scons`, written `[]`, `x :: xs`). A program that builds a list at
-   compile time and stores it as a fact writes the conversion by hand, once into object code (`⇑`) and
-   once into reflected syntax (`term`), and writes the length twice: as a meta function and as the
-   prelude's relation `len`. *)
+(* Lists shared by both stages (issues #52, #80). The prelude's `list` is a shared data type: one
+   declaration is a meta inductive family and an object family, and `[a, b]`, `x :: xs` are lists at
+   both stages. A list built at compile time is used as object code directly: stage inference inserts
+   `list.lift` (the fold into object code) where a meta list is used as an object list, and `list.reify`
+   (the fold into reflected syntax) at a hole of a quote. Before #80 this file wrote both folds by hand
+   (`lift` into `⇑(list B)`, `reify` into `term`, and a `persist` function for the elements). *)
 
-(* The conversion into object code: the fold of `seq` into the object constructors. *)
-lift : (A -> ⇑B) -> seq A -> ⇑(list B).
-lift F [] = nil.
-lift F (X :: Xs) = cons (F X) (lift F Xs).
-
-(* The same conversion into reflected syntax, for directives that build rules: quotes `'{ … }` of the
-   object constructors (issue #76), with holes for the converted elements. *)
-reify : (A -> term) -> seq A -> term.
-reify F [] = '{ nil }.
-reify F (X :: Xs) = '{ cons $(F X) $(reify F Xs) }.
-
-(* The length at compile time; the prelude's `len` is the length of the lists that are facts. *)
-slen : seq A -> int.
+(* The length at compile time; the prelude's `len` is the length of the lists that are facts (the two
+   are written differently on purpose: a structural fold and a fixed point over facts). *)
+slen : list A -> int.
 slen [] = 0.
 slen (X :: Xs) = slen Xs + 1.
 
-(* Persistence of an `int` as a function, to pass to `lift`. *)
-persist : int -> ⇑int.
-persist X = X.
-
-primes : seq int = [2, 3, 5, 7].
+primes : list int = [2, 3, 5, 7].
 
 held : list int -> rel.
-held (lift persist primes).
+held primes.                                      (* `list.lift` is inserted *)
 
 (* A directive-style generator: one fact per suffix, built as data (a quoted fact is a rule without
-   body). *)
-suffixes : seq int -> seq rule.
+   body); the hole `$(X :: Xs)` is a meta list in a quote, so `list.reify` is inserted. *)
+suffixes : list int -> list rule.
 suffixes [] = [].
-suffixes (X :: Xs) = '{ held $(reify tint (X :: Xs)) } :: suffixes Xs.
+suffixes (X :: Xs) = '{ held $(X :: Xs) } :: suffixes Xs.
 $suffixes [11, 13].
 
 static_len : int -> rel.

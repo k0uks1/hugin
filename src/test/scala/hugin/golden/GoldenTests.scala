@@ -17,6 +17,7 @@ import scala.jdk.CollectionConverters.*
  *    that follows from a syntax error (a cascading error) fails the test; `X.check` holds the diagnostics
  *    and the program after `elaborate`, which shows that the items around the errors are elaborated.
  *  - `tests/pos/X.hgn`: must compile without errors.
+ *  - `docs/design/examples/X.hgn`: the worked examples of the design notes, run like `tests/run`.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
  *    without errors, and be a fixed point (fixing it again changes nothing).
@@ -29,8 +30,8 @@ import scala.jdk.CollectionConverters.*
 class GoldenTests extends munit.FunSuite:
   private val update = sys.env.get("HUGIN_UPDATE_CHECKS").contains("1")
 
-  private def files(dir: String, ext: String = ".hgn"): List[Path] =
-    val d = Path.of("tests", dir)
+  private def files(dir: String, ext: String = ".hgn", root: String = "tests"): List[Path] =
+    val d = Path.of(root, dir)
     if !Files.isDirectory(d) then Nil
     else Files.list(d).iterator().asScala.filter(_.toString.endsWith(ext)).toList.sortBy(_.toString)
 
@@ -57,8 +58,8 @@ class GoldenTests extends munit.FunSuite:
       val expected = Files.readString(check)
       assertNoDiff(actual, expected, s"output of $p differs from ${check.getFileName}")
 
-  for p <- files("run") do
-    test(s"run/${p.getFileName}") {
+  for p <- files("run") ++ files("design/examples", root = "docs") do
+    test(s"${p.getParent.getFileName}/${p.getFileName}") {
       val facts = sibling(p, ".facts")
       val factArgs = if Files.exists(facts) then List("--facts", facts.toString) else Nil
       val (code, out, err) = runMain(List("run", p.toString) ++ factArgs ++ flags(p))

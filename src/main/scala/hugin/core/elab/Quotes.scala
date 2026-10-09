@@ -55,7 +55,7 @@ trait Quotes:
   def objectConstant(c: Cxt, h: Tree): Option[Int] = h match
     case Parens(i) => objectConstant(c, i)
     case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).map(sharedAt(_, Stage.S0)).filter(isObjectConstant)
-    case SymRef(id, _) => Some(id).filter(isObjectConstant)
+    case SymRef(id, _) => Some(sharedAt(id, Stage.S0)).filter(isObjectConstant)
     case s: Select =>
       try undoOnFailure(constantOf(ev(c, infer(c, s)._1)))
       catch case _: ElabError => None

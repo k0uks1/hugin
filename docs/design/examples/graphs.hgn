@@ -1,61 +1,66 @@
-(* Today's two definitions of reachability (issue #52). At the object level, reachability is the least
-   fixed point of two rules over the facts of `road`. At the meta level, a function must be structurally
-   recursive, so the same closure is computed by iterating a step a bounded number of times (the number
-   of edges suffices), with explicit set operations. The two definitions do not share their structure:
-   one is a fixed point, the other a fold with fuel. *)
+(* Reachability at both stages (issues #52, #80). The graph is one value, a list of edges of the shared
+   type `edge`, used at compile time by a meta function and at run time as facts: stating it as a fact
+   (`known graph.`, `list.lift` is inserted) builds its subfacts, among them the edges `e 1 2`, …, which
+   the relation `road` reads. The two definitions of reachability stay different, on purpose: at the
+   object level it is the least fixed point of two rules (the prelude's functor `tc`); at the meta level
+   a function must be structurally recursive, so the closure is computed by iterating a step a bounded
+   number of times (the number of edges suffices). Before #80 the graph was written twice (as facts of
+   `road` and as a list of a meta type `medge`). *)
 
-(* The object definition: the prelude's functor `tc`. *)
+edge : data.
+e : (from : int) -> (to : int) -> edge.
+
+graph : list edge = [e 1 2, e 2 3, e 3 1, e 4 5].
+
+(* The object definition. *)
+known : list edge -> rel.
+known graph.
 road : int -> int -> rel.
-road 1 2. road 2 3. road 3 1. road 4 5.
+road X Y :- e X Y.
 roads = tc { node = int, edge = road }.
 
-(* The meta definition over a graph known at compile time. *)
-medge : Type.
-me : int -> int -> medge.
-
+(* The meta definition over the same graph. *)
 nat : Type.  zero : nat.  suc : nat -> nat.
 
-size : seq medge -> nat.
+size : list edge -> nat.
 size [] = zero.
 size (E :: Es) = suc (size Es).
 
-mem : int -> seq int -> bool.
+mem : int -> list int -> bool.
 mem X [] = false.
 mem X (Y :: Ys) = bor (same X Y) (mem X Ys).
 
-addNew : int -> seq int -> seq int.
+addNew : int -> list int -> list int.
 addNew X Ys = addIf (mem X Ys) X Ys.
 
-addIf : bool -> int -> seq int -> seq int.
+addIf : bool -> int -> list int -> list int.
 addIf true X Ys = Ys.
 addIf false X Ys = X :: Ys.
 
 (* One step: add the target of every edge whose source is reached. *)
-step : seq medge -> seq int -> seq int.
+step : list edge -> list int -> list int.
 step [] R = R.
-step (me A B :: Es) R = step Es (stepEdge (mem A R) B R).
+step (e A B :: Es) R = step Es (stepEdge (mem A R) B R).
 
-stepEdge : bool -> int -> seq int -> seq int.
+stepEdge : bool -> int -> list int -> list int.
 stepEdge true B R = addNew B R.
 stepEdge false B R = R.
 
-iter : nat -> seq medge -> seq int -> seq int.
+iter : nat -> list edge -> list int -> list int.
 iter zero G R = R.
 iter (suc N) G R = iter N G (step G R).
 
 (* the nodes reachable from X by a path of at least one edge *)
-reach : seq medge -> int -> seq int.
+reach : list edge -> int -> list int.
 reach G X = iter (size G) G (step G [X]).
 
-mroads : seq medge = [me 1 2, me 2 3, me 3 1, me 4 5].
-
-howmany : seq int -> int.
-howmany [] = 0.
-howmany (X :: Xs) = howmany Xs + 1.
-
 static_reach : int -> rel.
-static_reach (howmany (reach mroads 1)).
+static_reach (slen (reach graph 1)).
 dynamic_reach : int -> rel.
 dynamic_reach N :- N = count { Y | roads.path 1 Y }.
 %output static_reach.
 %output dynamic_reach.
+
+slen : list A -> int.
+slen [] = 0.
+slen (X :: Xs) = slen Xs + 1.

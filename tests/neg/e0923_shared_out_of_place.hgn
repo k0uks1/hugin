@@ -1,0 +1,7 @@
+(* A shared data type is declared at the top level of a file, with all its constructors (E0923). The
+   prelude's `list` and `option` are closed: a program cannot add constructors to them. *)
+m = {
+  inner : data. (*~ E0923 *)
+}.
+single : A -> list A. (*~ E0923 *)
+nothing : option int. (*~ E0923 *)

@@ -1,0 +1,25 @@
+error[E0921]: the shared type `tree` must be used at its parameters
+ --> tests/neg/e0921_not_uniform.hgn:4:8
+  |
+4 | leaf : tree int. (*~ E0921 *)
+  |        ^^^^^^^^ the result is not `tree` at its parameters
+  |
+  = note: every constructor of a shared type `T ā` returns `T ā`, with the parameters as written in the declaration, and uses `T` only at `ā`: no indices and no polymorphic recursion, which the object level cannot represent
+
+error[E0921]: the shared type `tree` must be used at its parameters
+ --> tests/neg/e0921_not_uniform.hgn:5:8
+  |
+5 | node : tree (list A) -> tree A. (*~ E0921 *)
+  |        ^^^^^^^^^^^^^ `tree` at other arguments than its parameters (polymorphic recursion)
+  |
+  = note: every constructor of a shared type `T ā` returns `T ā`, with the parameters as written in the declaration, and uses `T` only at `ā`: no indices and no polymorphic recursion, which the object level cannot represent
+
+error[E0921]: the shared type `nums` must be used at its parameters
+ --> tests/neg/e0921_not_uniform.hgn:7:6
+  |
+7 | nums (A : Type) : data. (*~ E0921 *)
+  |      ^^^^^^^^^^ the parameters of a shared type are variables
+  |
+  = note: every constructor of a shared type `T ā` returns `T ā`, with the parameters as written in the declaration, and uses `T` only at `ā`: no indices and no polymorphic recursion, which the object level cannot represent
+
+3 errors found

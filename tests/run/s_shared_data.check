@@ -1,0 +1,23 @@
+when (nested (cons skip (cons (when always skip) nil))) skip.
+when always skip.
+?- inner K.
+K = leaf 1.5.
+?- labelled L.
+L = "quoted".
+L = "root".
+?- firsts X.
+X = 1.
+?- explicit L.
+L = cons (some 1) (cons none nil).
+?- spliced S.
+S = some "s".
+?- codes L.
+L = cons 7 (cons 8 nil).
+?- same_tree N.
+N = 1.
+?- counted N.
+N = 5.
+?- progs P.
+P = when (nested (cons skip (cons (when always skip) nil))) skip.
+?- listed L.
+L = cons 3 (cons 4 nil).

@@ -59,8 +59,10 @@ trait Patterns:
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
-        case (id @ Ident(n), args) =>
-          val c = constructorNamed(n, id.span)
+        case (h @ (_: Ident | _: SymRef), args) =>
+          val (c, n) = h match
+            case SymRef(id, n) if isConstructor(id) => (id, n) // a generated pattern ([[DerivedFunctions]])
+            case _ => (constructorNamed(nameOf(h), h.span), nameOf(h))
           val types = constructorArgTypes(c, expected)
           if types.length != args.length then
             fail(ClauseProblem.PatternArity(n, types.length, args.length, t.span))

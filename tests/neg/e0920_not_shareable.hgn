@@ -1,0 +1,15 @@
+(* Constructor arguments of a shared data type that do not exist at both stages (E0920): a function, an
+   object type that is not shared, a meta type, object code, a reference to a constant, a variable that
+   is not a parameter. *)
+box : type.
+nat : Type.
+z : nat.
+shape : data.
+fn : (int -> int) -> shape. (*~ E0920 *)
+obj : box -> shape. (*~ E0920 *)
+meta : nat -> shape. (*~ E0920 *)
+code : ⇑int -> shape. (*~ E0920 *)
+ref : sym -> shape. (*~ E0920 *)
+free : B -> shape. (*~ E0920 *)
+inner : list nat -> shape. (*~ E0920 *)
+fine : int -> list string -> option shape -> shape.

@@ -151,7 +151,7 @@ trait Coercions:
   /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta value
    *  with a lifting (the rule Lift: a primitive persisted as a literal, a value of a shared type lifted). */
   def inferSplice(c: Cxt, a: Tree, span: Span): (Tm, Val, Stage) =
-    val (at, aty, s) = infer(c, a)
+    val (at, aty, s) = atStage(Stage.S1)(infer(c, a))
     if s == Stage.S0 then
       fail(TypeProblem.SpliceOfObjectCode(a.span))
     reflectiveKind(aty).filter(k => k == RKind.Formula || k == RKind.Term) match

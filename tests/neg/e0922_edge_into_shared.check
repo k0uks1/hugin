@@ -1,0 +1,25 @@
+error[E0922]: a subtyping edge into the shared type `color`
+ --> tests/neg/e0922_edge_into_shared.hgn:6:10
+  |
+2 | color : data.
+  | ------------- `color` is declared here
+...
+6 | paint <: color. (*~ E0922 *)
+  |          ^^^^^ a shared type is closed
+  |
+  = note: the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors
+  = help: declare the constructor with the shared type, or declare an object type (`: type`) that is open
+
+error[E0922]: a subtyping edge into the shared type `color`
+ --> tests/neg/e0922_edge_into_shared.hgn:7:17
+  |
+2 | color : data.
+  | ------------- `color` is declared here
+...
+7 | shade : type <: color. (*~ E0922 *)
+  |                 ^^^^^ a shared type is closed
+  |
+  = note: the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors
+  = help: declare the constructor with the shared type, or declare an object type (`: type`) that is open
+
+2 errors found

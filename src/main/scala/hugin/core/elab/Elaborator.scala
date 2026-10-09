@@ -68,10 +68,9 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  (`pair int string`) and a constructor with implicit type arguments in a term (`pair 1 "x"`). */
   var typePosition: Boolean = false
 
-  /** The shared families the file declares, and the declarations of their constructors (by meta
-   *  constructor), from which `T.lift` and `T.reify` are derived ([[SharedData]]). */
+  /** The shared families the file declares, whose `T.lift` and `T.reify` are derived once their
+   *  constructors are declared ([[DerivedFunctions]]). */
   var sharedDeclared: List[Int] = Nil
-  var sharedConstructors: Map[Int, hugin.syntax.Trees.Decl] = Map.empty
 
   /** The stage of the position being elaborated (set by `check` and `inferS`, meta outside them): a name
    *  of a shared data declaration denotes its constant at this stage ([[SharedData]]). */
@@ -156,6 +155,7 @@ class Elaborator(
     with Directives
     with ModuleDirectives
     with SharedData
+    with DerivedFunctions
     with Liftings
     with Tooling:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */

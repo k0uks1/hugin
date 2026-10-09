@@ -1,0 +1,71 @@
+error[E0920]: the constructor `fn` of the shared type `shape` has an argument of type `int -> int`
+ --> tests/neg/e0920_not_shareable.hgn:8:6
+  |
+8 | fn : (int -> int) -> shape. (*~ E0920 *)
+  |      ^^^^^^^^^^^^ not a parameter, a base type or a shared type
+  |
+  = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+  = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+  = help: declare `int -> int` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `obj` of the shared type `shape` has an argument of type `⇑box`
+ --> tests/neg/e0920_not_shareable.hgn:9:7
+  |
+9 | obj : box -> shape. (*~ E0920 *)
+  |       ^^^ not a parameter, a base type or a shared type
+  |
+  = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+  = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+  = help: declare `⇑box` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `meta` of the shared type `shape` has an argument of type `nat`
+  --> tests/neg/e0920_not_shareable.hgn:10:8
+   |
+10 | meta : nat -> shape. (*~ E0920 *)
+   |        ^^^ not a parameter, a base type or a shared type
+   |
+   = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+   = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+   = help: declare `nat` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `code` of the shared type `shape` has an argument of type `⇑int`
+  --> tests/neg/e0920_not_shareable.hgn:11:8
+   |
+11 | code : ⇑int -> shape. (*~ E0920 *)
+   |        ^^^^ not a parameter, a base type or a shared type
+   |
+   = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+   = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+   = help: declare `⇑int` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `ref` of the shared type `shape` has an argument of type `sym`
+  --> tests/neg/e0920_not_shareable.hgn:12:7
+   |
+12 | ref : sym -> shape. (*~ E0920 *)
+   |       ^^^ not a parameter, a base type or a shared type
+   |
+   = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+   = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+   = help: declare `sym` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `free` of the shared type `shape` has an argument of type `B`
+  --> tests/neg/e0920_not_shareable.hgn:13:8
+   |
+13 | free : B -> shape. (*~ E0920 *)
+   |        ^ not a parameter, a base type or a shared type
+   |
+   = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+   = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+   = help: declare `B` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+error[E0920]: the constructor `inner` of the shared type `shape` has an argument of type `nat`
+  --> tests/neg/e0920_not_shareable.hgn:14:9
+   |
+14 | inner : list nat -> shape. (*~ E0920 *)
+   |         ^^^^^^^^ not a parameter, a base type or a shared type
+   |
+   = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+   = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+   = help: declare `nat` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+7 errors found
