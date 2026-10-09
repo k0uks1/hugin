@@ -1787,6 +1787,35 @@ three batches.
   the end (`StringIndexOutOfBoundsException`). It is now an unterminated string (E0002), as the reference
   says (`LexerSuite`).
 
+## Glued evaluation (#66, Batch 2)
+
+Design: `docs/design/elaborator-glued.md` (branch `design/elab-66`), section 4.2. A reference to a
+definition evaluates to `Val.Top(id, spine, unfolded)`: the definition applied to its spine (applications
+and splices), folded, with its value. `force` unfolds it, so every match after `force` sees what it saw
+before; `forceMetas` and `quoteFolded` keep it. Folded read-back is used for printing (`showVal`,
+`showValPlain`, so diagnostics, hover and goals), for the terms the elaborator keeps (`zonk`, the
+inferred types of definitions) and for meta solutions (`psubst`; `unify` solves an unknown against a
+`Top` with the folded form first and falls back to the unfolded sides). Everything that computes keeps
+using the unfolded `quote`: staging and the handover (`nf`), memo and family keys (`MemoKeys`), the meta
+size-change matrices, index unification, the staging observer.
+
+Decisions:
+
+* **The unfolded value is computed eagerly**, not lazily as in smalltt. Evaluation in the core has
+  effects: module bodies are generative (an instance per evaluation site) and `Tm.Fresh` advances the
+  hygiene counter. A lazy unfolding moved the instantiation of a functor application to whichever later
+  item forced it (the first attempt changed the staged output of `a10_meta_applicative` and broke the "a
+  definition evaluated once: its uses share the instance" test of `ModulesSuite`). With eager cells the
+  unfolded value is computed exactly when evaluation without folding computed it, so staged output is
+  identical; the gain is in what is printed and solved, not in evaluation time.
+* **Projections unfold**: a member of a module value is shown as the member, as before.
+* **Clause functions are not glued**: their applications reduce eagerly through their case trees, as
+  before.
+* Messages: if expected and found look the same folded, both are printed unfolded; a universe
+  inconsistency is printed unfolded (its point is the levels). The E0906 note names the record type as
+  written (a signature's name).
+* Object typing (#56) forces every value before matching on it, so `core/objtype` needed no change.
+
 ## Possible next steps
 
 * A faster engine (columnar storage, join planning) behind the same core IR.

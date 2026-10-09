@@ -1,0 +1,9 @@
+error[E0001]: expected a type, found `->`
+ --> tests/recovery/r_dropped_use.hgn:5:14
+  |
+5 |   r : int -> -> rel. (*~ E0001 *)
+  |              ^^ expected a type
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+q : int -> rel.

@@ -153,7 +153,13 @@ trait Renaming:
   }
 
   /** Reads back a value under a partial substitution (renaming), with the occurs check and pruning. */
-  def psubst(psub: PSub, v: Val): Tm = force(v) match
+  def psubst(psub: PSub, v: Val): Tm = forceMetas(v) match
+    // a solution keeps definitions folded; if the folded form mentions a variable or unknown that the
+    // unfolded value does not (`const x y` for `x`), the unfolded value is read back instead, after
+    // undoing what the first attempt pruned
+    case Top(id, sp, u) =>
+      try undoOnFailure(psubstSp(psub, Tm.Global(id), sp))
+      catch case _: UnifyError => psubst(psub, u.value)
     case Flex(m, sp) =>
       if psub.occ.contains(m) then fail(UnifyFailure.Occurs(m))
       val (m2, sp2) = pruneFlex(psub, m, sp)

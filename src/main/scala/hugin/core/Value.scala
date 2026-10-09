@@ -24,9 +24,24 @@ enum Elim:
 
 type Spine = List[Elim]
 
+/** The unfolded value of a [[Val.Top]], compared by identity (so that comparing values never compares
+ *  both forms). It is computed when the `Top` is built, not on demand: evaluation has effects (module
+ *  bodies are generative, object variables are fresh), so the unfolded value must be computed exactly
+ *  when evaluation without folding computed it. */
+final class Unfold(val value: Val)
+
+object Unfold:
+  def of(v: Val): Unfold = Unfold(v)
+
 /** Values in weak head normal form (normalisation by evaluation, as in elaboration-zoo). */
 enum Val:
   case Rigid(h: Head, sp: Spine)
+
+  /** A definition (`GlobalKind.Definition`) applied to `sp` (applications and splices), kept folded for
+   *  printing and meta solutions, with its value `unfolded`: *glued* evaluation (smalltt, Kovács's
+   *  elaboration-zoo `GluedEval`), with the unfolded value computed eagerly ([[Unfold]]).
+   *  [[Evaluation.force]] unfolds it, so code that forces a value before matching on it never sees it. */
+  case Top(id: Int, sp: Spine, unfolded: Unfold)
   case Flex(m: Int, sp: Spine)
   case Lam(x: Name, i: Icit, cl: Closure)
   case Pi(x: Name, i: Icit, dom: Val, cl: Closure)

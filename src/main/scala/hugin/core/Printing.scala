@@ -13,7 +13,8 @@ trait Printing:
     val v = levels.value(l)
     if v == 0 then "Type" else "Type" + v.toString.map(c => subscripts(c - '0'))
 
-  def showVal(names: List[Name], v: Val): String = showTm(names, quote(names.length, v))
+  /** A value as users write it: definitions folded ([[Val.Top]]). */
+  def showVal(names: List[Name], v: Val): String = showTm(names, quoteFolded(names.length, v))
 
   def showTm(names: List[Name], t: Tm): String = go(names, t, 0)
 
@@ -36,7 +37,10 @@ trait Printing:
     try go(names, t, 0)
     finally plain = saved
 
-  def showValPlain(names: List[Name], v: Val): String = showPlain(names, quote(names.length, v))
+  def showValPlain(names: List[Name], v: Val): String = showPlain(names, quoteFolded(names.length, v))
+
+  /** [[showValPlain]] with definitions unfolded: when two different values look the same folded. */
+  def showValPlainUnfolded(names: List[Name], v: Val): String = showPlain(names, quote(names.length, v))
 
   private def isPath(t: Tm): Boolean = t match
     case Tm.Var(_) | Tm.Global(_) => true

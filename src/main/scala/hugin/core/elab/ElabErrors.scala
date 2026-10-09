@@ -37,8 +37,12 @@ trait ElabErrors:
       case _ => mismatchDiagnostic(c, span, expected, sExp, found, sFound, f)
 
   private def mismatchDiagnostic(c: Cxt, span: Span, expected: Val, sExp: Stage, found: Val, sFound: Stage, f: UnifyFailure): Diagnostic =
-    val e = show(c, expected)
-    val fo = show(c, found)
+    // folded, as written; unfolded if the two look the same folded
+    val (e, fo) =
+      val (e0, f0) = (show(c, expected), show(c, found))
+      // universe levels are what a universe inconsistency is about: shown unfolded
+      if e0 != f0 && f != UnifyFailure.Universe then (e0, f0)
+      else (showValPlainUnfolded(c.names, expected), showValPlainUnfolded(c.names, found))
     f match
       case UnifyFailure.MissingField(_) | UnifyFailure.Field(_, _, _) =>
         val note = f match
