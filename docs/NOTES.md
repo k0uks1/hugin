@@ -1368,6 +1368,11 @@ skip ends before the next token in column 0 as before. Inside bodies and quotes,
 indented, nothing changes. Golden: `tests/recovery/f_lost_module_brace` (2 errors, the items after the
 body elaborated).
 
+**Verification (#83).** With all fixes, at 100 tests per property: `GeneratedFuzzSuite` passes for seeds
+1, 3, 5, 7, 11, 13, 19, 23, 42, 101, 314, 999, 2024, 31337, 77777; `RecoveryFuzzSuite` for the same 15
+seeds; `MutationFuzzSuite` (10 tests per property) for seeds 1, 7, 42; and all fuzz suites with the
+default seed. No property was weakened.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).
