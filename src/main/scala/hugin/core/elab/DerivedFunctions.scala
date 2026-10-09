@@ -83,7 +83,8 @@ trait DerivedFunctions:
     val term = reflectiveGlobals.map(r => SymRef(r.term, "term")(sp): Tree)
     def elem(a: Tree, b: Tree): Tree = Arrow(None, a, if lift then LiftE(b)(sp) else term.get)(sp)
     val result = if lift then LiftE(treeOf(self, bs, sp))(sp) else term.get
-    val tpe = as.zip(bs).foldRight(Arrow(None, treeOf(self, as, sp), result)(sp): Tree)((ab, acc) => Arrow(None, elem(ab._1, ab._2), acc)(sp))
+    val tpe =
+      as.zip(bs).foldRight(Arrow(None, treeOf(self, as, sp), result)(sp): Tree)((ab, acc) => Arrow(None, elem(ab._1, ab._2), acc)(sp))
     state.functionNames += name
     elabDecl(Decl(Ident(name)(g.span), Nil, tpe, None, None)(sp))
     scope(name)
@@ -113,10 +114,13 @@ trait DerivedFunctions:
     case _ => false
   )
 
-  private def recursive(dv: Derivation, t: Ty): Boolean = mentions(t, {
-    case Ty.App(f, _) => dv.group(f)
-    case _ => false
-  })
+  private def recursive(dv: Derivation, t: Ty): Boolean = mentions(
+    t,
+    {
+      case Ty.App(f, _) => dv.group(f)
+      case _ => false
+    }
+  )
 
   private def closed(t: Ty): Boolean = !mentions(t, _.isInstanceOf[Ty.Param])
 

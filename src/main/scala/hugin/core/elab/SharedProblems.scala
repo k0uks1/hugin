@@ -70,9 +70,13 @@ enum SharedProblem extends Problem:
         msg"every constructor of a shared type `T ā` returns `T ā`, with the parameters as written in the declaration, and uses `T` only at `ā`: no indices and no polymorphic recursion, which the object level cannot represent"
       )
     case _: EdgeIntoShared | _: ConstructorElsewhere =>
-      List(msg"the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors")
+      List(
+        msg"the constructors of a shared type are fixed by its file: its meta side is an inductive family, whose clauses cover exactly these constructors"
+      )
     case _: NotTopLevel =>
-      List(msg"the meta side of a shared type declared in a module body or a functor would be generative, which the meta level does not support")
+      List(
+        msg"the meta side of a shared type declared in a module body or a functor would be generative, which the meta level does not support"
+      )
 
   override def helps: List[Msg] = this match
     case NotShareable(_, _, t, _) =>

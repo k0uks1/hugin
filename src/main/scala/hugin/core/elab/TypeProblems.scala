@@ -40,6 +40,7 @@ enum TypeProblem extends Problem:
 
   /** Object code where a meta value of type `expected` is needed, and the other way round. */
   case ObjectForMeta(expected: String, found: String, at: Span)
+
   /** `unshared`: the first type in `found` that is not shared, if `found` is a meta inductive type or a
    *  shared type applied to one (it has no lifting into object code). */
   case MetaForObject(expected: String, found: String, at: Span, unshared: Option[String] = None)

@@ -132,6 +132,9 @@ of object constants:
 - `len : (l : list A) -> (n : int) -> rel.` declares a family of relations;
 - `pair A B : type = { fst : A, snd : B }.` declares a family of structs.
 
+The object side of a [shared data type](../meta/families.md#shared-data), such as the prelude's `list`
+(declared `list A : data.`), is a family of types and constructors of this kind.
+
 The application of a family to object types is an *instance*. Two applications to the same types are the
 same instance: `list int` in two places is one type, and `len` used at lists of integers is one
 relation. Instances are named after their arguments, `list[int]` and `len[int]`, in diagnostics and in

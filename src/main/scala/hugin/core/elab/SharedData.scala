@@ -100,7 +100,8 @@ trait SharedData:
     val params = forceData(result) match
       case Val.Rigid(Head.Glob(f), sp) if f == fam =>
         val vs = sp.reverse.collect { case Elim.EApp(Val.Rigid(Head.Local(l), Nil), _) if binders(l)._2 == Icit.Impl => l }
-        if vs.length != arity || vs.distinct.length != arity then notUniform(s"the result is not `$famName` at its parameters", TreeOps.codomain(d.tpe).span)
+        if vs.length != arity || vs.distinct.length != arity then
+          notUniform(s"the result is not `$famName` at its parameters", TreeOps.codomain(d.tpe).span)
         vs
       case _ => notUniform(s"the result is not `$famName` at its parameters", TreeOps.codomain(d.tpe).span)
     val trees = argumentTypes(d.tpe)

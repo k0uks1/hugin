@@ -38,7 +38,9 @@ trait Liftings:
     (link, args) =>
       val parts = args.map(lifting(c, _))
       Option.when(parts.forall(_.isDefined)) {
-        val elems = args.zip(parts.flatten).map { case (arg, (l, o)) => (l, Val.Pi("x", Icit.Expl, arg, closureOf(c, Tm.Lift(quote(c.lvl + 1, o))))) }
+        val elems = args.zip(parts.flatten).map { case (arg, (l, o)) =>
+          (l, Val.Pi("x", Icit.Expl, arg, closureOf(c, Tm.Lift(quote(c.lvl + 1, o)))))
+        }
         derived(c, link.lift, elems, a)
       }.flatten.flatMap { (t, res) =>
         forceData(res) match

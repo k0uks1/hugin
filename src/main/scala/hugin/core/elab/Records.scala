@@ -97,7 +97,9 @@ trait Records:
     case _ => inferProjection(c, sel)
 
   private def derivedOf(n: Name, label: Name): Option[Int] =
-    lookupGlobal(n).flatMap(sharedFamily).map(l => if label == "lift" then l.lift else if label == "reify" then l.reify else -1).filter(_ >= 0)
+    lookupGlobal(n).flatMap(sharedFamily).map(l => if label == "lift" then l.lift else if label == "reify" then l.reify else -1).filter(
+      _ >= 0
+    )
 
   private def inferProjection(c: Cxt, sel: Select): (Tm, Val, Stage) =
     val (qt, qty, qs) = spliceIfLifted(sel.qual.span, insertAll(c, sel.qual.span, infer(c, sel.qual)))

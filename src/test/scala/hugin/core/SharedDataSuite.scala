@@ -56,12 +56,17 @@ class SharedDataSuite extends munit.ScalaCheckSuite:
   }
 
   test("the lifted and the reflected value run to the same facts") {
-    val code = program("tree (option int)", "node \"r\" [leaf (some 1), leaf none]", "held v.\nagain : tree (option int) -> rel.\n$'{ again $v. }.\nsame : int -> rel.\nsame 1 :- held X, again X.\n%output same.")
+    val code = program(
+      "tree (option int)",
+      "node \"r\" [leaf (some 1), leaf none]",
+      "held v.\nagain : tree (option int) -> rel.\n$'{ again $v. }.\nsame : int -> rel.\nsame 1 :- held X, again X.\n%output same."
+    )
     assertEquals(StagedTesting.run(code), Right(List("same 1.")))
   }
 
   test("the derived functions are meta functions of the declared types, usable by name") {
-    val code = decls + "x : ⇑(tree int) = tree.lift ([y : int] y) (leaf 3).\nheld : tree int -> rel.\nheld $x.\nr : term = tree.reify tint (leaf 4).\n%output held."
+    val code =
+      decls + "x : ⇑(tree int) = tree.lift ([y : int] y) (leaf 3).\nheld : tree int -> rel.\nheld $x.\nr : term = tree.reify tint (leaf 4).\n%output held."
     assertEquals(StagedTesting.run(code), Right(List("held (leaf 3).")))
   }
 
