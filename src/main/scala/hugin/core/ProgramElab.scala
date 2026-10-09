@@ -64,7 +64,9 @@ object ProgramElab:
   def prelude(file: SourceItems, builtinNames: Boolean): ElabBase =
     val base = empty(builtinNames)
     val (e, diagnostics) = elabFile(base.core, file, elab.FileEnv(file.path, file.qualifier, builtinNames = builtinNames))
-    ElabBase(base.core, e.scope.toMap, Map.empty, e.items.toList, diagnostics, e.index, builtinNames)
+    // the names it opens with `%use` are in scope in every file too, unless it declares them itself
+    val opened = e.state.opened.collect { case (n, List((id, _))) if !e.state.declaredHere(n) => n -> id }
+    ElabBase(base.core, opened ++ e.scope.toMap, Map.empty, e.items.toList, diagnostics, e.index, builtinNames)
 
   /** An imported file, elaborated in a fork of `base`: its module value is what `%import` denotes. */
   def library(base: ElabBase, file: SourceItems): ElabBase =

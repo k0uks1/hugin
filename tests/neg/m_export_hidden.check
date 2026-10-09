@@ -1,0 +1,26 @@
+error[E0204]: signature mismatch
+ --> tests/neg/lib/narrow.hgn:2:1
+  |
+2 | %export { area : int -> int, perimeter : int -> int }.
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `{ area : int -> int, perimeter : int -> int }`
+  |
+  = note: missing field `perimeter`
+  = note: the file's module does not match its `%export`
+
+error[E0906]: no field `scale`
+ --> tests/neg/m_export_hidden.hgn:4:13
+  |
+4 | x : int = s.scale 2. (*~ E0906 *)
+  |             ^^^^^ unknown field
+  |
+  = note: `{ color : type, red : ⇑color, blue : ⇑color, paint : ⇑(color -> rel), shade : Type, light : shade, dark : shade, brightness : shade -> int }` has the fields `color`, `red`, `blue`, `paint`, `shade`, `light`, `dark`, `brightness`
+
+error[E0906]: no field `scale`
+ --> tests/neg/m_export_hidden.hgn:5:21
+  |
+5 | %use s (brightness, scale). (*~ E0906 *)
+  |                     ^^^^^ unknown field
+  |
+  = note: `{ color : type, red : ⇑color, blue : ⇑color, paint : ⇑(color -> rel), shade : Type, light : shade, dark : shade, brightness : shade -> int }` has the fields `color`, `red`, `blue`, `paint`, `shade`, `light`, `dark`, `brightness`
+
+3 errors found

@@ -1,0 +1,6 @@
+lit 103.
+loop palette.blue.
+loop palette.red.
+painted palette.blue.
+painted palette.red.
+start geo.here.

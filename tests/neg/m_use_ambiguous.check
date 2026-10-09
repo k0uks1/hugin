@@ -1,0 +1,14 @@
+error[E0109]: `double` is ambiguous: two `%use` items open it for different declarations
+ --> tests/neg/m_use_ambiguous.hgn:5:4
+  |
+2 | %use "lib/twice_a".
+  | ------------------- opens `double`
+3 | %use "lib/twice_b".
+  | ------------------- opens `double`
+...
+5 | n (double 4). (*~ E0109 *)
+  |    ^^^^^^ ambiguous name
+  |
+  = help: open only one of them, `%use m (…)` with a list of names, or declare `double` in the file
+
+1 error found

@@ -60,7 +60,8 @@ RULE_NAME ::= "@" LOWER IDCHAR*
 ```
 
 A *directive name* `%d` starts a [directive](directives.md) or one of the forms `%builtin`, `%import`,
-`%infix` and `%complete`. A *rule name* `@r` names a rule (see [Rules](object/rules.md#named-rules)).
+`%use`, `%export`, `%infix` and `%complete`. A *rule name* `@r` names a rule (see
+[Rules](object/rules.md#named-rules)).
 It is an error ([E0001](errors/E0001.md)) if `%` or `@` is not followed by a lowercase letter.
 
 ## Literals
