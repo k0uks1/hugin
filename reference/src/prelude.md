@@ -96,6 +96,7 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
 | `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'{ … }` ([Reflection](reflection.md#quotes)) |
 | `quoted A`, `qterm`, `raw` | a term of the object type `A`, made without a check, and its term ([Reflection](reflection.md#typed-terms)) |
+| `qatom : quoted A -> formula` | a term of a type of facts as an atom (primitive, [Reflection](reflection.md#typed-atoms)) |
 | `column`, `colof` | the column of an object constant at an index |
 | `pick`, `openT`, `openTs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
 
@@ -127,6 +128,7 @@ but they are not part of the documented interface of the prelude.
 | `labels : sym -> list string` | the labels of a constant's columns (primitive) |
 | `derive : sym -> string -> sym` | the derived constant `r.l` (primitive) |
 | `derived : sym -> bool` | whether a constant is derived (primitive) |
+| `qatom : quoted A -> formula` | a typed atom as a formula (primitive) |
 
 A primitive is declared `x : A = %builtin p.`; it is an error ([E0103](errors/E0103.md)) if `A` is not
 the type of the primitive `p`.

@@ -151,7 +151,28 @@ trait Reflection:
     w match
       case Val.Rigid(Head.Glob(id), spine) if ctorNames.contains(id) =>
         (ctorNames(id), spine.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }, s)
+      case other @ Val.Rigid(Head.Glob(id), Elim.EApp(arg, Icit.Expl) :: _) if isQAtom(id) && closedData(arg) =>
+        val inner = forceData(arg) match
+          case Val.Rigid(_, Elim.EApp(x, Icit.Expl) :: _) => x
+          case x => x
+        val shown = showValPlain(t.c.map(_.names).getOrElse(Nil), inner)
+        malformed(s"the term `$shown` of a `quoted` atom is not an atom", s)
       case other => notClosed(other, s, t)
+
+  private def isQAtom(id: Int): Boolean = globals(id).kind match
+    case GlobalKind.Primitive(PrimOp.QAtom, _) => true
+    case _ => false
+
+  /** Whether `v` is data built from constructors and literals only (so a primitive on it is stuck for good). */
+  private def closedData(v: Val): Boolean = forceData(v) match
+    case Val.Rigid(Head.Glob(id), spine) =>
+      globals(id).kind.isInstanceOf[GlobalKind.Constructor] && spine.forall {
+        case Elim.EApp(a, Icit.Expl) => closedData(a)
+        case Elim.EApp(_, Icit.Impl) => true
+        case _ => false
+      }
+    case Val.Lit(_, _) | Val.Quote(_) | Val.Base(_, _) => true
+    case _ => false
 
   private def notClosed(v: Val, s: Span, t: Target): Nothing =
     fail(ReflectionProblem.NotClosed(showValPlain(t.c.map(_.names).getOrElse(Nil), v), s))
