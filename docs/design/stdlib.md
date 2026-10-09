@@ -2,7 +2,9 @@
 
 Design note for [issue #61](https://github.com/k0uks1/hugin/issues/61): split the prelude into a small
 auto-imported part and explicitly imported `std` modules, and decide their content. Status: proposal, for
-review. Nothing is implemented. The spikes it cites were run against `9b82924` and are not committed.
+review. Revision 2 replaces the `private` modifier by signature ascription (4.5, 4.6) after the
+designer's review. Nothing is implemented. The spikes it cites were run against `9b82924` and are not
+committed.
 
 Contents: 1 recommendations, 2 prior art, 3 the prelude today, 4 structure, 5 content, 6 open questions,
 7 startup time, 8 migration, 9 batches, 10 alternatives, 11 sources.
@@ -20,13 +22,16 @@ Contents: 1 recommendations, 2 prior art, 3 the prelude today, 4 structure, 5 co
    `std/reflect` (today it looks in the prelude's scope, `file.parent`). A program can therefore declare
    `term`, `item`, `list` or `output` freely. Quotes, list syntax, mode items and directive footprints
    keep working, because they never see the program's names. No name is reserved apart from the keywords.
-3. **Four small language additions.** The split needs each of them, and each is useful on its own:
-   - `%use m.` and `%use m (x, y).` open an imported module's names into the current scope. The prelude
-     uses this to re-export from `std/reflect`, as Lean's `export` does.
-   - `private` hides a declaration from importers, so that `std/demand` can hide its 27 helpers.
-   - Import paths that start with `std/` denote the bundled library.
-   - `%m.d` applies a directive that is a module member. Today `%g.sym2 r.` is E1001, and a program has
-     to write the alias `sym2 = g.sym2.` first.
+3. **Hiding is signature ascription, as in 1ML.** Signatures are record types, and transparent ascription
+   `(e : S)` exists today: `(%import "lib2" : { double : int -> int })` hides `twice` (E0906, verified).
+   The one addition for hiding is a place to write a file's own ascription: `%export S.` makes the file's
+   module `(file : S)`. `std/demand` exports `{ demand : … }`, and its 27 helpers are hidden because the
+   signature does not mention them. There is no modifier, no interface file and no new kind of
+   declaration. Opaque sealing `(e :> S)` is designed in 4.6 but not proposed now, since no std module
+   has an abstract type. Two other small additions serve the split, not hiding: `%use` opens a module's
+   names (4.4), and import paths that start with `std/` denote the bundled library. The directive paths
+   `%m.d` of the first version are dropped, because `%use` makes a module's directives available
+   unqualified.
 4. **`%demand` stays available without an import, but costs nothing unless it is used.** The prelude
    re-exports `demand` from `std/demand` *lazily*: the module is elaborated only in a compilation that
    resolves the name. This is unobservable, because `std/demand` declares no object constants. It removes
@@ -212,6 +217,70 @@ Rel's source is not public, so its documentation was read instead.
   `'$undefined_procedure'` calls `'$autoload'` only after the predicate is found undefined
   (`boot/init.pl:946-956`), so a local definition always takes precedence.
 
+### Module systems
+
+Hugin's modules are dependent records: a module body or a file is a record value, a signature is a record
+type, a functor is a meta function. 1ML is the closest design, and MixML, Agda and Lean bear on parts of
+it. SML and OCaml supply the vocabulary.
+
+**1ML** (Rossberg, JFP 2018; `rossberg/1ml`).
+- *One language.* "ML is two languages in one: there is the core [...] and there are modules [...].
+  Modules form a separate, higher-order functional language on top of the core" (abstract). 1ML removes
+  the second language: `type` is a type of small types, `{ D }` is both a record type and a signature,
+  and `(X : T) -> E` is both a function type and a functor type (`README.txt`, kernel syntax).
+- *Ascription.* There are two forms, as in SML: "opaquely (E :> T), which performs sealing [...], that
+  is, any type that is specified abstractly in T will be opaque", and "transparently (E : T), which
+  implicitly refines all abstract specifications in T with their actual definitions from E". The
+  transparent form "can simply be encoded as applying the identity functor at type T" (section 2,
+  "Transparent vs. Opaque Type Ascription"). Sealing elaborates to existential packing,
+  `E :> T ~> unwrap (wrap E : T) : T` (`README.txt`, derived syntax).
+- *Translucency.* A type field is either abstract (`size : type`) or manifest through a singleton
+  (`size : (= type int)`, written `type size = int` in a signature), and `T with .X = E` refines a field
+  (section 2, "Translucency"). Sharing is expressed by singletons and dependency, with no separate
+  construct.
+- *Practice.* `prelude.1ml` seals each library value: `List :> LIST = { … }` (line 163),
+  `Set (Elem : ORD) :> SET with (elem = Elem.t) = …` (line 215). Helpers are hidden by `local … in`,
+  which is `include (let B1 in {B2})`: lexical scope, not a modifier.
+- *Lesson for Hugin.* Hugin already has 1ML's shape: record types as signatures, ascription as an
+  expression, functors as functions, sharing by dependent field types. What it lacks is a place for a
+  file to ascribe itself (1ML has no files), and sealing.
+
+**MixML** (Rossberg and Dreyer, TOPLAS 2013). "A MixML module is like an ML structure in which some of
+the components are specified but not defined. In other words, it unifies the ML structure and signature
+languages into one" (abstract). Its purpose is recursive linking of separately compiled components
+(`new UA with new UB` links two units that import each other's components, p. 16). It bears on Hugin in
+one respect only: Hugin's import graph is acyclic by design (E0108), files are elaborated once per
+compilation in dependency order, and there is no separate compilation, so mixin linking has nothing to
+solve. Hugin keeps signatures as types, as 1ML does, and does not merge them with modules, as MixML does.
+
+**Agda.** Records serve as signatures, and abstraction is a property of a definition.
+`Data/List/Sort.agda` (lines 31-42) seals a choice of algorithm:
+`abstract sortingAlgorithm : SortingAlgorithm; sortingAlgorithm = mergeSort` makes the value opaque
+outside the `abstract` block, and
+`open SortingAlgorithm sortingAlgorithm public using (sort; sort-↭; sort-↗)` re-exports a selection of
+its fields. `SortingAlgorithm` is a record type with a function and its correctness properties
+(`Data/List/Sort/Base.agda:28`). This is 1ML's sealing without existentials: an opaque definition of a
+record-typed value.
+
+**Lean 4.** Structures are records, and there are no module signatures. Abstraction is per definition:
+`opaque Quot` and `opaque Quot.mk` (`src/Init/Prelude.lean:439-446`) cannot be unfolded by the type
+checker but are compiled and run. Hiding is `private` (line 1970). Lean has neither ascription of a
+module nor sealing.
+
+**SML and OCaml** (vocabulary only).
+- SML: HaMLet (`rossberg/hamlet`), an implementation of the Definition, has transparent ascription (Rule
+  52: the matched structure keeps its types) and opaque ascription (Rule 53: the result has the
+  signature's fresh type names), `where type` (Rule 64), `include` (Rule 75) and sharing (Rules 78-79),
+  in `elab/ElabModule.sml`.
+- OCaml: a compilation unit behaves "roughly as the module definition
+  `module U : sig I end = struct M end`" (`manual/src/refman/compunit.etex`). The interface hides what it
+  does not list: `stdlib/list.ml` defines `length_aux`, which `stdlib/list.mli` does not mention.
+  `map.mli` has the functor `module Make (Ord : OrderedType) : S with type key = Ord.t` (line 377).
+  Destructive substitution `with type t := …` removes a type from a signature
+  (`extensions/signaturesubstitution.etex`), and `module type of` is deliberately not strengthened
+  (`extensions/moduletypeof.etex`). OCaml's single ascription `:` seals the types a signature leaves
+  abstract (1ML, footnote 8).
+
 ### Summary
 
 | | prelude or implicit scope | other library | how the compiler finds builtins | closures | object boolean |
@@ -247,7 +316,7 @@ The verdicts are:
 - *reflect, opened* (in `std/reflect`, put in scope by the prelude);
 - *prelude* (declared by the prelude);
 - *std/X* (moved to that module);
-- *private std/X* (moved, not visible to importers);
+- *std/X, outside its signature* (moved; not in the module's `%export` signature);
 - *delete*.
 
 | declarations | tests | ex. | ref. | compiler | verdict |
@@ -268,7 +337,7 @@ The verdicts are:
 | `rule`, `horn`, `column`, `colof`, `module` | 3 | 0 | 4 | RG | reflect |
 | `item` and its 5 constructors | 2 | 0 | 3 | RG | reflect |
 | `openT`, `openF` | 0 | 0 | 1 | RG (higher-order holes) | reflect |
-| `pick`, `openTs` | 0 | 0 | 1 | none | private reflect |
+| `pick`, `openTs` | 0 | 0 | 1 | none | reflect (`pick` becomes local to `openT` by `where`) |
 | `measure`, `mvars`, `mlabels` | 3 | 0 | 2 | RG, DA | reflect |
 | `attr` and its 5 constructors | 0 | 0 | 2 | RG, DA | reflect |
 | `decl`, `dconst`, `drule`, `derror` | 2 | 0 | 3 | RG, DA | reflect |
@@ -279,7 +348,7 @@ The verdicts are:
 | `labels`, `derive`, `derived` | 1 | 0 | 3 | PR | reflect |
 | `modes`, `mnone`, `minput`, `moutput` | 0 | 0 | 2 | MD | reflect |
 | `demand` | 27 | 3 | 8 | none | std/demand, lazily re-exported by the prelude |
-| 27 helpers `ddemanded` … `dothers` (all `d…` except those below) | 0 | 0 | 1 | none | private std/demand |
+| 27 helpers `ddemanded` … `dothers` (all `d…` except those below) | 0 | 0 | 1 | none | std/demand, outside its signature |
 | `tvarsOf`, `tsvars`, `fvars`, `fbound`, `fneeds`, `dequation`, `plain`, `plains` | 0 | 0 | 1 | none | std/directives |
 | `band`, `bor`, `member`, `sdiff`, `shares`, `msym`, `dkeepS`, `dunless`, `ditems` | 0 | 2 | 1 | none | delete (replaced by `if` and `std/list`) |
 
@@ -295,7 +364,7 @@ Verdict counts over the 144 names:
 | `std/reflect`, not in the user's scope | 78 |
 | `std/reflect`, opened by the prelude | 13 |
 | declared by the prelude | 3 |
-| `std/demand` (1 public, 27 private) | 28 |
+| `std/demand` (1 in its signature, 27 outside) | 28 |
 | `std/directives` | 8 |
 | `std/list` | 1 |
 | `std/graph` | 3 |
@@ -311,7 +380,7 @@ In scope in every file: 144 names today, 21 after the change. They are the 13 op
 ```text
 <stdlib>/std/reflect.hgn   compiler-bound; sees nothing (base types by %builtin); loaded first
 <stdlib>/prelude.hgn       %use of std/reflect (13 names); option; lazy %use of std/demand (demand)
-<stdlib>/std/demand.hgn    demand and private helpers; imports std/directives and std/list
+<stdlib>/std/demand.hgn    %export { demand : … }; imports std/directives and std/list
 <stdlib>/std/directives.hgn binding analysis, traversals, fresh names, errors
 <stdlib>/std/list.hgn      meta list functions, nat and iterate, object len and member
 <stdlib>/std/graph.hgn     graph signatures and functors
@@ -380,33 +449,127 @@ Use ::= "%use" (STRING | Path) ("(" NAME ("," NAME)* ")")? "."
 - Names opened in the prelude are visible in every file, because the prelude's scope encloses them. This
   is how the prelude re-exports from `std/reflect`, like Lean's `export`.
 
+`%use` opens the fields of the module's *type*, so it follows signatures. `%use "std/demand".` opens
+`demand` only, since that is the signature `std/demand` exports (4.5). `%use (%import "f" : S).` opens
+the fields of `S`. A name in the list must be a field of the type (E0906 otherwise). An opened name
+stands for the projection `m.x`: under transparent ascription the projection reduces to the entity, so an
+opened constructor is still a constructor in patterns, and two opens of the same entity agree.
+
 `%use` is a scope form handled by the elaborator, like `%import`. It is not a directive (a meta
-function), since a directive cannot change scopes.
+function), since a directive cannot change scopes. It is the one addition that the split needs beyond
+hiding: neither ascription nor import can bring names into scope unqualified.
 
 > **Note.** `%open` is taken: it declares a relation incomplete (reference: object/negation). So the form
 > is called `%use`.
 
-### 4.5 `private`
+### 4.5 Signatures and hiding
 
-`private` before a declaration, definition or functor excludes it from the file's module value. The file
-itself uses it as before. Importers get E0101 with the note "`dmodule` is private to `std/demand`".
-`std/demand` marks its 27 helpers private, and `std/reflect` marks `pick` and `openTs` private.
+What signatures express today, checked against the implementation (`core/elab/Records.scala`,
+`core/elab/Imports.scala`) and by spikes:
 
-A std module's interface is its public declarations, and the reference page of the module lists them.
-Explicit per-module signatures were rejected (section 10). The signatures that matter for reuse are the
-*parameter* signatures of functors (`graph`, `complete_graph`, `weighted`, `scores`, `ints`), and they
-are part of each module.
+| ML feature | Hugin today | decision |
+|---|---|---|
+| signature | a record type `{ … }`, a telescope with `%complete` requirements (`checkRecordType`) | have |
+| structure | a module body, a file, a record value | have |
+| functor | a meta function with a signature-typed parameter; the parameter's types are abstract in the body (#56) | have |
+| first-class module | records are values | have |
+| transparent ascription `:` | `x : S = e.` and the expression `(e : S)`; fields not in `S` are hidden (E0906); the types stay transparent because the ascribed definition unfolds (`g : graph = { node = city, … }` then `g.edge a X` type-checks) | have |
+| sharing constraints | dependent parameter types: `both (g : graph) (h : { edge : g.node -> g.node -> rel })` ran | have, by dependency |
+| file interface (`.mli`) | only at the importer: `s : S = %import "f"` | **adopt as `%export S.`**, the one addition |
+| opaque ascription `:>` | none (`docs/LIBRARIES.md`, "Sealing": not done) | **designed below, not proposed now** |
+| manifest specifications, `where type`, singletons `(= E)` | none: `{ node : type = city }` is E0001 | reject now; only sealing needs them |
+| `include` in signatures | none | reject: `complete_graph` is one line, and record subtyping makes a complete graph a `graph` |
+| destructive substitution `:=`, `module type of` | none | reject: no signature in the stdlib is built from another |
+| recursive modules, mixin linking (MixML) | acyclic imports (E0108) | reject |
+| `open` (Agda `open … public using`) | none | adopt as `%use` (4.4), for the split, not for hiding |
 
-### 4.6 `std/` paths and directive paths
+**Why the existing language cannot express a file's interface.** A file is a record whose value is bound
+by its importers, so the only ascription that exists is at the import site. That puts the signature in
+every importer. The prelude could write
+`%use (%import "std/demand" : { demand : (r : sym) -> modes (labels r) -> module -> module }).`, but a
+program that imports `std/demand` itself would still see the 27 helpers. 1ML's way, a sealed record
+inside the file (`lib : S = { … }.`), is blocked: meta functions by clauses are E0907 in a module body
+(spiked), and the file would export `lib` as well.
+
+**`%export S.`** ascribes the file's own module value, exactly as `(file : S)` would:
+
+```hugin,ignore
+(* std/demand.hgn, today: every declaration is a field of the import *)
+demand : (r : sym) -> modes (labels r) -> module -> module.
+demand R M Is = irelation (derive R "check") (dcolumns R izero M) :: dmodule R … .
+dmodule : sym -> list sym -> modes Ls -> list formula -> module -> module.
+…                                                   (* 26 more helpers *)
+
+(* after: one item states what the file exports *)
+%export { demand : (r : sym) -> modes (labels r) -> module -> module }.
+demand : (r : sym) -> modes (labels r) -> module -> module.
+…
+```
+
+```hugin,ignore
+d = %import "std/demand".
+x = d.dmodule.          (* error[E0906]: no field `dmodule`; `{ demand : … }` has the field `demand` *)
+%use "std/demand".      (* opens `demand` only *)
+```
+
+The rules:
+- `S` is elaborated in the file's scope after its declarations, so it may mention them.
+- It is an error ([E0204](../errors/E0204.md)) if the file's module does not match `S`, with the note
+  that the mismatch is against the file's `%export`.
+- It is an error (new code E0110) to write `%export` twice or inside a module body.
+- A file without `%export` exports all its declarations, as today.
+
+Ascription is transparent, so nothing changes for what is exported: a type stays its definition, a
+constructor field stays a constructor (in patterns and in object code), and a relation is the same
+relation. What is hidden still exists: a relation that the signature leaves out is evaluated, its facts
+keep their identity, and `--all-relations` prints them under its own name. Hiding is static and concerns
+names only, as ascription does in SML's dynamic semantics.
+
+**Which std modules export a signature.** Only `std/demand` hides anything. `std/reflect` moves `pick`
+into a `where` block of the `openT` clause that uses it, which hides it lexically, as 1ML's `local` does.
+`openTs` stays a field: it is mutually recursive with `openT`, and `where` blocks have no forward
+references. `std/list`, `std/graph`, `std/order` and `std/directives` export everything, and their
+reference pages list their fields.
+
+**Named signatures.** `std/graph` exports the signatures `graph`, `complete_graph` and `weighted`, and
+`std/order` exports `scores` and `ints`. They are `Type` definitions, so they are values of the module
+like its functors, and they are the parameter types of the functors. The export signature of `std/demand`
+is not named: no program ascribes to it.
+
+### 4.6 Opaque ascription (designed, not proposed now)
+
+Sealing is the addition that 1ML treats as primitive. Hugin needs it only for an abstract type, such as a
+set whose representation is hidden. No std module in section 5 has one, so it is not proposed, but it
+fits as follows:
+
+```hugin,ignore
+(* today: s.shape is the file's shape, and its constants are visible *)
+shapes_sig : Type = { shape : type, square : int -> shape, area : shape -> int -> rel }.
+s : shapes_sig = %import "lib/shapes".
+(* sealed: s.shape is abstract; s.square 3 is a value of s.shape, and nothing else is *)
+s :> shapes_sig = %import "lib/shapes".
+```
+
+- `x :> S = e.` and `(e :> S)` check `e` against `S` like `:`, and the definition does not unfold in
+  conversion. This is Agda's `abstract` and Lean's `opaque`, not 1ML's existential packing: Hugin has no
+  impredicative `wrap`, and an opaque definition gives its users the same view.
+- A type field of `S` is then an abstract object type, one per sealed definition: #56's abstract heads of
+  functor parameters, compatible only with themselves. One rule differs: an operand check on a sealed
+  type (a comparison, arithmetic, a literal) is an error, where a functor body defers it to the
+  instances.
+- Staging and directives evaluate through the seal. The object program uses the real constants, so facts
+  keep their identity and print under their names. A constructor that `S` leaves out cannot be named, so
+  importers can neither build nor match its facts: an abstract data type of facts.
+- Sealing needs manifest fields to say what stays visible (`S where node = city`, 1ML's `T with .X = E`).
+  That is the second half of the same addition. It is not needed while ascription stays transparent.
+
+### 4.7 `std/` paths
 
 An import path that starts with `std/` denotes `<stdlib>/std/…` and is not resolved relative to the
 importing file. A local directory named `std` is imported as `./std/x`. This is the reserved crate prefix
 of Rust's `std::`.
 
-`%m.d a₁ … aₙ.` applies the member `d` of the module `m`. Today the parser reads `%g` as the directive
-and fails. The spike needed the alias `symmetric = g.sym2.` before `%symmetric road.` worked.
-
-### 4.7 Lazy re-export
+### 4.8 Lazy re-export
 
 `%use "std/demand" (demand).` in the prelude is *lazy*: `std/demand` is parsed with the prelude (its
 imports belong to the import graph, which stays static), but it is elaborated only when a name it
@@ -431,7 +594,7 @@ relatively, with aliases in place of `%use`. They are in the session's scratchpa
 ```hugin,ignore
 %use "std/reflect" (bool, true, false, if, same, list, nil, cons, append,
                     input, output, open, derivations, terminates).
-%use "std/demand" (demand).        (* lazy, 4.7 *)
+%use "std/demand" (demand).        (* lazy, 4.8 *)
 
 option A : data.
 none : option A.
@@ -692,10 +855,11 @@ string primitives (Soufflé's `strlen`, `substr`), which is a separate issue.
 - `fresh : string -> list string -> string`, a variable name that is not in the list, with `#` so that
   source syntax cannot capture it. This is the hygiene of `ot_demand_hygiene`.
 
-`std/demand` is today's `demand` with its helpers private. It uses `if` and `std/list` in place of
-`band`, `bor`, `member`, `sdiff`, `shares`, `msym`, `dkeepS`, `dunless` and `ditems`, and
-`std/directives` for the binding analysis. Rewriting it does not change the rules it generates. The
-`--print-after stage` goldens of the `%demand` tests guard this.
+`std/demand` is today's `demand` under
+`%export { demand : (r : sym) -> modes (labels r) -> module -> module }.`, so its helpers are outside its
+signature. It uses `if` and `std/list` in place of `band`, `bor`, `member`, `sdiff`, `shares`, `msym`,
+`dkeepS`, `dunless` and `ditems`, and `std/directives` for the binding analysis. Rewriting it does not
+change the rules it generates. The `--print-after stage` goldens of the `%demand` tests guard this.
 
 ## 6. Open questions, settled
 
@@ -823,8 +987,10 @@ fallback (4.2). `StdlibCacheSuite` gains cases for `std/` files.
 **Reference.**
 - `prelude.md` is rewritten, `reflection.md` changes its "prelude" wording, and `directives.md` changes
   in its primitive directives, `%demand` and resolution sections.
-- `modules.md` gains `%use`, `private`, `std/` paths and the scope picture.
-- `lexical-structure.md` gains the keyword `private`.
+- `modules.md` states the transparency of ascription as a rule, and gains `%export`, `%use`, `std/` paths
+  and the scope picture.
+- `docs/LIBRARIES.md` says E0101 for a hidden field; the implementation reports E0906, and the note is
+  corrected.
 - `introduction.md`, `modules.md` and `docs/errors/E0203.md`, `E0204.md` change their `tc` examples.
   `object/declarations.md` and `object/types.md` declare their own `pair`.
 - New: a part "The standard library" with one page per module, and explanations for the new codes.
@@ -836,12 +1002,16 @@ lines including tests and reference.
 
 | batch | content | reference in the same PR | size |
 |---|---|---|---|
-| **B0** language | `%use` (open, selective, ambiguity E0109), `private`, `std/` import prefix, `%m.d`; no library change | `modules.md` (imports, scopes, `%use`, `private`), `directives.md` (resolution of `%m.d`), `lexical-structure.md` (`private`), `docs/errors/E0109.md`, E0101's note on private members | M: ~500 Scala, ~250 tests, ~200 reference |
+| **B0** language | `%export S` (4.5), `%use` (open, selective, by the module's type; ambiguity E0109), `std/` import prefix; no library change | `modules.md` (signatures: transparency as a rule; imports: `%export`; `%use`; scopes), `directives.md` (directives opened by `%use`), `docs/errors/E0109.md`, `E0110.md`, the `%export` note of `E0204.md`, `E0906.md` on hidden fields | M: ~400 Scala, ~250 tests, ~200 reference |
 | **B1** split | `std/reflect` with today's declarations plus `if`; the compiler looks up its names by file (4.2); the prelude becomes the `%use` lines and `option`; `std/graph` and `std/list` with today's `tc`, `bounded`, `len`; `std/demand` with today's code, re-exported eagerly; `pair` deleted; migration of section 8 | `prelude.md` rewritten; `reflection.md`, `directives.md`, `introduction.md`, `modules.md`; new part "The standard library" with pages for `std/reflect`, `std/graph`, `std/list`, `std/demand`; `E0203`, `E0204`, `E0917` | L: ~300 Scala, ~500 library, ~400 tests and goldens, ~500 reference |
-| **B2** lazy | the lazy re-export of 4.7, with the check that the file declares no object constants; `StdlibCache` per `std/` file; numbers in `docs/PERFORMANCE.md` | `modules.md`: one paragraph on what `%use` in the prelude elaborates (a Note, since laziness is unobservable) | S: ~200 Scala, ~100 tests, ~20 reference |
+| **B2** lazy | the lazy re-export of 4.8, with the check that the file declares no object constants; `StdlibCache` per `std/` file; numbers in `docs/PERFORMANCE.md` | `modules.md`: one paragraph on what `%use` in the prelude elaborates (a Note, since laziness is unobservable) | S: ~200 Scala, ~100 tests, ~20 reference |
 | **B3** bool | `bool : data.`; the lint for nullary constants in bodies; `if` in the documented interface | `prelude.md`, `std/reflect` page, `object/rules.md` (constants as formulas), `docs/errors/W00xx.md` | S: ~150 Scala, ~150 tests, ~120 reference |
-| **B4** lists and directives | `std/list` complete (5.3); `std/directives` (5.6); `std/demand` rewritten on both, helpers private; `docs/design/examples` rewritten with `std/list`; check that `std/demand` is not slower | `std/list` and `std/directives` pages, one `hugin,run` example per combinator; `std/demand` page | M: ~350 library, ~300 tests, ~350 reference |
+| **B4** lists and directives | `std/list` complete (5.3); `std/directives` (5.6); `std/demand` rewritten on both, helpers outside its `%export` signature; `docs/design/examples` rewritten with `std/list`; check that `std/demand` is not slower | `std/list` and `std/directives` pages, one `hugin,run` example per combinator; `std/demand` page | M: ~350 library, ~300 tests, ~350 reference |
 | **B5** graphs and order | `std/graph` complete (5.4) and `std/order` (5.5); instance naming of composed functors | `std/graph` and `std/order` pages with run examples; `modules.md` on instance names | M: ~250 library, ~300 tests, ~350 reference |
+
+Not scheduled: **B6 sealing**, the opaque ascription and manifest fields of 4.6, when a std module needs
+an abstract type. It would carry `modules.md` ("Sealing"), a code for an operand on a sealed type, and an
+update of `docs/LIBRARIES.md`; size M (~500 Scala, ~250 tests, ~200 reference).
 
 B0 and B1 come first, in that order. B2, B3, B4 and B5 are independent of each other. B4 before B2 lets
 the lazy check measure the rewritten `std/demand`. Every library definition passes coverage and
@@ -870,16 +1040,38 @@ because `%demand` is the language's tool for constructive recursion: the issue l
 
 **SWI-style autoload of any `std` name on an unresolved reference.** This was rejected because the file
 set of a compilation would depend on name resolution, and the import graph (`ImportGraph`), which the
-query layer and the language server compute before elaboration, would no longer be static. 4.7 keeps the
+query layer and the language server compute before elaboration, would no longer be static. 4.8 keeps the
 graph static and only defers elaboration, for files whose evaluation is unobservable.
 
 **Flix-style qualified access to every module without import.** This was rejected because Hugin names are
 not hierarchical. `std.graph.tc` would need a global namespace, which Hugin does not have.
 
-**Explicit interface files or per-module signature types** (OCaml `.mli`, an `interface : Type` in each
-file). These were rejected because `private` gives the same hiding with no second artifact to keep in
-step. Ascription at the import (today's `s : sig = %import …`) remains for users who want a narrower
-view.
+**A `private` modifier** (the first version of this note). It was rejected because it is a second hiding
+mechanism beside signatures: it hides per declaration, not by an interface that can be named, read in one
+place and ascribed again. Signatures already hide; only the file lacked a place to state one.
+
+**Interface files** (`std/demand.hgni`, as OCaml's `.mli`). They were rejected because Hugin has no
+separate compilation, which is what `.mli` files are for. A signature is a record type, an ordinary value
+that a file can write and name, so an interface file would be a second syntax for it. It would also be a
+second file to keep in step, with work in the loader, the query layer and the language server.
+
+**`where`-local helpers** as the hiding mechanism. A spike moved a directive's helpers, quoted patterns
+included, into the `where` block of its clause; they were hidden (`m.go` is E0906) and the directive ran.
+This needs no addition, and `std/reflect` uses it for `pick`. It was rejected as the general mechanism:
+it hides lexically inside one clause, has no forward references, cannot share helpers between two
+exported functions, and does not state an interface.
+
+**A sealed record inside the file** (`lib : S = { … }.`, 1ML's `List :> LIST = { … }`). It was rejected
+because meta functions by clauses are E0907 in module bodies, and the file would still export `lib`.
+Lifting E0907 is worth doing on its own, but it does not remove the need for `%export`.
+
+**ML's stratified module language** (separate structures, signatures and functors). It was rejected
+because Hugin already unifies them in dependent records, as 1ML does. Of the ML constructs, `where type`,
+manifest specifications, `include`, sharing constraints, destructive substitution and `module type of`
+are rejected or deferred, for the reasons in the table of 4.5.
+
+**Directive paths `%m.d`** (the first version of this note). They were dropped, because `%use` opens a
+module's directives, and a program can still define an alias (`symmetric = g.sym2.`).
 
 **Closures as directives** (`%tc edge path.`). They work, but they duplicate the functors, and they
 cannot compose. Functors are graph-to-graph functions, so `rtc (undirected g)` needs no new definition.
@@ -914,6 +1106,15 @@ The clones are shallow, made on 2026-10-09.
   `parser_py/parse.py`, `examples/scripts/closure_use.l`.
 - Rel: its source is not public. The documentation pages rel.relational.ai/rel/ref/lib,
   rel.relational.ai/rel/ref/lib/stdlib and rel.relational.ai/rel/ref/data-types/other were read.
+- 1ML, `rossberg/1ml` at `028859a`: `README.txt`, `prelude.1ml`; Rossberg, "1ML: Core and modules
+  united", JFP 28 (2018), `people.mpi-sws.org/~rossberg/1ml/1ml-jfp.pdf`, read in full text.
+- MixML: Rossberg and Dreyer, "Mixin' up the ML module system", TOPLAS 35(1) (2013),
+  `people.mpi-sws.org/~rossberg/mixml/mixml-toplas.pdf`, read in full text.
+- Agda: `agda-stdlib` as above, `src/Data/List/Sort.agda`, `src/Data/List/Sort/Base.agda`.
+- SML: HaMLet, `rossberg/hamlet` at `37275b9`, `elab/ElabModule.sml`.
+- OCaml, `ocaml/ocaml` at `6471927` (sparse): `stdlib/list.ml`, `stdlib/list.mli`, `stdlib/map.mli`,
+  `manual/src/refman/compunit.etex`, `modtypes.etex`, `extensions/signaturesubstitution.etex`,
+  `extensions/moduletypeof.etex`.
 - SWI-Prolog, `SWI-Prolog/swipl-devel` at `6333852`: `library/lists.pl`, `library/apply.pl`,
   `library/aggregate.pl`, `boot/init.pl`.
 - Hugin: `src/main/resources/hugin/stdlib/prelude.hgn`, `core/elab/Reflective.scala`,
