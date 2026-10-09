@@ -1,6 +1,5 @@
 (* W0007: a variable of a quoted rule's head that only a hole of the body can bind, by its name. The
-   typed rewrite passes the variable to the piece as a `quoted A`. *)
-%use "std/reflect".
+   typed rewrite passes the variable to the piece as a `quoted A`. *) %use "std/reflect".
 person : type. city : type. ann : person. oslo : city.
 lives : person -> city -> rel.
 born : city -> rel.

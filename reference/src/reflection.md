@@ -459,6 +459,7 @@ The following program builds the atoms of `edge` and `path` with generators that
 are defined, and uses them as facts, in a head, in a body and under `not`.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node. c : node.
 edge : node -> node -> rel.
 path : node -> node -> rel.
@@ -482,6 +483,7 @@ path a b.
 The following quote is rejected: `int` is not a type of facts, so a `quoted int` is not an atom.
 
 ```hugin,compile_fail,E0901
+%use "std/reflect".
 size : quoted int = '{ 3 }.
 bad : formula = '{ $size }.
 ```
@@ -503,6 +505,7 @@ The following program builds the transitive closure of `edge` from a piece `step
 variables. The values `x` and `x2` are made from the same hint, so they are one variable in `both_ends`.
 
 ```hugin,run
+%use "std/reflect".
 node : type. a : node. b : node. c : node.
 edge : node -> node -> rel.
 path : node -> node -> rel.
