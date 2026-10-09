@@ -1,0 +1,11 @@
+(* The type of `V` is only known from the join of the column `price` over the union `pen | ink`; object
+   typing in the core finds it, and with it the type argument of `cons` (before, E0206). *)
+pen : type = { price : int }.
+ink : type = { price : int }.
+stock : (s : pen | ink) -> rel.
+pen 3. ink 5.
+stock P :- (pen _ as P).
+stock P :- (ink _ as P).
+prices : (l : list int) -> rel.
+prices (cons 3 nil).
+?- stock S, V = S.price, L = cons V nil, prices L.

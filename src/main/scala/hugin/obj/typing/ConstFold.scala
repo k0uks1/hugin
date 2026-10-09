@@ -44,6 +44,14 @@ final class ConstFold extends MiniPhase:
   private object Folder extends MiniPhase.Transformer:
     override def transformRule(r: Rule)(using Context): List[Rule] =
       val warn = (d: Diagnostic) => ctx.report(Diag.rule(r)(d))
-      List(r.withParts(heads = r.heads.map(fold(_, warn)), body = r.body.map(foldF(_, warn))))
+      val nr = r.withParts(heads = r.heads.map(fold(_, warn)), body = r.body.map(foldF(_, warn)))
+      keepTypes(r, nr)
+      List(nr)
     override def transformQuery(q: Query)(using Context): Query =
-      q.withBody(q.body.map(foldF(_, d => ctx.report(Diag.query(q)(d)))))
+      val nq = q.withBody(q.body.map(foldF(_, d => ctx.report(Diag.query(q)(d)))))
+      keepTypes(q, nq)
+      nq
+
+  /** The variable types of an item (found by object typing at the handover) for its folded copy. */
+  private def keepTypes(from: AnyRef, to: AnyRef)(using Context): Unit =
+    Option(ctx.unit.varTypes.get(from)).foreach(ctx.unit.varTypes.put(to, _))

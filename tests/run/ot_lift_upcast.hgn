@@ -1,0 +1,17 @@
+(* `⇑` is covariant in the object type: object code of type `var` is object code of type `expr`
+   (`var <: expr`), so `w` may pass its `⇑var` argument to `up`, which takes `⇑expr`. *)
+expr : type.
+var : type.
+var <: expr.
+v : int -> var.
+term : (x : expr) -> rel.
+up : expr -> prop.
+up X = term X.
+w : var -> prop.
+w X = up X.
+term (v 1).
+vars : (x : var) -> rel.
+vars (v 1). vars (v 2).
+found : (x : var) -> rel.
+found X :- vars X, w X.
+?- found X.

@@ -205,6 +205,7 @@ trait Declarations:
         val inner = check(c2, e, ev(c2, result), Stage.S1)
         imps.foldRight(lams(ps, inner))((b, acc) => Tm.Lam(b._1, Icit.Impl, acc))
       else typeBindersOutOfScope(d, e)(check(c, asLambda(d.params, e), tyV, Stage.S1))
+    if !builtin then checkObjectFragments(c, body, tyV)
     (ty, body)
 
   /** `f : (x : A) -> B = e.` where `e` uses `x`: the binders of a declared type do not scope over the
@@ -268,6 +269,7 @@ trait Declarations:
     val (ci, imps) = bindImplicits(free, c)
     val (cp, ps) = bindParams(ci, params, (cc, v) => freshType(cc, Stage.S1, v.span, s"the type of `${v.name}`"))
     val (body, bty) = inferS(cp, rhs, Stage.S1)
+    checkObjectFragments(cp, body, bty)
     val ty = pis(imps, Icit.Impl, pis(ps, Icit.Expl, quote(cp.lvl, bty)))
     val tm = imps.foldRight(lams(ps, body))((b, acc) => Tm.Lam(b._1, Icit.Impl, acc))
     (ty, tm)

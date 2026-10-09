@@ -49,7 +49,7 @@ final case class Sym(name: String, kind: SymKind, span: Span, extent: Span)
 
 /** What the compiler learned about positions in the source, for tooling (hover, go to definition, find
  *  references, completion, document symbols). Filled by the elaborator (name resolution, declarations,
- *  scopes), staging (quotes, splices and persisted values, family instances) and the object typer (types
+ *  scopes), staging (quotes, splices and persisted values, family instances) and object typing (types
  *  of object variables). */
 final class SemanticIndex:
   import SemanticIndex.*

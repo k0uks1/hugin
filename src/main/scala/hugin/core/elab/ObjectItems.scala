@@ -21,6 +21,10 @@ trait ObjectItems:
     }
     (c, out)
 
+  /** The variables of an object item with their types in the item's context `c`. */
+  def varTypes(c: Cxt, vars: List[(Name, Tm)]): List[(Name, Tm)] =
+    vars.map((x, _) => (x, quote(c.lvl, c.binder(c.scope(x)).ty)))
+
   def elabRule(r: Rule): Unit =
     if !elabSpliceItem(r) then
       items += ruleItem(Cxt.empty, r)
@@ -35,6 +39,7 @@ trait ObjectItems:
         val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
         val heads = r.heads.map(h => elabHead(c, h))
         val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
+        checkObjectItem(c, varTypes(c, vars), heads, body.toList)
         val generic = generalize(start) || openFamilyHead(c, heads)
         CoreItem.RuleItem(r.name.map(_.name), vars, heads, body, r.span, generic)
       }
@@ -87,4 +92,5 @@ trait ObjectItems:
   def queryItem(base: Cxt, q: Query): CoreItem =
     val (c, vars) = bindRuleVarsFrom(base, List(q.body))
     val body = check(c, q.body, Val.PropT, Stage.S0)
+    checkObjectItem(c, varTypes(c, vars), Nil, List(body))
     CoreItem.QueryItem(vars, body, q.span)

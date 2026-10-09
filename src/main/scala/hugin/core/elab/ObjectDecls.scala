@@ -8,7 +8,7 @@ import hugin.util.*
 /** Declarations of object constants beyond `x : A.` (reference: object/index): structs `s : type = { l : τ, … }.`,
  *  refinements `a : type <: b.`, subtyping edges `τ <: a.`, and the classification of a declared object
  *  constant ([[ObjDecl]]). The core records what they declare; whether the subtyping makes sense is
- *  checked by the object typer on the staged program. */
+ *  checked by object typing ([[ObjectTyping]], E0404 in [[checkObjectDeclarations]]). */
 trait ObjectDecls:
   self: Elaborator =>
   import core.*
@@ -111,7 +111,27 @@ trait ObjectDecls:
       case Val.Rigid(Head.Glob(id), Nil) if globals(id).stage == Stage.S0 =>
         fail(ElabProblem.NotOpenType(globals(id).name, e.sup.span, globals(id).span))
       case _ => fail(ElabProblem.EdgeTarget(e.sup.span))
+    edgeMember(c, ev(c, sub), ev(c, sup), e)
+    if c.lvl == 0 then
+      force(ev(c, sup)) match
+        case Val.Rigid(Head.Glob(id), Nil) => core.objEdges = (ev(c, sub), id) :: core.objEdges
+        case _ =>
     CoreItem.EdgeItem(zonk(c.env, c.lvl, sub), zonk(c.env, c.lvl, sup), e.span)
+
+  /** E0404: the subtype of an edge must be a fact type or an open type. */
+  private def edgeMember(c: Cxt, sub: Val, sup: Val, e: SubEdge): Unit =
+    val env = objEnv(c)
+    env.oty(sub) match
+      case objtype.OTy.Fact(_, _) | objtype.OTy.Unknown =>
+      case t @ objtype.OTy.Con(h, as) if env.kind(h, as) == objtype.HeadKind.Open =>
+      case t =>
+        val types = objtype.ObjTypes(env)
+        fail(objtype.ObjTypeError.NotOpenMember(
+          objtype.TyName(types.show(t)),
+          objtype.ConstName(types.show(env.oty(sup))),
+          e.span,
+          hugin.util.Origin.Source
+        ))
 
   /** The object side of a shared type (or an instance of a shared family): the shared object global. */
   private def sharedType(id: Int): Option[Int] =
@@ -189,3 +209,53 @@ trait ObjectDecls:
           throw ElabError(ElabProblem.UnresolvedName(name, globals(id).span, None, false).toDiagnostic, silent = true)
         throw ElabError(ElabProblem.UsedBeforeDeclaration(name, globals(id).span).toDiagnostic, Some(name))
       case _ =>
+
+  // ------------------------------------------------------------------ well-formed declarations (E0404)
+
+  /** E0404 for the object declarations among the globals from `start` on: a refinement must refine a base
+   *  type or refinement, without a cycle; the members of a union column must be types of facts, and
+   *  disjoint. */
+  def checkObjectDeclarations(start: Int): Unit =
+    import objtype.*
+    val env = objEnv(Cxt.empty)
+    val types = ObjTypes(env)
+    def report(p: hugin.util.diagnostics.Problem): Unit = reporter.report(p.toDiagnostic)
+    for id <- start until globals.length if globals(id).instanceOf.isEmpty && !globals(id).pending do
+      val g = globals(id)
+      g.kind match
+        case GlobalKind.Object(ObjDecl.Refinement(base)) =>
+          var seen = Set(id)
+          var cur = env.oty(eval(Nil, base))
+          var cyclic = false
+          var done = false
+          while !done do
+            cur match
+              case OTy.Con(OHead.G(b), Nil) if seen(b) =>
+                cyclic = true
+                done = true
+              case OTy.Con(OHead.G(b), Nil) =>
+                globals(b).kind match
+                  case GlobalKind.Object(ObjDecl.Refinement(next)) =>
+                    seen += b
+                    cur = env.oty(eval(Nil, next))
+                  case _ => done = true
+              case _ => done = true
+          val shown = TyName(types.show(env.oty(eval(Nil, base))))
+          if cyclic then report(ObjTypeError.CyclicRefinement(ConstName(g.name), g.declSpan))
+          else if !types.isBaseLike(env.oty(eval(Nil, base))) then report(ObjTypeError.RefinesNonBase(ConstName(g.name), shown, g.declSpan))
+        case GlobalKind.Object(_) =>
+          for r <- env.relInfo(OHead.G(id), Nil); case (_, OTy.Union(ms)) <- r.cols do
+            val o = hugin.util.Origin.Source
+            for m <- ms if !types.isRelLike(m) do report(ObjTypeError.UnionMemberNotFacts(TyName(types.show(m)), g.declSpan, o))
+            for i <- ms.indices; j <- ms.indices if i < j do
+              val common = types.members(ms(i)).map(_.fact).intersect(types.members(ms(j)).map(_.fact))
+              common.headOption.foreach(c =>
+                report(ObjTypeError.UnionOverlap(
+                  TyName(types.show(ms(i))),
+                  TyName(types.show(ms(j))),
+                  ConstName(types.show(c)),
+                  g.declSpan,
+                  o
+                ))
+              )
+        case _ =>

@@ -34,10 +34,10 @@ class HandoverSuite extends munit.FunSuite:
 
   test("named patterns, projections, updates and wildcards") {
     val p = staged(
-      shop + "cheap N :- item { name = N, .. }, item N P, P < 10.\nup : item -> rel.\nup (I with { price = 1 }) :- item I _, I.price > 5.\n"
+      shop + "cheap N :- item { name = N, .. }, item N P, P < 10.\nup : item -> rel.\nseen : item -> rel.\nup (I with { price = 1 }) :- seen I, I.price > 5.\n"
     )
     assert(p.contains("cheap N :- item N _, item N P, P < 10."), p)
-    assert(p.contains("up (I with { price = 1 }) :- item I _, I.price > 5."), p)
+    assert(p.contains("up (I with { price = 1 }) :- seen I, I.price > 5."), p)
   }
 
   test("aggregates, disjunction, negation, `as` and ascriptions") {

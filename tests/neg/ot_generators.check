@@ -1,0 +1,25 @@
+error[E0402]: pattern can never match
+  --> tests/neg/ot_generators.hgn:11:24
+   |
+11 | bad N = typed (lit N) (lit N). (*~ E0402 *)
+   |                        ^^^^^ `lit` facts are not of type `typ`
+   |
+   = note: in column 2 (`t`) of `typed`
+
+error[E0402]: type mismatch
+  --> tests/neg/ot_generators.hgn:15:18
+   |
+15 | swap E T = typed T E. (*~ E0402 *)
+   |                  ^ expected `expr`, found `typ`
+   |
+   = note: in column 1 (`e`) of `typed`
+
+error[E0901]: mismatched types
+  --> tests/neg/ot_generators.hgn:21:13
+   |
+21 | up X = down X. (*~ E0901 *)
+   |             ^ expected `⇑var`, found `⇑expr`
+   |
+   = note: `⇑` is covariant: object code of type `τ` can be used as object code of type `σ` if `τ` is a subtype of `σ`
+
+3 errors found

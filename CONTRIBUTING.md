@@ -278,11 +278,10 @@ the phase started from, or the reference chapter ("ref.").
 | phase | section | what it does |
 |---|---|---|
 | `parser` | 2 | hand-written lexer and resilient recursive-descent parser (precedence climbing for operators; error nodes instead of discarded items, see `docs/PARSER.md`); `%infix` operators are resolved into applications |
-| `elaborate` | ref. meta | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`, the liftings of base and shared data), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants |
-| `stage` | ref. meta/staging | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); hands the object program over to the object level |
+| `elaborate` | ref. meta | loads the prelude and every `%import`ed file (missing and cyclic imports); bidirectional elaboration of the meta level (`hugin.core`): names, dependent types, stage inference (inserts quotes `⟨·⟩`, splices `$·`, lifts `⇑`, the liftings of base and shared data), implicit arguments by pattern unification, inferred universe levels, functions by clauses with coverage and size-change termination, modules and signatures, families of object constants; object typing (`core/objtype`) at the end of each scope: well-formed declarations, subtyping/members, typing contexts by meets, subsumption checks, projections/updates/joins, ascriptions as checked downcasts, also of object code in meta functions and functor bodies (parameter types abstract) |
+| `stage` | ref. meta/staging | normalises the object items, which runs the meta code they splice: module bodies are instantiated with fresh object constants (`roads.path`), formula functions expanded hygienically, families instantiated at closed arguments (`len[int]`; generic rules per instance, polymorphic recursion rejected); object typing of the staged items (reports for items with meta code; the variable types of every item); hands the object program over to the object level |
 | `directives` | Fig. 2 | attaches `%terminates %open %input %output %derivations` to relations |
 | `constFold` | 3.3 | folds literal arithmetic (Prop. 3.1); undefined folds are warnings (the rule never fires) |
-| `objTyper` | 5, 6.1, 6.2 | well-formed declarations, subtyping/members, best typing contexts by meets, subsumption checks, projections/updates/joins, ascriptions as checked downcasts |
 | `moding` | 6.3 | binding steps, canonical (greedy) order, range restriction |
 | `records` | 7.1 | projections `X.l` and updates `(X with {...})` on closed types → one rule per member |
 | `disjunction` | 7.2 | splits disjunctions and multi-head rules |
@@ -318,11 +317,12 @@ src/main/scala/hugin/
   core/            the meta level (docs/REDESIGN.md Phase B): core syntax and values, normalisation by
                    evaluation, pattern unification, universe levels, families and modules, staging, the
                    elaboration of a program in parts (ProgramElab, MetaLevel); core/elab/ is the
-                   bidirectional elaborator (one trait per concern, mixed into Elaborator), core/handover/
+                   bidirectional elaborator (one trait per concern, mixed into Elaborator), core/objtype/
+                   the object type system (subtyping, meets, the check of object code), core/handover/
                    stages the object items into the object program
   obj/             object-level AST: types and symbols, directives of relations (ProgramFacts), terms and
                    formulas, primitives, printer
-  obj/typing/      type operations, directives, constant folding, object typer, moding
+  obj/typing/      type operations (for transformations and lowering), directives, constant folding, moding
   obj/transform/   records, disjunctions, derivations (Section 7)
   obj/check/       dependency graph, stratification, completeness, termination (with interval reasoning)
   ir/              the core IR (Section 9.3), its printer, and lowering from core rules
@@ -354,7 +354,7 @@ src/main/scala/hugin/
   without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
   their items form one module body, and each item keeps its file for diagnostics and for resolving its
   `%import`s.
-- `SemanticIndex`, filled by the elaborator, staging and the object typer, records which symbol every name resolves
+- `SemanticIndex`, filled by the elaborator and staging (with object typing), records which symbol every name resolves
   to (including through module paths: `roads.path` resolves to the `path` declared in the body of `tc`,
   `g.edge` to the field of the signature), a description of every symbol, and the inferred type of
   every object variable.

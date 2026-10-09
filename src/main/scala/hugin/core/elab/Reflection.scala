@@ -122,9 +122,12 @@ trait Reflection:
   private def inFrame[A](frame: TraceFrame)(f: => A): A = inOrigin(Origin(List(frame)))(f)
 
   private def inOrigin[A](o: Origin)(f: => A): A =
+    val saved = state.origin
+    state.origin = Origin(o.frames ++ saved.frames)
     try f
     catch
       case e: ElabError if e.diag.origin.isEmpty && !o.isEmpty => throw ElabError(e.diag.withOrigin(o), e.unresolved, e.silent)
+    finally state.origin = saved
 
   private def withOrigin(item: CoreItem, o: Origin): CoreItem = item match
     case r: CoreItem.RuleItem => r.copy(origin = o)

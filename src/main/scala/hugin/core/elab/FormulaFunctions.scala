@@ -61,7 +61,9 @@ trait FormulaFunctions:
       Tm.loc(a.span, Tm.Obj(ObjForm.Compare(CmpOp.Eq), List(param, arg)))
     }
     val body = cl.body.map(check(cv, _, Val.PropT, Stage.S0)).toList
-    Tm.Fresh(vars.map(_._1), Tm.Obj(ObjForm.And, eqs ++ body))
+    val formula = Tm.Obj(ObjForm.And, eqs ++ body)
+    checkObjectItem(cv, varTypes(cv, vars), Nil, List(formula))
+    Tm.Fresh(vars.map(_._1), formula)
 
   private def objectType(dom: Val): Val = force(dom) match
     case Val.Lift(t) => t

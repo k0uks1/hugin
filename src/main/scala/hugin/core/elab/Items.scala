@@ -55,9 +55,11 @@ trait Items:
     // a function with a clause with a syntax error is not defined, and its uses are not elaborated
     state.unelaborated = clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)).toSet ++
       formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
+    val firstGlobal = globals.length
     predeclare(meta)
     elabInDependencyOrder(meta)
     dropPending()
+    checkObjectDeclarations(firstGlobal)
     // the derived functions are generated code: nothing to show for their positions
     withoutTooling(defineSharedFunctions())
     elabClauseGroups(clauses)
@@ -276,7 +278,7 @@ trait Items:
     flushTooling(success = true)
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
-   *  object typer infers). */
+   *  object typing infers). */
   def checkSolved(start: Int): Unit =
     (start until metas.length).find(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved).foreach { m =>
       val e = metas(m)

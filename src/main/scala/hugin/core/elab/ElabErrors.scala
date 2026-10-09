@@ -54,7 +54,11 @@ trait ElabErrors:
                 "an unknown is applied to arguments that are not distinct bound variables, so it cannot be solved by unification (outside the pattern fragment)"
               )
             case _ => Nil
-          TypeProblem.Mismatch(e, fo, span, levels ++ why).toDiagnostic
+          val lifts = (force(expected), force(found)) match
+            case (Val.Lift(x), Val.Lift(y)) if isObjectData(x) && isObjectData(y) =>
+              List("`⇑` is covariant: object code of type `τ` can be used as object code of type `σ` if `τ` is a subtype of `σ`")
+            case _ => Nil
+          TypeProblem.Mismatch(e, fo, span, levels ++ why ++ lifts).toDiagnostic
         }
 
   private def isLiftOrFlex(v: Val): Boolean = force(v) match

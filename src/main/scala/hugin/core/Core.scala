@@ -95,7 +95,7 @@ final class SharedLink(val side: Stage, val counterpart: Int):
 
 /** A metavariable: its type is closed (a Π over the context it was created in, as in elaboration-zoo).
  *  `what` describes it for diagnostics; metas with `allowUnsolved` (the types of object variables, which
- *  the object typer infers) may stay unsolved. */
+ *  object typing infers) may stay unsolved. */
 final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: String, initiallyAllowUnsolved: Boolean):
   private var solved: Option[Val] = None
   private var allowed = initiallyAllowUnsolved
@@ -128,6 +128,8 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
   def fork(): Core =
     val c = Core(levels.copy())
     c.globals ++= globals
+    c.objEdges = objEdges
+    c.relInfoCache ++= relInfoCache
     c.metas ++= metas
     sharedBelow = metas.length
     owned.clear()
@@ -153,6 +155,28 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
 
   /** Lets meta `m` stay unsolved (the unknown types of object variables). */
   def allowUnsolved(m: Int): Unit = ownMeta(m).allowUnsolved = true
+
+  /** The subtyping edges `τ <: a` of the program and its libraries (closed `τ`, the open type `a`), for
+   *  object typing ([[objtype.ObjEnv]]); the handover adds those of module instances. */
+  var objEdges: List[(Val, Int)] = Nil
+
+  /** The columns of object constants as object typing sees them ([[objtype.ObjEnv.relInfo]]). */
+  val relInfoCache: mutable.HashMap[Int, Option[AnyRef]] = mutable.HashMap.empty
+
+  private var relationIds: List[Int] = Nil
+  private var relationsSeen = 0
+
+  /** The relations, constructors and structs among the globals (also instances of families). */
+  def relationGlobals: List[Int] =
+    if relationsSeen < globals.length then
+      val more = (relationsSeen until globals.length).filter { id =>
+        globals(id).kind match
+          case GlobalKind.Object(d) => d != ObjDecl.OpenType && !d.isInstanceOf[ObjDecl.Refinement]
+          case _ => false
+      }
+      relationIds = relationIds ++ more
+      relationsSeen = globals.length
+    relationIds.filterNot(globals(_).pending)
 
   def addGlobal(e: GlobalEntry): Int =
     globals += e
