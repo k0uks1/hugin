@@ -112,6 +112,7 @@ object BenchGen:
   private val metaHeader =
     """(* bench: the meta level at scale: functors, families, %demand, reflection and a module-wide
       |   directive, repeated over many relations *)
+      |%use "std/reflect".
       |graph : Type = { node : type, edge : node -> node -> rel }.
       |tc (g : graph) = {
       |  path : g.node -> g.node -> rel.
@@ -173,7 +174,9 @@ object BenchGen:
    *  apart (`g7_d0`); the shared declarations (`color`, `box`, `point`) are kept once. */
   private def large(programs: Int, seed: Long): (String, String) =
     val rnd = Random(seed)
-    val names = raw"\b(e\d+|d\d+|counter|w[01rgs])\b".r
+    // the relations every generated program declares for itself (renamed apart), as opposed to the
+    // shared declarations (`color`, `box`, `point`, …)
+    val names = raw"\b(e\d+|d\d+|counter|w[01rgs]|x[srm])\b".r
     val shared = collection.mutable.LinkedHashSet.empty[String]
     val items = collection.mutable.ArrayBuffer.empty[String]
     val inputs = collection.mutable.ArrayBuffer.empty[String]
@@ -184,4 +187,5 @@ object BenchGen:
       shared ++= sharedDecls
       items ++= (g.decls.drop(8) ++ g.facts ++ g.rules ++ g.derived.map(d => s"%output $d.")).map(rename)
       inputs ++= g.inputs.map(rename)
-    ((shared.toVector ++ items).mkString("", "\n", "\n"), inputs.mkString("", "\n", "\n"))
+    // the generated programs use `len` of `std/list` (as `Generated.items` opens it)
+    (("%use \"std/list\"." +: (shared.toVector ++ items)).mkString("", "\n", "\n"), inputs.mkString("", "\n", "\n"))
