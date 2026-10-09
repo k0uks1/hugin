@@ -464,6 +464,11 @@ client works the same way: run `hugin lsp` for files with the extensions `.hgn` 
 CI packages the extension on every push (job `vscode`); the `.vsix` is the workflow run's artifact
 `hugin-vscode` (`code --install-extension hugin.vsix`).
 
+On github.com, `.hgn` files are highlighted with GitHub's OCaml grammar (`.gitattributes`): Linguist
+has no Hugin grammar, and OCaml's matches the nested `(* … *)` comments, strings and numbers. They are
+left out of the repository's language statistics (`linguist-detectable=false`). The ```` ```hugin ````
+fences in Markdown are not highlighted on github.com.
+
 ## Diagnostics
 
 Diagnostics are collected, never thrown: the parser reports each syntax error once and keeps the item
