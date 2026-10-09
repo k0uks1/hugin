@@ -281,6 +281,8 @@ during elaboration. Each of the following is typed as a whole, once it is elabor
 
 Each of these is typed whether or not anything uses it, so a meta function whose right-hand side can
 build ill-typed object code is rejected where it is defined.
+In a quote, the occurrences of one hole of type `quoted A` in a body are one variable for the meet
+([Quotes](../reflection.md#quotes)).
 
 The following formula function is rejected where it is defined, although nothing uses it: `lit N` is an
 `expr`, in a column of type `typ`.

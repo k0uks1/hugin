@@ -1,0 +1,27 @@
+(* The occurrences of a typed hole in the body of a quoted rule, query or formula are one object
+   variable: their positions meet with each other and with the hole's type (E0401 where the quote is
+   written). A hole in a head keeps its own check, and a hole used once is checked alone. *)
+staff : type.
+teacher : (n : string) -> staff.
+janitor : (n : string) -> staff.
+teaches : teacher -> rel.
+cleans : janitor -> rel.
+paid : staff -> rel.
+both : rel.
+on_duty : staff -> rel.
+
+(* two body positions without a common type *)
+g : quoted staff -> rule.
+g X = '{ both :- teaches $X, cleans $X }. (*~ E0401 *)
+
+(* the same in a formula and in a query *)
+f : quoted staff -> formula.
+f X = '{ teaches $X, cleans $X }. (*~ E0401 *)
+q : quoted staff -> item.
+q X = '{ ?- paid $X, teaches $X, cleans $X }. (*~ E0401 *)
+
+(* accepted: a common type, a head and a body, one occurrence each *)
+narrow : quoted staff -> rule.
+narrow X = '{ on_duty $X :- paid $X, teaches $X }.
+once : quoted staff -> rule.
+once X = '{ both :- teaches $X, cleans (janitor "x") }.

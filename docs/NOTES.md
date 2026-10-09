@@ -1706,6 +1706,22 @@ E0923; an equation that is a conjunct of the body meets the type of a variable w
 alternative of a disjunction). The generated fuzz programs no longer equate a variable with constants of
 two constructors, which is now a rule that never fires (E0401).
 
+## Typed reflection beyond terms (#96)
+
+The design is `docs/design/typed-formulas.md` (Qq, Scala 3, MetaOCaml, generic-syntax, Kovács, λProlog,
+Twelf and Abella read from source), approved by the designer as written: no context index and no typed
+formula type; the context of a generated piece is the meta context of its `quoted A` values. It lands in
+three batches.
+
+* **Batch 1, repeated holes.** `TypedQuotes.QuoteReader` reads a hole `$X` (a variable of type `quoted A`
+  with a known `A`) that occurs more than once in the body of a quoted rule, query or formula as one
+  object variable `$X`, with `A` as a further bound (`OFormula.Expect`), so the checker's meets apply
+  (E0401 at the generator). A hole used once keeps the per-position check of #56 (so no diagnostic of an
+  existing program changes), and a hole in a head keeps `A ≤ σ`, since the data may be a constructor term.
+  The identity of a hole is the name of the variable it refers to in the quote's context, which is fixed
+  for the quote. Holes of type `term` and of base or shared types are not merged: their data need not be
+  a variable of one type. Golden `neg/tf_repeated_holes`; no check file changed.
+
 ## Possible next steps
 
 * A faster engine (columnar storage, join planning) behind the same core IR.
