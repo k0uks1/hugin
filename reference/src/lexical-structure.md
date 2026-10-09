@@ -159,6 +159,33 @@ road berlin paris.
 road paris berlin.
 ```
 
+## Syntax errors
+
+A file with a syntax error ([E0001](errors/E0001.md) to [E0005](errors/E0005.md)) is rejected. The
+compiler reports the syntax errors of the whole file: after an error, it resumes at the next item, at
+the next `,` or `;` of a body, or at the next closing delimiter. An item with a syntax error is not
+elaborated, and no error is reported for another item because it uses a name that the damaged item
+declares. The following syntax errors leave no doubt about the intended text; an item with one of them
+is elaborated as repaired:
+
+- a missing period at the end of an item, before an item that starts in column 0 of a later line;
+- `::` in place of the `:` of a declaration;
+- `:=` in place of the `=` of a definition;
+- a declaration head in parentheses, `(f) : τ.` ([E0004](errors/E0004.md));
+- a rule name before a declaration, `@r f : τ.`;
+- an empty `where` block.
+
+The following program lacks the period after its first declaration. The error is reported where `path`
+starts, and both declarations are elaborated.
+
+```hugin,compile_fail,E0001
+edge : int -> int -> rel
+path : int -> int -> rel.
+```
+
+> **Note.** `hugin fix` applies the repairs to the file, and inserts a missing closing delimiter at the
+> end of the item.
+
 ## Operators and precedence
 
 Expressions of both levels share one grammar of operators. The binary operators, from the loosest to

@@ -14,9 +14,11 @@ graph* from the arguments of `f` to those of `g`. The *call graph* of the progra
 edges; calls through the local functions of a [`where`](where.md) block are calls of those functions.
 A call through a definition, a field of a record, a member of a module or a functor application is the
 call that evaluation reaches: with `g : nat -> nat = [x] f x.`, the term `g (suc N)` in a clause of `f`
-is the call `f (suc N)`. A function used as a value, not applied, the calls inside a lambda that is not
-applied, and the calls of a module body that is not projected to a known member are calls with unknown
-arguments, which relate no argument.
+is the call `f (suc N)`. The calls in the solution of an implicit argument count as well. A function
+used as a value, not applied, the calls inside a lambda that is not applied, and the calls of a module
+body that is not projected to a known member are calls with unknown arguments: their size-change graph
+relates no argument. So a function that passes itself, or a definition that calls it, as a value to
+another function in one of its clauses is rejected.
 
 The graphs are closed under composition, within each strongly connected component of the call graph. A
 function is accepted if every graph `G : f → f` of the closure with `G ; G = G` has a strict decrease
@@ -57,6 +59,35 @@ grow : nat -> nat.
 grow zero = zero.
 grow (suc N) = grow (suc (suc N)).
 ```
+
+The following function is rejected: `step (suc N)` is the call `walk (suc N)` through the definition
+`step`, on an argument that is not smaller.
+
+```hugin,compile_fail,E0912
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+walk : nat -> nat.
+step : nat -> nat = [x] walk x.
+walk zero = zero.
+walk (suc N) = step (suc N).
+```
+
+The following function is rejected, although it applies itself only to a smaller argument: it passes
+itself as a value to `apply`, which is a call with unknown arguments.
+
+```hugin,compile_fail,E0912
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+apply : (nat -> nat) -> nat -> nat = [k] [x] k x.
+down : nat -> nat.
+down zero = zero.
+down (suc N) = apply down N.
+```
+
+> **Limitation.** `down` terminates, since `apply` applies it to `N`. The check does not follow a
+> function into the body of the function it is passed to.
 
 > **Note.** Definitions `x = e.` cannot refer to themselves ([E0105](../errors/E0105.md)), and there is
 > no general recursion. Together with strict positivity of inductive families and the exclusion of

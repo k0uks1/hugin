@@ -132,9 +132,12 @@ lines 7.
 
 ## Order and scope
 
-The declarations of a file form one scope. Within it, a name is declared once; a declaration may be
-used before it appears. The [prelude](../prelude.md) is an outer scope: a declaration of the program with
-the name of a prelude constant shadows it in the whole file.
+The declarations of a file form one scope. Within it, a name is declared once; a declaration may be used
+before it appears. Declarations may refer to each other in a cycle, also through constructors and type
+definitions: a constructor may take an argument of a type whose definition names the constructor. Only
+type definitions that unfold into each other form a forbidden cycle ([E0104](../errors/E0104.md),
+[Object types](types.md#type-definitions)). The [prelude](../prelude.md) is an outer scope: a declaration
+of the program with the name of a prelude constant shadows it in the whole file.
 
 The following program declares its own `len` and `list`, which shadow those of the prelude.
 
@@ -147,4 +150,24 @@ len nil 0.
 
 ```output
 len nil 0.
+```
+
+The following program declares expressions in which `neg` applies only to a small expression, a literal
+or a negation. The declaration of `neg` refers to `small`, and the definition of `small` refers to `neg`.
+
+```hugin,run
+neg : (e : small) -> expr.
+lit : (v : int) -> expr.
+small : type = lit | neg.
+expr : type.
+shown : small -> rel.
+shown (neg (lit 1)).
+shown (lit 2).
+?- shown X.
+```
+
+```output
+?- shown X.
+X = lit 2.
+X = neg (lit 1).
 ```
