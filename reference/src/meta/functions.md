@@ -80,7 +80,10 @@ A *definition* gives a constant a value. Its forms are:
   has the type `T`, and a parameter `X` an inferred type (in a type definition `t X : type = τ.`, `X`
   ranges over object types).
 
-A definition is a value: it is evaluated where it is used. The binders of a declared type do not scope
+A definition is a value: it is evaluated where it is used. Diagnostics, the language server and
+`--print-after elaborate` show it by its name where a type or an implicit argument comes from it
+(`w : vec2 = ident {vec2} v.` after `vec2 : Type = vec int two.` and `v : vec2`); conversion uses its
+value. The binders of a declared type do not scope
 over the definition. It is an error ([E0916](../errors/E0916.md)) to use them there:
 `double : (x : int) -> int = x * 2.` is written `double (x : int) : int = x * 2.`, and `hugin fix` makes
 this change.

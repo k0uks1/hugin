@@ -77,7 +77,8 @@ diagnostics.
 
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted
 quotes `⟨…⟩`, splices `$…` and implicit arguments, the compiled clauses of functions, and the object
-items after staging.
+items after staging. Types and implicit arguments are printed with definitions by their names, as in
+diagnostics ([Definitions](functions.md#definitions)).
 
 ## Meta types
 
