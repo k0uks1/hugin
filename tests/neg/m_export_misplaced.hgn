@@ -1,0 +1,8 @@
+(* a file has one `%export`, at its top level *)
+%export { a : int, b : int }.
+%export { b : int }. (*~ E0110 *)
+a : int = 1.
+b : int = 2.
+total : int -> rel.
+total (a + b).
+m = { %export { c : int }. c : int = 3. }. (*~ E0110 *)

@@ -205,6 +205,13 @@ object Trees:
     /** `%infix assoc p name`: handled by the parser. */
     case Infix(assoc: String, prec: Int, name: Ident)
 
+    /** `%use m.` or `%use m (x, y).` (reference: modules): opens the fields of the module `m` (an
+     *  expression; `%use "f"` is `%use %import "f"`), or only those named, into the file's scope. */
+    case Use(module: Tree, names: Option[List[Ident]])
+
+    /** `%export S.` (reference: modules): the file's module value is ascribed the signature `S`. */
+    case Export(signature: Tree)
+
   final case class Program(items: List[Item], span: Span)
 
 export Trees.*

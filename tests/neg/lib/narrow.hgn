@@ -1,0 +1,4 @@
+(* its `%export` names a field the file does not declare *)
+%export { area : int -> int, perimeter : int -> int }.
+area : int -> int.
+area N = N * N.

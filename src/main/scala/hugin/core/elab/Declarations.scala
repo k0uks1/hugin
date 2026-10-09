@@ -306,10 +306,31 @@ trait Declarations:
       case PrimOp.Derived if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.isEmpty)
       case PrimOp.Labels if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.length == 1)
       case PrimOp.Derive if doms.length == 2 && isSym(doms(0)) && isString(doms(1)) && isSym(result) => Some(Nil)
+      case PrimOp.QAtom if binders.map(_._2) == List(Icit.Impl, Icit.Expl) => qatomCtors(doms(1), result)
       case _ => None
     val expected = op match
       case PrimOp.Same => "A -> A -> bool"
       case PrimOp.Labels => "sym -> list string"
       case PrimOp.Derived => "sym -> bool"
       case PrimOp.Derive => "sym -> string -> sym"
+      case PrimOp.QAtom => "quoted A -> formula"
     found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))
+
+  /** `fatom`, `tapp` and `qterm` for `qatom : quoted A -> formula`: the domain is an inductive family with
+   *  one constructor (`qterm`) whose argument has a constructor `tapp`, the result one with `fatom`. */
+  private def qatomCtors(dom: Val, result: Val): Option[List[Int]] =
+    def ctors(v: Val): List[Int] = forceData(v) match
+      case Val.Rigid(Head.Glob(id), _) =>
+        globals(id).kind match
+          case GlobalKind.Inductive(cs) => cs
+          case _ => Nil
+      case _ => Nil
+    def named(cs: List[Int], n: String) = cs.find(globals(_).name == n)
+    for
+      qterm <- ctors(dom) match
+        case List(q) => Some(q)
+        case _ => None
+      term <- telescope(globals(qterm).ty)._1.collectFirst { case (_, Icit.Expl, d) => d }
+      tapp <- named(ctors(term), "tapp")
+      fatom <- named(ctors(result), "fatom")
+    yield List(fatom, tapp, qterm)

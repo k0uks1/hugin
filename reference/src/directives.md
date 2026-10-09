@@ -27,20 +27,24 @@ and makes it an output relation.
 
 `%infix` has a syntax of its own and is handled by the parser ([Lexical
 structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
-not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%complete`
-is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
+not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%use` and
+`%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)).
+`%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
 ([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it
 is an error ([E0001](errors/E0001.md)).
 
 ## Resolution and arguments
 
-`%d` resolves the name `d` like any name: in the file, its imports and the prelude. It is an error
-([E0101](errors/E0101.md)) if no `d` is in scope; the diagnostic suggests a directive with a similar
-name. The compiler elaborates the application `d a₁ … aₙ` with the arguments checked against `d`'s
-parameter types, with stage inference. The arguments of a directive are object syntax, like the item they
-stand in: an argument at a parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`,
-`decl`, `measure`) is quoted implicitly, as if it were written in a [quote](reflection.md#quotes)
-`'{ … }`. The quote may also be written explicitly. In particular:
+`%d` resolves the name `d` like any name: in the file, the names it opens with `%use`, and the prelude.
+So `%use` makes the directives of a module available: after `%use "lib/closures".`, a function
+`symmetric` of that file is the directive `%symmetric`. It is an error ([E0101](errors/E0101.md)) if no
+`d` is in scope; the diagnostic suggests a directive with a similar name. It is an error
+([E0109](errors/E0109.md)) if two `%use` items open `d` for different functions. The compiler elaborates
+the application `d a₁ … aₙ` with the arguments checked against `d`'s parameter types, with stage
+inference. The arguments of a directive are object syntax, like the item they stand in: an argument at a
+parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`, `decl`, `measure`) or of type
+`quoted A` is quoted implicitly, as if it were written in a [quote](reflection.md#quotes) `'{ … }`. The
+quote may also be written explicitly. In particular:
 
 - where a `decl` is expected, the name of an object constant (also a path, a family, or a member of a
   module body) is its declaration `dconst ⟨r⟩ []`, and a rule name `@r` is `drule "r" []`;
@@ -48,8 +52,8 @@ stand in: an argument at a parameter of a reflective type (`term`, `formula`, `r
 - where a `measure` is expected, the measure syntax of `%terminates` is quoted;
 - a meta value is passed in a hole, `%d $x.`; at a `decl` or `sym` parameter, an argument that is not a
   name (or a hole) is elaborated as meta code;
-- an argument at a parameter of type `quoted A` is not quoted implicitly: it is written as a quote,
-  `%d '{ 3 }.`;
+- an argument at a parameter of type `quoted A` is a term of type `A` (`%d 3.` for `quoted int`), typed
+  as the quote `'{ 3 }` checked against `quoted A`;
 - a run of mode items is elaborated to the prelude's `modes` data.
 
 An argument of the wrong type is an error ([E0901](errors/E0901.md)).

@@ -1,0 +1,4 @@
+(* A shared data declaration in a `where` block is E0923 (#98). *)
+f : int -> int.
+f N = N
+  where shape : data. (*~ E0923 *)

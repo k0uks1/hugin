@@ -1,0 +1,6 @@
+(* A module of the standard library that exists only on the test classpath (LibrariesSuite). *)
+%export { triple : int -> int }.
+triple : int -> int.
+triple N = N + twice N.
+twice : int -> int.
+twice N = N + N.

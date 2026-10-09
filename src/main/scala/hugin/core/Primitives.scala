@@ -16,7 +16,9 @@ import scala.collection.mutable
  *    created once per constant and label, so its name is stable and cannot capture a name of the program.
  *    It is *pending* until data declares it (an item `irelation (derive r "check") cols`); a reference to
  *    an undeclared derived constant is a reflection error;
- *  - `derived : sym -> bool`: whether a symbol is a derived constant.
+ *  - `derived : sym -> bool`: whether a symbol is a derived constant;
+ *  - `qatom : quoted A -> formula`: a term of a type of facts as an atom (reference: reflection): the data
+ *    `qterm (tapp s ts)` gives `fatom s ts`; stuck on any other term, which reflection rejects.
  *
  *  They reduce on closed arguments only (a symbol is closed when it is a quoted object constant); on
  *  anything else they are stuck, like a function on a neutral. */
@@ -25,11 +27,12 @@ enum PrimOp(val key: String):
   case Labels extends PrimOp("labels")
   case Derive extends PrimOp("derive")
   case Derived extends PrimOp("derived")
+  case QAtom extends PrimOp("qatom")
 
   /** The arguments, implicit ones included. */
   def arity: Int = this match
     case Labels | Derived => 1
-    case Derive => 2
+    case Derive | QAtom => 2
     case Same => 3
 
 object PrimOp:
@@ -58,6 +61,13 @@ trait Primitives:
         symbolId(a).map(id => stringList(columnLabels(id), ctors))
       case (PrimOp.Derive, List(a, Lit(Literal.StrL(l), Stage.S1))) =>
         symbolId(a).map(id => Quote(Rigid(Head.Glob(derive(id, l)), Nil)))
+      case (PrimOp.QAtom, List(Rigid(Head.Glob(q), Elim.EApp(t, Icit.Expl) :: _))) if q == ctors(2) =>
+        // `fatom` has the arguments of `tapp`; the positions of the quoted syntax are kept
+        def atom(v: Val): Option[Val] = force(v) match
+          case Obj(loc @ ObjForm.Loc(_), List(u)) => atom(u).map(a => Obj(loc, List(a)))
+          case Rigid(Head.Glob(app), spine) if app == ctors(1) => Some(Rigid(Head.Glob(ctors(0)), spine))
+          case _ => None
+        atom(t)
       case _ => None
 
   private def symbolId(v: Val): Option[Int] = v match

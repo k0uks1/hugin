@@ -27,6 +27,7 @@ trait QuoteTerms:
    *  (so that `%input 3.` is a mismatch of types). */
   def implicitQuote(t: Tree, ty: Val): Option[RKind] =
     if t.isInstanceOf[Quote] || !implicitlyQuoted.contains(t) then None
+    else if quotedIndex(ty).isDefined then Some(RKind.Term) // a term of a known type
     else
       reflectiveKind(ty).filter {
         case RKind.List(_) => false
@@ -106,6 +107,10 @@ trait QuoteTerms:
       catch case _: ElabError => None
     def fact(f: Tm) = con("horn", listData(kindType(RKind.Formula), List(Left(f))), listData(kindType(RKind.Formula), Nil))
     inferred match
+      case Some((tm, ty, Stage.S1)) if quotedIndex(ty).isDefined && k != RKind.Term =>
+        // a typed atom: the fact it describes
+        val f = coe(c, x.span, tm, ty, Stage.S1, ev(c, kindType(RKind.Formula)), Stage.S1)
+        if k == RKind.Rule then Tm.loc(sp, fact(f)) else con("irule", Tm.loc(sp, fact(f)))
       case Some((tm, ty, Stage.S1)) =>
         (reflectiveKind(ty), k) match
           case (Some(RKind.Formula), RKind.Rule) => Tm.loc(sp, fact(tm))

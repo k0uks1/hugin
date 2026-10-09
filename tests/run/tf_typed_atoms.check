@@ -1,0 +1,6 @@
+held.
+path a b.
+path a c.
+path b c.
+path c c.
+start b.

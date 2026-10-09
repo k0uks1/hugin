@@ -132,7 +132,7 @@ shapes_sig : Type = { shape : type, dot : shape, square : int -> shape, area : s
 s : shapes_sig = %import "lib/shapes".
 ```
 
-* **Hiding.** Only the signature's fields are visible through `s`; using another export is E0101.
+* **Hiding.** Only the signature's fields are visible through `s`; using another export is E0906 (no field).
 * **Transparent.** Ascription is coercive but not sealing: `s.shape` is the file's `shape`, so values flow
   freely between `s` and any other import of the same file.
 * **Constructor fields.** A field `c : τ̄ -> a` whose domain and result are object types (Section 2.5)
@@ -141,6 +141,29 @@ s : shapes_sig = %import "lib/shapes".
   matched only by a relation.
 * **Constants.** A nullary constructor `dot : shape.` of the file also matches a value field `dot : shape`.
 * Mismatches (missing field, wrong arity, relation versus constructor, wrong type) are E0204 with the reason as a note.
+
+### Export signatures and `%use` (#61, batch B0)
+
+A file states its own interface with `%export S.`: its module value is `(file : S)`, the same transparent
+ascription as `s : S = %import "f"` at an importer, so every importer sees only the fields of `S`
+(`core/elab/Uses.scala`). The signature is elaborated after the file's declarations; a second `%export`,
+or one in a module body, is E0110; a file that does not match is E0204 with a note. This is the one
+addition the standard library needs for hiding (`docs/design/stdlib.md`, 4.5): the helpers of a module are
+outside its signature, with no `private` modifier and no interface file.
+
+`%use m.` opens the fields of the module `m` (of its type, so a signature decides) into the file's scope;
+`%use m (x, y).` only those named; `%use "f".` opens a file (the parser makes the path an `Import`, so the
+import graph sees it). An opened name denotes the global the field is (an import's fields are globals, so
+constructors stay constructors in patterns); a field that is not a declaration (a member of a module
+instance) is opened as a hidden definition equal to the projection. Opened names lie between the file's
+declarations (which shadow them in the whole file) and the prelude; a name opened for two globals is E0109
+where it is used. `%use` items are elaborated first among the declarations, and an item whose name is
+unresolved is retried while a `%use` is pending, so `%use m.` may come before `m = %import "f".` The
+names the prelude opens are part of the prelude's scope (`ProgramElab.prelude`), which is how the prelude
+re-exports from other files (batch B1).
+
+Import paths that start with `std/` denote `<stdlib>/std/…` (`SourceLoader.resolve`), whatever the
+importing file; a path that leaves `std/` after normalisation is an ordinary relative path.
 
 ## Not (yet) done
 
@@ -153,6 +176,6 @@ s : shapes_sig = %import "lib/shapes".
   as generic templates (instances must be created in the client so that family instances are shared,
   Section 4.6). Within one process the query database already shares parsing and elaboration.
 * **Build manifest.** A project file with source roots, dependencies and default facts; a search path for
-  imports of installed libraries (`%import "std/graphs"`).
+  imports of installed libraries (the bundled standard library has the fixed prefix `std/`).
 * **Aggregates as library functions** (Section 14, future work) would move `count`, `sum`, `min`, `max`
   into the prelude; this needs higher-order formula functions over aggregates and is left open.

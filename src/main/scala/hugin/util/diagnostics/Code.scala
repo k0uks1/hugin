@@ -75,6 +75,8 @@ enum Code(
   case E0106 extends Code(106, Phase.Names, "non-strict type definition", status = Status.Retired("B3"))
   case E0107 extends Code(107, Phase.Names, "not a module")
   case E0108 extends Code(108, Phase.Names, "import error")
+  case E0109 extends Code(109, Phase.Names, "ambiguous name")
+  case E0110 extends Code(110, Phase.Names, "misplaced `%export`")
   // stage and meta typing
   case E0201 extends Code(201, Phase.MetaTyping, "runtime value used at compile time", status = Status.Retired("B3"))
   case E0202 extends Code(202, Phase.MetaTyping, "stage error")

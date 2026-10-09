@@ -42,6 +42,9 @@ trait Directives:
   /** The items of a directive at the top level (`c` empty) or in a module body. */
   def directiveItems(c: Cxt, d: Directive, inBody: Boolean): List[CoreItem] = d.args match
     case DirArgs.Infix(_, _, _) => Nil
+    // at the top level they are scope items ([[Uses]]); only a module body gets here
+    case DirArgs.Use(_, _) => unsupportedAt(d.span, "`%use` in module bodies")
+    case DirArgs.Export(_) => fail(ElabProblem.MisplacedExport(d.span, None))
     case DirArgs.Apply(args, decl) =>
       val (tm, footprint, attached) = application(c, d, args, decl)
       val frame = TraceFrame(s"in expansion of `${shown(d)}`", d.span)
@@ -65,7 +68,9 @@ trait Directives:
   /** The elaborated application, its footprint and, in the prefix form, the symbol of the declaration. */
   private def application(c: Cxt, d: Directive, args: List[Tree], decl: Option[Ident]): (Tm, Footprint, Option[Tm]) =
     val n = d.kind
-    if !c.scope.contains(n) && lookupGlobal(n).isEmpty then unknownDirective(c, d)
+    if !c.scope.contains(n) && lookupGlobal(n).isEmpty then
+      checkAmbiguous(n, d.kindSpan)
+      unknownDirective(c, d)
     val fn: Tree = Ident(n)(d.kindSpan)
     val app = args.map(a => quoteImplicitly(modeData(c, a))).foldLeft(fn)((f, a) => Apply(f, a)(f.span.to(a.span)))
     val (tm, ty, st) = insertAll(c, d.span, infer(c, app))

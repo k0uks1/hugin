@@ -45,6 +45,12 @@ enum ElabProblem extends Problem:
   case SelfReference(name: String, at: Span, defined: Span)
   case StuckObjectType(shown: String, at: Span)
 
+  /** A name opened by `%use` for two different globals (`uses`: the `%use` items), used at `at`. */
+  case AmbiguousName(name: String, at: Span, uses: List[Span])
+
+  /** `%export` a second time (after `first`) or in a module body. */
+  case MisplacedExport(at: Span, first: Option[Span])
+
   /** A second declaration of `name` in a file or module body. */
   case DuplicateMember(name: String, at: Span, first: Span)
   case UnusedDefinition(name: String, at: Span)
@@ -107,6 +113,8 @@ enum ElabProblem extends Problem:
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
     case _: DuplicateMember => Code.E0102
+    case _: AmbiguousName => Code.E0109
+    case _: MisplacedExport => Code.E0110
     case _: UnusedDefinition => Code.W0003
     case _: Unclassifiable | _: TypeFunction | _: UnknownBaseType | _: MisplacedBuiltin | _: PrimitiveType => Code.E0103
     case _: NotAModule => Code.E0107
@@ -144,6 +152,8 @@ enum ElabProblem extends Problem:
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
     case DuplicateMember(_, s, _) => s
+    case AmbiguousName(_, s, _) => s
+    case MisplacedExport(s, _) => s
     case UnusedDefinition(_, s) => s
     case Unclassifiable(_, _, _, s) => s
     case TypeFunction(_, s) => s
@@ -187,6 +197,9 @@ enum ElabProblem extends Problem:
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
     case DuplicateMember(n, _, _) => msg"${Src(n)} is declared twice in this scope"
+    case AmbiguousName(n, _, _) => msg"${Src(n)} is ambiguous: two `%use` items open it for different declarations"
+    case MisplacedExport(_, Some(_)) => msg"a file has at most one `%export`"
+    case MisplacedExport(_, None) => msg"`%export` is not allowed in a module body"
     case UnusedDefinition(n, _) => msg"unused definition ${Src(n)}"
     case Unclassifiable(n, _, _, _) => msg"cannot classify the declaration of ${Src(n)}"
     case TypeFunction(n, _) => msg"cannot classify the declaration of ${Src(n)}"
@@ -218,6 +231,9 @@ enum ElabProblem extends Problem:
     case _: SingletonVariable => msg"singleton variable"
     case _: FormulaFunctionWithoutClauses => msg"always false"
     case _: DuplicateMember => msg"redeclared here"
+    case _: AmbiguousName => msg"ambiguous name"
+    case MisplacedExport(_, Some(_)) => msg"second `%export`"
+    case MisplacedExport(_, None) => msg"in a module body"
     case _: UnusedDefinition => msg"never referenced"
     case Unclassifiable(_, r, true, _) => msg"result is the base type ${Src(r)}"
     case Unclassifiable(_, r, false, _) => msg"result is ${Src(r)}, which is not an open type"
@@ -249,6 +265,8 @@ enum ElabProblem extends Problem:
     case DuplicateLabel(_, _, first) => List(first -> msg"first used here")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
     case DuplicateMember(_, _, first) => List(first -> msg"first declared here")
+    case AmbiguousName(n, _, uses) => uses.map(_ -> msg"opens ${Src(n)}")
+    case MisplacedExport(_, Some(first)) => List(first -> msg"first `%export`")
     case CyclicTypeDefinition(_, _, d) => List(d -> msg"type definition declared here")
     case ObjectArity(_, _, _, _, d) if d.exists => List(d -> msg"declared here")
     case IncompleteFieldParameter(_, p, _, _, d, _) => List(d -> msg"parameter ${Src(p)} declared here")
@@ -269,6 +287,8 @@ enum ElabProblem extends Problem:
     case _: Unclassifiable =>
       List(msg"a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
     case _: NotAModule => List(msg"a path `m.x` requires `m` to be module-valued")
+    case MisplacedExport(_, None) =>
+      List(msg"`%export` states the signature of a file; a module body is ascribed where it is defined, `m : S = { … }.`")
     case SignatureMismatch(_, n, _) => List(Msg.text(n))
     case MissingSignatureField(_, e, _) => List(msg"expected signature ${Src(e)}")
     case _: CyclicTypeDefinition =>
@@ -289,6 +309,9 @@ enum ElabProblem extends Problem:
     case _: UndeterminedTypeArgument =>
       List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")
+    case AmbiguousName(n, _, _) =>
+      List(msg"open only one of them, `%use m (…)` with a list of names, or declare ${Src(n)} in the file")
+    case MisplacedExport(_, Some(_)) => List(msg"put the fields of both signatures into one `%export`")
     case IncompleteFieldParameter(_, p, l, _, _, _) => List(msg"add ${Src(s"%complete $l")} to the signature of ${Src(p)}")
     case _: IncompleteRelationParameter =>
       List(msg"pass the relation in a signature with `%complete`, e.g. `(m : { r : A -> rel, %complete r })`")
