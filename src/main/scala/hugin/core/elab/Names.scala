@@ -53,7 +53,9 @@ trait Names:
    *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
     checkAmbiguous(n, span)
-    if state.erroneous(n) then throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
+    // a name whose declaration was dropped, or that a dropped `%use` might have opened: the error is theirs
+    if state.erroneous(n) || state.mightBeOpened(n) then
+      throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
     val candidates = (c.scope.keys ++ scope.keys ++ state.opened.keys ++ file.parent.keys).toList.distinct
       .filter(k => k.headOption.map(_.isUpper) == n.headOption.map(_.isUpper))
     val similar = similarName(n, candidates)

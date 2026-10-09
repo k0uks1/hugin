@@ -1,0 +1,7 @@
+(* `[x]` before an item that starts in column 0 is a list, not a lambda whose body is that item: the
+   missing period is reported, and the next item is parsed as usual. *)
+f : int -> list int.
+f R = [R] (*~ E0001 *)
+(* the declaration below is not the body of a lambda *)
+same : int -> int.
+same R = R.

@@ -78,6 +78,16 @@ trait Items:
     exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
+  /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
+  private def droppedUse(item: Item): Unit = item match
+    case Directive(_, DirArgs.Use(_, names)) =>
+      val these = names.map(_.map(_.name).toSet)
+      state.droppedUses = (state.droppedUses, these) match
+        case (None, t) => Some(t)
+        case (Some(None), _) | (_, None) => Some(None)
+        case (Some(Some(a)), Some(b)) => Some(Some(a ++ b))
+    case _ => ()
+
   private def isUse(item: Item): Boolean = item match
     case Directive(_, _: DirArgs.Use) => true
     case _ => false
@@ -127,6 +137,7 @@ trait Items:
             if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
             // the names of a dropped item are erroneous: their uses are not reported again
             declares(item).foreach(state.erroneous += _)
+            droppedUse(item)
             None
           case None => None
       }

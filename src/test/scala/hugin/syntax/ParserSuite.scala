@@ -106,6 +106,17 @@ class ParserSuite extends munit.FunSuite:
     assert(p.items.forall(i => !TreeOps.hasSyntaxErrors(i)))
   }
 
+  test("a lambda's body does not start in column 0: `[x]` before the next item is a list") {
+    // a missing period after a one-element list (the recovery fuzz suite's mutant of a clause)
+    val (p, r) = parse("f R = [R]\n(* c *)\nsame : int -> int.\nsame R = R.")
+    assertEquals(codes(r), List("E0001"))
+    assertEquals(p.items.map(Printer.showItem), List("f R = [R].", "same : (int -> int).", "same R = R."))
+    // a lambda whose body is on the next, indented line is still a lambda
+    val (q, r2) = parse("f = [x]\n  x.")
+    assertEquals(codes(r2), Nil)
+    assertEquals(q.items.map(Printer.showItem), List("f = [x] x."))
+  }
+
   test("expected sets are listed, and the start of a multi-line item is labelled") {
     val (_, r) = parse("p X\n  q ]\n  .")
     assertEquals(r.diagnostics.head.message, "expected `.`, `,` or `:-`, found `]`")
