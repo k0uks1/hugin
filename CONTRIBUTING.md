@@ -328,9 +328,10 @@ src/main/scala/hugin/
   ir/              the core IR (Section 9.3), its printer, and lowering from core rules
   runtime/         interning store, semi-naive engine, loading of input facts, evaluation of a compiled program
   query/           the query database (Database), the compiler's queries (CompilerQueries), diagnostics by
-                   file (FileDiagnostics), position queries for tooling (Ide)
-  lsp/             the language server (lsp4j): server and document state, request handlers (Features),
-                   position conversion (Positions), file URIs (Uris)
+                   file (FileDiagnostics), position queries for tooling (Ide), the meta level for
+                   language servers (MetaIde: types, stages, goals; Expansion: staged code)
+  lsp/             the language server (lsp4j): server and document state, request handlers (Features,
+                   MetaFeatures for the meta level, Tokens), position conversion (Positions), file URIs (Uris)
   repl/            the interactive session (Session, testable without a terminal; its parts are Chunks),
                    the reading of inputs (Input) and the JLine front end (Repl)
   cli/             command-line parsing and the entry point (a client of the query database)
@@ -401,7 +402,11 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
 - go to definition and find references (through module paths; declarations in the bundled prelude have
   no location and are not returned), the document outline, completion (names in scope, module members
   after `.`, labels in named patterns, directives after `%`) and semantic tokens;
-- quick fixes: every suggested edit the compiler attaches to a diagnostic (below).
+- quick fixes: every suggested edit the compiler attaches to a diagnostic (below);
+- on the meta level (`docs/LSP.md`): the elaborated type and stage of expressions in hover, typed holes
+  and their goals, inlay hints for inferred quotes, splices and implicit arguments, splitting a pattern
+  variable, adding missing clauses, the expansion of directives and functor applications (command
+  `hugin.expansion`, code lenses), and type-directed, quote-aware completion.
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 

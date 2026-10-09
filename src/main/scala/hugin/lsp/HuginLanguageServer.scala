@@ -24,6 +24,9 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   private var client: Option[LanguageClient] = None
   private var shutdownRequested = false
 
+  /** Whether the client asks for inlay hints again when told to (after a change of the settings). */
+  private var refreshHints = false
+
   /** The features, for tests. */
   val features: Features = Features()
 
@@ -57,6 +60,7 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     caps.setCodeLensProvider(CodeLensOptions(false))
     caps.setExecuteCommandProvider(ExecuteCommandOptions(List(MetaFeatures.ExpansionCommand).asJava))
     features.meta.hintSettings = HintSettings.from(params.getInitializationOptions, features.meta.hintSettings)
+    refreshHints = scala.util.Try(params.getCapabilities.getWorkspace.getInlayHint.getRefreshSupport.booleanValue).getOrElse(false)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
   override def shutdown(): CompletableFuture[Object] =
@@ -138,6 +142,7 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
     override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
       features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
+      if refreshHints then client.foreach(c => scala.util.Try(c.refreshInlayHints()))
 
     /** `hugin.expansion` ([[MetaFeatures.ExpansionCommand]]): the expansion at a position, or null. */
     override def executeCommand(params: ExecuteCommandParams): CompletableFuture[Object] =

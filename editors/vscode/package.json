@@ -55,9 +55,66 @@
           ],
           "default": "off",
           "description": "Traces the communication between VS Code and the Hugin language server (in the output channel `Hugin`)."
+        },
+        "hugin.inlayHints.staging": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the quotes `⟨ ⟩`, splices `$` and lifts `⇑` that stage inference inserted, as inlay hints."
+        },
+        "hugin.inlayHints.implicits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the inferred implicit arguments `{A}` of applications, as inlay hints."
+        },
+        "hugin.inlayHints.levels": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the inferred universe levels of `Type`, as inlay hints."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "hugin.showExpansion",
+        "title": "Show Expansion",
+        "category": "Hugin"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "hugin.showExpansion",
+          "when": "editorLangId == hugin",
+          "group": "navigation"
+        }
+      ]
+    },
+    "semanticTokenModifiers": [
+      {
+        "id": "meta",
+        "description": "A name or syntax of the meta level (evaluated at compile time)."
+      },
+      {
+        "id": "object",
+        "description": "A name of the object level (Datalog)."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "hugin",
+        "scopes": {
+          "label": [
+            "keyword.other.hole.hugin"
+          ],
+          "*.meta": [
+            "meta.level.meta.hugin"
+          ],
+          "*.object": [
+            "meta.level.object.hugin"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "package": "vsce package --skip-license"
