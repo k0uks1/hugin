@@ -1,0 +1,33 @@
+error[E0402]: pattern can never match
+ --> tests/neg/f98_object_code_places.hgn:9:47
+  |
+9 | fields : { a : ⇑prop } = { a = typed (lit 1) (lit 1) }. (*~ E0402 *)
+  |                                               ^^^^^ `lit` facts are not of type `typ`
+  |
+  = note: in column 2 (`t`) of `typed`
+
+error[E0402]: pattern can never match
+  --> tests/neg/f98_object_code_places.hgn:12:36
+   |
+12 |   where h : ⇑prop = typed (lit N) (lit N). (*~ E0402 *)
+   |                                    ^^^^^ `lit` facts are not of type `typ`
+   |
+   = note: in column 2 (`t`) of `typed`
+
+error[E0402]: pattern can never match
+  --> tests/neg/f98_object_code_places.hgn:13:37
+   |
+13 | inferred (m : int) = typed (lit m) (lit m). (*~ E0402 *)
+   |                                     ^^^^^ `lit` facts are not of type `typ`
+   |
+   = note: in column 2 (`t`) of `typed`
+
+error[E0402]: pattern can never match
+  --> tests/neg/f98_object_code_places.hgn:15:30
+   |
+15 | passed N = k (typed (lit N) (lit N)). (*~ E0402 *)
+   |                              ^^^^^ `lit` facts are not of type `typ`
+   |
+   = note: in column 2 (`t`) of `typed`
+
+4 errors found

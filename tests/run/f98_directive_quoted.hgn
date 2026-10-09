@@ -1,0 +1,7 @@
+(* A directive's argument at a parameter of type `quoted A` is quoted implicitly, as a term of type `A`
+   (#98): `%hold 3.` is `hold '{ 3 }`. *)
+held : int -> rel.
+hold : quoted int -> list item.
+hold Q = ['{ held $Q }].
+%hold 3.
+?- held X.

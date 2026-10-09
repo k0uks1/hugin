@@ -171,7 +171,7 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
   ): Unit =
     val names = vars.map(_._1).reverse
     typingChecks += (() =>
-      typing.check(names, heads, body, origin, report).map { g =>
+      typing.check(names, heads, body, origin, report, (span, if item.isInstanceOf[obj.Query] then "query" else "rule")).map { g =>
         varTypes.put(item, g)
         typing.recordVariables(span, oheads, obody, g)
         item

@@ -1,0 +1,5 @@
+(* `$f a.` is `$(f a).`, also when the argument does not fit: the argument's error is reported (#98). *)
+held : int -> rel.
+f : int -> list item.
+f N = ['{ held $N }].
+$f "x". (*~ E0901 *)

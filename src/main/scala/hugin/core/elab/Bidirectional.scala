@@ -109,7 +109,10 @@ trait Bidirectional:
     finally state.typePosition = saved
 
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
-    case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined => reify(c, t, implicitQuote(t, ty).get)
+    case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined =>
+      quotedIndex(ty) match
+        case Some(a) => qtermOf(c, a, reify(c, t, RKind.Term, Some(a)))
+        case None => reify(c, t, implicitQuote(t, ty).get)
     case (Parens(i), _) => check(c, i, a, st)
     case (h: Hole, _) => checkHole(c, h, a, st)
     case (q: Quote, ty) if st == Stage.S1 && quotedIndex(ty).isDefined =>

@@ -1,0 +1,14 @@
+error[E0402]: pattern can never match
+ --> tests/neg/f98_staged_note.hgn:7:13
+  |
+7 | c : ⇑expr = lit 1. (*~ E0402 *)
+  |             ^^^^^ `lit` facts are not of type `var`
+  |
+  = note: in column 1 (`n`) of `named`
+note: in the code staged for this rule
+ --> tests/neg/f98_staged_note.hgn:9:1
+  |
+9 | odd :- named c.
+  | ^^^^^^^^^^^^^^^
+
+1 error found
