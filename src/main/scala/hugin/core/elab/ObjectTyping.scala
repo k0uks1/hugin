@@ -65,7 +65,7 @@ trait ObjectTyping:
     val env = objEnv(c)
     val walk = ObjWalk(env, walkScope(c))
     val hs = walk.headTerms(heads)
-    val fs = body.flatMap(walk.formulas)
+    val fs = body.flatMap(walk.formulas) ++ walk.pendingExpects
     val (problems, gamma) = ObjCheck(ObjTypes(env), hs, fs, walk.constructing).run()
     reportAll(problems)
     for (x, tyTm) <- vars; t <- gamma.get(x); v <- asValue(t) do
@@ -80,6 +80,10 @@ trait ObjectTyping:
     case (Tm.Let(x, _, d, b), _) =>
       checkObjectFragments(c, b, ty) // the body's code; definitions in where blocks are checked on their own
     case (Tm.Quote(t), Val.Lift(a)) => checkFragment(c, t, a)
+    case (Tm.Rec(fields), rt: Val.RecTy) =>
+      val v = ev(c, tm)
+      val tys = fieldTypes(rt, l => proj(v, l)).toMap
+      for (l, f) <- fields; fty <- tys.get(l) do checkObjectFragments(c, f, fty)
     case (Tm.App(_, _, _), _) => checkArguments(c, tm)
     case _ =>
 
@@ -102,8 +106,9 @@ trait ObjectTyping:
     val walk = ObjWalk(env, walkScope(c))
     val types = ObjTypes(env)
     val problems = force(a) match
-      case Val.PropT => ObjCheck(types, Nil, walk.formulas(t)).run()._1
-      case Val.U0 | Val.RelT | Val.Pi(_, _, _, _) => Nil
+      // an atom (of type `rel`) is a formula too
+      case Val.PropT | Val.RelT => ObjCheck(types, Nil, walk.formulas(t)).run()._1
+      case Val.U0 | Val.Pi(_, _, _, _) => Nil
       case other =>
         val ot = walk.termAt(t)
         ObjCheck(types, Nil, walk.pendingExpects, List((ot, env.oty(other), "object code of this type"))).run()._1

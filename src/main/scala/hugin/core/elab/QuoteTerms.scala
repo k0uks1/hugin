@@ -27,6 +27,7 @@ trait QuoteTerms:
    *  (so that `%input 3.` is a mismatch of types). */
   def implicitQuote(t: Tree, ty: Val): Option[RKind] =
     if t.isInstanceOf[Quote] || !implicitlyQuoted.contains(t) then None
+    else if quotedIndex(ty).isDefined then Some(RKind.Term) // a term of a known type
     else
       reflectiveKind(ty).filter {
         case RKind.List(_) => false

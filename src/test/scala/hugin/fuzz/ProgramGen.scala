@@ -262,6 +262,9 @@ object ProgramGen:
         if r != head then lowerVars ++= raw"V\d+".r.findAllIn(a)
         a
 
+      /** The `color` and `list int` variables of the rule equated with a constant, and the constant. */
+      private val fixed = mutable.Map.empty[String, String]
+
       private def comparison(): Option[String] =
         val ints = boundOf(IntT)
         val others = Seq(StrT, ColorT, ListT, PointT).flatMap(t => boundOf(t).map(_ -> t))
@@ -272,13 +275,26 @@ object ProgramGen:
         else if others.nonEmpty then
           val (v, t) = pick(others)
           val same = boundOf(t).filter(_ != v)
-          if same.nonEmpty && chance(0.4) then Some(s"$v ${pick(Seq("=", "<>"))} ${pick(same)}")
+          // an equation narrows the variable's type to the constant's fact type (reference: object/types),
+          // so a variable equated with two constants of different constructors (`red` and `green`, `nil`
+          // and `cons 1 nil`), or two such variables equated with each other, would be a rule that never
+          // fires (E0401): `fixed` remembers the constants
+          val sameOk = if t == ColorT || t == ListT then same.filter(w => !(fixed.contains(v) && fixed.contains(w))) else same
+          if sameOk.nonEmpty && chance(0.4) then
+            val w = pick(sameOk)
+            val op = pick(Seq("=", "<>"))
+            if op == "=" && (t == ColorT || t == ListT) then fixed.get(v).orElse(fixed.get(w)).foreach(k => { fixed(v) = k; fixed(w) = k })
+            Some(s"$v $op $w")
           // a constant that was never built differs from every value, also under `%demand`
           else if t == ListT then
-            val c = const(t)
-            val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c
             val op = pick(Seq("=", "<>"))
+            val c = if op == "=" then fixed.getOrElseUpdate(v, const(t)) else const(t)
+            val rhs = if c == "nil" && chance(0.3) then "(nil : list int)" else c
             Some(if chance(0.5) then s"$v $op $rhs" else s"$rhs $op $v")
+          else if t == ColorT then
+            val op = pick(Seq("=", "<>"))
+            val k = if op == "=" then fixed.getOrElseUpdate(v, const(t)) else const(t)
+            Some(s"$v $op $k")
           else Some(s"$v ${pick(Seq("=", "<>"))} ${const(t)}")
         else None
 
