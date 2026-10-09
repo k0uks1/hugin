@@ -72,6 +72,7 @@ not use them:
 
 | term | definition | defined in |
 |---|---|---|
+| abstract type | an object type that a functor's parameter gives, which in the functor's body is a subtype only of itself | [Object types](object/types.md#where-object-code-is-typed) |
 | aggregate | a formula `X = k { t \| φ }` that binds `X` to the count, sum, minimum or maximum of `t` over the solutions of `φ` | [Aggregates](object/aggregates.md) |
 | anchor | the finite set in which guarded induction keeps the measure of a head | [Termination](object/termination.md#guarded-induction-b) |
 | answer | a valuation of the variables of a query under which its formula holds | [Queries and output](object/io.md#queries) |
@@ -140,6 +141,7 @@ not use them:
 | query | an item `?- φ.` that asks for the answers of `φ` | [Queries and output](object/io.md#queries) |
 | quote | `'{ … }`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
 | quoted pattern | a quote used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
+| quoted term | a value of `quoted A`: `term` data that describes a term of the object type `A` | [Reflection](reflection.md#typed-terms) |
 | range restriction | the rule that every variable of a rule is bound by its body | [Rules](object/rules.md#range-restriction) |
 | refinement | a nominal type `a : type <: b.` whose values are values of the base type or refinement `b` | [Object types](object/types.md#refinements) |
 | reflect | turn reflective data into object items of the program | [Reflection](reflection.md#reflecting-data-into-the-program) |

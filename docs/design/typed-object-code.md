@@ -2,7 +2,9 @@
 
 Design note for [issue #56](https://github.com/k0uks1/hugin/issues/56), including the triage items C1
 (functor bodies are not object-typed once) and C2 (`⇑τ ≤ ⇑τ'` at the meta level) of
-`docs/history/TRIAGE.md`. Status: proposal, not implemented.
+`docs/history/TRIAGE.md`. Status: approved by the designer and implemented (batches A and B); the
+decisions of the implementation, and where it deviates from this note, are in `docs/NOTES.md`, "Typed
+object code (#56)".
 
 Contents: 1 recommendations, 2 Hugin today, 3 prior art, 4 design, 5 alternatives, 6 effects,
 7 migration, 8 sources.

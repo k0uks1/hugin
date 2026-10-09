@@ -160,6 +160,7 @@ class Elaborator(
     with Quotes
     with QuoteTerms
     with QuotedPatterns
+    with TypedQuotes
     with Reflection
     with Directives
     with ModuleDirectives

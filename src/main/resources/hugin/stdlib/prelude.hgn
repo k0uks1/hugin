@@ -89,6 +89,14 @@ tapp : sym -> list term -> term.
 tarith : arith_op -> term -> term -> term.
 tneg : term -> term.
 
+(* A term of the object type `A` (reference: reflection): a quote checked against `quoted A`, or the
+   hole `$X` of a quoted pattern at a column of type `A`, is one. `qterm` makes one without a check
+   (the escape hatch); reflected data is checked again in any case. A `quoted A` is used as a `term`. *)
+quoted : ⇑type -> Type.
+qterm : term -> quoted A.
+raw : quoted A -> term.
+raw (qterm T) = T.
+
 formula : Type.
 fatom : sym -> list term -> formula.
 fcmp : cmp_op -> term -> term -> formula.
@@ -238,14 +246,15 @@ dinputs (minput L M) (T :: Ts) = T :: dinputs M Ts.
 dinputs (moutput L M) (T :: Ts) = dinputs M Ts.
 dinputs M Ts = [].
 
-(* The wildcards of the inputs of a guarded head named (`_a`, `_ba`, …), so that the guard binds them *)
+(* The wildcards of the inputs of a guarded head named (`_a#0`, `_ba#0`, …), so that the guard binds them;
+   source syntax cannot write `#`, so a program's variables cannot capture these (hygiene) *)
 dnamed : string -> modes Ls -> list term -> list term.
 dnamed P (minput L M) (T :: Ts) = dname (P ^ "a") T :: dnamed (P ^ "b") M Ts.
 dnamed P (moutput L M) (T :: Ts) = T :: dnamed (P ^ "b") M Ts.
 dnamed P M Ts = Ts.
 
 dname : string -> term -> term.
-dname P twild = tvar P.
+dname P twild = tvar (P ^ "#0").
 dname P (tapp S Ts) = tapp S (dnames P Ts).
 dname P T = T.
 

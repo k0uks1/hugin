@@ -1,0 +1,25 @@
+(* The holes of a quoted pattern at the columns of a constant bind terms of the columns' types: in
+   `guard`, `E : quoted expr` (the argument of `neg`), `G : quoted ctx`, `T : quoted typ`, so the quotes that use them are checked
+   where `guard` is defined. Taking a rule apart and putting it together again gives the same rule. *)
+expr : type. typ : type. ctx : type.
+lit : int -> expr.
+neg : expr -> expr.
+tint : typ.
+empty : ctx.
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+asked : (e : expr) -> (g : ctx) -> rel.
+
+guard : rule -> list rule.
+guard '{ typed (neg $E) $G $T :- $..B } = ['{ typed (neg $E) $G $T :- asked (neg $E) $G, $..B }, '{ asked $sub $G :- asked (neg $E) $G }]
+  where sub : quoted expr = E.
+guard R = [R].
+
+(* the identity on rules of `typed`, through the typed holes *)
+same : rule -> rule.
+same '{ typed $E $G $T :- $..B } = '{ typed $E $G $T :- $..B }.
+same R = R.
+
+$guard '{ typed (neg E) G tint :- typed E G tint }.
+$[same '{ typed (lit N) G tint :- asked (lit N) G, N = 1 }].
+asked (neg (lit 1)) empty.
+?- typed X empty T.

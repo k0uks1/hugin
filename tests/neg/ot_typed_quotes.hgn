@@ -1,0 +1,25 @@
+(* Quotes are object-typed where they are written: with typed holes, with the type of a `quoted` term,
+   and without holes. *)
+expr : type. typ : type. ctx : type.
+lit : int -> expr.
+tint : typ.
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+asked : (e : expr) -> (g : ctx) -> rel.
+node : type.
+edge : node -> node -> rel.
+
+(* a hole of type `quoted typ` in a column of type `expr` *)
+guard : rule -> list rule.
+guard '{ typed $E $G $T :- $..B } = ['{ asked $T $G }]. (*~ E0402 *)
+guard R = [R].
+
+(* a quoted term checked against `quoted typ` *)
+one : quoted typ = '{ lit 1 }. (*~ E0402 *)
+
+(* a quote without holes *)
+loop : rule = '{ edge 1 "x" }. (*~ E0402 *)
+
+(* the unchecked `qterm` is checked when its term is reflected *)
+held : int -> rel.
+bad : quoted int = qterm (tstr "x").
+$'{ held $bad. }. (*~ E0402 *)

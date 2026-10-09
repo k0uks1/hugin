@@ -1,0 +1,38 @@
+error[E0402]: type mismatch
+  --> tests/neg/ot_typed_quotes.hgn:13:47
+   |
+13 | guard '{ typed $E $G $T :- $..B } = ['{ asked $T $G }]. (*~ E0402 *)
+   |                                               ^^ expected `expr`, found `typ`
+   |
+   = note: in column 1 (`e`) of `asked`
+
+error[E0402]: type mismatch
+  --> tests/neg/ot_typed_quotes.hgn:17:23
+   |
+17 | one : quoted typ = '{ lit 1 }. (*~ E0402 *)
+   |                       ^^^^^ expected `typ`, found `lit`
+   |
+   = note: in the quoted term
+
+error[E0402]: type mismatch
+  --> tests/neg/ot_typed_quotes.hgn:20:23
+   |
+20 | loop : rule = '{ edge 1 "x" }. (*~ E0402 *)
+   |                       ^ expected `node`, found `int`
+   |
+   = note: in column 1 of `edge`
+
+error[E0402]: type mismatch
+  --> tests/neg/ot_typed_quotes.hgn:25:5
+   |
+25 | $'{ held $bad. }. (*~ E0402 *)
+   |     ^^^^^^^^^ expected `int`, found `string`
+   |
+   = note: in column 1 of `held`
+note: in code reflected by `$'{ held $bad. }`
+  --> tests/neg/ot_typed_quotes.hgn:25:1
+   |
+25 | $'{ held $bad. }. (*~ E0402 *)
+   | ^^^^^^^^^^^^^^^^^
+
+4 errors found
