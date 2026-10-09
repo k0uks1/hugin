@@ -10,7 +10,6 @@ object Compiler:
     List(hugin.core.StagePhase()),
     List(hugin.obj.typing.DirectivesPhase()),
     List(hugin.obj.typing.ConstFold()),
-    List(hugin.obj.typing.ObjTyperPhase()),
     List(hugin.obj.typing.ModingPhase()),
     List(hugin.obj.transform.Records(), hugin.obj.transform.Disjunctions()),
     List(hugin.obj.transform.DerivationsPhase()),

@@ -128,8 +128,8 @@ trait Bidirectional:
     case (_, Val.Lift(x)) if st == Stage.S1 =>
       // every value of `⇑A` is a quote (up to conversion): check object code under a quote
       val code = check(c, t, x, Stage.S0)
-      code match
-        case Tm.Splice(_) =>
+      Tm.unloc(code) match
+        case Tm.Splice(m) => passedCode(c, t.span, m, x)
         case _ => coercing(t.span)(insertedQuote())
       Tm.quote(code)
     case (Arrow(label, dom, cod), Val.U1(l)) if !endsInRel(t) => checkMetaArrow(c, label, dom, cod, l)

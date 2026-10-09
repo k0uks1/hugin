@@ -26,7 +26,14 @@ trait ModuleBodies:
     }
     val (cb, members) = elabMembers(c, memberItems)
     recordBody(c, cb, body.span, members, memberItems)
-    val items = objectItems.flatMap(item => reportingErrors(objectItem(cb, item)).getOrElse(Nil))
+    // the body's edges first: object typing of its rules needs them
+    val (edges, others) = objectItems.partition(_.isInstanceOf[SubEdge])
+    val edgeItems = edges.flatMap(item => reportingErrors(objectItem(cb, item)).getOrElse(Nil))
+    val saved = state.localEdges
+    state.localEdges = edgeItems.collect { case CoreItem.EdgeItem(sub, sup, _) => (ev(cb, sub), ev(cb, sup)) } ++ saved
+    val items =
+      try edgeItems ++ others.flatMap(item => reportingErrors(objectItem(cb, item)).getOrElse(Nil))
+      finally state.localEdges = saved
     val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items)
     val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
     (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)

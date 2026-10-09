@@ -76,6 +76,14 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  of a shared data declaration denotes its constant at this stage ([[SharedData]]). */
   var stage: Stage = Stage.S1
 
+  /** The subtyping edges of the module body being elaborated (closed over its context), for object
+   *  typing ([[ObjectTyping]]). */
+  var localEdges: List[(Val, Val)] = Nil
+
+  /** The expansion chain of the code being elaborated (reflected code), for the diagnostics that object
+   *  typing reports ([[ObjectTyping]]). */
+  var origin: hugin.util.Origin = hugin.util.Origin.Source
+
   /** Whether a rule head is being elaborated (named patterns in heads must give every column). */
   var objectHead: Boolean = false
 
@@ -141,6 +149,7 @@ class Elaborator(
     with Where
     with ObjectDecls
     with ObjectCode
+    with ObjectTyping
     with NamedPatterns
     with FormulaFunctions
     with ModuleBodies

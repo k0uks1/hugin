@@ -19,7 +19,7 @@ class ModulesSuite extends munit.FunSuite:
   }
 
   test("members in any order; meta definitions in bodies") {
-    val p = staged("m = {\n  p : t -> rel.\n  t : type.\n  k : int = 3.\n  p X :- X = k.\n}.\n")
+    val p = staged("m = {\n  p : t -> rel.\n  t : type.\n  k : int = 3.\n  q : int -> rel.\n  q X :- X = k.\n}.\n")
     assert(p.contains("m.p : m.t -> rel."), p)
   }
 

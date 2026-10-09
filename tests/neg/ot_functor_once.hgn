@@ -1,0 +1,12 @@
+(* A functor body is object-typed once, with the parameter's types abstract: `g.node` is not `expr`,
+   whatever the functor is applied to. *)
+sig : Type = { node : type, edge : node -> node -> rel }.
+expr : type.
+lit : int -> expr.
+loops (g : sig) = {
+  out : (x : expr) -> rel.
+  out X :- g.edge X X. (*~ E0402 *)
+}.
+edge0 : expr -> expr -> rel.
+m1 = loops { node = expr, edge = edge0 }.
+m2 = loops { node = expr, edge = edge0 }.

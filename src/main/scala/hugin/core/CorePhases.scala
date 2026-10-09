@@ -37,6 +37,7 @@ final class StagePhase extends ObjProgramPhase:
     val e = u.elaborated.nn
     val h = handover.Handover(e.core, reporter, u.index)
     u.prog = h.program(e.items)
+    u.varTypes.putAll(h.varTypes)
     u.staged = (u.prog.nn.rules, u.prog.nn.queries)
     u.requirements = h.requirements
     reporter.diagnostics.foreach(ctx.report)

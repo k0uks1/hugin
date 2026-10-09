@@ -282,6 +282,7 @@ trait Clauses:
           recordLocalDeclaration(c, c.lvl - 1)
     c = elabWhere(c, f.name, cl.source.where)
     val body = check(c, cl.source.rhs, ren(target), Stage.S1)
+    checkObjectFragments(c, body, ren(target))
     recordCalls(f, args, c, body, cl.source)
     val patterns = f.explicit.map(l => quote(order.length, args(l)))
     CaseTree.Leaf(letBound(c, base, body), p.size, order, names.toVector, patterns)

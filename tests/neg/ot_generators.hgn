@@ -1,0 +1,21 @@
+(* Object code in meta functions is object-typed where it is written, also when the function is unused. *)
+expr : type. typ : type. var : type.
+var <: expr.
+lit : int -> expr.
+tint : typ.
+typed : (e : expr) -> (t : typ) -> rel.
+narrow : (v : var) -> rel.
+
+(* a constructor term in a column of another type *)
+bad : int -> prop.
+bad N = typed (lit N) (lit N). (*~ E0402 *)
+
+(* spliced code in a column of another type *)
+swap : ⇑expr -> ⇑typ -> ⇑prop.
+swap E T = typed T E. (*~ E0402 *)
+
+(* `⇑` is covariant, but not contravariant: an `expr` is not a `var` *)
+down : var -> prop.
+down X = narrow X.
+up : expr -> prop.
+up X = down X. (*~ E0901 *)

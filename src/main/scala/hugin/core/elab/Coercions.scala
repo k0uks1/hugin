@@ -108,9 +108,15 @@ trait Coercions:
         if !levels.le(l, l2) then throw UnifyError(UnifyFailure.Universe)
         None
       case (Val.Lift(x), Val.Lift(y)) =>
-        unify(c.lvl, x, y)
+        // `⇑` is covariant: `⇑τ ≤ ⇑σ` if `τ ≤ σ` (object subtyping, an identity coercion)
+        try undoOnFailure(unify(c.lvl, x, y))
+        catch case e: UnifyError => if !liftSubtype(c, x, y) then throw e
         None
       case (Val.Flex(_, _), _) | (_, Val.Flex(_, _)) => justUnify(c, t, a, s, a2, s2)
+      case (Val.Lift(x), to) if s2 == Stage.S0 && isObjectData(to) && isObjectData(x) =>
+        // spliced code at an object position: its object type is checked by object typing ([[ObjectTyping]])
+        insertedLifting(Tm.splice(t))
+        Some(coeObjectData(c, Tm.splice(t), x, to))
       case (Val.Lift(x), _) =>
         insertedLifting(Tm.splice(t))
         Some(coeOpt(c, Tm.splice(t), x, Stage.S0, a2, s2).getOrElse(Tm.splice(t)))
