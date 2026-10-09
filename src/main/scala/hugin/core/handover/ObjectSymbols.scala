@@ -159,5 +159,5 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
     case other => notAnObjectType(other, span)
 
   private def notAnObjectType(t: Tm, span: Span): OType =
-    reporter.report(elab.ElabProblem.StuckObjectType(showTm(Nil, t), span).toDiagnostic)
+    reporter.report(elab.ElabProblem.StuckObjectType(showTmBounded(Nil, t), span).toDiagnostic)
     OType.Err
