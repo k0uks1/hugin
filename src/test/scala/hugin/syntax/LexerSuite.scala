@@ -48,4 +48,6 @@ class LexerSuite extends munit.FunSuite:
     assertEquals(errors("\"\\q\""), List("E0003"))
     assertEquals(errors("\"abc"), List("E0002"))
     assertEquals(errors("\"\\u{D800}\""), List("E0003"))
+    // a backslash at the end of the input (found by MutationFuzzSuite): unterminated, not a crash
+    assertEquals(errors("p \"ab\\"), List("E0002"))
   }

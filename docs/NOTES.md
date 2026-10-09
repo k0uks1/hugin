@@ -1782,6 +1782,10 @@ three batches.
   `docs/design/examples/` and the code blocks of the reference and of `docs/errors`: no W0007, so the lint
   is a warning by default. Changed: `neg/core_e0901_occurs` again (`qvar` adds unknowns to the prelude).
   Goldens `run/tf_qvar`, `run/tf_hole_capture` (with `-A unused_definitions`).
+  As in batch 2, the new goldens shift the mutants of the fuzz suites; `MutationFuzzSuite` then met a
+  crash of the lexer that predates #96: a `\` at the very end of the input, inside a string, moved past
+  the end (`StringIndexOutOfBoundsException`). It is now an unterminated string (E0002), as the reference
+  says (`LexerSuite`).
 
 ## Possible next steps
 
