@@ -1,6 +1,6 @@
 package hugin.query
 
-import hugin.compiler.{Library, ProgramElaboration, SourceLoader, StdlibCache}
+import hugin.compiler.{LazyStdlib, Library, ProgramElaboration, SourceLoader, StdlibCache}
 import hugin.core.{ElabBase, ElaboratedDeclarations, ElaboratedItem, ProgramElab, SourceItems}
 import hugin.syntax.Trees.Item
 import hugin.util.*
@@ -113,6 +113,29 @@ object ItemOf extends Query[ItemQueryKey, PositionedItem]("itemOf"):
     val item = db(ObjectItemsOf, key.program).items.find(_._1 == key.item).map(_._2).getOrElse(key.item.tree)
     PositionedItem(item, ItemFingerprint.of(item))
 
+/** Whether the prelude's chain is elaborated in full, also the files it re-exports lazily
+ *  ([[hugin.compiler.LazyStdlib]]): set by the language server and the REPL, whose completion offers
+ *  every name in scope. */
+object EagerStdlib extends Input[Unit, Boolean]("eagerStdlib"):
+  override def default(key: Unit): Option[Boolean] = Some(false)
+
+/** The files of the prelude's chain that a program elaborates, in dependency order: its import graph's,
+ *  without the files the prelude re-exports lazily that the program does not use. Cut off unless they
+ *  change, so that an edit of the program elaborates the chain again only if it starts or stops using
+ *  such a file. */
+object StdChain extends Query[ProgramKey, List[String]]("stdChain"):
+  def compute(key: ProgramKey)(using db: Database): List[String] =
+    val graph = db(LibraryGraph, GraphKey(key.path, key.prelude))
+    graph.files.indexOf(SourceLoader.PreludePath) match
+      case -1 => Nil
+      case i =>
+        val (std, rest) = graph.files.splitAt(i + 1)
+        if db.get(EagerStdlib, ()) || !std.forall(db.has(SourceText, _)) then std
+        else
+          val others =
+            (key.path -> db(ParseProgram, key.path).program) :: rest.filter(db.has(SourceText, _)).map(p => p -> db(Parse, p).program)
+          LazyStdlib.chain(std.map(db(Parse, _)), others, key.prelude).map(_.source.path)
+
 /** The chain of libraries a program is elaborated on: the files of its import graph. */
 private def chainOf(key: ProgramKey)(using db: Database): ChainKey =
   val graph = db(LibraryGraph, GraphKey(key.path, key.prelude))
@@ -120,8 +143,8 @@ private def chainOf(key: ProgramKey)(using db: Database): ChainKey =
   graph.files.indexOf(SourceLoader.PreludePath) match
     case -1 => ChainKey(Library.qualified(graph.files), key.prelude)
     case i =>
-      val (std, rest) = graph.files.splitAt(i + 1)
-      ChainKey(std.map(_ -> "") ++ Library.qualified(rest), key.prelude)
+      val rest = graph.files.drop(i + 1)
+      ChainKey(db(StdChain, key).map(_ -> "") ++ Library.qualified(rest), key.prelude)
 
 /** The declarations of a program, elaborated on its libraries. */
 object Signatures extends Query[ProgramKey, ElaboratedDeclarations]("signatures"):

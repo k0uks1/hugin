@@ -63,7 +63,10 @@ object MetaLevel:
       case i => (graph.files.take(i + 1), graph.files.drop(i + 1))
     val base0 =
       if std.isEmpty then ProgramElab.empty(prelude)
-      else hugin.compiler.StdlibCache.prelude(std.flatMap(load), prelude)
+      else
+        // the files the prelude re-exports lazily are left out unless the program may use them
+        val others = (root -> program) :: rest.flatMap(p => load(p).map(p -> _.program))
+        hugin.compiler.StdlibCache.prelude(hugin.compiler.LazyStdlib.chain(std.flatMap(load), others, prelude), prelude)
     val libraries = hugin.compiler.Library.qualified(rest).map((p, q) => SourceItems(p, q, items(p)))
     val e = elaborateOn(base0, SourceItems(root, "", program.items), libraries, reporter, index)
     hugin.compiler.ProgramElaboration(e, reporter.diagnostics, index)

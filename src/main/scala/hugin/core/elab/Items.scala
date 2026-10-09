@@ -72,10 +72,11 @@ trait Items:
     checkObjectDeclarations(firstGlobal)
     // the derived functions are generated code: nothing to show for their positions
     withoutTooling(defineSharedFunctions())
-    elabClauseGroups(clauses)
-    for f <- formulaFunctions if !state.unelaborated(f) do
-      inBlock(elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }))
-    exports.foreach(elabItemReporting)
+    if !file.signaturesOnly then
+      elabClauseGroups(clauses)
+      for f <- formulaFunctions if !state.unelaborated(f) do
+        inBlock(elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }))
+      exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
   /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
