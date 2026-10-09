@@ -101,9 +101,12 @@ A *typed hole* `?` or `?name` stands for an expression that is still to be writt
 any expression: its type, the *goal*, is the type its position expects, and it is an unknown that the
 rest of the item may constrain. Later items cannot constrain it: an item whose elaboration would need a
 value for the hole of an earlier item is left out without a further diagnostic, since the hole is
-reported. Every hole is an error ([E0924](../errors/E0924.md)), whose diagnostic reports the goal and the
-variables in scope. The items around a hole are still elaborated, so all holes are reported at once;
-compilation stops before staging. The name of a hole only identifies it in messages.
+reported. A hole may stand in meta code and in object code; in object code its goal is an object type,
+such as the type of a column. Every hole is an error ([E0924](../errors/E0924.md)), whose diagnostic
+reports the goal and the variables in scope. The items around a hole are still elaborated, so all holes
+are reported at once; compilation stops before staging. A hole in an item that has another error is not
+reported. The name of a hole only identifies it in messages. A hole is not object syntax: in the content
+of a [quote](../reflection.md#quotes) it is an error ([E0917](../errors/E0917.md)).
 
 The following program leaves the argument of the outer `suc` as a hole. The compiler reports its goal,
 `nat`.
@@ -115,6 +118,14 @@ suc : nat -> nat.
 double : nat -> nat.
 double zero = zero.
 double (suc N) = suc (suc ?).
+```
+
+The following rule leaves a column of its body as a hole. Its goal is the column's object type, `int`.
+
+```hugin,compile_fail,E0924
+edge : int -> int -> rel.
+reach : int -> rel.
+reach X :- edge X ?next.
 ```
 
 In the following program the hole `?t` is the value of the type `t`. The definition `x` would need

@@ -1747,3 +1747,17 @@ Decisions:
 ## Possible next steps
 
 * A faster engine (columnar storage, join planning) behind the same core IR.
+
+## The reference moves with the language (designer rule, 2026-10-09)
+
+The designer made this a hard rule: no change to the syntax, the semantics or any other part of the
+language's definition is merged without the matching change to the language reference, in the same
+pull request. The trigger was #56 batch A (PR #93). It changed the static semantics: object code is
+checked at the definition of a meta function, `⇑` became covariant, and functor bodies are typed once.
+It was merged without touching the reference, and the reference followed only in batch C (PR #94). Splitting
+"code" and "docs" into separate batches is not allowed any more: each pull request updates the reference
+for what it changes. CONTRIBUTING.md, "Changing the language", states the rule. CI enforces the
+mechanical part with `scripts/check-reference-impact.sh`: a pull request that touches `syntax/`, `core/`,
+`obj/`, `runtime/`, `Code.scala` or the bundled library must also touch `reference/src/` or
+`docs/errors/`, or carry the line `Reference: no change, <reason>` in its description. `CLAUDE.md` repeats
+the rule for agents.

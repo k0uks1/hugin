@@ -604,6 +604,8 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
   `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
   `hugin lsp` answers `initialize`.
+- **Reference updated with the language** (pull requests only) — `scripts/check-reference-impact.sh`,
+  see "Changing the language".
 - **VS Code extension** — `npm ci` and `vsce package` in `editors/vscode`; the `.vsix` is uploaded as the
   artifact `hugin-vscode`.
 
@@ -643,6 +645,33 @@ Open theory and soundness questions were collected in issue #1; planned work is 
 - A change of behaviour comes with golden tests (`tests/`); review every changed `.check` file.
 - A new diagnostic code needs an entry in `util/diagnostics/Code.scala`, an explanation
   `docs/errors/<code>.md` and a negative golden test.
-- A change to the language updates the reference chapter it concerns (`reference/src/`). Code comments
-  cite the reference (`reference: object/termination`), not the design notes; `scripts/check-refs.sh`
-  rejects new citations of `REDESIGN.md` sections in `src/main`.
+- A change to the language updates the reference in the same pull request (see "Changing the language"
+  below). Code comments cite the reference (`reference: object/termination`), not the design notes;
+  `scripts/check-refs.sh` rejects new citations of `REDESIGN.md` sections in `src/main`.
+
+### Changing the language
+
+The [language reference](https://k0uks1.github.io/hugin/) is the definition of Hugin. This is a hard rule:
+**no change to the language is merged without the matching change to the reference.** "The language"
+is every part of its definition: the syntax, the static rules (typing, staging, coverage, termination,
+bound columns), the semantics, the diagnostics a program gets, and the contents of the bundled library.
+In particular:
+
+- The reference change is part of the same pull request as the code change, not a later documentation
+  pass. When a feature lands in several pull requests, each one updates the reference for what it
+  changes.
+- A new, changed or retired diagnostic code updates its explanation in `docs/errors/` and every chapter
+  that cites it.
+- A change to the bundled library updates `reference/src/prelude.md` (and the chapter of each changed
+  definition).
+- Reference examples are compiled in CI, so a changed rule comes with an example that shows it.
+- A design note (`docs/design/`) or `docs/NOTES.md` does not replace the reference: they record why, the
+  reference states what.
+
+CI enforces this mechanically: `scripts/check-reference-impact.sh` (job "Reference updated with the
+language") fails a pull request that changes the code defining the language (`syntax/`, `core/`,
+`obj/`, `runtime/`, `util/diagnostics/Code.scala`, `src/main/resources/hugin/stdlib/`) without changing
+`reference/src/` or `docs/errors/`. A pull request that changes such code without changing the language
+(a refactoring, a performance change, a fix that makes the implementation agree with the reference as
+written) says so in its description with a line `Reference: no change, <reason>`. The check cannot tell
+whether the reference change is complete; review must.
