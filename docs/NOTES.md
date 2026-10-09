@@ -1335,6 +1335,15 @@ unchanged (k = 2). Golden: `tests/recovery/f_aggregate_stray_paren` (one error p
 them elaborated). The seed no longer reproduces the mutant on its own, because the new goldens change the
 corpus the mutants are drawn from; the shape was reproduced from three corpus files by hand.
 
+**A stray `}` with its period (parser).** Verifying with more seeds, `RecoveryFuzzSuite` failed for seeds
+19, 2024 and 77777 (on the merged quotes base) with the same tail: a quote that ended early (`'{ } R Y X
+:- …. }.`, an entry `-> q …` after a period, an aggregate whose `{` was deleted, so its `}` closed the
+quote) leaves the quote's own `}.` at the top level, reported as an unmatched `}` and then as an item
+starting with `.`, which with the first error makes 3. The period right after a stray `}` is the end of the
+item that `}` closed, not a mistake of its own. Fix (`syntax/ParserBase.scala`, `parseItems`): a stray `}`
+directly followed by `.` on its line is skipped together with it. Golden:
+`tests/recovery/f_stray_brace_period`.
+
 ## Possible next steps
 
 * Object-level typing of functor bodies with abstract types (earlier errors for functors).

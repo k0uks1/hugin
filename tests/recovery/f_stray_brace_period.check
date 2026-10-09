@@ -1,0 +1,20 @@
+error[E0001]: expected `.` or `where`, found `:-`
+ --> tests/recovery/f_stray_brace_period.hgn:7:26
+  |
+7 | symmetric R = '{ } R Y X :- R X Y. }. (*~ E0001 *) (*~ E0001 *)
+  |                          ^^ expected `.` or `where`
+
+error[E0001]: unmatched `}`
+ --> tests/recovery/f_stray_brace_period.hgn:7:36
+  |
+7 | symmetric R = '{ } R Y X :- R X Y. }. (*~ E0001 *) (*~ E0001 *)
+  |                                    ^ no module body to close
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+knows : (a : int) -> (b : int) -> rel.
+knows 1 2.
+symmetric : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> seq item.
+twice : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> seq item.
+  twice R = scons (irule (horn (scons {formula} (fatom R (scons {term} (tvar "X") (scons {term} (tvar "X") (snil {term})))) (snil {formula})) (scons {formula} (fatom R (scons {term} (tvar "X") (scons {term} twild (snil {term})))) (snil {formula})))) snil.
+knows X X :- knows X _.

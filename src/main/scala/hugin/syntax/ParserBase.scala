@@ -273,7 +273,7 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
 
   /** The items of a file, a module body or a `where` block, while `more` holds: each item is a recovery
    *  region. A token that cannot start an item is reported by `unexpected` and skipped with the rest of
-   *  its item (a period or `}` alone is skipped by itself). If it follows an item on the same line, that
+   *  its item (a period or `}` alone is skipped by itself, a `}` with a period right after it with that period). If it follows an item on the same line, that
    *  item's period may be the mistake (`go : nat . -> int.`): the item is damaged too (not for a second
    *  period, which is harmless). With whether no
    *  tokens were skipped (else a member may have been lost: the enclosing construct is damaged). */
@@ -293,7 +293,10 @@ private[syntax] abstract class ParserBase(protected val src: SourceFile, protect
         error(unexpected(tok))
         clean = false
         val t = advance()
-        if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
+        // a stray `}` directly followed by `.` closed an item whose opening was lost (a quote or module
+        // body that ended early): the period is that item's end, not a mistake of its own (issue #83)
+        if t.kind == Tok.RBrace && at(Tok.Period) && tok.span.startLine == t.span.startLine then advance()
+        else if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
     (items.toList, clean)
 
 object ParserBase:
