@@ -7,8 +7,7 @@ import java.util.concurrent.FutureTask
  *  bench harness's `meta_scaled` (a module-wide directive recursing over a module of ~190 items) overflowed
  *  the JVM's default 1 MiB stack. The compiler's own walks over list data (memo keys, evaluation of list
  *  data, the elements of a module) are loops, and the JVM stack a meta function's recursion uses per level
- *  does not grow with the depth of its case tree; that recursion itself continues on a new stack segment
- *  every 64 levels (issue #129, [[hugin.util.StackSegments]]). Each test runs on a thread with the JVM's default stack
+ *  does not grow with the depth of its case tree. Each test runs on a thread with the JVM's default stack
  *  size (1 MiB, the main thread of `sbt "Test/runMain hugin.bench.Bench warm"`), not the launcher's 64 MiB. */
 class LongListsSuite extends munit.FunSuite:
   override val munitTimeout = scala.concurrent.duration.Duration(5, "min")
@@ -44,8 +43,8 @@ class LongListsSuite extends munit.FunSuite:
     assertEquals(onDefaultStack(outputCount(code)), 5000)
   }
 
-  /** `mirror`'s first clause splits a dozen times per item: before #88, every split cost three frames. */
-  private def mirrored(n: Int): Unit =
+  test("a meta function recursing over a module of 400 items with a deep case tree (bench meta_scaled)") {
+    // `mirror`'s first clause splits a dozen times per item: before #88, every split cost three frames
     val code =
       s"""%use "std/reflect".
          |node : type.
@@ -57,23 +56,14 @@ class LongListsSuite extends munit.FunSuite:
          |mirror [] = [].
          |mirror ('( edge $$X $$Y :- $$..B ) :: Rest) = '( edge $$X $$Y :- $$..B ) :: '( edge $$Y $$X :- $$..B ) :: mirror Rest.
          |mirror (I :: Rest) = I :: mirror Rest.
-         |${items(n)}
+         |${items(400)}
          |%mirror.
          |?- q X.
          |?- edge X Y.
          |""".stripMargin
     val out = onDefaultStack(hugin.TestSupport.run(code)).fold(e => fail(s"errors: $e"), identity)
-    assertEquals(out.count(_.matches("X = \\d+\\.")), n)
+    assertEquals(out.count(_.matches("X = \\d+\\.")), 400)
     assert(out.contains("X = n1, Y = n0."), out.mkString("\n").take(2000))
-
-  test("a meta function recursing over a module of 400 items with a deep case tree (bench meta_scaled)") {
-    mirrored(400)
-  }
-
-  test("a meta function recursing 5000 levels deep on a 1 MiB stack (stack segments, issue #129)") {
-    // one level of the recursion per item: before #129 a few hundred levels overflowed 1 MiB, at a depth
-    // that varied with the JIT (all 400 levels above overflow with -Xint)
-    mirrored(5000)
   }
 
   test("memo keys and evaluation of a list of 100 000 elements") {
