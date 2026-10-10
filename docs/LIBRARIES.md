@@ -93,7 +93,8 @@ The standard library is split (design: `docs/design/stdlib.md`):
 | `<stdlib>/std/demand.hgn` | `%demand` (`%export { demand : … }`; its helpers are outside the signature); since B4 on `std/list` and `std/directives` |
 | `<stdlib>/std/list.hgn` | `len`; since B4 the meta list functions, `nat`, `size`, `iterate` and `member` |
 | `<stdlib>/std/directives.hgn` | (B4) the parts of rules and modules, `calls`, the binding analysis, `fresh`, `reject` |
-| `<stdlib>/std/graph.hgn` | `graph`, `tc`, `bounded` |
+| `<stdlib>/std/graph.hgn` | `graph`, `tc`, `bounded`; since B5 `complete_graph`, `weighted`, `reverse`, `undirected`, `vertices`, `rtc`, `reach`, `scc`, `degrees`, `shortest`, `hops` |
+| `<stdlib>/std/order.hgn` | (B5) `scores`, `best`, `ranking`, `top`, `ints`, `order` |
 
 `pair` was deleted (no program used it; meta code uses record types).
 

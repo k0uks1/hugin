@@ -11,7 +11,8 @@ file.
 | [`std/reflect`](reflect.md) | lists, options and booleans; object syntax as data; declarations as data and the primitive directives; the primitive operations on symbols |
 | [`std/list`](list.md) | functions over meta lists, natural numbers as fuel, relations over the lists that are facts |
 | [`std/directives`](directives.md) | the parts of rules and modules, the calls of a relation, the binding analysis, fresh names and errors, for directive authors |
-| [`std/graph`](graph.md) | the signature of graphs and functors over it |
+| [`std/graph`](graph.md) | the signatures of graphs; transformers, closures, reachability, components, degrees and distances as functors |
+| [`std/order`](order.md) | the best items by a score, rankings and top-k; the order of a finite set of numbers |
 | [`std/demand`](demand.md) | the directive `%demand` |
 
 The object constants of the standard library are named without a prefix, as those of the prelude: the

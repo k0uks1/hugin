@@ -34,6 +34,7 @@
     - [`std/list`](std/list.md)
     - [`std/directives`](std/directives.md)
     - [`std/graph`](std/graph.md)
+    - [`std/order`](std/order.md)
     - [`std/demand`](std/demand.md)
 
 ---

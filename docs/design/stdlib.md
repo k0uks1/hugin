@@ -2,8 +2,8 @@
 
 Design note for [issue #61](https://github.com/k0uks1/hugin/issues/61): split the prelude into a small
 auto-imported part and explicitly imported `std` modules, and decide their content. Status: revision 2
-approved by the designer; B0–B4 implemented (#107, #111, #115, #117, and B4 with the deviations listed at the
-end of section 9), B5 waits for B4. Revision 2
+approved by the designer; B0–B5 implemented (#107, #111, #115, #117, and B4 and B5 with the deviations
+listed at the end of section 9). Revision 2
 replaces the `private` modifier by signature ascription (4.5, 4.6) after the designer's review. The
 spikes it cites were run against `9b82924` and are not committed.
 
@@ -1056,6 +1056,21 @@ B4 was implemented after #100 batch 1 (member functions in bodies), #106 (`'( �
 - `std/list`'s `reverse` is a `foldl`, not one clause per constructor. `diff` is first-order: written
   with `filter` and a lambda, it made a run of `%demand` allocate twice as much.
 - The example of 5.3 writes `l.if`; `if` is the prelude's (`docs/design/examples/graphs.hgn` uses it).
+
+### Deviations in B5
+
+- **Instance names follow paths** (the Note of 5.4). The application whose value a definition is takes
+  the definition's name, as 5.4 asks, and an instance that is an argument of an application is
+  anonymous (`_m1`), as 5.4 asks of "inner instances". An instance that a *member* of a body defines
+  (`v = vertices g` in `rtc`) is not anonymous but named by the member's path (`weak.v`, relation
+  `weak.v.vertex`): that is the path by which a program reaches it, so the printed name is the name a
+  program writes. Before, `weak = rtc (undirected g)` named its relations `weak#2.path`, `weak#3.vertex`,
+  `weak#4.path` and `weak.edge`; now `weak.path`, `weak.v.vertex`, `weak.t.path` and `_m1.edge`.
+- **No helper needed member functions** (#100): the functors of `std/graph` and `std/order` are rules
+  only, as in 5.4 and 5.5.
+- `std/graph`'s `reverse` and `std/list`'s `reverse` have the same name: a program that opens both and
+  uses `reverse` gets E0109; it opens one of them selectively (`%use "std/list" (map, elem).`) or
+  imports it under a name (`l = %import "std/list".`, then `l.reverse`). The design already had both.
 
 ## 10. Alternatives
 

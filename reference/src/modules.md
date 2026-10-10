@@ -95,9 +95,48 @@ declares, and stages its rules and queries with them. A definition `m = { … }.
 evaluated once, so all uses of `m` share one *instance*. Two definitions that evaluate the same body,
 also by applying a functor to the same arguments, create two instances with distinct relations.
 
-The object constants of an instance are named after the definition that created it: the relation `path`
-of the instance `r1` is `r1.path`. An instance that no definition names is called `_m1`, `_m2`, …; a name
-that repeats gets a suffix `#k`.
+The object constants of an instance are named by the path through which a program reaches it:
+
+- the instance that is the value of a definition `m = …` is named `m`: the relation `path` of
+  `r1 = tc g` is `r1.path`;
+- an instance that a member `x = …` of a body defines is named after the body's instance and the member:
+  in `weak = rtc g`, the member `v = vertices g` of `rtc`'s body is the instance `weak.v`, with the
+  relation `weak.v.vertex`;
+- an instance that is an argument of an application has no path and is anonymous: in
+  `back = tc (reverse g)`, the instance of `reverse g` is `_m1`, and `back` is the instance of `tc`.
+
+Anonymous instances, and instances that no definition names, are called `_m1`, `_m2`, …; a name that
+repeats gets a suffix `#k`. The relation that a program names by a path, such as `weak.v.vertex`, is
+printed under that path.
+
+The following program composes two functors of [`std/graph`](std/graph.md). `back` is the instance of
+`tc`, `s.r` the member `r = rtc g` of `scc`'s body, and the reversed graph passed to `tc` is anonymous.
+
+```hugin,run
+%use "std/graph".
+city : type. a : city. b : city. c : city.
+road : city -> city -> rel.
+road a b. road b c. road c b.
+back = tc (reverse { node = city, edge = road }).
+s = scc { node = city, edge = road }.
+%output back.path. %output s.r.path.
+```
+
+```output
+back.path b a.
+back.path b b.
+back.path b c.
+back.path c a.
+back.path c b.
+back.path c c.
+s.r.path a a.
+s.r.path a b.
+s.r.path a c.
+s.r.path b b.
+s.r.path b c.
+s.r.path c b.
+s.r.path c c.
+```
 
 ## Functors
 
