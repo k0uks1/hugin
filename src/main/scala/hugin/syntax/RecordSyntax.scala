@@ -27,11 +27,15 @@ private[syntax] trait RecordSyntax extends ParserBase:
     else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
       parseRecordType(open)
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(open)
-    else if k0 == Tok.Comma then
-      // no braces start with `,`: the `{` is stray (`{ shop = "n" {, .. }`), and what follows it belongs to
-      // the enclosing construct
+    else if k0 == Tok.Comma || k0 == Tok.Period then
+      // no braces start with `,` or `.`: the `{` is stray (`{ shop = "n" {, .. }`), and what follows it
+      // belongs to the enclosing construct; a selection right after it (`g {.place`, which the lexer saw as
+      // a period) is skipped with it
       expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
-      ErrorTree(Nil)(open.span)
+      if at(Tok.Period) && tok.span.start == open.span.end && peekTok(1).kind == Tok.Name && peekTok(1).span.start == tok.span.end then
+        advance()
+        advance()
+      ErrorTree(Nil)(spanFrom(open.span.start))
     else if enclosingClosedFirst then
       // `(arr S { T)`: the enclosing construct closes before any `}`: the `{` is stray and unclosed, and what
       // follows it belongs to the enclosing construct

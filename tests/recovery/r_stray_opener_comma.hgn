@@ -1,6 +1,7 @@
-(* No braces and no list start with `,`: a `{` or `[` before a `,` is stray, one error, and the `,` and
-   what follows belong to the enclosing construct (a record pattern closed by its own `}`, a quote by its
-   own `)`). The damaged list leaves `x` and `y` unused. *)
+(* No braces start with `,` or `.`, and no list with `,`: a `{` or `[` before a `,` is stray, one error,
+   and the `,` and what follows belong to the enclosing construct (a record pattern closed by its own `}`,
+   a quote by its own `)`). A selection right after a stray `{` (`g {.place`) is skipped with it. The
+   damaged list leaves `x` and `y` unused. *)
 %use "std/reflect".
 sale : (shop : string) -> (item : string) -> (price : int) -> rel.
 sale "north" "pen" 3.
@@ -18,3 +19,7 @@ closure : list rule = [
 ].
 $closure.
 %output path.
+geo : Type = { place : type, here : place }.
+g : geo = { place = int, here = 1 }.
+reachable : g {.place -> rel. (*~ E0001 *)
+reachable 3.
