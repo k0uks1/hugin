@@ -16,7 +16,7 @@ import scala.collection.mutable
  *  refers to a later one is retried after it, and a member's name shadows the file's in the whole body
  *  ([[ElabState.bodyDeclared]]). A declaration `f : A.` with clauses `f p̄ = e.` in the body is a
  *  *member function* ([[MemberFunctions]]): its clauses are elaborated after the members, each function
- *  a block of its own. Then the body's object items (rules, queries, directives, edges) are elaborated
+ *  a block of its own; so are the rules of a body's formula functions. Then the body's object items (rules, queries, directives, edges) are elaborated
  *  in the context of all members. The body's type is the record type of its members, a telescope, and
  *  its value is a record: evaluation creates fresh object constants for the object members of each
  *  instance ([[Modules]]), and the handover stages the instance's items. */
@@ -25,16 +25,20 @@ trait ModuleBodies:
   import core.*
 
   /** The items of a body by role: members (declarations and definitions), clauses of member functions,
-   *  object items; the names of the member functions (declarations with clauses in the body), the names
-   *  of the clause groups with a syntax error, and the heads of the body's rules. */
+   *  rules of formula functions, object items; the names of the member functions (declarations with
+   *  clauses in the body), of the formula functions (other declarations `f : τ̄ -> prop.` without a
+   *  definition), and of the functions with a clause or rule with a syntax error. */
   final case class BodyItems(
       members: List[Item],
       clauses: List[Item],
+      rules: List[Rule],
       objects: List[Item],
       functions: Set[Name],
-      broken: Set[Name],
-      ruleHeads: Set[Name]
+      formulas: Set[Name],
+      broken: Set[Name]
   ):
+    def lifted(n: Name): Boolean = functions(n) || formulas(n)
+
     def declares(n: Name): Boolean = members.exists(memberName(_).contains(n))
 
   def inferModuleBody(c: Cxt, body: Trees.ModuleBody): (Tm, Val, Stage) =
@@ -42,6 +46,7 @@ trait ModuleBodies:
     // the names that items with syntax errors might declare: their uses are not reported (`docs/PARSER.md`, §5)
     state.erroneous ++= body.items.filter(TreeOps.hasSyntaxErrors).flatMap(mightDeclare)
     val saved = state.bodyDeclared
+    val savedLeftOut = state.leftOutMembers
     state.bodyDeclared = saved ++ parts.members.flatMap(memberName)
     try
       val functions = mutable.LinkedHashMap.empty[Name, MemberFunction]
@@ -52,7 +57,9 @@ trait ModuleBodies:
       val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items)
       val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
       (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)
-    finally state.bodyDeclared = saved
+    finally
+      state.bodyDeclared = saved
+      state.leftOutMembers = savedLeftOut
 
   private def bodyItems(items: List[Item]): BodyItems =
     val declared = items.collect { case d: Decl => d.name.name }.toSet
@@ -66,12 +73,15 @@ trait ModuleBodies:
       case _: Decl | _: Def => true
       case _ => false
     }
-    val functions = members.collect {
-      case d: Decl if d.defn.isEmpty && d.params.isEmpty && d.sup.isEmpty && heads.contains(d.name.name) => d.name.name
+    def plain(d: Decl) = d.defn.isEmpty && d.params.isEmpty && d.sup.isEmpty
+    val functions = members.collect { case d: Decl if plain(d) && heads.contains(d.name.name) => d.name.name }.toSet
+    val formulas = members.collect {
+      case d: Decl if plain(d) && !functions(d.name.name) && endsInProp(d.tpe) => d.name.name
     }.toSet
-    val broken = clauses.filter(TreeOps.hasSyntaxErrors).flatMap(clauseHead).toSet
-    val ruleHeads = objects.collect { case Rule(None, List(h), _) => TreeOps.headName(h).map(_.name) }.flatten.toSet
-    BodyItems(members, clauses, objects, functions, broken, ruleHeads)
+    val (rules, others) = objects.partition(clauseOf(formulas)(_).isDefined)
+    val broken = (clauses.filter(TreeOps.hasSyntaxErrors).flatMap(clauseHead) ++
+      rules.filter(TreeOps.hasSyntaxErrors).flatMap(clauseOf(formulas))).toSet
+    BodyItems(members, clauses, rules.collect { case r: Rule => r }, others, functions, formulas, broken)
 
   /** The function a clause of a body defines. */
   def clauseHead(item: Item): Option[Name] = item match
@@ -112,10 +122,10 @@ trait ModuleBodies:
     var cb = c
     val members = mutable.ListBuffer.empty[Member]
     def isSignature(item: Item) = item match
-      case d: Decl => parts.functions(d.name.name)
+      case d: Decl => parts.lifted(d.name.name)
       case _ => false
     def isObjectConstant(item: Item) = item match
-      case d: Decl => !parts.functions(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
+      case d: Decl => !parts.lifted(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
       case _ => false
     def attempt(item: Item): Unit =
       val (next, m, f) = undoOnFailure(member(cb, item, parts))
@@ -182,19 +192,19 @@ trait ModuleBodies:
       memberName(item).foreach(state.erroneous += _)
       syntaxError(item.span)
     item match
-      case d: Decl if parts.functions(d.name.name) => functionMember(c, d, parts)
+      case d: Decl if parts.lifted(d.name.name) => functionMember(c, d, parts)
       case _ =>
-        val (cx, m) = memberOf(c, item, parts)
+        val (cx, m) = memberOf(c, item)
         (cx, m, None)
 
-  private def memberOf(c: Cxt, item: Item, parts: BodyItems): (Cxt, Member) = item match
+  private def memberOf(c: Cxt, item: Item): (Cxt, Member) = item match
     case d: Decl if d.defn.isDefined && !isStructDecl(d) =>
       val (ty, tm) = inMember(d.name.name)(declDefinition(c, d, d.defn.get))
       defined(c, d.name, ty, tm, d.span)
     case d: Def =>
       val (ty, tm) = inMember(d.name.name)(definition(c, d.params, d.rhs))
       defined(c, d.name, ty, tm, d.span)
-    case d: Decl => objectMember(c, d, parts)
+    case d: Decl => objectMember(c, d)
     case other => throw Impossible(s"not a member: $other")
 
   def defined(c: Cxt, name: Ident, ty: Tm, tm: Tm, span: Span): (Cxt, Member) =
@@ -204,14 +214,14 @@ trait ModuleBodies:
     (define(c, name.name, tyV, ev(c, ztm)), Member(name.name, MemberKind.Defined(ztm), zty, name.span, span))
 
   /** An object constant of the body: a variable of type `⇑τ`. */
-  def objectMember(c: Cxt, d: Decl, parts: BodyItems): (Cxt, Member) =
+  def objectMember(c: Cxt, d: Decl): (Cxt, Member) =
     if d.sup.isDefined then unsupportedAt(d.span, "refinements in module bodies")
     if d.params.nonEmpty then unsupportedAt(d.span, "families of object constants in module bodies")
     val (ty, decl) =
       if isStructDecl(d) then (structType(c, d), ObjDecl.Struct)
       else
         val (t, st) = declType(d, c)
-        if st != Stage.S0 then unsupportedAt(d.span, metaWithoutDefinition(c, d, t, parts))
+        if st != Stage.S0 then unsupportedAt(d.span, metaWithoutDefinition(c, t))
         (t, objectDecl(d, ev(c, t)))
     val lifted = Tm.Lift(zonk(c.env, c.lvl, ty))
     (
@@ -220,12 +230,10 @@ trait ModuleBodies:
     )
 
   /** What E0907 says about a meta declaration of a body without a definition and without clauses. */
-  private def metaWithoutDefinition(c: Cxt, d: Decl, ty: Tm, parts: BodyItems): String =
-    if endsInProp(d.tpe) && parts.ruleHeads(d.name.name) then "formula functions defined by rules in module bodies"
-    else
-      force(telescope(ev(c, ty))._2) match
-        case Val.U1(_) => "meta inductive families in module bodies"
-        case _ => "meta declarations without a definition or clauses in module bodies"
+  private def metaWithoutDefinition(c: Cxt, ty: Tm): String =
+    force(telescope(ev(c, ty))._2) match
+      case Val.U1(_) => "meta inductive families in module bodies"
+      case _ => "meta declarations without a definition or clauses in module bodies"
 
   private def objectItem(c: Cxt, item: Item): List[CoreItem] =
     if TreeOps.hasSyntaxErrors(item) then syntaxError(item.span)

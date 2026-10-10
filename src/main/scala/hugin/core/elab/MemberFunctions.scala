@@ -4,7 +4,9 @@ package elab
 import hugin.syntax.Trees.*
 
 /** Member functions of module bodies (reference: modules): a declaration `f : A.` of a body with a meta
- *  type, and the clauses `f p̄ = e.` of the same body.
+ *  type, and the clauses `f p̄ = e.` of the same body. A formula function of a body, `f : τ̄ -> prop.`
+ *  with the rules `f t̄ :- ψ.` of the same body, is lifted in the same way; its global is a postulate
+ *  until its rules define it ([[FormulaFunctions.elabMemberFormula]]).
  *
  *  A member function is lambda-lifted ([[Lifting]]), as the local functions of `where` blocks are: a
  *  hidden global function named after the member's path (`lib.double`, `tc.step` in a functor `tc`)
@@ -37,9 +39,9 @@ trait MemberFunctions:
     val top = if hint.nonEmpty then hint else "_"
     (top :: memberPath.reverse ::: List(n)).mkString(".")
 
-  /** The signature `f : A.` of a member function: lifted from the context `c` it is elaborated in. Its
-   *  unknowns must be solved by it (E0903), as a top-level signature's. A declaration of an object
-   *  constant with clauses is an object constant (its clauses are E0914). */
+  /** The signature `f : A.` of a member function or of a formula function: lifted from the context `c` it
+   *  is elaborated in. Its unknowns must be solved by it (E0903), as a top-level signature's. A
+   *  declaration of an object constant with clauses is an object constant (its clauses are E0914). */
   def functionMember(c: Cxt, d: Decl, parts: BodyItems): (Cxt, Member, Option[MemberFunction]) =
     if parts.broken(d.name.name) then
       // a clause has a syntax error: the function is left out, and its uses are not reported
@@ -48,16 +50,19 @@ trait MemberFunctions:
     val start = metas.length
     val (ty, st) = declType(d, c)
     if st == Stage.S0 then
-      val (cx, m) = objectMember(c, d, parts)
+      val (cx, m) = objectMember(c, d)
       (cx, m, None)
     else
       checkSolved(start)
       val zty = zonk(c.env, c.lvl, ty)
-      val (id, value) = liftedFunction(c, pathOf(d.name.name), zty, d.name.span, d.span)
+      // a formula function is a postulate until its rules define it
+      val kind = if parts.formulas(d.name.name) then GlobalKind.Postulate else GlobalKind.Function(-1, None)
+      val (id, value) = liftedFunction(c, pathOf(d.name.name), zty, d.name.span, d.span, kind)
       val (cx, m) = defined(c, d.name, zty, quote(c.lvl, value), d.span)
       (cx, m, Some(MemberFunction(d.name.name, id, c)))
 
-  /** The clauses of the body, by function in order of appearance, each group a block of its own. */
+  /** The clauses of the body, by function in order of appearance, each group a block of its own; then the
+   *  rules of the formula functions, each function a block of its own, as at the top level. */
   def elabMemberClauses(cb: Cxt, parts: BodyItems, members: List[Member], functions: Map[Name, MemberFunction]): Unit =
     val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
     for item <- parts.clauses do
@@ -68,6 +73,16 @@ trait MemberFunctions:
       functions.get(n) match
         case Some(f) => clauseGroup(cb, f, group)
         case None => reportingErrors(notAFunction(n, group, members, parts))
+    val formulas =
+      for n <- parts.members.flatMap(memberName).distinct if parts.formulas(n) && !parts.broken(n); f <- functions.get(n)
+      yield
+        val rules = parts.rules.filter(clauseOf(Set(n))(_).isDefined)
+        if boundVars(cb).length != boundVars(f.cx).length then throw Impossible("an object constant after a member function")
+        inBlock(elabMemberFormula(cb, n, f.id, rules))
+        (n, f.id, rules)
+    for (_, id, _) <- formulas; kind <- withheld.remove(id) do globals(id).kind = kind
+    val cyclic = checkMemberFormulaCycles(cb, formulas)
+    state.leftOutMembers ++= formulas.collect { case (n, id, _) if cyclic(id) => (n, cb.scope(n)) }
 
   /** Clauses of `n`, which is not a member function of the body. */
   private def notAFunction(n: Name, group: List[Item], members: List[Member], parts: BodyItems): Nothing =
