@@ -8,65 +8,95 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <a class="name" href="./">Hugin</a>
-  <nav>
-    <a href="play/">Playground</a>
-    <a href="reference/">Reference</a>
-    <a href="reference/errors/index.html">Errors</a>
-    <a href="https://github.com/k0uks1/hugin">GitHub</a>
-  </nav>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./">Hugin</a>
+    <nav>
+      <a href="play/">Playground</a>
+      <a href="reference/">Reference</a>
+      <a href="reference/errors/index.html">Errors</a>
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+    </nav>
+  </div>
 </header>
 
-<main class="home">
-  <p class="lede">Hugin is a typed Datalog with first-class facts at the object level and a total, dependently
-  typed meta level that computes object programs at compile time.</p>
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Hugin</h1>
+        <p class="lede"><strong>Hugin is a typed Datalog</strong> with first-class facts at the object level and a
+        total, dependently typed meta level that computes object programs at compile time.</p>
+        <div class="actions">
+          <a class="button primary" href="play/#example=people">Open in the playground</a>
+          <a class="button" href="reference/">Language reference</a>
+        </div>
+      </div>
+      <figure class="card">
+        <div class="card-head"><span class="file">people.hgn</span><span>example</span></div>
+<pre><code class="hugin"><span class="hg-decorator hg-meta">%use</span> <span class="hg-string">"std/reflect"</span>.
+<span class="hg-decorator hg-meta">%use</span> <span class="hg-string">"std/graph"</span>.
 
-  <h2>Example</h2>
-<pre class="code"><code><span class="tk-dir">%use</span> <span class="tk-str">"std/reflect"</span>.
-<span class="tk-dir">%use</span> <span class="tk-str">"std/graph"</span>.
+<span class="hg-type hg-declaration hg-object">person</span> : <span class="hg-keyword">type</span>.
+<span class="hg-enumMember hg-declaration hg-object">ann</span> : <span class="hg-type hg-object">person</span>. <span class="hg-enumMember hg-declaration hg-object">bob</span> : <span class="hg-type hg-object">person</span>. <span class="hg-enumMember hg-declaration hg-object">cid</span> : <span class="hg-type hg-object">person</span>. <span class="hg-enumMember hg-declaration hg-object">dan</span> : <span class="hg-type hg-object">person</span>.
 
-<span class="tk-decl">person</span> : <span class="tk-kw">type</span>.
-<span class="tk-decl">ann</span> : person. bob : person. cid : person. dan : person.
+<span class="hg-function hg-declaration hg-object">knows</span> : <span class="hg-type hg-object">person</span> <span class="hg-operator">-&gt;</span> <span class="hg-type hg-object">person</span> <span class="hg-operator">-&gt;</span> <span class="hg-keyword">rel</span>.
+<span class="hg-function hg-object">knows</span> <span class="hg-enumMember hg-object">ann</span> <span class="hg-enumMember hg-object">bob</span>.
+<span class="hg-function hg-object">knows</span> <span class="hg-enumMember hg-object">bob</span> <span class="hg-enumMember hg-object">cid</span>.
+<span class="hg-function hg-object">knows</span> <span class="hg-enumMember hg-object">dan</span> <span class="hg-enumMember hg-object">ann</span>.
 
-<span class="tk-decl">knows</span> : person <span class="tk-op">-&gt;</span> person <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>.
-knows ann bob.
-knows bob cid.
-knows dan ann.
+<span class="hg-comment">(* a directive is a meta function; this one returns a rule *)</span>
+<span class="hg-method hg-declaration hg-meta">symmetric</span> : (r : <span class="hg-operator hg-meta">⇑</span>(<span class="hg-variable">A</span> <span class="hg-operator">-&gt;</span> <span class="hg-variable">A</span> <span class="hg-operator">-&gt;</span> <span class="hg-keyword">rel</span>)) <span class="hg-operator">-&gt;</span> <span class="hg-class hg-meta hg-defaultLibrary">list</span> <span class="hg-class hg-meta hg-defaultLibrary">item</span>.
+<span class="hg-method hg-meta">symmetric</span> <span class="hg-parameter hg-declaration hg-meta">R</span> = <span class="hg-keyword hg-meta">'(</span> <span class="hg-parameter hg-meta">R</span> <span class="hg-variable hg-object">Y</span> <span class="hg-variable hg-object">X</span> <span class="hg-operator">:-</span> <span class="hg-parameter hg-meta">R</span> <span class="hg-variable hg-object">X</span> <span class="hg-variable hg-object">Y</span>. <span class="hg-keyword hg-meta">)</span>.
+<span class="hg-decorator hg-meta">%symmetric</span> <span class="hg-function hg-object">knows</span>.
 
-<span class="tk-com">(* a directive is a meta function; this one returns a rule *)</span>
-<span class="tk-decl">symmetric</span> : (r : <span class="tk-op">⇑</span>(<span class="tk-var">A</span> <span class="tk-op">-&gt;</span> <span class="tk-var">A</span> <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>)) <span class="tk-op">-&gt;</span> list item.
-symmetric <span class="tk-var">R</span> = <span class="tk-op">'(</span> <span class="tk-var">R</span> <span class="tk-var">Y</span> <span class="tk-var">X</span> <span class="tk-op">:-</span> <span class="tk-var">R</span> <span class="tk-var">X</span> <span class="tk-var">Y</span>. <span class="tk-op">)</span>.
-<span class="tk-dir">%symmetric</span> knows.
+<span class="hg-comment">(* `tc` is a functor: its relation `path` is the transitive closure *)</span>
+<span class="hg-namespace hg-declaration hg-meta">reach</span> = <span class="hg-method hg-meta hg-defaultLibrary">tc</span> { node = <span class="hg-type hg-object">person</span>, edge = <span class="hg-function hg-object">knows</span> }.
 
-<span class="tk-com">(* `tc` is a functor: its relation `path` is the transitive closure *)</span>
-<span class="tk-decl">reach</span> = tc { node = person, edge = knows }.
-
-<span class="tk-op">?-</span> reach.path cid <span class="tk-var">P</span>, <span class="tk-var">P</span> &lt;&gt; cid.</code></pre>
-<pre class="code run"><code><span class="cmd">$ hugin run people.hgn</span>
-?- reach.path cid P, P &lt;&gt; cid.
+<span class="hg-operator">?-</span> <span class="hg-namespace hg-meta">reach</span>.<span class="hg-function hg-object hg-defaultLibrary">path</span> <span class="hg-enumMember hg-object">cid</span> <span class="hg-variable hg-object">P</span>, <span class="hg-variable hg-object">P</span> &lt;&gt; <span class="hg-enumMember hg-object">cid</span>.</code></pre>
+        <div class="out">
+          <div class="card-head"><span class="file">$ hugin run people.hgn</span><span>output</span></div>
+<pre><code>?- reach.path cid P, P &lt;&gt; cid.
 P = ann.
 P = bob.
 P = dan.</code></pre>
-  <p class="caption"><a href="play/#example=people">Open this program in the playground</a></p>
+        </div>
+      </figure>
+    </div>
+  </section>
 
-  <h2>Links</h2>
-  <ul class="links">
-    <li><a href="play/">Playground</a><span>the compiler, running in the browser</span></li>
-    <li><a href="reference/">Language reference</a><span>the definition of the language</span></li>
-    <li><a href="reference/errors/index.html">Error index</a><span>every diagnostic code, with an explanation</span></li>
-    <li><a href="https://github.com/k0uks1/hugin">GitHub</a><span>the reference implementation, in Scala 3</span></li>
-  </ul>
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Documentation</p>
+      <h2>Links</h2>
+      <ul class="links">
+        <li><a href="play/"><strong>Playground</strong><span>The compiler, running in the browser.</span></a></li>
+        <li><a href="reference/"><strong>Language reference</strong><span>The definition of the language.</span></a></li>
+        <li><a href="reference/errors/index.html"><strong>Error index</strong><span>Every diagnostic code, with an explanation.</span></a></li>
+        <li><a href="https://github.com/k0uks1/hugin"><strong>GitHub</strong><span>The reference implementation, in Scala 3.</span></a></li>
+      </ul>
+    </div>
+  </section>
 
-  <h2>Background</h2>
-  <ol class="papers">
-    <li>T. Gilray et al. <a href="https://arxiv.org/abs/2411.14330"><i>Datalog with First-Class Facts</i></a>. PVLDB 18(3), 2024. <span>The object level.</span></li>
-    <li>A. Kovács. <a href="https://doi.org/10.1145/3547641"><i>Staged Compilation with Two-Level Type Theory</i></a>. ICFP 2022. <span>The meta level.</span></li>
-    <li>M. Kaminski et al. <a href="https://arxiv.org/abs/1705.06927"><i>Foundations of Declarative Data Analysis Using Limit Datalog Programs</i></a>. IJCAI 2017. <span>Bound columns.</span></li>
-    <li>C. S. Lee, N. D. Jones, A. M. Ben-Amram. <i>The Size-Change Principle for Program Termination</i>. POPL 2001. <span>Termination checks.</span></li>
-  </ol>
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Background</p>
+      <h2>Papers</h2>
+      <ol class="papers">
+        <li><a class="title" href="https://arxiv.org/abs/2411.14330">Datalog with First-Class Facts</a><span class="meta">T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. PVLDB 18(3), 2024.</span><span class="role">object level</span></li>
+        <li><a class="title" href="https://doi.org/10.1145/3547641">Staged Compilation with Two-Level Type Theory</a><span class="meta">A. Kovács. ICFP 2022.</span><span class="role">meta level</span></li>
+        <li><a class="title" href="https://arxiv.org/abs/1705.06927">Foundations of Declarative Data Analysis Using Limit Datalog Programs</a><span class="meta">M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. IJCAI 2017.</span><span class="role">bound columns</span></li>
+        <li><a class="title" href="https://doi.org/10.1145/360204.360210">The Size-Change Principle for Program Termination</a><span class="meta">C. S. Lee, N. D. Jones, A. M. Ben-Amram. POPL 2001.</span><span class="role">termination checks</span></li>
+      </ol>
+    </div>
+  </section>
 </main>
 
-<footer class="foot">Hugin is a research language; it changes without regard for compatibility. Apache License 2.0.</footer>
+<footer class="foot">
+  <div class="wrap">
+    <span>Hugin is a research language; it changes without regard for compatibility. Apache License 2.0.</span>
+    <nav><a href="play/">Playground</a><a href="reference/">Reference</a><a href="reference/errors/index.html">Errors</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>
 </body>
 </html>

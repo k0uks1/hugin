@@ -1,8 +1,9 @@
 # A website with an in-browser playground
 
 Design note for [issue #58](https://github.com/k0uks1/hugin/issues/58): a small site for Hugin with a
-landing page and a playground that runs the compiler in the browser. Status: first round, for the
-designer's approval. Nothing is implemented. The static prototype is in `site/` (`index.html`,
+landing page and a playground that runs the compiler in the browser. Status: round 2. The designer approved
+the recommendations and the open decisions of round 1, and asked for a more polished visual design
+(4.11). Nothing is implemented. The static prototype is in `site/` (`index.html`,
 `play/index.html`, `style.css`). The experiments this note cites were run against `bf14ffb` in a scratch
 copy and are not committed.
 
@@ -34,10 +35,11 @@ Contents: 1 recommendations, 2 Hugin today, 3 prior art, 4 assessments, 5 altern
    playground ship before the move is described in 4.3.
 5. **URL layout: landing at `/hugin/`, reference at `/hugin/reference/`, playground at `/hugin/play/`.**
    Every old reference URL gets a static redirect page, and `reference/site-url.txt` changes in the
-   same PR. The alternative, keeping the reference at the root, is an open decision (4.5).
+   same PR. Approved; the alternative was keeping the reference at the root (4.5).
 6. **Site: hand-written HTML and one CSS file.** A short build script inserts the checked example and
-   its output and highlights them at build time. The landing page loads 3.6 KB gzip (HTML and CSS) and no
-   JavaScript.
+   its output and highlights them at build time with the compiler, as the reference does. The landing
+   page loads 5.5 KB gzip (HTML and CSS) and no JavaScript. The visual design follows lean-lang.org
+   (4.11).
 7. **Playground: CodeMirror 6, a highlighter generated from the VS Code grammar, the compiler in a Web
    Worker.** Cancel terminates the worker. Diagnostics come from the existing JSON format, answers are
    shown as tables, and sharing uses a compressed program in the URL fragment. The examples are the
@@ -231,7 +233,7 @@ The reference is an mdBook (`reference/book.toml`, mdBook 0.5.4 in `reference.ym
 
 - **Hand-written HTML and CSS** (recommended). Two pages, one stylesheet (5.8 KB). The shared header is
   eight lines, copied. A ~60-line Node script (Node is needed for the playground bundle anyway) inserts
-  the example and its output, highlights them with the generated highlighter (4.7) into static spans, and
+  the example and its output, highlights them with `hugin highlight` (4.7) into static spans, and
   writes `_site/`.
 - **mdBook theme reuse.** It brings mdBook's JavaScript (sidebar, theme picker, search index) and the page
   chrome of a book. The landing page would look like a chapter. Rejected for the landing page. The
@@ -261,7 +263,7 @@ Pages publishes one artifact per site, so the reference workflow becomes the sit
   no JavaScript.
 - **Alternative:** keep the book at `/hugin/` and replace only its `index.html` (a copy of the
   introduction, which stays at `introduction.html`) by the landing page. Nothing moves, but the book's own
-  home link then leads to the landing page, and the site is a post-processed book. Open decision.
+  home link then leads to the landing page, and the site is a post-processed book. Rejected by the designer.
 
 A custom domain is out of scope. It would change `site-url.txt` again.
 
@@ -285,10 +287,13 @@ would contradict "no third-party requests".
 `editors/vscode/syntaxes/hugin.tmLanguage.json` (5 KB) uses `match`, `begin`/`end` with nesting (comments
 and quote parentheses), `include`, `captures` and lookbehind. All of these exist in JS `RegExp`. A build
 script compiles it to a CodeMirror `StreamLanguage` with a state stack: one grammar, two editors, no hand
-port. The same generated tokenizer highlights the landing page's example at build time, which keeps the
-landing page free of JavaScript. Token classes map to the six colours of `site/style.css`, each in light
-and dark. The reference's code blocks are not highlighted today (mdBook's highlight.js does not know
-Hugin). Reusing the generated tokenizer there is possible but outside this issue.
+port. The landing page's example is highlighted at build time by the compiler, as the reference's code
+blocks are since #122. The build runs `hugin highlight` (the language server's semantic tokens) and
+renders `hg-*` spans, which keeps the landing page free of JavaScript. `site/style.css` uses the
+reference's palette (`reference/hugin.css`): the light colours of mdBook's light theme and tomorrow-night
+for dark, so a program looks the same on the landing page and in the reference. The playground's
+TextMate-based highlighter uses the same classes, so lexical colours match. Semantic colours (relations,
+types and constructors told apart) appear in the playground after a check, from the compiler's tokens.
 
 ### 4.8 Diagnostics and results
 
@@ -323,6 +328,32 @@ Share writes `#code=<base64url(deflate-raw(program))>` using the browser's `Comp
 library is needed, and `#example=<name>` for the reference examples. The fragment never reaches the
 server, and there is no storage. A version prefix (`#v1:…`) is not needed: an unknown key is ignored and
 the default example is shown. Lean's `codez` uses LZ-string. The built-in deflate saves the dependency.
+
+### 4.11 Visual design
+
+After the designer's first review, the design follows lean-lang.org more closely. Its stylesheets
+(`-verso-data/layout.css`, `org-hero.css`, `card.css`, `navbar.css` and the page's inline variables) were
+read on 2026-10-10. Hugin takes the following from it:
+
+- **Hero:** two columns (text left, code right) in a container about 1 200 px wide, with a large bold
+  title (3.4rem, tight letter-spacing) above a muted lede and two buttons. A faint radial glow sits
+  behind the code. Lean uses a blurred blue radial gradient; Hugin's is a CSS gradient, with no image.
+- **Code card:** white surface (dark grey in dark mode), 1px border, 14px radius, a layered soft
+  shadow, a header bar that names the file, and the output as the card's footer.
+- **Navigation bar:** sticky and translucent with backdrop blur, a hairline bottom border, and muted
+  links with a soft hover background.
+- **Section headings:** small uppercase, letter-spaced labels in the accent colour above a bold
+  heading. Links become a four-column grid of cards (two on tablets, one on phones).
+- **Palette:** a near-white blue-grey background (`#f8fafc`; Lean's is `#F9FBFD`), slate muted text and
+  one blue accent. Dark mode is a refined near-black (`#111317`) with raised surfaces and a lighter
+  accent (Lean: `#181818`, `#3b94ff`).
+
+Not taken: web fonts (Lean loads Open Sans, Fira Code and Oranienbaum from Google Fonts; Hugin uses the
+system stacks), reveal animations and their scripts, the theme-toggle script (Hugin follows
+`prefers-color-scheme`), and the marketing sections (feature cards, testimonials, sponsors, timeline).
+The papers are a list in one card, each with a small label naming the part of Hugin it underlies. All
+four citations were checked against Crossref and arXiv. The first is PVLDB 18(3), pp. 651–665, published
+November 2024 (doi:10.14778/3712221.3712232). The others match as given.
 
 ## 5. Alternatives rejected
 
@@ -363,7 +394,7 @@ README (#51) are settled.
 
 Clones are shallow, made on 2026-10-10.
 
-- Lean: the page lean-lang.org (read 2026-10-10); `leanprover-community/lean4web` at `9c4cd4f`:
+- Lean: the page lean-lang.org and its stylesheets under `-verso-data/` (read 2026-10-10); `leanprover-community/lean4web` at `9c4cd4f`:
   `README.md`, `doc/Usage.md`, `client/package.json`.
 - Gleam: `gleam-lang/language-tour` at `234cb02`: `static/worker.js`, `static/compiler.js`,
   `static/index.js`, `bin/download-compiler`, `src/tour.gleam`; the release asset

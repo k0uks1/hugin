@@ -8,54 +8,64 @@
 <link rel="stylesheet" href="../style.css">
 </head>
 <body class="wide">
-<header class="top">
-  <a class="name" href="../">Hugin</a>
-  <nav>
-    <a href="./" aria-current="page">Playground</a>
-    <a href="../reference/">Reference</a>
-    <a href="../reference/errors/index.html">Errors</a>
-    <a href="https://github.com/k0uks1/hugin">GitHub</a>
-  </nav>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="../">Hugin</a>
+    <nav>
+      <a href="./" aria-current="page">Playground</a>
+      <a href="../reference/">Reference</a>
+      <a href="../reference/errors/index.html">Errors</a>
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+    </nav>
+  </div>
 </header>
 
 <!-- Static layout prototype: the editor is a mock, the buttons do nothing. The working page loads
      CodeMirror and starts the compiler in a Web Worker (docs/design/website.md). -->
 <main class="play">
-  <div class="toolbar">
-    <button class="primary" type="button">Run</button>
-    <button type="button">Check</button>
-    <select aria-label="Example"><option>Example: Introduction (transitive closure)</option></select>
-    <select aria-label="Show program after phase"><option>Show after: none</option></select>
-    <span class="sep"></span>
-    <span class="status">ran in 38 ms</span>
-    <button type="button">Share</button>
-  </div>
-
-  <div class="panes">
-    <div class="editor" aria-label="Program">
-<pre><code><span class="ln"><span class="tk-dir">%use</span> <span class="tk-str">"std/graph"</span>.</span><span class="ln"></span><span class="ln"><span class="tk-decl">city</span> : <span class="tk-kw">type</span>.</span><span class="ln"><span class="tk-decl">berlin</span> : city. paris : city. rome : city.</span><span class="ln"></span><span class="ln"><span class="tk-decl">road</span> : city <span class="tk-op">-&gt;</span> city <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>.</span><span class="ln">road berlin paris.</span><span class="ln">road paris rome.</span><span class="ln">road rome berlin.</span><span class="ln"></span><span class="ln"><span class="tk-decl">has_exit</span> : city <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>.</span><span class="ln">has_exit <span class="tk-var">C</span> <span class="tk-op">:-</span> road <span class="tk-var">C</span> <span class="tk-var squiggle">D</span>.</span><span class="inline-diag">warning[W0002]: variable `D` occurs only once in this rule · <a href="../reference/errors/W0002.html">W0002</a> · <a href="#">replace `D` with `_`</a></span><span class="ln"></span><span class="ln"><span class="tk-decl">roads</span> = tc { node = city, edge = road }.</span><span class="ln"></span><span class="ln"><span class="tk-op">?-</span> roads.path berlin <span class="tk-var">C</span>.</span></code></pre>
+  <div class="wrap">
+    <div class="toolbar">
+      <button class="button primary" type="button">Run</button>
+      <button class="button" type="button">Check</button>
+      <select aria-label="Example"><option>Example: Introduction</option></select>
+      <select aria-label="Show program after phase"><option>Show after: none</option></select>
+      <span class="sep"></span>
+      <span class="status">ran in 38 ms</span>
+      <button class="button" type="button">Share</button>
     </div>
 
-    <div class="results" aria-label="Results">
-      <div class="tabs" role="tablist">
-        <span role="tab" aria-selected="true">Answers</span>
-        <span role="tab">Diagnostics (1)</span>
-        <span role="tab">Relations</span>
-        <span role="tab">Text</span>
+    <div class="panes">
+      <div class="card editor" aria-label="Program">
+        <div class="card-head"><span class="file">main.hgn</span><span>1 warning</span></div>
+<pre><code class="hugin"><span class="ln"><span class="hg-decorator hg-meta">%use</span> <span class="hg-string">"std/graph"</span>.</span><span class="ln"></span><span class="ln"><span class="hg-type hg-declaration hg-object">city</span> : <span class="hg-keyword">type</span>.</span><span class="ln"><span class="hg-enumMember hg-declaration hg-object">berlin</span> : <span class="hg-type hg-object">city</span>. <span class="hg-enumMember hg-declaration hg-object">paris</span> : <span class="hg-type hg-object">city</span>. <span class="hg-enumMember hg-declaration hg-object">rome</span> : <span class="hg-type hg-object">city</span>.</span><span class="ln"></span><span class="ln"><span class="hg-function hg-declaration hg-object">road</span> : <span class="hg-type hg-object">city</span> <span class="hg-operator">-&gt;</span> <span class="hg-type hg-object">city</span> <span class="hg-operator">-&gt;</span> <span class="hg-keyword">rel</span>.</span><span class="ln"><span class="hg-function hg-object">road</span> <span class="hg-enumMember hg-object">berlin</span> <span class="hg-enumMember hg-object">paris</span>.</span><span class="ln"><span class="hg-function hg-object">road</span> <span class="hg-enumMember hg-object">paris</span> <span class="hg-enumMember hg-object">rome</span>.</span><span class="ln"><span class="hg-function hg-object">road</span> <span class="hg-enumMember hg-object">rome</span> <span class="hg-enumMember hg-object">berlin</span>.</span><span class="ln"></span><span class="ln"><span class="hg-function hg-declaration hg-object">has_exit</span> : <span class="hg-type hg-object">city</span> <span class="hg-operator">-&gt;</span> <span class="hg-keyword">rel</span>.</span><span class="ln"><span class="hg-function hg-object">has_exit</span> <span class="hg-variable hg-object">C</span> <span class="hg-operator">:-</span> <span class="hg-function hg-object">road</span> <span class="hg-variable hg-object">C</span> <span class="hg-variable hg-object squiggle">D</span>.</span><span class="inline-diag">warning[W0002]: variable `D` occurs only once in this rule · <a href="../reference/errors/W0002.html">W0002</a> · <a href="#">replace `D` with `_`</a></span><span class="ln"></span><span class="ln"><span class="hg-namespace hg-declaration hg-meta">roads</span> = <span class="hg-method hg-meta hg-defaultLibrary">tc</span> { node = <span class="hg-type hg-object">city</span>, edge = <span class="hg-function hg-object">road</span> }.</span><span class="ln"></span><span class="ln"><span class="hg-operator">?-</span> <span class="hg-namespace hg-meta">roads</span>.<span class="hg-function hg-object hg-defaultLibrary">path</span> <span class="hg-enumMember hg-object">berlin</span> <span class="hg-variable hg-object">C</span>.</span></code></pre>
       </div>
-      <div class="body">
-        <p class="query">?- roads.path berlin C.</p>
-        <table>
-          <thead><tr><th>C</th></tr></thead>
-          <tbody><tr><td>berlin</td></tr><tr><td>paris</td></tr><tr><td>rome</td></tr></tbody>
-        </table>
-        <div class="diag"><span class="code">warning[W0002]</span> line 12: variable `D` occurs only once in this rule</div>
-        <p class="note">The compiler runs in this page (Scala.js, in a Web Worker). Programs are not sent anywhere. A run stops after 10 s.</p>
+
+      <div class="card results" aria-label="Results">
+        <div class="tabs" role="tablist">
+          <span role="tab" aria-selected="true">Answers</span>
+          <span role="tab">Diagnostics (1)</span>
+          <span role="tab">Relations</span>
+          <span role="tab">Text</span>
+        </div>
+        <div class="body">
+          <p class="query">?- roads.path berlin C.</p>
+          <table>
+            <thead><tr><th>C</th></tr></thead>
+            <tbody><tr><td>berlin</td></tr><tr><td>paris</td></tr><tr><td>rome</td></tr></tbody>
+          </table>
+          <div class="diag"><span class="code">warning[W0002]</span> line 12: variable `D` occurs only once in this rule</div>
+          <p class="note">The compiler runs in this page (Scala.js, in a Web Worker). Programs are not sent anywhere. A run stops after 10 s.</p>
+        </div>
       </div>
     </div>
   </div>
 </main>
 
-<footer class="foot">Single-file programs; <code>std/</code> modules are available. The link from Share holds the program in the URL fragment.</footer>
+<footer class="foot">
+  <div class="wrap">
+    <span>Single-file programs; <code>std/</code> modules are available. Share puts the program in the URL fragment.</span>
+    <nav><a href="../">Home</a><a href="../reference/">Reference</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>
 </body>
 </html>
