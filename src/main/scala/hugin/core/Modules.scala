@@ -30,7 +30,11 @@ final case class ModuleInstance(body: ModuleBody, env: List[Val], prefix: String
  *  an environment that is not closed (under a binder) is not instantiated: its value is neutral.
  *
  *  The object constants of an instance are named after the definition that evaluates it (`hops.r` for
- *  `hops = lib.reach …`), as the old meta evaluator named them; anonymous instances are `_m1`, `_m2`, …. */
+ *  `hops = lib.reach …`). In a composition, the application whose value the definition is takes its
+ *  name: an instance that is an argument of an application is anonymous (`back = tc (reverse g)` names
+ *  `back.path`, and the instance of `reverse` is `_m1`), and an instance that a member of a body defines
+ *  is named by the member's path (`weak.v.vertex` for the member `v = vertices g` of `weak = rtc g`).
+ *  Anonymous instances are `_m1`, `_m2`, …. */
 trait Modules:
   self: Core =>
 
@@ -81,7 +85,7 @@ trait Modules:
     val fields = body.members.map { m =>
       val v = m.kind match
         case MemberKind.Object(decl) => objectMember(m, decl, e, prefix)
-        case MemberKind.Defined(t) => eval(e, t)
+        case MemberKind.Defined(t) => named(s"$prefix.${m.name}")(eval(e, t))
       e = v :: e
       (m.name, v)
     }
@@ -107,6 +111,25 @@ trait Modules:
     val p = Iterator.from(1).map(k => if k == 1 then base else s"$base#$k").find(p => !prefixes(p)).get
     prefixes += p
     p
+
+  /** `v`, an argument of an application: the instances it creates are anonymous, since the definition
+   *  being evaluated names the application's value, not its arguments. */
+  inline def argument(inline v: Val): Val =
+    if hint.isEmpty then v
+    else named("")(v)
+
+  /** `f`, the elaboration of an argument of an application: its instances are anonymous (see
+   *  [[argument]]). */
+  def anonymously[A](f: => A): A =
+    if hint.isEmpty then f
+    else named("")(f)
+
+  /** `f` with the instances it creates named after `h` (or anonymous, if `h` is empty). */
+  def named[A](h: String)(f: => A): A =
+    val saved = hint
+    hint = h
+    try f
+    finally hint = saved
 
   /** The functor applications being evaluated (innermost first). */
   var origin: hugin.util.Origin = hugin.util.Origin.Source

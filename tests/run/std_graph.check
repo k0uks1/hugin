@@ -1,0 +1,92 @@
+bd.hop a b 1.
+bd.hop a c 2.
+bd.hop b b 2.
+bd.hop b c 1.
+bd.hop c b 1.
+bd.hop c c 2.
+bd.hop d b 2.
+bd.hop d c 1.
+dg.in_degree a 0.
+dg.in_degree b 2.
+dg.in_degree c 2.
+dg.in_degree d 0.
+dg.out_degree a 1.
+dg.out_degree b 1.
+dg.out_degree c 1.
+dg.out_degree d 1.
+dg.source a.
+dg.source d.
+fromA.reached a.
+fromA.reached b.
+fromA.reached c.
+h.dist a b 1.
+h.dist a c 2.
+h.dist b b 2.
+h.dist b c 1.
+h.dist c b 1.
+h.dist c c 2.
+h.dist d b 2.
+h.dist d c 1.
+r.path a a.
+r.path a b.
+r.path a c.
+r.path b b.
+r.path b c.
+r.path c b.
+r.path c c.
+r.path d b.
+r.path d c.
+r.path d d.
+rev.edge b a.
+rev.edge b c.
+rev.edge c b.
+rev.edge c d.
+s.same a a.
+s.same b b.
+s.same b c.
+s.same c b.
+s.same c c.
+s.same d d.
+sp.dist a b 5.
+sp.dist a c 8.
+sp.dist a d 9.
+sp.dist b c 3.
+sp.dist b d 4.
+sp.dist c d 1.
+t.path a b.
+t.path a c.
+t.path b b.
+t.path b c.
+t.path c b.
+t.path c c.
+t.path d b.
+t.path d c.
+und.edge a b.
+und.edge b a.
+und.edge b c.
+und.edge c b.
+und.edge c d.
+und.edge d c.
+v.vertex a.
+v.vertex b.
+v.vertex c.
+v.vertex d.
+?- weak.path a X.
+X = a.
+X = b.
+X = c.
+X = d.
+?- back.path c X.
+X = a.
+X = b.
+X = c.
+X = d.
+?- twice.edge X Y.
+X = a, Y = b.
+X = b, Y = c.
+X = c, Y = b.
+X = d, Y = c.
+?- s.r.path a X.
+X = a.
+X = b.
+X = c.
