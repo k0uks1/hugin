@@ -13,8 +13,22 @@ class SizeChangeSuite extends munit.ScalaCheckSuite:
   override def scalaCheckTestParameters =
     super.scalaCheckTestParameters.withMinSuccessfulTests(Fuzz.count.getOrElse(300)).withWorkers(1)
 
-  private val rels = List("p", "q")
+  private val program = SizeChangePrograms.program()
 
+  property("an accepted program reaches its fixed point") {
+    Prop.forAll(program) { code =>
+      val c = TestSupport.compile(code)
+      if c.reporter.hasErrors then Prop.collect("rejected")(Prop.passed)
+      else
+        Fuzz.guarded(TestSupport.run(code)) match
+          case Right(Right(_)) => Prop.collect("accepted")(Prop.passed)
+          case Right(Left(codes)) => Prop.falsified :| s"accepted, but the run failed with $codes\n$code"
+          case Left(f) => Prop.falsified :| s"accepted, but ${f.describe}\n$code"
+    }
+  }
+
+/** Random integer recursion for [[SizeChangeSuite]] and [[ClosureCrossCheckSuite]]. */
+object SizeChangePrograms:
   private def expr(vars: List[String]): Gen[String] = Gen.frequency(
     3 -> Gen.oneOf(vars),
     3 -> Gen.zip(Gen.oneOf(vars), Gen.oneOf("+", "-"), Gen.choose(1, 2)).map((v, op, k) => s"$v $op $k"),
@@ -33,23 +47,17 @@ class SizeChangeSuite extends munit.ScalaCheckSuite:
       gs <- Gen.listOfN(n, guard(List("X", "Y", "A", "B")))
     yield (s"$head A B :- $body X Y" :: gs ++ List(s"A = $e1", s"B = $e2")).mkString("", ", ", ".")
 
-  private val program: Gen[String] =
+  /** One relation or two mutually recursive ones, with 1 to `maxRules` rules (`three`: up to three relations
+   *  calling each other arbitrarily, for larger closures). */
+  def program(maxRules: Int = 3, three: Boolean = false): Gen[String] =
+    val rels = if three then List("p", "q", "r") else List("p", "q")
     for
       mutual <- Gen.oneOf(true, false)
-      n <- Gen.choose(1, 3)
-      pairs = if mutual then List(("p", "q"), ("q", "p")) else List(("p", "p"))
+      n <- Gen.choose(1, maxRules)
+      pairs =
+        if three then for h <- rels; b <- rels yield (h, b)
+        else if mutual then List(("p", "q"), ("q", "p"))
+        else List(("p", "p"))
       rules <- Gen.listOfN(n, Gen.oneOf(pairs).flatMap((h, b) => rule(h, b)))
       facts <- Gen.listOfN(2, Gen.zip(Gen.choose(0, 9), Gen.choose(0, 9))).map(_.map((a, b) => s"p $a $b."))
     yield (rels.map(r => s"$r : int -> int -> rel.") ++ facts ++ rules ++ rels.map(r => s"%output $r.")).mkString("\n")
-
-  property("an accepted program reaches its fixed point") {
-    Prop.forAll(program) { code =>
-      val c = TestSupport.compile(code)
-      if c.reporter.hasErrors then Prop.collect("rejected")(Prop.passed)
-      else
-        Fuzz.guarded(TestSupport.run(code)) match
-          case Right(Right(_)) => Prop.collect("accepted")(Prop.passed)
-          case Right(Left(codes)) => Prop.falsified :| s"accepted, but the run failed with $codes\n$code"
-          case Left(f) => Prop.falsified :| s"accepted, but ${f.describe}\n$code"
-    }
-  }

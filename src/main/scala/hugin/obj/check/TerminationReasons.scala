@@ -37,22 +37,17 @@ enum Invention:
 /** Why direction (A), descent along derivations ([[SizeChange]]), fails. */
 enum DescentFailure:
   /** A cycle of derivation steps from `from` back to `to`, through the rules at `rules`, whose composed
-   *  size-change graph is idempotent and has no strict self-arc. */
+   *  size-change graph has no strict arc on a cycle of its arcs (nor an `=` cycle through every argument),
+   *  so its idempotent power has no strict self-arc. */
   case NoDescent(from: RelSym, to: RelSym, rules: List[Span])
-
-  /** The composition closure exceeded its bound, so the criterion was not decided. */
-  case TooManyGraphs
 
   def note: Msg = this match
     case NoDescent(from, to, rules) =>
       val via = rules.map(s => s"rule at ${s.show}").distinct.mkString(", ")
       msg"descent along derivations (A) fails: along $from -> ... -> $to (${Lit(via)}) no argument of the derived fact is smaller than in the premise"
-    case TooManyGraphs => msg"descent along derivations (A) fails: the size-change graphs of the component are too many to check"
 
 object DescentFailure:
-  def of(f: SizeChange.Failure): DescentFailure = f.chain match
-    case Some(c) => NoDescent(c.from, c.to, c.steps.map(_.rule.span))
-    case None => TooManyGraphs
+  def of(f: SizeChange.Failure): DescentFailure = NoDescent(f.chain.from, f.chain.to, f.chain.steps.map(_.rule.span))
 
 /** The measure of one relation in guarded induction (B): the argument `positions`, compared
  *  lexicographically; `slots` says which components are integers (the others are compared by the

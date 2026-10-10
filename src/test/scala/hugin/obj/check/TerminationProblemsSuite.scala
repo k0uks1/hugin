@@ -47,7 +47,6 @@ class TerminationProblemsSuite extends munit.FunSuite:
         descent match
           case DescentFailure.NoDescent(from, to, rules) =>
             assertEquals((from.name, to.name, rules.length), ("need", "need", 1))
-          case other => fail(s"unexpected descent failure $other")
         assertEquals(induction, None)
         assertEquals(guard.map(g => (show(g.head), show(g.premise), g.up)), Some(("A", "N", false)))
         assertEquals(measurable.map(_.name), Some("need"))
