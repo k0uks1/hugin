@@ -63,8 +63,12 @@ trait FormulaFunctions:
         done += other
         state.unelaborated += n
         define(other, Nil)
-    // the definitions and functions of the file that expand to one: their uses are left out too
-    for n <- state.declaredHere; g <- scope.get(n) if done.exists(f => refersTo(f, Tm.Global(g), self = false)) do
+    leaveOutUsesOf(done)
+
+  /** The definitions and functions of the file that expand to one of the `failed` globals: their uses are
+   *  left out silently too, as those of a dropped item (reference: order of elaboration). */
+  def leaveOutUsesOf(failed: collection.Set[Int]): Unit =
+    for n <- state.declaredHere; g <- scope.get(n) if failed.exists(f => refersTo(f, Tm.Global(g), self = false)) do
       state.unelaborated += n
 
   /** Whether `t` refers to the global `target`, through the definitions and functions it refers to; with
