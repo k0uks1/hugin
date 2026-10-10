@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install · Hugin</title>
+<meta name="description" content="How to build the Hugin compiler, run programs and set up an editor.">
+<link rel="stylesheet" href="../style.css">
+<!-- build.mjs: theme -->
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="../">Hugin</a>
+    <nav>
+      <a href="../play/">Playground</a>
+      <a href="../reference/">Reference</a>
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+      <!-- build.mjs: theme button -->
+    </nav>
+  </div>
+</header>
+
+<main class="install">
+  <div class="wrap">
+    <h1>Install Hugin</h1>
+    <p class="lede">Hugin is built from source with sbt and runs on the JVM. The build produces the
+    <code>hugin</code> command: the compiler, a REPL and a language server. To try Hugin without installing
+    anything, use the <a href="../play/">playground</a>.</p>
+
+    <ol class="steps">
+      <li class="step">
+        <p class="eyebrow">Step one</p>
+        <h2>Install a JDK and sbt</h2>
+        <p>Hugin needs a JDK, version 17 or later, and <a href="https://www.scala-sbt.org/download/">sbt</a> 1.10
+        or later. Check both:</p>
+        <pre class="shell"><code>java -version
+sbt --version</code></pre>
+      </li>
+
+      <li class="step">
+        <p class="eyebrow">Step two</p>
+        <h2>Build Hugin</h2>
+        <p>Clone the repository and stage the launcher. The first build downloads the dependencies and takes a
+        few minutes.</p>
+        <pre class="shell"><code>git clone https://github.com/k0uks1/hugin
+cd hugin
+sbt stage</code></pre>
+        <p>The launcher is <code>target/universal/stage/bin/hugin</code>. The wrapper <code>bin/hugin</code>
+        in the checkout calls it, and stages it first if needed; put <code>bin/</code> on your
+        <code>PATH</code> to call it as <code>hugin</code>.</p>
+      </li>
+
+      <li class="step">
+        <p class="eyebrow">Step three</p>
+        <h2>Run a program</h2>
+        <p><code>hugin run</code> compiles a program, evaluates it and prints the answers to its queries and its
+        <code>%output</code> relations. <code>hugin check</code> only compiles it and reports the diagnostics.</p>
+        <pre class="shell"><code>hugin run examples/graphs.hgn
+hugin check examples/typechecker.hgn
+hugin explain E0603       <span class="comment"># explain a diagnostic code</span>
+hugin --help              <span class="comment"># all commands and options</span></code></pre>
+        <p><code>hugin repl</code> starts an interactive session: declarations and rules extend the session,
+        queries are answered at once, and <code>:help</code> lists the commands.</p>
+        <pre class="shell"><code>hugin repl examples/graphs.hgn</code></pre>
+      </li>
+
+      <li class="step">
+        <p class="eyebrow">Step four</p>
+        <h2>Set up an editor</h2>
+        <p>The VS Code extension in <a href="https://github.com/k0uks1/hugin/tree/HEAD/editors/vscode"><code>editors/vscode</code></a>
+        highlights Hugin and runs the language server (<code>hugin lsp</code>): diagnostics, hover, go to
+        definition, completion and quick fixes. CI packages it on every push: download the artifact
+        <code>hugin-vscode</code> of a recent <a href="https://github.com/k0uks1/hugin/actions/workflows/ci.yml">CI run</a>
+        and install it, or build it yourself:</p>
+        <pre class="shell"><code>cd editors/vscode
+npm install
+npm run package
+code --install-extension hugin-*.vsix</code></pre>
+        <p>The extension starts <code>hugin</code> from the <code>PATH</code>; otherwise set
+        <code>hugin.server.path</code> to <code>bin/hugin</code> in the checkout. Other editors can use the
+        same language server for files ending in <code>.hgn</code> and <code>.facts</code>.</p>
+      </li>
+    </ol>
+
+    <p class="next">Next: the <a href="../reference/">language reference</a> defines the language, with
+    examples you can open in the <a href="../play/">playground</a>.</p>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <nav><a href="../">Home</a><a href="../play/">Playground</a><a href="../reference/">Reference</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>
+</body>
+</html>

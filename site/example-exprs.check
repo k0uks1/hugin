@@ -1,0 +1,4 @@
+?- prog E, value E V.
+E = add (num 1) (mul (num 2) (num 3)), V = 7.
+?- N = count { E | value E _ }.
+N = 5.

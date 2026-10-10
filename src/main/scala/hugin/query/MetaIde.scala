@@ -96,10 +96,15 @@ object MetaIde:
       .find(t => t.checked && t.head.nonEmpty)
       .map(t => (t.head, t.context))
 
-  /** The heads of the result types of the symbols named `name` in the index (completion candidates). */
+  /** The heads of the result types of the symbols named `name` in the index (completion candidates). A
+   *  name that the program's files declare stands for their symbols only: a declaration of the standard
+   *  library with the same name (`size` of `std/list`) is not in scope there, or is shadowed. */
   def headsByName(key: CompileKey)(using Database): Map[String, Set[String]] =
     val ix = index(key)
-    (ix.symbols ++ ix.topLevel).flatMap(s => ix.meta.resultHeadOf(s).map(s.name -> _)).groupMap(_._1)(_._2).view.mapValues(_.toSet).toMap
+    (ix.symbols ++ ix.topLevel).groupBy(_.name).view.mapValues { syms =>
+      val own = syms.filterNot(s => hugin.compiler.StdlibCache.isStdlib(s.span.source.path))
+      (if own.nonEmpty then own else syms).flatMap(ix.meta.resultHeadOf).toSet
+    }.toMap
 
   /** The head of the result type of a symbol (completion candidates). */
   def resultHead(key: CompileKey, sym: hugin.compiler.Sym)(using Database): Option[String] = meta(key).resultHeadOf(sym)

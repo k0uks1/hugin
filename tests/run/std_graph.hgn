@@ -1,0 +1,36 @@
+(* std/graph (#61, B5): every functor on one graph `a→b, b→c, c→b, d→c` (weights `a→b 5, b→c 3,
+   a→c 10, c→d 1`), compositions of transformers, and the names of composed instances: the application a
+   definition names takes its name, members are named by their paths, arguments are anonymous. *)
+%use "std/graph".
+city : type. a : city. b : city. c : city. d : city.
+road : city -> city -> rel.
+road a b. road b c. road c b. road d c.
+start : city -> rel.
+start a.
+km : city -> city -> int -> rel.
+km a b 5. km b c 3. km a c 10. km c d 1.
+
+g = { node = city, edge = road }.
+rev = reverse g.
+und = undirected g.
+v = vertices g.
+t = tc g.
+r = rtc g.
+fromA = reach g start.
+s = scc g.
+dg = degrees g.
+sp = shortest { node = city, edge = km }.
+h = hops g.
+bd = bounded g 2.
+
+weak = rtc (undirected g).          (* weakly connected components, the equivalence closure *)
+back = tc (reverse g).               (* the predecessors *)
+twice = reverse (reverse g).         (* the graph again *)
+
+%output rev.edge. %output und.edge. %output v.vertex. %output t.path. %output r.path.
+%output fromA.reached. %output s.same. %output dg.source. %output dg.sink. %output dg.out_degree.
+%output dg.in_degree. %output sp.dist. %output h.dist. %output bd.hop.
+?- weak.path a X.
+?- back.path c X.
+?- twice.edge X Y.
+?- s.r.path a X.
