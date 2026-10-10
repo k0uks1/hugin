@@ -134,6 +134,10 @@ trait Libraries:
   def elaborate(root: String, program: Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
     hugin.core.MetaLevel.elaborateProgram(root, program, graph, prelude, load)
 
+  /** Called between the phases of a compilation: stops it by throwing if the work is no longer wanted
+   *  (the query database's cancellation, `hugin.query.Database.cancellation`). By default, never. */
+  def checkCancelled(): Unit = ()
+
 /** A program elaborated by the meta level: the result, its diagnostics and what it recorded for tooling. */
 final class ProgramElaboration(
     val elaborated: hugin.core.Elaborated,

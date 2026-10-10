@@ -5,23 +5,26 @@ import java.io.{InputStream, OutputStream}
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.completedFuture
 import org.eclipse.lsp4j.*
-import org.eclipse.lsp4j.jsonrpc.messages.Either as JEither
+import org.eclipse.lsp4j.jsonrpc.RemoteEndpoint
+import org.eclipse.lsp4j.jsonrpc.messages.{Either as JEither, Message}
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.*
 import scala.jdk.CollectionConverters.*
 
 /** The Hugin language server. It keeps one query [[hugin.query.Database]]; an opened or changed document (full
- *  synchronisation) sets its `SourceText`, and diagnostics are published per file: those of every open
- *  document again (an edit can affect the documents importing the edited one), and those of the files they
- *  import (from the queries of those files) when they changed, and cleared when they disappeared. Requests
- *  are answered by [[Features]] through the compiler queries, so unchanged documents are not recompiled.
+ *  synchronisation) sets its `SourceText`, and diagnostics are published per file, for every open
+ *  document (an edit can affect the documents importing the edited one) and the files they import (from
+ *  the queries of those files), when they changed; they are cleared when they disappear. Requests are
+ *  answered by [[Features]] through the compiler queries, so unchanged documents are not recompiled.
  *
- *  lsp4j delivers messages one at a time on its listener thread and every handler computes its answer
- *  before returning, so the database is only ever used by one thread.
+ *  lsp4j delivers messages on its listener thread; the handlers hand the work to a [[Worker]], which
+ *  runs it on one thread under a lock (the database is single-threaded), cancels the computation for a
+ *  text that changed again and never publishes the diagnostics of a superseded text.
  */
 final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   private given db: Database = Database()
   db.set(EagerStdlib, (), true) // completion offers every name in scope ([[hugin.compiler.LazyStdlib]])
+  private val worker = Worker(db)
   private var client: Option[LanguageClient] = None
   private var shutdownRequested = false
 
@@ -64,9 +67,12 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     refreshHints = scala.util.Try(params.getCapabilities.getWorkspace.getInlayHint.getRefreshSupport.booleanValue).getOrElse(false)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
+  /** Answered after the work for the messages before it is done. */
   override def shutdown(): CompletableFuture[Object] =
-    shutdownRequested = true
-    completedFuture(null)
+    worker.request {
+      shutdownRequested = true
+      null
+    }
 
   override def exit(): Unit = exited.complete(exitCode)
 
@@ -75,13 +81,26 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   override def getTextDocumentService(): TextDocumentService = documents
   override def getWorkspaceService(): WorkspaceService = workspace
 
-  /** Publishes the diagnostics of all open documents and those of the files they import that changed, and
-   *  clears those of files that no longer have any. */
-  private def publish(): Unit =
+  private val received = java.util.concurrent.atomic.AtomicLong()
+
+  /** The number of messages from the client that lsp4j has passed on to the handlers (by [[serve]]). */
+  def messagesReceived: Long = received.get
+
+  /** Completed when the work for the messages handled so far is done (for tests and benchmarks). */
+  def idle(): CompletableFuture[Unit] = worker.idle()
+
+  /** Runs `body` while the worker waits (for tests: messages received meanwhile are handled after it). */
+  def withDatabase[T](body: => T): T = worker.withDatabase(body)
+
+  /** Publishes the diagnostics of the open documents and of the files they import that changed, and clears
+   *  those of files that no longer have any, unless a newer edit arrived (`turn`). */
+  private def publish(turn: worker.Turn): Unit =
     val now = features.diagnostics
-    for uri <- published.keySet -- now.keySet do send(uri, Nil)
-    for (uri, diags) <- now if features.isOpen(uri) || published.getOrElse(uri, Nil) != diags do send(uri, diags)
-    published = now.filter(_._2.nonEmpty)
+    turn.publish {
+      for uri <- published.keySet -- now.keySet do send(uri, Nil)
+      for (uri, diags) <- now if published.getOrElse(uri, Nil) != diags do send(uri, diags)
+      published = now.filter(_._2.nonEmpty)
+    }
 
   private def send(uri: String, diags: List[Diagnostic]): Unit =
     client.foreach(_.publishDiagnostics(PublishDiagnosticsParams(uri, diags.asJava)))
@@ -89,82 +108,101 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   private final class Documents extends TextDocumentService:
     override def didOpen(params: DidOpenTextDocumentParams): Unit =
       val doc = params.getTextDocument
-      features.update(doc.getUri, doc.getText)
-      publish()
+      worker.edit(features.update(doc.getUri, doc.getText))(publish)
 
     override def didChange(params: DidChangeTextDocumentParams): Unit =
       // with full synchronisation, the last change is the whole text
-      params.getContentChanges.asScala.lastOption.foreach(c => features.update(params.getTextDocument.getUri, c.getText))
-      publish()
+      val uri = params.getTextDocument.getUri
+      params.getContentChanges.asScala.lastOption.foreach(c => worker.edit(features.update(uri, c.getText))(publish))
 
     override def didClose(params: DidCloseTextDocumentParams): Unit =
       val uri = params.getTextDocument.getUri
-      features.close(uri)
-      send(uri, Nil)
-      published -= uri
-      publish()
+      worker.edit {
+        features.close(uri)
+        send(uri, Nil)
+        published -= uri
+      }(publish)
 
     override def didSave(params: DidSaveTextDocumentParams): Unit = ()
 
     override def hover(params: HoverParams): CompletableFuture[Hover] =
-      completedFuture(features.hover(params.getTextDocument.getUri, params.getPosition).orNull)
+      worker.request(features.hover(params.getTextDocument.getUri, params.getPosition).orNull)
 
     override def completion(params: CompletionParams): CompletableFuture[JEither[java.util.List[CompletionItem], CompletionList]] =
-      completedFuture(JEither.forLeft(features.completion(params.getTextDocument.getUri, params.getPosition).asJava))
+      worker.request(JEither.forLeft(features.completion(params.getTextDocument.getUri, params.getPosition).asJava))
 
     override def definition(
         params: DefinitionParams
     ): CompletableFuture[JEither[java.util.List[? <: Location], java.util.List[? <: LocationLink]]] =
-      completedFuture(JEither.forLeft(features.definition(params.getTextDocument.getUri, params.getPosition).asJava))
+      worker.request(JEither.forLeft(features.definition(params.getTextDocument.getUri, params.getPosition).asJava))
 
     override def references(params: ReferenceParams): CompletableFuture[java.util.List[? <: Location]] =
       val include = Option(params.getContext).forall(_.isIncludeDeclaration)
-      completedFuture(features.references(params.getTextDocument.getUri, params.getPosition, include).asJava)
+      worker.request(features.references(params.getTextDocument.getUri, params.getPosition, include).asJava)
 
     override def documentSymbol(params: DocumentSymbolParams)
         : CompletableFuture[java.util.List[JEither[SymbolInformation, DocumentSymbol]]] =
-      val symbols = features.documentSymbols(params.getTextDocument.getUri).map(s => JEither.forRight[SymbolInformation, DocumentSymbol](s))
-      completedFuture(symbols.asJava)
+      worker.request {
+        features.documentSymbols(params.getTextDocument.getUri).map(s => JEither.forRight[SymbolInformation, DocumentSymbol](s)).asJava
+      }
 
     override def semanticTokensFull(params: SemanticTokensParams): CompletableFuture[SemanticTokens] =
-      completedFuture(features.semanticTokens(params.getTextDocument.getUri))
+      worker.request(features.semanticTokens(params.getTextDocument.getUri))
 
     override def codeLens(params: CodeLensParams): CompletableFuture[java.util.List[? <: CodeLens]] =
-      completedFuture(features.codeLenses(params.getTextDocument.getUri).asJava)
+      worker.request(features.codeLenses(params.getTextDocument.getUri).asJava)
 
     override def inlayHint(params: InlayHintParams): CompletableFuture[java.util.List[InlayHint]] =
-      completedFuture(features.inlayHints(params.getTextDocument.getUri, params.getRange).asJava)
+      worker.request(features.inlayHints(params.getTextDocument.getUri, params.getRange).asJava)
 
     override def codeAction(params: CodeActionParams): CompletableFuture[java.util.List[JEither[Command, CodeAction]]] =
-      val actions = features.codeActions(params.getTextDocument.getUri, params.getRange).map(a => JEither.forRight[Command, CodeAction](a))
-      completedFuture(actions.asJava)
+      worker.request(
+        features.codeActions(params.getTextDocument.getUri, params.getRange).map(a => JEither.forRight[Command, CodeAction](a)).asJava
+      )
 
   private final class Workspace extends WorkspaceService:
     /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
     override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
-      features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
-      if refreshHints then client.foreach(c => scala.util.Try(c.refreshInlayHints()))
+      worker.run {
+        features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
+        if refreshHints then client.foreach(c => scala.util.Try(c.refreshInlayHints()))
+      }
 
     /** `hugin.expansion` ([[MetaFeatures.ExpansionCommand]]): the expansion at a position, or null. */
     override def executeCommand(params: ExecuteCommandParams): CompletableFuture[Object] =
-      val result =
-        if params.getCommand != MetaFeatures.ExpansionCommand then None
-        else
-          MetaFeatures.positionArgs(Option(params.getArguments).fold(Nil)(_.asScala.toList)).flatMap((uri, pos) =>
-            features.expansion(uri, pos)
-          )
-      completedFuture(result.orNull)
+      worker.request {
+        val result =
+          if params.getCommand != MetaFeatures.ExpansionCommand then None
+          else
+            MetaFeatures.positionArgs(Option(params.getArguments).fold(Nil)(_.asScala.toList)).flatMap((uri, pos) =>
+              features.expansion(uri, pos)
+            )
+        result.orNull
+      }
 
     override def didChangeWatchedFiles(params: DidChangeWatchedFilesParams): Unit =
-      params.getChanges.asScala.foreach(e => features.changedOnDisk(e.getUri))
-      publish()
+      worker.edit(params.getChanges.asScala.foreach(e => features.changedOnDisk(e.getUri)))(publish)
 
 object HuginLanguageServer:
   /** Serves the protocol on the given streams until the client sends `exit` or closes the input; returns
    *  the exit code. */
-  def serve(in: InputStream, out: OutputStream): Int =
-    val server = HuginLanguageServer()
-    val launcher = LSPLauncher.createServerLauncher(server, in, out)
+  def serve(in: InputStream, out: OutputStream, server: HuginLanguageServer = HuginLanguageServer()): Int =
+    val launcher = LSPLauncher
+      .Builder[LanguageClient]()
+      .setLocalService(server)
+      .setRemoteInterface(classOf[LanguageClient])
+      .setInput(in)
+      .setOutput(out)
+      .wrapMessages { consumer =>
+        // incoming messages are consumed by the remote endpoint, which calls the handlers
+        if !consumer.isInstanceOf[RemoteEndpoint] then consumer
+        else
+          (message: Message) =>
+            consumer.consume(message)
+            server.received.incrementAndGet()
+            ()
+      }
+      .create()
     server.connect(launcher.getRemoteProxy)
     val listening = launcher.startListening()
     // wait for whichever comes first on a thread of our own: blocking inside the common fork-join pool can

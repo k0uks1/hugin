@@ -194,8 +194,9 @@ program under edits) is the safety net for all of them.
       compiler's deduplication, placement in the current text and sorting.
     * *The language server publishes per file*: each open document from its own compilation, and every
       file it imports that is not open on that file's URI (the library's group of `FileDiagnostics`). An
-      open document is published after every change, as before (the transcripts are unchanged); a file
-      that is not open is published only when its diagnostics changed, and cleared when they disappear (it
+      open document was published after every change (since issue #126, PR 5, only when its diagnostics
+      changed, see below); a file that is not open is published only when its diagnostics changed, and
+      cleared when they disappear (it
       is no longer imported, or it was fixed on disk: `workspace/didChangeWatchedFiles`). Fixing a file on
       disk exposed a bug in the database, also fixed: an input removed and read again from its default (a
       file read from disk) was dated revision 0, so results computed from its old value were reused.
@@ -229,6 +230,19 @@ program under edits) is the safety net for all of them.
 The object-level phases (stratification, demand, termination, lowering) stay whole-program: they are
 global by nature and cheap compared with elaboration (`--stats` shows the split).
 
+Cancellation (issue #126, PR 5). `Database.cancellation` is a check the client sets around a
+computation; it is asked whenever a query is demanded and, through `Libraries.checkCancelled`, between
+the phases of a compilation, and `Cancelled` (a control throwable, so error recovery does not catch it)
+unwinds the running queries. A query that is unwound stores no memo, and the memos completed before
+are complete results, so the database stays consistent (`DatabaseSuite`); placement is redone by the
+next `ItemSlices`. The check is a function, not a thread interrupt, so it is portable. The language
+server (`lsp/Worker.scala`) runs its work on one worker thread under a lock, in message order: an edit
+counts a new generation on lsp4j's thread, which cancels the computation in progress at its next query
+boundary; the edit's task sets the input and, unless a newer edit arrived, computes the diagnostics and
+publishes those that changed, only while its generation is still the latest. A burst of edits costs one
+compilation, superseded diagnostics are never published, and requests cancelled by a later edit answer
+`ContentModified` (`CancellationSuite`).
+
 ## Status (after step 10)
 
 Incremental now:
@@ -257,5 +271,5 @@ Still coarse:
 * Libraries are elaborated as whole files (an edit of a library elaborates it, and the files importing
   it, again); a change of the `%infix` operators of a file parses all its items again.
 * The slices' placement (`SourceFile.place`) is mutable state set by `ItemSlices`; it relies on the
-  database being single-threaded (the language server answers on lsp4j's single message thread).
-* The language server republishes every open document's diagnostics after any change.
+  database being single-threaded (the language server runs all its work on one worker thread, under a
+  lock).

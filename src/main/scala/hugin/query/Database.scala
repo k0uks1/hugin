@@ -30,6 +30,11 @@ abstract class Accumulator[A](val name: String):
 /** A cycle among queries: `path` lists the active queries from the outermost to the re-entered one. */
 final class CycleError(val path: List[String]) extends RuntimeException(s"cycle in queries: ${path.mkString(" -> ")}")
 
+/** Thrown when a query is demanded after the computation was cancelled ([[Database.cancellation]]). It
+ *  unwinds every query being computed, none of which stores a memo, and is not caught by handlers of
+ *  non-fatal exceptions (it is a control throwable), so a compiler's error recovery does not swallow it. */
+final class Cancelled extends scala.util.control.ControlThrowable("query computation cancelled")
+
 /** Thrown when a query reads an input that was never set. */
 final class MissingInput(val description: String) extends RuntimeException(s"input not set: $description")
 
@@ -54,8 +59,17 @@ final class MissingInput(val description: String) extends RuntimeException(s"inp
  *    amortised. Dropping a memo is always safe: a dropped result is computed again when demanded, and
  *    every memo kept keeps its dependencies.
  *
+ *  - Cancellation ([[cancellation]]): a client can stop a computation it no longer needs (an editor whose
+ *    text changed again). The check is asked whenever a query is demanded, and between the phases of a
+ *    compilation; if it answers yes, [[Cancelled]] unwinds the running queries. A query that is unwound
+ *    stores no memo (its earlier memo, if any, stays as it was and is verified again on its next demand),
+ *    and the memos completed before the check are complete results, so the database stays consistent.
+ *    The check is a plain function, not a thread interrupt, so that it works on any platform.
+ *
  *  Results must be immutable values with meaningful `equals` for early cut-off to apply. The database is
- *  single-threaded.
+ *  single-threaded: a client using it from several threads makes them take turns (the language server
+ *  runs its work on one worker thread under a lock); only [[cancellation]] is asked from the computing
+ *  thread about state another thread may change.
  */
 final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
   private type Slot = (AnyRef, Any)
@@ -116,6 +130,13 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
       collections = 0
       computedBy.clear()
 
+  /** Whether the computation in progress is no longer wanted: asked whenever a query is demanded (see
+   *  [[checkCancelled]]). Set by the client around a computation; by default, never. */
+  @volatile var cancellation: () => Boolean = Database.neverCancelled
+
+  /** Throws [[Cancelled]] if the computation in progress was cancelled. */
+  def checkCancelled(): Unit = if cancellation() then throw Cancelled()
+
   /** The current revision; it increases whenever an input changes. */
   def revision: Long = current
 
@@ -172,6 +193,7 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
 
   /** Demands a query, recording the dependency of the running query. */
   def apply[K, V](query: Query[K, V], key: K): V =
+    checkCancelled()
     val slot = (query, key)
     record(slot)
     if stack.isEmpty then demanded(slot)
@@ -181,6 +203,7 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
    *  tracked reads, dependencies that cover everything it uses of the value (e.g. per-declaration
    *  projections of a shared result), so that it is recomputed whenever what it used changed. */
   def untracked[K, V](query: Query[K, V], key: K): V =
+    checkCancelled()
     if stack.isEmpty then demanded((query, key))
     fresh((query, key)).value.asInstanceOf[V]
 
@@ -294,3 +317,6 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
     memo
 
   private def describe(slot: Slot): String = s"${slot._1}(${slot._2})"
+
+object Database:
+  val neverCancelled: () => Boolean = () => false

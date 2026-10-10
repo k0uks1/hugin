@@ -397,11 +397,14 @@ after an edit. See `docs/INCREMENTALITY.md` (issue #4).
 [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) over stdin and stdout
 (`hugin.lsp`, built on [LSP4J](https://github.com/eclipse-lsp4j/lsp4j)). It is a client of the query
 database: an open document's text is its `SourceText` input, files that are not open (imports) are read
-from disk, and every request is answered by `Ide` on the memoised compilation. It provides
+from disk, and every request is answered by `Ide` on the memoised compilation. Its work runs on one
+worker thread under a lock, off lsp4j's message thread: an edit cancels the computation for the previous
+text at its next query boundary (`Database.cancellation`), so a burst of keystrokes costs one
+compilation, and diagnostics of a superseded text are never published (`lsp/Worker.scala`). It provides
 
 - diagnostics for every open document and for the files it imports, published per file (`FileDiagnostics`:
-  an imported file's on its own URI, from the queries that elaborated it; those of a file that is not
-  open are sent again only when they changed, and cleared when they disappear), with the code, the
+  an imported file's on its own URI, from the queries that elaborated it; a file's diagnostics are sent
+  only when they changed, and cleared when they disappear), with the code, the
   primary label as the range, notes and helps in the message, and secondary labels and the meta-level
   expansion chain as related information (singleton variables and unused definitions are shown faded);
 - hover: the meta type of a definition or path, the inferred object type of a variable, and what the
