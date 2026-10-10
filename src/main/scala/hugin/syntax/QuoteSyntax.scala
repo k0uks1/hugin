@@ -50,11 +50,12 @@ private[syntax] trait QuoteSyntax extends ParserBase:
           resync()
         // a `]` or `}` closes an enclosing construct: the quote is unclosed, which `close` reports
         else if !at(Tok.RParen) && !at(Tok.RBrack) && !at(Tok.RBrace) && !at(Tok.EOF) && !atColumn0(position) then
-          // a damaged entry: skip to its period (or to the quote's `)`) and go on with the next entry
+          // a damaged entry: skip to its period (or to the quote's `)`) and go on with the next entry; a skip
+          // that ends before the next item (in column 0) took the quote's `)` with it: the same mistake
           expected(List(Expect.period))
           skipItem()
           terminated = toks(position - 1).kind == Tok.Period
-          resync()
+          if terminated || at(Tok.RParen) then resync()
         // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
         more = terminated && !at(Tok.RParen) && startsEntry && !atColumn0(position)
     }

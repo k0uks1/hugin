@@ -1,0 +1,22 @@
+error[E0912]: cannot show that `fibPair` terminates
+  --> tests/neg/where_binding_termination.hgn:9:1
+   |
+ 9 | fibPair : nat -> pair int int. (*~ E0912 *)
+   | ^^^^^^^ possibly non-terminating
+...
+11 | fibPair N = mkPair b (a + b)
+   | ---------------------------- in this clause: `fibPair N`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+error[E0912]: cannot show that `loop` terminates
+  --> tests/neg/where_binding_termination.hgn:15:1
+   |
+15 | loop : nat -> int. (*~ E0912 *)
+   | ^^^^ possibly non-terminating
+16 | loop N = fst x
+   | -------------- in this clause: `loop N`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+2 errors found

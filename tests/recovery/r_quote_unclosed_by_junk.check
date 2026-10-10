@@ -1,0 +1,23 @@
+error[E0001]: unexpected character `'`
+ --> tests/recovery/r_quote_unclosed_by_junk.hgn:9:42
+  |
+9 | $'( $(link '( a ) '( b )). $(link '( b ) ' "( c )). ).
+  |                                          ^
+
+error[E0002]: unterminated string literal
+ --> tests/recovery/r_quote_unclosed_by_junk.hgn:9:44
+  |
+9 | $'( $(link '( a ) '( b )). $(link '( b ) ' "( c )). ).
+  |                                            ^^^^^^^^^^^ string starts here
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+node : type.
+a : node.
+b : node.
+c : node.
+edge : (src : node) -> (dst : node) -> rel.
+link : quoted ⟨node⟩ -> quoted ⟨node⟩ -> quoted ⟨edge⟩.
+  link X Y = qterm (tapp ⟨edge⟩ (cons {term} (raw {⟨node⟩} X) (cons {term} (raw {⟨node⟩} Y) (nil {term})))).
+blocked : node -> rel.
+blocked a.

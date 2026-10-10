@@ -1,6 +1,7 @@
 (* A `{` that cannot start an item, at the end of its line, opens a body over several lines: it is skipped
    with that body, to its `}` in column 0, instead of leaving the members and the `}` to be read as items
-   (here the period before the `{` ended the definition). *)
+   (here the period before the `{` ended the definition). So is a `{` whose `}` follows within the item
+   (after `c.`, which a stray `{` made a period): the body around it keeps its own `}`. *)
 item : (name : string) -> (price : int) -> rel.
 listed : item -> rel.
 %input listed.
@@ -10,5 +11,10 @@ select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
   @s sel X :- r X, p X.
 }.
 bargains = select cheap listed.
+marking : Type = { mark : int -> rel }.
+counter (c : marking) = {
+  marks : int -> rel.
+  marks K :- K = count { N | c. {mark N }. (*~ E0005 *) (*~ E0001 *)
+}.
 listed (item "pen" 2).
 %output listed.

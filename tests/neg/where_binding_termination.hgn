@@ -1,0 +1,21 @@
+(* The calls in the bindings of a `where` block are calls of the clause: a pattern binding, or a
+   definition whose value holds the call under a constructor, does not hide a recursive call from the
+   termination check (here `fibPair N` and `loop N` on the argument itself). *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+pair : Type -> Type -> Type.
+mkPair : A -> B -> pair A B.
+fibPair : nat -> pair int int. (*~ E0912 *)
+fibPair zero = mkPair 0 1.
+fibPair N = mkPair b (a + b)
+  where mkPair a b = fibPair N.
+fst : pair int int -> int.
+fst (mkPair X _) = X.
+loop : nat -> int. (*~ E0912 *)
+loop N = fst x
+  where x = mkPair 1 (loop N).
+fine : nat -> pair int int.
+fine zero = mkPair 0 1.
+fine (suc N) = mkPair b (a + b)
+  where mkPair a b = fine N.

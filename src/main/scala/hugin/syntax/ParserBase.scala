@@ -194,8 +194,10 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
           items ++= damagedItem(last)
         error(unexpected(tok))
         clean = false
-        // a `{` at the end of its line opens a body over several lines: skipped with it, to its `}`
-        val opensBody = at(Tok.LBrace) && toks(i + 1).kind != Tok.EOF && toks(i + 1).span.startLine > tok.span.startLine
+        // a `{` at the end of its line opens a body over several lines, and one whose `}` follows within the
+        // item a brace (`c. {mark N }.`): skipped with it, to its `}`
+        val opensBody = at(Tok.LBrace) &&
+          (toks(i + 1).kind != Tok.EOF && toks(i + 1).span.startLine > tok.span.startLine || closerAhead(Tok.RBrace, from = i + 1) >= 0)
         val t = advance()
         // a stray `}` directly followed by `.` closed an item whose opening was lost (a quote or module
         // body that ended early): the period is that item's end, not a mistake of its own (issue #83)

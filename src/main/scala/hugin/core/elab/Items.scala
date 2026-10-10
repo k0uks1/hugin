@@ -75,9 +75,12 @@ trait Items:
     if !file.signaturesOnly then
       elabClauseGroups(clauses)
       def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
-      val defined = formulaFunctions.toList.filterNot(state.unelaborated).sortBy(scope.get(_).getOrElse(Int.MaxValue))
-      for f <- defined do inBlock(elabFormulaClauses(f, clausesOf(f)))
-      checkFormulaCycles(defined.map(f => (f, clausesOf(f))))
+      // a declaration `f : … -> prop.` defined by clauses `f p̄ = e.` is a function (checked for termination)
+      val byRules = formulaFunctions.toList
+        .filter(f => !state.unelaborated(f) && scope.get(f).exists(globals(_).kind == GlobalKind.Postulate))
+        .sortBy(scope.get(_).getOrElse(Int.MaxValue))
+      for f <- byRules do inBlock(elabFormulaClauses(f, clausesOf(f)))
+      checkFormulaCycles(byRules.map(f => (f, clausesOf(f))))
       exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
