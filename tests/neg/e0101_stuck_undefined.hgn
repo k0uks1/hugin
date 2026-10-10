@@ -1,6 +1,7 @@
-(* A function whose clause uses an undefined name (issue #108): `pick` is dropped (E0101), so `grow`
-   builds stuck code in which each level refers to the level below twice and splits on it. The value
-   has linear size but an exponential tree; compilation reports it at once and shows it in part. *)
+(* A function whose clause uses an undefined name: `pick` is dropped (E0101), and so are the uses of
+   it, also through `grow`, which was elaborated against it (issue #121): the query is left out without
+   a further error, and `twenty`, used only there, is unused. Before, `grow` built stuck code with an
+   exponential tree (issue #108; now `e0909_stuck_postulate`). *)
 pick : bool -> A -> A -> A.
 pick B X Y = choose B X Y. (*~ E0101 *)
 first : list int -> int.
@@ -9,7 +10,7 @@ first (X :: Xs) = X.
 nat : Type.
 zero : nat.
 suc : nat -> nat.
-twenty : nat = suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc zero))))))))))))))))))).
+twenty : nat = suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc zero))))))))))))))))))). (*~ W0003 *)
 grow : nat -> list int -> list int.
 grow zero R = R.
 grow (suc N) R = grow N (pick true (first R :: R) R).
@@ -17,4 +18,4 @@ size : list int -> int.
 size [] = 0.
 size (X :: Xs) = size Xs + 1.
 measured : int -> rel.
-measured (size (grow twenty [1])). (*~ E0909 *)
+measured (size (grow twenty [1])).
