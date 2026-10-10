@@ -48,6 +48,7 @@ object Compiler:
     given Context = ctx
     var stop = false
     for p <- phases if !stop do
+      ctx.libraries.checkCancelled()
       if !ctx.reporter.hasErrors || p.runsAfterErrors then
         val start = System.nanoTime()
         p.run

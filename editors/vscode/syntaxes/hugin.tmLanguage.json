@@ -53,7 +53,7 @@
       "match": "@[a-z][A-Za-z0-9_']*"
     },
     "declaration": {
-      "comment": "the head of an item, which a declaration declares and a clause, fact or rule defines: its first name in column 0 or after the period of an item on the same line (`expr : type. typ : type.`); and an indented `name : ...` or `name ... =` (a member of a module body)",
+      "comment": "the head of an item, which a declaration declares and a clause, fact or rule defines: its first name in column 0 or after the period of an item on the same line (`expr : type. typ : type.`); and an indented `name : ...` or `name ... =` (a member of a module body); and the further names of a declaration of several names (`red, green, blue : color.`)",
       "patterns": [
         {
           "match": "(?:^|(?<=\\.\\s))\\s*(?!(?:where|not|as|with|type|rel|prop|data|count|sum|min|max)(?![\\w']))([a-z][A-Za-z0-9_']*)(?![\\w']|\\.[a-z])",
@@ -61,6 +61,10 @@
         },
         {
           "match": "^\\s+([a-z][A-Za-z0-9_']*)(?=\\s*(?::(?!-)|=))",
+          "captures": { "1": { "name": "entity.name.function.declaration.hugin" } }
+        },
+        {
+          "match": "(?<=,)\\s*([a-z][A-Za-z0-9_']*)(?=\\s*(?:,\\s*[a-z][A-Za-z0-9_']*\\s*)*:(?![-:]))",
           "captures": { "1": { "name": "entity.name.function.declaration.hugin" } }
         }
       ]

@@ -6,7 +6,8 @@
 //                                 their outputs site/example*.check, which must equal what `hugin run`
 //                                 prints (GoldenTests checks them too)
 //   _site/install/                how to install Hugin
-//   every page                    the theme switch, site/theme.js, inlined into the <head>
+//   every page                    the theme switch, site/theme.js, inlined into the <head>; the CSS and
+//                                 JS references carry ?v=<content hash> (cache busting)
 //   _site/play/                   the playground: play.js (CodeMirror and the page, bundled by esbuild),
 //                                 worker.js, hugin.js (the Scala.js compiler, batch W4) and examples.json
 //   _site/reference/              the language reference (the mdBook output, reference/book)
@@ -21,6 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { collectExamples, landingExamples } from "./examples.mjs";
 
@@ -173,6 +175,33 @@ function reference() {
   return count;
 }
 
+// --- cache busting -----------------------------------------------------------------------------------
+// The assets keep their names, and browsers and the CDN cache them (GitHub Pages: max-age=600; phones keep
+// them longer), so a page could be rendered with the style sheet of an earlier version. Every reference to
+// a CSS or JS file of the site (and to examples.json) gets `?v=<hash of the file's content>`, innermost
+// first: hugin.js in worker.js, worker.js and examples.json in play.js, then the pages' style sheets and
+// scripts. A new version of a file thus has a new URL; an unchanged one stays cached.
+const hash = (rel) => createHash("sha256").update(fs.readFileSync(path.join(out, rel))).digest("hex").slice(0, 10);
+
+function bust(rel, refs) {
+  const file = path.join(out, rel);
+  let text = fs.readFileSync(file, "utf8");
+  for (const [quoted, target] of refs) {
+    if (!fs.existsSync(path.join(out, target))) continue; // e.g. no compiler bundle
+    if (!text.includes(quoted)) fail(`${rel} has no reference ${quoted} to version`);
+    text = text.split(quoted).join(quoted.replace(/(["'])$/, `?v=${hash(target)}$1`));
+  }
+  fs.writeFileSync(file, text);
+}
+
+function cacheBusting() {
+  bust("play/worker.js", [['"hugin.js"', "play/hugin.js"]]);
+  bust("play/play.js", [['"worker.js"', "play/worker.js"], ['"examples.json"', "play/examples.json"]]);
+  bust("index.html", [['href="style.css"', "style.css"]]);
+  bust("install/index.html", [['href="../style.css"', "style.css"]]);
+  bust("play/index.html", [['href="../style.css"', "style.css"], ['href="play.css"', "play/play.css"], ['src="play.js"', "play/play.js"]]);
+}
+
 // --- helpers ---------------------------------------------------------------------------------------
 function write(rel, text) {
   fs.mkdirSync(path.dirname(path.join(out, rel)), { recursive: true });
@@ -190,6 +219,7 @@ const gzip = (...rels) =>
 fs.rmSync(out, { recursive: true, force: true });
 pages();
 await playground();
+cacheBusting();
 const redirects = reference();
 console.log(`site/build.mjs: wrote ${path.relative(root, out) || out}/`);
 console.log(`  landing page ${gzip("index.html", "style.css")} KB gzip (HTML and CSS; JavaScript only for the theme switch)`);

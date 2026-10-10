@@ -75,7 +75,7 @@ trait FormulaFunctions:
    *  `self = false`, `t` being `target` itself does not count (only its definition does). */
   private def refersTo(target: Int, t: Tm, self: Boolean): Boolean =
     val seen = scala.collection.mutable.Set.empty[Int]
-    def inGlobal(g: Int): Boolean = globals(g).kind match
+    def inGlobal(g: Int): Boolean = kindOf(g) match
       case GlobalKind.Definition(tm, _) => inTm(tm)
       case GlobalKind.Function(_, Some(tree)) => inTree(tree)
       case _ => false

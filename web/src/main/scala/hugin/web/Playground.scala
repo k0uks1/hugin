@@ -1,6 +1,7 @@
 package hugin.web
 
 import hugin.compiler.Compiler
+import hugin.ide.Highlighting
 import hugin.platform.Platform
 import hugin.query.*
 import hugin.runtime.Evaluation
@@ -23,6 +24,28 @@ object Playground:
         catch
           case NonFatal(e) => failure(s"internal error: $e")
           case e: StackOverflowError => failure(s"internal error: $e")
+
+  /** The highlighting of the program alone (no diagnostics, no evaluation), for the editor while the
+   *  reader types: `{ "version": 1, "tokens": [[text, [class, …]], …] }`. */
+  def highlight(source: String, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        try
+          given db: Database = Database()
+          db.set(SourceText, request.file, source)
+          Json.obj(
+            "version" -> Json.num(Version),
+            "tokens" -> tokens(request, db(Compile, CompileKey(request.file, request.settings)).index)
+          ).render
+        catch
+          case NonFatal(e) => failure(s"internal error: $e")
+          case e: StackOverflowError => failure(s"internal error: $e")
+
+  /** The runs of the program's text and their classes, as `hugin highlight` computes them. */
+  private def tokens(request: Request, index: => hugin.compiler.SemanticIndex)(using db: Database): Json =
+    val runs = Highlighting.runs(db(Parse, request.file).source, request.file, index)
+    Json.Arr(runs.map(r => Json.Arr(List(Json.str(r.text), Json.Arr(r.classes.map(Json.str))))))
 
   /** The phases, as `hugin phases` lists them: `[{"name": …, "description": …}]`. */
   def phases: String =
@@ -71,6 +94,7 @@ object Playground:
         Json.obj("name" -> Json.str(r.name), "vars" -> strings(Nil), "rows" -> Json.Arr(r.rows.map(strings)))
       }),
       "output" -> strings(compiled.printed ++ evaluation.fold(Nil)(_.output)),
+      "tokens" -> tokens(request, compiled.index),
       "timeMs" -> Json.num((js.Date.now() - start).round)
     )
 

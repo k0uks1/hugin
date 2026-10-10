@@ -63,18 +63,75 @@ A *postulate* has a type but no value. Meta code that applies it is stuck; it is
 
 ## Order of elaboration
 
-The items of a file may be written in any order. The compiler elaborates the declarations and definitions
-first, each after the items it refers to, then the clauses of functions, which may refer to every
-declaration and to each other, and then the object items: rules, queries and directives. A module body
-is elaborated in the same order, inside the item that contains it: its declarations and definitions, then
-the clauses of its member functions, then its object items ([Modules](../modules.md#module-bodies)). It
-is an error ([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
-definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
-reported and left out; elaboration continues with the next item. A use of a name that such an item
-declared, or that a `%use` that was left out might have opened ([Modules](../modules.md)), is not
-reported again: its item is left out without a further diagnostic. The same holds for a function whose
-clauses have an error, which is left undefined, and for the definitions and functions that use it: a use
-of one of them, which would need the function's value, is left out without a further diagnostic too.
+The items of a file may be written in any order: a name may be used before its declaration, and
+functions may refer to each other without a keyword. The compiler elaborates the declarations,
+definitions and clauses of a file in *dependency order*, and then its object items: rules, queries and
+directives.
+
+An item *depends on* the items whose names it mentions. A function defined by clauses has two parts, its
+declaration (the *signature*) and its clauses (the *body*); so do a definition with a declared type
+(`x : A = e.`: its type and its value) and a formula function (its declaration and its rules). A mention
+of a function, a definition or a formula function depends on its body, since a type that computes with
+it needs its value, and a body depends on its signature. A set of items that depend on each other,
+directly or through other items, is a *cycle*; an item that is in no such set is a cycle of its own. The
+compiler elaborates every cycle after the cycles that it depends on, and two cycles that do not depend on
+each other in the order of their first items in the file.
+
+So a type may compute with a function that is defined anywhere in the file. Here `plus`, its signature
+and then its clauses, is elaborated before `vec3`, and `vec3` before `v`:
+
+```hugin
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+one : nat = suc zero.
+vec3 : Type = vec int (plus one (suc one)).
+v : vec3 = vcons 1 (vcons 2 (vcons 3 vnil)).
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc (plus M N).
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+```
+
+Inside a cycle, the signatures are elaborated first, then the bodies. No body of a cycle unfolds inside
+the cycle, whatever the order in which the items are written: an application of one of its functions
+does not reduce, and one of its definitions is not replaced by its value, until the whole cycle is
+elaborated. A type in the cycle that needs such a value does not match ([E0901](../errors/E0901.md)), and
+the error names the cycle in a note. In the following file, the type of `d` needs `k zero`, and
+the clauses of `k` need `d`; `d` is rejected, also when the clauses of `k` are written before it:
+
+```hugin,compile_fail,E0901
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+vlen : vec A N -> nat.
+vlen vnil = zero.
+vlen (vcons X Xs) = suc (vlen Xs).
+d : vec int (k zero) = vcons 1 vnil.
+k : nat -> nat.
+k zero = suc zero.
+k (suc N) = vlen d.
+```
+
+When the bodies of a cycle are elaborated, the termination of its functions
+([Termination](termination.md)) and the cycles of its formula functions ([E0105](../errors/E0105.md))
+are checked; only then do its bodies unfold, in the later cycles. A value that the cycle computed with an
+application that did not reduce is computed further where it is used.
+
+It is an error ([E0105](../errors/E0105.md)) if a definition refers to itself, and
+([E0101](../errors/E0101.md)) if definitions refer to each other in a cycle; recursion is written with
+clauses. An item with an error is reported and left out; elaboration continues with the next item. A use
+of a name that such an item declared, or that a `%use` that was left out might have opened
+([Modules](../modules.md)), is not reported again: its item is left out without a further diagnostic.
+The same holds for a function whose clauses have an error, which is left undefined, and for the
+definitions and functions that use it: a use of one of them, which would need the function's value, is
+left out without a further diagnostic too. A module body is part of the item that contains it, and its
+items are elaborated inside that item ([Modules](../modules.md#module-bodies)).
 
 The unknowns that the compiler creates while it elaborates an item (implicit arguments, inferred types,
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.

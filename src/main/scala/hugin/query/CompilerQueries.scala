@@ -1,7 +1,6 @@
 package hugin.query
 
 import hugin.compiler.*
-import hugin.runtime.Evaluation
 import hugin.util.*
 import scala.collection.mutable
 
@@ -66,6 +65,7 @@ private final class DatabaseLibraries(using db: Database) extends Libraries:
   private def isProgram(root: String, program: hugin.syntax.Program): Boolean = db(ParseProgram, root).program eq program
   override def elaborate(root: String, program: hugin.syntax.Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
     if isProgram(root, program) then db(ElabProgram, ProgramKey(root, prelude)) else super.elaborate(root, program, graph, prelude)
+  override def checkCancelled(): Unit = db.checkCancelled()
 
 /** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
 final case class Part(path: String, queries: Boolean = true)
@@ -106,13 +106,3 @@ object Compile extends Query[CompileKey, Compiled]("compile"):
     val parsed = db(ParseProgram, key.path)
     val ctx = Compiler.compileWith(parsed, key.settings, DatabaseLibraries(), printed += _)
     Compiled(ctx, printed.toList)
-
-final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, allRelations: Boolean = false)
-
-/** Evaluates a compiled program over input facts. Changing only a facts file re-evaluates without
- *  recompiling; an evaluation with an unchanged outcome does not invalidate its dependents. */
-object Evaluate extends Query[EvaluateKey, Evaluation.Outcome]("evaluate"):
-  def compute(key: EvaluateKey)(using db: Database): Evaluation.Outcome =
-    val compiled = db(Compile, key.compile)
-    val facts = key.facts.map(f => SourceFile.virtual(f, db.get(SourceText, f)))
-    Evaluation.run(compiled.context, facts, key.allRelations)

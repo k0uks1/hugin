@@ -71,8 +71,46 @@ trait ElabErrors:
             case (Val.Lift(x), Val.Lift(y)) if isObjectData(x) && isObjectData(y) =>
               List("`⇑` is covariant: object code of type `τ` can be used as object code of type `σ` if `τ` is a subtype of `σ`")
             case _ => Nil
-          TypeProblem.Mismatch(e, fo, span, levels ++ why ++ lifts).toDiagnostic
+          TypeProblem.Mismatch(e, fo, span, levels ++ why ++ lifts ++ stuckNotes(c, List(expected, found))).toDiagnostic
         }
+
+  /** Notes on the applications in `vs` stuck at a function or definition of the file that does not
+   *  reduce: one of the cycle being elaborated, whose bodies do not unfold in it (reference: meta/index,
+   *  "Order of elaboration"), or one rejected by the termination check. (The uses of a function whose
+   *  clauses were rejected are left out without a diagnostic.) */
+  private def stuckNotes(c: Cxt, vs: List[Val]): List[String] =
+    val found = scala.collection.mutable.LinkedHashMap.empty[Int, Val]
+    def stuck(g: Int) = globals(g).inCycle || rejectedByTermination(g)
+    def visit(v: Val, depth: Int): Unit = if depth < 32 && found.size < 3 then
+      def args(sp: Spine) = sp.foreach {
+        case Elim.EApp(a, _) => visit(a, depth + 1)
+        case _ =>
+      }
+      forceMetas(v) match
+        case r @ Val.Rigid(Head.Glob(g), sp) =>
+          if stuck(g) && !found.contains(g) then found(g) = r
+          args(sp)
+        case Val.Rigid(_, sp) => args(sp)
+        case Val.Top(_, _, u) => visit(u.value, depth + 1)
+        case Val.Pi(_, _, a, _) => visit(a, depth + 1)
+        case Val.Lift(a) => visit(a, depth + 1)
+        case Val.Quote(a) => visit(a, depth + 1)
+        case Val.Rec(fs) => fs.foreach(f => visit(f._2, depth + 1))
+        case Val.Obj(ObjForm.Loc(_), List(x)) => visit(x, depth + 1)
+        case _ =>
+    vs.foreach(visit(_, 0))
+    def names(ns: List[Name]) =
+      val quoted = ns.map(n => s"`$n`")
+      if quoted.isEmpty then "its bodies refer to each other"
+      else if quoted.length == 1 then s"${quoted.head} refers to itself"
+      else s"${quoted.init.mkString(", ")} and ${quoted.last} refer to each other"
+    found.toList.map { (g, v) =>
+      val t = show(c, v)
+      val f = globals(g).name
+      val verb = if globals(g).kind.isInstanceOf[GlobalKind.Function] then "reduce" else "unfold"
+      if globals(g).inCycle then s"`$t` does not $verb here: ${names(cycleNames)}, and inside such a cycle no body unfolds"
+      else s"`$t` does not reduce: `$f` was rejected by the termination check (E0912)"
+    }
 
   private def isLiftOrFlex(v: Val): Boolean = force(v) match
     case Val.Lift(_) | Val.Flex(_, _) => true

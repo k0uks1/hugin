@@ -35,6 +35,9 @@ object Slices:
     lazy val infix = Parser.infixOperators(file)
     val seen = mutable.HashMap.empty[String, Int]
     val all = program.items.toVector
+    // the items parsed from one slice: a declaration of several names (`a, b : τ.`) is one `Decl` per name,
+    // each with the item's span, and a prefix directive before it is repeated before each (with its span)
+    val groups = mutable.HashMap.empty[(Int, Int), (Int, mutable.HashMap[Class[?], Int])]
     all.indices.toList.map { i =>
       val item = all(i)
       val sp = item.span
@@ -46,17 +49,22 @@ object Slices:
       if !sp.exists || (sp.origin ne file) || end > file.content.length then item
       else
         val text = file.content.substring(sp.start, end)
-        val occurrence = seen.getOrElse(text, 0)
-        seen(text) = occurrence + 1
-        val parsed = slice(Key(file.path, text, infix, occurrence))
-        parsed.items match
-          case Some(List(one)) if !attached =>
+        val (groupOccurrence, ofClass) = groups.getOrElseUpdate(
+          (sp.start, end), {
+            val occurrence = seen.getOrElse(text, 0)
+            seen(text) = occurrence + 1
+            (occurrence, mutable.HashMap.empty[Class[?], Int])
+          }
+        )
+        // the item is the k-th of its class among the items of its slice
+        val k = ofClass.getOrElse(item.getClass, 0)
+        ofClass(item.getClass) = k + 1
+        val parsed = slice(Key(file.path, text, infix, groupOccurrence))
+        parsed.items.flatMap(_.filter(_.getClass == item.getClass).lift(k)) match
+          case Some(one) =>
             parsed.source.place(file, sp.start)
             if congruent(item, one) then one else item
-          case Some(List(one, _)) if attached =>
-            parsed.source.place(file, sp.start)
-            if congruent(item, one) then one else item
-          case _ => item
+          case None => item
     }
 
   /** Whether two trees are equal with the same positions: spans are compared by the file they lie in and

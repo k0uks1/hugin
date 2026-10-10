@@ -5,10 +5,10 @@ import hugin.syntax.Trees.*
 import hugin.syntax.TreeOps.hasSyntaxErrors
 
 /** The items of a program: elaborated one by one, each with error recovery (an item with an error is
- *  reported and dropped), in three phases: declarations and definitions; the clauses of functions (which
- *  may refer to every declaration, also recursively); object items (rules, queries, directives). The
- *  first two are the program's *declarations*, which the object items are elaborated against, each on its
- *  own ([[hugin.core.ProgramElab]]). Finally the termination of the functions is checked.
+ *  reported and dropped). The program's *declarations* (declarations, definitions, the clauses of
+ *  functions and formula functions) come first, in dependency order ([[DependencyOrder]]; reference:
+ *  meta/index, "Order of elaboration"); then the object items (rules, queries, directives), which are
+ *  elaborated against the declarations, each on its own ([[hugin.core.ProgramElab]]).
  *
  *  Each declaration, clause group (a function, a formula function) and object item is a *block*
  *  ([[Core.inBlock]]): the unknowns of earlier blocks are frozen while it is elaborated, so it can neither
@@ -67,21 +67,14 @@ trait Items:
       formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
     val firstGlobal = globals.length
     predeclare(meta)
-    elabInDependencyOrder(meta)
+    val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
+    for item <- clauses; n <- clauseName(item, state.functionNames) do groups(n) = groups.getOrElse(n, Nil) :+ item
+    def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
+    val rules = meta.collect { case d: Decl if formulaFunctions(d.name.name) => (d.name.name, clausesOf(d.name.name), d.span.start) }
+    elabByComponents(meta, groups.toList, rules.distinctBy(_._1))
     dropPending()
     checkObjectDeclarations(firstGlobal)
-    // the derived functions are generated code: nothing to show for their positions
-    withoutTooling(defineSharedFunctions())
-    if !file.signaturesOnly then
-      elabClauseGroups(clauses)
-      def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
-      // a declaration `f : … -> prop.` defined by clauses `f p̄ = e.` is a function (checked for termination)
-      val byRules = formulaFunctions.toList
-        .filter(f => !state.unelaborated(f) && scope.get(f).exists(globals(_).kind == GlobalKind.Postulate))
-        .sortBy(scope.get(_).getOrElse(Int.MaxValue))
-      for f <- byRules do inBlock(elabFormulaClauses(f, clausesOf(f)))
-      checkFormulaCycles(byRules.map(f => (f, clausesOf(f))))
-      exports.foreach(elabItemReporting)
+    if !file.signaturesOnly then exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
   /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
@@ -94,7 +87,7 @@ trait Items:
         case (Some(Some(a)), Some(b)) => Some(Some(a ++ b))
     case _ => ()
 
-  private def isUse(item: Item): Boolean = item match
+  private[elab] def isUse(item: Item): Boolean = item match
     case Directive(_, _: DirArgs.Use) => true
     case _ => false
 
@@ -114,7 +107,7 @@ trait Items:
       case other => declares(other).toList
 
   /** The name an item declares. */
-  private def declares(item: Item): Option[Name] = declaresIdent(item).map(_.name)
+  private[elab] def declares(item: Item): Option[Name] = declaresIdent(item).map(_.name)
 
   private def declaresIdent(item: Item): Option[Ident] = item match
     case d: Decl => Some(d.name)
@@ -124,7 +117,7 @@ trait Items:
   /** Elaborates items in source order, except that an item referring to a name declared by a later item
    *  is retried after it (object declarations may be written in any order); the items left form cycles of
    *  such references ([[reportCycles]]). */
-  private def elabInDependencyOrder(items: List[Item]): Unit =
+  private[elab] def elabInDependencyOrder(items: List[Item]): Unit =
     var pending = items.map(i => (i, Option.empty[ElabError]))
     var progress = true
     while pending.nonEmpty && progress do
@@ -142,9 +135,12 @@ trait Items:
           case Some(e) =>
             drop(item, e)
             None
-          case None => None
+          case None =>
+            sealDeclared(item)
+            None
       }
-      progress = pending.length < before
+      // a typed definition and a signature that need each other: the definition's type first
+      progress = pending.length < before || provisionalSignatures(pending)
       if !progress && pending.nonEmpty then
         // no item could be elaborated: an item whose name no pending item declares was waiting only for a
         // pending `%use` that might open it, which may itself wait for that item (`%use m.` before a broken
@@ -168,6 +164,7 @@ trait Items:
   private def drop(item: Item, e: ElabError): Unit =
     if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
     declares(item).foreach(state.erroneous += _)
+    dropProvisional(item)
     droppedUse(item)
 
   /** Items that refer to each other in a cycle: refinements (E0404) and type definitions (E0104, once per
@@ -232,11 +229,9 @@ trait Items:
     case d: Def if declared(d.name.name) => Some(d.name.name)
     case _ => None
 
-  /** Elaborates the clauses of each function, grouped by name in order of appearance. */
-  private def elabClauseGroups(items: List[Item]): Unit =
-    val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
-    for item <- items; n <- clauseName(item, state.functionNames) do groups(n) = groups.getOrElse(n, Nil) :+ item
-    for (n, group) <- groups if !state.unelaborated(n) do
+  /** Elaborates the clauses of the function `n` (a block). */
+  private[elab] def elabClauseGroup(n: Name, group: List[Item]): Unit =
+    if !state.unelaborated(n) then
       inBlock {
         val start = metas.length
         var fn = -1
@@ -259,6 +254,7 @@ trait Items:
             report(e)
             // its case tree may refer to the undone metas: the function is left undefined
             if fn >= 0 then
+              withheld -= fn
               globals(fn).kind match
                 case GlobalKind.Function(arity, Some(_)) => globals(fn).kind = GlobalKind.Function(arity, None)
                 case _ =>
@@ -278,7 +274,7 @@ trait Items:
       case None =>
         fail(ClauseProblem.ClausesWithoutDeclaration(n, first.span))
 
-  private def describeKind(id: Int): String = globals(id).kind match
+  private def describeKind(id: Int): String = kindOf(id) match
     case _ if globals(id).stage == Stage.S0 => "an object constant"
     case GlobalKind.Inductive(_) => "an inductive family"
     case GlobalKind.Constructor(_) => "a constructor"

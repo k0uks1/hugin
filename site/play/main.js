@@ -1,6 +1,7 @@
 // The playground (issue #58, docs/design/website.md 4.6-4.10). The compiler runs in a Web Worker
 // (worker.js, which loads the Scala.js bundle hugin.js); this page holds the editor, the toolbar and the
-// results. Run and Check are explicit; Ctrl-Enter runs. A request that takes longer than the budget
+// results. Run and Check are explicit; Ctrl-Enter runs. After a pause in typing the worker computes the
+// compiler's semantic highlighting. A request that takes longer than the budget
 // terminates the worker, which is then restarted (a cold start). Nothing leaves the page.
 import { createEditor, showDiagnostics, showTokens, clear, setProgram, offset, applySuggestion } from "./editor.js";
 import { views, counts, h } from "./results.js";
@@ -15,17 +16,18 @@ const ui = {
 };
 
 // --- the compiler worker -------------------------------------------------------------------------
-let worker, ready, pending = null, nextId = 1;
+let worker, ready, nextId = 1;
+const pending = new Map(); // id -> { resolve, reject, timer }
 
 function startWorker() {
   worker = new Worker("worker.js");
   ready = new Promise((resolve) => {
     worker.onmessage = (e) => {
       if ("ready" in e.data) return resolve(e.data);
-      if (pending && e.data.id === pending.id) {
-        const p = pending; pending = null; clearTimeout(p.timer);
-        e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
-      }
+      const p = pending.get(e.data.id);
+      if (!p) return;
+      pending.delete(e.data.id); clearTimeout(p.timer);
+      e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
     };
     worker.onerror = (e) => { e.preventDefault(); resolve({ ready: false, error: e.message || "the worker failed" }); };
   });
@@ -33,18 +35,39 @@ function startWorker() {
 
 function stopWorker(reason) {
   worker.terminate();
-  if (pending) { const p = pending; pending = null; clearTimeout(p.timer); p.reject(Object.assign(new Error(reason), { stopped: true })); }
+  for (const p of pending.values()) { clearTimeout(p.timer); p.reject(Object.assign(new Error(reason), { stopped: true })); }
+  pending.clear();
   startWorker();
   ready.then(onReady);
 }
 
+// a request to the worker; one that takes longer than the budget stops (and restarts) the worker
 function request(op, source, printAfter) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
     const timer = setTimeout(() => stopWorker(`stopped after ${BUDGET_MS / 1000} s`), BUDGET_MS);
-    pending = { id, resolve, reject, timer };
+    pending.set(id, { resolve, reject, timer });
     worker.postMessage({ id, op, source, printAfter });
   });
+}
+
+// the compiler's semantic highlighting while the reader types: a `highlight` request when the editor
+// has been idle for IDLE_MS (not while a run or check is busy); stale answers are dropped
+const IDLE_MS = 400;
+let idleTimer = null;
+
+function highlightSoon() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(async () => {
+    if (busy || !available) return;
+    const source = editor.state.doc.toString();
+    try {
+      const result = await request("highlight", source, "");
+      if (editor.state.doc.toString() === source) showTokens(editor, result.tokens);
+    } catch (_) {
+      // a failed or stopped highlight keeps the current colours
+    }
+  }, IDLE_MS);
 }
 
 // --- the page --------------------------------------------------------------------------------------
@@ -59,6 +82,7 @@ function onReady(info) {
   available = info.ready;
   ui.run.disabled = ui.check.disabled = !available;
   if (!available) return status("The compiler is not available in this build.", "error");
+  highlightSoon();
   if (ui.phase.options.length === 1)
     for (const p of info.phases || []) ui.phase.append(h("option", { value: p }, `Show after: ${p}`));
   ui.phase.disabled = !(info.phases || []).length;
@@ -105,7 +129,7 @@ async function compile(op) {
     else if (tab === "diagnostics" || tab === "printed") tab = "answers";
     if (editor.state.doc.toString() === source) {
       showDiagnostics(editor, result.diagnostics);
-      if (!errors) showTokens(editor, result.tokens);
+      showTokens(editor, result.tokens);
     }
     ui.summary.textContent = counts(result.diagnostics);
     status(`${op === "run" ? "ran" : "checked"} in ${ms} ms`, errors ? "error" : "");
@@ -140,6 +164,7 @@ async function share() {
 function onEdit() {
   ui.summary.textContent = "";
   if (ui.example.value) ui.example.value = "";
+  highlightSoon();
 }
 
 const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit });

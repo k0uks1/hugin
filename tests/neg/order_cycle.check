@@ -1,0 +1,17 @@
+error[E0901]: mismatched types
+  --> tests/neg/order_cycle.hgn:13:24
+   |
+13 | d : vec int (k zero) = vcons 1 vnil. (*~ E0901 *)
+   |                        ^^^^^^^^^^^^ expected `vec int (k zero)`, found `vec int (suc zero)`
+   |
+   = note: `k zero` does not reduce here: `d` and `k` refer to each other, and inside such a cycle no body unfolds
+
+error[E0901]: mismatched types
+  --> tests/neg/order_cycle.hgn:21:26
+   |
+21 | d2 : vec int (k2 zero) = vcons 1 vnil. (*~ E0901 *)
+   |                          ^^^^^^^^^^^^ expected `vec int (k2 zero)`, found `vec int (suc zero)`
+   |
+   = note: `k2 zero` does not reduce here: `k2` and `d2` refer to each other, and inside such a cycle no body unfolds
+
+2 errors found

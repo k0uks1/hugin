@@ -9,12 +9,40 @@ object constants. Their types are defined in [Object types](types.md).
 
 ```text
 Declaration ::= NAME Param* ":" Type ("<:" Type)? ("=" Expr)? "."
+               | NAME ("," NAME)+ ":" Type ("<:" Type)? "."
 Param       ::= VAR | "(" (NAME | VAR) ":" Type ")"
 Type        ::= Expr
 ```
 
 The *head* of a declaration is its name with its parameters. Parameters of object constants are type
 parameters of [families](types.md#families); the other declarations have none.
+
+A *declaration of several names* `a₁, …, aₙ : τ.` stands for the declarations `a₁ : τ.` … `aₙ : τ.`, in
+this order, each with its own name and the same type. It has no parameters and no definition. A
+[directive](../directives.md) written before it in the prefix form applies to each of the declarations.
+A rule with several heads also starts with names separated by commas; the token after the names
+decides: `:` makes the item a declaration, `:-` or `.` a rule. It is an error
+([E0004](../errors/E0004.md)) if a head of a declaration of several names is not a name alone, and
+([E0001](../errors/E0001.md)) if it has a definition.
+
+The following program declares three constructors of `color` and two relations in two declarations.
+The prefix directive `%output` applies to both relations.
+
+```hugin,run
+color : type.
+red, green, blue : color.
+%output
+warm, cold : color -> rel.
+warm red.
+cold green.
+cold blue.
+```
+
+```output
+cold blue.
+cold green.
+warm red.
+```
 
 ## Classification
 

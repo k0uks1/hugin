@@ -32,7 +32,7 @@ the field of an instance is that function for the instance's arguments and objec
 instances of a functor have fields that compute the same results, and object code that a field returns
 mentions the object constants of its own instance.
 
-The items of a body are elaborated in the order of a file ([Order of
+The items of a body are elaborated in phases, not in the dependency order of a file's items ([Order of
 elaboration](meta/index.md#order-of-elaboration)): first the declarations and definitions, each after the
 members it refers to, then the clauses of the member functions, each function one item, then the object
 items. A member function's clauses are therefore not available while the declarations and definitions are

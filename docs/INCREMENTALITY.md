@@ -194,8 +194,9 @@ program under edits) is the safety net for all of them.
       compiler's deduplication, placement in the current text and sorting.
     * *The language server publishes per file*: each open document from its own compilation, and every
       file it imports that is not open on that file's URI (the library's group of `FileDiagnostics`). An
-      open document is published after every change, as before (the transcripts are unchanged); a file
-      that is not open is published only when its diagnostics changed, and cleared when they disappear (it
+      open document was published after every change (since issue #126, PR 5, only when its diagnostics
+      changed, see below); a file that is not open is published only when its diagnostics changed, and
+      cleared when they disappear (it
       is no longer imported, or it was fixed on disk: `workspace/didChangeWatchedFiles`). Fixing a file on
       disk exposed a bug in the database, also fixed: an input removed and read again from its default (a
       file read from disk) was dated revision 0, so results computed from its old value were reused.
@@ -229,6 +230,30 @@ program under edits) is the safety net for all of them.
 The object-level phases (stratification, demand, termination, lowering) stay whole-program: they are
 global by nature and cheap compared with elaboration (`--stats` shows the split).
 
+Evaluation (issue #126, PR 3; `query/EvaluationQueries.scala`) is split like the compilation: `Lowered`
+projects a compilation onto what evaluation reads apart from the queries (relations with their columns,
+types and directives, the subtyping of the object types, the components and the lowered rules;
+`runtime/LoweredRules.scala`), comparable because symbols are replaced by their indexes; `Fixpoint` holds
+the engine after loading the facts files (each parsed once per text, `FactsFile`) and evaluating; and
+`Evaluate` answers the compilation's queries against it. A REPL query adds an item without changing the
+lowered rules, so it is answered against the memoised fixpoint (`FixpointReuseSuite`); a new rule or a
+changed facts file evaluates again. With `%demand` the transformed rules depend on the query, and the
+fixpoint is keyed on them: a query that changes them evaluates again.
+
+Cancellation (issue #126, PR 5). `Database.cancellation` is a check the client sets around a
+computation; it is asked whenever a query is demanded and, through `Libraries.checkCancelled`, between
+the phases of a compilation, and `Cancelled` (a control throwable, so error recovery does not catch it)
+unwinds the running queries. A query that is unwound stores no memo, and the memos completed before
+are complete results, so the database stays consistent (`DatabaseSuite`); placement is redone by the
+next `ItemSlices`. The check is a `hugin.util.Cancellation` the client injects (the interface the
+evaluation engine takes), not a thread interrupt, so it is portable. The language
+server (`lsp/Worker.scala`) runs its work on one worker thread under a lock, in message order: an edit
+counts a new generation on lsp4j's thread, which cancels the computation in progress at its next query
+boundary; the edit's task sets the input and, unless a newer edit arrived, computes the diagnostics and
+publishes those that changed, only while its generation is still the latest. A burst of edits costs one
+compilation, superseded diagnostics are never published, and requests cancelled by a later edit answer
+`ContentModified` (`CancellationSuite`).
+
 ## Status (after step 10)
 
 Incremental now:
@@ -249,13 +274,15 @@ Incremental now:
 Still coarse:
 * `ElabFile` (assembling the items), MetaEval, monomorphization and the object-level phases (directives,
   object typing, moding, records, demand, stratification, completeness, termination, lowering) run on
-  the whole program after every edit, and evaluation after every REPL query: they are global by nature
-  (the demand transformation depends on the queries) and cheap next to elaboration (`--stats`).
+  the whole program after every edit: they are global by nature (the demand transformation depends on
+  the queries). Evaluation runs again when the lowered rules or the facts change (a REPL query over an
+  unchanged program reuses the fixpoint; with `%demand`, a query that changes the transformed rules
+  evaluates the whole program again).
 * Declarations and definitions are elaborated together (`Signatures`): editing one elaborates all of
   them again, though only the items using a changed one follow. A meta probe in the REPL is a
   definition, so it and the next input elaborate the declarations again.
 * Libraries are elaborated as whole files (an edit of a library elaborates it, and the files importing
   it, again); a change of the `%infix` operators of a file parses all its items again.
 * The slices' placement (`SourceFile.place`) is mutable state set by `ItemSlices`; it relies on the
-  database being single-threaded (the language server answers on lsp4j's single message thread).
-* The language server republishes every open document's diagnostics after any change.
+  database being single-threaded (the language server runs all its work on one worker thread, under a
+  lock).

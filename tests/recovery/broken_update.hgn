@@ -1,0 +1,11 @@
+(* Broken record updates: one error each, and the next item is parsed. An update whose braces are never
+   closed takes the rest of the file, as any unclosed brace does. *)
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+a : point = (origin with x = 1). (*~ E0001 *)
+b : point = (origin with { x = 1 ). (*~ E0005 *)
+c : point = (origin with { x = 1, .. }). (*~ E0001 *)
+e : point = (origin with { y = 3 }).
+f : int = e.y.
+d : point = (origin with {
+  x = 1 (*~ E0005 *)

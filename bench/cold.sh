@@ -22,6 +22,7 @@ programs=(
   "run c1_roundtrip|run tests/run/c1_roundtrip.hgn"
   "run c2_module_wide|run tests/run/c2_module_wide.hgn"
   "run meta_scaled|run bench/meta/meta_scaled.hgn"
+  "run nat_literals|run bench/meta/nat_literals.hgn"
   "run tc_chain|run bench/datalog/tc.hgn --facts bench/datalog/tc.facts"
   "run shortest_grid|run bench/datalog/sp.hgn --facts bench/datalog/sp.facts"
   "run strata|run bench/datalog/strata.hgn --facts bench/datalog/strata.facts"

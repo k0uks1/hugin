@@ -64,6 +64,7 @@ trait Bidirectional:
     case q: Quote => quoteWithoutType(c, q, None)
     case h: Hole => inferHole(c, h)
     case _: SpliceSeq | _: SpliceHO => fail(ReflectionProblem.HoleOutsideQuote(t.span))
+    case w: With => inferUpdate(c, w)
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */

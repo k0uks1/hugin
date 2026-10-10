@@ -124,6 +124,9 @@ trait Reflective:
 
   /** A name the compiler knows: `std/reflect`'s, else the enclosing scope's (a prelude that declares the
    *  reflective types itself, as the core tests' do). */
+  /** The names the compiler finds by name (the reflective types and their constructors, lists). */
+  def compilerNames: List[Name] = names
+
   def coreName(n: Name): Option[Int] = coreModule.get(n).orElse(file.parent.get(n))
 
   /** Whether the compiler-known names come from outside the file (otherwise from the file itself). */

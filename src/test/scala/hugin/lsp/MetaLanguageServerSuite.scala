@@ -19,6 +19,7 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     init.setInitializationOptions(options)
     s.initialize(init).get()
     s.getTextDocumentService.didOpen(DidOpenTextDocumentParams(TextDocumentItem(uri, "hugin", 1, text)))
+    s.idle().get()
     (s, c)
 
   private def hover(s: HuginLanguageServer, at: Position): String =
@@ -105,6 +106,7 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assertEquals(labels(), List("{int}", "₀"))
     val settings = com.google.gson.JsonParser.parseString("""{"hugin": {"inlayHints": {"implicits": false}}}""")
     s.getWorkspaceService.didChangeConfiguration(DidChangeConfigurationParams(settings))
+    s.idle().get()
     assertEquals(labels(), List("₀"))
   }
 

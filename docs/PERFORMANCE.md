@@ -39,7 +39,7 @@ Generated programs are written by `sbt "Test/runMain hugin.bench.Bench gen"` wit
 | group | programs |
 |---|---|
 | small (prelude-dominated) | `bench/small/one.hgn` (check), `tests/run/a01_transitive_closure`, `a05_stratified`, `c1_aggregates` |
-| meta-heavy | `tests/run/a04_typechecker` (`%demand`), `a10_meta_applicative` (functors, families), `f_modules`, `c1_roundtrip` (reflection), `c2_module_wide` (module-wide directive), `bench/meta/meta_scaled.hgn` (8 copies of functors + families + 2×`%demand` + reflection, under a module-wide directive) |
+| meta-heavy | `tests/run/a04_typechecker` (`%demand`), `a10_meta_applicative` (functors, families), `f_modules`, `c1_roundtrip` (reflection), `c2_module_wide` (module-wide directive), `bench/meta/meta_scaled.hgn` (8 copies of functors + families + 2×`%demand` + reflection, under a module-wide directive), `bench/meta/nat_literals.hgn` (nat literals of 10000, 20000 and 50000: 69 s before the walk fix of #131 batch 0, 3 s after) |
 | Datalog-heavy | `bench/datalog/tc` (transitive closure, 600-node chain + 600 random edges: 179 700 tuples), `sp` (shortest paths with a `min` bound column on a 60×60 grid), `strata` (negation and aggregates on a 20 000-node random graph) |
 | large generated | `bench/gen/large.hgn` (150 programs of the fuzz `ProgramGen`, renamed apart: 4 200 lines), check and run |
 

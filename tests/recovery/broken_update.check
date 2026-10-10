@@ -1,0 +1,34 @@
+error[E0001]: expected `{`, found `x`
+ --> tests/recovery/broken_update.hgn:5:26
+  |
+5 | a : point = (origin with x = 1). (*~ E0001 *)
+  |                          ^ expected `{`
+
+error[E0005]: unclosed `{`
+ --> tests/recovery/broken_update.hgn:6:33
+  |
+6 | b : point = (origin with { x = 1 ). (*~ E0005 *)
+  |                          -      ^ expected `}` here
+  |                          this `{` is never closed
+
+error[E0001]: `..` is not allowed in an update
+ --> tests/recovery/broken_update.hgn:7:39
+  |
+7 | c : point = (origin with { x = 1, .. }). (*~ E0001 *)
+  |                                       ^
+
+error[E0005]: unclosed `{`
+  --> tests/recovery/broken_update.hgn:11:8
+   |
+10 | d : point = (origin with {
+   |                          - this `{` is never closed
+11 |   x = 1 (*~ E0005 *)
+   |        ^ expected `}` here
+
+4 errors found
+(* ---------------- after elaborate ---------------- *)
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+c : point = { x = 1, y = origin.y }.
+e : point = { x = origin.x, y = 3 }.
+f : int = e.y.
