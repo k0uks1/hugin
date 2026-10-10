@@ -71,13 +71,14 @@ private[syntax] trait ExprSyntax extends ParserBase:
   private def parsePrefix(minLevel: Int): Tree =
     val start = tok.span.start
     kind match
+      // the operand of a prefix operator does not start in column 0 (it would be the next item)
       case Tok.KwNot =>
         advance()
-        val arg = parseApp()
+        val arg = if atColumn0(position) then missing(Expect.expression) else parseApp()
         Not(arg)(spanFrom(start))
       case Tok.Minus =>
         advance()
-        val arg = parseApp()
+        val arg = if atColumn0(position) then missing(Expect.expression) else parseApp()
         arg match
           case Lit(Literal.IntL(v)) => Lit(Literal.IntL(-v))(spanFrom(start))
           case Lit(Literal.FloatL(v)) => Lit(Literal.FloatL(-v))(spanFrom(start))

@@ -248,7 +248,8 @@ discarding what parsed*: a missing period is inserted (E0001 with a machine-appl
 "next item starts here"), an unclosed bracket is reported on its opener, and skipping stops there. The
 operand of `$` and `⇑` cannot start in column 0 either (the one change to the accepted language besides
 `(e).l`: no program wrote one there; `$` at the end of a line is a stray), and neither does a user-defined
-infix operator continue an expression there (it starts the next item, such as its declaration `op : …`).
+infix operator continue an expression there (it starts the next item, such as its declaration `op : …`),
+nor does the operand of `not` or a unary `-` start there.
 Otherwise valid programs are not affected: the heuristic only applies where the parser would otherwise report an error.
 
 An item whose period was inserted is trusted (a repair) only if it starts its line: an item that starts

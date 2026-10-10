@@ -1,0 +1,8 @@
+(* The operand of a prefix operator does not start in column 0, like an argument: a stray `-` before the
+   first item (a comment between them) is one error, and the declaration in column 0 is parsed. *)
+ -(* the stray `-` is before this comment; the error is where its operand would start *)
+e1 : string -> list int -> rel. (*~ E0001 *)
+e1 "a" nil.
+d1 : (a : string) -> (b : list int) -> rel.
+d1 S V1 :- e1 S V1.
+?- d1 "a" L.
