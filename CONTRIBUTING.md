@@ -718,7 +718,8 @@ python3 -m http.server -d /tmp/serve 8000    # http://localhost:8000/hugin/
 
 `site/build.mjs` fails if `hugin run site/<example>.hgn` does not print `site/<example>.check`. It
 highlights the examples with `hugin highlight`, as the reference's code blocks are, so the landing page
-carries spans; its tabs are radio buttons styled by CSS. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
+carries spans; its tabs are radio buttons styled by CSS. Every reference to a CSS or JS file (and to `examples.json`) gets
+`?v=<content hash>`, so a deploy never mixes new pages with cached old assets. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
 without it the playground shows that the compiler is not available. The book's absolute paths start
 with `/hugin/reference/` (`site-url` in `book.toml`), so serve `_site/` under `/hugin/`. CI checks the
 links of `_site/` with lychee (`.github/workflows/reference.yml`).
