@@ -229,6 +229,16 @@ program under edits) is the safety net for all of them.
 The object-level phases (stratification, demand, termination, lowering) stay whole-program: they are
 global by nature and cheap compared with elaboration (`--stats` shows the split).
 
+Evaluation (issue #126, PR 3; `query/EvaluationQueries.scala`) is split like the compilation: `Lowered`
+projects a compilation onto what evaluation reads apart from the queries (relations with their columns,
+types and directives, the subtyping of the object types, the components and the lowered rules;
+`runtime/LoweredRules.scala`), comparable because symbols are replaced by their indexes; `Fixpoint` holds
+the engine after loading the facts files (each parsed once per text, `FactsFile`) and evaluating; and
+`Evaluate` answers the compilation's queries against it. A REPL query adds an item without changing the
+lowered rules, so it is answered against the memoised fixpoint (`FixpointReuseSuite`); a new rule or a
+changed facts file evaluates again. With `%demand` the transformed rules depend on the query, and the
+fixpoint is keyed on them: a query that changes them evaluates again.
+
 ## Status (after step 10)
 
 Incremental now:
@@ -249,8 +259,10 @@ Incremental now:
 Still coarse:
 * `ElabFile` (assembling the items), MetaEval, monomorphization and the object-level phases (directives,
   object typing, moding, records, demand, stratification, completeness, termination, lowering) run on
-  the whole program after every edit, and evaluation after every REPL query: they are global by nature
-  (the demand transformation depends on the queries) and cheap next to elaboration (`--stats`).
+  the whole program after every edit: they are global by nature (the demand transformation depends on
+  the queries). Evaluation runs again when the lowered rules or the facts change (a REPL query over an
+  unchanged program reuses the fixpoint; with `%demand`, a query that changes the transformed rules
+  evaluates the whole program again).
 * Declarations and definitions are elaborated together (`Signatures`): editing one elaborates all of
   them again, though only the items using a changed one follow. A meta probe in the REPL is a
   definition, so it and the next input elaborate the declarations again.

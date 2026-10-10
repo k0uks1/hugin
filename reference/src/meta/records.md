@@ -12,6 +12,7 @@ RecordType  ::= "{" FieldDecl ("," FieldDecl)* "}"
 FieldDecl   ::= NAME ":" Type | "%complete" NAME
 RecordValue ::= "{" NAME "=" Expr ("," NAME "=" Expr)* "}"
 Projection  ::= Expr "." NAME
+Update      ::= "(" Expr "with" "{" NAME "=" Expr ("," NAME "=" Expr)* "}" ")"
 ```
 
 Braces also enclose module bodies, implicit binders and named patterns. The parser tells them apart by
@@ -33,6 +34,62 @@ is an error ([E0307](../errors/E0307.md)) to give a field twice.
 
 `e.l` is the field `l` of the record `e`. It is an error ([E0906](../errors/E0906.md)) if `e` has no
 field `l`. A projection from a record value is evaluated at compile time.
+
+## Update
+
+`(r with { l₁ = e₁, …, lₖ = eₖ })` at a meta position, where `r` is a record of type
+`{ l₁ : A₁, … }`, is the record value with the fields `lᵢ` given by `eᵢ` and every other field `l`
+projected from `r` as `r.l`. It is checked as that record value against the type of `r`: each `eᵢ`
+against its field type, with the fields before it as updated, and a field kept from `r` must still have
+its type after the fields before it changed. The update has the type of `r`. Since modules are records,
+an update also adjusts a module or a functor argument: `tc (g with { edge = rail })`.
+
+It is an error ([E0906](../errors/E0906.md)) if `r` is not a record or has no field `lᵢ`,
+([E0307](../errors/E0307.md)) to give a field twice, and ([E0901](../errors/E0901.md)) if a value or a
+kept field does not have its field type. At an object position, or if `r` is object code, the update is
+the update of a fact ([Rules](../object/rules.md#records)).
+
+The following program moves a point by an update, in a definition and in a function.
+
+```hugin,run
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+moved : point = (origin with { x = 5 }).
+raise : point -> point = [p] (p with { y = p.y + 10 }).
+at : int -> int -> rel.
+at moved.x moved.y.
+at (raise moved).x (raise moved).y.
+```
+
+```output
+at 5 0.
+at 5 10.
+```
+
+The following program applies the functor `tc` of [`std/graph`](../std/graph.md) to a graph and to
+the same graph with another edge relation.
+
+```hugin,run
+%use "std/graph".
+city : type.  a : city.  b : city.  c : city.
+road : city -> city -> rel.
+road a b.  road b c.
+rail : city -> city -> rel.
+rail c a.
+g : graph = { node = city, edge = road }.
+byRoad = tc g.
+byRail = tc (g with { edge = rail }).
+?- byRoad.path a X.
+?- byRail.path c X.
+```
+
+```output
+?- byRoad.path a X.
+X = b.
+X = c.
+?- byRail.path c X.
+X = a.
+```
 
 ## Subtyping by coercion
 

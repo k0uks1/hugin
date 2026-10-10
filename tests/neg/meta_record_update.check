@@ -1,0 +1,36 @@
+error[E0906]: no field `z`
+ --> tests/neg/meta_record_update.hgn:4:28
+  |
+4 | a : point = (origin with { z = 5 }). (*~ E0906 *)
+  |                            ^ unknown field
+  |
+  = note: `{ x : int, y : int }` has the fields `x`, `y`
+  = help: did you mean `x`?
+
+error[E0901]: mismatched types
+ --> tests/neg/meta_record_update.hgn:5:32
+  |
+5 | b : point = (origin with { x = "s" }). (*~ E0901 *)
+  |                                ^^^ expected `int`, found `string`
+
+error[E0906]: no field `x`
+ --> tests/neg/meta_record_update.hgn:7:23
+  |
+7 | c : point = (n with { x = 1 }). (*~ E0906 *)
+  |              -        ^ unknown field
+  |              this has type `int`, which is not a record type
+
+error[E0307]: duplicate label `x`
+ --> tests/neg/meta_record_update.hgn:8:35
+  |
+8 | d : point = (origin with { x = 1, x = 2 }). (*~ E0307 *)
+  |                            -      ^ duplicate
+  |                            first used here
+
+error[E0901]: mismatched types
+  --> tests/neg/meta_record_update.hgn:11:13
+   |
+11 | e : boxed = (parcel with { t = int }). (*~ E0901 *)
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^ expected `int`, found `string`
+
+5 errors found

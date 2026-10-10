@@ -158,7 +158,9 @@ named pattern.
 
 A *projection* `X.l` is the value in the column labelled `l` of the fact `X`. An *update*
 `(X with { l = t })` is the fact like `X` but with `t` in the column `l`; in a head it derives that fact.
-Both apply to variables whose type is closed. If the type of `X` is a union, the rule stands for one rule
+Both apply to variables whose type is closed; it is an error ([E0303](../errors/E0303.md)) to apply them
+to another term. At a meta position, the same syntax updates a meta record
+([Records](../meta/records.md#update)). If the type of `X` is a union, the rule stands for one rule
 per member, and every member must have the label ([E0303](../errors/E0303.md),
 [E0304](../errors/E0304.md)). The type of `X.l` over a union is the *join* of the column types, their
 least common supertype. It is an error ([E0305](../errors/E0305.md)) if they have none.
