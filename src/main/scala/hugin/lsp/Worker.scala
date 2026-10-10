@@ -1,6 +1,7 @@
 package hugin.lsp
 
 import hugin.query.{Cancelled, Database}
+import hugin.util.Cancellation
 import java.util.concurrent.{CompletableFuture, LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.concurrent.atomic.AtomicLong
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
@@ -100,11 +101,11 @@ final class Worker(db: Database):
 
   /** Runs `body` with the database's cancellation set to `cancelled`; a cancelled body is dropped (for an
    *  edit: the newer edit refreshes) or rethrown (for a request, which answers it). */
-  private def cancellable[T](cancelled: () => Boolean)(body: => T): T =
+  private def cancellable[T](cancelled: Cancellation)(body: => T): T =
     db.cancellation = cancelled
     try body
     finally db.cancellation = Database.neverCancelled
 
-  private def dropIfCancelled(cancelled: () => Boolean)(body: => Unit): Unit =
+  private def dropIfCancelled(cancelled: Cancellation)(body: => Unit): Unit =
     try cancellable[Unit](cancelled)(body)
     catch case _: Cancelled => ()

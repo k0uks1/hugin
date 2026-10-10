@@ -1,5 +1,6 @@
 package hugin.query
 
+import hugin.util.Cancellation
 import scala.collection.mutable
 
 /** An input of the database: a value set from outside (e.g. the text of a file), keyed by `K`. */
@@ -64,7 +65,8 @@ final class MissingInput(val description: String) extends RuntimeException(s"inp
  *    compilation; if it answers yes, [[Cancelled]] unwinds the running queries. A query that is unwound
  *    stores no memo (its earlier memo, if any, stays as it was and is verified again on its next demand),
  *    and the memos completed before the check are complete results, so the database stays consistent.
- *    The check is a plain function, not a thread interrupt, so that it works on any platform.
+ *    The check is a [[hugin.util.Cancellation]] the client injects, not a thread interrupt, so that it
+ *    works on any platform.
  *
  *  Results must be immutable values with meaningful `equals` for early cut-off to apply. The database is
  *  single-threaded: a client using it from several threads makes them take turns (the language server
@@ -131,11 +133,14 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
       computedBy.clear()
 
   /** Whether the computation in progress is no longer wanted: asked whenever a query is demanded (see
-   *  [[checkCancelled]]). Set by the client around a computation; by default, never. */
-  @volatile var cancellation: () => Boolean = Database.neverCancelled
+   *  [[checkCancelled]]). Set by the client around a computation; by default, never (not the platform's
+   *  thread interrupt: the database is shared by the computations of a client). Unlike the evaluation
+   *  engine's, a database cancellation must keep answering yes until the client resets it, since every
+   *  query being unwound asks it again. */
+  @volatile var cancellation: Cancellation = Database.neverCancelled
 
   /** Throws [[Cancelled]] if the computation in progress was cancelled. */
-  def checkCancelled(): Unit = if cancellation() then throw Cancelled()
+  def checkCancelled(): Unit = if cancellation.cancelled() then throw Cancelled()
 
   /** The current revision; it increases whenever an input changes. */
   def revision: Long = current
@@ -319,4 +324,4 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
   private def describe(slot: Slot): String = s"${slot._1}(${slot._2})"
 
 object Database:
-  val neverCancelled: () => Boolean = () => false
+  val neverCancelled: Cancellation = () => false

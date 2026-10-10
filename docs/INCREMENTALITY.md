@@ -235,7 +235,8 @@ computation; it is asked whenever a query is demanded and, through `Libraries.ch
 the phases of a compilation, and `Cancelled` (a control throwable, so error recovery does not catch it)
 unwinds the running queries. A query that is unwound stores no memo, and the memos completed before
 are complete results, so the database stays consistent (`DatabaseSuite`); placement is redone by the
-next `ItemSlices`. The check is a function, not a thread interrupt, so it is portable. The language
+next `ItemSlices`. The check is a `hugin.util.Cancellation` the client injects (the interface the
+evaluation engine takes), not a thread interrupt, so it is portable. The language
 server (`lsp/Worker.scala`) runs its work on one worker thread under a lock, in message order: an edit
 counts a new generation on lsp4j's thread, which cancels the computation in progress at its next query
 boundary; the edit's task sets the input and, unless a newer edit arrived, computes the diagnostics and
