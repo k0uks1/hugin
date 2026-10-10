@@ -513,9 +513,10 @@ The root cause is JVM stack spent per element of a long list. Fixes (no larger s
 `LongListsSuite` runs each case on a thread with the JVM's default 1 MiB stack: a module-wide directive
 over a module of 5 000 items, `mirror` over 400 items, and memo keys and evaluation of a list of 100 000
 elements (all three overflow before the fix). With the launcher's stack, lists of 10 000 elements pass
-through `list.lift`, a recursive directive and a recursive meta function. What remains proportional to a
-list's length is a meta function's own recursion (one level per element: the evaluator is a recursive
-NbE evaluator), and the parser and elaborator on a source list literal of thousands of elements
+through `list.lift`, a recursive directive and a recursive meta function. A meta function's own
+recursion (one level per element: the evaluator is a recursive NbE evaluator) continues on a new stack
+segment every 64 levels (`StackSegments`, #129), so its depth is bounded by memory, not by the caller's
+stack; `mirror` over 5 000 items passes on 1 MiB. What remains proportional to a list's length is the parser and elaborator on a source list literal of thousands of elements
 (`Slices.congruent`, checking); see docs/NOTES.md (#88).
 
 ### Numbers (after #88)

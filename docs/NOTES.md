@@ -1905,3 +1905,24 @@ mechanical part with `scripts/check-reference-impact.sh`: a pull request that to
 `obj/`, `runtime/`, `Code.scala` or the bundled library must also touch `reference/src/` or
 `docs/errors/`, or carry the line `Reference: no change, <reason>` in its description. `CLAUDE.md` repeats
 the rule for agents.
+
+## Stack segments for a meta function's recursion (#129)
+
+`LongListsSuite`'s `mirror` over 400 items on a 1 MiB thread failed about one run in five with a
+`StackOverflowError`. The repeating frames, ~17 per item, are a meta function's own recursion, which #88
+recorded as proportional to the length: `Evaluation.eval` (the body `I :: mirror Rest`, nested
+applications) -> `Evaluation.app` -> `Evaluation.rigid` -> `Matching.reduceFunction` -> `Matching.runTree`
+-> `Evaluation.eval`, plus the trait forwarders (`Core.eval`, `Evaluation.eval$`, …). The depth is fixed
+(400 levels) but the bytes per frame are not: an interpreted frame is several times larger than a
+compiled one, and C2 inlining merges frames, so whether 400 levels fit in 1 MiB depended on how much of
+the evaluator the JIT had compiled when the test ran (which tests ran before, compile-queue timing).
+With `-Xint` the base commit overflows every run at 400 items; cold, the threshold was ~590 items.
+
+Fix: the recursion is inherent (strict evaluation of `I :: mirror Rest` nests the recursive call), and a
+stackless evaluator (CPS or a trampoline through `eval`/`app`/`reduceFunction`/`force`) is a redesign.
+Instead `Matching.reduceFunction` counts the nesting of applications of functions defined by clauses and
+runs every 64th level on a new thread with a 16 MiB stack, the caller blocked (`util.StackSegments`): the
+stack any thread spends on the recursion is bounded by 64 levels whatever the caller's stack, and the
+depth by memory. One thread runs at a time, `Thread.start` and `FutureTask.get` order the evaluator's
+state; exceptions are rethrown on the caller and an interrupt is passed on. The launcher keeps `-Xss64m`
+for the other recursions. `mirror` over 5 000 items on 1 MiB is a new case of the suite (20 000 pass).

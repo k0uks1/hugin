@@ -16,6 +16,9 @@ trait Matching:
 
   private val memo = mutable.HashMap.empty[(Int, List[Int]), Val]
 
+  /** How many applications of functions defined by clauses are running, nested (issue #129). */
+  private var depth = 0
+
   /** The result of applying global `id` to the spine, if it is a function that reduces. */
   def reduceFunction(id: Int, sp: Spine): Option[Val] = globals(id).kind match
     case GlobalKind.Function(arity, Some(tree)) if sp.length >= arity =>
@@ -33,7 +36,7 @@ trait Matching:
         val r =
           if hit != null then hit
           else
-            val v = runTree(tree, args.toVector)
+            val v = nested(tree, args.toVector)
             if key != null && v != null then memo(key) = v
             v
         if r == null then None else Some(appSp(r, later))
@@ -46,6 +49,14 @@ trait Matching:
       val args = first.reverse.collect { case Elim.EApp(a, _) => a }
       if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
     case _ => None
+
+  /** [[runTree]] one level deeper in the recursion of meta functions: a meta function recursing over a
+   *  list nests one level per element, and every [[hugin.util.StackSegments.levels]] levels continue on
+   *  a new stack segment, so the depth of the recursion is not bounded by the caller's stack (issue #129). */
+  private def nested(tree: CaseTree, env: Vector[Val]): Val | Null =
+    depth += 1
+    try hugin.util.StackSegments.deeper(depth)(runTree(tree, env))
+    finally depth -= 1
 
   /** The value of the case tree `tree` for the variables `env`, or `null` if a split meets a neutral (or a
    *  value that matches no branch). A loop rather than a recursion through the splits: the JVM stack a
