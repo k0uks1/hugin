@@ -116,29 +116,33 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
    *  period, in a construct laid out over several lines), a token in column 0 or the end of the file; -1
    *  if there is none. The search starts at `from` (the current token by default). With the construct's
    *  `open`, a closer of another kind at depth 0 that closes the construct enclosing it ends the search
-   *  (`count { V | $(F V, p V }`: the `}` is the aggregate's, the `(` is unclosed). */
+   *  (`count { V | $(F V, p V }`: the `}` is the aggregate's, the `(` is unclosed). The depth follows the
+   *  delimiters opened on the way: a closer of another kind than the innermost of them closes an outer
+   *  one, the inner ones being stray (`{ N | c. [m N }`: the `[`). */
   protected def closerAhead(closer: Tok, multiLine: Boolean = false, from: Int = -1, open: Option[Token] = None): Int =
     val start = if from < 0 then i else from
     var k = start
-    var depth = 0
+    var opened = List.empty[Tok] // the closers of the delimiters opened on the way, innermost first
     while k < toks.length do
       val t = toks(k).kind
       // the closer itself may be in column 0 (`}` closing a body over several lines); any other token there
       // starts the next item
-      if t == closer && depth == 0 && k > start then return k
+      if t == closer && opened.isEmpty && k > start then return k
       if t == Tok.EOF || (k > start && atColumn0(k)) then return -1
       t match
-        case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+        case Tok.LParen | Tok.LBrack | Tok.LBrace => opened = closerOf(t).toList ++ opened
         case Tok.RParen | Tok.RBrack | Tok.RBrace =>
-          // another closing delimiter at depth 0 is stray, or closes an enclosing construct, whose end
-          // is then found by the period or the column-0 token after it
-          if depth == 0 && t == closer then return k
-          if depth == 0 && open.exists(o => enclosingOpener(o).exists(e => closerOf(e.kind).contains(t))) then return -1
-          depth = (depth - 1).max(0)
+          if opened.nonEmpty && !opened.contains(t) then opened = Nil
+          opened = opened.dropWhile(_ != t)
+          if opened.nonEmpty then opened = opened.tail
+          // at depth 0, another closing delimiter is stray, or closes an enclosing construct, whose end is
+          // then found by the period or the column-0 token after it
+          else if t == closer then return k
+          else if open.exists(o => enclosingOpener(o).exists(e => closerOf(e.kind).contains(t))) then return -1
         // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`) or
         // what follows it cannot start an item (`{ a : t ., b : u }`, over several lines); in a construct
         // laid out over several lines, no period does: the construct ends with its closer
-        case Tok.Period if depth == 0 && !multiLine && !closerOnLine(k + 1, closer) && endsItemAt(k + 1) => return -1
+        case Tok.Period if opened.isEmpty && !multiLine && !closerOnLine(k + 1, closer) && endsItemAt(k + 1) => return -1
         case _ =>
       k += 1
     -1
@@ -148,17 +152,20 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
   protected def endsItemAt(k: Int): Boolean =
     k >= toks.length || toks(k).kind == Tok.EOF || startsLine(k) || startsItem(toks(k).kind)
 
-  /** Whether `closer` follows at depth 0 on the line of the token at index `k`. */
+  /** Whether `closer` follows at depth 0 on the line of the token at index `k` (the depth as in
+   *  [[closerAhead]]). */
   protected def closerOnLine(k: Int, closer: Tok): Boolean =
     val line = toks(k - 1).span.startLine
     var j = k
-    var depth = 0
+    var opened = List.empty[Tok]
     while j < toks.length && toks(j).kind != Tok.EOF && toks(j).span.startLine == line do
       toks(j).kind match
-        case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+        case t @ (Tok.LParen | Tok.LBrack | Tok.LBrace) => opened = closerOf(t).toList ++ opened
         case t @ (Tok.RParen | Tok.RBrack | Tok.RBrace) =>
-          if depth == 0 then return t == closer
-          depth -= 1
+          if opened.nonEmpty && !opened.contains(t) then opened = Nil
+          opened = opened.dropWhile(_ != t)
+          if opened.isEmpty then return t == closer
+          opened = opened.tail
         case _ =>
       j += 1
     false

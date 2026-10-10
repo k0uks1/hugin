@@ -1,6 +1,8 @@
 (* Looking for the `)` of a construct stops at a closer of another kind that closes the construct
    enclosing it: here the `}` of the aggregate, so the `(` inserted after `$` is unclosed (one error), and
-   the aggregate and the quote keep their own closers. *)
+   the aggregate and the quote keep their own closers. Likewise, a closer of another kind than the
+   innermost delimiter opened on the way closes an outer one: the `}` of `count { N | c. [mark N }` closes
+   the aggregate, the `[` (which made `c.` a period) being stray. *)
 %use "std/reflect".
 item : type.
 stock : item -> rel.
@@ -9,3 +11,8 @@ count_ok : int -> rel.
 restrict : rule -> rule.
 restrict '( count_ok $X :- $Y = count { V | $F[V] } ) = '( count_ok $X :- $Y = count { V | $ (F[V], not excluded V } ). (*~ E0005 *)
 restrict R = R.
+marking : Type = { mark : int -> rel }.
+counter (c : marking) = {
+  marks : int -> rel.
+  marks K :- K = count { N | c. [mark N }. (*~ E0001 *)
+}.

@@ -1,0 +1,7 @@
+(* A family constructor where a directive expects a relation: its columns are read with `_` for the
+   family's parameter, quoted, since the parameter is object code spliced in the type. The directive is
+   then reported, and dropped (so the rule is not range-restricted without its `%demand`). *)
+size2 : (l : list int) -> (n : int) -> rel.
+%demand cons size2 +l -n. (*~ E0902 *)
+size2 nil 0.
+size2 (cons _ L) M :- size2 L N, M = N + 1. (*~ E0501 *)

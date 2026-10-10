@@ -83,11 +83,17 @@ trait Primitives:
   /** The explicit columns of an object constant's type (a family's after its parameters, instantiated with
    *  `_`), with their names and types. */
   def objectColumns(ty: Val): List[(Name, Val)] = force(ty) match
-    case Pi(_, Icit.Impl, _, cl) => objectColumns(inst(cl, Val.Wild))
-    case Pi(x, Icit.Expl, d, cl) if isObjectType(d) => (x, d) :: objectColumns(inst(cl, Val.Wild))
-    case Pi(_, Icit.Expl, _, cl) => objectColumns(inst(cl, Val.Wild))
+    case Pi(_, Icit.Impl, d, cl) => objectColumns(inst(cl, wildAt(d)))
+    case Pi(x, Icit.Expl, d, cl) if isObjectType(d) => (x, d) :: objectColumns(inst(cl, wildAt(d)))
+    case Pi(_, Icit.Expl, d, cl) => objectColumns(inst(cl, wildAt(d)))
     case Lift(t) => objectColumns(t)
     case _ => Nil
+
+  /** `_` as a value of type `d`: object code `⇑τ` is quoted (a family's parameter `{A : ⇑type}` is spliced
+   *  in its type, as in `cons : {A : ⇑type} -> ⇑($A -> list $A -> list $A)`). */
+  private def wildAt(d: Val): Val = force(d) match
+    case Lift(_) => Quote(Val.Wild)
+    case _ => Val.Wild
 
   private def isObjectType(d: Val): Boolean = force(d) match
     case Lift(_) => false
