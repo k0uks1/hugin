@@ -157,7 +157,7 @@ contrast); Isabelle's `size_change` and `lexicographic_order` methods (Krauss).
 | **Check per SCC of the call graph**; only calls inside an SCC can be on a cycle | meta: `core/elab/SizeChange.checkTermination` (C3 restricted it to SCCs but re-checked all of them after every function); object: `obj/check/Termination` runs per recursive component | meta: **now incremental** (only SCCs with new calls; P0+P1) | the verdict of a component depends only on its internal calls, and calls are only added. Meta SCT: 45 % → 6 % of prelude elaboration. |
 | **Completion by composing new graphs with the original calls only** (Agda `completionStep gOrig gThis`) | meta `SizeChange.closure` (now), object `SizeChange.check` (already a work list with base steps) | yes | — |
 | **Dedup of graphs** (sets of matrices per pair of functions) | both use sets | yes | — |
-| **Subsumption / antichains** (keep only the weakest matrices; Agda `Favorites`) | neither | no | can shrink the closure exponentially, but Fogarty & Vardi show that dropping subsumed graphs is safe only if the idempotent-graph criterion is replaced by Ben-Amram & Lee's (a strict arc on a cycle of the graph's own arcs, checked on all graphs). That changes the criterion's code (risk), and Hugin's closures are small after the SCC fix. **Not in this pass**; see "Other opportunities" (it also removes the object level's closure cap). |
+| **Subsumption / antichains** (keep only the weakest matrices; Agda `Favorites`) | object `SizeChange.check` (issue #65); meta: no | object: **yes** (#65) | can shrink the closure exponentially, but Fogarty & Vardi show that dropping subsumed graphs is safe only if the idempotent-graph criterion is replaced by Ben-Amram & Lee's (a strict arc on a cycle of the graph's own arcs, checked on all graphs). The object level now does this and has no closure cap; the meta level still computes full closures. |
 | Bit-matrix / small-matrix representation of call graphs | Agda `SparseMatrix`; ours: `Vector[Vector[Option[Rel]]]` (meta), `Set[Arc]` (object) | no | constant factor; only if profiles show it after the above. |
 | **Graph algorithms** (SCCs, topological order) | `util/Graphs.components` via JGraphT, with a comparator that recomputed component minima per comparison | **now Tarjan + Kahn with a priority queue in plain Scala** | 10 % of prelude elaboration; also removes a JVM-only library from the core path (#58); `GraphsSuite` checks the result against JGraphT. |
 
@@ -251,11 +251,11 @@ and outputs identical; each cites its source in the code.
 
 Not performance work; recorded for issues (not implemented here).
 
-1. **Size-change with subsumption and the Ben-Amram–Lee criterion** — where: `obj/check/SizeChange.check`
-   gives up (rejects) when the closure exceeds `MaxGraphs = 4000`; `core/elab/SizeChange` computes full
-   closures. Source: Fogarty & Vardi 2012; Agda's `Favorites`. Follow-up: keep only weakest graphs and
-   check the polynomial-time criterion; removes the cap (a program can currently be rejected only because
-   its closure is large) and makes the meta checker robust to many mutually recursive functions.
+1. **Size-change with subsumption and the Ben-Amram–Lee criterion** — done for the object level
+   (issue #65: `obj/check/SizeChange.check` keeps only the weakest graphs and checks the local criterion;
+   the `MaxGraphs = 4000` cap is gone). `core/elab/SizeChange` still computes full closures (no cap);
+   the same change would make it robust to many mutually recursive functions. Source: Fogarty & Vardi
+   2012; Agda's `Favorites`.
 2. **Richer orders in the meta-level size-change check** — `core/elab/SizeChange.compare` knows only the
    constructor-subterm order (`<` for a proper subterm, `≤` for an equal argument), while the object
    level already uses interval reasoning for integers. Agda's `Order` additionally has `Mat` (a nested call

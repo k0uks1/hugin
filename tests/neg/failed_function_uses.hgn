@@ -1,0 +1,13 @@
+(* The clauses of `step` fail (E0101), so `step` is left out like any failed item (issue #121): its uses
+   are not reported again, whether direct, through a function elaborated before it (`twice`) or through
+   a definition (`early`). An unrelated error in a later item is still reported. *)
+step : int -> int.
+twice : int -> int.
+twice X = step (step X).
+step X = X + missing. (*~ E0101 *)
+early : int = step 1.
+measured : int -> rel.
+measured (step 2).
+measured (twice 3).
+measured early.
+measured "four". (*~ E0402 *)

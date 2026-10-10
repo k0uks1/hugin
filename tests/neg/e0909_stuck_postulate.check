@@ -1,0 +1,9 @@
+error[E0909]: cannot compute a primitive value at compile time
+  --> tests/neg/e0909_stuck_postulate.hgn:19:1
+   |
+19 | measured (size (grow twenty [1])). (*~ E0909 *)
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `size (pick {list int} true (cons {int} (first (pick {list int} true (cons {int} (first (pick {list int} true (cons {int} (first (pick {list int} true (… …) …)) …) …)) …) …)) …) …)` does not evaluate to a literal
+   |
+   = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+
+1 error found

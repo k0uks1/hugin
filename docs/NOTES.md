@@ -208,9 +208,19 @@ of every recursive step.
 Arcs only connect two integer or two non-integer arguments. Composition follows the paths
 `i → j → k`: `=` is neutral, two decreases give a decrease (strict if one is), two increases an increase,
 and a decrease followed by an increase gives nothing (they are measured in opposite directions, so they
-never form one thread). The closure of the graphs under composition (at most 4000 graphs, otherwise the
-direction fails) is checked: **every idempotent graph `G : p → p` (`G ; G = G`) has a strict arc `i → i`,
-or the arc `i =→ i` for every argument `i` of `p`.**
+never form one thread). The closure of the graphs under composition is checked: **every idempotent graph
+`G : p → p` (`G ; G = G`) has a strict arc `i → i`, or the arc `i =→ i` for every argument `i` of `p`.**
+Since issue #65 this is decided without the full closure and without a cap (it used to give up, and
+reject, above 4000 graphs): only the *weakest* graphs per pair of relations are kept (`G ⊑ G'` if every
+arc of `G` is implied by an arc of `G'` between the same arguments), and every kept `G : p → p` is tested
+by the local criterion of Ben-Amram and Lee (TOPLAS 2007; Fogarty & Vardi, LMCS 2012, Section 4.1): a
+strict arc lies on a cycle of `G`'s arcs of its direction (`=` counts for both), or every argument lies
+on a cycle of `=` arcs. That test holds for `G` iff the idempotent test holds for `G`'s idempotent power,
+and it is preserved by strengthening, so the verdict is the full closure's (the argument is in
+`SizeChange.check`; `ClosureCrossCheckSuite` compares with the old full closure on the corpus and on
+generated programs). The idempotent test itself would be unsound with subsumption: the weaker graph that
+replaces a bad idempotent one need not be idempotent. `tests/run/t_termination_large_closure.hgn` has a
+full closure of 10 085 graphs (formerly rejected) and an antichain of 3.
 
 *Soundness.* Let C be the component, evaluated after the components it depends on, which are finite by
 induction over the evaluation order (Definition 8.7; their check is this argument or the finiteness of

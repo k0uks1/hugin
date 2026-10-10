@@ -51,6 +51,10 @@ object Termination:
    *  aggregation is a stratification error, E0601, reported already; it arises e.g. for the demand of an
    *  auxiliary relation of an aggregate, issue #1, B4). */
   def verdicts(unit: CompilationUnit): List[(List[RelSym], Verdict)] =
+    recursive(unit).map(rc => rc.comp -> verdict(rc, r => unit.splitRules.contains(r)))
+
+  /** The recursive components of the unit that are stratified (see [[verdicts]]). */
+  def recursive(unit: CompilationUnit): List[RecursiveComponent] =
     val p = unit.prog
     if p == null then return Nil
     given ProgramFacts = unit.facts
@@ -62,9 +66,7 @@ object Termination:
       inC = comp.toSet
       if comp.length > 1 || es.exists(e => e.from == comp.head && e.to == comp.head)
       if !es.exists(e => e.negative && inC(e.from) && inC(e.to))
-    yield
-      val rc = RecursiveComponent(unit.facts, comp, rulesByComp.getOrElse(ci, Vector.empty), p.rules, es)
-      comp -> verdict(rc, r => unit.splitRules.contains(r))
+    yield RecursiveComponent(unit.facts, comp, rulesByComp.getOrElse(ci, Vector.empty), p.rules, es)
 
   /** Checks one recursive component: finite without constructive rules; otherwise a declared measure (a
    *  hint for guarded induction, checked), descent along derivations, or an inferred measure. `split` tells
@@ -99,7 +101,7 @@ object Termination:
       split: Boolean
   ): TerminationError =
     val head = headRel(r)
-    val guard = descent.chain.toList.flatMap(_.steps.flatMap(_.hints)).headOption.map(MissingGuard.of)
+    val guard = descent.chain.steps.flatMap(_.hints).headOption.map(MissingGuard.of)
     val measurable = rc.comp.find(c => c.kind == RelKind.Plain || DepGraph.isFactCtor(c))
     TerminationError.NoArgument(
       rc.comp,

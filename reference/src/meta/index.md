@@ -75,7 +75,9 @@ is an error ([E0105](../errors/E0105.md)) if a definition refers to itself, and 
 definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
 reported and left out; elaboration continues with the next item. A use of a name that such an item
 declared, or that a `%use` that was left out might have opened ([Modules](../modules.md)), is not
-reported again: its item is left out without a further diagnostic.
+reported again: its item is left out without a further diagnostic. The same holds for a function whose
+clauses have an error, which is left undefined, and for the definitions and functions that use it: a use
+of one of them, which would need the function's value, is left out without a further diagnostic too.
 
 The unknowns that the compiler creates while it elaborates an item (implicit arguments, inferred types,
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.

@@ -100,6 +100,17 @@ satisfies (A) if, in the closure of its graphs under composition, every graph `G
 Then every chain of derivations through the component is finite, and so is the component
 ([Lee et al. 2001](../notation.md#references), Theorem 4, applied to derivation chains).
 
+The closure can be large, but the check does not compute all of it, and there is no limit on its size.
+A graph `G` is *weaker* than `G'` between the same relations if every arc of `G` is implied by an arc
+of `G'` between the same arguments (`=` implies `≥` and `≤`; a strict arc implies the weak one of its
+direction). Only the weakest graphs are composed further, and every graph `G : p → p` among them is
+tested directly: some strict arc lies on a cycle of arcs of `G` of the same direction (`=` counts for
+both), or every argument lies on a cycle of `=` arcs. This holds for `G` exactly when it holds for the
+idempotent power of `G`, and it is preserved when a graph is replaced by a stronger one, so a component
+satisfies (A) exactly when its weakest graphs pass this test (the local criterion of
+[Ben-Amram and Lee 2007](../notation.md#references); [Fogarty and Vardi 2012](../notation.md#references),
+Section 4.1).
+
 The following program is accepted by (A). The expression in the derived fact is a proper subterm of the
 one in the premise, and the counter `A` is smaller than `N` and bounded below by `N > 1`.
 
