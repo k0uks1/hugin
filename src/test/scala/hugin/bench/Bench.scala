@@ -15,6 +15,7 @@ import java.nio.file.Files
  *  sbt "Test/runMain hugin.bench.Bench first"       # one compile of a one-line program in this JVM
  *  sbt "Test/runMain hugin.bench.Bench gen"         # (re)writes the generated bench programs
  *  sbt "Test/runMain hugin.bench.Bench cpu [names...]"  # thread CPU time and allocated bytes, see below
+ *  sbt "Test/runMain hugin.bench.Bench edits [names...]"  # latency of edits as an editor makes them ([[BenchEdits]])
  *  }}}
  *
  *  `cpu` measures the current thread's CPU time and allocated bytes (`com.sun.management.ThreadMXBean`)
@@ -44,11 +45,12 @@ object Bench:
       report(s"loop $what", f())
       for _ <- 0 until n.toInt do f()
     case "cpu" :: only => cpu(only)
+    case "edits" :: only => BenchEdits.run(only)
     case "warm" :: only =>
       report("prelude elaboration (uncached, direct)", elabPrelude())
       report("compile one-line program (check, new database)", compileOneLine())
       for b <- BenchSet.all if only.isEmpty || only.exists(b.name.contains) do report(b.name, b.runInProcess())
-    case _ => println("usage: Bench gen | first | warm [names...] | cpu [names...] | loop prelude|one-line|<name> <n>")
+    case _ => println("usage: Bench gen | first | warm [names...] | cpu [names...] | edits [names...] | loop prelude|one-line|<name> <n>")
 
   private val rounds = env("HUGIN_BENCH_ROUNDS", 4)
 

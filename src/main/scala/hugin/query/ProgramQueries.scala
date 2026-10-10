@@ -29,8 +29,16 @@ object ItemFingerprint:
       ItemFingerprint(item, src.path, sp.start, sp.end, first, src.content.substring(src.lineStart(first), to), None)
 
 /** The stable identity of an object item of a program: its file, its tree (up to positions) and which of
- *  the equal items of that file it is. Editing an item gives it a new key; other items keep theirs. */
-final case class ItemKey(path: String, tree: Item, occurrence: Int)
+ *  the equal items of that file it is. Editing an item gives it a new key; other items keep theirs.
+ *
+ *  Keys are hashed and compared on every memo lookup of an item's queries, so the hash of the tree is
+ *  computed once (salsa's identity hash, without an intern table), and keys with different hashes are
+ *  unequal without comparing their trees. */
+final case class ItemKey(path: String, tree: Item, occurrence: Int):
+  override val hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
+  override def equals(that: Any): Boolean = that match
+    case k: ItemKey => (this eq k) || (hashCode == k.hashCode && occurrence == k.occurrence && path == k.path && tree == k.tree)
+    case _ => false
 
 object ItemKey:
   def assign(items: List[Item]): List[ItemKey] =
@@ -88,9 +96,15 @@ object DeclarationsOf extends Query[ProgramKey, ProgramDeclarations]("declaratio
     ProgramDeclarations(decls, decls.map(ItemFingerprint.of), ProgramElab.files(key.path, decls))
 
 /** The object items of a program with their keys, in order (recomputed after every edit; cheap). Equal
- *  only if the items are, with their positions ([[ItemFingerprint]]): the items are what [[ItemOf]] reads. */
+ *  only if the items are, with their positions ([[ItemFingerprint]]): the items are what [[ItemOf]] reads.
+ *  After an edit every [[ItemOf]] is executed again (and cut off): each finds its item by key in an index,
+ *  so revalidating a program is linear in its items, not quadratic. */
 final class ObjectItems(val items: List[(ItemKey, Item)]):
   private val fingerprints = items.map((k, i) => (k, ItemFingerprint.of(i)))
+  private lazy val byKey: Map[ItemKey, Item] = items.toMap
+
+  /** The item with the key `key`, if the program has it. */
+  def get(key: ItemKey): Option[Item] = byKey.get(key)
   override def equals(that: Any): Boolean = that match
     case o: ObjectItems => fingerprints == o.fingerprints
     case _ => false
@@ -110,7 +124,7 @@ final class PositionedItem(val item: Item, val fingerprint: ItemFingerprint):
 
 object ItemOf extends Query[ItemQueryKey, PositionedItem]("itemOf"):
   def compute(key: ItemQueryKey)(using db: Database): PositionedItem =
-    val item = db(ObjectItemsOf, key.program).items.find(_._1 == key.item).map(_._2).getOrElse(key.item.tree)
+    val item = db(ObjectItemsOf, key.program).get(key.item).getOrElse(key.item.tree)
     PositionedItem(item, ItemFingerprint.of(item))
 
 /** Whether the prelude's chain is elaborated in full, also the files it re-exports lazily
