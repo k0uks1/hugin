@@ -22,7 +22,10 @@ object Literal:
       if s.contains('.') || s.contains('E') then s else s + ".0"
   def quote(s: String): String =
     val sb = new StringBuilder("\"")
-    s.codePoints().forEach { cp =>
+    // by code points (an unpaired surrogate is one), as `String.codePoints` counts them
+    var i = 0
+    while i < s.length do
+      val cp = s.codePointAt(i)
       cp match
         case '"' => sb ++= "\\\""
         case '\\' => sb ++= "\\\\"
@@ -30,7 +33,7 @@ object Literal:
         case '\t' => sb ++= "\\t"
         case c if c < 0x20 || c == 0x7f => sb ++= f"\\u{$c%x}"
         case c => sb.appendAll(Character.toChars(c))
-    }
+      i += Character.charCount(cp)
     sb += '"'
     sb.toString
 

@@ -13,8 +13,6 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "com.github.scopt" %% "scopt" % "4.1.0", // command-line parsing
       "com.lihaoyi" %% "fansi" % "0.5.0", // ANSI colours in diagnostics
-      "org.jgrapht" % "jgrapht-core" % "1.5.2", // SCCs, topological order, shortest paths
-      "org.apache.commons" % "commons-text" % "1.12.0", // edit distance for suggestions
       "org.jline" % "jline" % "3.27.1", // line editing, history and completion in the REPL
       "org.eclipse.lsp4j" % "org.eclipse.lsp4j" % "0.23.1", // language server protocol (with its JSON-RPC layer)
       "org.scalameta" %% "munit" % "1.0.2" % Test,

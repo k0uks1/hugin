@@ -65,8 +65,7 @@ trait Names:
 
   /** The candidate most similar to `n` (edit distance at most a third of its length), if any. */
   def similarName(n: Name, candidates: List[Name]): Option[Name] =
-    val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
-    candidates.filter(_ != n).map(k => (distance.apply(k, n).intValue, k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1)
+    candidates.filter(_ != n).map(k => (Levenshtein.distance(k, n), k)).filter(_._1 <= (n.length / 3).max(1)).sortBy(_._1)
       .headOption.map(_._2)
 
   def paramName(p: Tree): Name = p match

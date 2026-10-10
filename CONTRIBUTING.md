@@ -245,8 +245,6 @@ implementation or something no library does adequately:
 |---|---|
 | command-line parsing, usage text | [scopt](https://github.com/scopt/scopt) |
 | launcher scripts | [sbt-native-packager](https://github.com/sbt/sbt-native-packager) |
-| strongly connected components, topological order, shortest paths | [JGraphT](https://jgrapht.org/) (wrapped in `util/Graphs` for deterministic results) |
-| "did you mean" suggestions (edit distance) | [Apache Commons Text](https://commons.apache.org/proper/commons-text/) |
 | language server protocol, JSON-RPC | [Eclipse LSP4J](https://github.com/eclipse-lsp4j/lsp4j) |
 | terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
 | line editing, history and completion in the REPL | [JLine 3](https://github.com/jline/jline3) |
@@ -262,6 +260,10 @@ Kept hand-written, deliberately:
   compilers such as rustc and dotty use hand-written parsers for the same reason.
 - **Snippet layout of diagnostics.** There is no maintained JVM counterpart of Rust's ariadne/miette;
   the renderer is ~100 lines on top of fansi.
+- **Graph algorithms and edit distance** (`util/Graphs`: strongly connected components, topological order,
+  shortest paths; `util/Levenshtein`). A few dozen lines each, deterministic by construction, and the
+  compiler outside `cli`, `repl`, `lsp` and `platform` then depends on no JVM-only library, so it can be
+  built for the browser (issue #58).
 - **Interning store and semi-naive engine.** They *are* Section 9 of the definition; the point of the
   reference interpreter is to follow it closely. A real Datalog engine (e.g. Soufflé) could be targeted
   by a separate backend from the core IR.
@@ -307,7 +309,11 @@ Source layout:
 ```
 src/main/resources/hugin/stdlib/prelude.hgn   the prelude
 src/main/scala/hugin/
-  util/            sources, slices and spans, rustc-style diagnostics, error-code catalog, graph algorithms (JGraphT)
+  util/            sources, slices and spans, rustc-style diagnostics, error-code catalog, graph algorithms,
+                   edit distance, the platform interfaces (SourceFiles: files, bundled resources and import
+                   paths; Cancellation)
+  platform/        the JVM implementations of the platform interfaces (Platform); with cli/, repl/ and lsp/
+                   the only JVM-specific code
   syntax/          lexer; the parser (Parser, assembled from ParserBase: cursor, errors and recovery
                    primitives; ItemSyntax, ExprSyntax, RecordSyntax, QuoteSyntax, DirectiveSyntax; the
                    design is in docs/PARSER.md); surface trees with error nodes, printer, generic tree
