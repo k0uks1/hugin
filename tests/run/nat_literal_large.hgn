@@ -1,4 +1,4 @@
-(* A large nat literal (issue #131, batch 0): the numeral `suc (… zero)` is a nested application, and
+(* A nat literal of 500 (issue #131, batch 0; bench/meta/nat_literals.hgn has the large ones): the numeral `suc (… zero)` is a nested application, and
    checking it for object code walks it once (it used to evaluate every argument again: quadratic). *)
 nat : Type.
 zero : nat.
