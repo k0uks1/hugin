@@ -54,3 +54,45 @@ Compile / resourceGenerators += Def.task {
   IO.copyFile(source, target)
   Seq(target)
 }.taskValue
+
+// The browser build of the compiler (issue #58, docs/design/website.md, "No-move variant"): Scala.js compiles
+// the shared sources in src/main/scala, without the JVM-only packages, together with web/src/main/scala (the
+// JS `hugin.platform.Platform` and the playground API `hugin.web`). A shared package that imports a JVM-only
+// package or uses a JVM-only API breaks this build only; CI links it and runs tests/run through it.
+// `sbt web/bundle` writes web/target/bundle/hugin.js (a classic script, also a Web Worker) and hugin.mjs.
+lazy val jvmOnlyPackages = Seq("cli", "repl", "lsp", "platform")
+lazy val bundle = taskKey[File]("link the browser bundle (fullLinkJS with Closure) into web/target/bundle")
+
+lazy val web = (project in file("web"))
+  .enablePlugins(ScalaJSPlugin)
+  .settings(
+    name := "hugin-web",
+    scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Wunused:imports"),
+    scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Nil),
+    libraryDependencies += "com.lihaoyi" %%% "fansi" % "0.5.0",
+    Compile / unmanagedSourceDirectories += (ThisBuild / baseDirectory).value / "src" / "main" / "scala",
+    Compile / unmanagedSources / excludeFilter := {
+      val shared = ((ThisBuild / baseDirectory).value / "src" / "main" / "scala" / "hugin").toPath
+      val excluded = jvmOnlyPackages.map(shared.resolve)
+      (Compile / unmanagedSources / excludeFilter).value || new SimpleFileFilter(f => excluded.exists(f.toPath.startsWith))
+    },
+    Compile / sourceGenerators += Def.task {
+      val out = (Compile / sourceManaged).value / "hugin" / "platform" / "BundledResources.scala"
+      Seq(BundledResources.generate((ThisBuild / baseDirectory).value, out))
+    }.taskValue,
+    // the main method installs the Web Worker message handler when the bundle runs in a worker
+    scalaJSUseMainModuleInitializer := true,
+    Compile / mainClass := Some("hugin.web.WorkerMain"),
+    // a classic script: fullLinkJS runs the Closure Compiler only for NoModule; hugin.mjs re-exports it
+    scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.NoModule)),
+    bundle := {
+      val report = (Compile / fullLinkJS).value.data
+      val dir = (Compile / fullLinkJS / scalaJSLinkerOutputDirectory).value
+      val text = IO.read(dir / report.publicModules.head.jsFileName, IO.utf8)
+      val out = target.value / "bundle"
+      IO.write(out / "hugin.js", text, IO.utf8)
+      IO.write(out / "hugin.mjs", text + "\nexport { Hugin };\n", IO.utf8)
+      streams.value.log.info(s"browser bundle in $out")
+      out
+    }
+  )
