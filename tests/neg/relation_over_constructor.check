@@ -1,0 +1,9 @@
+error[E0206]: cannot infer type argument `A` of family `cons`
+ --> tests/neg/relation_over_constructor.hgn:3:9
+  |
+3 | sizes : cons -> rel. (*~ E0206 *)
+  |         ^^^^ type not determined
+  |
+  = help: ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined
+
+1 error found

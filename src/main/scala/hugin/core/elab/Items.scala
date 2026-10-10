@@ -318,10 +318,12 @@ trait Items:
     val count = items.length
     val partCount = state.parts.length
     val names = scope.begin()
+    val mark = pendingMark
     val result =
       try f
       catch
         case e: ElabError =>
+          rollbackPending(mark)
           items.dropRightInPlace(items.length - count)
           state.parts.dropRightInPlace(state.parts.length - partCount)
           scope.rollback(names)

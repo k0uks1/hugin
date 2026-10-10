@@ -1,0 +1,3 @@
+(* A relation whose column type is a family's constructor (not a type): its declaration fails, and the
+   relation is pending again, so nothing later reads a type whose metas the failure undid. *)
+sizes : cons -> rel. (*~ E0206 *)

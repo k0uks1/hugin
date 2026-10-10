@@ -41,11 +41,16 @@ trait ModuleBodies:
   private def reportingErrors[A](a: => A): Option[A] =
     try Some(a)
     catch
-      // a name the file declares later (a directive, a function): the definition is retried after it
-      case e: ElabError if e.unresolved.exists(n => state.declaredHere(n) && lookupGlobal(n).isEmpty) => throw e
+      case e: ElabError if retriedOutside(e) => throw e
       case e: ElabError =>
         report(e)
         None
+
+  /** An error about a name the file declares later (a directive, a function), or whose declaration is
+   *  pending (it may still fail, and its uses are then not reported): the definition of the body is
+   *  retried after it. */
+  private def retriedOutside(e: ElabError): Boolean =
+    e.unresolved.exists(n => state.declaredHere(n) && lookupGlobal(n).forall(globals(_).pending))
 
   /** Elaborates the members in dependency order (as the top level's declarations). */
   private def elabMembers(c: Cxt, items: List[Item]): (Cxt, List[Member]) =
@@ -66,6 +71,7 @@ trait ModuleBodies:
         catch
           case e: ElabError =>
             if e.unresolved.exists(later) then true
+            else if retriedOutside(e) then throw e
             else
               report(e)
               false
