@@ -2200,3 +2200,60 @@ earlier clause group of its own cycle). Goldens: `run/order_definitions` (with `
 for `%export`; the issue and the other six kinds, and a typed definition and a signature that need each
 other), `neg/order_cycle` (row 10 in both orders, with the note), `neg/order_stuck_notes` (the second
 rejected class, the E0912 note), `neg/order_unsolved` (row 11).
+
+## A meta function's recursion on the heap (#129)
+
+`LongListsSuite`'s `mirror` over 400 items on a 1 MiB thread failed about one run in five with a
+`StackOverflowError`. The repeating frames, ~17 per item, are the meta function's own recursion, which #88
+recorded as proportional to the length: `Evaluation.eval` (the body `I :: mirror Rest`, nested
+applications) -> `Evaluation.app` -> `Evaluation.rigid` -> `Matching.reduceFunction` -> `Matching.runTree`
+-> `Evaluation.eval`, plus the trait forwarders (`Core.eval`, `Evaluation.eval$`, …). The depth is fixed
+(400 levels), the bytes per frame are not: an interpreted frame is several times larger than a compiled
+one and C2 inlining merges frames, so whether 400 levels fit depended on how much of the evaluator the
+JIT had compiled when the test ran. With `-Xint` the base commit overflows every run; cold, from ~590
+items. The Scala.js build (#58) overflows the same way: from ~1 500 items on node's default stack, and
+at 400 with `--stack-size=200`.
+
+Decisions:
+
+* **No stack extension.** A first fix ran every 64th level on a new thread with a large stack; it was
+  reverted: there are no threads in the browser build, and the designer's rule excludes JVM tricks.
+* **An explicit continuation stack on the hot path only** (`core/Machine.scala`). The steps that recur
+  per element are one loop with three modes (evaluate a term, apply a value, return a value to the top
+  frame), and what remains after a value is a heap frame: `KArg` (evaluate the argument, then apply),
+  `KApp` (apply a function to the value), `KLet`, `KMemo` (memoise a function's result), `KElim` (apply
+  an argument beyond a function's arity), `KTop` (fold the value as a definition's unfolding). The loop
+  covers `Tm.App`, `Tm.Let`, a λ applied (its body continues in the loop), a folded definition applied,
+  and a function defined by clauses: `Matching.matchFunction` runs the case tree (already a loop) and
+  returns the body to evaluate with its environment (`Reduct`), or the memoised value, or `Stuck`; the
+  machine evaluates the body in the same loop. Everything else is one step of `Evaluation.evalNode`, the
+  old evaluator, whose recursion is bounded by the size of the term (quotes, object code, records); its
+  subterms go through `eval`, which enters the machine for an application. `app` itself is the machine,
+  so `force`, unification and `appSp` are stack-safe in the same way; `reduceFunction` (used by `force`
+  on stuck applications) evaluates a `Reduct` with the machine too.
+* **Same order of evaluation** as the recursive evaluator: the function, then the argument, then the
+  application; a function's result is memoised before the arguments beyond its arity are applied. An
+  argument is evaluated with anonymous instances (`Modules.argument`, #61): its `KApp` frame keeps the
+  instance-name hint, which is cleared while the argument is evaluated and restored before the
+  application (and on an exception, as `Modules.named`'s `finally` would). The
+  fresh-name counter and the observed staging therefore see the same sequence (the goldens, LSP
+  transcripts and tooling suites are unchanged). #88's `evalArgChain` (a loop for argument chains such as
+  list data) is subsumed and removed.
+* **Native recursion first, the machine past a depth** (as `MemoKeys` past a depth of 200, #88). The
+  machine on every evaluation cost up to ~15 % CPU on the small meta-heavy programs of the bench set
+  (frame objects, a `Reduct` per call). So the first 96 levels of nesting (an application evaluated, a
+  function's body evaluated) run in `evalNative`/`appNative`, the recursive evaluator of before, with a
+  depth counter (restored by `finally`); `eval` and `app` enter the machine only past that depth, and
+  everything evaluated inside the machine stays in it. The native stack spent is bounded by 96 levels
+  (~250 KiB at the interpreted worst), whatever the depth of the computation. In the machine, an
+  application whose function and argument are atomic (a variable, a global, a meta, a λ, a literal: no
+  effects, no subterm evaluated) is applied without a frame.
+* **Not a CEK machine for the whole evaluator**: environments stay `List[Val]` and closures stay
+  `Closure`, values are unchanged, and the cases that do not recur per data element keep native
+  recursion; a full defunctionalisation (`force`, `quote`, unification) is not needed for the depth of a
+  computation, only for the size of a term.
+
+Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thread, and the 400 items in a
+child JVM run with `-Xint` (the largest frames); the 100 000-element list of #88 now goes through the
+machine (the argument chain is deeper than 96). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
+the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).
