@@ -1,0 +1,20 @@
+(* No braces and no list start with `,`: a `{` or `[` before a `,` is stray, one error, and the `,` and
+   what follows belong to the enclosing construct (a record pattern closed by its own `}`, a quote by its
+   own `)`). The damaged list leaves `x` and `y` unused. *)
+%use "std/reflect".
+sale : (shop : string) -> (item : string) -> (price : int) -> rel.
+sale "north" "pen" 3.
+total : int -> rel.
+total S :- S = sum { R.price | sale { shop = "north" {, .. }, R = sale "north" "pen" 3 }. (*~ E0001 *)
+node : type. a : node. b : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+edge a b.
+x : quoted node = qvar "x". (*~ W0003 *)
+y : quoted node = qvar "y". (*~ W0003 *)
+closure : list rule = [
+  '( path $x $y :- edge $x $y ),
+  '( path $x $y :- path $x $y [, edge $x $y ) (*~ E0001 *)
+].
+$closure.
+%output path.

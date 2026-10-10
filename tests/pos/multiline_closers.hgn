@@ -1,0 +1,16 @@
+(* A closer of a construct over several lines that more text follows on its line is not stray when the
+   construct is enclosed: the closer after it is the enclosing construct's, in a list or a module body. *)
+g : list int -> int -> list int.
+g L X = L.
+xs : list (list int) = [ g [
+  1] 3, [2] ].
+pt : Type = { a : int }.
+h : pt -> int -> int.
+h R N = N.
+m = {
+  k : int = h {
+    a = 1 } 2.
+}.
+n : list int -> rel.
+n Y :- Y = [
+  1] , xs = [Y].

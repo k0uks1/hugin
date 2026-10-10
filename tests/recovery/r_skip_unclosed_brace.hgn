@@ -1,0 +1,11 @@
+(* The rest of a damaged item is skipped to its period, but not past an item in column 0, also inside a
+   delimiter opened in the skipped text: a stray `{` does not take the rest of the file with it. *)
+%use "std/reflect" {. (*~ E0001 *)
+node : type.
+a : node. b : node.
+edge : node -> node -> rel.
+edge a b.
+loop : term -> list item.
+loop N = '( edge $N $N. ).
+%loop a.
+%output edge.

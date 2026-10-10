@@ -15,7 +15,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
     if k0 == Tok.DotDot then
       advance()
       checked(RecordLit(Nil, rest = true)(spanFrom(start)), close(open, Tok.RBrace))
-    else if k0 == Tok.Var && implicitBinderAhead then
+    // a period first makes it a module body (`{ X`⏎`f : t.`, a stray `X`): a binder's type has none
+    else if k0 == Tok.Var && implicitBinderAhead && !periodFirst then
       val names = mutable.ListBuffer.empty[Tree]
       while at(Tok.Var) || at(Tok.Name) do
         val n = advance()
@@ -26,6 +27,11 @@ private[syntax] trait RecordSyntax extends ParserBase:
     else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
       parseRecordType(open)
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(open)
+    else if k0 == Tok.Comma then
+      // no braces start with `,`: the `{` is stray (`{ shop = "n" {, .. }`), and what follows it belongs to
+      // the enclosing construct
+      expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
+      ErrorTree(Nil)(open.span)
     else parseModuleBody(open)
 
   /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file if
@@ -34,7 +40,10 @@ private[syntax] trait RecordSyntax extends ParserBase:
   private def parseModuleBody(open: Token): Tree =
     val column0Members = atColumn0(position)
     val (items, clean) =
-      inBody(Tok.RBrace)(parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody))
+      inBody(Tok.RBrace, Some(open))(parseItems(
+        !at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)),
+        unexpectedInBody
+      ))
     if at(Tok.RBrace) then
       advance()
       checked(ModuleBody(items)(spanFrom(open.span.start)), clean)

@@ -1,0 +1,15 @@
+(* In a construct laid out over several lines (its opener ends its line), a stray period or a stray closer
+   that the construct goes on after is one error: the construct's own closer, in column 0, is found. *)
+shapes : Type = {
+  side : int, area : . int, colour : string (*~ E0001 *)
+}.
+xs : list int = [
+  1,
+  ] 2 (*~ E0001 *)
+].
+ys : list int = [
+  1,
+  2 ] 3 (*~ E0001 *)
+].
+size : int -> rel.
+size 3.

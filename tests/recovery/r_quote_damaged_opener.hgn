@@ -1,0 +1,15 @@
+(* A quote whose `(` is lost, or that has a token between the prime and its `(`: the prime is reported
+   once, and the quote is read, its `)` closing it; the items after it are parsed as before. *)
+%use "std/reflect".
+person : type.
+ann : person. bob : person.
+symmetric : (r : ^(A -> A -> rel)) -> list item.
+symmetric R = ' R Y X :- R X Y. ). (*~ E0001 *)
+friend : person -> person -> rel.
+%symmetric friend.
+friend ann bob.
+back : person -> person -> rel.
+reverse : rule -> list rule.
+reverse '( _ :- friend $X $Y ) = [' {( back $Y $X :- friend $X $Y )]. (*~ E0001 *)
+reverse _ = [].
+%output friend.

@@ -88,6 +88,10 @@ enum SyntaxError extends Problem:
   case RuleNameOnDeclaration(at: Span)
   case NonAssociativeChain(op: String, at: Span)
   case UnmatchedBrace(at: Span)
+
+  /** A closing delimiter in a construct over several lines that the construct goes on after, on its line,
+   *  while its own closer follows (`[`⏎`1,`⏎`] 2`⏎`]`). */
+  case StrayCloser(closer: String, at: Span)
   case UnknownAssociativity(name: String, at: Span)
   case RestInUpdate(at: Span)
   case ExpectedUpdateFields(at: Span)
@@ -124,6 +128,7 @@ enum SyntaxError extends Problem:
     case RuleNameOnDeclaration(s) => s
     case NonAssociativeChain(_, s) => s
     case UnmatchedBrace(s) => s
+    case StrayCloser(_, s) => s
     case UnknownAssociativity(_, s) => s
     case RestInUpdate(s) => s
     case ExpectedUpdateFields(s) => s
@@ -150,6 +155,7 @@ enum SyntaxError extends Problem:
     case _: RuleNameOnDeclaration => msg"a rule name cannot start a declaration"
     case NonAssociativeChain(op, _) => msg"operator ${Src(op)} is non-associative"
     case _: UnmatchedBrace => msg"unmatched `}`"
+    case StrayCloser(c, _) => msg"stray ${Src(c)}"
     case UnknownAssociativity(a, _) => msg"unknown associativity ${Src(a)}"
     case _: RestInUpdate => msg"`..` is not allowed in an update"
     case _: ExpectedUpdateFields => msg"expected fields `{ l = t, ... }` after `with`"
@@ -174,6 +180,7 @@ enum SyntaxError extends Problem:
     case _: RuleNameOnDeclaration => msg"unexpected `:`"
     case _: NonAssociativeChain => msg"cannot chain this operator"
     case _: UnmatchedBrace => msg"no module body to close"
+    case StrayCloser(c, _) => msg"the construct goes on after this ${Src(c)}, and is closed later"
     case _: UnknownAssociativity => msg"expected `left`, `right` or `none`"
     case _: MalformedDeclarationHead => msg"expected a lowercase name"
     case _: MalformedParameter => msg"expected `X` or `(name : type)`"

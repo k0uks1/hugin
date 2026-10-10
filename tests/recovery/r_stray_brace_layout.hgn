@@ -1,0 +1,25 @@
+(* A `}` in the middle of an item, which more of the item follows on its line, in a brace laid out over
+   several lines whose own `}` comes later, at the start of a line indented as the line of the `{`: the
+   `}` is stray, one error, and the rest of the item is skipped (also a selection `}.t` after it). The
+   brace is not cut short, so the names it binds are not reported as unresolved in the items after the
+   damaged one. *)
+setoid : Type = { t : type, eq : t -> t -> prop }.
+lib = {
+  limit : int = 3.
+  dedup (s : setoid) (src : s.t -> rel) = {
+    same : s.t -> s.t } -> rel. (*~ E0001 *)
+    same X Y :- src X, src Y, s.eq X Y.
+  }.
+  pairs (s : setoid) (src : s.t -> rel) = {
+    pair : s.t -> s.t -> rel.
+    other : s.t } -> rel. (*~ E0001 *)
+    pair X Y :- src X, src Y, X <> Y.
+  }.
+  distinct (s : setoid) (src : s.t -> rel) = {
+    apart : s.t -> s.t -> rel.
+    differ : s.t -> s }.t -> rel. (*~ E0001 *)
+    apart X Y :- src X, src Y, X <> Y.
+  }.
+}.
+n : int -> rel.
+n lib.limit.

@@ -1,0 +1,30 @@
+error[E0001]: unexpected character `'`
+ --> tests/recovery/r_quote_spaced_opener.hgn:8:42
+  |
+8 | guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *) (*~ E0005 *)
+  |                                          ^
+
+error[E0005]: unclosed `'(`
+ --> tests/recovery/r_quote_spaced_opener.hgn:8:81
+  |
+8 | guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *) (*~ E0005 *)
+  |                                          ---                                    ^ expected `)` here
+  |                                          this `'(` is never closed
+
+error[E0001]: unexpected character `'`
+  --> tests/recovery/r_quote_spaced_opener.hgn:10:17
+   |
+10 | spaced : rule = ' ( asked e0 g0 ). (*~ E0001 *)
+   |                 ^
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+expr : type.
+ctx : type.
+e0 : expr.
+g0 : ctx.
+neg : expr -> expr.
+asked : (e : expr) -> (g : ctx) -> rel.
+guard : rule -> list rule.
+spaced : rule = horn (cons {formula} (fatom ⟨asked⟩ (cons {term} (tapp ⟨e0⟩ (nil {term})) (cons {term} (tapp ⟨g0⟩ (nil {term})) (nil {term})))) (nil {formula})) (nil {formula}).
+asked e0 g0.

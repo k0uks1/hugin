@@ -1,0 +1,13 @@
+(* A quote is parsed as items also inside a type (here the `=` of the definition is missing): its
+   comparisons do not end the type, so the one error is the type's, not one per entry. *)
+%use "std/reflect".
+n : type.
+z : n.
+num : n -> rel.
+w : float -> rel.
+data : module '( (*~ E0905 *)
+  num z.
+  num X :- X = z, not w 2.0.
+).
+$data.
+?- num X.

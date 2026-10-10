@@ -35,7 +35,9 @@ private[syntax] trait ExprSyntax extends ParserBase:
     var chained = false
     while continue do
       infixAt(tok) match
-        case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) =>
+        // a user-defined operator in column 0 starts the next item (its declaration `op : …`, say), as an
+        // argument there would
+        case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) && !(tok.kind == Tok.Name && atColumn0(i)) =>
           if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
             error(SyntaxError.NonAssociativeChain(op, tok.span))
             chained = true
@@ -208,7 +210,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val closed = close(open, Tok.RBrace)
         checked(Agg(k, term, body)(spanFrom(start)), !stray && bar && closed)
 
-  /** A variable after `as` or before `with`; a lowercase name there is reported (and taken as the variable). */
+  /** A variable after `as` or before `with`; a lowercase name there is reported (and taken as the variable),
+   *  as is a stray token before the variable (and skipped with it). */
   private def variable(): Option[VarRef] =
     if at(Tok.Var) then
       val v = advance()
@@ -216,6 +219,12 @@ private[syntax] trait ExprSyntax extends ParserBase:
     else if at(Tok.Name) then
       val n = tok
       error(SyntaxError.Expected(List(Expect.variable), found, n.span, None, Some(SyntaxHelp.LowercaseVariable(n.text, n.span))))
+      advance()
+      None
+    else if peekTok(1).kind == Tok.Var && peekTok(1).span.startLine == tok.span.startLine && !at(Tok.EOF) then
+      // `as { P`: a stray token before the variable; both are skipped, and the construct is damaged
+      expected(List(Expect.variable))
+      advance()
       advance()
       None
     else

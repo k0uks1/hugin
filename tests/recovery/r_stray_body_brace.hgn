@@ -1,0 +1,14 @@
+(* A `{` that cannot start an item, at the end of its line, opens a body over several lines: it is skipped
+   with that body, to its `}` in column 0, instead of leaving the members and the `}` to be read as items
+   (here the period before the `{` ended the definition). *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : item -> prop = [I] I.price < 10. (*~ W0003 *)
+select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
+  sel : A -> rel.
+  @s sel X :- r X, p X.
+}.
+bargains = select cheap listed.
+listed (item "pen" 2).
+%output listed.

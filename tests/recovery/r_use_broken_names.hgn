@@ -1,0 +1,8 @@
+(* A `%use` whose list of names is broken might have named any name: it is damaged, as a `%use` without
+   a list would be, and the names it might have opened are not reported as unresolved. *)
+%use "std/reflect" (. (*~ E0001 *)
+held : int -> rel.
+hold : quoted int -> list item.
+hold Q = ['( held $Q )].
+%hold 3.
+?- held X.

@@ -1,0 +1,21 @@
+error[E0001]: expected `.` after the fact, found `likes`
+ --> tests/recovery/r_infix_col0.hgn:4:50
+  |
+4 | person : type. ann : person. bob : person. mutual (*~ E0001 *)
+  |                                                  ^ expected `.` here
+5 | likes : person -> person -> rel.
+  | ----- next item starts here
+  |
+  = help: every item ends with a period
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+person : type.
+ann : person.
+bob : person.
+likes : person -> person -> rel.
+likes ann bob.
+likes bob ann.
+friends : person -> rel.
+friends X :- likes X Y, likes Y X.
+%output friends.

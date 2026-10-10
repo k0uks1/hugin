@@ -40,14 +40,16 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
           case _ => Nil
       case "use" =>
         // `%use "f"` opens a file (an import, so that the import graph sees it), `%use m` a module value
+        // the argument, like a directive's, does not start in column 0 (it would be the next item)
         val module =
-          if at(Tok.StrLit) then
+          if at(Tok.StrLit) && !atColumn0(position) then
             val p = advance()
             Import(p.value.asInstanceOf[String])(p.span, p.span)
-          else if startsPrimary then parsePostfix()
+          else if startsPrimary && !atColumn0(position) then parsePostfix()
           else
             expected(List(Expect.Thing("a module or the path of a file")), Some(context))
             ErrorTree(Nil)(insertionPoint)
+        var namesOk = true
         val names = Option.when(at(Tok.LParen)) {
           val open = advance()
           val ns = mutable.ListBuffer.empty[Ident]
@@ -55,16 +57,17 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
           while more do
             expect(Tok.Name, Some(context)) match
               case Some(n) => ns += Ident(n.text)(n.span)
-              case None => more = false
+              case None => more = false; namesOk = false
             if more && at(Tok.Comma) then advance() else more = false
-          close(open, Tok.RParen, Some(context))
+          namesOk = close(open, Tok.RParen, Some(context)) && namesOk
           ns.toList
         }
-        val ok = endItem(context, List(Expect.period))
-        List(directive(DirArgs.Use(if ok then module else damaged(module), names)))
+        val ok = endItem(context, List(Expect.period)) && namesOk
+        // a damaged list of names might have named any: the `%use` is damaged, as one without a list
+        List(directive(DirArgs.Use(if ok then module else damaged(module), if namesOk then names else None)))
       case "export" =>
         val signature =
-          if startsPrimary then parsePostfix()
+          if startsPrimary && !atColumn0(position) then parsePostfix()
           else
             expected(List(Expect.Thing("a signature")), Some(context))
             ErrorTree(Nil)(insertionPoint)

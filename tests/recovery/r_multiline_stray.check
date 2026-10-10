@@ -1,0 +1,22 @@
+error[E0001]: expected a type, found `.`
+ --> tests/recovery/r_multiline_stray.hgn:4:22
+  |
+4 |   side : int, area : . int, colour : string (*~ E0001 *)
+  |                      ^ expected a type
+
+error[E0001]: expected an expression, found `]`
+ --> tests/recovery/r_multiline_stray.hgn:8:3
+  |
+8 |   ] 2 (*~ E0001 *)
+  |   ^ expected an expression
+
+error[E0001]: stray `]`
+  --> tests/recovery/r_multiline_stray.hgn:12:5
+   |
+12 |   2 ] 3 (*~ E0001 *)
+   |     ^ the construct goes on after this `]`, and is closed later
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+size : int -> rel.
+size 3.

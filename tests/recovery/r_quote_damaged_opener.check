@@ -1,0 +1,39 @@
+error[E0001]: unexpected character `'`
+ --> tests/recovery/r_quote_damaged_opener.hgn:7:15
+  |
+7 | symmetric R = ' R Y X :- R X Y. ). (*~ E0001 *)
+  |               ^
+
+error[E0001]: unexpected character `'`
+  --> tests/recovery/r_quote_damaged_opener.hgn:13:35
+   |
+13 | reverse '( _ :- friend $X $Y ) = [' {( back $Y $X :- friend $X $Y )]. (*~ E0001 *)
+   |                                   ^
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+person : type.
+ann : person.
+bob : person.
+symmetric : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> list item.
+  symmetric R = cons (irule (horn (cons {formula} (fatom R (cons {term} (tvar "Y") (cons {term} (tvar "X") (nil {term})))) (nil {formula})) (cons {formula} (fatom R (cons {term} (tvar "X") (cons {term} (tvar "Y") (nil {term})))) (nil {formula})))) nil.
+friend : person -> person -> rel.
+friend Y X :- friend X Y.
+friend ann bob.
+back : person -> person -> rel.
+reverse : rule -> list rule.
+  reverse (horn nil _) = nil.
+  reverse (horn (cons _ nil) nil) = nil.
+  reverse (horn (cons _ nil) (cons (fatom ⟨friend⟩ nil) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fatom ⟨friend⟩ (cons _ nil)) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fatom ⟨friend⟩ (cons X#data (cons Y#data nil))) nil)) = cons (horn (cons {formula} (fatom ⟨back⟩ (cons {term} Y#data (cons {term} X#data (nil {term})))) (nil {formula})) (cons {formula} (fatom ⟨friend⟩ (cons {term} X#data (cons {term} Y#data (nil {term})))) (nil {formula}))) nil.
+  reverse (horn (cons _ nil) (cons (fatom ⟨friend⟩ (cons _ (cons _ nil))) (cons _ _))) = nil.
+  reverse (horn (cons _ nil) (cons (fatom ⟨friend⟩ (cons _ (cons _ (cons _ _)))) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fatom _ _) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fcmp _ _ _) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fnot _) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fconj _ _) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fdisj _ _) _)) = nil.
+  reverse (horn (cons _ nil) (cons (fagg _ _ _ _) _)) = nil.
+  reverse (horn (cons _ (cons _ _)) _) = nil.
+%output friend.

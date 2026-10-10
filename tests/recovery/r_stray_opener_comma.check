@@ -1,0 +1,42 @@
+error[E0001]: expected a label, an item or `}`, found `,`
+ --> tests/recovery/r_stray_opener_comma.hgn:8:55
+  |
+8 | total S :- S = sum { R.price | sale { shop = "north" {, .. }, R = sale "north" "pen" 3 }. (*~ E0001 *)
+  |                                                       ^ expected a label, an item or `}`
+
+warning[W0003]: unused definition `x`
+  --> tests/recovery/r_stray_opener_comma.hgn:13:1
+   |
+13 | x : quoted node = qvar "x". (*~ W0003 *)
+   | ^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+warning[W0003]: unused definition `y`
+  --> tests/recovery/r_stray_opener_comma.hgn:14:1
+   |
+14 | y : quoted node = qvar "y". (*~ W0003 *)
+   | ^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0001]: expected an expression, found `,`
+  --> tests/recovery/r_stray_opener_comma.hgn:17:32
+   |
+17 |   '( path $x $y :- path $x $y [, edge $x $y ) (*~ E0001 *)
+   |                                ^ expected an expression
+
+2 errors, 2 warnings found
+(* ---------------- after elaborate ---------------- *)
+sale : (shop : string) -> (item : string) -> (price : int) -> rel.
+sale "north" "pen" 3.
+total : int -> rel.
+node : type.
+a : node.
+b : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+edge a b.
+x : quoted ⟨node⟩ = qvar {⟨node⟩} "x".
+y : quoted ⟨node⟩ = qvar {⟨node⟩} "y".
+%output path.

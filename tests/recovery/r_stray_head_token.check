@@ -1,0 +1,23 @@
+warning[W0003]: unused definition `cheap`
+ --> tests/recovery/r_stray_head_token.hgn:8:1
+  |
+8 | cheap : item -> prop = [I] I.price < 10. (*~ W0003 *)
+  | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0004]: malformed declaration head
+ --> tests/recovery/r_stray_head_token.hgn:9:43
+  |
+9 | select (p : A -> prop) (r : A -> rel) = { X (*~ E0004 *)
+  |                                           ^ expected a lowercase name
+  |
+  = note: declarations have the form `name param* : type.` and definitions `name param* = expr.`
+
+1 error, 1 warning found
+(* ---------------- after elaborate ---------------- *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : ⇑item -> ⇑prop = [I] ⟨$I.price < 10⟩.
+listed (item "pen" 2).

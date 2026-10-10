@@ -1,0 +1,15 @@
+(* A stray token before the name of a declaration: one error (E0004), and the declaration is damaged
+   but keeps its name, so the uses of the name are not reported (nor the module body it is in, which is
+   damaged with it). The `X` after `{` does not make the brace implicit binders either: a period comes
+   before its `}`. *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : item -> prop = [I] I.price < 10. (*~ W0003 *)
+select (p : A -> prop) (r : A -> rel) = { X (*~ E0004 *)
+  sel : A -> rel.
+  @s sel X :- r X, p X.
+}.
+bargains = select cheap listed.
+listed (item "pen" 2).
+%output bargains.sel.

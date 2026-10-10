@@ -1,0 +1,28 @@
+warning[W0003]: unused definition `cheap`
+ --> tests/recovery/r_stray_body_brace.hgn:7:1
+  |
+7 | cheap : item -> prop = [I] I.price < 10. (*~ W0003 *)
+  | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/r_stray_body_brace.hgn:8:41
+  |
+8 | select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
+  |                                         ^ expected an expression
+
+error[E0001]: expected an item, found `{`
+ --> tests/recovery/r_stray_body_brace.hgn:8:43
+  |
+8 | select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
+  |                                           ^ expected an item
+
+2 errors, 1 warning found
+(* ---------------- after elaborate ---------------- *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : ⇑item -> ⇑prop = [I] ⟨$I.price < 10⟩.
+listed (item "pen" 2).
+%output listed.

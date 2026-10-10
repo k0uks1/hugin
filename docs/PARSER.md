@@ -127,7 +127,9 @@ the CST can be added below the typed trees then.
 | file | contents |
 |---|---|
 | `Parser.scala` | the parser assembled from its parts; the public API (`parse`, `parseSlice`, `infixOperators`), precedence levels; `Operators`, the `%infix` prescan |
-| `ParserBase.scala` | the token cursor, fuel, expected sets, error reporting (one error per region), recovery primitives (skipping, closing delimiters, item ends) |
+| `TokenCursor.scala` | the token cursor, fuel, the look-ahead recovery decides by (layout, delimiters ahead, bodies) |
+| `QuoteOpeners.scala` | recovery of damaged quote openers (a prime without its `(`), before parsing |
+| `ParserBase.scala` | expected sets, error reporting (one error per region), recovery primitives (skipping, closing delimiters, item ends) |
 | `ItemSyntax.scala` | programs and items: declarations, definitions, clauses with `where`, edges, rules, queries; declaration heads |
 | `ExprSyntax.scala` | expressions: operators, prefix forms, application, selection, primaries, parentheses |
 | `RecordSyntax.scala` | braces: record types and values, implicit binders, module bodies |
@@ -184,9 +186,9 @@ Recovery happens at the innermost construct that can continue:
 
 | construct | separator / end | on an unexpected token |
 |---|---|---|
-| file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period or the next token in column 0 |
+| file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period or the next token in column 0; a `{` at the end of its line (which no item starts with) is skipped with its body, to its `}` |
 | query, rule body (after `?-`, `:-`) | formula | a token in column 0 is the next item: the formula is missing (`ErrorTree`), as for the operand of `⇑` |
-| item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token, or the `}` of the enclosing body |
+| item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token (also inside a delimiter opened in the skipped text, unless it closes one), or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
 | `( … )`, `[ … ]`, `{ … }`, `'( … )`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
@@ -208,11 +210,26 @@ within the current item: over balanced brackets, ignoring closing delimiters of 
 token in column 0 other than the delimiter itself (a `}` in column 0 closes a body over several lines), the
 end of the file, or a period at depth 0. A period does not stop the search if the delimiter follows it on
 its line (`count { X . | p X }`) or if the token after it cannot start an item (`{ a : t ., b : u }`).
+In a construct laid out over several lines (its opening delimiter ends its line) no period stops the
+search: such a construct ends with its closer, laid out at the start of a line at the indentation of the
+line of its opener. There, a closer that more of the construct follows on its line, while the next closer
+of its kind at depth 0 is laid out so (`[`⏎`1,`⏎`2 ] 3`⏎`]`), is stray (``stray `]` ``, E0001) and skipped to
+the later one; not if an enclosing construct was opened on a line of the same indentation, whose closer
+the later one may be (`m = { k = h {`⏎`a = 1 } 2.`⏎`}.` is valid). Likewise a `}` in the middle of an item
+of a module body over several lines, which more of the item follows on its line (`same : t } -> rel.`),
+is stray if the body's `}` is laid out so later: the rest of the item is skipped. (A body's `}` follows
+the period of its last item, so this never applies to valid text.)
 
 - found: the tokens before it are junk; one error (``expected `)`, found …``) and they are skipped;
 - not found: the delimiter is missing. One error, *unclosed delimiter* (E0005), at the insertion point (the
   end of the last token), with a secondary label on the opening delimiter and a machine-applicable
   suggestion inserting it. Parsing continues as if it were there; the construct is damaged.
+
+A prime `'` that no `(` follows right away is reported by the lexer, and recovered before parsing
+(`QuoteOpeners`): with a space before the `(` (`' (`) or one token between them on its line (`' {(`) it
+opens the quote; if the `(` is lost but a `)` closes the quote ahead, before the end of the item, the `(`
+is inserted (`' p X :- q X. )`); otherwise the prime is dropped. The quote is then read silently until
+the parser resynchronises.
 
 A `(` or `[` at the end of a line that is never closed, before a token in column 0, is a stray: it is
 reported as unclosed at once and does not take the next item into its contents.
@@ -228,8 +245,9 @@ fact for recovery: a token in column 0 at the start of a line ends the item bein
 discarding what parsed*: a missing period is inserted (E0001 with a machine-applicable fix and a label
 "next item starts here"), an unclosed bracket is reported on its opener, and skipping stops there. The
 operand of `$` and `⇑` cannot start in column 0 either (the one change to the accepted language besides
-`(e).l`: no program wrote one there; `$` at the end of a line is a stray). Otherwise valid programs are not
-affected: the heuristic only applies where the parser would otherwise report an error.
+`(e).l`: no program wrote one there; `$` at the end of a line is a stray), and neither does a user-defined
+infix operator continue an expression there (it starts the next item, such as its declaration `op : …`).
+Otherwise valid programs are not affected: the heuristic only applies where the parser would otherwise report an error.
 
 An item whose period was inserted is trusted (a repair) only if it starts its line: an item that starts
 after other text on its line (`a : rel. b` ⏎) is likely a stray piece of text and is damaged.
@@ -289,12 +307,17 @@ label on the opener. Specific messages replace the generic one for common mistak
 | missing `)` `]` `}` | ``unclosed `(` `` (E0005) + label on the opener | insert the delimiter (machine-applicable) |
 | lowercase parameter `q x : …` | malformed parameter (E0004): a parameter is a variable | `X` (maybe incorrect) |
 | lowercase variable after `as` / before `with` | ``expected a variable, found `v` `` | `V` (maybe incorrect) |
+| a token between `as` and its variable (`as { P`) | ``expected a variable, found `{` ``; both skipped, the pattern damaged | — |
 | `::` in a declaration header | ``expected `:` in a declaration, found `::` ``; `::` is the list constructor | `:` (machine-applicable) |
 | `:=` in a definition header | expected a type, found `=`; a definition without a type is `name = expr.` | remove `:` (machine-applicable) |
 | `=` in a record type, `:` in a record value | ``expected `:`, found `=` ``: record types use `:`, record values `=` | replace (maybe incorrect) |
 | `$` not followed by an expression | expected an expression; how holes and splices are written | — |
 | `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'( h :- b )` (#76) | — |
 | `}` without an open module body | unmatched `}` | — |
+| a broken list of names in `%use m (x, y).` | the error; the `%use` is damaged as one without a list (it might have opened any name) | — |
+| a token before the name of a declaration (`X sel : τ.`) | malformed declaration head (E0004); the declaration keeps the name after it, damaged | — |
+| `{` or `[` before a `,` (no braces or list start with one) | ``expected a label, an item or `}` `` (for `{`) or ``expected an expression`` (for `[`), ``found `,` ``; the opener is skipped, the rest belongs to the enclosing construct | — |
+| `]` in a list over several lines that goes on after it | ``stray `]` `` + "the construct goes on after this `]`" | — |
 | `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
 
 Holes outside quotes are a matter of elaboration (E0917), not of syntax: `$x` is also an explicit
