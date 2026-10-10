@@ -4,7 +4,7 @@
 (issue #40, `docs/REDESIGN.md`) replaced: the milestone status of the definition draft, relation modes
 and the built-in demand transformation (with demand per call site and the moded termination case), the
 data/fact constructor split, and the decisions of the meta level before Phase B. Nothing here describes the
-current implementation. The [language reference](https://k0uks1.github.io/hugin/) is the specification;
+current implementation. The [language reference](https://k0uks1.github.io/hugin/reference/) is the specification;
 `docs/NOTES.md` has the notes that are still current.
 
 The text is unchanged; headings were added where parts were cut out of their sections.

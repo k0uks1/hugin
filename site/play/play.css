@@ -1,0 +1,38 @@
+/* The working playground (site/play/): CodeMirror in the editor card, the tabs as buttons, the run
+   states. Loaded after style.css by play/index.html only, so the landing page does not carry it. */
+.editor #editor { flex: 1; display: flex; min-height: 0; }
+.editor .cm-editor { flex: 1; background: transparent; color: var(--fg); font-size: 0.84rem; }
+.editor .cm-editor.cm-focused { outline: none; }
+.editor .cm-scroller { font-family: var(--mono); line-height: 1.65; padding: 0.9rem 0; }
+.editor .cm-content { padding: 0; caret-color: var(--fg); }
+.editor .cm-line { padding: 0 1.25rem 0 1.1rem; }
+.editor .cm-gutters { background: transparent; border: 0; color: var(--muted); }
+.editor .cm-lineNumbers .cm-gutterElement { min-width: 2.5rem; padding: 0; text-align: right; opacity: 0.55; }
+.editor .cm-cursor { border-left-color: var(--fg); }
+.editor .cm-selectionBackground, .editor .cm-focused .cm-selectionBackground { background: var(--accent-soft) !important; }
+.editor .cm-content ::selection { background: var(--accent-soft); }
+.editor .cm-matchingBracket { background: var(--accent-soft); outline: 1px solid var(--line-strong); }
+.editor .cm-lintRange { background: none; padding: 0; text-decoration-line: underline; text-decoration-style: wavy; text-decoration-skip-ink: none; text-underline-offset: 3px; }
+.editor .cm-lintRange-warning, .editor .cm-lintRange-info { text-decoration-color: var(--warning); }
+.editor .cm-lintRange-error { text-decoration-color: var(--error); }
+.editor .inline-diag { margin-left: 1.1rem; }
+.cm-tooltip.cm-tooltip-lint { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); font: 0.82rem/1.45 var(--sans); }
+.cm-tooltip .cm-diagnostic { padding: 0.35rem 0.6rem; }
+.cm-tooltip .cm-diagnosticAction { background: var(--accent); color: var(--on-accent); border-radius: 4px; }
+.inline-diag.error, .diag.error { border-left-color: var(--error); }
+.diag.error .code { color: var(--error); }
+.diag + .diag { margin-top: 0.6rem; }
+.fix { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
+.fix:hover { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 0.18em; }
+.tabs button { font: inherit; background: none; border: 0; padding: 0.6rem 0.6rem; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--fg); font-weight: 600; box-shadow: inset 0 -2px var(--accent); }
+.tabs:empty { display: none; }
+.results .body > .diag:first-child { margin-top: 0; }
+.results table + .query { margin-top: 1.25rem; }
+pre.text { margin: 0; font-size: 0.82rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.empty { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.status.busy::before { background: var(--accent); }
+.status.error::before { background: var(--error); }
+.button:disabled { opacity: 0.55; cursor: default; }
+.button:disabled:hover { border-color: var(--line-strong); }
+.button.primary:disabled:hover { background: var(--accent); border-color: var(--accent); }
