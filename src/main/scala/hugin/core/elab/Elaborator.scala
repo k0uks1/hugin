@@ -66,8 +66,8 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  drop the items using them without further errors. */
   var erroneous: Set[Name] = Set.empty
 
-  /** Functions of the file whose clauses have a syntax error: declared, but not defined; their uses drop
-   *  the items using them without further errors. */
+  /** Functions of the file whose clauses failed (a syntax error, or an error reported for them), and what
+   *  expands to them: their uses drop the items using them without further errors. */
   var unelaborated: Set[Name] = Set.empty
 
   /** What the `%use` items that were dropped for an error might have opened: `None` if none was dropped,

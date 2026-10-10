@@ -6,12 +6,4 @@ error[E0903]: cannot infer `_`
   |
   = note: the elaborator found no constraint that determines it; add a type annotation
 
-error[E0918]: cannot reflect a value that is not known at compile time
- --> tests/neg/failed_function_use.hgn:8:1
-  |
-8 | %twice knows. (*~ E0918 *)
-  | ^^^^^^^^^^^^^ the value is `twice {⇑(int -> rel)} ⟨knows⟩`
-  |
-  = note: reflection turns closed data into object code during elaboration
-
-2 errors found
+1 error found

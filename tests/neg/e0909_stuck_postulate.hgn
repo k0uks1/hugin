@@ -1,0 +1,19 @@
+(* A postulate applied at compile time is stuck (issue #108): `grow` builds stuck code in which each
+   level refers to the level below twice and splits on it. The value has linear size but an exponential
+   tree; compilation reports it at once and shows it in part. *)
+pick : bool -> A -> A -> A.
+first : list int -> int.
+first [] = 0.
+first (X :: Xs) = X.
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+twenty : nat = suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc zero))))))))))))))))))).
+grow : nat -> list int -> list int.
+grow zero R = R.
+grow (suc N) R = grow N (pick true (first R :: R) R).
+size : list int -> int.
+size [] = 0.
+size (X :: Xs) = size Xs + 1.
+measured : int -> rel.
+measured (size (grow twenty [1])). (*~ E0909 *)
