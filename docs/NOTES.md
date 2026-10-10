@@ -2152,8 +2152,10 @@ Implementation choices the design did not spell out:
   function are left out without a diagnostic (`state.unelaborated`), so no note is written for it.
 
 Measurement (the design's 5.6): every golden program (`tests/`), every example, the bench programs, the
-reference and error-index examples and the standard library files were checked (`hugin check`, 600
-programs) with the compiler before and after the change: the diagnostics are identical for all of them. No
+reference and error-index examples and the standard library files were checked (`hugin check`, 663
+programs, on the base with the standard library batches B4 and B5) with the compiler before and after the
+change: the diagnostics are identical for all of them except the new goldens and reference examples of
+this batch. No
 program of the repository relies on either newly rejected class (row 11; a clause group that unfolds an
 earlier clause group of its own cycle). Goldens: `run/order_definitions` (with `run/lib/order_vectors.hgn`
 for `%export`; the issue and the other six kinds, and a typed definition and a signature that need each
