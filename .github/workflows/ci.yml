@@ -1,8 +1,21 @@
 name: CI
 
+# Pushes run CI only on the development and default branches; a feature branch is tested through its pull
+# request (one run per change, not two). Changes that only touch prose that never reaches the compiler
+# skip CI: README, CONTRIBUTING, LICENSE and docs/ (except docs/errors/, the explanations bundled into
+# the compiler as `hugin explain` resources). The reference, the site and everything else still run it.
 on:
   push:
+    branches: [main, ccr-48027e29-daam41]
+    paths: &code
+      - "**"
+      - "!README.md"
+      - "!CONTRIBUTING.md"
+      - "!LICENSE"
+      - "!docs/**"
+      - "docs/errors/**"
   pull_request:
+    paths: *code
 
 concurrency:
   group: ci-${{ github.ref }}
