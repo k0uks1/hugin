@@ -106,7 +106,7 @@ object Highlight:
         case Tok.StrLit => Some("string")
         case Tok.Directive => Some("decorator")
         case Tok.RuleName => Some("label")
-        // the identifier `Type` names the universe of meta types (reference: lexical structure)
+        // the identifier `Type` names the universe of meta types (reference: meta/universes)
         case Tok.Var if t.text == "Type" => Some("type")
         case Tok.Var => Some("variable")
         case k if operators(k) => Some("operator")
