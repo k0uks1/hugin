@@ -11,3 +11,13 @@
 .content td:first-child a {
   white-space: nowrap;
 }
+/* The dark highlighting theme (tomorrow-night) leaves directives (`hljs-meta`) and the type keywords
+   (`hljs-type`) uncoloured; give them colours of its palette (reference/hugin-highlight.js). */
+.coal .hljs-meta,
+.navy .hljs-meta {
+  color: #81a2be;
+}
+.coal .hljs-type,
+.navy .hljs-type {
+  color: #f0c674;
+}

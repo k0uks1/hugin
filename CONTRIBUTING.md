@@ -450,7 +450,9 @@ like the golden tests, with `HUGIN_UPDATE_CHECKS=1`.
 [`editors/vscode`](editors/vscode) is a minimal VS Code extension: the language configuration
 (`(* *)` comments, brackets), a TextMate grammar
 ([`hugin.tmLanguage.json`](editors/vscode/syntaxes/hugin.tmLanguage.json), also usable by other editors
-and GitHub Linguist) and a client that starts `hugin lsp`. To try it:
+and GitHub Linguist) and a client that starts `hugin lsp`. The language reference highlights its `hugin`
+code blocks with [`reference/hugin-highlight.js`](reference/hugin-highlight.js), a highlight.js language
+that follows the same grammar: a change to the lexical syntax updates both. To try the extension:
 
 ```
 sbt stage                                    # or let bin/hugin stage on first use

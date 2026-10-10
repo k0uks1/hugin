@@ -17,6 +17,8 @@ command = "python3 error-index.py"
 # the path of the published site (site-url.txt holds the full URL); used for the 404 page
 site-url = "/hugin/"
 additional-css = ["hugin.css"]
+# highlighting of the `hugin` code blocks (highlight.js has no Hugin grammar)
+additional-js = ["hugin-highlight.js"]
 default-theme = "light"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/k0uks1/hugin"
