@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hugin</title>
+<meta name="description" content="Hugin is a typed Datalog with first-class facts and a total, dependently typed meta level that computes object programs at compile time.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="name" href="./">Hugin</a>
+  <nav>
+    <a href="play/">Playground</a>
+    <a href="reference/">Reference</a>
+    <a href="reference/errors/index.html">Errors</a>
+    <a href="https://github.com/k0uks1/hugin">GitHub</a>
+  </nav>
+</header>
+
+<main class="home">
+  <p class="lede">Hugin is a typed Datalog with first-class facts at the object level and a total, dependently
+  typed meta level that computes object programs at compile time.</p>
+
+  <h2>Example</h2>
+<pre class="code"><code><span class="tk-dir">%use</span> <span class="tk-str">"std/reflect"</span>.
+<span class="tk-dir">%use</span> <span class="tk-str">"std/graph"</span>.
+
+<span class="tk-decl">person</span> : <span class="tk-kw">type</span>.
+<span class="tk-decl">ann</span> : person. bob : person. cid : person. dan : person.
+
+<span class="tk-decl">knows</span> : person <span class="tk-op">-&gt;</span> person <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>.
+knows ann bob.
+knows bob cid.
+knows dan ann.
+
+<span class="tk-com">(* a directive is a meta function; this one returns a rule *)</span>
+<span class="tk-decl">symmetric</span> : (r : <span class="tk-op">⇑</span>(<span class="tk-var">A</span> <span class="tk-op">-&gt;</span> <span class="tk-var">A</span> <span class="tk-op">-&gt;</span> <span class="tk-kw">rel</span>)) <span class="tk-op">-&gt;</span> list item.
+symmetric <span class="tk-var">R</span> = <span class="tk-op">'(</span> <span class="tk-var">R</span> <span class="tk-var">Y</span> <span class="tk-var">X</span> <span class="tk-op">:-</span> <span class="tk-var">R</span> <span class="tk-var">X</span> <span class="tk-var">Y</span>. <span class="tk-op">)</span>.
+<span class="tk-dir">%symmetric</span> knows.
+
+<span class="tk-com">(* `tc` is a functor: its relation `path` is the transitive closure *)</span>
+<span class="tk-decl">reach</span> = tc { node = person, edge = knows }.
+
+<span class="tk-op">?-</span> reach.path cid <span class="tk-var">P</span>, <span class="tk-var">P</span> &lt;&gt; cid.</code></pre>
+<pre class="code run"><code><span class="cmd">$ hugin run people.hgn</span>
+?- reach.path cid P, P &lt;&gt; cid.
+P = ann.
+P = bob.
+P = dan.</code></pre>
+  <p class="caption"><a href="play/#example=people">Open this program in the playground</a></p>
+
+  <h2>Links</h2>
+  <ul class="links">
+    <li><a href="play/">Playground</a><span>the compiler, running in the browser</span></li>
+    <li><a href="reference/">Language reference</a><span>the definition of the language</span></li>
+    <li><a href="reference/errors/index.html">Error index</a><span>every diagnostic code, with an explanation</span></li>
+    <li><a href="https://github.com/k0uks1/hugin">GitHub</a><span>the reference implementation, in Scala 3</span></li>
+  </ul>
+
+  <h2>Background</h2>
+  <ol class="papers">
+    <li>T. Gilray et al. <a href="https://arxiv.org/abs/2411.14330"><i>Datalog with First-Class Facts</i></a>. PVLDB 18(3), 2024. <span>The object level.</span></li>
+    <li>A. Kovács. <a href="https://doi.org/10.1145/3547641"><i>Staged Compilation with Two-Level Type Theory</i></a>. ICFP 2022. <span>The meta level.</span></li>
+    <li>M. Kaminski et al. <a href="https://arxiv.org/abs/1705.06927"><i>Foundations of Declarative Data Analysis Using Limit Datalog Programs</i></a>. IJCAI 2017. <span>Bound columns.</span></li>
+    <li>C. S. Lee, N. D. Jones, A. M. Ben-Amram. <i>The Size-Change Principle for Program Termination</i>. POPL 2001. <span>Termination checks.</span></li>
+  </ol>
+</main>
+
+<footer class="foot">Hugin is a research language; it changes without regard for compatibility. Apache License 2.0.</footer>
+</body>
+</html>
