@@ -1,0 +1,21 @@
+(* #67: a clause whose own constructors cannot occur is an error (E0915), with a fix *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+h : fin zero -> nat.
+h fzero = zero. (*~ E0915 *)
+h X = zero.
+k : (n : nat) -> vec bool n -> nat.
+k zero (vcons X XS) = zero. (*~ E0915 *)
+k _ _ = zero.
+r : fin zero -> nat.
+r fzero = zero. (*~ E0915 *)

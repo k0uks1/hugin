@@ -218,6 +218,11 @@ enum ClauseProblem extends Problem:
     case _ => Nil
 
   override def helps: List[Msg] = this match
+    case ImpossibleClause(_, _, _, removal, absurd) =>
+      removal.toList.map(_ => msg"remove the clause") ++
+        absurd.toList.map(_ => msg"replace the pattern by the absurd pattern `()`, without a right-hand side")
+    case AbsurdNotEmpty(_, ps, _) => List(msg"replace `()` by a pattern, and give the clause a right-hand side")
+    case _: AbsurdWithRhs => List(msg"remove the right-hand side")
     case NotCovering(_, m, _) => List(msg"add a clause ${Src(s"$m = ….")}")
     case ClausesWithoutDeclaration(f, _, inBody) =>
       List(msg"declare its type first${Lit(if inBody then " in the body" else "")}: ${Src(s"$f : A -> B.")}")

@@ -1,0 +1,28 @@
+error[E0915]: the case for `fzero` is impossible here
+  --> tests/neg/cov_impossible_clause.hgn:15:3
+   |
+15 | h fzero = zero. (*~ E0915 *)
+   |   ^^^^^ its index `suc _` conflicts with `zero`
+   |
+   = note: a clause is checked in its own context: no argument can match its patterns, so the clause can never apply
+   = help: remove the clause
+
+error[E0915]: the case for `vcons` is impossible here
+  --> tests/neg/cov_impossible_clause.hgn:18:9
+   |
+18 | k zero (vcons X XS) = zero. (*~ E0915 *)
+   |         ^^^^^^^^^^ its index `suc _` conflicts with `zero`
+   |
+   = note: a clause is checked in its own context: no argument can match its patterns, so the clause can never apply
+   = help: remove the clause
+
+error[E0915]: the case for `fzero` is impossible here
+  --> tests/neg/cov_impossible_clause.hgn:21:3
+   |
+21 | r fzero = zero. (*~ E0915 *)
+   |   ^^^^^ its index `suc _` conflicts with `zero`
+   |
+   = note: a clause is checked in its own context: no argument can match its patterns, so the clause can never apply
+   = help: replace the pattern by the absurd pattern `()`, without a right-hand side
+
+3 errors found

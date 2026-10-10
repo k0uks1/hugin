@@ -12,7 +12,8 @@ each with equations between the arguments and its patterns. While the first clau
 constructor pattern against an argument that is not yet known, the tree *splits* on that argument: it
 gets one branch per constructor of the argument's type. In each branch, the clauses whose pattern there
 is another constructor no longer apply. When the first clause that may apply has no constructor patterns
-left, its right-hand side is the leaf of the branch.
+left, it is the leaf of the branch: its right-hand side, checked once in its [clause
+context](clauses.md#checking-a-clause), at the arguments of the branch.
 
 ## Index unification
 
@@ -43,6 +44,16 @@ first 7.
 
 It is an error ([E0915](../errors/E0915.md)) if unification meets a problem that it can neither solve nor
 refute, such as an index `plus N M` that is a stuck function application against `zero`.
+
+A clause whose own constructors cannot occur, such as a `vnil` clause for `head`, is an error
+([E0915](../errors/E0915.md), [Checking a clause](clauses.md#checking-a-clause)).
+
+## Absurd clauses
+
+An [absurd clause](clauses.md#checking-a-clause) `f p̄.` takes part in the case tree like any clause, but
+an absurd pattern `()` splits only when the clause has no other constructor pattern left, and every
+branch of that split drops the clause: its variable's type has no possible constructor, so the split has
+no branches. An absurd clause is never a leaf, and never unreachable.
 
 ## Missing cases
 

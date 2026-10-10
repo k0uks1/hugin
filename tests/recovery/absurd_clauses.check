@@ -1,0 +1,29 @@
+error[E0001]: expected `.` after the clause, found `s`
+  --> tests/recovery/absurd_clauses.hgn:10:5
+   |
+10 | r () (*~ E0001 *)
+   |     ^ expected `.` here
+11 | s : fin zero -> nat.
+   | - next item starts here
+   |
+   = help: every item ends with a period
+
+error[E0001]: expected an expression, found `.`
+  --> tests/recovery/absurd_clauses.hgn:12:4
+   |
+12 | s (. (*~ E0001 *)
+   |    ^ expected an expression
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+fin : nat -> Type.
+fzero : {N : nat} -> fin (suc N).
+fsuc : {N : nat} -> fin N -> fin (suc N).
+r : fin zero -> nat.
+  r ().
+s : fin zero -> nat.
+t : fin zero -> nat.
+  t ().

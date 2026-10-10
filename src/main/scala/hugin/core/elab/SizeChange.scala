@@ -420,7 +420,13 @@ trait SizeChange:
       globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = calls.find(c => c.caller == f && c.callee == f).orElse(calls.find(_.caller == f))
       val d = ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown()))).toDiagnostic
-      reporter.report(refinementFix(f, cyclic, components).fold(d)(s => d.copy(suggestions = d.suggestions :+ s)))
+      reporter.report(refinementFix(f, cyclic, components).fold(d)(s =>
+        d.copy(
+          notes = d.notes :+ "a clause is checked in its own context, without the refinement made by the clauses before it",
+          helps = d.helps :+ s.message,
+          suggestions = d.suggestions :+ s
+        )
+      ))
 
   /** The functions with an idempotent size-change graph `f → f` without a strict arc on its diagonal. */
   private def nonTerminating(cyclic: List[Call]): List[Int] =

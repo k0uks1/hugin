@@ -266,14 +266,16 @@ trait Clauses:
   private def wholeLines(span: Span): Span =
     if !span.exists then span
     else
-      val text = span.origin.content
-      var from = span.from
+      // in the file's text: an item may be a slice of it, which ends at the item
+      val file = span.source
+      val text = file.content
+      var from = span.start
       while from > 0 && (text(from - 1) == ' ' || text(from - 1) == '\t') do from -= 1
-      var until = span.until
+      var until = span.end
       while until < text.length && (text(until) == ' ' || text(until) == '\t') do until += 1
       val startsLine = from == 0 || text(from - 1) == '\n'
       val endsLine = until >= text.length || text(until) == '\n'
-      if startsLine && endsLine then Span(span.origin, from, (until + 1).min(text.length)) else span
+      if startsLine && endsLine then Span(file, from, (until + 1).min(text.length)) else span
 
   // ---------------------------------------------------------------- simplification of equations
 
@@ -643,7 +645,8 @@ trait Clauses:
               List(Edit(cl.source.span, text)),
               Applicability.MachineApplicable
             )
-            ElabError(e.diag.copy(suggestions = e.diag.suggestions :+ fix), e.unresolved, e.silent)
+            val help = "the clause is checked in its own context, without the refinement made by the clauses before it"
+            ElabError(e.diag.copy(helps = e.diag.helps :+ fix.message, notes = e.diag.notes :+ help, suggestions = e.diag.suggestions :+ fix), e.unresolved, e.silent)
           case None => e
 
   /** The text of clause `cl` written out at its leaves `leaves`: one clause per leaf, with the patterns of
@@ -683,11 +686,10 @@ trait Clauses:
           val fresh = FreshNames(lcl.binds.map(_._1.name) ++ uses.map(_.name))
           val names = mutable.ArrayBuffer.tabulate(p.size)(l => named.getOrElse(l, "_"))
           val introduced = mutable.ListBuffer.empty[String]
-          for (_, value) <- refined do
+          for (v, value) <- refined do
             val t = quote(p.size, value)
             for l <- (0 until p.size) if p.isFree(l) && names(l) == "_" && core.occurs(p.size - l - 1, t) do
-              val base = p.names(l).filter(_.isLetter).capitalize
-              names(l) = fresh(if base.isEmpty then "X" else base)
+              names(l) = fresh(v)
               introduced += names(l)
           val ns = names.toList.reverse
           val pats = f.explicit.drop(hidden).map(l => showArg(ns, explicitOnly(quote(p.size, p.values(l)))))

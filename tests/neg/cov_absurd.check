@@ -1,0 +1,36 @@
+error[E0915]: the type `nat` is not empty here
+  --> tests/neg/cov_absurd.hgn:15:3
+   |
+15 | r (). (*~ E0915 *)
+   |   ^^ `zero`, `suc` can occur here
+   |
+   = note: an absurd pattern `()` stands for a position none of whose constructors can occur
+   = help: replace `()` by a pattern, and give the clause a right-hand side
+
+error[E0915]: an absurd clause has no right-hand side
+  --> tests/neg/cov_absurd.hgn:17:8
+   |
+17 | s () = zero. (*~ E0915 *)
+   |        ^^^^ remove the right-hand side
+   |
+   = note: a clause with an absurd pattern `()` matches no argument, so it has no right-hand side
+   = help: remove the right-hand side
+
+error[E0915]: an absurd pattern is only allowed in a clause's patterns
+  --> tests/neg/cov_absurd.hgn:18:11
+   |
+18 | x : nat = (). (*~ E0915 *)
+   |           ^^ absurd pattern
+   |
+   = note: `()` marks a pattern position of an empty type in an absurd clause `f p̄.`
+
+error[E0915]: the type `vec bool zero` is not empty here
+  --> tests/neg/cov_absurd.hgn:20:12
+   |
+20 | t (vcons X ()). (*~ E0915 *)
+   |            ^^ `vnil` can occur here
+   |
+   = note: an absurd pattern `()` stands for a position none of whose constructors can occur
+   = help: replace `()` by a pattern, and give the clause a right-hand side
+
+4 errors found

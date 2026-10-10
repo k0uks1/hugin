@@ -1,0 +1,23 @@
+error[E0901]: mismatched types
+  --> tests/neg/cov_refinement.hgn:23:9
+   |
+23 | w N X = X. (*~ E0901 *)
+   |         ^ expected `bool`, found `sel (isz N)`
+   |
+   = note: the clause is checked in its own context, without the refinement made by the clauses before it
+   = help: write out the cases of this clause: `w (suc _) X = X.`
+
+error[E0912]: cannot show that `h` terminates
+  --> tests/neg/cov_refinement.hgn:27:1
+   |
+27 | h : nat -> nat -> nat. (*~ E0912 *)
+   | ^ possibly non-terminating
+...
+29 | h N M = h (predf N) M.
+   | ---------------------- in this clause: `h (predf N) M`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+   = note: a clause is checked in its own context, without the refinement made by the clauses before it
+   = help: write out the cases of the clause: `h (suc N1) M = h (predf (suc N1)) M.`
+
+2 errors found

@@ -10,7 +10,7 @@ import scala.collection.mutable
  *  protocol's encoding is in hugin.lsp.Tokens): what the semantic index knows about names (declarations, references, object
  *  variables), classified by level, and the meta level's own syntax, from the tokens of the file:
  *  directives `%d`, the delimiters of reflection quotes `'( … )`, splices and quote holes `$`, `$..`,
- *  lifts `⇑` and typed holes `?`, and the built-in base types `int`, `float` and `string`.
+ *  lifts `⇑`, typed holes `?` and the absurd pattern `()`, and the built-in base types `int`, `float` and `string`.
  *
  *  Types tell what a name is (a relation, an object or meta constructor, a meta function, an inductive
  *  family, …); the modifiers `meta` and `object` tell its level, `declaration` its declaration and
@@ -105,7 +105,11 @@ object Tokens:
         case Tok.Directive => out += Tok_(t.span, 8, Meta, 2)
         case Tok.Quote =>
           next(i).filter(_.kind == Tok.LParen).foreach(b => out += Tok_(t.span.to(b.span), 9, Meta, 2))
-        case Tok.LParen => parens.push(i > 0 && toks(i - 1).kind == Tok.Quote)
+        case Tok.LParen =>
+          val quote = i > 0 && toks(i - 1).kind == Tok.Quote
+          parens.push(quote)
+          // `()`: the absurd pattern, a meta constructor pattern
+          if !quote then next(i).filter(_.kind == Tok.RParen).foreach(b => out += Tok_(t.span.to(b.span), 4, Meta, 2))
         case Tok.RParen => if parens.nonEmpty && parens.pop() then out += Tok_(t.span, 9, Meta, 2)
         case Tok.Dollar =>
           val span = next(i).filter(n => n.kind == Tok.DotDot && n.span.start == t.span.end).fold(t.span)(n => t.span.to(n.span))

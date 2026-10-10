@@ -7,7 +7,8 @@ evaluates it.
 
 ## The criterion
 
-A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argument `aⱼ` to the patterns:
+A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argument `aⱼ` to the patterns,
+in the [clause context](clauses.md#checking-a-clause) (the clauses before it do not refine them):
 `aⱼ` is *smaller* than `pᵢ` if it is a variable bound inside the constructor pattern `pᵢ`, such as `N` in
 `suc N`; it is *equal* to `pᵢ` if it is the variable `pᵢ` itself. These relations form a *size-change
 graph* from the arguments of `f` to those of `g`. The *call graph* of the program has these graphs as its

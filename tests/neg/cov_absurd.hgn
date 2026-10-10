@@ -1,0 +1,20 @@
+(* #67: misused absurd patterns *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+r : nat -> nat.
+r (). (*~ E0915 *)
+s : fin zero -> nat.
+s () = zero. (*~ E0915 *)
+x : nat = (). (*~ E0915 *)
+t : vec bool (suc zero) -> nat.
+t (vcons X ()). (*~ E0915 *)

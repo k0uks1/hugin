@@ -1,0 +1,138 @@
+--> {"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}}}
+<-- {
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "capabilities": {
+      "codeActionProvider": {
+        "codeActionKinds": [
+          "quickfix",
+          "refactor.rewrite"
+        ]
+      },
+      "codeLensProvider": {
+        "resolveProvider": false
+      },
+      "completionProvider": {
+        "resolveProvider": false,
+        "triggerCharacters": [
+          ".",
+          "{",
+          "%"
+        ]
+      },
+      "definitionProvider": true,
+      "documentSymbolProvider": true,
+      "executeCommandProvider": {
+        "commands": [
+          "hugin.expansion"
+        ]
+      },
+      "hoverProvider": true,
+      "inlayHintProvider": true,
+      "referencesProvider": true,
+      "semanticTokensProvider": {
+        "full": true,
+        "legend": {
+          "tokenModifiers": [
+            "declaration",
+            "meta",
+            "object",
+            "defaultLibrary"
+          ],
+          "tokenTypes": [
+            "namespace",
+            "type",
+            "struct",
+            "function",
+            "enumMember",
+            "macro",
+            "parameter",
+            "variable",
+            "decorator",
+            "keyword",
+            "operator",
+            "method",
+            "class",
+            "label"
+          ]
+        }
+      },
+      "textDocumentSync": {
+        "change": 1,
+        "openClose": true
+      }
+    },
+    "serverInfo": {
+      "name": "hugin"
+    }
+  }
+}
+--> {"jsonrpc":"2.0","method":"initialized","params":{}}
+--> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"nat : Type.\nzero : nat.\nsuc : nat -> nat.\nbool : Type.\ntrue : bool.\nvec : Type -> nat -> Type.\nvnil : vec A zero.\nvcons : A -> vec A N -> vec A (suc N).\nk : (n : nat) -> vec bool n -> nat.\nk zero V = zero.\nk N V = zero.\n","uri":"untitled:s.hgn","version":1}}}
+--> {"id":2,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":7,"line":9},"start":{"character":7,"line":9}},"textDocument":{"uri":"untitled:s.hgn"}}}
+<-- {
+  "id": 2,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "edit": {
+        "changes": {
+          "untitled:s.hgn": [
+            {
+              "newText": "k zero vnil = zero.",
+              "range": {
+                "end": {
+                  "character": 16,
+                  "line": 9
+                },
+                "start": {
+                  "character": 0,
+                  "line": 9
+                }
+              }
+            }
+          ]
+        }
+      },
+      "kind": "refactor.rewrite",
+      "title": "Split on `V`"
+    }
+  ]
+}
+--> {"id":3,"jsonrpc":"2.0","method":"textDocument/codeAction","params":{"context":{"diagnostics":[]},"range":{"end":{"character":4,"line":10},"start":{"character":4,"line":10}},"textDocument":{"uri":"untitled:s.hgn"}}}
+<-- {
+  "id": 3,
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "edit": {
+        "changes": {
+          "untitled:s.hgn": [
+            {
+              "newText": "k N vnil = zero.\nk N (vcons V1 V2) = zero.",
+              "range": {
+                "end": {
+                  "character": 13,
+                  "line": 10
+                },
+                "start": {
+                  "character": 0,
+                  "line": 10
+                }
+              }
+            }
+          ]
+        }
+      },
+      "kind": "refactor.rewrite",
+      "title": "Split on `V`"
+    }
+  ]
+}
+--> {"id":4,"jsonrpc":"2.0","method":"shutdown"}
+<-- {
+  "id": 4,
+  "jsonrpc": "2.0"
+}
+--> {"jsonrpc":"2.0","method":"exit"}

@@ -1,0 +1,33 @@
+(* #67: an impossible clause is removed (an only one becomes absurd); a clause that needs the refinement
+   made by the clauses before it is written out at its cases *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+h : fin zero -> nat.
+h X = zero.
+r : fin zero -> nat.
+r ().
+isz : nat -> bool.
+isz zero = true.
+isz (suc _) = false.
+sel : bool -> Type.
+sel true = nat.
+sel false = bool.
+w : (n : nat) -> sel (isz n) -> bool.
+w zero X = true.
+w (suc _) X = X.
+predf : nat -> nat.
+predf zero = zero.
+predf (suc K) = K.
+g : nat -> nat -> nat.
+g zero _ = zero.
+g (suc N1) M = g (predf (suc N1)) M.
