@@ -1,0 +1,29 @@
+error[E0915]: invalid pattern
+ --> tests/neg/nat_successor_patterns.hgn:5:7
+  |
+5 | pred (N + 0) = N. (*~ E0915 *)
+  |       ^^^^^ not a pattern
+  |
+  = note: patterns are uppercase variables, `_`, constructors applied to patterns, natural-number literals and successor patterns `p + k`
+
+error[E0915]: literal and successor patterns are only supported for nat-like types
+ --> tests/neg/nat_successor_patterns.hgn:8:7
+  |
+8 | half (N + 1) = N. (*~ E0915 *)
+  |       ^^^^^ a pattern of type `int`
+
+error[E0915]: invalid pattern
+  --> tests/neg/nat_successor_patterns.hgn:12:7
+   |
+12 | down (N - 1) = N. (*~ E0915 *)
+   |       ^^^^^ not a pattern
+   |
+   = note: patterns are uppercase variables, `_`, constructors applied to patterns, natural-number literals and successor patterns `p + k`
+
+error[E0901]: nat literal too large
+  --> tests/neg/nat_successor_patterns.hgn:16:6
+   |
+16 | big (N + 100001) = N. (*~ E0901 *)
+   |      ^^^^^^^^^^ at most 100000 (nats are unary)
+
+4 errors found

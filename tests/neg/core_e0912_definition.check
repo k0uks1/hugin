@@ -5,7 +5,7 @@ error[E0912]: cannot show that `f` terminates
   | ^ possibly non-terminating
 ...
 8 | f (suc N) = g (suc N).
-  | ---------------------- in this clause: `g (suc N)`
+  | ---------------------- in this clause: `g (N + 1)`
   |
   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
 

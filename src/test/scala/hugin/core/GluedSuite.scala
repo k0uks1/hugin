@@ -30,23 +30,23 @@ class GluedSuite extends munit.FunSuite:
   test("a meta solved inside an unfolded type keeps its own definitions folded") {
     val e = ok(vecs + "l = len v.\n")
     assertEquals(e.termOf("l"), "len {int} {two} v")
-    assertEquals(e.nfOf("l"), "suc (suc zero)")
+    assertEquals(e.nfOf("l"), "2")
   }
 
   test("conversion and evaluation see through definitions") {
     val e = ok(vecs + "u : vec int (suc (suc zero)) = v.\nn : nat = len u.\n")
-    assertEquals(e.nfOf("n"), "suc (suc zero)")
-    assertEquals(e.eval("len v"), "suc (suc zero)")
+    assertEquals(e.nfOf("n"), "2")
+    assertEquals(e.eval("len v"), "2")
   }
 
   test("a mismatch names the types as written") {
     val text = firstError(vecs + "bad : vec2 = vcons 1 vnil.\n")
-    assert(text.contains("expected `vec2`, found `vec int (suc zero)`"), text)
+    assert(text.contains("expected `vec2`, found `vec ?0 1`"), text)
   }
 
   test("types that look the same folded are shown unfolded") {
     val text = firstError(vecs + "h : vec2 -> nat = [x] zero.\ng (vec2 : Type) (x : vec2) : nat = h x.\n")
-    assert(text.contains("expected `vec int (suc (suc zero))`, found `vec2`"), text)
+    assert(text.contains("expected `vec int 2`, found `vec2`"), text)
   }
 
   test("a signature is shown by its name, and its fields by the note") {

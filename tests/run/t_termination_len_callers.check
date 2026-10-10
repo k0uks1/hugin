@@ -2,7 +2,7 @@ termination: {len[int]}: terminates, measure inferred
   inferred measure: `%terminates l len[int].`
   measure of `len[int]`: argument 1 `l` (structural)
   guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
-  rule at <stdlib>/std/list.hgn:83:1: call `len[int] L N`: `L` is a proper subterm of `cons[int] X L`; anchored: `cons[int] X L` is bound by relations outside the component
+  rule at <stdlib>/std/list.hgn:81:1: call `len[int] L N`: `L` is a proper subterm of `cons[int] X L`; anchored: `cons[int] X L` is bound by relations outside the component
 both 1 3.
 both 2 3.
 both 3 3.

@@ -24,6 +24,12 @@ trait Operators:
     case Neg(i) => isLit(i)
     case _ => false
 
+  private def isIntLit(t: Tree): Boolean = t match
+    case Lit(hugin.syntax.Literal.IntL(_)) => true
+    case Parens(i) => isIntLit(i)
+    case Neg(i) => isIntLit(i)
+    case _ => false
+
   /** The operand to infer first (not a literal, if possible) and the other one; `true` if swapped. */
   private def order(l: Tree, r: Tree): (Tree, Tree, Boolean) =
     if isLit(l) && !isLit(r) then (r, l, true) else (l, r, false)
@@ -45,10 +51,19 @@ trait Operators:
           val (t1, ty1) = inferS(c, first, s)
           (t1, ty1, s)
         case None => infer(c, first)
-      if s == Stage.S1 then operandType(c, op, fty, first.span)
-      val st2 = check(c, second, fty, s)
-      val (a, b) = if swapped then (st2, ft) else (ft, st2)
-      (Tm.Arith(op, a, b, s), fty, s)
+      (natType(fty), successorCount(second)) match
+        case (Some((_, suc)), Some(k)) if s == Stage.S1 && op == ArithOp.Add && !swapped =>
+          // `e + k` on a nat-like type: the successor applied `k` times (reference: meta/families)
+          (natSuccessor(suc, ft, k, first.span.to(second.span)), fty, s)
+        case _ =>
+          if s == Stage.S1 then operandType(c, op, fty, first.span)
+          // an integer literal next to an operand of unknown type makes it an `int` at once: arithmetic
+          // other than `e + k` is on base types (reference: meta/functions)
+          if s == Stage.S1 && isIntLit(second) && force(fty).isInstanceOf[Val.Flex] then
+            unifyAt(c, second.span, Val.Base(BaseType.IntT, Stage.S1), fty)
+          val st2 = check(c, second, fty, s)
+          val (a, b) = if swapped then (st2, ft) else (ft, st2)
+          (Tm.Arith(op, a, b, s), fty, s)
 
   /** Comparisons are object formulas. */
   private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match

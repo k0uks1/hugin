@@ -242,6 +242,7 @@ trait Declarations:
     case other => (Nil, other)
 
   def define(name: Ident, ty: Tm, tm: Tm, declSpan: Span): Int =
+    resolveLiterals(blockStart)
     val ztm = zonk(Nil, 0, tm)
     scope.get(name.name).filter(id => provisional(id) && globals(id).declSpan == declSpan) match
       case Some(id) =>

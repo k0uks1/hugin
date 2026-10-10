@@ -351,8 +351,9 @@ trait Items:
     flushTooling(success = true)
 
   /** Every meta created since `start` must be solved (except the types of object variables, which the
-   *  object typing infers). */
+   *  object typing infers), once the literals postponed since then are resolved ([[Literals]]). */
   def checkSolved(start: Int): Unit =
+    resolveLiterals(start)
     (start until metas.length).find(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved).foreach { m =>
       val e = metas(m)
       if e.what.startsWith("type argument") then fail(ElabProblem.UndeterminedTypeArgument(e.what, e.span))

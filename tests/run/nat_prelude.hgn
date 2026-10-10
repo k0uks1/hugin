@@ -1,0 +1,26 @@
+(* Meta naturals from the prelude and `std/nat` (reference: std/nat): `nat`, `zero` and `suc` are in
+   scope without a declaration; `plus` and `toInt` come from `%use "std/nat"`. Successor patterns
+   `N + k` and expressions `e + k` (reference: meta/clauses), and numerals printed as digits. *)
+%use "std/nat".
+
+fib : nat -> nat.
+fib 0 = 0.
+fib 1 = 1.
+fib (N + 2) = plus (fib N) (fib (N + 1)).
+
+double : nat -> nat.
+double 0 = 0.
+double (N + 1) = double N + 2.
+
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+
+head : vec A (N + 1) -> A.
+head (vcons X _) = X.
+
+r : (n : int) -> rel.
+r (toInt (fib 12)).
+r (toInt (double (suc 20))).
+r (head (vcons 7 vnil)).
+?- r N.

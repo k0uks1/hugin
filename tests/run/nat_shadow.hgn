@@ -1,0 +1,15 @@
+(* A program's own `nat` shadows the prelude's (reference: std/nat): numerals and successor patterns
+   work for every nat-like family, here one with other constructor names. *)
+nat : Type.
+none : nat.
+next : nat -> nat.
+
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+
+three : nat = next (next (next none)).
+r : (n : int) -> rel.
+r (toInt three).
+r (toInt (three + 4)).
+?- r N.

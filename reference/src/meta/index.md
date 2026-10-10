@@ -17,13 +17,10 @@ universe of its type ([Universes](universes.md)). The compiler infers where meta
 into object code and back ([Staging](staging.md)). A program does not write these quotes, and it writes
 a splice only where it chooses to.
 
-The following program defines a meta function by clauses over a meta type of natural numbers, and uses
+The following program defines a meta function by clauses over the prelude's natural numbers, and uses
 its value in an object fact. The fact is computed at compile time.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 double : nat -> nat.
 double zero = zero.
 double (suc N) = suc (suc (double N)).

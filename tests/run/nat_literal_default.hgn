@@ -1,0 +1,20 @@
+(* A literal at a type that is still unknown waits until the end of its item (reference:
+   lexical-structure, literals): `pick 3 zero` takes `nat` from the second argument, `pick 3 4` and
+   `ident 5` default to `int`. *)
+%use "std/nat".
+
+pick : {A : Type} -> A -> A -> A.
+pick X _ = X.
+ident : {A : Type} -> A -> A.
+ident X = X.
+
+a : nat = pick 3 zero.
+b : nat = pick zero 3.
+c = pick 3 4.
+d = ident 5.
+r : (n : int) -> rel.
+r (toInt a).
+r (toInt b).
+r c.
+r d.
+?- r N.

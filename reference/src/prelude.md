@@ -7,13 +7,14 @@ program may shadow any of them ([Modules](modules.md#scopes)). The prelude holds
 program uses; everything else is in the modules of the [standard library](std/index.md), which a program
 imports.
 
-The prelude consists of two `%use` items:
+The prelude consists of three `%use` items:
 
 ```hugin,ignore
 %use "std/reflect" (
   bool, true, false, if, same, list, nil, cons, append, option, none, some,
   input, output, open, derivations, terminates
 ).
+%use "std/nat" (nat, zero, suc).
 %use "std/demand" (demand).
 ```
 
@@ -26,6 +27,7 @@ So the names in scope in every file are:
 | `same` | equality of symbols and literals (primitive) | [`std/reflect`](std/reflect.md#primitives) |
 | `list`, `nil`, `cons`, `append` | lists, shared by both stages, and the concatenation of meta lists | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `option`, `none`, `some` | optional values, shared by both stages | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
+| `nat`, `zero`, `suc` | the natural numbers of the meta level | [`std/nat`](std/nat.md) |
 | `%input`, `%output`, `%open`, `%derivations`, `%terminates` | the primitive directives | [Directives](directives.md#the-primitive-directives) |
 | `%demand` | demand-driven evaluation | [Directives](directives.md#demand), [`std/demand`](std/demand.md) |
 

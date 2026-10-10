@@ -1,0 +1,10 @@
+(* Numerals of the prelude's `nat` are shown as digits (reference: meta/families, numerals). *)
+two : nat = 1 + 1.
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (suc N).
+:type vcons
+:print elaborate two
+pred : nat -> nat.
+pred (N + 2) = N.
+:quit

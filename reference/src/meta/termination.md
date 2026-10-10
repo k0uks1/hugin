@@ -31,9 +31,6 @@ The following function is lexicographic: the first argument decreases, or it sta
 one decreases.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 ack : nat -> nat -> nat.
 ack zero N = suc N.
 ack (suc M) zero = ack M (suc zero).
@@ -52,9 +49,6 @@ value 9.
 The following function is rejected: its recursive call is on a larger argument.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 grow : nat -> nat.
 grow zero = zero.
 grow (suc N) = grow (suc (suc N)).
@@ -64,9 +58,6 @@ The following function is rejected: `step (suc N)` is the call `walk (suc N)` th
 `step`, on an argument that is not smaller.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 walk : nat -> nat.
 step : nat -> nat = [x] walk x.
 walk zero = zero.
@@ -77,9 +68,6 @@ The following function is rejected, although it applies itself only to a smaller
 itself as a value to `apply`, which is a call with unknown arguments.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 apply : (nat -> nat) -> nat -> nat = [k] [x] k x.
 down : nat -> nat.
 down zero = zero.

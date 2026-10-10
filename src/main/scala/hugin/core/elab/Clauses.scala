@@ -120,13 +120,8 @@ trait Clauses:
             fail(ClauseProblem.BoundTwice(v.name, v.span))
           binds = binds :+ (v, e.term, e.ty)
         case Pat.PWild(_) =>
-        case Pat.PLit(n, span) =>
-          natType(e.ty) match
-            case Some((z, s)) =>
-              val q = if n == 0 then Pat.PCon(z, Nil, span) else Pat.PCon(s, List(Pat.PLit(n - 1, span)), span)
-              pending = e.copy(pat = q) :: pending
-            case None =>
-              fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
+        case lit @ (_: Pat.PLit | _: Pat.PSucc) =>
+          pending = e.copy(pat = natPattern(lit, e.ty, showVal(p.names.toList.reverse, e.ty))) :: pending
         case Pat.PAtom(key, span) =>
           force(e.term) match
             case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => stuck += e

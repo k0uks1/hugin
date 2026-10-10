@@ -1,0 +1,5 @@
+(* A postponed literal is checked against the type its item gives it (reference: lexical-structure,
+   literals): here `string`, which an integer literal is not. *)
+ident : {A : Type} -> A -> A.
+ident X = X.
+s : string = ident 3. (*~ E0901 *)

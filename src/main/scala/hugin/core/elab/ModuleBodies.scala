@@ -198,6 +198,7 @@ trait ModuleBodies:
     case other => throw Impossible(s"not a member: $other")
 
   def defined(c: Cxt, name: Ident, ty: Tm, tm: Tm, span: Span): (Cxt, Member) =
+    resolveLiterals(blockStart)
     val zty = zonk(c.env, c.lvl, ty)
     val ztm = zonk(c.env, c.lvl, tm)
     val tyV = ev(c, zty)

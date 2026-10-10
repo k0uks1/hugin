@@ -81,7 +81,7 @@
         "codeDescription": {
           "href": "https://k0uks1.github.io/hugin/reference/errors/E0911.html"
         },
-        "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
+        "message": "the clauses of `pred` do not cover all cases\nmissing: `pred 0`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred 0 = ….`",
         "range": {
           "end": {
             "character": 4,
@@ -151,7 +151,7 @@
           "codeDescription": {
             "href": "https://k0uks1.github.io/hugin/reference/errors/E0911.html"
           },
-          "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
+          "message": "the clauses of `pred` do not cover all cases\nmissing: `pred 0`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred 0 = ….`",
           "range": {
             "end": {
               "character": 4,
@@ -170,7 +170,7 @@
         "changes": {
           "untitled:h.hgn": [
             {
-              "newText": "\npred zero = ?.",
+              "newText": "\npred 0 = ?.",
               "range": {
                 "end": {
                   "character": 17,

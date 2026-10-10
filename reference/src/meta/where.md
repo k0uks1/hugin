@@ -44,9 +44,6 @@ pattern binding, `area` names two values, and `addTo` has a local function that 
 variable `K` of its clause.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 pair : Type -> Type -> Type.
 mkPair : A -> B -> pair A B.
 fst : pair int int -> int.
