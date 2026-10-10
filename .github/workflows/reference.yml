@@ -1,17 +1,20 @@
-name: Reference
+name: Site
 
-# The language reference (reference/, issue #49): build the book with mdBook, check its internal links
-# and, on pushes to the default or the development branch, publish it on GitHub Pages. The Hugin
-# examples of the book are compiled by `sbt test` (ReferenceExamplesSuite) in ci.yml. Their highlighting
-# is computed by the compiler (reference/highlight.py runs `hugin highlight`), so the compiler is staged
-# before the book is built.
+# The website (issue #58, docs/design/website.md): the landing page at /hugin/, the language reference
+# (reference/, issue #49) at /hugin/reference/ with redirect pages from its old URLs, and the playground
+# at /hugin/play/. The job builds the book with mdBook, builds the site into _site/ (site/build.mjs) and checks
+# its internal links (the book's included), and, on pushes to the default or the development branch,
+# publishes _site/ on GitHub Pages. The Hugin examples of the book and the landing page's example are
+# compiled by `sbt test` (ReferenceExamplesSuite, GoldenTests) in ci.yml; site/build.mjs checks the
+# example's output again. The highlighting is computed by the compiler (reference/highlight.py and
+# site/build.mjs run `hugin highlight`), so the compiler is staged first.
 
 on:
   push:
   pull_request:
 
 concurrency:
-  group: reference-${{ github.ref }}
+  group: site-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -20,7 +23,7 @@ env:
 
 jobs:
   build:
-    name: Build and link-check the book
+    name: Build and link-check the site
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,24 +34,44 @@ jobs:
           java-version: 21
           cache: sbt
       - uses: sbt/setup-sbt@v1
-      - name: Stage the compiler (it highlights the code blocks)
-        run: sbt -batch stage
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      # the playground's compiler is the Scala.js bundle of the `web` project (batch W4); until that project
+      # exists the playground is built without it and says so
+      - name: Stage the compiler (it highlights the code), and link it for the browser
+        run: |
+          if grep -qE '^lazy val web\b' build.sbt; then
+            sbt -batch stage web/fullLinkJS
+            bundle="$(find web -path '*-opt/main.js' -print -quit)"
+            test -n "$bundle" || { echo "no linked bundle under web/"; exit 1; }
+            echo "HUGIN_JS=$bundle" >> "$GITHUB_ENV"
+          else
+            sbt -batch stage
+          fi
       - name: Install mdBook and lychee (pinned release binaries)
         uses: taiki-e/install-action@v2
         with:
           tool: mdbook@0.5.4,lychee@0.24.2
       - name: Build the book (the error index is generated from docs/errors, the highlighting by the compiler)
         run: mdbook build reference
-      - name: Check internal links and anchors (offline)
+      - name: Build the site (landing page, playground, reference and redirects into _site/)
+        run: |
+          npm ci --prefix site --no-audit --no-fund
+          node site/build.mjs
+      - name: Check the site's internal links and anchors (offline)
         run: >-
           lychee --offline --no-progress --include-fragments
-          --exclude-path reference/book/404.html
-          'reference/book/**/*.html'
+          --exclude-path _site/404.html --exclude-path _site/reference/404.html
+          --exclude '/play/?#'
+          '_site/**/*.html'
       - name: Upload the site for GitHub Pages
         if: env.PUBLISH == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
-          path: reference/book
+          path: _site
 
   deploy:
     name: Publish on GitHub Pages

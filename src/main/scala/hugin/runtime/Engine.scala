@@ -3,13 +3,14 @@ package hugin.runtime
 import hugin.ir.*
 import hugin.obj.{ArithOp, CmpOp, Prims}
 import hugin.syntax.{AggKind, Literal}
+import hugin.util.Cancellation
 import scala.collection.mutable
 
 /** Status of one component's evaluation. */
 final case class ComponentStats(rels: Vector[String], rounds: Int)
 
 /** Semi-naive evaluator over an interning store (Sections 9.1–9.7). */
-final class Engine(prog: CoreProgram):
+final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platform.Platform.cancellation):
   val store: Vector[Relation] = prog.rels.zipWithIndex.map((r, i) => Relation(i, r, r.arity, prog.indexes.getOrElse(i, Set.empty)))
   val stats: mutable.ArrayBuffer[ComponentStats] = mutable.ArrayBuffer.empty
 
@@ -305,8 +306,9 @@ final class Engine(prog: CoreProgram):
       deltaRels.put(r, rels)
     rels
 
-  /** Evaluates all components. Cancellable: an interrupt of the evaluating thread ends evaluation with
-   *  an `InterruptedException` at the next round (an editor that no longer needs the result). */
+  /** Evaluates all components. Cancellable: `cancellation` (on the JVM, an interrupt of the evaluating
+   *  thread) ends evaluation with an `InterruptedException` at the next round (an editor that no longer
+   *  needs the result). */
   def run(): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for (comp, ci) <- prog.components.zipWithIndex do
@@ -327,7 +329,7 @@ final class Engine(prog: CoreProgram):
       def deltaNonEmpty = comp.exists(t => deltaEnd(t) > oldEnd(t))
       val recursive = rules.filter(_.recursiveAtoms > 0)
       while deltaNonEmpty && recursive.nonEmpty do
-        if Thread.interrupted() then throw InterruptedException("evaluation cancelled")
+        if cancellation.cancelled() then throw InterruptedException("evaluation cancelled")
         rounds += 1
         // a variant whose delta atom has an empty delta derives nothing: skipped (Soufflé does the same)
         for r <- recursive; j <- 0 until r.recursiveAtoms if hasDelta(deltaRel(r)(j)) do
@@ -368,7 +370,13 @@ final class Engine(prog: CoreProgram):
     case i: Infinity => if nested && i == Infinity.Neg then s"(${i.show})" else i.show
     case other => other.toString
 
+  /** The name of a relation and its current tuples, each argument printed as [[facts]] prints it. */
+  def rows(rel: Int): (String, List[List[String]]) =
+    val r = store(rel)
+    (r.sym.displayName, r.tuples.indices.filter(r.current).map(n => r.tuples(n).toVector.map(show(_, nested = true)).toList).toList)
+
   /** The facts of a relation, printed and sorted. For a relation with a bound column, the current (best) tuple of each key. */
+
   def facts(rel: Int): List[String] =
     val r = store(rel)
     r.tuples.indices.filter(r.current).map(n => show(Id(rel, n)) + ".").toList.sorted

@@ -1,12 +1,9 @@
 package hugin.util
 
-import org.jgrapht.alg.shortestpath.BFSShortestPath
-import org.jgrapht.graph.DirectedPseudograph
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.*
 
-/** Graph algorithms used by the compiler (shortest paths with JGraphT). Results are deterministic:
- *  ties are broken by the order in which nodes are given. */
+/** Graph algorithms used by the compiler. Results are deterministic: ties are broken by the order in
+ *  which nodes and edges are given. */
 object Graphs:
 
   /** Strongly connected components of the graph `n → succ(n)`, in dependency order: if `a` depends on
@@ -80,17 +77,28 @@ object Graphs:
     comp
 
   /** A shortest path (fewest edges) from `from` to `to` over the given edges; `Nil` if there is none or
-   *  `from == to`. Parallel edges between the same nodes are allowed. */
+   *  `from == to`. Parallel edges between the same nodes are allowed. A breadth-first search that visits
+   *  the edges out of a node in the order given: every node is reached by the first edge that reaches
+   *  it, so among the shortest paths the result is the one whose edges come first in that search (the
+   *  path that JGraphT's `BFSShortestPath` returned before, which this replaces). */
   def shortestPath[N, E](edges: Seq[E], source: E => N, target: E => N, from: N, to: N): List[E] =
     if from == to then return Nil
-    val g = new DirectedPseudograph[N, Wrapped[E]](classOf[Wrapped[E]])
-    for (e, i) <- edges.zipWithIndex do
-      val (s, t) = (source(e), target(e))
-      g.addVertex(s)
-      g.addVertex(t)
-      g.addEdge(s, t, Wrapped(e, i))
-    if !g.containsVertex(from) || !g.containsVertex(to) then return Nil
-    Option(new BFSShortestPath(g).getPath(from, to)).map(_.getEdgeList.asScala.toList.map(_.edge)).getOrElse(Nil)
-
-  /** Gives every edge its own identity, as JGraphT requires distinct edge objects. */
-  private final case class Wrapped[E](edge: E, index: Int)
+    val out = mutable.HashMap.empty[N, mutable.ArrayBuffer[E]]
+    for e <- edges do out.getOrElseUpdate(source(e), mutable.ArrayBuffer.empty) += e
+    // the edge by which a node was first reached
+    val reachedBy = mutable.HashMap.empty[N, E]
+    val queue = mutable.Queue(from)
+    while queue.nonEmpty && !reachedBy.contains(to) do
+      val v = queue.dequeue()
+      for e <- out.getOrElse(v, Nil) do
+        val u = target(e)
+        if u != from && !reachedBy.contains(u) then
+          reachedBy(u) = e
+          queue.enqueue(u)
+    var path = List.empty[E]
+    var at = to
+    while reachedBy.contains(at) do
+      val e = reachedBy(at)
+      path = e :: path
+      at = source(e)
+    path

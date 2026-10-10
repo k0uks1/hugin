@@ -1,0 +1,20 @@
+%use "std/reflect".
+%use "std/graph".
+
+person : type.
+ann : person. bob : person. cid : person. dan : person.
+
+knows : person -> person -> rel.
+knows ann bob.
+knows bob cid.
+knows dan ann.
+
+(* a directive is a meta function; this one returns a rule *)
+symmetric : (r : ⇑(A -> A -> rel)) -> list item.
+symmetric R = '( R Y X :- R X Y. ).
+%symmetric knows.
+
+(* `tc` is a functor: its relation `path` is the transitive closure *)
+reach = tc { node = person, edge = knows }.
+
+?- reach.path cid P, P <> cid.
