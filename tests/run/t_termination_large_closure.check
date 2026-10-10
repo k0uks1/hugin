@@ -1,0 +1,10 @@
+termination: {p}: terminates by descent along derivations (A)
+  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)
+  rule at tests/run/t_termination_large_closure.hgn:12:1: premise `p F H A1 A2 A3 A4 A5 A6 A7`: `G` < `H` (`H - G` = 1; `G` >= 0)
+  rule at tests/run/t_termination_large_closure.hgn:13:1: premise `p F H A1 A2 A3 A4 A5 A6 A7`: `G` < `H` (`H - G` = 1; `G` >= 0)
+  rule at tests/run/t_termination_large_closure.hgn:14:1: premise `p F H _ _ _ _ _ _ _`: `G` < `H` (`H - G` = 1; `G` >= 0)
+fuel 0 0.
+fuel 0 1.
+fuel 1 1.
+fuel 1 2.
+fuel 2 2.

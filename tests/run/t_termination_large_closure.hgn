@@ -1,0 +1,17 @@
+(* Descent along derivations (A) with a large size-change closure (issue #65): two fuel arguments swap and
+   one of them decreases (no single argument measures the steps, so guarded induction (B) fails), while
+   seven carried arguments are permuted by a transposition and a rotation, or reset from `v`. The full
+   composition closure holds the 5040 permutations of the carried arguments for each parity of the fuel
+   swap, more than the 4000 graphs the check used to give up at; keeping only the weakest graphs, the reset
+   step's graphs (no arcs between carried arguments) subsume all others, and three graphs remain. *)
+v : int -> rel.
+v 0.
+v 1.
+p : int -> int -> int -> int -> int -> int -> int -> int -> int -> rel.
+p 2 2 1 0 0 0 0 0 0.
+p G F A2 A1 A3 A4 A5 A6 A7 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H - 1.
+p G F A2 A3 A4 A5 A6 A7 A1 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H - 1.
+p G F B1 B2 B3 B4 B5 B6 B7 :- p F H _ _ _ _ _ _ _, H > 0, G = H - 1, v B1, v B2, v B3, v B4, v B5, v B6, v B7.
+fuel : int -> int -> rel.
+fuel F H :- p F H _ _ _ _ _ _ _.
+%output fuel.

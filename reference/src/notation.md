@@ -181,8 +181,10 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | key | work |
 |---|---|
 | Annenkov et al. 2023 | D. Annenkov, P. Capriotti, N. Kraus, C. Sattler. *Two-Level Type Theory and Applications.* Mathematical Structures in Computer Science 33(8), 2023. [arXiv:1705.03307](https://arxiv.org/abs/1705.03307). The two-level type theory of the meta level. |
+| Ben-Amram and Lee 2007 | A. M. Ben-Amram, C. S. Lee. *Program Termination Analysis in Polynomial Time.* ACM TOPLAS 29(1), 2007. The local size-change criterion, which allows keeping only the weakest graphs. |
 | Berent et al. 2022 | L. Berent, M. Nissl, E. Sallinger. *Complexity of Arithmetic in Warded Datalog±.* 2022. [arXiv:2202.05086](https://arxiv.org/abs/2202.05086). Type-consistency (Definition 4). |
 | Cockx and Abel 2018 | J. Cockx, A. Abel. *Elaborating Dependent (Co)pattern Matching.* ICFP 2018. Case trees and index unification for clauses. |
+| Fogarty and Vardi 2012 | S. Fogarty, M. Y. Vardi. *Büchi Complementation and Size-Change Termination.* Logical Methods in Computer Science 8(1:13), 2012. [arXiv:1110.6183](https://arxiv.org/abs/1110.6183). Subsumption in the size-change closure. |
 | Gilray et al. 2024 | T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. *Datalog with First-Class Facts.* PVLDB 18(3), 2024. [arXiv:2411.14330](https://arxiv.org/abs/2411.14330). The language DL∃!, with Skolem identity of facts, on which the object level is based. |
 | Hugin definition | *Hugin: A Two-Level Typed Datalog with First-Class Facts. Formal Language Definition*, draft revision 7. The definition of the language before the redesign. Section numbers of the form "Section 6.4" in diagnostics refer to it. |
 | Kaminski et al. 2017 | M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data Analysis Using Limit Datalog Programs.* IJCAI 2017. [arXiv:1705.06927](https://arxiv.org/abs/1705.06927). Limit Datalog, the source of bound columns. |

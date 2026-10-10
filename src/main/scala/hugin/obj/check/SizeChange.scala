@@ -17,7 +17,12 @@ import hugin.obj.typing.Moding
  *  smaller / strictly larger (integers below an upper bound). The component is accepted if every
  *  idempotent graph `p → p` of the composition closure has a strict arc `i → i`, or equates every
  *  argument (the chain returns to the same fact). Then no derivation chain of distinct facts is infinite,
- *  and the component's fixed point is finite (König's lemma, see the notes). */
+ *  and the component's fixed point is finite (König's lemma, see the notes).
+ *
+ *  That criterion is decided without the full closure (issue #65): [[check]] keeps, per pair of
+ *  relations, only the *weakest* graphs (an antichain; see [[Graph.weakerThan]]) and tests every kept
+ *  graph `p → p` with the local criterion of Ben-Amram and Lee ([[Graph.descendsLocally]]), which is
+ *  equivalent to the idempotent one on the full closure; the argument is in [[check]]. */
 object SizeChange:
   // arc labels: equal; non-strict / strict decrease; non-strict / strict increase
   private inline val Eq = 0
@@ -29,6 +34,10 @@ object SizeChange:
   private def isDown(l: Int) = l == DownWeak || l == DownStrict
   private def isUp(l: Int) = l == UpWeak || l == UpStrict
   private def strict(l: Int) = l == DownStrict || l == UpStrict
+
+  /** Whether label `a` implies label `b` (the same facts or more). */
+  private def implies(a: Int, b: Int): Boolean =
+    a == b || (b == DownWeak && (a == Eq || a == DownStrict)) || (b == UpWeak && (a == Eq || a == UpStrict))
 
   /** The label of a premise-to-conclusion path through two arcs, or -1 if the path says nothing. A
    *  decrease followed by an increase has no direction, so decreasing and increasing arguments never
@@ -57,9 +66,32 @@ object SizeChange:
     def idempotent: Boolean = andThen(this) == this
 
     /** An idempotent self-graph is harmless if it decreases (or increases) an argument strictly, or keeps
-     *  every argument equal: then the facts at both ends of a segment are the same fact. */
+     *  every argument equal: then the facts at both ends of a segment are the same fact. This is the test
+     *  of Lee, Jones and Ben-Amram on the full closure; [[check]] decides it by [[descendsLocally]]. */
     def descends(arity: Int): Boolean =
       arcs.exists(a => a.from == a.to && strict(a.label)) || (0 until arity).forall(i => arcs(Arc(i, i, Eq)))
+
+    /** `this` says at most what `o` says: every arc of `this` is implied by an arc of `o` between the
+     *  same arguments (`=` implies `≥` and `≤`, a strict arc the weak one of its direction). Composition
+     *  is monotone in this order (`seq` is monotone in both labels, and a missing arc is the bottom). */
+    def weakerThan(o: Graph): Boolean = arcs.forall(a => o.arcs.exists(b => b.from == a.from && b.to == a.to && implies(b.label, a.label)))
+
+    /** The local criterion of Ben-Amram and Lee for a self-graph `p → p` (see [[check]]): a strict arc
+     *  lies on a cycle of arcs of its own direction (`=` belongs to both), or every argument lies on a
+     *  cycle of `=` arcs. For an idempotent graph this is [[descends]]; in general it holds iff it holds
+     *  for the idempotent power of the graph. */
+    def descendsLocally(arity: Int): Boolean =
+      def onCycle(a: Arc, along: Int => Boolean): Boolean =
+        val next = arcs.iterator.filter(b => along(b.label)).toList.groupMap(_.from)(_.to)
+        val seen = mutable.Set(a.to)
+        val todo = mutable.Stack(a.to)
+        while todo.nonEmpty && !seen(a.from) do
+          for k <- next.getOrElse(todo.pop(), Nil) if seen.add(k) do todo.push(k)
+        seen(a.from)
+      def down(l: Int) = l == Eq || isDown(l)
+      def up(l: Int) = l == Eq || isUp(l)
+      arcs.exists(a => strict(a.label) && onCycle(a, if isDown(a.label) then down else up)) ||
+      (0 until arity).forall(i => arcs.exists(a => a.from == i && a.label == Eq && onCycle(a, _ == Eq)))
 
   object Graph:
     def of(arcs: IterableOnce[Arc]): Graph =
@@ -79,10 +111,8 @@ object SizeChange:
   /** A chain of steps through the component, with its composed graph. */
   final case class Chain(from: RelSym, to: RelSym, graph: Graph, steps: List[Step])
 
-  /** A cycle whose idempotent graph has no strict self-arc; `None` for `steps` if the closure grew too large. */
-  final case class Failure(rel: RelSym, chain: Option[Chain])
-
-  private val MaxGraphs = 4000
+  /** A cycle whose graph fails the criterion (see [[check]]). */
+  final case class Failure(rel: RelSym, chain: Chain)
 
   /** The size-change graph of every recursive step of the component. */
   def steps(comp: List[RelSym], rules: Vector[Rule]): Vector[Step] =
@@ -159,29 +189,75 @@ object SizeChange:
       else if d.hi.exists(_ <= 0) then (UpWeak, None, None)
       else (-1, None, None)
 
-  /** Checks the component: the explanation, or a cycle without descent. */
+  /** Checks the component: the explanation, or a cycle without descent.
+   *
+   *  *The closure.* A work list composes chains with the base steps (Agda's `completionStep` with the
+   *  original calls), but a chain is kept only if no kept chain between the same relations has a graph
+   *  [[Graph.weakerThan]] its own, and keeping it drops the kept chains it is weaker than (Ben-Amram and
+   *  Lee, *Program termination analysis in polynomial time*, TOPLAS 29(1), 2007, who use this
+   *  subsumption for their SCT baseline; Agda's `Agda.Utils.Favorites`, used by
+   *  `Agda.Termination.CallMatrix.CMSet`, keeps the same "least informative" matrices). Every graph `X`
+   *  of the full closure has a kept graph `Y ⊑ X`: by induction on the steps `b₁ … bₙ` of `X`, `Y'` kept
+   *  for `b₁ … bₙ₋₁` was once inserted, so `Y'; bₙ` was queued and is dominated by a kept graph, and
+   *  `Y'; bₙ ⊑ b₁ … bₙ` by monotonicity (a dropped graph is replaced by a weaker one; `⊑` is
+   *  transitive). The loop ends: each insertion adds a graph to the upward closure of the kept set, which
+   *  never shrinks, and there are finitely many graphs over the component's arguments. No cap is needed.
+   *
+   *  *The criterion.* Subsumption is unsound with the idempotent test itself: the weaker `Y` that
+   *  replaces a bad idempotent `X` need not be idempotent, and the antichain may hold no idempotent bad
+   *  graph at all. Fogarty and Vardi (*Büchi complementation and size-change termination*, LMCS 8(1:13),
+   *  2012, Section 4.1, after their TACAS 2010 proof) state the remedy of Ben-Amram and Lee: replace the
+   *  search for a strict self-arc in idempotent graphs by a search, in *every* graph `p → p`, for a
+   *  strongly connected set of its arcs through a strict arc ([[Graph.descendsLocally]]; here a cycle
+   *  stays in one direction, since a decrease followed by an increase composes to nothing, and the
+   *  second alternative, every argument equal, becomes every argument on a cycle of `=` arcs). With
+   *  `G^e` the idempotent power of `G` (a power `G^k`, `k ≥ 1`, with `G^k; G^k = G^k`):
+   *
+   *  1. local(G) iff descends(G^e). A cycle of `m` arcs through a strict arc at `x` gives a strict
+   *     `x → x` in `G^(m·k)` for every `k`, and `G^e = G^(e·m)`; conversely a strict `x → x` in
+   *     `G^e` is a closed walk of `G` in one direction through a strict arc, so that arc lies on a cycle.
+   *     Likewise every argument has a closed walk of `=` arcs of length `e` iff each lies on an `=` cycle
+   *     (`G^e = G^(e·d·t)` for every period `d` and `t`, and long multiples of `d` are closed walk lengths).
+   *  2. Hence the full closure passes the idempotent test iff all its self-graphs pass local: an
+   *     idempotent graph is its own power, and `G^e` is in the closure with `G`.
+   *  3. local is upward closed in `⊑`: a strict arc or `=` arc of `Y` is implied only by an arc of the same
+   *     kind in `X`, so `Y`'s cycles are cycles of `X`.
+   *
+   *  So if the full closure has a bad `X`, the kept `Y ⊑ X` fails local by 3; and the kept graphs belong
+   *  to the full closure, so if they all pass, so does the full closure by 2. Any graph that fails local
+   *  is a counterexample by 2, so the search stops at the first one: the work list is breadth-first, so
+   *  this is a shortest chain that fails among those inserted (an idempotent one if there is one of that
+   *  length, as the idempotent test reports). The verdict is the one of the full closure. (Agda checks
+   *  only the idempotent matrices of its favourites, with a relaxed idempotency; this check does not.) */
   def check(comp: List[RelSym], rules: Vector[Rule]): Either[Failure, List[String]] =
     val base = steps(comp, rules)
+    closure(base, stop = true)._2 match
+      case Some(c) => Left(Failure(c.from, c))
+      case None =>
+        val lines = base.toList.map { s =>
+          val why = if s.why.isEmpty then "no decrease (every cycle through it decreases elsewhere)" else s.why.mkString("; ")
+          s"  rule at ${s.rule.span.show}: premise `${ObjPrinter.formula(s.atom)}`: $why"
+        }
+        Right(
+          "  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)" :: lines
+        )
+
+  /** The weakest chains of the composition closure of `base`, per pair of relations (see [[check]]), in a
+   *  deterministic order, and a shortest inserted self-chain that fails the local criterion. With `stop`,
+   *  the search ends after the first length at which one fails. */
+  def closure(base: Vector[Step], stop: Boolean = false): (Vector[Chain], Option[Chain]) =
     val byFrom = base.groupBy(_.from)
     // insertion-ordered: the reported cycle must not depend on identity hash codes
-    val seen = mutable.LinkedHashMap.empty[(RelSym, RelSym, Graph), Chain]
+    val kept = mutable.LinkedHashMap.empty[(RelSym, RelSym), mutable.ArrayBuffer[Chain]]
     val work = mutable.Queue.from(base.map(s => Chain(s.from, s.to, s.graph, List(s))))
-    while work.nonEmpty && seen.size <= MaxGraphs do
+    val failing = mutable.ArrayBuffer.empty[Chain]
+    def done = stop && failing.nonEmpty && work.head.steps.lengthCompare(failing.head.steps.length) > 0
+    while work.nonEmpty && !done do
       val c = work.dequeue()
-      val key = (c.from, c.to, c.graph)
-      if !seen.contains(key) then
-        seen(key) = c
+      val here = kept.getOrElseUpdate((c.from, c.to), mutable.ArrayBuffer.empty)
+      if !here.exists(_.graph.weakerThan(c.graph)) then
+        here.filterInPlace(k => !c.graph.weakerThan(k.graph))
+        here += c
+        if c.from == c.to && !c.graph.descendsLocally(c.from.arity) then failing += c
         for s <- byFrom.getOrElse(c.to, Vector.empty) do work.enqueue(Chain(c.from, s.to, c.graph.andThen(s.graph), c.steps :+ s))
-    if seen.size > MaxGraphs then Left(Failure(comp.head, None))
-    else
-      seen.valuesIterator.filter(c => c.from == c.to && c.graph.idempotent && !c.graph.descends(c.from.arity))
-        .minByOption(_.steps.length) match
-        case Some(c) => Left(Failure(c.from, Some(c)))
-        case None =>
-          val lines = base.toList.map { s =>
-            val why = if s.why.isEmpty then "no decrease (every cycle through it decreases elsewhere)" else s.why.mkString("; ")
-            s"  rule at ${s.rule.span.show}: premise `${ObjPrinter.formula(s.atom)}`: $why"
-          }
-          Right(
-            "  descent along derivations: every cycle of derivation steps makes an argument strictly smaller (or larger, below a bound)" :: lines
-          )
+    (kept.valuesIterator.flatten.toVector, failing.find(_.graph.idempotent).orElse(failing.headOption))
