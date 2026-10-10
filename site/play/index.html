@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playground · Hugin</title>
+<meta name="description" content="Compile and run Hugin programs in the browser.">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="play.css">
+<script type="module" src="play.js"></script>
+</head>
+<body class="wide">
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="../">Hugin</a>
+    <nav>
+      <a href="./" aria-current="page">Playground</a>
+      <a href="../reference/">Reference</a>
+      <a href="../reference/errors/index.html">Errors</a>
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<!-- The editor (CodeMirror 6) and the compiler (Scala.js, in a Web Worker) are loaded by play.js, which
+     site/build.mjs bundles from main.js; see docs/design/website.md. -->
+<main class="play">
+  <div class="wrap">
+    <div class="toolbar">
+      <button class="button primary" type="button" id="run" title="Run (Ctrl-Enter)" disabled>Run</button>
+      <button class="button" type="button" id="check" disabled>Check</button>
+      <select id="example" aria-label="Example"><option value="">Example: loading…</option></select>
+      <select id="phase" aria-label="Show program after phase" disabled><option value="">Show after: none</option></select>
+      <span class="sep"></span>
+      <span class="status busy" id="status" role="status">loading the compiler…</span>
+      <button class="button" type="button" id="share">Share</button>
+    </div>
+
+    <div class="panes">
+      <div class="card editor">
+        <div class="card-head"><span class="file">main.hgn</span><span id="summary"></span></div>
+        <div id="editor"><noscript><p class="note">The playground needs JavaScript: the editor and the compiler run in this page.</p></noscript></div>
+      </div>
+
+      <div class="card results" aria-label="Results">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="body" id="body">
+          <p class="note">The compiler runs in this page (Scala.js, in a Web Worker). Programs are not sent anywhere. A run stops after 10 s.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>Single-file programs; <code>std/</code> modules are available. Share puts the program in the URL fragment.</span>
+    <nav><a href="../">Home</a><a href="../reference/">Reference</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>
+</body>
+</html>
