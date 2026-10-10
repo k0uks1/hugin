@@ -97,6 +97,9 @@ enum SyntaxError extends Problem:
   case ExpectedUpdateFields(at: Span)
   case MalformedDeclarationHead(at: Span)
 
+  /** A head of a declaration of several names (`a, b, c : τ.`) that is not a name alone. */
+  case MultiDeclarationHead(at: Span)
+
   /** A declaration parameter that is neither `X` nor `(x : τ)`; `lowercase` if it is a lowercase name. */
   case MalformedParameter(at: Span, lowercase: Option[String] = None)
   case CompleteOutsideSignature(at: Span)
@@ -110,7 +113,8 @@ enum SyntaxError extends Problem:
   def code: Code = this match
     case _: UnterminatedComment | _: UnterminatedString => Code.E0002
     case _: InvalidUnicodeEscape | _: InvalidEscape | _: IntegerOutOfRange => Code.E0003
-    case _: MalformedDeclarationHead | _: MalformedParameter | _: CompleteOutsideSignature => Code.E0004
+    case _: MalformedDeclarationHead | _: MultiDeclarationHead | _: MalformedParameter | _: CompleteOutsideSignature =>
+      Code.E0004
     case _: Unclosed => Code.E0005
     case _ => Code.E0001
 
@@ -133,6 +137,7 @@ enum SyntaxError extends Problem:
     case RestInUpdate(s) => s
     case ExpectedUpdateFields(s) => s
     case MalformedDeclarationHead(s) => s
+    case MultiDeclarationHead(s) => s
     case MalformedParameter(s, _) => s
     case CompleteOutsideSignature(s) => s
     case RemovedPartial(s) => s
@@ -159,7 +164,7 @@ enum SyntaxError extends Problem:
     case UnknownAssociativity(a, _) => msg"unknown associativity ${Src(a)}"
     case _: RestInUpdate => msg"`..` is not allowed in an update"
     case _: ExpectedUpdateFields => msg"expected fields `{ l = t, ... }` after `with`"
-    case _: MalformedDeclarationHead => msg"malformed declaration head"
+    case _: MalformedDeclarationHead | _: MultiDeclarationHead => msg"malformed declaration head"
     case _: MalformedParameter => msg"malformed parameter"
     case _: CompleteOutsideSignature => msg"`%complete` may only occur in a signature"
     case _: RemovedPartial => msg"`%partial` has been removed"
@@ -183,6 +188,7 @@ enum SyntaxError extends Problem:
     case StrayCloser(c, _) => msg"the construct goes on after this ${Src(c)}, and is closed later"
     case _: UnknownAssociativity => msg"expected `left`, `right` or `none`"
     case _: MalformedDeclarationHead => msg"expected a lowercase name"
+    case _: MultiDeclarationHead => msg"expected a name without parameters"
     case _: MalformedParameter => msg"expected `X` or `(name : type)`"
     case _: CompleteOutsideSignature => msg"not allowed here"
     case _: RemovedPartial => msg"removed directive"
@@ -199,6 +205,7 @@ enum SyntaxError extends Problem:
   override def notes: List[Msg] = this match
     case _: MalformedDeclarationHead =>
       List(msg"declarations have the form `name param* : type.` and definitions `name param* = expr.`")
+    case _: MultiDeclarationHead => List(msg"a declaration of several names has the form `a, b, c : type.`")
     case _: RemovedPartial => List(msg"every accepted program terminates; there are no round budgets")
     case Expected(_, _, _, _, Some(SyntaxHelp.DoubleColon(_))) => List(msg"`::` is the list constructor of the meta level")
     case _ => Nil
