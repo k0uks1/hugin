@@ -1957,3 +1957,36 @@ not supported" is gone); E0915 (with a note) for a clause of a function the body
 for clauses of a body's object constant or definition. Goldens: `run/mc_member_functions` (with
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
+
+## The browser build (#58, batch W4)
+
+The compiler is built for the browser by Scala.js without moving sources (the no-move variant of
+`docs/design/website.md`, 4.3): the sbt project `web` compiles `src/main/scala` minus the JVM-only packages
+`cli`, `repl`, `lsp` and `platform`, plus `web/src/main/scala`. The cross-project layout (W3) can follow
+later; the JVM project neither depends on nor aggregates `web`.
+
+- *Platform.* The JS `hugin.platform.Platform` has no file system: `readFile` finds nothing, so an import
+  other than `std/` is E0108. The resources (standard library, `docs/errors`, `site-url.txt`) are a Scala
+  object generated at build time (`project/BundledResources.scala`), split into literals of 8000
+  characters because the Scala.js build still emits class files, whose constants are limited to 64 KB.
+  Paths follow `java.nio.file.Path` on Unix.
+- *Cancellation.* A deadline (`Platform.deadline`), set from the `budgetMs` option, ends an evaluation at
+  its next round with the ordinary "evaluation cancelled" (`cancelled: true` in the result). The
+  playground's budget does not need it: the page terminates the worker after 10 s, which stops
+  elaboration too.
+- *API.* `Hugin.check`, `Hugin.run` (source and options, an object or its JSON text) and `Hugin.phases`
+  return JSON text: the `--error-format=json` diagnostics with the lint levels applied, the
+  `--print-after` text, the answers (`query`, `vars`, `rows`), the shown relations (`name`, `rows`) and
+  `output`, which is what `hugin run` prints on stdout. `Hugin.serveWorker()` is an optional worker
+  message loop; the playground's `site/play/worker.js` calls `Hugin` directly. To return rows,
+  `Evaluation.Answers` keeps variables and rows (its `lines` are derived from them) and `Result` has
+  `relations`; the printed output is unchanged.
+- *Linking.* `fullLinkJS` runs the Closure Compiler only for a classic script (`ModuleKind.NoModule`), so
+  the bundle is a classic script (a classic worker loads it with `importScripts`); `web/bundle` adds
+  `hugin.mjs`, the same code followed by `export { Hugin }`.
+- *Guard.* The CI job "Browser build" links with warnings as errors and runs the single-file
+  `tests/run` programs (no facts file, no import outside `std/`) and `tests/json` through the bundle in Node
+  (`scripts/js-golden.mjs`), comparing with the `.check` files; it prints the bundle's size.
+- *Not in the browser yet.* Semantic tokens for highlighting (`hugin highlight` uses `lsp/Tokens`, which
+  depends on lsp4j's constants; it needs to move to a shared package first), facts files and multi-file
+  programs.
