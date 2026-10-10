@@ -52,7 +52,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0907 not supported yet") {
-    assertError("E0907", "m = { small : type <: int. }.\n", "refinements and families in module bodies are not supported")
+    assertError("E0907", "m = { small : type <: int. }.\n", "refinements in module bodies are not supported")
   }
 
   test("E0908 object-level functions") {

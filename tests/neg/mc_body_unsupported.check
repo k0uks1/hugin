@@ -1,0 +1,41 @@
+error[E0907]: refinements in module bodies are not supported by the meta level
+ --> tests/neg/mc_body_unsupported.hgn:6:3
+  |
+6 |   small : type <: int. (*~ E0907 *)
+  |   ^^^^^^^^^^^^^^^^^^^^ not supported
+  |
+  = note: see the open issues of the redesign in docs/NOTES.md
+
+error[E0907]: families of object constants in module bodies are not supported by the meta level
+ --> tests/neg/mc_body_unsupported.hgn:7:3
+  |
+7 |   pairs (A : type) : type. (*~ E0907 *)
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^ not supported
+  |
+  = note: see the open issues of the redesign in docs/NOTES.md
+
+error[E0907]: meta inductive families in module bodies are not supported by the meta level
+ --> tests/neg/mc_body_unsupported.hgn:8:3
+  |
+8 |   color : Type. (*~ E0907 *)
+  |   ^^^^^^^^^^^^^ not supported
+  |
+  = note: see the open issues of the redesign in docs/NOTES.md
+
+error[E0907]: meta declarations without a definition or clauses in module bodies are not supported by the meta level
+  --> tests/neg/mc_body_unsupported.hgn:12:3
+   |
+12 |   stuck : int -> int. (*~ E0907 *)
+   |   ^^^^^^^^^^^^^^^^^^^ not supported
+   |
+   = note: see the open issues of the redesign in docs/NOTES.md
+
+error[E0907]: formula functions defined by rules in module bodies are not supported by the meta level
+  --> tests/neg/mc_body_unsupported.hgn:13:3
+   |
+13 |   near : node -> prop. (*~ E0907 *)
+   |   ^^^^^^^^^^^^^^^^^^^^ not supported
+   |
+   = note: see the open issues of the redesign in docs/NOTES.md
+
+5 errors found

@@ -57,6 +57,19 @@ trait MetaTooling:
       catch case NonFatal(_) => ()
     )
 
+  /** The position in the tooling log: the records made after it are those of a part of the item. */
+  def toolingMark: Int = toolingLog.length
+
+  /** Runs the records made since `mark` for a part of the item that failed (a clause group of a module
+   *  body, [[ModuleBodies]]): they are shown at once, before its metas are undone. */
+  def flushFailedSince(mark: Int): Unit =
+    val pending = toolingLog.drop(mark).toList
+    toolingLog.dropRightInPlace(toolingLog.length - mark)
+    pending.foreach(f =>
+      try f(false)
+      catch case NonFatal(_) => ()
+    )
+
   /** The expression at `span` elaborated to `tm : ty` at stage `st` (`checked` against `ty`). */
   def recordTyped(c: Cxt, span: Span, tm: Tm, ty: Val, st: Stage, checked: Boolean): Unit =
     if span.exists then

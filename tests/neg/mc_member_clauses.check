@@ -1,0 +1,39 @@
+error[E0105]: `loop` refers to itself
+ --> tests/neg/mc_member_clauses.hgn:8:27
+  |
+8 |   loop : int -> int = [n] loop n. (*~ E0105 *)
+  |   ----                    ^^^^ recursive reference
+  |   while elaborating this definition
+  |
+  = note: only a function declared with its type and defined by clauses may be recursive
+
+error[E0915]: clauses of `twice` without a declaration
+ --> tests/neg/mc_member_clauses.hgn:9:3
+  |
+9 |   twice zero = zero. (*~ E0915 *)
+  |   ^^^^^^^^^^^^^^^^^^ clause
+  |
+  = note: the clauses of a module body define the functions that the body declares
+  = help: declare its type first in the body: `twice : A -> B.`
+
+error[E0914]: `r` cannot be defined by clauses
+  --> tests/neg/mc_member_clauses.hgn:11:3
+   |
+10 |   r : int -> rel.
+   |   - `r` is declared here as an object constant
+11 |   r X = X. (*~ E0914 *)
+   |   ^^^^^^^^ clause
+   |
+   = note: clauses define meta functions; object relations are defined by rules (`:-`)
+
+error[E0914]: `d` cannot be defined by clauses
+  --> tests/neg/mc_member_clauses.hgn:13:3
+   |
+12 |   d : int = 3.
+   |   - `d` is declared here as a definition
+13 |   d 4 = 5. (*~ E0914 *)
+   |   ^^^^^^^^ clause
+   |
+   = note: clauses define meta functions; object relations are defined by rules (`:-`)
+
+4 errors found

@@ -48,6 +48,10 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  file, also before their declarations). */
   var declaredHere: Set[Name] = Set.empty
 
+  /** The names the members of the module bodies being elaborated declare: they shadow the file's in the
+   *  whole body, also before their declarations ([[ModuleBodies]]). */
+  var bodyDeclared: Set[Name] = Set.empty
+
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
@@ -169,6 +173,7 @@ class Elaborator(
     with IndexUnifier
     with Clauses
     with SizeChange
+    with Lifting
     with Where
     with ObjectDecls
     with ObjectCode
@@ -176,6 +181,7 @@ class Elaborator(
     with NamedPatterns
     with FormulaFunctions
     with ModuleBodies
+    with MemberFunctions
     with Imports
     with Uses
     with CompleteParameters

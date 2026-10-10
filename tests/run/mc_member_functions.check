@@ -1,0 +1,13 @@
+num "depth" 3.
+num "double" 6.
+num "four" 4.
+w1.both a b.
+w1.both b a.
+w1.both b c.
+w1.both c b.
+w2.both a b.
+w2.both b a.
+w2.both b c.
+w2.both c b.
+word "file odd" "yes".
+word "parity of 3" "odd".

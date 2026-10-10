@@ -1,0 +1,34 @@
+(* Member functions of module bodies are checked for coverage (E0911), termination (E0912) and
+   unreachable clauses (W0006) where they are written, once per body, with the member's path in the
+   message and without the arguments that lifting adds (issue #100). *)
+nat : Type. zero : nat. suc : nat -> nat.
+graph : Type = { node : type, edge : node -> node -> rel }.
+lib = {
+  half : nat -> nat. (*~ E0911 *)
+  half (suc (suc N)) = suc (half N).
+  half (suc zero) = zero.
+  spin : nat -> nat. (*~ E0912 *)
+  spin N = spin (suc N).
+  pred : nat -> nat.
+  pred (suc N) = N.
+  pred _ = zero.
+  pred zero = zero. (*~ W0006 *)
+}.
+tc (g : graph) = {
+  reach : g.node -> g.node -> rel.
+  reach X Y :- g.edge X Y.
+  step : nat -> g.node -> g.node -> prop. (*~ E0911 *)
+  step (suc zero) X Y = reach X Y.
+  step (suc (suc N)) X Y = reach X Y ; step (suc N) Y X.
+  inner = {
+    (* mutual recursion without a decreasing argument *)
+    ping : nat -> nat. (*~ E0912 *)
+    ping N = pong (suc N).
+    pong : nat -> nat. (*~ E0912 *)
+    pong N = ping N.
+  }.
+}.
+city : type. a : city.
+road : city -> city -> rel.
+r1 = tc { node = city, edge = road }.
+r2 = tc { node = city, edge = road }.

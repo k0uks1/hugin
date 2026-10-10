@@ -1,0 +1,10 @@
+error[E0911]: the clauses of `f.g` do not cover all cases
+ --> tests/neg/mc_where_coverage.hgn:7:9
+  |
+7 |   where g : nat -> nat. (*~ E0911 *)
+  |         ^^^^^^^^^^^^^^^ missing: `f.g (suc _)`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `f.g (suc _) = ….`
+
+1 error found

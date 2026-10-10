@@ -1,0 +1,13 @@
+(* a library whose export signature lists a module field with member functions (issue #100): the lifted
+   functions are not in any scope, and `secret` is outside the signature *)
+%export { nat : Type, zero : nat, suc : nat -> nat, numbers : { double : nat -> nat, toInt : nat -> int } }.
+nat : Type. zero : nat. suc : nat -> nat.
+numbers = {
+  double : nat -> nat.
+  double zero = zero.
+  double (suc N) = suc (suc (double N)).
+  toInt : nat -> int.
+  toInt zero = 0.
+  toInt (suc N) = 1 + toInt N.
+  secret : int = 7.
+}.

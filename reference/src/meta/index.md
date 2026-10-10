@@ -53,6 +53,10 @@ The meta level has the following items. Each is defined in the chapter given.
 | `f : … -> prop.` followed by rules `f t̄ :- φ.` | a formula function | [Staging](staging.md#formula-functions) |
 | `x : A.` of any other meta type | a *postulate*: a constant without a value | below |
 
+The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
+body does not support ([E0907](../errors/E0907.md)); in particular, a body may declare meta functions
+defined by clauses.
+
 A declaration is classified by its type ([Declarations](../object/declarations.md#classification)): an
 object type, relation or constructor type gives an object constant; any other type is checked as a meta
 type. So `f : int -> int.` declares a meta function on compile-time integers, not a constructor.
@@ -64,8 +68,10 @@ A *postulate* has a type but no value. Meta code that applies it is stuck; it is
 
 The items of a file may be written in any order. The compiler elaborates the declarations and definitions
 first, each after the items it refers to, then the clauses of functions, which may refer to every
-declaration and to each other, and then the object items: rules, queries and directives. It is an error
-([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
+declaration and to each other, and then the object items: rules, queries and directives. A module body
+is elaborated in the same order, inside the item that contains it: its declarations and definitions, then
+the clauses of its member functions, then its object items ([Modules](../modules.md#module-bodies)). It
+is an error ([E0105](../errors/E0105.md)) if a definition refers to itself, and ([E0101](../errors/E0101.md)) if
 definitions refer to each other in a cycle; recursion is written with clauses. An item with an error is
 reported and left out; elaboration continues with the next item. A use of a name that such an item
 declared, or that a `%use` that was left out might have opened ([Modules](../modules.md)), is not
@@ -77,7 +83,10 @@ The unknowns that the compiler creates while it elaborates an item (implicit arg
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.
 An item solves its own unknowns; the unknowns of earlier items are fixed while it is elaborated, so a
 later item never changes what an earlier one means. Unknowns are numbered from `?0` within each item in
-diagnostics.
+diagnostics. In a module body, the clauses of each member function count as one item inside the item
+that contains the body: the unknowns of the body's declarations and definitions are fixed while the
+clauses are elaborated, and the declaration of a member function must solve its own unknowns
+([E0903](../errors/E0903.md)), as a declaration of a file does.
 
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted
 quotes `⟨…⟩`, splices `$…` and implicit arguments, the compiled clauses of functions, and the object

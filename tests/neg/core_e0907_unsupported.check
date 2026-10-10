@@ -1,4 +1,4 @@
-error[E0907]: refinements and families in module bodies are not supported by the meta level
+error[E0907]: refinements in module bodies are not supported by the meta level
  --> tests/neg/core_e0907_unsupported.hgn:2:7
   |
 2 | m = { small : type <: int. }.

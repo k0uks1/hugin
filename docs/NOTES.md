@@ -1905,3 +1905,55 @@ mechanical part with `scripts/check-reference-impact.sh`: a pull request that to
 `obj/`, `runtime/`, `Code.scala` or the bundled library must also touch `reference/src/` or
 `docs/errors/`, or carry the line `Reference: no change, <reason>` in its description. `CLAUDE.md` repeats
 the rule for agents.
+
+## Member functions in module bodies (#100, batch 1)
+
+Design: `docs/design/module-clauses.md`. A declaration `f : A.` of a module body with a meta type and
+the clauses `f p̄ = e.` of the same body define a member function (`core/elab/MemberFunctions.scala`).
+It is lambda-lifted with the code that `where` blocks used, now shared in `core/elab/Lifting.scala`: a
+hidden global named after the member's path (`lib.double`, `tc.step`, `tc.inner.deep` for nested
+bodies, from `Modules.hint` and the members being elaborated) over the bound variables of the body's
+context. The member is let-bound to the global applied to the context, so the field of each instance is
+the shared function applied to that instance, and the clauses are elaborated once per body.
+
+Order: `ModuleBodies.elabMembers` elaborates the members in dependency order, then each member clause
+group is a nested block (`Core.inBlock` now saves and restores the frozen metas and the block start, so
+blocks nest; after a top-level block the block start stays, as before, for messages printed later), then
+the object items. Implementation choices the design did not spell out:
+
+- *Object constants first.* `ModuleBodies.elabMembers` (the one place that orders members, which #91
+  batch 2 replaces with per-component ordering, `docs/design/elab-order.md` 5.5 on
+  `design/elab-order-91`) runs two phases: the object constants with the definitions they need, then the
+  member function signatures with the other definitions. The context member functions are lifted over is
+  thus fixed before the first of them, so all take the same leading arguments; the closed type of a
+  member function let-binds the definitions elaborated before its signature, and its clauses' prelude
+  re-defines the members elaborated before the clause group (all of them, since the groups follow the
+  members). An object constant that needs a member function through a definition is left out with that
+  error (an unresolved name).
+- *Prelude lets.* The leaf of a lifted function re-defines the context's names (`Lifting.prelude`), and
+  lets are evaluated when a leaf is: a member definition that calls the function (`limit = bound 2` next
+  to `bound`) recursed forever. `Lifting.letBound` (used by `Clauses.leaf`) now leaves out the prelude's
+  lets that the leaf does not use. A module value of the body that a member function uses is evaluated
+  again at the call (an instance of the call's site, as the design's 4.4 says of bodies on right-hand
+  sides).
+- *Scope.* A member shadows the file's name in the whole body, also before its declaration, as the
+  reference ("Scopes") already said: `ElabState.bodyDeclared` makes a not yet bound member an unresolved
+  name, so the item is retried after it. Before, `m = { a : int = two. two : int = 3. }.` with a
+  top-level `two` took the file's `two`.
+- *Erroneous members.* Every member that is left out (E0907 or another error) is erroneous, as a
+  dropped top-level declaration is, so its uses in the body are not reported. A clause group with a
+  syntax error leaves its function out silently.
+- *Hidden arguments.* `GlobalEntry.hidden` counts the leading arguments of a lifted function; coverage
+  messages (`Clauses.missingCase`) and printing (`Printing.liftedApp`) leave them out. This also changes
+  `where` functions: ``missing: `f.g (suc _)` `` instead of `` `f.g _ (suc _)` ``, and
+  `--print-after elaborate` prints `addTo.go M` instead of `addTo.go K M M`.
+- *Signatures only.* A file elaborated for its signatures (`FileEnv.signaturesOnly`) skips member
+  clause groups, as it skips top-level clause groups.
+
+Diagnostics: E0105 for a self-referencing member definition (was E0101); E0907 with a subject per case
+(refinements, families of object constants, meta inductive families, meta declarations without a
+definition or clauses, formula functions defined by rules; the fallback "this item in a module body are
+not supported" is gone); E0915 (with a note) for a clause of a function the body does not declare; E0914
+for clauses of a body's object constant or definition. Goldens: `run/mc_member_functions` (with
+`run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
+`neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
