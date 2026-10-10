@@ -236,6 +236,35 @@ program without queries and outputs prints all plain, non-input relations. There
 ([reference: object/termination](https://k0uks1.github.io/hugin/object/termination.html)).
 
 
+## The browser build
+
+The compiler also builds for the browser with [Scala.js](https://www.scala-js.org/) (issue #58,
+`docs/design/website.md`): the `js` project in `build.sbt` compiles the sources in `src/main/scala` except
+the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `js/src/main/scala`:
+
+- `hugin.platform.Platform` for JS: no file system, the bundled resources (the standard library, the error
+  explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
+  path arithmetic on strings, and cancellation by a deadline;
+- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.phases`; results as JSON, documented in
+  `Hugin.scala`) and the Web Worker entry (`WorkerMain.scala`).
+
+```
+sbt js/bundle                          # js/target/bundle/hugin.js (classic script) and hugin.mjs (ES module)
+node scripts/js-golden.mjs             # tests/run and tests/json through the bundle; prints its size
+```
+
+`js/bundle` links with `fullLinkJS` and the Closure Compiler, which Scala.js runs only for a classic
+script; `hugin.mjs` is the same code with an `export`. Linking takes about a minute; `sbt js/fastLinkJS`
+is quicker while working on `hugin.web`. The JVM build does not depend on the `js` project: `sbt test` and
+`sbt stage` do not build it.
+
+**The JVM-only rule.** The packages outside `cli`, `repl`, `lsp` and `platform` are shared by both builds,
+so they must not import those packages, use JVM-only libraries (jline, lsp4j, scopt), or use JDK APIs that
+Scala.js does not implement: `java.nio.file`, `java.io` files and streams, class path resources,
+threads (`Thread.interrupted` and the like), `String.codePoints` and other `java.util.stream` APIs. Read files
+and resources through `Platform.files` and check for cancellation through a `Cancellation`. The CI job
+"Browser build" is the guard: linking fails on such a use, and the golden programs then run in Node.
+
 ## Dependencies
 
 Infrastructure comes from libraries; what remains hand-written is either the subject of the reference
@@ -247,6 +276,7 @@ implementation or something no library does adequately:
 | launcher scripts | [sbt-native-packager](https://github.com/sbt/sbt-native-packager) |
 | language server protocol, JSON-RPC | [Eclipse LSP4J](https://github.com/eclipse-lsp4j/lsp4j) |
 | terminal colours | [fansi](https://github.com/com-lihaoyi/fansi) |
+| the browser build | [Scala.js](https://www.scala-js.org/) (sbt-scalajs, with the Closure Compiler) |
 | line editing, history and completion in the REPL | [JLine 3](https://github.com/jline/jline3) |
 | tests, property-based tests | [munit](https://scalameta.org/munit/), [ScalaCheck](https://scalacheck.org/) via munit-scalacheck |
 | formatting | [scalafmt](https://scalameta.org/scalafmt/) |
@@ -614,7 +644,7 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 
-- **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck` (configuration in `.scalafmt.conf`).
+- **Formatting** — `sbt scalafmtCheckAll scalafmtSbtCheck js/scalafmtCheck` (configuration in `.scalafmt.conf`).
   The same job runs `scripts/check-refs.sh`: `src/main` must cite chapters of the language reference
   (`reference: object/termination`), not sections of `docs/REDESIGN.md`, and every cited chapter must exist.
   It also runs `scripts/check-style.sh`, which rejects the words and phrases that `reference/STYLE.md`
@@ -623,6 +653,10 @@ Known issues the fuzzers found, which the generator avoids until they are resolv
   environment enables `-Werror`, see `build.sbt`), the golden test suite (`sbt test`), and
   `scripts/smoke.sh`, which runs every example through the `bin/hugin` launcher and checks that
   `hugin lsp` answers `initialize`.
+- **Browser build** — `sbt js/bundle` (warnings are errors) and `scripts/js-golden.mjs`, which runs the
+  single-file `tests/run` programs and `tests/json` through the bundle in Node and prints the bundle's size
+  (raw, gzip, brotli; also in the job summary); the bundle is uploaded as the artifact `hugin-js`. See
+  "The browser build".
 - **Reference updated with the language** (pull requests only) — `scripts/check-reference-impact.sh`,
   see "Changing the language".
 - **VS Code extension** — `npm ci` and `vsce package` in `editors/vscode`; the `.vsix` is uploaded as the
