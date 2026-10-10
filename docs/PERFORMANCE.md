@@ -787,18 +787,20 @@ memo's results, which must stay so that evaluation and its fresh names are uncha
 
 ## `std/nat` in the prelude (#127)
 
-The prelude opens `nat`, `zero` and `suc` of `std/nat` with a selective `%use`. `std/nat` declares no
-object constants, so it is lazy as `std/demand` is (docs/LIBRARIES.md, "Lazy re-export"): a program that
-writes none of the three names (nor a name E0101 would suggest one of them for) does not elaborate it.
-Measured with `Bench cpu` (4 rounds of 15 after 10 warm-up, thread CPU and allocation) with and without
-the prelude's `%use "std/nat"` line, on a loaded machine:
+The prelude opens `nat`, `zero` and `suc` of `std/nat`, and `std/list` (#61) opens the same `nat`
+instead of declaring its own. `std/nat` declares no object constants, but since `std/list` is in the
+prelude's chain (`std/demand` imports it), the lazy re-export (docs/LIBRARIES.md) keeps `std/nat` in
+every chain. Measured with `Bench cpu` (4 rounds of 15 after 10 warm-up, thread CPU and allocation)
+against the same tree with the base's prelude and `std/list` (no `std/nat` in the chain), on a machine
+shared with other builds:
 
-| measurement | without | with | change |
+| measurement | base form | with `std/nat` | change |
 |---|---:|---:|---:|
-| prelude chain elaboration, uncached, eager (includes `std/nat`) | 53.3 ms, 19.04 MB | 47.1 ms, 19.34 MB | CPU within noise, +1.6 % allocation |
-| compile one-line program (lazy: no `std/nat`) | 3.91 ms, 0.68 MB | 3.34 ms, 0.69 MB | within noise |
-| check one-line | 3.82 ms, 0.67 MB | 3.04 ms, 0.69 MB | within noise |
-| run a01_transitive_closure | 9.89 ms, 1.46 MB | 10.36 ms, 1.47 MB | within noise |
+| prelude chain elaboration, uncached, eager | 56.4 ms, 23.25 MB | 50.2 ms, 23.82 MB | CPU within noise, +2.5 % allocation |
+| compile one-line program (check, new database; chain cached) | 3.82 ms, 0.75 MB | 3.87 ms, 0.79 MB | within noise |
+| check one-line | 3.88 ms, 0.75 MB | 4.39 ms, 0.79 MB | within noise |
 
-A program that uses `nat` pays for the three declarations and the two functions of `std/nat`, about
-0.3 MB of allocation and no measurable CPU time.
+The cost is the elaboration of three declarations and two functions by clauses, once per process (the
+chain is cached by `StdlibCache`); no measurable CPU time. Making `std/nat` lazy again would need the
+lazy re-export to leave out a file that only left-out files import; not done, since it changes the
+chains that programs share (`LibraryQueriesSuite`).
