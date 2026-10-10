@@ -678,15 +678,20 @@ scripts/smoke.sh                # CLI smoke test
 ## The website
 
 The site at <https://k0uks1.github.io/hugin/> (issue #58, design in
-[`docs/design/website.md`](docs/design/website.md)) has three parts: the landing page (`/hugin/`), the
-language reference (`/hugin/reference/`, the mdBook in `reference/`) and the playground (`/hugin/play/`).
+[`docs/design/website.md`](docs/design/website.md)) has four parts: the landing page (`/hugin/`), the
+install page (`/hugin/install/`), the language reference (`/hugin/reference/`, the mdBook in
+`reference/`) and the playground (`/hugin/play/`).
 The book's pages at their URLs before the move (`/hugin/<page>.html`) are redirect pages. The sources are
 in `site/`:
 
 ```
 site/
-  index.html, style.css   the landing page (no JavaScript) and the stylesheet of both pages
-  example.hgn, .check     the landing page's example and its output; run by GoldenTests like tests/run
+  index.html, style.css   the landing page and the stylesheet of the site's pages
+  example*.hgn, .check    the landing page's examples (a tab each, `landingExamples` in examples.mjs) and
+                          their outputs; run by GoldenTests like tests/run
+  install/index.html      the install page
+  theme.js                the light/dark switch, inlined into every page's <head> (the only script of
+                          the landing and install pages)
   play/index.html         the playground; play.css, its additional styles
   play/main.js            the page: toolbar, compiler worker with the 10 s budget, results (results.js),
                           sharing in the URL fragment (share.js)
@@ -694,7 +699,8 @@ site/
   play/hugin-lang.js      highlighting from editors/vscode/syntaxes/hugin.tmLanguage.json
   play/worker.js          the Web Worker that loads the compiler bundle hugin.js; `adapt` and
                           `normalise` hold the bundle's API (batch W4)
-  examples.mjs            the playground's examples: the reference's `hugin,run` blocks
+  examples.mjs            the playground's examples: the landing page's and the reference's `hugin,run`
+                          blocks
   build.mjs               assembles _site/
   package.json            the pinned editor and esbuild versions (package-lock.json)
 ```
@@ -710,9 +716,9 @@ mkdir -p /tmp/serve && ln -sfn "$PWD/_site" /tmp/serve/hugin
 python3 -m http.server -d /tmp/serve 8000    # http://localhost:8000/hugin/
 ```
 
-`site/build.mjs` fails if `hugin run site/example.hgn` does not print `site/example.check`. It highlights
-the example with `hugin highlight`, as the reference's code blocks are, so the landing page carries
-spans and no script. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
+`site/build.mjs` fails if `hugin run site/<example>.hgn` does not print `site/<example>.check`. It
+highlights the examples with `hugin highlight`, as the reference's code blocks are, so the landing page
+carries spans; its tabs are radio buttons styled by CSS. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
 without it the playground shows that the compiler is not available. The book's absolute paths start
 with `/hugin/reference/` (`site-url` in `book.toml`), so serve `_site/` under `/hugin/`. CI checks the
 links of `_site/` with lychee (`.github/workflows/reference.yml`).
