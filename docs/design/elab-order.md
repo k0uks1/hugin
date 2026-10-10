@@ -2,8 +2,9 @@
 
 Design note for [issue #91](https://github.com/k0uks1/hugin/issues/91): definitions are elaborated
 before the clauses of functions, so a type that computes with a function defined by clauses is
-rejected. Status: proposed, revised after the designer's review ("match what Idris, Agda and Lean do;
-follow established theory"). Nothing is implemented.
+rejected. Status: approved by the designer; implementation follows #100 batch 1. The designer's
+decisions: follow established practice; inside a cycle the written order must not matter (5.3); the
+first rejected class of 5.6, the split of typed definitions and the #100 constraint are accepted.
 
 Contents: 1 recommendations, 2 conformance, 3 Hugin today, 4 prior art, 5 assessments, 6 alternatives
 rejected, 7 effects, 8 batches, 9 sources.
@@ -13,7 +14,8 @@ rejected, 7 effects, 8 batches, 9 sources.
 Hugin's files and module bodies are unordered scopes with forward references and mutual recursion
 without a `mutual` keyword (reference `meta/index.md`, "Order of elaboration"). For such scopes the
 established practice is Haskell's dependency analysis into strongly connected components (SCCs); inside
-one component it is the mutual-block rule of Agda, Idris 2, Lean 4 and Rocq. The design takes both.
+one component it is the rule of Lean 4's mutual blocks, Rocq's `Fix` and GHC's recursive type groups: the
+component's own bodies do not unfold in it. The design takes both.
 
 1. **SCCs in dependency order** (Haskell 2010 §4.5.1, GHC `depAnalBinds`). A file's declaration items
    are elaborated by the SCCs of their dependency graph, in topological order, independent components in
@@ -25,19 +27,19 @@ one component it is the mutual-block rule of Agda, Idris 2, Lean 4 and Rocq. The
 3. **A mention depends on the body** (GHC: a mention of a closed type family depends on its
    declaration, equations included). Hugin's types compute with functions and definitions, so GHC's
    dropping of edges to names with signatures does not apply.
-4. **Inside a component, the Agda/Idris rule:** all signatures first, then the bodies in the order
-   written; a body that is checked unfolds in the bodies after it. A type or body that needs a body
-   written later in the same component sees it stuck and fails with the ordinary error, as in all
-   five systems; the error gets a note naming the cycle and the order.
-5. **Termination and the formula-cycle check (E0105) per component** (Agda `mutualChecks`, Lean's SCCs
-   in `addPreDefinitions`). Hugin keeps its stricter invariant that a function reduces only once its
-   call cycles are known to terminate.
+4. **Inside a component, the Lean/Rocq/GHC rule:** all signatures first, then the bodies; no type or
+   body of the component unfolds a body of the same component, whatever the written order; bodies of
+   earlier components unfold normally. A type or body that needs such a body sees it stuck and fails
+   with the ordinary error; the error gets a note naming the cycle.
+5. **Termination and the formula-cycle check (E0105) at the end of each component** (Agda
+   `mutualChecks`, Lean's SCCs in `addPreDefinitions`), before its bodies become unfoldable, so a
+   function still reduces only once its call cycles are known to terminate.
 6. **Module bodies** use the same order (batch 2, after #100 batch 1), with the body's object members
    first and member functions after them (Agda's record modules). `where` blocks keep their sequential
    scope and textual order (declaration before use, as in Agda, Idris 2, Lean 4).
 7. **No change of granularity** for #66 blocks or `Signatures` (GHC and Agda also recompile per module),
-   **no new error codes**, definitions stay non-recursive (E0105, E0101: a Hugin rule). One class of
-   accepted programs becomes rejected (5.6); Agda, Idris 2 and Lean reject its analogue.
+   **no new error codes**, definitions stay non-recursive (E0105, E0101: a Hugin rule). Two classes of
+   accepted programs become rejected (5.6); Lean and Rocq reject their analogues.
 
 ## 2. Conformance
 
@@ -48,9 +50,10 @@ one component it is the mutual-block rule of Agda, Idris 2, Lean 4 and Rocq. The
 | signature and body as separate nodes | GHC drops edges to signed variables; Agda and Idris put signatures before definitions | `Tc/Gen/Bind.hs` 374–378; Agda `Definitions.hs` 1138 `mkOldMutual`, manual `mutual-recursion` 199–201; `Desugar/Mutual.idr` 57 | match |
 | a mention depends on the body, not only the signature | GHC type families: one node per declaration with its equations; finished groups are visible, the current group is not | `Rename/Module.hs` 1440 (TCDEP3); `Tc/TyCl.hs` 2456–2472 | match (term-level GHC drops the edge; types do not compute there) |
 | no edges for unnamed dependencies | GHC cannot see instance dependencies and retries groups | `Rename/Module.hs` 1545; `Tc/TyCl.hs` 154–256 | not needed: every Hugin clause names its function; derived functions get explicit edges |
-| in a component: signatures first, then bodies in written order, checked bodies unfold | Agda forward declaration and old-style `mutual`; Idris `mutual` | manual `mutual-recursion` 95–100, 199–201; `Rules/Def.hs` 435 (clauses added when checked); `Reduce.hs` 735–743; `ProcessDef.idr` 936; tutorial `typesfuns.rst` 552–560 | match |
-| a type needing a later body of its cycle: stuck, ordinary error | Idris "none of the function types can depend on the reduction behaviour" of the block; Lean auxiliary local functions; Rocq `Fix`; GHC knot-tied `TcTyCon` | `typesfuns.rst` 552; `MutualDef.lean` 359, 1347; Rocq `inductive.rst` 1504; `Tc/TyCl.hs` 2456 | match; the note is an addition |
-| termination per component | Agda end of block; Lean per SCC | `Rules/Decl.hs` 277–290; `PreDefinition/Main.lean` 43, 288 | match; stricter on unfolding (5.4) |
+| in a component: signatures first, no body of the component unfolds in it, order irrelevant | Lean: block functions are auxiliary locals, compiled after the block; Rocq `Fix`: bodies typed with the functions as assumptions; GHC: a recursive group's tycons are knot-tied, only finished groups are in the global env | `MutualDef.lean` 209, 359, 1347, 1445; Rocq `inductive.rst` 1504; `Tc/TyCl.hs` 2456–2472 | match |
+| a type needing a body of its own cycle: stuck, ordinary error | as above; Idris for types: "none of the function types can depend on the reduction behaviour" of the block | as above; `typesfuns.rst` 552–555 | match; the note is an addition |
+| Agda/Idris: bodies in written order, a checked body unfolds in later ones | Agda forward declaration; Idris `mutual` definitions pass | `Rules/Def.hs` 435; `Reduce.hs` 735–743; `ProcessDef.idr` 936 | not adopted: written order would decide acceptance in an unordered scope (designer) |
+| termination at the end of a component, before its bodies unfold | Agda end of block; Lean per SCC after the block | `Rules/Decl.hs` 277–290; `PreDefinition/Main.lean` 43, 288 | match |
 | formula-function cycle check per component | as termination | as above | match |
 | object members before member functions in a body | Agda record modules: pattern-matching definitions after the fields; module parameters abstracted over all definitions | manual `record-types` 487–490; `module-system` 172 | match |
 | `where` blocks textual | Agda, Idris, Lean: declaration before use in ordered scopes | `Rules/Decl.hs` 144; `typesfuns.rst` 534; Hugin `meta/where.md` 31 | match for an ordered scope; Haskell orders `where` by §4.5.1 because its `where` is unordered |
@@ -170,34 +173,40 @@ so source order (Agda, Idris, Lean) replaces it.
 
 ### 5.3 Inside a component
 
-**Assessment: signatures first, then bodies in the order written; checked bodies unfold.** This is
-Agda's forward-declaration and old-style `mutual` rule and Idris's `mutual` rule. Signatures are
-elaborated with today's retry loop (E0104 for type definitions in a cycle). Bodies follow in the order
-of their items; an untyped definition has no signature, so it is elaborated before the bodies that
-mention it (today's retry; Agda and Idris need a signature instead). A typed definition whose value is
-not yet checked is opaque, like a postulate (as a formula function is today until its rules are
-elaborated). E0105 and E0101 keep their meaning: a definition value may not reach itself through
-definition values alone; a cycle through a clause group is mutual recursion and is checked for
-termination (row 4), as today.
+**Assessment: signatures first; the component's bodies are opaque to each other.** This is Lean's rule
+(the block's functions are auxiliary local declarations, `MutualDef.lean` 359, compiled only after the
+block, 1445), Rocq's `Fix` rule (bodies typed with the functions as assumptions, `inductive.rst` 1504)
+and GHC's for a recursive type group (knot-tied tycons, only finished groups in the global env,
+`Tc/TyCl.hs` 2456–2472). Signatures are elaborated with today's retry loop (E0104 for type definitions
+in a cycle). An untyped definition has no signature: its body is elaborated with the signatures, since
+its type comes from it, and its value is opaque to the component like any other body. Then the bodies
+(clause groups, typed definition values, rules of formula functions) are elaborated, in source order
+for determinism only: while the component is checked, every function, definition and formula function
+of it is stuck (applications do not reduce, values do not unfold), so no body can observe another and
+the written order never decides acceptance. When the component is done (5.4), its bodies unfold for all
+later components; a stuck value computed inside it reduces when forced later (row 9). E0105 and E0101
+keep their meaning: a definition value may not reach itself through definition values alone; a cycle
+through a clause group is mutual recursion, checked for termination (row 4).
 
-Row 10: `sig k`, `sig d` (its type mentions `k zero`, fine as a type), then `d`'s value (written first),
-with `k zero` stuck: E0901, with the note ``the clauses of `k` refer to `d` and are written after it;
-inside a cycle, bodies are checked in the order written``. Written with `k`'s clauses first, Agda and
-Idris accept it, and so does Hugin. Lean and Rocq reject it in either order. A new error code for such
-cycles is rejected: which item needs a body is known only by checking it, all five systems give the
-ordinary error.
+Row 10 is the cycle `sig d → body k → body d`: `d`'s value is checked with `k zero` stuck, in either
+written order, and fails with E0901 and the note "`k zero` does not reduce here: `k` and `d` refer to
+each other, and inside such a cycle no body unfolds another". Lean and Rocq reject the analogue in
+either order. Agda and Idris would accept it with `k`'s clauses written first; that rule is not adopted
+(section 6). A new error code is not needed: which item needs a body is known only by checking it, and
+all the references give the ordinary error.
 
 ### 5.4 Termination, coverage, formula functions
 
-**Assessment: per component, without unfolding unchecked cycles.** Agda unfolds a block's functions
-before their termination is known. Hugin keeps its invariant (`SizeChange.scala` 368), because its
-elaborator must not loop (#66 note 2.4: a non-terminating function overflowed the stack): a case tree
-is checked when installed, and a typed definition value installed inside a component is a node of the
-call graph whose installation checks the cycles through it (#92 follows calls through definitions;
-today the value always exists first). Edges `body f → body g` for every call put a cycle of calls in one
-component, so later components see only decided functions. Coverage sees reduced indices, so a clause
-may newly get W0006. A formula function expands its rules when unfolded, and a recursive one does not
-end: `checkFormulaCycles` runs per component, before the next.
+**Assessment: at the end of each component, before its bodies unfold.** Since no body of a component
+unfolds inside it, the size-change check of a component runs once all its case trees and definition
+values exist, with calls through definitions followed as #92 does; then the component becomes
+unfoldable. This is Agda's end-of-block check and Lean's per-SCC compilation, and it keeps Hugin's
+invariant that a function reduces only once its call cycles are known to terminate
+(`SizeChange.scala` 368; #66 note 2.4). Edges `body f → body g` for every call put a cycle of calls in
+one component, so later components see only decided functions. A formula function expands its rules
+when unfolded and a recursive one does not end: `checkFormulaCycles` runs on the component at the same
+point. Coverage of a clause group sees the indices that earlier components reduce (a clause may newly
+get W0006) and those of its own component stuck.
 
 ### 5.5 Module bodies and #100
 
@@ -214,12 +223,16 @@ items. The closed type of a member function let-binds the definitions before its
 
 ### 5.6 Compatibility
 
-**Assessment: accept the one rejected class.** Row 11 relies on `c one` being stuck only because `c`'s
-clauses come later. Agda, Idris 2 and Lean require `c` before `r`, so `c one` reduces to `zero` and the
-constraint `zero = c α` leaves α unsolved there too (an unsolved meta or "don't know how to synthesize").
-The reference (`meta/functions.md`) compares stuck applications by arguments when "a split meets a
-variable or an unknown", which row 11 is not. Batch 1 measures goldens and library and lists each
-change in NOTES.
+**Assessment: two classes become rejected; the first is accepted by the designer, the second follows
+from 5.3.** Batch 1 measures goldens and library for both and lists each change in NOTES.
+
+1. Row 11 relies on `c one` being stuck only because `c`'s clauses come later. Agda, Idris 2 and Lean
+   require `c` before `r`, so `c one` reduces and `zero = c α` leaves α unsolved there too. The reference
+   (`meta/functions.md`) compares stuck applications by arguments when "a split meets a variable or an
+   unknown", which row 11 is not.
+2. Today a clause group unfolds every clause group elaborated before it, also one of its own cycle
+   (`f` written before `g`, `g`'s clauses typed with `f n` reducing, `f`'s clauses calling `g`). Inside
+   one component this no longer reduces. Lean and Rocq reject the analogue.
 
 ### 5.7 `%use`, `%export`, signatures-only files, #66, incrementality
 
@@ -235,10 +248,10 @@ change in NOTES.
 ### 5.8 Diagnostics and the reference
 
 No new codes. The note of 5.3 on errors whose message holds an application stuck at a function or
-definition of the file without a body: later in the cycle, clauses rejected, or E0912. Reference:
+definition of the file: one of the same cycle, one whose clauses were rejected, or one rejected by E0912. Reference:
 `meta/index.md` "Order of elaboration" (dependency order, components, the rule inside a cycle, the
-issue's example), `meta/functions.md` "Definitions" (a definition may compute with functions; a typed
-definition can be used by clauses before its value is checked), `docs/errors/E0901.md` (the note), and
+issue's example), `meta/functions.md` "Definitions" (a definition may compute with functions; inside a cycle the type of a
+typed definition is known, its value is not), `docs/errors/E0901.md` (the note), and
 in batch 2 `modules.md` "Module bodies".
 
 ## 6. Alternatives rejected
@@ -246,16 +259,18 @@ in batch 2 `modules.md` "Module bodies".
 - **Today's phases with ties or clause groups sorted:** fixes row 7, not the issue.
 - **User-written `mutual` blocks** (Lean, Idris, Agda): those languages have ordered scopes; Hugin's
   scopes are unordered, where the precedent is Haskell's analysis.
-- **Lean/Rocq's rule inside a component** (no unfolding at all in the block): rejects row 10 in either
-  order; Agda and Idris accept the well-ordered version.
+- **The Agda/Idris rule inside a component** (bodies in written order, a checked body unfolds in the
+  later ones; Agda `Rules/Def.hs` 435, `Reduce.hs` 735–743; Idris `ProcessDef.idr` 936): the written
+  order would decide acceptance, and Hugin's scopes are deliberately unordered (designer's decision).
 - **GHC's retry of failed groups:** needed only for unnamed dependencies.
-- **Unfolding before termination is decided** (Agda): the elaborator could loop (5.4).
+- **Unfolding before termination is decided** (Agda): the elaborator could loop (5.4); excluded anyway
+  by 5.3.
 - **Recursive definitions with termination checking** (Agda, Idris): a language change outside #91.
 - **Splitting `Signatures` per component now:** an incrementality change of its own.
 
 ## 7. Effects
 
-Newly accepted (rows 1–7, and row 10 with `k`'s clauses written before `d`):
+Newly accepted (rows 1–7):
 
 ```hugin,ignore
 nat : Type. zero : nat. suc : nat -> nat.
@@ -271,17 +286,19 @@ vcons : A -> vec A N -> vec A (suc N).
 ```
 
 Order: `nat`, `zero`, `suc`, `one`, `vec`, `vnil`, `vcons`, `sig plus`, `body plus`, `vec3`, `sig v`,
-`body v`. Still rejected with the note: row 10 as written. Newly rejected: row 11.
+`body v`. Still rejected, with the note: row 10, in any written order. Newly rejected: row 11, and
+clause groups that unfold a group of their own cycle (5.6).
 
 ## 8. Batches
 
 Each batch is one pull request and changes the reference with the code (CONTRIBUTING.md).
 
 1. **Dependency order for files.** `elab/ElabOrder.scala` (nodes, mentions, Tarjan, Kahn);
-   `Items.elabDeclarations` per component; typed definitions as signature and value (opaque in between);
-   definition values as call-graph nodes in `SizeChange`; `checkFormulaCycles` per component;
+   `Items.elabDeclarations` per component; typed definitions as signature and value; the component's
+   functions, definitions and formula functions stuck until its end; termination and
+   `checkFormulaCycles` at the end of each component;
    signatures-only mode; the note in `ElabErrors`. Reference as in 5.8. Goldens:
-   `run/order_definitions` (rows 1–7, row 10 reordered), `neg/order_cycle` (row 10 with the note),
+   `run/order_definitions` (rows 1–7), `neg/order_cycle` (row 10 in both orders, with the note),
    `neg/order_stuck_notes`, row 11; NOTES entry. About +280/−50 lines.
 2. **Module bodies,** after #100 batch 1: `ModuleBodies.elabMembers` on `ElabOrder`, object members
    first. Reference `modules.md`. Golden `run/order_members`. About +80/−20 lines.
