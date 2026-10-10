@@ -1,0 +1,12 @@
+(* Broken declarations of several names: one error each, the declaration is dropped without errors for
+   the uses of its names, and the next item in column 0 is parsed. *)
+color : type.
+red, Green, blue : color. (*~ E0004 *)
+shade X, tone : color. (*~ E0004 *)
+dark, light : color = red. (*~ E0001 *)
+pale, : color. (*~ E0001 *)
+warm, cold : color (*~ E0001 *)
+hot : color.
+picked : color -> rel.
+picked hot.
+picked warm.

@@ -1,0 +1,9 @@
+(* Broken record updates: one error each, and the next item in column 0 is parsed. *)
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+a : point = (origin with x = 1). (*~ E0001 *)
+b : point = (origin with { x = 1 ). (*~ E0005 *)
+c : point = (origin with { x = 1, .. }). (*~ E0001 *)
+d : point = (origin with {
+e : point = (origin with { y = 3 }). (*~^ E0005 *)
+f : int = e.y.

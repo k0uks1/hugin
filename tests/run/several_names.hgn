@@ -1,0 +1,30 @@
+(* Declarations of several names (reference: object/declarations): constructors of an open type, two
+   relations under one prefix directive, meta constructors, and a module member. *)
+color : type.
+red, green, blue : color.
+%output
+warm, cold : color -> rel.
+warm red.
+cold green.
+cold blue.
+
+bit : Type.
+lo, hi : bit.
+flip : bit -> bit.
+flip lo = hi.
+flip hi = lo.
+code : bit -> int.
+code lo = 0.
+code hi = 1.
+%output
+flipped : int -> rel.
+flipped (code (flip lo)).
+
+palette = {
+  dark, light : color -> rel.
+  dark blue.
+  light red.
+}.
+%output
+pale : color -> rel.
+pale C :- palette.light C.
