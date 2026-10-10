@@ -2070,14 +2070,21 @@ Decisions:
   fresh-name counter and the observed staging therefore see the same sequence (the goldens, LSP
   transcripts and tooling suites are unchanged). #88's `evalArgChain` (a loop for argument chains such as
   list data) is subsumed and removed.
-* **Fast path**: an application whose function and argument are atomic (a variable, a global, a meta, a
-  λ, a literal: no effects, no subterm evaluated) is applied without allocating a frame; `eval` of any
-  other non-application term calls `evalNode` directly without starting a loop.
+* **Native recursion first, the machine past a depth** (as `MemoKeys` past a depth of 200, #88). The
+  machine on every evaluation cost up to ~15 % CPU on the small meta-heavy programs of the bench set
+  (frame objects, a `Reduct` per call). So the first 96 levels of nesting (an application evaluated, a
+  function's body evaluated) run in `evalNative`/`appNative`, the recursive evaluator of before, with a
+  depth counter (restored by `finally`); `eval` and `app` enter the machine only past that depth, and
+  everything evaluated inside the machine stays in it. The native stack spent is bounded by 96 levels
+  (~250 KiB at the interpreted worst), whatever the depth of the computation. In the machine, an
+  application whose function and argument are atomic (a variable, a global, a meta, a λ, a literal: no
+  effects, no subterm evaluated) is applied without a frame.
 * **Not a CEK machine for the whole evaluator**: environments stay `List[Val]` and closures stay
   `Closure`, values are unchanged, and the cases that do not recur per data element keep native
   recursion; a full defunctionalisation (`force`, `quote`, unification) is not needed for the depth of a
   computation, only for the size of a term.
 
 Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thread, and the 400 items in a
-child JVM run with `-Xint` (the largest frames). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
+child JVM run with `-Xint` (the largest frames); the 100 000-element list of #88 now goes through the
+machine (the argument chain is deeper than 96). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
 the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).

@@ -20,22 +20,25 @@ trait Matching:
   def reduceFunction(id: Int, sp: Spine): Option[Val] = matchFunction(id, sp) match
     case r: Reduct => Some(if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r))
     case Matching.Stuck => None
-    case Matching.NotClauses =>
-      globals(id).kind match
-        case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
-          val (later, first) = sp.splitAt(sp.length - op.arity)
-          if !first.forall(_.isInstanceOf[Elim.EApp]) then None
-          else reducePrimitive(op, ctors, first.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }).map(appSp(_, later))
-        case GlobalKind.Family(_, arity) if sp.length >= arity =>
-          val (later, first) = sp.splitAt(sp.length - arity)
-          val args = first.reverse.collect { case Elim.EApp(a, _) => a }
-          if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
-        case _ => None
+    case Matching.NotClauses => reduceOther(id, sp)
+
+  /** [[reduceFunction]] of a global that is not a function defined by clauses: a primitive or a family
+   *  applied to its arity reduces, anything else does not. */
+  def reduceOther(id: Int, sp: Spine): Option[Val] = globals(id).kind match
+    case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
+      val (later, first) = sp.splitAt(sp.length - op.arity)
+      if !first.forall(_.isInstanceOf[Elim.EApp]) then None
+      else reducePrimitive(op, ctors, first.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }).map(appSp(_, later))
+    case GlobalKind.Family(_, arity) if sp.length >= arity =>
+      val (later, first) = sp.splitAt(sp.length - arity)
+      val args = first.reverse.collect { case Elim.EApp(a, _) => a }
+      if args.length != arity then None else familyInstance(id, args).map(appSp(_, later))
+    case _ => None
 
   /** Global `id` applied to the spine, if it is a function defined by clauses applied to at least its
    *  arity: its memoised result, or the body its case tree selects, to be evaluated ([[Reduct]]);
    *  [[Matching.Stuck]] if a split meets a neutral; [[Matching.NotClauses]] for any other global. The body
-   *  is not evaluated here: [[Machine]] evaluates it without native recursion per call (issue #129). */
+   *  is not evaluated here: [[Machine]] evaluates it, past a depth without native recursion (issue #129). */
   def matchFunction(id: Int, sp: Spine): Reduct | Matching.Stuck.type | Matching.NotClauses.type =
     globals(id).kind match
       case GlobalKind.Function(arity, Some(tree)) if sp.length >= arity =>

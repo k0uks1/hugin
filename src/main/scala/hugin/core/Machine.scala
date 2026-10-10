@@ -13,6 +13,11 @@ package hugin.core
  *  term is a step of [[Evaluation.evalNode]], whose recursion is bounded by the size of the term, not by
  *  the depth of a computation.
  *
+ *  The first [[Machine.NativeDepth]] levels of nesting are evaluated by native recursion (`evalNative`,
+ *  `appNative`: the evaluator of before #129), which allocates no frames and is faster for the shallow
+ *  computations that are most of them; deeper, evaluation continues in the machine (as [[MemoKeys]] does
+ *  past a depth of 200, #88), so the native stack used is bounded whatever the depth of the computation.
+ *
  *  The order of evaluation, and so the order of effects (fresh object variables, observed staging), is
  *  that of the recursive evaluator: the function, then the argument, then the application; the result of
  *  a function is memoised before the arguments beyond its arity are applied. */
@@ -21,16 +26,57 @@ trait Machine:
   import Val.*
   import Machine.*
 
+  /** How deeply evaluation is nested on the native stack: applications evaluated by [[evalNative]] and the
+   *  bodies of functions defined by clauses applied by [[appNative]]. */
+  private var depth = 0
+
   /** The value of `t` in `env`. */
   def eval(env: List[Val], t: Tm): Val = t match
-    case _: Tm.App | _: Tm.Let => run(env, t, null, null, null, null)
+    case _: Tm.App | _: Tm.Let => if depth < NativeDepth then evalNative(env, t) else run(env, t, null, null, null, null)
     case _ => evalNode(env, t)
 
   /** `f` applied to `a`. */
-  def app(f: Val, a: Val, i: Icit): Val = run(Nil, null, f, a, i, null)
+  def app(f: Val, a: Val, i: Icit): Val = if depth < NativeDepth then appNative(f, a, i) else run(Nil, null, f, a, i, null)
 
   /** The body of a function defined by clauses, matched by its case tree, evaluated and memoised. */
-  protected def evalReduct(r: Reduct): Val = run(Nil, null, null, null, null, r)
+  protected def evalReduct(r: Reduct): Val =
+    if depth < NativeDepth then
+      depth += 1
+      try reductValue(r, eval(r.env, r.body))
+      finally depth -= 1
+    else run(Nil, null, null, null, null, r)
+
+  /** The value `v` of the body of `r`, memoised, with the arguments beyond the arity applied. */
+  private def reductValue(r: Reduct, v: Val): Val =
+    if r.key != null then memoise(r.key.nn, v)
+    appSp(v, r.later)
+
+  // The native evaluator: the recursive evaluator of before #129, used up to `NativeDepth` levels of
+  // nesting, where it is faster than the machine (no frame objects); deeper evaluation continues in the
+  // machine, so the native stack used is bounded by the depth limit, not by the depth of the computation.
+
+  private def evalNative(env: List[Val], t: Tm): Val =
+    depth += 1
+    try
+      t match
+        case Tm.App(f, a, i) => app(eval(env, f), eval(env, a), i)
+        case Tm.Let(_, _, d, b) => eval(eval(env, d) :: env, b)
+        case _ => evalNode(env, t)
+    finally depth -= 1
+
+  private def appNative(f: Val, a: Val, i: Icit): Val = f match
+    case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
+    case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
+    case Rigid(h @ Head.Glob(id), sp) =>
+      val sp1 = Elim.EApp(a, i) :: sp
+      matchFunction(id, sp1) match
+        case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
+        case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
+        case Matching.Stuck => Rigid(h, sp1)
+    case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
+    case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
+    case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
+    case other => throw Impossible(s"application of a non-function value $other")
 
   /** A term that evaluates without effects and without evaluating a subterm. */
   private def atomic(t: Tm): Boolean = t match
@@ -98,7 +144,7 @@ trait Machine:
                     t = r.body
                     mode = Eval
                 case Matching.NotClauses =>
-                  v = reduceFunction(id, sp1).getOrElse(Rigid(h, sp1))
+                  v = reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
                   mode = Return
                 case Matching.Stuck =>
                   v = Rigid(h, sp1)
@@ -150,6 +196,10 @@ trait Machine:
     v
 
 object Machine:
+  /** Levels of nesting evaluated on the native stack before the machine takes over: at the measured worst
+   *  (an interpreted JVM, ~2.6 KiB per level of a meta function's recursion) 96 levels take ~250 KiB. */
+  inline val NativeDepth = 96
+
   private inline val Eval = 0
   private inline val Apply = 1
   private inline val Return = 2
