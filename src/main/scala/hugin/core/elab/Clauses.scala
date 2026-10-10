@@ -372,7 +372,15 @@ trait Clauses:
           case _ => throw Impossible("split on a non-variable")
 
   /** Splits on variable `x`: a branch per constructor whose indices unify. */
-  private def split(f: FunctionInfo, p: SplitProblem, x: Int, target: Val, clauses: List[ClauseState], at: Pat, leaf: LeafBuilder): CaseTree =
+  private def split(
+      f: FunctionInfo,
+      p: SplitProblem,
+      x: Int,
+      target: Val,
+      clauses: List[ClauseState],
+      at: Pat,
+      leaf: LeafBuilder
+  ): CaseTree =
     val span = at match
       case Pat.PCon(_, _, s) => s
       case Pat.PAbsurd(s) => s
@@ -571,9 +579,10 @@ trait Clauses:
   /** Whether `sub` renames the free variables of `ctx` (in `order`) to those of `p`: the leaf's case is
    *  the clause context itself. */
   private def isRenaming(sub: Map[Int, Val], order: Vector[Int], p: SplitProblem): Boolean =
-    val targets = order.map(l => force(sub(l)) match
-      case Val.Rigid(Head.Local(y), Nil) if p.isFree(y) => y
-      case _ => -1
+    val targets = order.map(l =>
+      force(sub(l)) match
+        case Val.Rigid(Head.Local(y), Nil) if p.isFree(y) => y
+        case _ => -1
     )
     !targets.contains(-1) && targets.distinct.length == targets.length && targets.length == (0 until p.size).count(p.isFree)
 
@@ -617,7 +626,14 @@ trait Clauses:
   /** A right-hand side that fails in its clause context may check at the clause's leaves of the case tree
    *  (it relies on the refinement made by earlier clauses): the error then gets a fix that writes out
    *  those cases ([[refinedClause]]). */
-  private def withRefinementFix(e: ElabError, f: FunctionInfo, problem: SplitProblem, target: Val, states: List[ClauseState], cl: ClauseState): ElabError =
+  private def withRefinementFix(
+      e: ElabError,
+      f: FunctionInfo,
+      problem: SplitProblem,
+      target: Val,
+      states: List[ClauseState],
+      cl: ClauseState
+  ): ElabError =
     if cl.source.where.nonEmpty || cl.absurd then e
     else
       val probe = f.copy(used = mutable.Set.empty, missing = mutable.ListBuffer.empty, leaves = mutable.HashMap.empty)
@@ -646,7 +662,11 @@ trait Clauses:
               Applicability.MachineApplicable
             )
             val help = "the clause is checked in its own context, without the refinement made by the clauses before it"
-            ElabError(e.diag.copy(helps = e.diag.helps :+ fix.message, notes = e.diag.notes :+ help, suggestions = e.diag.suggestions :+ fix), e.unresolved, e.silent)
+            ElabError(
+              e.diag.copy(helps = e.diag.helps :+ fix.message, notes = e.diag.notes :+ help, suggestions = e.diag.suggestions :+ fix),
+              e.unresolved,
+              e.silent
+            )
           case None => e
 
   /** The text of clause `cl` written out at its leaves `leaves`: one clause per leaf, with the patterns of
@@ -658,7 +678,8 @@ trait Clauses:
     val source = cl.source
     val hidden = globals(f.id).hidden
     val written = source.pats.drop(hidden)
-    if !source.span.exists || written.exists(t => !t.span.exists || TreeOps.nodes(t).exists(_.isInstanceOf[hugin.syntax.Trees.Quote])) then None
+    if !source.span.exists || written.exists(t => !t.span.exists || TreeOps.nodes(t).exists(_.isInstanceOf[hugin.syntax.Trees.Quote])) then
+      None
     else
       val origin = source.span.origin
       val lhsEnd = written.lastOption.map(_.span.until).getOrElse(source.name.span.until)
