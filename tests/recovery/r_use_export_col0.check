@@ -14,7 +14,15 @@ error[E0001]: expected a signature, found `known`
 11 | known : person -> rel. (*~ E0001 *)
    | ^^^^^ expected a signature
 
-2 errors found
+error[E0001]: expected `left`, `right` or `none`, found `mutual`
+  --> tests/recovery/r_use_export_col0.hgn:14:1
+   |
+13 | %infix
+   | ------ this directive starts here
+14 | mutual : person -> rel. (*~ E0001 *)
+   | ^^^^^^ expected `left`, `right` or `none`
+
+3 errors found
 (* ---------------- after elaborate ---------------- *)
 person : type.
 ann : person.
@@ -25,4 +33,6 @@ knows Y X :- knows X Y.
 knows ann ann.
 known : person -> rel.
 known X :- knows X _.
+mutual : person -> rel.
+mutual X :- knows X X.
 %output knows.

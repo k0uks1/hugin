@@ -24,8 +24,9 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
     def directive(args: DirArgs) = Directive(name, args)(spanFrom(start), d.span)
     name match
       case "infix" =>
+        // its arguments, as any directive's, do not start in column 0 (that is the next item)
         def next(k: Tok, what: String): Option[Token] =
-          if at(k) then Some(advance())
+          if at(k) && !atColumn0(position) then Some(advance())
           else
             expected(List(Expect.Thing(what)), Some(context))
             None
