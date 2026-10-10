@@ -67,10 +67,7 @@ function onReady(info) {
 
 function renderResult() {
   ui.tabs.replaceChildren(); ui.body.replaceChildren();
-  const note = h("p", { class: "note" },
-    "The compiler runs in this page (Scala.js, in a Web Worker). Programs are not sent anywhere. ",
-    `A run stops after ${BUDGET_MS / 1000} s.`);
-  if (!current) return ui.body.append(note);
+  if (!current) return ui.body.append(h("p", { class: "empty" }, "Run (Ctrl-Enter) shows the answers here."));
   const all = views(current, {
     phase: ui.phase.value,
     onFix: (s) => applySuggestion(editor, s),
@@ -87,7 +84,6 @@ function renderResult() {
       onclick: () => { tab = key; renderResult(); } }, label));
     if (selected) ui.body.append(...[render()].flat(2));
   }
-  ui.body.append(note);
 }
 
 async function compile(op) {

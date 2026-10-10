@@ -1,7 +1,8 @@
 // The playground's editor: CodeMirror 6 with a minimal setup (docs/design/website.md 4.6), Hugin
 // highlighting from the VS Code grammar, the compiler's diagnostics inline (underline, a line below the
 // code with the fix suggestions as buttons, and the lint tooltip and keyboard actions), and, after a
-// check, the compiler's semantic highlighting. Any edit clears what the compiler said about the text.
+// check, the compiler's semantic highlighting. Lines do not wrap, as in the landing page's code card:
+// long lines scroll horizontally, and the inline diagnostics are as wide as the visible editor (play.css). Any edit clears what the compiler said about the text.
 import { EditorView, keymap, lineNumbers, drawSelection, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState, StateField, StateEffect, Compartment } from "@codemirror/state";
 import { history, defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -84,7 +85,6 @@ export function createEditor(parent, doc, { onRun, onEdit }) {
         history(),
         drawSelection(),
         bracketMatching(),
-        EditorView.lineWrapping,
         huginLanguage,
         lexical.of(huginHighlight),
         inlineField,
