@@ -10,11 +10,11 @@ area : shape -> int.
   area (rect W H) = (W + 0) * (H * 1).
 fibPair : nat -> pair int int.
   fibPair zero = mkPair 0 1.
-  fibPair (suc N) = mkPair (fibPair.b N (fibPair N)) (fibPair.a N (fibPair N) + fibPair.b N (fibPair N)).
+  fibPair (suc N) = mkPair (fibPair.b (fibPair N)) (fibPair.a (fibPair N) + fibPair.b (fibPair N)).
 fst : pair int int -> int.
   fst (mkPair X _) = X.
 addTo : int -> nat -> int.
-  addTo K M = addTo.go K M M.
+  addTo K M = addTo.go M.
 answer : int -> rel.
 answer 42.
 answer 6765.

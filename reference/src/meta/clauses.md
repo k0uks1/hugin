@@ -17,12 +17,14 @@ Pattern   ::= VAR | "_" | NAME | "(" NAME Pattern* ")" | INT | "(" Pattern ")" |
 A function defined by clauses is declared first, `f : A.`, with a meta type `A`. Every item `f p₁ … pₙ =
 e.` of the same file is then a clause of `f`, also when all its patterns are variables. The clauses may
 be anywhere after or before the declaration; they are taken in the order in which they appear. A clause
-may end with a [`where`](where.md) block.
+may end with a [`where`](where.md) block. A [module body](../modules.md#module-bodies) is a scope for
+clauses as a file is: the clauses of a function declared in a body are the items `f p̄ = e.` of that
+body, and a clause in a body belongs to a function that the body declares.
 
-It is an error ([E0915](../errors/E0915.md)) if a function has clauses but no declaration, or if its
-clauses have different numbers of patterns or more patterns than the function has explicit arguments. It
-is an error ([E0914](../errors/E0914.md)) to give clauses to a constant that is not a meta function, such
-as a relation or a constructor.
+It is an error ([E0915](../errors/E0915.md)) if a function has clauses but no declaration (in a module
+body: no declaration in that body), or if its clauses have different numbers of patterns or more patterns
+than the function has explicit arguments. It is an error ([E0914](../errors/E0914.md)) to give clauses to
+a constant that is not a meta function, such as a relation or a constructor.
 
 ## Patterns
 

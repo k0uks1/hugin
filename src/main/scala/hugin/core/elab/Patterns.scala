@@ -32,14 +32,17 @@ trait Patterns:
       TreeOps.flattenApp(lhs) match
         case (f: Ident, args) => Some(SurfaceClause(f, args, rhs, item.span, where))
         case (other, _) => fail(ClauseProblem.ClauseWithoutName(other.span))
-    case d: Def if state.functionNames(d.name.name) =>
-      val pats = d.params.map {
-        case Param.VarParam(v) => v
-        case Param.Typed(_, _, sp) => fail(ClauseProblem.TypedPattern(sp))
-        case Param.Malformed(t) => syntaxError(t.span)
-      }
-      Some(SurfaceClause(d.name, pats, d.rhs, d.span))
+    case d: Def if state.functionNames(d.name.name) => Some(defClause(d))
     case _ => None
+
+  /** `f X̄ = e.` as a clause of the declared function `f`. */
+  def defClause(d: Def): SurfaceClause =
+    val pats = d.params.map {
+      case Param.VarParam(v) => v
+      case Param.Typed(_, _, sp) => fail(ClauseProblem.TypedPattern(sp))
+      case Param.Malformed(t) => syntaxError(t.span)
+    }
+    SurfaceClause(d.name, pats, d.rhs, d.span)
 
   /** A surface pattern, with the type it matches if that is known and closed: a quote `'( … )` is a
    *  quoted pattern ([[QuotedPatterns]]), which needs a reflective type; list syntax is the prelude's

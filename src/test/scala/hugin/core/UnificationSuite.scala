@@ -169,11 +169,17 @@ class UnificationSuite extends munit.FunSuite:
     }
   }
 
-  test("frozen: blocks inside a block are part of it") {
+  test("frozen: blocks nest (issue #100): an inner block freezes the outer one's metas until it ends") {
     val f = Fixture()
     f.core.inBlock {
       val m = f.meta(0)
-      f.core.inBlock(f.unify(0, f.flex(m), f.glob(f.p)))
+      f.core.inBlock {
+        assertEquals(f.failure(0, f.flex(m), f.glob(f.p)), UnifyFailure.Frozen(m))
+        val inner = f.meta(0)
+        f.unify(0, f.flex(inner), f.glob(f.p))
+        assertEquals(f.solution(inner), "p")
+      }
+      f.unify(0, f.flex(m), f.glob(f.p))
       assertEquals(f.solution(m), "p")
     }
   }

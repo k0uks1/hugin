@@ -104,7 +104,7 @@ trait Items:
 
   /** The names an item with a syntax error might have been meant to declare: its name, or the name of
    *  the head of a rule (a declaration whose `:` is missing is a rule). */
-  private def mightDeclare(item: Item): List[Name] =
+  def mightDeclare(item: Item): List[Name] =
     def head(t: hugin.syntax.Tree): Option[Name] = t match
       case ErrorTree(parts) => parts.headOption.flatMap(head)
       case other => hugin.syntax.TreeOps.headName(other).map(_.name)

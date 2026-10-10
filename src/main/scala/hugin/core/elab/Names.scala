@@ -28,6 +28,8 @@ trait Names:
         val b = c.binder(l)
         recordParamUse(c, span, b)
         (Tm.Var(c.lvl - l - 1), b.ty, b.stage)
+      // a member of an enclosing module body not bound yet: it is declared later in the body, or failed
+      case None if state.bodyDeclared(n) => unresolved(c, n, span)
       case None =>
         lookupGlobal(n) match
           case Some(id) if state.unelaborated(n) && scope.get(n).contains(id) =>

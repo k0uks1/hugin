@@ -1,0 +1,16 @@
+(* The clauses of a module body define the functions that the body declares (issue #100): a clause of a
+   function declared only in the file is E0915, a clause of an object constant or a definition of the
+   body E0914, and a definition that refers to itself E0105, as at the top level. *)
+nat : Type. zero : nat. suc : nat -> nat.
+twice : nat -> nat.
+twice N = N.
+m = {
+  loop : int -> int = [n] loop n. (*~ E0105 *)
+  twice zero = zero. (*~ E0915 *)
+  r : int -> rel.
+  r X = X. (*~ E0914 *)
+  d : int = 3.
+  d 4 = 5. (*~ E0914 *)
+  uses : int -> int.
+  uses N = loop N.
+}.

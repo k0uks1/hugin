@@ -1,0 +1,63 @@
+(* Meta functions by clauses in module bodies (issue #100, reference: modules): a body's scope is a
+   file's (forward references, mutual recursion), a member function is elaborated once per body and
+   each instance's field is the shared function applied to the instance, calls go through paths and
+   instances, and an export signature can list a module field with member functions. *)
+%use "lib/numbers".
+three : nat = suc (suc (suc zero)).
+
+(* the body's `odd` shadows this one in the whole body, also before its declaration *)
+odd : nat -> bool.
+odd _ = true.
+
+arith = {
+  (* `even` and `odd` refer to each other, `parity` to both before their declarations *)
+  parity : nat -> string.
+  parity N = label (even N).
+  even : nat -> bool.
+  even zero = true.
+  even (suc N) = odd N.
+  odd : nat -> bool.
+  odd zero = false.
+  odd (suc N) = even N.
+  label : bool -> string.
+  label true = "even".
+  label false = "odd".
+  half : nat -> nat.
+  half (suc (suc N)) = suc (half N).
+  half _ = zero.
+  (* a definition that calls a member function *)
+  four : int = numbers.toInt (suc (half (suc (suc (suc (suc (suc (suc zero)))))))).
+}.
+
+graph : Type = { node : type, edge : node -> node -> rel }.
+walks (g : graph) = {
+  (* object code that mentions the instance's own relation `reach` *)
+  hop : nat -> g.node -> g.node -> prop.
+  hop zero X Y = reach X Y.
+  hop (suc N) X Y = reach X Y ; hop N Y X.
+  reach : g.node -> g.node -> rel.
+  reach X Y :- g.edge X Y.
+  both : g.node -> g.node -> rel.
+  both X Y :- hop (suc zero) X Y.
+  (* a nested body: its functions see the functor's parameter and the outer body's members *)
+  inner = {
+    depth : nat -> int.
+    depth zero = 0.
+    depth (suc N) = 1 + depth N.
+  }.
+}.
+
+city : type. a : city. b : city. c : city.
+road : city -> city -> rel.
+road a b. road b c.
+w1 = walks { node = city, edge = road }.
+w2 = walks { node = city, edge = road }.
+
+word : string -> string -> rel.
+word "parity of 3" (arith.parity three).
+word "file odd" "yes" :- odd zero = true.
+num : string -> int -> rel.
+num "double" (numbers.toInt (numbers.double three)).
+num "four" arith.four.
+num "depth" (w2.inner.depth three).
+%output word. %output num. %output w1.both. %output w2.both.

@@ -121,10 +121,16 @@ trait Printing:
       val bind = if i == Icit.Impl then s"{$y}" else y
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
     case Tm.App(f, a, i) =>
-      // the function first: with a budget ([[showTmBounded]]) the head is shown and the last arguments elided
-      val fun = go(ns, f, 5)
-      val arg = if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6)
-      par(p, 5, s"$fun $arg")
+      liftedApp(t) match
+        case Some((id, args)) =>
+          // a lifted function without its hidden arguments, as users write it ([[elab.Lifting]])
+          val shown = args.map((a, i) => if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6))
+          if shown.isEmpty then globals(id).name else par(p, 5, (globals(id).name :: shown).mkString(" "))
+        case None =>
+          // the function first: with a budget ([[showTmBounded]]) the head is shown and the last arguments elided
+          val fun = go(ns, f, 5)
+          val arg = if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6)
+          par(p, 5, s"$fun $arg")
     case Tm.Pi(x, i, a, b) =>
       val y = fresh(ns, x)
       val dom =
@@ -168,6 +174,16 @@ trait Printing:
     case Tm.Fresh(xs, b) => par(p, 0, s"fresh ${xs.mkString(" ")}. ${go(xs.reverse ++ ns, b, 0)}")
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)
+
+  /** An application of a lifted function (one with hidden arguments): the function and the arguments
+   *  after the hidden ones. */
+  private def liftedApp(t: Tm): Option[(Int, List[(Tm, Icit)])] =
+    def spine(t: Tm, acc: List[(Tm, Icit)]): (Tm, List[(Tm, Icit)]) = t match
+      case Tm.App(f, a, i) => spine(f, (a, i) :: acc)
+      case other => (other, acc)
+    spine(t, Nil) match
+      case (Tm.Global(id), args) if id < globals.length && globals(id).hidden > 0 => Some((id, args.drop(globals(id).hidden)))
+      case _ => None
 
   private def goObj(ns: List[Name], f: ObjForm, as: List[Tm], p: Int): String = (f, as) match
     case (ObjForm.Loc(_), List(a)) => go(ns, a, p)

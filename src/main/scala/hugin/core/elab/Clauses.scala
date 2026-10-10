@@ -313,6 +313,7 @@ trait Clauses:
     val base = c.lvl
     val args = p.values.take(f.arity).map(ren)
     for (n, ty, v) <- f.prelude(args) do c = define(c, n, ty, v)
+    val preludeEnd = c.lvl
     for (v, value, ty) <- binds do
       val site = Option.when(!v.implicitBinder)(Site(v.span, "pattern variable"))
       value match
@@ -332,7 +333,7 @@ trait Clauses:
     for (wc, t) <- whereTerms do recordCalls(f, args, wc, t, cl.source)
     recordCalls(f, args, c, body, cl.source)
     val patterns = f.explicit.map(l => quote(order.length, args(l)))
-    CaseTree.Leaf(letBound(c, base, body), p.size, order, names.toVector, patterns)
+    CaseTree.Leaf(letBound(c, base, preludeEnd, body), p.size, order, names.toVector, patterns)
 
   /** The pattern variables of a clause that can be split (for tooling, [[MetaIndex.Split]]): those of an
    *  inductive type, with a pattern per constructor whose indices unify with the variable's type. */
@@ -357,17 +358,28 @@ trait Clauses:
             case _ =>
         case _ =>
 
-  /** Wraps the definitions bound after level `base` around `body` as lets. */
-  private def letBound(c: Cxt, base: Int, body: Tm): Tm =
-    c.binders.take(c.lvl - base).foldLeft(body) { (acc, b) =>
-      Tm.Let(b.name, b.tyTm, b.defn.getOrElse(throw Impossible("a pattern binder without definition")), acc)
+  /** Wraps the definitions bound after level `base` around `body` as lets. The names of a lifted
+   *  function's prelude (levels `base` to `preludeEnd`) that the leaf does not use are left out: lets are
+   *  evaluated when the leaf is, and a definition of a module body may call the function itself
+   *  (`limit = bound 2` next to `bound`, [[MemberFunctions]]). */
+  private def letBound(c: Cxt, base: Int, preludeEnd: Int, body: Tm): Tm =
+    c.binders.take(c.lvl - base).zipWithIndex.foldLeft(body) { case (acc, (b, k)) =>
+      val level = c.lvl - 1 - k
+      if level < preludeEnd && !occurs(0, acc) && !hasUnknowns(acc) then Tm.shift(acc, -1, 1)
+      else Tm.Let(b.name, b.tyTm, b.defn.getOrElse(throw Impossible("a pattern binder without definition")), acc)
     }
+
+  private def hasUnknowns(t: Tm): Boolean = Tm.exists(t) {
+    case Tm.Meta(_) | Tm.AppPruning(_, _) => true
+    case _ => false
+  }
 
   /** A case no clause covers: collected (up to a bound), so that tooling can add them all; the tree
    *  returned in its place is never used, since coverage then fails ([[notCovering]]). */
   private def missingCase(f: FunctionInfo, p: SplitProblem): CaseTree =
     val names = p.names.indices.map(l => if p.isFree(l) then "_" else p.names(l)).toList.reverse
-    val pats = f.explicit.map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
+    // the hidden arguments of a lifted function are not written by users ([[Lifting]])
+    val pats = f.explicit.drop(globals(f.id).hidden).map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
     f.missing += (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
     if f.missing.length >= MaxMissing then fail(ClauseProblem.NotCovering(f.name, f.missing.head, globals(f.id).span))
     CaseTree.Split(-1, Nil)

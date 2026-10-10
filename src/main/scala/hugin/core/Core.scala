@@ -78,7 +78,11 @@ final class GlobalEntry(
     val instanceOf: Option[(Int, List[Tm])] = None,
     /** Where the constant is placed in the object program (the object level orders the members of a
      *  closed type by symbol id): its declaration, or the item that created a module instance. */
-    val placedAt: Span = Span.NoSpan
+    val placedAt: Span = Span.NoSpan,
+    /** For a lambda-lifted function (of a `where` block or a module body, [[elab.Lifting]]): the number
+     *  of its leading arguments that are the variables of the context it was lifted from. Users do not
+     *  write them, so diagnostics and printing leave them out. */
+    val hidden: Int = 0
 ):
   /** For a constant of a shared data declaration (`list A : data.`): its side and the constant of the
    *  same name at the other stage ([[SharedLink]]). */
@@ -200,18 +204,20 @@ final class Core private (val levels: Levels) extends Evaluation with Matching w
 
   def isFrozen(m: Int): Boolean = m < frozen
 
-  /** Runs `f` as a top-level block: the metas that exist now are frozen while it runs. A block inside a
-   *  block (an item elaborated while another is) is part of the outer one. */
+  /** Runs `f` as a block: the metas that exist now are frozen while it runs. Blocks nest (the clauses of
+   *  a function of a module body are a block inside the item of the body): when an inner block ends, the
+   *  frozen metas and the start of the enclosing block are restored. */
   def inBlock[A](f: => A): A =
-    if blockDepth > 0 then f
-    else
-      blockDepth = 1
-      frozen = metas.length
-      blockStart = metas.length
-      try f
-      finally
-        blockDepth = 0
-        frozen = 0
+    val (savedFrozen, savedStart) = (frozen, blockStart)
+    blockDepth += 1
+    frozen = metas.length
+    blockStart = metas.length
+    try f
+    finally
+      blockDepth -= 1
+      frozen = savedFrozen
+      // after a top-level block, unknowns keep printing relative to it (the last block)
+      if blockDepth > 0 then blockStart = savedStart
 
   def solveMeta(m: Int, v: Val): Unit =
     if m < frozen then throw UnifyError(UnifyFailure.Frozen(m))

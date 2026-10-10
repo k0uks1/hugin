@@ -17,7 +17,7 @@ import scala.collection.mutable
  *  - `f : A.` followed by clauses `f p̄ = e.` is a local function: it is *lambda-lifted* to a hidden
  *    global function abstracting over the bound variables of the context (defined ones are let-bound in
  *    its type and re-defined in its clauses), elaborated by the clause compiler with coverage, and
- *    checked for termination with the other functions;
+ *    checked for termination with the other functions ([[Lifting]]);
  *  - `c x̄ = e.` with a constructor `c` is an irrefutable pattern binding: each bound name is a
  *    lifted selector function with one clause `sel (c x̄) = xᵢ`, so coverage rejects refutable patterns.
  */
@@ -84,49 +84,16 @@ trait Where:
 
   private def constructorHead(lhs: Tree): Boolean = TreeOps.headName(lhs).exists(n => scope.get(n.name).exists(isConstructor))
 
-  /** The bound (not defined) variables of a context, as values, outermost first. */
-  private def boundVars(c: Cxt): List[Val] =
-    c.binders.reverse.zipWithIndex.collect { case (b, l) if b.defn.isEmpty => Val.local(l) }
-
-  /** Abstracts a type in context `c` over the context: Π for bound variables, let for defined ones. */
-  private def closeOver(c: Cxt, a: Tm): Tm =
-    c.binders.foldLeft(a) { (acc, b) =>
-      b.defn match
-        case Some(d) => Tm.Let(b.name, b.tyTm, d, acc)
-        case None => Tm.Pi(b.name, Icit.Expl, b.tyTm, acc)
-    }
-
-  /** A hidden global function of type `closeOver(c, a)`, and `c` extended by `name` defined as it applied
-   *  to the bound variables. */
+  /** A function lifted from `c` ([[Lifting]]) named `owner.name`, and `c` extended by `name` defined as
+   *  its value in `c`. */
   private def lift(c: Cxt, owner: Name, name: Name, a: Tm, span: Span, site: Span = Span.NoSpan): (Int, Cxt) =
-    val closed = closeOver(c, a)
-    val id = addGlobal(GlobalEntry(s"$owner.$name", eval(Nil, closed), closed, Stage.S1, GlobalKind.Function(-1, None), span))
-    val value = boundVars(c).foldLeft(globalValue(id))((f, v) => app(f, v, Icit.Expl))
+    val (id, value) = liftedFunction(c, s"$owner.$name", a, span)
     (id, local(define(c, name, ev(c, a), value, Some(Site(site, "local function")))))
-
-  /** The names of `c` re-expressed over the arguments of a function lifted from `c` (its first arguments
-   *  are the bound variables of `c`, whose values at a leaf are `args`). */
-  private def prelude(c: Cxt)(args: Vector[Val]): List[(Name, Val, Val)] =
-    var env = List.empty[Val]
-    var next = 0
-    for b <- c.binders.reverse do
-      b.defn match
-        case Some(d) => env = eval(env, d) :: env
-        case None =>
-          env = args(next) :: env
-          next += 1
-    val byLevel = env.reverse.toVector
-    c.scope.toList.sortBy(_._2).map { (n, l) =>
-      val ty = eval(env.drop(c.lvl - l), c.binder(l).tyTm)
-      (n, ty, byLevel(l))
-    }
 
   private def localFunction(c: Cxt, owner: Name, name: Ident, tpe: Tree, clauses: List[SurfaceClause], span: Span): Cxt =
     val a = checkType(c, tpe, Stage.S1)
     val (id, c2) = lift(c, owner, name.name, a, span, name.span)
-    val k = boundVars(c).length
-    val padded = clauses.map(cl => cl.copy(pats = List.fill(k)(Wildcard()(cl.span)) ++ cl.pats))
-    elabFunction(id, padded, prelude(c2))
+    elabFunction(id, padded(c, clauses), prelude(c2))
     c2
 
   /** `c x̄ = e.`: a selector function per bound name. */
