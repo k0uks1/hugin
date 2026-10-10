@@ -4,7 +4,7 @@ Decisions, deviations from the language definition draft (revision 7), and the a
 of the reference implementation, as they stand after the redesign (issue #40). Section numbers without a
 prefix refer to the definition draft; `REDESIGN` refers to [`docs/REDESIGN.md`](REDESIGN.md).
 
-These notes are a record, not the specification: the [language reference](https://k0uks1.github.io/hugin/) defines the language,
+These notes are a record, not the specification: the [language reference](https://k0uks1.github.io/hugin/reference/) defines the language,
 and where the two differ the reference applies. Notes that describe semantics the redesign replaced (the
 pre-redesign meta level, the data/fact split, relation modes and the built-in demand transformation,
 demand per call site, `%partial`) are in [`history/NOTES-pre-redesign.md`](history/NOTES-pre-redesign.md).
@@ -106,7 +106,7 @@ there, as it does when it solves a type parameter, so `L <> nil` with `L : list 
 ascription above with the missing parameters left for the user to fill in.
 
 Comparisons with constructor terms are structural, nested terms included (`L = cons 1 nil`); see the reference,
-[object/facts](https://k0uks1.github.io/hugin/object/facts.html).
+[object/facts](https://k0uks1.github.io/hugin/reference/object/facts.html).
 
 ### Brace disambiguation (Section 2.2)
 
@@ -1957,3 +1957,80 @@ not supported" is gone); E0915 (with a note) for a clause of a function the body
 for clauses of a body's object constant or definition. Goldens: `run/mc_member_functions` (with
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
+
+## The browser build (#58, batch W4)
+
+The compiler is built for the browser by Scala.js without moving sources (the no-move variant of
+`docs/design/website.md`, 4.3): the sbt project `web` compiles `src/main/scala` minus the JVM-only packages
+`cli`, `repl`, `lsp` and `platform`, plus `web/src/main/scala`. The cross-project layout (W3) can follow
+later; the JVM project neither depends on nor aggregates `web`.
+
+- *Platform.* The JS `hugin.platform.Platform` has no file system: `readFile` finds nothing, so an import
+  other than `std/` is E0108. The resources (standard library, `docs/errors`, `site-url.txt`) are a Scala
+  object generated at build time (`project/BundledResources.scala`), split into literals of 8000
+  characters because the Scala.js build still emits class files, whose constants are limited to 64 KB.
+  Paths follow `java.nio.file.Path` on Unix.
+- *Cancellation.* A deadline (`Platform.deadline`), set from the `budgetMs` option, ends an evaluation at
+  its next round with the ordinary "evaluation cancelled" (`cancelled: true` in the result). The
+  playground's budget does not need it: the page terminates the worker after 10 s, which stops
+  elaboration too.
+- *API.* `Hugin.check`, `Hugin.run` (source and options, an object or its JSON text) and `Hugin.phases`
+  return JSON text: the `--error-format=json` diagnostics with the lint levels applied, the
+  `--print-after` text, the answers (`query`, `vars`, `rows`), the shown relations (`name`, `rows`) and
+  `output`, which is what `hugin run` prints on stdout. `Hugin.serveWorker()` is an optional worker
+  message loop; the playground's `site/play/worker.js` calls `Hugin` directly. To return rows,
+  `Evaluation.Answers` keeps variables and rows (its `lines` are derived from them) and `Result` has
+  `relations`; the printed output is unchanged.
+- *Linking.* `fullLinkJS` runs the Closure Compiler only for a classic script (`ModuleKind.NoModule`), so
+  the bundle is a classic script (a classic worker loads it with `importScripts`); `web/bundle` adds
+  `hugin.mjs`, the same code followed by `export { Hugin }`.
+- *Guard.* The CI job "Browser build" links with warnings as errors and runs the single-file
+  `tests/run` programs (no facts file, no import outside `std/`) and `tests/json` through the bundle in Node
+  (`scripts/js-golden.mjs`), comparing with the `.check` files; it prints the bundle's size.
+- *Not in the browser yet.* Semantic tokens for highlighting (`hugin highlight` uses `lsp/Tokens`, which
+  depends on lsp4j's constants; it needs to move to a shared package first), facts files and multi-file
+  programs.
+
+## The website and the playground (#58, batch W5)
+
+Design: `docs/design/website.md` (round 2, approved with its prototype). The site is built by
+`site/build.mjs` into `_site/` and published by `.github/workflows/reference.yml` (now the workflow
+"Site"): the landing page at `/hugin/`, the reference at `/hugin/reference/`, the playground at
+`/hugin/play/`. CONTRIBUTING.md, "The website", lists the files and the local build. Decisions the design
+left open:
+
+- *URL move.* `reference/site-url.txt` is `https://k0uks1.github.io/hugin/reference/` and `site-url` in
+  `book.toml` is `/hugin/reference/`, so the error links of `hugin explain`, the LSP and the JSON
+  diagnostics point into the moved book. The goldens with these links changed only in the URL
+  (`tests/json/diagnostics.check`, `tests/repl/session.check`, six `tests/lsp/*.check`), and so did the
+  absolute links in the docs and `docs/errors`. The redirect pages are written by `site/build.mjs`, not
+  by mdBook's `[output.html.redirect]` (which writes inside the book): one page per HTML page of the
+  built book at its old path, a `<meta http-equiv="refresh">` to the relative new path, no script. The
+  book's `index.html` is not redirected (the landing page is there, and links to the reference), and its
+  `404.html` is the site's 404 page. A fragment of an old link is lost by the redirect (a meta refresh
+  does not carry it); the page is right, the position is its top.
+- *The landing example* is `site/example.hgn` with `site/example.check`; GoldenTests runs it like
+  `tests/run`, and the build fails if `hugin run` prints anything else. The highlighted HTML is
+  generated by `hugin highlight` at build time. The generated page is byte-identical to the approved
+  prototype.
+- *Highlighting in the editor.* `site/play/hugin-lang.js` interprets the VS Code grammar (bundled as
+  JSON) as a CodeMirror `StreamLanguage`: sticky regexes on the whole line (so lookbehind works), a stack
+  of open begin/end rules as the state, captures as separate tokens. Scopes map to the `hg-*` classes of
+  `hugin highlight`; scopes the compiler's lexical classes do not colour (`=`, `:`, `.`) stay plain. A
+  check without errors replaces them with the compiler's semantic tokens (if the bundle returns them) until
+  the next edit.
+- *Diagnostics.* Underlines and keyboard actions are `@codemirror/lint`'s; the line below the code (the
+  approved look) is a block widget with the fixes as buttons. Every edit clears what the compiler said,
+  since the spans no longer fit the text. Spans in `std/` files are not shown in the editor.
+- *The worker's API.* `site/play/worker.js` holds the only knowledge of the Scala.js facade (batch W4):
+  it loads `hugin.js` with `importScripts`, takes `Hugin` (or the top-level `run`) and calls
+  `run(source, optionsJson)` or `check(...)`, and `phases()`; `normalise` accepts a JSON string or an
+  object with `diagnostics` (the `--error-format=json` objects), `output`, `answers`
+  (`{query, vars, rows}`), `relations`, `printed` and `tokens`. Without a bundle the page says that the
+  compiler is not available.
+- *Budget.* The page's timer terminates the worker after 10 s and starts a new one. While a request runs,
+  Run is a Stop button that does the same.
+- *Line wrapping.* The editor wraps long lines: CodeMirror sizes its content to the longest line, so a
+  block widget with a long diagnostic would widen the editor past the card.
+- *Examples.* `site/examples.mjs` takes the reference's `hugin,run` blocks in the order of `SUMMARY.md`,
+  without those with a `facts` block or a relative `%import` (85 of 88), named after the nearest heading.

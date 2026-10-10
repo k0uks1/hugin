@@ -1,8 +1,8 @@
 package hugin.compiler
 
+import hugin.platform.Platform
 import hugin.syntax.{Parser, Program, Trees}
 import hugin.util.*
-import java.nio.file.{Files, InvalidPathException, Path}
 import scala.collection.mutable
 
 /** A parsed source file with its parse diagnostics. */
@@ -31,20 +31,12 @@ object SourceLoader:
   /** The text of a bundled standard library file. */
   def stdlib(path: String): Option[String] =
     if !path.startsWith(StdlibPrefix) then None
-    else
-      Option(getClass.getResourceAsStream("/hugin/stdlib/" + path.stripPrefix(StdlibPrefix))).map { in =>
-        try String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-        finally in.close()
-      }
+    else Platform.files.readResource("/hugin/stdlib/" + path.stripPrefix(StdlibPrefix))
 
   /** The text of a file: the bundled standard library, or a file on disk. */
   def read(path: String): Option[String] =
     if path.startsWith(StdlibPrefix) then stdlib(path)
-    else
-      try
-        val p = Path.of(path)
-        if Files.isRegularFile(p) then Some(Files.readString(p)) else None
-      catch case _: InvalidPathException => None
+    else Platform.files.readFile(path)
 
   /** Reads and parses files directly (the standard library's parses are shared, [[StdlibCache]]). */
   val files: SourceLoader = path => read(path).map(text => StdlibCache.parsed(path, text))
@@ -55,20 +47,20 @@ object SourceLoader:
   def resolve(from: String, path: String): String =
     // the bundled standard library, whatever the importing file (reference: modules); a path that leaves
     // `std/` (`std/../x`) is an ordinary relative path
+    val fs = Platform.files
     val std = Option.when(path.startsWith(StdPrefix)) {
-      try Path.of(path).normalize.toString.replace('\\', '/')
-      catch case _: InvalidPathException => ""
+      try fs.normalize(path).replace('\\', '/')
+      catch case _: IllegalArgumentException => ""
     }.filter(_.startsWith(StdPrefix))
     if std.isDefined then
       val p = std.get
-      StdlibPrefix + (if Option(Path.of(p).getFileName).exists(_.toString.contains('.')) then p else p + ".hgn")
+      StdlibPrefix + (if fs.fileName(p).exists(_.contains('.')) then p else p + ".hgn")
     else
       try
-        val hasExt = Option(Path.of(path).getFileName).exists(_.toString.contains('.'))
+        val hasExt = fs.fileName(path).exists(_.contains('.'))
         val withExt = if hasExt then path else path + ".hgn"
-        val parent = Option(Path.of(from).getParent)
-        parent.map(_.resolve(withExt)).getOrElse(Path.of(withExt)).normalize.toString
-      catch case _: InvalidPathException => path
+        fs.resolveSibling(from, withExt)
+      catch case _: IllegalArgumentException => path
 
 /** The import graph of a program, from a walk of its imports in depth-first order (the prelude's
  *  imports first): `files` are the files to include in dependency order (a file after the files it
@@ -165,7 +157,7 @@ final class Library(val path: String):
   val name: String = Library.moduleName(path)
 
 object Library:
-  def moduleName(path: String): String = Path.of(path).getFileName.toString.takeWhile(_ != '.')
+  def moduleName(path: String): String = Platform.files.fileName(path).orNull.takeWhile(_ != '.')
 
   /** The imported files (not the prelude) with the qualifiers of their object constants: their module
    *  names, numbered where they clash. */
@@ -186,8 +178,8 @@ object Library:
 /** Resolving `%import` paths. */
 object ImportPaths:
   private[compiler] def normalize(path: String): String =
-    try Path.of(path).normalize.toString
-    catch case _: InvalidPathException => path
+    try Platform.files.normalize(path)
+    catch case _: IllegalArgumentException => path
 
   /** The resolved path of an import: relative to the file it is written in (the source of its span), or
    *  to `from` if it has no position. */

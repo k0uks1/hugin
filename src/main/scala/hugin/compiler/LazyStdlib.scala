@@ -65,10 +65,9 @@ object LazyStdlib:
    *  edit distance of at most a third of the written name's length, see `Names.similarName`). */
   private def mayResolve(written: Set[String], name: String): Boolean =
     written(name) || {
-      val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
       written.exists { w =>
         val limit = (w.length / 3).max(1)
         w.headOption.map(_.isUpper) == name.headOption.map(_.isUpper) && (w.length - name.length).abs <= limit &&
-        distance.apply(w, name).intValue <= limit
+        hugin.util.Levenshtein.distance(w, name) <= limit
       }
     }
