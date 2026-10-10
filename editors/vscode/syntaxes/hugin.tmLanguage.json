@@ -53,14 +53,23 @@
       "match": "@[a-z][A-Za-z0-9_']*"
     },
     "declaration": {
-      "comment": "the name declared by `name : ...` or `name (params) = ...` at the start of a line",
-      "match": "^\\s*([a-z][A-Za-z0-9_']*)(?=\\s*(?::(?!-)|=))",
-      "captures": { "1": { "name": "entity.name.function.declaration.hugin" } }
+      "comment": "the head of an item, which a declaration declares and a clause, fact or rule defines: its first name in column 0 or after the period of an item on the same line (`expr : type. typ : type.`); and an indented `name : ...` or `name ... =` (a member of a module body)",
+      "patterns": [
+        {
+          "match": "(?:^|(?<=\\.\\s))\\s*(?!(?:where|not|as|with|type|rel|prop|data|count|sum|min|max)(?![\\w']))([a-z][A-Za-z0-9_']*)(?![\\w']|\\.[a-z])",
+          "captures": { "1": { "name": "entity.name.function.declaration.hugin" } }
+        },
+        {
+          "match": "^\\s+([a-z][A-Za-z0-9_']*)(?=\\s*(?::(?!-)|=))",
+          "captures": { "1": { "name": "entity.name.function.declaration.hugin" } }
+        }
+      ]
     },
     "keyword": {
       "patterns": [
-        { "name": "storage.type.hugin", "match": "(?<![\\w'])(?:type|mod|rel|prop)(?![\\w'])" },
-        { "name": "storage.type.meta.hugin", "match": "(?<![\\w'])(?:Type|data)(?![\\w'])" },
+        { "name": "storage.type.hugin", "match": "(?<![\\w'])(?:type|rel|prop)(?![\\w'])" },
+        { "name": "storage.type.meta.hugin", "match": "(?<![\\w'])(?:Type[₀-₉]*|data)(?![\\w'])" },
+        { "name": "support.type.base.hugin", "match": "(?<![\\w'])(?:int|float|string)(?![\\w'])" },
         { "name": "keyword.other.where.hugin", "match": "(?<![\\w'])where(?![\\w'])" },
         { "name": "keyword.operator.word.hugin", "match": "(?<![\\w'])(?:not|as|with)(?![\\w'])" },
         { "name": "support.function.aggregate.hugin", "match": "(?<![\\w'])(?:count|sum|min|max)(?![\\w'])" }

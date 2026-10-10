@@ -409,6 +409,12 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
   variable, adding missing clauses, the expansion of directives and functor applications (command
   `hugin.expansion`, code lenses), and type-directed, quote-aware completion.
 
+The semantic tokens (`hugin.lsp.Tokens`) also highlight the code blocks of the language reference: the
+internal command `hugin highlight` (`cli/Highlight`) computes them for a JSON array of snippets, with
+lexical classes for the text they do not cover, and the mdBook preprocessor `reference/highlight.py`
+renders them as HTML at build time (`reference/README.md`, "Highlighting"). A change to the tokens
+changes the reference's highlighting as well; the book is built in CI after `sbt stage`.
+
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 
 - *staging* (recorded when the object items are staged): object code passed where meta code is expected is
@@ -450,7 +456,8 @@ like the golden tests, with `HUGIN_UPDATE_CHECKS=1`.
 [`editors/vscode`](editors/vscode) is a minimal VS Code extension: the language configuration
 (`(* *)` comments, brackets), a TextMate grammar
 ([`hugin.tmLanguage.json`](editors/vscode/syntaxes/hugin.tmLanguage.json), also usable by other editors
-and GitHub Linguist) and a client that starts `hugin lsp`. To try it:
+and GitHub Linguist) and a client that starts `hugin lsp`; the grammar is the base layer under the
+server's semantic tokens, so a change to the lexical syntax updates it. To try the extension:
 
 ```
 sbt stage                                    # or let bin/hugin stage on first use

@@ -13,6 +13,12 @@ create-missing = false
 [preprocessor.error-index]
 command = "python3 error-index.py"
 
+# semantic highlighting of the `hugin` code blocks by the compiler (needs `sbt stage`; see README.md),
+# after the error index so that its pages are highlighted too
+[preprocessor.highlight]
+command = "python3 highlight.py"
+after = ["error-index"]
+
 [output.html]
 # the path of the published site (site-url.txt holds the full URL); used for the 404 page
 site-url = "/hugin/"

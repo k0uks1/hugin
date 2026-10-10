@@ -73,6 +73,7 @@ object Main:
       val protocol = java.io.FileOutputStream(java.io.FileDescriptor.out)
       System.setOut(System.err)
       HuginLanguageServer.serve(System.in, protocol)
+    case Command.Highlight => Highlight.main(in, out, err)
 
   /** Loads a file into the database; false if it does not exist. */
   private def load(db: Database, file: String): Boolean =

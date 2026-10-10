@@ -11,7 +11,8 @@ reference/
   src/**/*.md      the chapters
   src/errors/index.md  the error index (its code pages are generated, see below)
   error-index.py   mdBook preprocessor that generates the error index
-  hugin.css        small adjustments to the default theme
+  highlight.py     mdBook preprocessor that highlights the Hugin code blocks with the compiler
+  hugin.css        small adjustments to the default theme, and the colours of the highlighting
   site-url.txt     the URL of the published book
 ```
 
@@ -21,9 +22,15 @@ Install mdBook 0.5.4 (`cargo install mdbook --version 0.5.4 --locked`, or a rele
 then, from the repository root:
 
 ```
+sbt stage                     # the compiler, which highlights the code blocks (once, and after changes)
 mdbook build reference        # writes reference/book/index.html
 mdbook serve reference --open # rebuilds on change
 ```
+
+Without a staged compiler (`target/universal/stage/bin/hugin`) the build stops with a message saying so.
+`HUGIN=<launcher>` names another one, relative to the repository root unless absolute: with
+`HUGIN=bin/hugin mdbook build reference`, `bin/hugin` stages the compiler on first use. Re-stage after
+changing the compiler, or the book shows the old highlighting.
 
 The links are checked in CI with [lychee](https://lychee.cli.rs/) (offline: internal links and anchors):
 
@@ -52,6 +59,38 @@ separated by commas:
 A ` ```facts ` block right after a `hugin` block is loaded as its input facts; for `run` it comes before
 the ` ```output ` block. Unknown attributes fail the test. Blocks in other languages (`text`, `output`,
 ...) are not checked. Every example is a complete program: there are no hidden lines.
+
+## Highlighting
+
+The Hugin code blocks are highlighted by the compiler, with the semantic tokens of the language server:
+a name is coloured by what it is (a type, a relation, a constructor, a meta function, a variable, ...),
+not by how it looks. `highlight.py`, an mdBook preprocessor that runs after `error-index.py` (so the
+error pages are included), collects every block whose info string starts with `hugin` and pipes them, as
+one JSON array, to `hugin highlight`, an internal command of the compiler (one JVM for the whole book;
+`src/main/scala/hugin/cli/Highlight.scala`). For each block it returns the text cut into runs with
+classes:
+
+- the semantic tokens exactly as `hugin lsp` sends them (`hugin.lsp.Tokens`): the token type
+  (`type`, `struct`, `function` for relations, `enumMember` for constructors, `method` for meta functions,
+  `class` for meta families, `namespace`, `macro` for formula functions, `parameter`, `variable`,
+  `decorator` for directives, `keyword` and `operator` for quotes and splices, `label` for holes) and its
+  modifiers (`declaration`, `meta`, `object`, `defaultLibrary`);
+- for the text these do not cover, lexical classes from the compiler's lexer: `comment`, `string`,
+  `number`, `keyword`, `operator` (`:-`, `?-`, `->`, `<:`, `::`), `decorator`, `variable`, `type` (the
+  universe `Type`) and `label` (rule names).
+
+Each block is compiled as the reference tests compile it: as a program of its own, with the prelude
+(without it for the `elaborate` blocks of `docs/errors`); `std/` imports work as in a test. Blocks that
+do not compile (`compile_fail`, `ignore`, fragments) keep the lexical classes and whatever the compiler's
+recovery resolved. The preprocessor replaces the fence with `<pre><code class="hugin hljs nohighlight">`
+and a `<span class="hg-<class> ...">` per run; mdBook passes the HTML through, highlight.js skips the block
+(`nohighlight`; a `language-hugin` class would make it warn about an unknown language), and the
+copy button copies the text. `hugin.css` colours the classes for each mdBook theme from the palette of
+its highlight.js theme; declarations are bold, meta parameters italic.
+
+The Markdown sources keep their fences and attributes: the tests read the sources, not the HTML.
+Editors highlight with the TextMate grammar of the VS Code extension
+(`editors/vscode/syntaxes/hugin.tmLanguage.json`) under the language server's semantic tokens.
 
 ## The error index
 

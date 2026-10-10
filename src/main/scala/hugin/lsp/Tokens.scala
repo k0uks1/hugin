@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters.*
 /** Semantic tokens: what the semantic index knows about names (declarations, references, object
  *  variables), classified by level, and the meta level's own syntax, from the tokens of the file:
  *  directives `%d`, the delimiters of reflection quotes `'( … )`, splices and quote holes `$`, `$..`,
- *  lifts `⇑` and typed holes `?`.
+ *  lifts `⇑` and typed holes `?`, and the built-in base types `int`, `float` and `string`.
  *
  *  Types tell what a name is (a relation, an object or meta constructor, a meta function, an inductive
  *  family, …); the modifiers `meta` and `object` tell its level, `declaration` its declaration and
@@ -64,8 +64,15 @@ object Tokens:
 
   private final case class Tok_(span: Span, tpe: Int, mods: Int, priority: Int)
 
-  /** The tokens of a program file, encoded relative to the previous token as the protocol requires. */
-  def of(ix: SemanticIndex, source: SourceFile, path: String): SemanticTokens =
+  /** A classified range of a file: its type (an index into [[types]]) and modifiers (a bit set over
+   *  [[modifiers]]). */
+  final case class Classified(span: Span, tpe: Int, mods: Int):
+    def typeName: String = types(tpe)
+    def modifierNames: List[String] = modifiers.zipWithIndex.collect { case (m, i) if (mods & (1 << i)) != 0 => m }
+
+  /** The tokens of a program file, sorted and without overlaps (where two overlap, the first and then
+   *  the more specific wins). */
+  def tokens(ix: SemanticIndex, source: SourceFile, path: String): List[Classified] =
     def inFile(sp: Span) = sp.exists && sp.source.path == path
     val decls = ix.symbols.filter(s => inFile(s.span) && s.span.text == s.name).map { s =>
       val (t, m) = classify(ix, s)
@@ -76,12 +83,20 @@ object Tokens:
       Tok_(r.span, t, m, 0)
     }
     val vars = ix.variables.filter(v => inFile(v.span) && v.span.text == v.display).map(v => Tok_(v.span, 7, Object, 0))
-    val tokens = (lexical(source) ++ decls ++ uses ++ vars).sortBy(t => (t.span.start, -t.priority, -(t.mods & Declaration)))
+    val sorted = (lexical(source) ++ decls ++ uses ++ vars).sortBy(t => (t.span.start, -t.priority, -(t.mods & Declaration)))
+    val out = mutable.ListBuffer.empty[Classified]
+    var prevEnd = -1
+    for t <- sorted if t.span.start >= prevEnd && t.span.end > t.span.start do
+      out += Classified(t.span, t.tpe, t.mods)
+      prevEnd = t.span.end
+    out.toList
+
+  /** The tokens of a program file, encoded relative to the previous token as the protocol requires. */
+  def of(ix: SemanticIndex, source: SourceFile, path: String): SemanticTokens =
     val data = mutable.ArrayBuffer.empty[Integer]
     var prevLine = 0
     var prevChar = 0
-    var prevEnd = -1
-    for t <- tokens if t.span.start >= prevEnd && t.span.end > t.span.start do
+    for t <- tokens(ix, source, path) do
       val pos = Positions.position(t.span.source, t.span.start)
       val line = pos.getLine
       val char = pos.getCharacter
@@ -90,10 +105,12 @@ object Tokens:
       data ++= List(line - prevLine, if line == prevLine then char - prevChar else char, length, t.tpe, t.mods).map(Int.box)
       prevLine = line
       prevChar = char
-      prevEnd = t.span.end
     SemanticTokens(data.asJava)
 
-  /** The meta level's syntax, from the tokens of the file: these come first at their positions. */
+  private val baseTypes = hugin.obj.BaseType.values.map(_.show).toSet
+
+  /** The meta level's syntax, from the tokens of the file: these come first at their positions; and the
+   *  built-in base types `int`, `float`, `string`. */
   private def lexical(source: SourceFile): List[Tok_] =
     val toks = Lexer(source, Reporter()).tokenize().toVector
     val out = mutable.ListBuffer.empty[Tok_]
@@ -112,5 +129,7 @@ object Tokens:
           out += Tok_(span, 10, Meta, 2)
         case Tok.Up => out += Tok_(t.span, 10, Meta, 2)
         case Tok.Hole => out += Tok_(t.span, 13, Meta, 2)
+        // the built-in base types, which the index does not record: last, so a name declared like one wins
+        case Tok.Name if baseTypes(t.text) => out += Tok_(t.span, 1, Object | Library, -1)
         case _ =>
     out.toList
