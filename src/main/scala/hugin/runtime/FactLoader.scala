@@ -53,10 +53,10 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
     val vs = args.zip(c.cols).map((a, col) => value(a, col.tpe)).toArray[Any]
     engine.store(prog.tag(c)).intern(vs)
 
-  def load(src: SourceFile): Int =
-    // a file in the common form is read by the fact reader, any other by the program parser, which
-    // reports its syntax errors (both give the same trees where the reader applies)
-    val items = FactReader.read(src).getOrElse(Parser.parse(src, reporter).items)
+  def load(src: SourceFile): Int = load(FactLoader.parse(src, reporter))
+
+  /** Loads the items of a parsed facts file ([[FactLoader.parse]]). */
+  def load(items: List[Item]): Int =
     var count = 0
     // a fact with a syntax error is not loaded (the parser reported it)
     for item <- items if !hugin.syntax.TreeOps.hasSyntaxErrors(item) do
@@ -81,3 +81,8 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
           case other => err(InputError.NotAFact(other.span))
       catch case _: Bad => ()
     count
+
+object FactLoader:
+  /** The items of a facts file. A file in the common form is read by the fact reader, any other by the
+   *  program parser, which reports its syntax errors (both give the same trees where the reader applies). */
+  def parse(src: SourceFile, reporter: Reporter): List[Item] = FactReader.read(src).getOrElse(Parser.parse(src, reporter).items)

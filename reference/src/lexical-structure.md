@@ -143,7 +143,9 @@ Item      ::= Declaration | Definition | Clause | SubtypeEdge
 The productions of the items are given in the chapters that define them:
 [declarations](object/declarations.md), [subtyping edges](object/types.md#open-types),
 [rules](object/rules.md), [queries](object/io.md#queries), [definitions and clauses](meta/clauses.md)
-and [directives](directives.md). Several items may share a line.
+and [directives](directives.md). Several items may share a line. An item that starts with names
+separated by commas, `a, b, c`, is a rule with several heads, or a
+[declaration of several names](object/declarations.md#syntax) if a `:` follows the names.
 
 An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
 of `$`, `⇑`, `^`, `not` or a unary `-`, the content of a staging quote `<t>`, the body of a lambda `[x] e`, the formula of a query after `?-` or the body of a rule

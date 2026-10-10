@@ -245,7 +245,7 @@ the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `web/sr
 - `hugin.platform.Platform` for JS: no file system, the bundled resources (the standard library, the error
   explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
   path arithmetic on strings, and cancellation by a deadline;
-- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.phases`; results as JSON, documented in
+- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.phases`; results as JSON, documented in
   `Hugin.scala`) and the Web Worker entry (`WorkerMain.scala`).
 
 ```
@@ -367,8 +367,10 @@ src/main/scala/hugin/
   query/           the query database (Database), the compiler's queries (CompilerQueries), diagnostics by
                    file (FileDiagnostics), position queries for tooling (Ide), the meta level for
                    language servers (MetaIde: types, stages, goals; Expansion: staged code)
+  ide/             semantic tokens (Tokens) and the highlighting of a program as classed runs
+                   (Highlighting), shared by the language server, `hugin highlight` and the playground
   lsp/             the language server (lsp4j): server and document state, request handlers (Features,
-                   MetaFeatures for the meta level, Tokens), position conversion (Positions), file URIs (Uris)
+                   MetaFeatures for the meta level, Tokens: the protocol's encoding), position conversion (Positions), file URIs (Uris)
   repl/            the interactive session (Session, testable without a terminal; its parts are Chunks),
                    the reading of inputs (Input) and the JLine front end (Repl)
   cli/             command-line parsing and the entry point (a client of the query database)
@@ -388,7 +390,8 @@ src/main/scala/hugin/
 - Compiler queries: `SourceText` (input, by path) → `Parse` → `ParseProgram` → `Compile` → `Evaluate`
   (program and facts files); in between, libraries and the program's items are queries of their own
   (see below). The CLI is a client of the database. Editing a facts file re-evaluates
-  without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
+  without recompiling; adding a query recompiles without re-evaluating (`Fixpoint`, keyed on the
+  lowered rules). A program may be made of several files (the input `Composite`, used by the REPL):
   their items form one module body, and each item keeps its file for diagnostics and for resolving its
   `%import`s.
 - `SemanticIndex`, filled by the elaborator and staging (with object typing), records which symbol every name resolves
@@ -427,11 +430,14 @@ after an edit. See `docs/INCREMENTALITY.md` (issue #4).
 [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) over stdin and stdout
 (`hugin.lsp`, built on [LSP4J](https://github.com/eclipse-lsp4j/lsp4j)). It is a client of the query
 database: an open document's text is its `SourceText` input, files that are not open (imports) are read
-from disk, and every request is answered by `Ide` on the memoised compilation. It provides
+from disk, and every request is answered by `Ide` on the memoised compilation. Its work runs on one
+worker thread under a lock, off lsp4j's message thread: an edit cancels the computation for the previous
+text at its next query boundary (`Database.cancellation`), so a burst of keystrokes costs one
+compilation, and diagnostics of a superseded text are never published (`lsp/Worker.scala`). It provides
 
 - diagnostics for every open document and for the files it imports, published per file (`FileDiagnostics`:
-  an imported file's on its own URI, from the queries that elaborated it; those of a file that is not
-  open are sent again only when they changed, and cleared when they disappear), with the code, the
+  an imported file's on its own URI, from the queries that elaborated it; a file's diagnostics are sent
+  only when they changed, and cleared when they disappear), with the code, the
   primary label as the range, notes and helps in the message, and secondary labels and the meta-level
   expansion chain as related information (singleton variables and unused definitions are shown faded);
 - hover: the meta type of a definition or path, the inferred object type of a variable, and what the
@@ -445,9 +451,11 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
   variable, adding missing clauses, the expansion of directives and functor applications (command
   `hugin.expansion`, code lenses), and type-directed, quote-aware completion.
 
-The semantic tokens (`hugin.lsp.Tokens`) also highlight the code blocks of the language reference: the
+The semantic tokens (`hugin.ide.Tokens`; `hugin.lsp.Tokens` encodes them for the protocol) also
+highlight the code blocks of the language reference, the landing page's examples and the playground: the
 internal command `hugin highlight` (`cli/Highlight`) computes them for a JSON array of snippets, with
-lexical classes for the text they do not cover, and the mdBook preprocessor `reference/highlight.py`
+lexical classes for the text they do not cover (`ide/Highlighting`, which the browser build's
+`Hugin.highlight` and the `tokens` of `Hugin.run` and `Hugin.check` use too), and the mdBook preprocessor `reference/highlight.py`
 renders them as HTML at build time (`reference/README.md`, "Highlighting"). A change to the tokens
 changes the reference's highlighting as well; the book is built in CI after `sbt stage`.
 
@@ -718,7 +726,8 @@ python3 -m http.server -d /tmp/serve 8000    # http://localhost:8000/hugin/
 
 `site/build.mjs` fails if `hugin run site/<example>.hgn` does not print `site/<example>.check`. It
 highlights the examples with `hugin highlight`, as the reference's code blocks are, so the landing page
-carries spans; its tabs are radio buttons styled by CSS. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
+carries spans; its tabs are radio buttons styled by CSS. Every reference to a CSS or JS file (and to `examples.json`) gets
+`?v=<content hash>`, so a deploy never mixes new pages with cached old assets. `HUGIN_JS=<file>` adds the compiler bundle linked by Scala.js (`play/hugin.js`);
 without it the playground shows that the compiler is not available. The book's absolute paths start
 with `/hugin/reference/` (`site-url` in `book.toml`), so serve `_site/` under `/hugin/`. CI checks the
 links of `_site/` with lychee (`.github/workflows/reference.yml`).

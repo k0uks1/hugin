@@ -137,7 +137,8 @@ object BenchSet:
     golden("f_modules"),
     golden("c1_roundtrip"),
     golden("c2_module_wide"),
-    BenchProgram("run meta_scaled", "bench/meta/meta_scaled.hgn")
+    BenchProgram("run meta_scaled", "bench/meta/meta_scaled.hgn"),
+    BenchProgram("run nat_literals", "bench/meta/nat_literals.hgn")
   )
 
   val datalog: List[BenchProgram] = List(

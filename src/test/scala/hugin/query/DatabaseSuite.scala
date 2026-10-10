@@ -19,6 +19,46 @@ class DatabaseSuite extends munit.FunSuite:
   object Loop extends Query[Int, Int]("loop"):
     def compute(n: Int)(using db: Database): Int = if n == 0 then db(Loop, 1) else db(Loop, 0)
 
+  /** Whether `body` was cancelled ([[Cancelled]] is a control throwable, which `intercept` passes on). */
+  private def cancelled(body: => Any): Boolean =
+    try
+      body
+      false
+    catch case _: Cancelled => true
+
+  test("a cancelled computation stores no memo of the queries it unwinds; completed ones stay valid") {
+    val db = Database()
+    db.set(Text, "a", "hello")
+    db.set(Text, "b", "xy")
+    // `Total` demands `Length a`, then `Length b`; the computation is cancelled after the first
+    var cancel = false
+    db.cancellation = () => cancel
+    object Watch extends Query[String, Int]("watch"):
+      def compute(key: String)(using db: Database): Int =
+        val n = db(Length, key)
+        cancel = true
+        n
+    object Both extends Query[Unit, Int]("both"):
+      def compute(key: Unit)(using db: Database): Int = db(Watch, "a") + db(Length, "b")
+    assert(cancelled(db(Both, ())))
+    assertEquals(db.memoCount(Both), 0)
+    assertEquals(db.memoCount(Watch), 1) // completed before the check that failed
+    assertEquals(db.memoCount(Length), 1) // `Length b` was not computed
+    // the database is consistent: once no longer cancelled, the result equals one from scratch and
+    // only the unwound query and what it had not reached are computed
+    cancel = false
+    db.cancellation = Database.neverCancelled
+    db.stats.reset()
+    assertEquals(db(Both, ()), 7)
+    assertEquals(db.stats.computedBy.toMap, Map("both" -> 1, "length" -> 1))
+    // a cancelled recomputation keeps the earlier memo, which is verified again on the next demand
+    db.set(Text, "b", "xyz")
+    db.cancellation = () => true
+    assert(cancelled(db(Both, ())))
+    db.cancellation = Database.neverCancelled
+    assertEquals(db(Both, ()), 8)
+  }
+
   test("queries are memoised within a revision") {
     val db = Database()
     db.set(Text, "a", "hello")

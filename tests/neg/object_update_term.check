@@ -1,0 +1,7 @@
+error[E0303]: update applies only to variables
+ --> tests/neg/object_update_term.hgn:5:8
+  |
+5 | sale ((item "pen" 2) with { price = 1 }). (*~ E0303 *)
+  |        ^^^^^^^^^^^^
+
+1 error found
