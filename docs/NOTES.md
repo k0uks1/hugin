@@ -1905,3 +1905,50 @@ mechanical part with `scripts/check-reference-impact.sh`: a pull request that to
 `obj/`, `runtime/`, `Code.scala` or the bundled library must also touch `reference/src/` or
 `docs/errors/`, or carry the line `Reference: no change, <reason>` in its description. `CLAUDE.md` repeats
 the rule for agents.
+
+## A meta function's recursion on the heap (#129)
+
+`LongListsSuite`'s `mirror` over 400 items on a 1 MiB thread failed about one run in five with a
+`StackOverflowError`. The repeating frames, ~17 per item, are the meta function's own recursion, which #88
+recorded as proportional to the length: `Evaluation.eval` (the body `I :: mirror Rest`, nested
+applications) -> `Evaluation.app` -> `Evaluation.rigid` -> `Matching.reduceFunction` -> `Matching.runTree`
+-> `Evaluation.eval`, plus the trait forwarders (`Core.eval`, `Evaluation.eval$`, …). The depth is fixed
+(400 levels), the bytes per frame are not: an interpreted frame is several times larger than a compiled
+one and C2 inlining merges frames, so whether 400 levels fit depended on how much of the evaluator the
+JIT had compiled when the test ran. With `-Xint` the base commit overflows every run; cold, from ~590
+items. The Scala.js build (#58) overflows the same way: from ~1 500 items on node's default stack, and
+at 400 with `--stack-size=200`.
+
+Decisions:
+
+* **No stack extension.** A first fix ran every 64th level on a new thread with a large stack; it was
+  reverted: there are no threads in the browser build, and the designer's rule excludes JVM tricks.
+* **An explicit continuation stack on the hot path only** (`core/Machine.scala`). The steps that recur
+  per element are one loop with three modes (evaluate a term, apply a value, return a value to the top
+  frame), and what remains after a value is a heap frame: `KArg` (evaluate the argument, then apply),
+  `KApp` (apply a function to the value), `KLet`, `KMemo` (memoise a function's result), `KElim` (apply
+  an argument beyond a function's arity), `KTop` (fold the value as a definition's unfolding). The loop
+  covers `Tm.App`, `Tm.Let`, a λ applied (its body continues in the loop), a folded definition applied,
+  and a function defined by clauses: `Matching.matchFunction` runs the case tree (already a loop) and
+  returns the body to evaluate with its environment (`Reduct`), or the memoised value, or `Stuck`; the
+  machine evaluates the body in the same loop. Everything else is one step of `Evaluation.evalNode`, the
+  old evaluator, whose recursion is bounded by the size of the term (quotes, object code, records); its
+  subterms go through `eval`, which enters the machine for an application. `app` itself is the machine,
+  so `force`, unification and `appSp` are stack-safe in the same way; `reduceFunction` (used by `force`
+  on stuck applications) evaluates a `Reduct` with the machine too.
+* **Same order of evaluation** as the recursive evaluator: the function, then the argument, then the
+  application; a function's result is memoised before the arguments beyond its arity are applied. The
+  fresh-name counter and the observed staging therefore see the same sequence (the goldens, LSP
+  transcripts and tooling suites are unchanged). #88's `evalArgChain` (a loop for argument chains such as
+  list data) is subsumed and removed.
+* **Fast path**: an application whose function and argument are atomic (a variable, a global, a meta, a
+  λ, a literal: no effects, no subterm evaluated) is applied without allocating a frame; `eval` of any
+  other non-application term calls `evalNode` directly without starting a loop.
+* **Not a CEK machine for the whole evaluator**: environments stay `List[Val]` and closures stay
+  `Closure`, values are unchanged, and the cases that do not recur per data element keep native
+  recursion; a full defunctionalisation (`force`, `quote`, unification) is not needed for the depth of a
+  computation, only for the size of a term.
+
+Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thread, and the 400 items in a
+child JVM run with `-Xint` (the largest frames). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
+the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).

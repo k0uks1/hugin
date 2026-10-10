@@ -113,7 +113,7 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
-final class Core private (val levels: Levels) extends Evaluation with Matching with Families with Modules with Requirements
+final class Core private (val levels: Levels) extends Evaluation with Machine with Matching with Families with Modules with Requirements
     with Readback with Renaming with Unification with Printing with Primitives with MemoKeys:
   def this() = this(Levels())
 
