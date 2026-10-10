@@ -93,7 +93,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
    *  the construct is then an error node ([[damaged]]). */
   protected def close(open: Token, closer: Tok, context: Option[Context] = None): Boolean =
     val multiLine = openerEndsLine(open)
-    if at(closer) && !(multiLine && strayCloserAt(open, closer)) then
+    if at(closer) && !strayCloserAt(open, closer, multiLine) then
       advance()
       true
     else
@@ -155,8 +155,10 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
    *  to the damaged item (the members of a module body whose `{` was lost; issue #83). A token in column 0
    *  ends the skip also inside a delimiter opened in the skipped text, unless it closes one (`}` closing a
    *  body over several lines): a stray `{` does not take the rest of the file (`%use "f" {.`). `depth` is
-   *  that of the skip's start, inside delimiters already skipped. */
-  protected def skipItem(start: Int = 0): Unit =
+   *  that of the skip's start, inside delimiters already skipped. Skipping junk between items
+   *  (`directives`), a directive ends the skip: it starts the next item (`%use "a". : %use "b".`); in the
+   *  rest of an item it is junk too (`f = %output '( … )`). */
+  protected def skipItem(start: Int = 0, directives: Boolean = false): Unit =
     var depth = start
     var done = false
     def closing = kind == Tok.RParen || kind == Tok.RBrack || kind == Tok.RBrace
@@ -169,8 +171,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
           advance()
           done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)
         // a directive (other than the expressions `%import` and `%builtin`, and `%complete` of a signature)
-        // starts an item: the skip ends before it (`%use "a". : %use "b".`)
-        case Tok.Directive if depth == 0 && startsDirectiveItem(tok) => done = true
+        case Tok.Directive if directives && depth == 0 && startsDirectiveItem(tok) => done = true
         case _ => advance()
 
   /** The items of a file, a module body or a `where` block, while `more` holds: each item is a recovery
@@ -203,7 +204,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
         // body that ended early): the period is that item's end, not a mistake of its own (issue #83)
         if t.kind == Tok.RBrace && at(Tok.Period) && tok.span.startLine == t.span.startLine then advance()
         else if opensBody then skipItem(start = 1)
-        else if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem()
+        else if t.kind != Tok.Period && t.kind != Tok.RBrace then skipItem(directives = true)
     (items.toList, clean)
 
 object ParserBase:

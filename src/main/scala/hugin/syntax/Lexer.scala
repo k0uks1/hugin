@@ -269,6 +269,10 @@ final class Lexer(src: SourceFile, reporter: Reporter):
     var bad = false
     while !done do
       if pos >= s.length || peek() == '\n' then
+        // a comment opener in it was not meant as text (a stray `"` before `(* … *)`): the string ends
+        // before it, so that the comment stays one, also over several lines
+        val comment = s.indexOf("(*", start + 1)
+        if comment >= 0 && comment < pos then pos = comment
         err(SyntaxError.UnterminatedString(_), start, pos)
         done = true
         bad = true

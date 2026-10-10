@@ -1,0 +1,12 @@
+(* In a quote, `:-` belongs to its entry: a `:-` inside parentheses means that their `)` is missing. The
+   `(` is reported unclosed (E0005, one error), and the entry goes on with its body, so the quote keeps its
+   own `)` and the clause its `where` block. *)
+%use "std/reflect".
+expr : type. typ : type. ctx : type.
+neg : expr -> expr.
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+asked : (e : expr) -> (g : ctx) -> rel.
+guard : rule -> list rule.
+guard '( typed (neg $E $G $T :- $..B ) = ['( asked $sub $G :- asked (neg $E) $G )] (*~ E0005 *)
+  where sub : quoted expr = E.
+guard R = [R].

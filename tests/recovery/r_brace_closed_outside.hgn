@@ -1,0 +1,15 @@
+(* A `{` whose enclosing construct closes before any `}` (here the parentheses around `arr S { T`) is
+   stray: it is reported unclosed (E0005, one error), and what follows it belongs to the enclosing
+   construct, so the quote and the items after it are read as before. *)
+%use "std/reflect".
+expr : type. ctx : type. typ : type.
+ref : string -> expr.
+app : expr -> expr -> expr.
+arr : typ -> typ -> typ.
+typed : expr -> ctx -> typ -> rel.
+lookup : ctx -> string -> typ -> rel.
+rules : list rule = '(
+  typed (ref X) G T :- lookup G X T.
+  typed (app F A) G T :- typed F G (arr S { T), typed A G S. (*~ E0005 *)
+).
+$rules.

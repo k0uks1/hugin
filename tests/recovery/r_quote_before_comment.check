@@ -1,0 +1,13 @@
+error[E0002]: unterminated string literal
+ --> tests/recovery/r_quote_before_comment.hgn:3:2
+  |
+3 |  "(* a comment over (*~ E0002 *)
+  |  ^ string starts here
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+color : type.
+red : color.
+b : int -> rel.
+b 1.
+%output b.

@@ -1,0 +1,13 @@
+(* A directive where an expression is expected is junk in the rest of the item, which is skipped with it
+   to its period (here after the `where` block): one error. Between items, a directive ends a skip
+   (r_stray_before_directive). *)
+%use "std/reflect".
+person : type. city : type. ann : person. oslo : city.
+lives : person -> city -> rel.
+born : city -> rel.
+lives ann oslo.
+born_where : (quoted city -> formula) -> rule.
+born_where F = %output '( born $c :- $(F c) ) (*~ E0001 *)
+  where c : quoted city = qvar "c".
+$[born_where ([p] '( lives _ $p ))].
+%output born.

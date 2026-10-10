@@ -1,0 +1,16 @@
+error[E0005]: unclosed `(`
+  --> tests/recovery/r_quote_unclosed_paren.hgn:10:29
+   |
+10 | guard '( typed (neg $E $G $T :- $..B ) = ['( asked $sub $G :- asked (neg $E) $G )] (*~ E0005 *)
+   |                -            ^ expected `)` here
+   |                this `(` is never closed
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+expr : type.
+typ : type.
+ctx : type.
+neg : expr -> expr.
+typed : (e : expr) -> (g : ctx) -> (t : typ) -> rel.
+asked : (e : expr) -> (g : ctx) -> rel.
+guard : rule -> list rule.

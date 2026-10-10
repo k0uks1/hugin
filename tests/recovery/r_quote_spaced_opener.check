@@ -1,15 +1,8 @@
 error[E0001]: unexpected character `'`
  --> tests/recovery/r_quote_spaced_opener.hgn:8:42
   |
-8 | guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *) (*~ E0005 *)
+8 | guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *)
   |                                          ^
-
-error[E0005]: unclosed `'(`
- --> tests/recovery/r_quote_spaced_opener.hgn:8:81
-  |
-8 | guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *) (*~ E0005 *)
-  |                                          ---                                    ^ expected `)` here
-  |                                          this `'(` is never closed
 
 error[E0001]: unexpected character `'`
   --> tests/recovery/r_quote_spaced_opener.hgn:10:17
@@ -17,7 +10,7 @@ error[E0001]: unexpected character `'`
 10 | spaced : rule = ' ( asked e0 g0 ). (*~ E0001 *)
    |                 ^
 
-3 errors found
+2 errors found
 (* ---------------- after elaborate ---------------- *)
 expr : type.
 ctx : type.

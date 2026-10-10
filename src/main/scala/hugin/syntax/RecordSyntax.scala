@@ -32,6 +32,11 @@ private[syntax] trait RecordSyntax extends ParserBase:
       // the enclosing construct
       expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
       ErrorTree(Nil)(open.span)
+    else if enclosingClosedFirst then
+      // `(arr S { T)`: the enclosing construct closes before any `}`: the `{` is stray and unclosed, and what
+      // follows it belongs to the enclosing construct
+      error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
+      ErrorTree(Nil)(open.span)
     else parseModuleBody(open)
 
   /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file if
@@ -44,9 +49,8 @@ private[syntax] trait RecordSyntax extends ParserBase:
         !at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)),
         unexpectedInBody
       ))
-    if at(Tok.RBrace) then
-      advance()
-      checked(ModuleBody(items)(spanFrom(open.span.start)), clean)
+    // `close`: the `}` may be stray (`{ }`⏎`a : t`⏎`}`)
+    if at(Tok.RBrace) then checked(ModuleBody(items)(spanFrom(open.span.start)), close(open, Tok.RBrace) && clean)
     else
       resync() // a mistake of its own, also after one in the last item
       error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
@@ -54,6 +58,21 @@ private[syntax] trait RecordSyntax extends ParserBase:
 
   private def unexpectedInBody(t: Token): SyntaxError =
     SyntaxError.Expected(List(Expect.item, Expect.Token(Tok.RBrace)), found, t.span, None)
+
+  /** After a brace: whether a `)` or `]` at depth 0 comes before a `}` or a period at depth 0. */
+  private def enclosingClosedFirst: Boolean =
+    var k = i
+    var depth = 0
+    while k < toks.length do
+      toks(k).kind match
+        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1
+        case Tok.RParen | Tok.RBrack => if depth == 0 then return true else depth -= 1
+        case Tok.RBrace => if depth == 0 then return false else depth -= 1
+        case Tok.Period if depth == 0 => return false
+        case Tok.EOF => return false
+        case _ =>
+      k += 1
+    false
 
   /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =

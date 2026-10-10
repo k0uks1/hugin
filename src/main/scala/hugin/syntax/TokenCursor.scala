@@ -57,15 +57,19 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
     while j > 0 && toks(j - 1).span.start >= open.span.end do j -= 1
     j < toks.length && toks(j).kind != Tok.EOF && toks(j).span.startLine > open.span.startLine
 
-  /** At `closer`, in a construct laid out over several lines: whether it is stray. Such a construct is
-   *  closed at the start of a line, at the indentation of the line of its opener; a closer that more of the
-   *  construct follows on its line (`[`⏎`1,`⏎`2 ] 3`⏎`]`) is stray if the next closer of its kind at depth 0
-   *  is laid out so. Not if an enclosing construct was opened on a line of that indentation: the later
-   *  closer may then be the enclosing one's (`m = { k = h {`⏎`a = 1 } 2.`⏎`}.`). */
-  protected def strayCloserAt(open: Token, closer: Tok): Boolean =
-    !atColumn0(i) && continuesLine(i) && {
+  /** At `closer`: whether it is stray, in a construct laid out over several lines (`multiLine`: its opener
+   *  ends its line) or one closed right after its opener. Such a construct is closed at the start of a
+   *  line, at the indentation of the line of its opener; a closer that more of the construct follows on
+   *  its line (`[`⏎`1,`⏎`2 ] 3`⏎`]`), or on the lines after it, indented (`{ }`⏎`a : t`⏎`}`), is stray if the
+   *  next closer of its kind at depth 0 is laid out so. Not if an enclosing construct was opened on a line
+   *  of that indentation: the later closer may then be the enclosing one's (`m = { k = h {`⏎`a = 1 } 2.`⏎`}.`). */
+  protected def strayCloserAt(open: Token, closer: Tok, multiLine: Boolean): Boolean =
+    val indent = indentation(open)
+    val goesOn =
+      if multiLine then !atColumn0(i) && continuesLine(i)
+      else toks(i - 1).span.end == open.span.end && startsLine(i + 1) && toks(i + 1).kind != Tok.EOF && toks(i + 1).span.startCol > indent
+    goesOn && {
       val k = closerAhead(closer, multiLine = true, from = i + 1)
-      val indent = indentation(open)
       k >= 0 && startsLine(k) && toks(k).span.startCol == indent && !enclosingOpener(open).exists(indentation(_) == indent)
     }
 

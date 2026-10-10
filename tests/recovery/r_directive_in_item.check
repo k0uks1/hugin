@@ -1,0 +1,17 @@
+error[E0001]: expected an expression, found `%output`
+  --> tests/recovery/r_directive_in_item.hgn:10:16
+   |
+10 | born_where F = %output '( born $c :- $(F c) ) (*~ E0001 *)
+   |                ^^^^^^^ expected an expression
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+person : type.
+city : type.
+ann : person.
+oslo : city.
+lives : person -> city -> rel.
+born : city -> rel.
+lives ann oslo.
+born_where : (quoted ⟨city⟩ -> formula) -> rule.
+%output born.

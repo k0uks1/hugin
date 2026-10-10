@@ -186,7 +186,7 @@ Recovery happens at the innermost construct that can continue:
 
 | construct | separator / end | on an unexpected token |
 |---|---|---|
-| file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period or the next token in column 0; a `{` (which no item starts with) at the end of its line, or whose `}` follows within the item, is skipped with its contents, to its `}` |
+| file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period, the next token in column 0 or a directive that starts an item; a `{` (which no item starts with) at the end of its line, or whose `}` follows within the item, is skipped with its contents, to its `}` |
 | query, rule body (after `?-`, `:-`) | formula | a token in column 0 is the next item: the formula is missing (`ErrorTree`), as for the operand of `⇑` |
 | item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token (also inside a delimiter opened in the skipped text, unless it closes one), or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
@@ -214,11 +214,13 @@ In a construct laid out over several lines (its opening delimiter ends its line)
 search: such a construct ends with its closer, laid out at the start of a line at the indentation of the
 line of its opener. There, a closer that more of the construct follows on its line, while the next closer
 of its kind at depth 0 is laid out so (`[`⏎`1,`⏎`2 ] 3`⏎`]`), is stray (``stray `]` ``, E0001) and skipped to
-the later one; not if an enclosing construct was opened on a line of the same indentation, whose closer
-the later one may be (`m = { k = h {`⏎`a = 1 } 2.`⏎`}.` is valid). Likewise a `}` in the middle of an item
-of a module body over several lines, which more of the item follows on its line (`same : t } -> rel.`),
-is stray if the body's `}` is laid out so later: the rest of the item is skipped. (A body's `}` follows
-the period of its last item, so this never applies to valid text.)
+the later one (so is the closer of a construct closed right after its opener, whose contents follow on
+the next lines, indented: `{ }`⏎`a : t`⏎`}`); not if an enclosing construct was opened on a line of the
+same indentation, whose closer the later one may be (`m = { k = h {`⏎`a = 1 } 2.`⏎`}.` is valid).
+Likewise a `}` in the middle of an item of a module body over several lines, which more of the item
+follows on its line (`same : t } -> rel.`), is stray if the body's `}` is laid out so later: the rest of
+the item is skipped. (A body's `}` follows the period of its last item, so this never applies to valid
+text.)
 
 - found: the tokens before it are junk; one error (``expected `)`, found …``) and they are skipped;
 - not found: the delimiter is missing. One error, *unclosed delimiter* (E0005), at the insertion point (the
@@ -315,6 +317,8 @@ label on the opener. Specific messages replace the generic one for common mistak
 | `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'( h :- b )` (#76) | — |
 | `}` without an open module body | unmatched `}` | — |
 | a broken list of names in `%use m (x, y).` | the error; the `%use` is damaged as one without a list (it might have opened any name) | — |
+| a `{` that the enclosing construct closes before any `}` (`(f { X)`) | ``unclosed `{` `` (E0005); what follows belongs to the enclosing construct | — |
+| `:-` inside parentheses in a quote (`'( p (f $X :- q )`) | ``unclosed `(` `` (E0005); the entry goes on with its body | — |
 | a token before the name of a declaration (`X sel : τ.`) | malformed declaration head (E0004); the declaration keeps the name after it, damaged | — |
 | `{` or `[` before a `,` (no braces or list start with one) | ``expected a label, an item or `}` `` (for `{`) or ``expected an expression`` (for `[`), ``found `,` ``; the opener is skipped, the rest belongs to the enclosing construct | — |
 | `]` in a list over several lines that goes on after it | ``stray `]` `` + "the construct goes on after this `]`" | — |

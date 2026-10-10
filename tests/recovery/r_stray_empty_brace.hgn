@@ -1,0 +1,10 @@
+(* A brace closed right after its opener, whose contents follow on the next lines, indented, up to a `}`
+   at the indentation of the line of the `{`: the first `}` is stray, one error, and the brace ends at the
+   later one instead of leaving its contents and `}` to be read as items. *)
+%export { } (*~ E0001 *)
+  color : type, red : color, paint : color -> rel
+}.
+color : type.
+red : color.
+paint : color -> rel.
+paint red.

@@ -271,6 +271,10 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val t = parseType()
         val closed = close(open, Tok.RParen)
         checked(Ascribe(inner, t)(spanFrom(start)), closed)
+      // in a quote, `:-` is its entry's: the `(` is unclosed (`'( p (f $X :- q )`), and the entry goes on
+      case Tok.Turnstile if bodyClosers.headOption.contains(Tok.RParen) =>
+        error(SyntaxError.Unclosed(open.text, open.span, ")", insertionPoint, found, tok.span))
+        damaged(inner)
       case Tok.Turnstile =>
         ruleOutsideQuote()
         close(open, Tok.RParen)
