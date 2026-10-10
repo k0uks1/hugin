@@ -1,0 +1,25 @@
+error[E0906]: no field `dmodule`
+ --> tests/neg/std_demand_hidden.hgn:4:12
+  |
+4 | helper = d.dmodule. (*~ E0906 *)
+  |            ^^^^^^^ unknown field
+  |
+  = note: `{ demand : (r : sym) -> modes (labels r) -> module -> module }` has the fields `demand`
+
+error[E0906]: no field `map`
+ --> tests/neg/std_demand_hidden.hgn:5:12
+  |
+5 | listed = d.map. (*~ E0906 *)
+  |            ^^^ unknown field
+  |
+  = note: `{ demand : (r : sym) -> modes (labels r) -> module -> module }` has the fields `demand`
+
+error[E0906]: no field `fneeds`
+ --> tests/neg/std_demand_hidden.hgn:6:14
+  |
+6 | analysed = d.fneeds. (*~ E0906 *)
+  |              ^^^^^^ unknown field
+  |
+  = note: `{ demand : (r : sym) -> modes (labels r) -> module -> module }` has the fields `demand`
+
+3 errors found

@@ -12,6 +12,11 @@ import scala.jdk.CollectionConverters.*
 class LazyStdlibSuite extends munit.FunSuite:
   private val Demand = SourceLoader.StdlibPrefix + "std/demand.hgn"
   private val Reflect = SourceLoader.StdlibPrefix + "std/reflect.hgn"
+  private val Lists = SourceLoader.StdlibPrefix + "std/list.hgn"
+  private val Directives = SourceLoader.StdlibPrefix + "std/directives.hgn"
+
+  /** The chain with `std/demand` and the files it imports. */
+  private val Full = List(Reflect, Lists, Directives, Demand, SourceLoader.PreludePath)
 
   private def program(text: String, path: String = "p.hgn"): (String, Program) =
     path -> Parsed(hugin.util.SourceFile.virtual(path, text)).program
@@ -32,8 +37,22 @@ class LazyStdlibSuite extends munit.FunSuite:
       "m = %import \"std/demand\".", // an import of the file
       "%use \"std/demand\"."
     )
-    for text <- uses do assertEquals(chain(text), List(Reflect, Demand, SourceLoader.PreludePath), text)
-    assertEquals(chain("p : int -> rel.", "q : int -> rel.\n%demand q +."), List(Reflect, Demand, SourceLoader.PreludePath))
+    for text <- uses do assertEquals(chain(text), Full, text)
+    assertEquals(chain("p : int -> rel.", "q : int -> rel.\n%demand q +."), Full)
+  }
+
+  test("a file that only `std/demand` imports is the program's library if the program imports it") {
+    def outside(texts: String*): List[String] =
+      val others = texts.toList.zipWithIndex.map((t, i) => program(t, s"f$i.hgn"))
+      val std = StdlibCache.bundledChain()
+      LazyStdlib.outside(std, LazyStdlib.chain(std, others, builtinNames = true), others).map(_.source.path)
+    assertEquals(chain("%use \"std/list\"."), List(Reflect, SourceLoader.PreludePath))
+    assertEquals(outside("%use \"std/list\"."), List(Lists))
+    assertEquals(outside("%use \"std/directives\"."), List(Lists, Directives))
+    assertEquals(outside("p : int -> rel.", "l = %import \"std/list\"."), List(Lists))
+    assertEquals(outside("p : int -> rel."), Nil)
+    assertEquals(chain("%use \"std/list\".\np : int -> rel.\n%demand p +."), Full)
+    assertEquals(outside("%use \"std/list\".\np : int -> rel.\n%demand p +."), Nil)
   }
 
   test("a name that is not similar enough does not count") {
@@ -46,9 +65,11 @@ class LazyStdlibSuite extends munit.FunSuite:
     assertEquals(LazyStdlib.chain(std, List(program("p : int -> rel.")), builtinNames = true), std)
   }
 
-  test("`std/demand` declares no object constants; `std/reflect` does (shared data)") {
+  test("`std/demand` declares no object constants; `std/reflect` (shared data) and `std/list` do") {
     val std = StdlibCache.bundledChain()
-    assert(!StdlibCache.declaresObjects(std.take(1), std(1), builtinNames = true))
+    assertEquals(std.map(_.source.path), Full)
+    assert(!StdlibCache.declaresObjects(std.take(3), std(3), builtinNames = true))
+    assert(StdlibCache.declaresObjects(std.take(1), std(1), builtinNames = true))
     assert(StdlibCache.declaresObjects(Nil, std.head, builtinNames = true))
   }
 
@@ -72,10 +93,10 @@ class LazyStdlibSuite extends munit.FunSuite:
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n")
     assertEquals(db(StdChain, key), List(Reflect, SourceLoader.PreludePath))
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n%demand p +.\n")
-    assertEquals(db(StdChain, key), List(Reflect, Demand, SourceLoader.PreludePath))
+    assertEquals(db(StdChain, key), Full)
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n")
     db.set(EagerStdlib, (), true)
-    assertEquals(db(StdChain, key), List(Reflect, Demand, SourceLoader.PreludePath))
+    assertEquals(db(StdChain, key), Full)
   }
 
   private def goldens: List[Path] =

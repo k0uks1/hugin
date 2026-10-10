@@ -1,4 +1,4 @@
-// The playground's examples: the landing page's example and the reference's checked `hugin,run` blocks
+// The playground's examples: the landing page's examples and the reference's checked `hugin,run` blocks
 // (ReferenceExamplesSuite compiles and runs them), in the order of reference/src/SUMMARY.md. Blocks with
 // input facts or a relative %import are left out: the playground has a single file and no facts.
 import fs from "node:fs";
@@ -38,13 +38,21 @@ function examplesOf(src, { title, file }) {
   return out;
 }
 
+// The examples of the landing page's code card, one tab each: site/<file>.hgn, whose output must equal
+// site/<file>.check (GoldenTests runs them as it runs tests/run; site/build.mjs checks the output again).
+export const landingExamples = [
+  { id: "people", file: "example", name: "people.hgn", topic: "Directives and functors" },
+  { id: "routes", file: "example-routes", name: "routes.hgn", topic: "Bound columns" },
+  { id: "exprs", file: "example-exprs", name: "exprs.hgn", topic: "First-class facts" },
+];
+
 export function collectExamples(root) {
   const src = path.join(root, "reference", "src");
-  const landing = {
-    id: "people",
+  const landing = landingExamples.map((e) => ({
+    id: e.id,
     group: "Home",
-    title: "people.hgn (the landing page)",
-    code: fs.readFileSync(path.join(root, "site", "example.hgn"), "utf8"),
-  };
-  return [landing, ...chapters(src).flatMap((c) => examplesOf(src, c))];
+    title: `${e.name}: ${e.topic.toLowerCase()}`,
+    code: fs.readFileSync(path.join(root, "site", e.file + ".hgn"), "utf8"),
+  }));
+  return [...landing, ...chapters(src).flatMap((c) => examplesOf(src, c))];
 }

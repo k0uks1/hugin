@@ -1,6 +1,7 @@
-/* The Hugin site (issue #58): one stylesheet for the landing page and the playground. System fonts only;
-   light and dark follow the reader's system setting. Code colours are the reference's (reference/hugin.css:
-   mdBook's highlight.js light theme, and tomorrow-night as in the navy theme). */
+/* The Hugin site (issue #58): one stylesheet for the landing, install and playground pages. System fonts
+   only; light and dark follow the reader's system setting unless the theme switch in the header overrides
+   it (site/theme.js). Code colours are the reference's (reference/hugin.css: mdBook's highlight.js light
+   theme, and tomorrow-night as in the navy theme). */
 :root {
   color-scheme: light dark;
   --bg: #f8fafc;
@@ -32,8 +33,38 @@
   --radius: 14px;
   --radius-sm: 8px;
 }
+/* dark: the reader's choice (data-theme on <html>, set by site/theme.js before the page renders), or the
+   system setting when there is none */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111317;
+  --bg-glow: rgba(110, 168, 255, 0.09);
+  --surface: #181b20;
+  --surface-2: #1d2127;
+  --fg: #e6e8eb;
+  --muted: #98a2b0;
+  --line: #262b32;
+  --line-strong: #343a43;
+  --accent: #6ea8ff;
+  --accent-hover: #93bfff;
+  --accent-soft: rgba(110, 168, 255, 0.10);
+  --on-accent: #0d1420;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --error: #ff7b72;
+  --warning: #f0b45b;
+  --hg-comment: #969896;
+  --hg-keyword: #b294bb;
+  --hg-string: #b5bd68;
+  --hg-number: #de935f;
+  --hg-type: #f0c674;
+  --hg-function: #81a2be;
+  --hg-constructor: #8abeb7;
+  --hg-variable: #cc6666;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111317;
     --bg-glow: rgba(110, 168, 255, 0.09);
     --surface: #181b20;
@@ -90,10 +121,23 @@ code, pre { font-family: var(--mono); }
 .brand { display: flex; align-items: center; gap: 0.55rem; color: var(--fg); font-weight: 650; font-size: 1.1rem; letter-spacing: -0.01em; }
 .brand:hover { color: var(--fg); text-decoration: none; }
 .mark { width: 1.6rem; height: 1.6rem; flex: none; }
-.nav nav { display: flex; gap: 0.25rem; }
+.nav nav { display: flex; align-items: center; gap: 0.25rem; }
 .nav nav a { color: var(--muted); font-size: 0.95rem; font-weight: 500; padding: 0.35rem 0.7rem; border-radius: var(--radius-sm); }
 .nav nav a:hover { color: var(--fg); background: var(--accent-soft); text-decoration: none; }
 .nav nav a[aria-current] { color: var(--fg); }
+.nav .theme {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; margin-left: 0.25rem;
+  padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: none; color: var(--muted); cursor: pointer;
+}
+.nav .theme:hover { color: var(--fg); border-color: var(--line-strong); background: var(--accent-soft); }
+.nav .theme svg { width: 1.05rem; height: 1.05rem; }
+.theme .sun { display: none; }
+:root[data-theme="dark"] .theme .sun { display: block; }
+:root[data-theme="dark"] .theme .moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme .sun { display: block; }
+  :root:not([data-theme="light"]) .theme .moon { display: none; }
+}
 
 /* hero */
 .hero { position: relative; padding: 4.5rem 0 2rem; overflow: hidden; }
@@ -157,6 +201,28 @@ code, pre { font-family: var(--mono); }
 .prompt { color: var(--muted); user-select: none; }
 .card-foot { padding: 0.6rem 1.1rem; border-top: 1px solid var(--line); font-size: 0.85rem; }
 
+/* the landing page's examples: a tab per example, switched by radio buttons (no script); the panels
+   share one grid cell, so the card keeps the height of the longest */
+.examples > input { position: absolute; opacity: 0; pointer-events: none; }
+.examples > .card-head { padding-top: 0; padding-bottom: 0; }
+.ex-tabs { display: flex; gap: 0.25rem; overflow-x: auto; }
+.ex-tabs label { padding: 0.6rem 0.55rem; font-family: var(--mono); color: var(--muted); white-space: nowrap; cursor: pointer; }
+.ex-tabs label:hover { color: var(--fg); }
+.examples .panels { display: grid; grid-template-columns: minmax(0, 1fr); }
+.examples .panel { grid-area: 1 / 1; display: flex; flex-direction: column; visibility: hidden; min-width: 0; }
+.examples .panel > pre { flex: 1; }
+.examples .card-foot { display: flex; justify-content: space-between; gap: 1rem; background: var(--surface-2); color: var(--muted); }
+.examples .card-foot a { white-space: nowrap; }
+.examples > input:nth-of-type(1):checked ~ .panels > .panel:nth-of-type(1),
+.examples > input:nth-of-type(2):checked ~ .panels > .panel:nth-of-type(2),
+.examples > input:nth-of-type(3):checked ~ .panels > .panel:nth-of-type(3) { visibility: visible; }
+.examples > input:nth-of-type(1):checked ~ .card-head label:nth-of-type(1),
+.examples > input:nth-of-type(2):checked ~ .card-head label:nth-of-type(2),
+.examples > input:nth-of-type(3):checked ~ .card-head label:nth-of-type(3) { color: var(--fg); box-shadow: inset 0 -2px var(--accent); }
+.examples > input:nth-of-type(1):focus-visible ~ .card-head label:nth-of-type(1),
+.examples > input:nth-of-type(2):focus-visible ~ .card-head label:nth-of-type(2),
+.examples > input:nth-of-type(3):focus-visible ~ .card-head label:nth-of-type(3) { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+
 /* semantic token classes, as rendered by `hugin highlight` (reference/highlight.py) */
 .hugin .hg-comment { color: var(--hg-comment); font-style: italic; }
 .hugin .hg-keyword, .hugin .hg-operator { color: var(--hg-keyword); }
@@ -197,6 +263,20 @@ code, pre { font-family: var(--mono); }
 .papers .meta { color: var(--muted); font-size: 0.92rem; grid-column: 1; }
 .papers .role { grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: end; font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0.2rem 0.65rem; border-radius: 999px; white-space: nowrap; }
 
+/* the install page: the steps as cards */
+.install { padding: 3.5rem 0 0; }
+.install h1 { font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.03em; font-weight: 750; margin: 0 0 1rem; }
+.install .lede { max-width: 46rem; }
+.install :not(pre) > code { font-size: 0.88em; padding: 0.08em 0.35em; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); overflow-wrap: anywhere; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.step { min-width: 0; padding: 1.4rem 1.5rem 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.step h2 { font-size: 1.3rem; letter-spacing: -0.01em; line-height: 1.25; margin: 0 0 0.6rem; font-weight: 700; }
+.step p { margin: 0.6rem 0; }
+.step .eyebrow { margin: 0 0 0.35rem; }
+pre.shell { margin: 0.8rem 0; padding: 0.85rem 1.1rem; overflow-x: auto; font-size: 0.84rem; line-height: 1.65; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+pre.shell .comment { color: var(--muted); }
+.next { margin: 2rem 0 0; color: var(--muted); }
+
 /* footer */
 .foot { margin-top: 4.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem; }
 .foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem 2rem; padding-top: 1.75rem; padding-bottom: 2.5rem; }
@@ -208,15 +288,20 @@ code, pre { font-family: var(--mono); }
   .hero { padding-top: 2.75rem; }
   .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 2.25rem; }
   .links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 36rem) {
   .hero h1 { font-size: 2.6rem; }
+  .install h1 { font-size: 2.2rem; }
+  .install { padding-top: 2.25rem; }
+  .step { padding: 1.2rem 1.1rem 0.6rem; }
   .lede { font-size: 1.1rem; }
   .links { grid-template-columns: minmax(0, 1fr); }
   .papers li { grid-template-columns: minmax(0, 1fr); }
   .papers .role { grid-column: 1; grid-row: auto; justify-self: start; }
   .nav nav a { padding: 0.35rem 0.45rem; font-size: 0.9rem; }
   .nav .gh { display: none; }
+  .examples > .card-head > span { display: none; }
 }
 
 /* playground */

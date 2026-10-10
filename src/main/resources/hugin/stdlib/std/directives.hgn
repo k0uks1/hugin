@@ -1,0 +1,100 @@
+(* std/directives: what a directive author needs (reference: std/directives). The parts of rules and
+   modules, the calls of a relation, the binding analysis of terms and formulas, fresh variable names and
+   errors. Variables are named by strings; the variables bound by an aggregate are de Bruijn indices
+   (`tbound`), so they are not among the names. *)
+%use "std/reflect".
+%use "std/list".
+
+(* The parts of a rule: its heads (one for every rule written in source) and its body *)
+heads : rule -> list formula.
+heads (horn Hs B) = Hs.
+
+body : rule -> list formula.
+body (horn Hs B) = B.
+
+(* The rules of a module, named or not, in order *)
+rules : module -> list rule.
+rules [] = [].
+rules (irule Rl :: Is) = Rl :: rules Is.
+rules (inamed N Rl :: Is) = Rl :: rules Is.
+rules (I :: Is) = rules Is.
+
+(* The arguments of the calls of the relation `S` in a formula, also under `not`, in aggregates and in
+   disjunctions *)
+calls : sym -> formula -> list (list term).
+calls S (fatom R Ts) = if (same S R) ([Ts]) [].
+calls S (fnot F) = calls S F.
+calls S (fconj F G) = append (calls S F) (calls S G).
+calls S (fdisj F G) = append (calls S F) (calls S G).
+calls S (fagg O X T F) = calls S F.
+calls S F = [].
+
+(* The variables of terms and formulas, with repetitions, in order *)
+tvars : term -> list string.
+tvars (tvar X) = [X].
+tvars (tapp S Ts) = tsvars Ts.
+tvars (tarith O A B) = append (tvars A) (tvars B).
+tvars (tneg A) = tvars A.
+tvars T = [].
+
+tsvars : list term -> list string.
+tsvars [] = [].
+tsvars (T :: Ts) = append (tvars T) (tsvars Ts).
+
+fvars : formula -> list string.
+fvars (fatom S Ts) = tsvars Ts.
+fvars (fcmp C A B) = append (tvars A) (tvars B).
+fvars (fnot F) = fvars F.
+fvars (fconj F G) = append (fvars F) (fvars G).
+fvars (fdisj F G) = append (fvars F) (fvars G).
+fvars (fagg O X T F) = append (tvars X) (append (tvars T) (fvars F)).
+
+(* The variables a formula binds: an atom all of its own, an equation those of its sides without
+   arithmetic, an aggregate its result, a conjunction those of both sides *)
+fbound : formula -> list string.
+fbound (fatom S Ts) = tsvars Ts.
+fbound (fcmp ceq A B) = sides (plain A) (plain B)
+  where
+    (* a clause per case, not `if`: this is on the path of every `%demand` *)
+    sides : bool -> bool -> list string.
+    sides true true = append (tvars A) (tvars B).
+    sides true false = tvars A.
+    sides false true = tvars B.
+    sides false false = [].
+fbound (fagg O X T F) = tvars X.
+fbound (fconj F G) = append (fbound F) (fbound G).
+fbound F = [].
+
+(* The variables a formula needs bound by the formulas before it *)
+fneeds : formula -> list string.
+fneeds F = diff (fvars F) (fbound F).
+
+(* Whether a term has no arithmetic: a pattern *)
+plain : term -> bool.
+plain (tapp S Ts) = plains Ts.
+plain (tarith O A B) = false.
+plain (tneg A) = false.
+plain T = true.
+
+plains : list term -> bool.
+plains [] = true.
+plains (T :: Ts) = rest (plain T)
+  where
+    rest : bool -> bool.
+    rest true = plains Ts.
+    rest false = false.
+
+(* A variable name from the hint `P` that is not in `Xs`: `P#0`, `P#00`, … The name contains `#`, which
+   source syntax cannot write, so it cannot capture a variable of the program *)
+fresh : string -> list string -> string.
+fresh P Xs = next (P ^ "#0") Xs
+  where
+    (* tries `C`, `C0`, `C00`, …, one candidate more than the names, so one of them is new *)
+    next : string -> list string -> string.
+    next C [] = C.
+    next C (Y :: Ys) = if (elem C Xs) (next (C ^ "0") Ys) C.
+
+(* The items of a directive that rejects its arguments: an error, reported where the items are
+   reflected *)
+reject : string -> list item.
+reject M = [ierror M].

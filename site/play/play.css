@@ -1,12 +1,14 @@
 /* The working playground (site/play/): CodeMirror in the editor card, the tabs as buttons, the run
    states. Loaded after style.css by play/index.html only, so the landing page does not carry it. */
-.editor #editor { flex: 1; display: flex; min-height: 0; }
-.editor .cm-editor { flex: 1; background: transparent; color: var(--fg); font-size: 0.84rem; }
+.editor #editor { flex: 1; display: flex; min-height: 0; min-width: 0; }
+/* as the landing page's code card (.card pre): font, size, line height, padding and colours; no wrapping,
+   long lines scroll inside the card */
+.editor .cm-editor { flex: 1; min-width: 0; background: transparent; color: var(--fg); font-size: 0.84rem; }
 .editor .cm-editor.cm-focused { outline: none; }
-.editor .cm-scroller { font-family: var(--mono); line-height: 1.65; padding: 0.9rem 0; }
+.editor .cm-scroller { font-family: var(--mono); line-height: 1.65; padding: 1.1rem 0; overflow-x: auto; container-type: inline-size; tab-size: 2; }
 .editor .cm-content { padding: 0; caret-color: var(--fg); }
 .editor .cm-line { padding: 0 1.25rem 0 1.1rem; }
-.editor .cm-gutters { background: transparent; border: 0; color: var(--muted); }
+.editor .cm-gutters { background: var(--surface); border: 0; color: var(--muted); }
 .editor .cm-lineNumbers .cm-gutterElement { min-width: 2.5rem; padding: 0; text-align: right; opacity: 0.55; }
 .editor .cm-cursor { border-left-color: var(--fg); }
 .editor .cm-selectionBackground, .editor .cm-focused .cm-selectionBackground { background: var(--accent-soft) !important; }
@@ -15,7 +17,9 @@
 .editor .cm-lintRange { background: none; padding: 0; text-decoration-line: underline; text-decoration-style: wavy; text-decoration-skip-ink: none; text-underline-offset: 3px; }
 .editor .cm-lintRange-warning, .editor .cm-lintRange-info { text-decoration-color: var(--warning); }
 .editor .cm-lintRange-error { text-decoration-color: var(--error); }
-.editor .inline-diag { margin-left: 1.1rem; }
+/* an inline diagnostic is as wide as the visible editor (not as the longest line) and never widens the
+   content: it scrolls with the code */
+.editor .inline-diag { box-sizing: border-box; width: calc(100cqw - 5rem); margin: 0.2rem 0 0.35rem 1.1rem; overflow-wrap: anywhere; }
 .cm-tooltip.cm-tooltip-lint { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); font: 0.82rem/1.45 var(--sans); }
 .cm-tooltip .cm-diagnostic { padding: 0.35rem 0.6rem; }
 .cm-tooltip .cm-diagnosticAction { background: var(--accent); color: var(--on-accent); border-radius: 4px; }

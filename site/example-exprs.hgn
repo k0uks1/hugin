@@ -1,0 +1,17 @@
+(* constructors build facts: deriving `prog e` also derives every
+   subterm of e, and a body matches them like any other fact *)
+expr : type.
+num : int -> expr.
+add : expr -> expr -> expr.
+mul : expr -> expr -> expr.
+
+prog : expr -> rel.
+prog (add (num 1) (mul (num 2) (num 3))).
+
+value : expr -> int -> rel.
+value (num N) N :- num N.
+value (add A B) (X + Y) :- add A B, value A X, value B Y.
+value (mul A B) (X * Y) :- mul A B, value A X, value B Y.
+
+?- prog E, value E V.
+?- N = count { E | value E _ }.

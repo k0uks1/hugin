@@ -1,0 +1,32 @@
+(* std/order: the best items by a score, rankings, top-k, and the order of a finite set of numbers
+   (reference: std/order). *)
+scores : Type = { key : type, item : type, score : key -> item -> int -> rel, %complete score }.
+
+best (s : scores) = {
+  argmin : s.key -> s.item -> rel.
+  argmin K X :- s.score K X V, V = min { W | s.score K _ W }.
+  argmax : s.key -> s.item -> rel.
+  argmax K X :- s.score K X V, V = max { W | s.score K _ W }.
+}.
+
+ranking (s : scores) = {
+  rank : s.key -> s.item -> int -> rel.
+  rank K X R :- s.score K X V, C = count { Y | s.score K Y W, W > V }, R = C + 1.
+}.
+
+top (s : scores) (n : int) = {
+  r = ranking s.
+  top : s.key -> s.item -> rel.
+  top K X :- r.rank K X R, R <= n.
+}.
+
+ints : Type = { elem : int -> rel, %complete elem }.
+
+order (d : ints) = {
+  next : int -> int -> rel.
+  next X Y :- d.elem X, Y = min { Z | d.elem Z, Z > X }.
+  first : int -> rel.
+  first X :- X = min { Z | d.elem Z }.
+  position : int -> int -> rel.
+  position X N :- d.elem X, N = count { Y | d.elem Y, Y < X }.
+}.

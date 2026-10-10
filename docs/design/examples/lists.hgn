@@ -6,12 +6,6 @@
    (`lift` into `⇑(list B)`, `reify` into `term`, and a `persist` function for the elements). *)
 %use "std/reflect". %use "std/list".
 
-(* The length at compile time; the prelude's `len` is the length of the lists that are facts (the two
-   are written differently on purpose: a structural fold and a fixed point over facts). *)
-slen : list A -> int.
-slen [] = 0.
-slen (X :: Xs) = slen Xs + 1.
-
 primes : list int = [2, 3, 5, 7].
 
 held : list int -> rel.
@@ -24,8 +18,10 @@ suffixes [] = [].
 suffixes (X :: Xs) = '( held $(X :: Xs) ) :: suffixes Xs.
 $suffixes [11, 13].
 
+(* The length at compile time (`length` of `std/list`); `len` is the length of the lists that are facts
+   (the two are written differently on purpose: a structural fold and a fixed point over facts). *)
 static_len : int -> rel.
-static_len (slen primes).
+static_len (length primes).
 
 ?- held L, len L N.
 %output static_len.
