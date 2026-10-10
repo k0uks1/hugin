@@ -32,8 +32,18 @@ class ClosureCrossCheckSuite extends munit.FunSuite:
       }
       (rs.flatten, rs.length)
 
+  /** Compiles and compares on a thread with the launcher's stack (`-Xss64m`): the meta evaluator recurses
+   *  on the structure it reduces, and nat literals (issue #131) make that structure deep. */
   private def all(programs: Iterator[(String, () => Context)]): (List[String], Int) =
-    programs.map((o, c) => compare(c(), o)).foldLeft((List.empty[String], 0))((a, b) => (a._1 ++ b._1, a._2 + b._2))
+    var result: Either[Throwable, (List[String], Int)] = Left(IllegalStateException("not run"))
+    val body: Runnable = () =>
+      result =
+        try Right(programs.map((o, c) => compare(c(), o)).foldLeft((List.empty[String], 0))((a, b) => (a._1 ++ b._1, a._2 + b._2)))
+        catch case e: Throwable => Left(e)
+    val thread = Thread(null, body, "closure-cross-check", 64L << 20)
+    thread.start()
+    thread.join()
+    result.fold(e => throw e, identity)
 
   private def hgn(root: String): List[Path] =
     Files.walk(Path.of(root)).iterator.asScala.filter(_.toString.endsWith(".hgn")).toList.sorted
