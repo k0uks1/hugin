@@ -1,0 +1,6 @@
+(* std/demand (#61, B4): the helpers of `%demand` are outside its export signature, also the ones that
+   come from `std/list` and `std/directives`, which it opens but does not re-export *)
+d = %import "std/demand".
+helper = d.dmodule. (*~ E0906 *)
+listed = d.map. (*~ E0906 *)
+analysed = d.fneeds. (*~ E0906 *)

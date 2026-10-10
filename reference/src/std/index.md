@@ -9,7 +9,8 @@ file.
 | module | contents |
 |---|---|
 | [`std/reflect`](reflect.md) | lists, options and booleans; object syntax as data; declarations as data and the primitive directives; the primitive operations on symbols |
-| [`std/list`](list.md) | relations over the lists that are facts |
+| [`std/list`](list.md) | functions over meta lists, natural numbers as fuel, relations over the lists that are facts |
+| [`std/directives`](directives.md) | the parts of rules and modules, the calls of a relation, the binding analysis, fresh names and errors, for directive authors |
 | [`std/graph`](graph.md) | the signature of graphs and functors over it |
 | [`std/demand`](demand.md) | the directive `%demand` |
 

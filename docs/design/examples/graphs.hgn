@@ -4,9 +4,9 @@
    the relation `road` reads. The two definitions of reachability stay different, on purpose: at the
    object level it is the least fixed point of two rules (the functor `tc` of `std/graph`); at the meta level
    a function must be structurally recursive, so the closure is computed by iterating a step a bounded
-   number of times (the number of edges suffices). Before #80 the graph was written twice (as facts of
-   `road` and as a list of a meta type `medge`). *)
-%use "std/graph".
+   number of times (the number of edges suffices), with `iterate` of `std/list`. Before #80 the graph was
+   written twice (as facts of `road` and as a list of a meta type `medge`). *)
+%use "std/graph". %use "std/list".
 
 edge : data.
 e : (from : int) -> (to : int) -> edge.
@@ -20,48 +20,22 @@ road : int -> int -> rel.
 road X Y :- e X Y.
 roads = tc { node = int, edge = road }.
 
-(* The meta definition over the same graph. *)
-nat : Type.  zero : nat.  suc : nat -> nat.
-
-size : list edge -> nat.
-size [] = zero.
-size (E :: Es) = suc (size Es).
-
-mem : int -> list int -> bool.
-mem X [] = false.
-mem X (Y :: Ys) = if (same X Y) true (mem X Ys).
-
-addNew : int -> list int -> list int.
-addNew X Ys = addIf (mem X Ys) X Ys.
-
-addIf : bool -> int -> list int -> list int.
-addIf true X Ys = Ys.
-addIf false X Ys = X :: Ys.
-
-(* One step: add the target of every edge whose source is reached. *)
+(* The meta definition over the same graph, on `std/list`: the fuel `nat` (one step per edge
+   suffices), `iterate`, and the list functions. *)
 step : list edge -> list int -> list int.
-step [] R = R.
-step (e A B :: Es) R = step Es (stepEdge (mem A R) B R).
+step G R = foldl ([acc] [x] if (elem x acc) acc (x :: acc)) R (concat (map (targets R) G)).
 
-stepEdge : bool -> int -> list int -> list int.
-stepEdge true B R = addNew B R.
-stepEdge false B R = R.
-
-iter : nat -> list edge -> list int -> list int.
-iter zero G R = R.
-iter (suc N) G R = iter N G (step G R).
+(* the target of an edge whose source is reached *)
+targets : list int -> edge -> list int.
+targets R (e A B) = if (elem A R) ([B]) [].
 
 (* the nodes reachable from X by a path of at least one edge *)
 reach : list edge -> int -> list int.
-reach G X = iter (size G) G (step G [X]).
+reach G X = iterate (size G) (step G) (step G [X]).
 
 static_reach : int -> rel.
-static_reach (slen (reach graph 1)).
+static_reach (length (reach graph 1)).
 dynamic_reach : int -> rel.
 dynamic_reach N :- N = count { Y | roads.path 1 Y }.
 %output static_reach.
 %output dynamic_reach.
-
-slen : list A -> int.
-slen [] = 0.
-slen (X :: Xs) = slen Xs + 1.
