@@ -254,6 +254,14 @@ publishes those that changed, only while its generation is still the latest. A b
 compilation, superseded diagnostics are never published, and requests cancelled by a later edit answer
 `ContentModified` (`CancellationSuite`).
 
+Broken items (issue #126, PR 1; `core/elab/BrokenItems.scala`). An item with a syntax error is filed
+with the declarations (its names are not reported as unresolved), so typing inside a rule changed the
+declarations at most keystrokes and elaborated them and every object item again. `DeclarationsOf` now
+carries, for a rule or query with a syntax error, a stand-in with only what the declarations read of it:
+the names it might declare, the formula function it may be a clause of, the names it mentions that are
+dependencies in the order of elaboration (#91), and its start; it is compared by these, not by its
+text. The declarations are elaborated again only when one of them changes (`BrokenItemsSuite`).
+
 ## Status (after step 10)
 
 Incremental now:
