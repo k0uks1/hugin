@@ -661,3 +661,33 @@ unchanged.
 
 The cached compile (`StdlibCache`, what a user pays per compile in a running JVM) is unchanged: the
 prelude is elaborated once per process.
+
+### The parser's per-token work (c)
+
+Two of the costs #53's resilient parser added per token or per item, removed without changing what it
+parses:
+
+* `ParserBase.atColumn0` and `startsLine` (asked at every argument and recovery point) looked up the line
+  of a token in the line table on every call (`Span.startLine`, a binary search; `startCol` a second one
+  and a code point count). The line of each token and whether it starts its line are now computed once
+  per parse, by one walk over the line table (tokens come in the order of the text; a start is in column
+  0 exactly when it is its line's start).
+* `TreeOps.hasSyntaxErrors`, called on every item a facts file loads, walked every node through
+  `productIterator`; the nodes of facts (names, literals, variables, applications, parentheses, rules) are
+  now matched directly, with the same answers.
+
+Equivalence: the parse trees (every node with its spans) and rendered diagnostics of every file under
+`tests/`, `examples/`, `bench/` and the bundled library, and of 11 damaged copies of each (characters
+deleted, newlines and delimiters inserted: 3 324 parses with 1 812 syntax errors), are byte-identical
+before and after; `TreeOpsSuite` compares `hasSyntaxErrors` with the generic traversal on every node of
+the prelude, the goldens, the facts files and damaged copies.
+
+| measurement (main thread, median of 120 runs) | before | after | change |
+|---|---:|---:|---:|
+| `run shortest_grid` (14 161 facts): CPU | 99.4 ms | 93.7 ms | −6 % |
+| `run shortest_grid`: allocated | 69.2 MB | 65.5 MB | −5 % |
+| `run strata`: CPU | 333 ms | 307 ms | −8 % |
+| `run strata`: allocated | 138.9 MB | 130.9 MB | −6 % |
+
+(The machine was loaded during this comparison; the CPU times of both builds are higher than in the
+measurements above, the differences hold across the four alternations.)

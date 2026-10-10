@@ -50,3 +50,39 @@ class TreeOpsSuite extends munit.FunSuite:
       assertEquals(actual.length, expected.length)
       assert(actual.zip(expected).forall(_ == _), text.take(80))
   }
+
+  /** The generic definition `hasSyntaxErrors` had before the nodes of facts were matched directly. */
+  private def genericSyntaxErrors(x: Any): Boolean = x match
+    case _: Trees.ErrorTree | _: Trees.Param.Malformed => true
+    case p: Product => p.productIterator.exists(genericSyntaxErrors)
+    case it: Iterable[?] => it.exists(genericSyntaxErrors)
+    case _ => false
+
+  test(
+    "hasSyntaxErrors answers as the generic traversal on every node of the prelude, the goldens and facts files, and of damaged copies"
+  ) {
+    import scala.jdk.CollectionConverters.*
+    val dirs = List("run", "neg", "pos", "recovery").map(d => java.nio.file.Path.of("tests", d)).filter(java.nio.file.Files.isDirectory(_))
+    val files = (dirs :+ java.nio.file.Path.of("bench", "datalog")).flatMap(d =>
+      java.nio.file.Files.list(d).iterator.asScala.filter(f => f.toString.endsWith(".hgn") || f.toString.endsWith(".facts"))
+    )
+    val texts = hugin.compiler.SourceLoader.stdlib(hugin.compiler.SourceLoader.PreludePath).get :: files.map(java.nio.file.Files.readString)
+    val rnd = scala.util.Random(60)
+    // each text, and copies with a character deleted or a delimiter inserted at random places
+    def damaged(t: String): List[String] =
+      if t.isEmpty then Nil
+      else
+        List.fill(3) {
+          val k = rnd.nextInt(t.length)
+          if rnd.nextBoolean() then t.substring(0, k) + t.substring(k + 1)
+          else t.substring(0, k) + "()[]{}.:" (rnd.nextInt(8)) + t.substring(k)
+        }
+    var errors = 0
+    for text <- texts; t <- text :: damaged(text.take(20000)) do
+      // per item, as the compiler asks (a file's list of items is as deep as it is long)
+      for item <- Parser.parse(SourceFile.virtual("t", t), Reporter()).items; n <- TreeOps.nodes(item) do
+        val expected = genericSyntaxErrors(n)
+        if expected then errors += 1
+        assertEquals(TreeOps.hasSyntaxErrors(n), expected, t.take(80))
+    assert(errors > 0, "no syntax errors in the damaged copies")
+  }
