@@ -32,7 +32,7 @@ names takes the member's path, and an instance passed as an argument is anonymou
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city.
+city : type. a, b, c : city.
 road : city -> city -> rel.
 road a b. road b c.
 back = tc (reverse { node = city, edge = road }).
@@ -49,7 +49,7 @@ X = b.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city. d : city.
+city : type. a, b, c, d : city.
 road : city -> city -> rel.
 road a b. road c b. road d d.
 weak = rtc (undirected { node = city, edge = road }).
@@ -67,7 +67,7 @@ X = c.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city.
+city : type. a, b, c : city.
 road : city -> city -> rel.
 road a b.
 v = vertices { node = city, edge = road }.
@@ -85,7 +85,7 @@ v.vertex b.
 
 ```hugin,run
 %use "std/graph".
-city : type. berlin : city. paris : city. rome : city.
+city : type. berlin, paris, rome : city.
 road : city -> city -> rel.
 road berlin paris. road paris rome.
 roads = tc { node = city, edge = road }.
@@ -102,7 +102,7 @@ roads.path paris rome.
 
 ```hugin,run
 %use "std/graph".
-city : type. berlin : city. paris : city.
+city : type. berlin, paris : city.
 road : city -> city -> rel.
 road berlin paris.
 roads = rtc { node = city, edge = road }.
@@ -119,7 +119,7 @@ roads.path paris paris.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city. d : city.
+city : type. a, b, c, d : city.
 road : city -> city -> rel.
 road a b. road b c. road d a.
 start : city -> rel.
@@ -138,7 +138,7 @@ fromA.reached c.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city.
+city : type. a, b, c : city.
 road : city -> city -> rel.
 road a b. road b c. road c b.
 s = scc { node = city, edge = road }.
@@ -160,7 +160,7 @@ incoming edges, a sink one without outgoing edges.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city. d : city.
+city : type. a, b, c, d : city.
 road : city -> city -> rel.
 road a b. road b c. road d c.
 dg = degrees { node = city, edge = road }.
@@ -185,7 +185,7 @@ dg.source d.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city. d : city.
+city : type. a, b, c, d : city.
 km : city -> city -> int -> rel.
 km a b 5. km b c 3. km a c 10. km c d 1.
 sp = shortest { node = city, edge = km }.
@@ -203,7 +203,7 @@ X = d, D = 9.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city.
+city : type. a, b, c : city.
 road : city -> city -> rel.
 road a b. road b c. road a c.
 h = hops { node = city, edge = road }.
@@ -221,7 +221,7 @@ edges is unbounded.
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city.
+city : type. a, b : city.
 road : city -> city -> rel.
 road a b. road b a.
 short = bounded { node = city, edge = road } 3.

@@ -110,7 +110,7 @@ output relations; they cannot be read by rules.
 The following program records how each path was derived by the recursive rule.
 
 ```hugin,run
-node : type. a : node. b : node. c : node.
+node : type. a, b, c : node.
 edge : node -> node -> rel.
 edge a b. edge b c.
 path : node -> node -> rel.

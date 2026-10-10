@@ -72,7 +72,7 @@ stepping (g : graph) = {
   cost : g.node -> g.node -> int -> rel.
   cost X Y (weight (suc (suc zero))) :- g.edge X Y.
 }.
-city : type. berlin : city. paris : city.
+city : type. berlin, paris : city.
 road : city -> city -> rel.
 road berlin paris.
 s1 = stepping { node = city, edge = road }.
@@ -114,7 +114,7 @@ The following program composes two functors of [`std/graph`](std/graph.md). `bac
 
 ```hugin,run
 %use "std/graph".
-city : type. a : city. b : city. c : city.
+city : type. a, b, c : city.
 road : city -> city -> rel.
 road a b. road b c. road c b.
 back = tc (reverse { node = city, edge = road }).
@@ -155,7 +155,7 @@ to the same graph. The two applications create two distinct relations `r1.path` 
 
 ```hugin,run
 %use "std/graph".
-city : type. berlin : city. paris : city. rome : city.
+city : type. berlin, paris, rome : city.
 road : city -> city -> rel.
 road berlin paris. road paris rome.
 r1 = tc { node = city, edge = road }.
@@ -229,7 +229,7 @@ sinks (g : complete_graph) = {
   sink : g.node -> rel.
   sink N :- g.edge _ N, not g.edge N _.
 }.
-city : type. berlin : city. paris : city.
+city : type. berlin, paris : city.
 road : city -> city -> rel.
 road berlin paris.
 s = sinks { node = city, edge = road }.
@@ -356,7 +356,7 @@ tc (g : graph) = {
   path X Y :- g.edge X Y.
   path X Z :- g.edge X Y, path Y Z.
 }.
-city : type. berlin : city. paris : city. rome : city.
+city : type. berlin, paris, rome : city.
 road : (from : city) -> (to : city) -> (length : int) -> rel.
 road berlin paris 1054. road paris rome 1421.
 edge : city -> city -> rel.

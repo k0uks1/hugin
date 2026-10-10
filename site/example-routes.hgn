@@ -1,7 +1,7 @@
 (* `min int` is a bound column: `dist` keeps the least distance
    per city, so the recursion stops although the roads form a cycle *)
 city : type.
-oslo : city. bergen : city. trondheim : city. bodo : city.
+oslo, bergen, trondheim, bodo : city.
 
 road : city -> city -> int -> rel.
 road oslo bergen 463.

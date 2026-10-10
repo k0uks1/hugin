@@ -391,7 +391,7 @@ rising (g : graph_sig) = {
   up X Y :- g.edge X Y, X < Y.
 }.
 hop : int -> int -> rel.
-place : type. home : place. work : place.
+place : type. home, work : place.
 road : place -> place -> rel.
 ints = rising { node = int, edge = hop }.
 places = rising { node = place, edge = road }.
