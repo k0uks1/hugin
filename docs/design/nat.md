@@ -1,9 +1,10 @@
 # Meta naturals as numbers
 
 Design note for [issue #131](https://github.com/k0uks1/hugin/issues/131): efficient representation and
-evaluation of meta naturals, as Agda and Lean 4 do. Status: for the designer's approval. Nothing is
-implemented. It builds on #127 (N1 `std/nat`, N2 the shape rule, N4 `P + k`, N5 digits) and coordinates
-with #67 (canonical case tree, probes), #66 (glued values) and #61 B3 (the shared `bool`).
+evaluation of meta naturals, as Agda and Lean 4 do. Status: approved by the designer, with the decisions
+O1–O4 below (recommendations 3, 4, 7 as decided); batch 0 approved for implementation. It builds on #127
+(N1 `std/nat`, N2 the shape rule, N4 `P + k`, N5 digits) and coordinates with #67 (canonical case tree,
+probes), #66 (glued values) and #61 B3 (the shared `bool`).
 
 Contents: 1 recommendations, 2 conformance, 3 Hugin today, 4 prior art, 5 assessments, 6 alternatives
 rejected, 7 effects, 8 batches, 9 benchmark plan, 10 sources.
@@ -19,35 +20,33 @@ rejected, 7 effects, 8 batches, 9 benchmark plan, 10 sources.
    `Nat(fam, 0)` as `zero`, one step at a time, as Agda's `constructorForm` and Lean's
    `toCtorIfLit`/`nat_lit_to_constructor` do. No rule of the language changes: the unary model stays the
    specification, and numbers are only its representation.
-3. **Binding is by shape, the #127 N2 rule, with no pragma.** Every nat-like family gets numerals,
-   including users' families and `index`. Shadowing (#127 N1) needs nothing: the representation is keyed
-   by the family's global, not by a name.
-4. **Arithmetic is recognised by its equations and checked as in Agda** (5.4). A function by clauses
-   whose type and defining equations are those of one of the operations in the table of 5.4 (Agda's set
-   plus `toInt`) computes natively when all its arguments are numerals. Otherwise its clauses run.
-   Recognition is Agda's `verify` (the defining equations hold definitionally on fresh variables), done
-   for every candidate function instead of for a pragma. Comparisons return any family with two
-   constant constructors; the equations decide which one is "true". `std/nat` uses #61 B3's shared
-   `bool`.
+3. **Numerals bind by shape, the #127 N2 rule, with no pragma** (Idris 2). Every nat-like family gets
+   numerals, views and value splits, including users' families and `index`. Shadowing (#127 N1) needs
+   nothing: the representation is keyed by the family's global, not by a name.
+4. **Native arithmetic is attached to exactly `std/nat`'s operations, as Lean hard-wires `Nat.add`**
+   (5.4): Agda's set plus `toInt`, by their library globals. Each is verified against its defining
+   equations as Agda's `verify'` does when `std/nat` is elaborated; a failed verification is an
+   internal error of the library. A native operation computes when all its arguments are numerals, and
+   its clauses run otherwise. Comparisons return #61 B3's shared `bool`. Arithmetic that users define on
+   their own nat-like families stays defined by its clauses.
 5. **Literal patterns are value splits, not unary chains** (5.3). A literal at the canonical split
    position gives a split by value (Agda's literal branches, Lean's `caseValues`), and coverage uses
    interval probes, so `f 50000 = …` costs one test. Size change compares numerals by value: `m < k` is a
    decrease, the unary subterm order on the representation.
-6. **`toInt` is O(1).** A recognised `nat -> int` is native, and lifting its meta `int` into object code
+6. **`toInt` is O(1).** `std/nat`'s `toInt` is native, and lifting its meta `int` into object code
    is O(1) already. A numeral beyond the 64-bit meta `int` leaves `toInt` stuck (as `Math.addExact`
    overflow does today), so no object code is generated from a wrapped value.
-7. **The 100000 cap (E0901 "nat literal too large") goes.** Source numerals have the range of integer
-   literals; computed numerals are unbounded. A limit on numerals produced by computation is only needed
-   for exponentiation, which this design does not add (5.6).
+7. **The 100000 cap (E0901 "nat literal too large") goes.** Numerals beyond the 64-bit literal range are
+   allowed in the source (as in Agda and Lean); computed numerals are unbounded. A limit on numerals
+   produced by computation is only needed for exponentiation, which is not added (5.6).
 8. **Digits come for free** (#127 N5): `Nat(fam, n)` prints as `n`, and `suc^k e` as `e + k`.
 9. **Fix the quadratic walk independently** (3.2): `checkObjectFragments` re-evaluates every argument of
-   a constructor chain. It costs 65 s for `n : nat = 50000.` today and should be fixed in batch 1 even
+   a constructor chain. It costs 65 s for `n : nat = 50000.` today and is fixed first (batch 0), even
    though numerals remove the chain.
 
-Open decisions for the designer: **O1** recognition of arithmetic by its equations (recommended) or an
-Agda-style explicit binding that fails loudly (6); **O2** comparison results: any two-constructor type
-(recommended) or only the shared `bool`; **O3** nat literals beyond the 64-bit literal range in the
-source; **O4** whether to add Lean's `pow` (then with a size guard, 5.6).
+The designer's decisions: **O1** native arithmetic on exactly `std/nat`'s operations, verified Agda-style
+(not recognition by equations, section 6); **O2** comparisons return the shared `bool` only; **O3**
+numerals beyond the 64-bit literal range are allowed in the source; **O4** no `pow` for now.
 
 ## 2. Conformance
 
@@ -61,15 +60,16 @@ source; **O4** whether to add Lean's `pow` (then with a size guard, 5.6).
 | conversion: literal vs `suc v` by one view step | Agda `compareAtom`; Lean `is_def_eq_offset` | `Conversion.hs` 599–604; `type_checker.cpp` 1025–1048 | match |
 | index unification with views | Agda LHS unifier | `Rules/LHS/Unify/Types.hs` 54 | match |
 | `?m + k = n` solved | Lean `isDefEqOffset` (offset terms `e + k`) | `Offset.lean` 118–160; `ExprDefEq.lean` 2421 | match in effect: `e + k` is `suc^k e` (#127 N4), solved by views; Agda leaves `?m + 1` stuck |
-| binding by shape, no pragma | Idris 2 shape flags `ZERO`/`SUCC`; Agda pragma with shape check | `ProcessData.idr` 342–362; `built-ins.lagda.rst` 203–212 | Idris: match. Agda: deviation (no pragma, #127 N2) |
+| numerals bind by shape, no pragma | Idris 2 shape flags `ZERO`/`SUCC`; Agda pragma with shape check | `ProcessData.idr` 342–362; `built-ins.lagda.rst` 203–212 | Idris: match. Agda: deviation (no pragma, #127 N2) |
+| native arithmetic bound to the library's own operations | Lean hard-wires `Nat.add` … by name; Idris 2 `natHack` on `Prelude.Types` | `type_checker.cpp` 1251; `Opts/Constructor.idr` 81–95 | match (by global, so shadowing is harmless); Agda binds by pragma (deviation) |
 | arithmetic native on literals, clauses otherwise | Agda `Primitive{primClauses}`; Lean kernel/Meta on literals, definition otherwise | `Rules/Builtin.hs` 805–831, `Reduce.hs` 751–755; `type_checker.cpp` 610–622, 1051–1060 | match |
-| definitions checked against the operation | Agda `verify` (equations by conversion) | `Rules/Builtin.hs` 475–499, 569–588 | match, applied to candidates instead of a pragma; Lean trusts `@[extern]` (`Prelude.lean` 1885–1898) |
-| operation set: Agda's seven plus `toInt` | Agda `NATPLUS` … `NATLESS`; Lean adds `pow`, `gcd`, bitwise, shifts | `Primitive.hs` 885–897; `type_checker.cpp` 683–696, `WHNF.lean` 1011–1033 | Agda: match. Lean: subset |
-| comparisons return a two-constructor type | Agda `BUILTIN TRUE/FALSE`; Lean `Bool` (`Nat.beq`, `Nat.ble`) | `Rules/Builtin.hs` 544–565; `Prelude.lean` 1945, 2018 | match in role; the constructors are found by the equations |
+| definitions checked against the operation | Agda `verify` (equations by conversion) | `Rules/Builtin.hs` 475–499, 569–588 | Agda: match, run when `std/nat` is elaborated. Lean trusts `@[extern]` (`Prelude.lean` 1885–1898): deviation |
+| operation set: Agda's seven plus `toInt` | Agda `NATPLUS` … `NATLESS`; Lean adds `pow`, `gcd`, bitwise, shifts | `Primitive.hs` 885–897; `type_checker.cpp` 683–696, `WHNF.lean` 1011–1033 | Agda: match. Lean: subset (no `pow`, O4) |
+| comparisons return the shared `bool` | Agda `BUILTIN BOOL`/`TRUE`/`FALSE`; Lean `Bool` (`Nat.beq`, `Nat.ble`) | `Rules/Builtin.hs` 544–565; `Prelude.lean` 1945, 2018 | match |
 | literal patterns: value split plus default | Agda `litBranches`/`SplitLit`; Lean value transition, `caseValues` | `CompiledClause/Compile.hs` 145–161; `Match/Match.lean` 301–306, 675–681, 1048–1050 | match |
 | literal mixed with `suc` patterns: one view step | Agda `unLitP`; Lean `expandNatValuePattern` | `Coverage/Match.hs` 389–397; `Match/Match.lean` 336–337, 745–753 | match |
 | termination: literal against `suc p` by one view step | Agda `compareTerm'` | `Termination/TermCheck.hs` 1447–1470 | match; `m < k` between literals is a decrease (Agda: unknown), sound in the unary order |
-| no numeral cap on literals | Agda none; Lean 128 MB guard (`LEAN_NAT_MAX_SIZE`) | `type_checker.cpp` 30–36, 296–320 | Agda: match. Lean's guard is for `pow`/`shiftLeft`; not needed without them |
+| no numeral cap; literals beyond 64 bits | Agda, Lean: `Integer`/GMP literals; Lean 128 MB guard (`LEAN_NAT_MAX_SIZE`) | `Literal.hs` 23; `type_checker.cpp` 30–36, 296–320 | Agda: match. Lean's guard is for `pow`/`shiftLeft`; not needed without them |
 | compiled representation | Agda, Lean, Idris 2: big integers | `Rules/Builtin.hs` 662–666; `Prelude.lean` 1351–1354; `Opts/Constructor.idr` 6–7, 124–125 | n/a: meta naturals do not exist at run time; `toInt` is the only exit |
 | type checker accelerates, not only a compiler | Agda, Lean: yes; Idris 2: compiler only | `built-ins.lagda.rst` 220; `type_checker.cpp` 728; `builtins.rst` 13–28, no nat case in `Core/Normalise` | Agda, Lean: match. Idris 2: deviation (Hugin's meta level runs only in the elaborator) |
 
@@ -94,12 +94,10 @@ source; **O4** whether to add Lean's `pow` (then with a size guard, 5.6).
   `SplitAtom` already splits on meta literals by value (quoted patterns).
 - Unification (`core/Unification.scala` 187–275): smalltt's `Rigid`/`Flex`/`Full` states over `Top`;
   `(Lit, Lit)` by equality; constructor applications by `unifySp`, recursively per `suc`.
-- Primitives: `x : A = %builtin p.` declares a `GlobalKind.Primitive(op, ctors)` whose `bool`
-  constructors come from its type (`core/elab/Declarations.scala` 171–175, `core/Primitives.scala`), as
-  for `same`. It replaces a definition; there are no clauses behind it.
+- Primitives: `x : A = %builtin p.` is a `GlobalKind.Primitive(op, ctors)` without clauses, its `bool`
+  constructors from its type (`core/elab/Declarations.scala` 171–175), as for `same`.
 - Size change (`core/elab/SizeChange.scala` 321–325) compares call arguments with the leaf's pattern
-  terms by the constructor-subterm order; literal patterns are already `suc` chains there.
-- Printing shows numerals unary (diagnostics, `--print-after`, hovers).
+  terms by the constructor-subterm order. Printing shows numerals unary.
 
 ### 3.2 Measurements
 
@@ -129,8 +127,7 @@ Findings. (a) The literal definition is quadratic not because of the numeral but
 `Contexts.ev` → `evalArgChain`). A `nat` domain cannot contain object code, so the walk can stop there.
 (b) A literal pattern costs a split per unit and a re-normalisation of every equation per split: cubic
 time, then out of memory. (c) Values deeper than about 50000 overflow the 64 MB stack in conversion,
-read-back and nested function calls. (d) Arithmetic through clauses is usable up to about 10⁵ thanks to
-the memo, but not beyond.
+read-back and nested calls. (d) Arithmetic by clauses is usable up to about 10⁵ (memo), not beyond.
 
 ## 4. Prior art
 
@@ -188,7 +185,6 @@ provided here is the logical model" (1885–1898). Nothing checks that the model
 - **Matchers.** A column of only values and variables is a *value transition*, compiled by `caseValues`
   into decidable equality tests (`Match/Match.lean` 301–306, 675–681, 1048–1050). Values mixed with
   constructor patterns are expanded one step (`expandNatValuePattern`, 336–337, 745–753).
-- **Literals** are elaborated through `OfNat` with `instOfNatNat` the default (`Prelude.lean` 1396–1405).
 
 ### 4.3 Idris 2
 
@@ -197,20 +193,17 @@ Any type with a `ZERO`-like and a `SUCC`-like constructor is flagged by shape (`
 The compiler replaces the constructors by `0` and `1 +` on `Integer` and cases by zero tests
 (`Compiler/Opts/Constructor.idr` 6–7, 100–125), and hard-wires `natToInteger`, `plus`, `mult`, `minus`,
 `equalNat`, `compareNat` of `Prelude.Types` (`natHack`, 81–95). The documentation speaks only of the
-runtime ("At runtime, Idris2 will automatically represent this the same as the `Integer` type",
-`docs/source/reference/builtins.rst` 13–28), and `Core/Normalise` has no case for these flags: **the
-type checker stays unary**.
+runtime (`docs/source/reference/builtins.rst` 13–28) and `Core/Normalise` has no case for these flags:
+**the type checker stays unary**.
 
 ## 5. Assessments
 
 ### 5.1 Binding (question 1)
 
-Three mechanisms: a pragma naming the type (Agda), the shape rule (Idris 2, Hugin's N2), or a library
-type the compiler knows by name (Lean). Lean's mechanism does not survive shadowing (#127 N1: a user's
-`nat` must keep working) and contradicts N2, which already gives literals to every nat-like family. A
-pragma would be a second way to the same literals, which #127 rejected (`docs/design/sugar.md`,
-section 5). **The shape rule binds the representation**, keyed by the family's global id. Since every
-nat-like family is isomorphic to ℕ, the rule cannot misread a family (Idris 2's argument).
+Numerals bind by the shape rule (Idris 2, Hugin's N2), keyed by the family's global id: every nat-like
+family is isomorphic to ℕ, so the rule cannot misread one, and shadowing (#127 N1) is harmless. Native
+arithmetic binds to `std/nat`'s own globals, as Lean names `Nat.add` (5.4); a pragma (Agda) would be a
+second way to the same literals, which #127 rejected (`docs/design/sugar.md`, section 5).
 
 ### 5.2 Representation, evaluation, conversion, unification (question 2)
 
@@ -260,40 +253,39 @@ cost of the invariant is one check in `rigid` on constructor heads (a set of `su
 
 ### 5.4 Primitive arithmetic (question 4)
 
-**Set.** Agda's set: it is the set whose definitions are structurally recursive and so can be checked
-by equations, which Hugin can elaborate (no well-founded recursion). Lean's extra operations (`pow`,
-`gcd`, bitwise, shifts) and its direct `div`/`mod` are not structural; `div`/`mod` come from Agda's
-helpers, as in `Agda.Builtin.Nat`. `toInt` is added for staging (5.5). Each operation is one row:
+**Set.** Agda's set (O4: no `pow`): it is the set whose definitions are structurally recursive and so can
+be checked by equations, which Hugin can elaborate (no well-founded recursion). Lean's extra operations
+(`pow`, `gcd`, bitwise, shifts) and its direct `div`/`mod` are not structural; `div`/`mod` come from
+Agda's helpers, as in `Agda.Builtin.Nat`. `toInt` is added for staging (5.5). Each operation is one row:
 
 | op | type | defining equations (either listed variant) | native |
 |---|---|---|---|
 | add | `N → N → N` | `n + 0 = n`, `n + suc m = suc (n + m)`; or on the first argument | `+` |
 | monus | `N → N → N` | `0 ∸ 0 = 0`, `0 ∸ suc m = 0`, `suc n ∸ 0 = suc n`, `suc n ∸ suc m = n ∸ m` | `max(0, n - m)` |
-| mul | `N → N → N` | `0 * m = 0`, `suc n * m = m + n * m` (`+` a recognised add), or variants | `*` |
+| mul | `N → N → N` | `0 * m = 0`, `suc n * m = m + n * m` (`+` the native add), or variants | `*` |
 | divSucAux, modSucAux | `N → N → N → N → N` | Agda's (`Rules/Builtin.hs` 520–543) | Agda's (`Primitive.hs` 890–895) |
 | eq | `N → N → B` | `0 == 0 = t`, `suc n == 0 = f`, `0 == suc m = f`, `suc n == suc m = n == m` | `==` |
 | lt | `N → N → B` | `n < 0 = f`, `0 < suc m = t`, `suc n < suc m = n < m` | `<` |
 | toInt | `N → int` | `toInt 0 = 0`, `toInt (suc n) = toInt n + 1` (meta `int`) | exact to `Long`, else stuck |
 
-`N` is a nat-like family, `B` a family with exactly two constant constructors; `t ≠ f` are found by the
-first equation.
+`N` is `std/nat`'s `nat`, `B` the shared `bool` (`t` = `true`, `f` = `false`).
 
-**Binding and checking.** After a clause group is elaborated (at the end of its component under #91),
-each function whose type matches a row is verified: its equations are checked by `conv` on fresh
-variables, as Agda's `verify'`. On success its global records the operation
-(`GlobalKind.Function(arity, tree, native = Some(op))`), and `reduceFunction` computes natively when all
-explicit arguments are `Nat` values, else runs the tree (Agda's `primClauses` fallback). This is sound
-for the same reason as Agda's check: the equations determine the function on all numerals by induction,
-so the native result is the clauses' result. It is cheaper than Agda's pragma in syntax and costs a few
-`conv` calls per candidate (functions of exactly these types). It is predictable in one direction: a
-correct but differently written function (an accumulator `plus`) silently stays unaccelerated.
-`--print-after elaborate` and hovers say "native: add" so a user can see it. Lean's trust in
-`@[extern]` is not an option: a meta-level mistake would change typing.
+**Binding and checking (O1).** As Lean names `Nat.add` in its kernel, the elaborator names the
+operations of the library file `std/nat` (the standard library's path, not a name in scope): when that
+file's clause groups are elaborated, the global of each listed function (#127 N1's `plus`, `minus`,
+`times`, the two helpers, `equal`, `less`, `toInt`; the names follow `feat/sugar-127-nat`) records its
+operation (`GlobalKind.Function(arity, tree, native = Some(op))`) after its equations are checked by
+`conv` on fresh variables, as Agda's `verify'`. A failure is an internal error (`Impossible`): the
+library is wrong, not the program. `reduceFunction` computes natively when all explicit arguments are
+`Nat` values and runs the tree otherwise (Agda's `primClauses` fallback). The check makes it sound for
+Agda's reason: the equations determine the function on all numerals by induction. A user's own `plus`,
+on `std/nat`'s `nat` or on a nat-like family of their own, is an ordinary function: its numerals are
+compact, its arithmetic runs its clauses. `--print-after elaborate` and hovers say "native: add" for
+the library's operations.
 
-**Booleans (#61 B3).** `std/nat` returns the shared `bool` of `std/reflect`, as `same` does. Recognition
-by shape also accepts a user's own two-constructor result type; the equations fix which constructor
-means "true". The `%builtin` primitives (`same`, …) stay as they are: they have no clauses to fall back
-to, and the nat operations do.
+**Booleans (#61 B3, O2).** `equal` and `less` return the shared `bool` of `std/reflect`, as `same` does
+and as Agda's `BUILTIN BOOL` and Lean's `Bool`. The `%builtin` primitives (`same`, …) stay as they are:
+they have no clauses to fall back to, and the nat operations do.
 
 ### 5.5 Staging (question 5)
 
@@ -306,31 +298,30 @@ does today for `big 9223372036854775807` with `big X = X + 1` (measured). Object
 
 ### 5.6 The cap and printing (questions 6, 7)
 
-E0901 "nat literal too large" exists only because of the unary chains, and goes. Source numerals keep
-the range of integer literals (the lexer already produces a `BigInt` for larger tokens and reports
-`IntegerOutOfRange`, `syntax/ExprSyntax.scala` 136–147). Accepting larger nat literals is a small
-change, offered as an open decision (O3). Computed numerals are unbounded. Lean's 128 MB guard
-protects `pow` and `shiftLeft`, which can explode in one step; `add`/`mul` on numerals from the source
-grow at most polynomially in the elaboration time already spent. Printing: `Nat(fam, n)` prints as `n`
-and an open `suc^k e` as `e + k` (#127 N5), in diagnostics, `--print-after`, REPL and hovers.
+E0901 "nat literal too large" exists only because of the unary chains, and goes. Numerals beyond the
+64-bit literal range are allowed in the source (O3): the lexer already produces a `BigInt` for larger
+tokens (`syntax/ExprSyntax.scala` 136–147); `IntegerOutOfRange` moves to the elaborator and is reported
+only when such a literal is not checked against a nat-like family. Computed numerals are unbounded.
+Lean's 128 MB guard protects `pow` and `shiftLeft`, which can explode in one step and are not added (O4);
+`add`/`mul` on numerals from the source grow at most polynomially in the elaboration time already spent.
+Printing: `Nat(fam, n)` prints as `n` and an open `suc^k e` as `e + k` (#127 N5), in diagnostics,
+`--print-after`, REPL and hovers.
 
 ### 5.7 Interactions
 
-`same` on numerals becomes decidable (a `Nat` is an atom for `atomKey`): `same 3 3` reduces where it was
-stuck. That is the same value, and an improvement. Reflection does not reify meta naturals. The
-`std/nat` of #127 N1 (being implemented on `feat/sugar-127-nat`) should define `plus` on the second
-argument (Lean's model), so `plus N 1` reduces to `suc N` on open `N`, and `minus`, `times`, `eq`, `lt`,
-`div`/`mod` through Agda's helpers, and `toInt`, in the forms of the table. N1 can land first: its
-functions are accelerated once batch 3 lands, with no change to the library.
+`same 3 3` reduces where it was stuck (a `Nat` is an atom for `atomKey`). The `std/nat` of #127 N1
+(`feat/sugar-127-nat`) should define its operations in the forms of 5.4, `plus` on the second argument
+(Lean's model, so `plus N 1` reduces to `suc N`); N1 can land first and becomes native with batch 3.
 
 ## 6. Alternatives rejected
 
+- **Recognising arithmetic by its equations** (the first draft): every function of a candidate type
+  verified and made native if its equations hold. Not established practice (Agda verifies a pragma's
+  binding, Lean and Idris 2 name the library's functions), and unpredictable: a correct but
+  differently written function silently stays slow (designer, O1).
 - **Agda's pragma (`%builtin natural nat`, `%builtin natplus plus`).** A second way to get literals
-  (#127 N2), new item syntax where `%builtin` is an expression form, and it binds by name, which
-  shadowing complicates. It would make a failed binding an error instead of a silent miss; this is
-  the trade-off of open decision O1.
-- **Lean's hard-wired names in `std/nat`.** Not robust to shadowing and to users' nat-like families;
-  `index` would stay unary; trusts the model.
+  (#127 N2) and new item syntax where `%builtin` is an expression form; only `std/nat` needs it.
+- **Lean's trust without verification.** A mistake in `std/nat` would change typing silently.
 - **A primitive without clauses (`plus : nat -> nat -> nat = %builtin add.`).** Open terms would be
   stuck: `vec A (plus (suc n) m)` would no longer be `vec A (suc (plus n m))`, so `append` stops
   checking. Agda and Lean keep the definition for this reason.
@@ -339,8 +330,8 @@ functions are accelerated once batch 3 lands, with no change to the library.
   without rule changes.
 - **Reusing `Val.Lit(IntL)` for numerals.** It does not carry the family, has `Long` range, and would
   make meta `int` and `nat` values indistinguishable to `same`, printing and size change.
-- **Compiler-only acceleration (Idris 2).** Hugin's meta programs run only during elaboration.
-- **Keeping N6 "not now".** Overridden by the issue; 3.2 shows realistic sizes fail.
+- **Compiler-only acceleration (Idris 2)**: Hugin's meta programs run only during elaboration.
+  **Keeping N6 "not now"**: overridden by the issue; 3.2 shows realistic sizes fail.
 
 ## 7. Effects
 
@@ -352,55 +343,50 @@ functions are accelerated once batch 3 lands, with no change to the library.
 | `eq 50000 (plus 25000 25000)` in a clause | stack overflow | baseline |
 | `f 50000 = 1. f _ = 0.` | out of memory | baseline: one value test |
 | `vlen (rep 50000)` | 12.0 s | unchanged order (a 50000-element `vec` is 50000 values), smaller constants |
-| diagnostics with numerals | unary | digits |
 | programs without numerals | — | unchanged; one id check in `rigid` per constructor application |
 
-No accepted program is rejected; programs that overflowed now pass; no output changes except printing
-(goldens with unary numerals are updated, as N5 already requires). `same` on numerals reduces (5.7).
+No accepted program is rejected; outputs change only in printing (goldens updated, as N5 requires).
 
 ## 8. Batches
 
 Each batch is one pull request and updates the reference with the code.
 
-0. **The walk** (3.2 a): `checkArguments` stops at domains without object code (nat-like families,
-   meta base types). Reference: none (performance). Golden: `bench/` entry only.
+0. **The walk** (3.2 a): `checkArguments` evaluates an argument only when the rest of the function's
+   type depends on it, so a constructor chain is walked once. Reference: none (performance).
 1. **Representation and views** (5.2, 5.6). Code: `Tm.Nat`/`Val.Nat` with `BigInt`; `natLiteral` builds
    `Tm.Nat`; the invariant in `rigid`/`globalValue`; `natView`; read-back, zonk, renaming, `MemoKeys`,
    `atomKey`; `unifyForced` and index unification cases; `runTree` view; printing digits and `e + k`;
-   E0901 `NatTooLarge` removed (and `TypeProblems` 152). Reference: `meta/families.md` "Nat literals"
-   (numerals are values, views, no cap; the representation is not observable), `meta/clauses.md`
-   "Evaluation" (a numeral matches `zero`/`suc`), `meta/staging.md` (no change of rule; mention `toInt`),
-   `docs/errors/E0901.md` (unchanged: it does not list the cap). Goldens: `run/nat_numerals` (large
-   literals, conversion, `suc ?m = 5`, `e + k`),
-   `neg/nat_numerals` (`suc ?m = 0`, negative literal), print-after golden with digits.
+   E0901 `NatTooLarge` removed (and `TypeProblems` 152); `IntegerOutOfRange` only off nat-like types.
+   Reference: `meta/families.md` "Nat literals" (numerals are values, views, no cap, literals beyond 64
+   bits; the representation is not observable), `meta/clauses.md` "Evaluation" (a numeral matches
+   `zero`/`suc`), `lexical-structure.md` (integer literal range). Goldens: `run/nat_numerals` (large
+   literals, conversion, `suc ?m = 5`, `e + k`), `neg/nat_numerals` (`suc ?m = 0`, negative literal),
+   print-after golden with digits.
 2. **Patterns** (5.3), after #67 batch 2. Code: literal value splits in `Clauses` (no `PLit` expansion),
    value-class probes in coverage, literal cases in `SizeChange`. Reference: `meta/clauses.md` "Patterns"
    (literal patterns and the canonical value split), `meta/coverage.md` ("Cases and probes": value
    classes for literals), `meta/termination.md` "The criterion" (numerals compared by value).
    Goldens: `run/nat_patterns` (`f 50000`, mixed `f 0`/`f (N + 2)`/`f 7`), `neg/nat_coverage` (missing
    `f (N + 6)`), SCT golden with `f 5 = f 3`.
-3. **Arithmetic** (5.4, 5.5). Code: recognition after a component's clauses, `native` on
-   `GlobalKind.Function`, native reduction with fallback, `toInt`, print-after/hover "native: op".
-   Reference: `meta/functions.md` new section "Arithmetic on numerals" (the table of 5.4, recognition,
-   fallback, `toInt` overflow), `std/nat` page and `prelude.md` (with #127 N1). Goldens:
-   `run/nat_arith` (each operation, variants by either argument, a non-recognised accumulator `plus`,
-   a user `bool`), `run/nat_toint` (object code from `toInt 10^12` and the stuck case beyond 2⁶³).
+3. **Arithmetic** (5.4, 5.5). Code: `native` on `GlobalKind.Function` for `std/nat`'s operations
+   with their verification, native reduction with fallback, `toInt`, print-after/hover "native: op".
+   Reference: `std/nat` page (the table of 5.4, native evaluation, fallback, `toInt` overflow),
+   `prelude.md` (with #127 N1). Goldens: `run/nat_arith` (each operation on large numerals and on open
+   terms; a user's own `plus` staying clause-defined), a unit test that a wrong library equation is an
+   internal error, `run/nat_toint` (object code from `toInt 10^12` and the stuck case beyond 2⁶³).
 4. **Benchmarks** (9). `bench/meta/nat_large.hgn` in `BenchSet` and `bench/cold.sh`; numbers in
    `docs/PERFORMANCE.md`.
 
-Batch 1 alone removes the cap, the overflows of conversion and the cost of literals; batch 2 removes the
-pattern cost; batch 3 the arithmetic cost. Batches 0 and 1 do not depend on #67.
+Batches 0 and 1 do not depend on #67.
 
 ## 9. Benchmark plan (question 8)
 
-`bench/meta/nat_large.hgn`, one program in the #60 harness (`BenchSet`, `cold.sh`, five runs, median),
-with sections that can be timed separately by `--only`: (a) `n : nat = 1000000.`; (b) `toInt (plus
-500000 500000)`, `toInt (times 1000 1000)`, `lt`, `eq`; (c) `w : nat -> eq 1000000 (plus 500000
-500000). w _ = refl.`; (d) `f 50000 = 1. f _ = 0.` and a ten-literal `switch`; (e) `vlen (rep 50000)`;
-(f) `fin 1000000` index arithmetic in a type. **Before**: today's sizes that finish (the 3.2 rows), and
-the failing ones recorded as failures. **After** each batch: the same file at full size, plus
-`meta_scaled` and the whole bench set to confirm no regression from the check in `rigid`. Acceptance: (a)–(d)
-within 10 % of the baseline program; no regression above noise elsewhere.
+`bench/meta/nat_large.hgn` in the #60 harness (`BenchSet`, `cold.sh`, five runs, median), sections
+timed by `--only`: (a) `n : nat = 1000000.`; (b) `toInt` of `plus`/`times` on numerals near 10⁶, `less`,
+`equal`; (c) `eq 1000000 (plus 500000 500000)` checked in a clause; (d) `f 50000 = 1. f _ = 0.`;
+(e) `vlen (rep 50000)`. **Before**: the 3.2 sizes that finish, failures recorded. **After** each batch:
+full sizes, plus `meta_scaled` and the whole set (no regression from the check in `rigid`).
+Acceptance: (a)–(d) within 10 % of the baseline program.
 
 ## 10. Sources
 
