@@ -42,11 +42,13 @@ trait FormulaFunctions:
    *  unfolds ([[checkMemberFormulaCycles]]). */
   def elabMemberFormula(cb: Cxt, name: Name, id: Int, clauses: List[Rule]): Unit =
     val (params, result) = telescope(cb.binder(cb.scope(name)).ty, cb.lvl)
+    // diagnostics name the function by its path
+    val path = globals(id).name
     if force(result) == Val.Lift(Val.PropT) then
-      if clauses.isEmpty then reporter.report(ElabProblem.FormulaFunctionWithoutClauses(name, globals(id).span).toDiagnostic)
+      if clauses.isEmpty then reporter.report(ElabProblem.FormulaFunctionWithoutClauses(path, globals(id).span).toDiagnostic)
       var c = cb
       for ((_, _, ty), i) <- params.zipWithIndex do c = bind(c, s"$name#${i + 1}", ty, Stage.S1)
-      val alts = clauses.flatMap(cl => reporting(clause(c, cb.lvl, name, params.map(_._3), cl)))
+      val alts = clauses.flatMap(cl => reporting(clause(c, cb.lvl, path, params.map(_._3), cl)))
       val tm = params.foldRight(Tm.quote(disjunction(alts)))((p, acc) => Tm.Lam(p._1, p._2, acc))
       val closed = closeTerm(cb, zonk(cb.env, cb.lvl, tm))
       withheld(id) = GlobalKind.Definition(closed, eval(Nil, closed))
@@ -76,7 +78,7 @@ trait FormulaFunctions:
    *  then false, and returned: their uses are left out ([[ElabState.leftOutMembers]]). */
   def checkMemberFormulaCycles(cb: Cxt, fns: List[(Name, Int, List[Rule])]): collection.Set[Int] =
     formulaCycles(
-      fns,
+      fns.map((_, id, rules) => (globals(id).name, id, rules)),
       (n, id) =>
         cb.scope.get(n) match
           // a member: its value with the definitions of the body it needs
@@ -109,16 +111,25 @@ trait FormulaFunctions:
     for n <- state.declaredHere; g <- scope.get(n) if failed.exists(f => refersTo(f, Tm.Global(g), self = false)) do
       state.unelaborated += n
 
-  /** Whether `t` refers to the global `target`, through the definitions and functions it refers to; with
-   *  `self = false`, `t` being `target` itself does not count (only its definition does). */
+  /** Whether `t` refers to the global `target`, through the definitions and functions it refers to and the
+   *  members of the module values among them; with `self = false`, `t` being `target` itself does not
+   *  count (only its definition does). */
   private def refersTo(target: Int, t: Tm, self: Boolean): Boolean =
     val seen = scala.collection.mutable.Set.empty[Int]
+    val seenBodies = scala.collection.mutable.Set.empty[Int]
     def inGlobal(g: Int): Boolean = kindOf(g) match
       case GlobalKind.Definition(tm, _) => inTm(tm)
       case GlobalKind.Function(_, Some(tree)) => inTree(tree)
       case _ => false
     def inTm(t: Tm): Boolean = Tm.exists(t) {
       case Tm.Global(g) => g == target || seen.add(g) && inGlobal(g)
+      // a module value: the definitions of its members, whichever is selected (its member functions
+      // and formula functions are globals applied to the body's context)
+      case Tm.Module(b, _) =>
+        seenBodies.add(b.id) && b.members.exists {
+          case Member(_, MemberKind.Defined(tm), _, _, _) => inTm(tm)
+          case _ => false
+        }
       case _ => false
     }
     def inTree(t: CaseTree): Boolean = t match

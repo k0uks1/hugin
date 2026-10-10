@@ -239,8 +239,9 @@ formula function is replaced by the formula that the function returns. A formula
 
 - by a definition, `cheap : item -> prop = [I] I.price < 10.`, or
 - by rules: after a declaration `f : τ₁ -> … -> τₙ -> prop.` without a definition, every rule
-  `f t₁ … tₙ :- φ.` of the file is a clause of `f`. The function stands for the disjunction of its
-  clauses: `f x̄` is `(x̄ = t̄₁, φ₁) ; … ; (x̄ = t̄ₖ, φₖ)`.
+  `f t₁ … tₙ :- φ.` of the file, or of the [module body](../modules.md#module-bodies) that declares
+  `f`, is a clause of `f`. The function stands for the disjunction of its clauses: `f x̄` is
+  `(x̄ = t̄₁, φ₁) ; … ; (x̄ = t̄ₖ, φₖ)`.
 
 Each clause of a formula function is [typed](../object/types.md#where-object-code-is-typed) where it
 is written, like a rule whose body is the clause's body and the equations of its arguments. The
@@ -278,6 +279,38 @@ middle X Y :- grand X _, parent Y X.
 ```output
 ?- middle X Y.
 X = ann, Y = dan.
+```
+
+A formula function declared in a module body is a field of the module, elaborated once where the body
+is written ([Modules](../modules.md#module-bodies)). Its clauses may use the body's members and the
+parameters of an enclosing functor; a use through an instance mentions that instance's object
+constants. In the following functor, `near` is a formula function over the functor's relation, used by
+the body's rules and through the instance `h`.
+
+```hugin,run
+graph : Type = { node : type, edge : node -> node -> rel }.
+hops (g : graph) = {
+  near : g.node -> g.node -> prop.
+  near X Y :- g.edge X Y ; g.edge Y X.
+  two : g.node -> g.node -> rel.
+  two X Z :- near X Y, near Y Z, X <> Z.
+}.
+city : type. berlin : city. paris : city. rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+h = hops { node = city, edge = road }.
+linked : city -> city -> rel.
+linked X Y :- h.near X Y.
+%output h.two. %output linked.
+```
+
+```output
+h.two berlin rome.
+h.two rome berlin.
+linked berlin paris.
+linked paris berlin.
+linked paris rome.
+linked rome paris.
 ```
 
 ## Instances

@@ -10,7 +10,7 @@ m = {
   pick : color -> int.
   pick red = 1.
   stuck : int -> int. (*~ E0907 *)
-  near : node -> prop. (*~ E0907 *)
+  near : node -> prop.
   near X :- edge X _.
   hub : node -> rel.
   hub X :- near X.

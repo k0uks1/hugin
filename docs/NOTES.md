@@ -1958,6 +1958,45 @@ for clauses of a body's object constant or definition. Goldens: `run/mc_member_f
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
 
+## Formula functions in module bodies (#100, batch 2)
+
+Design: `docs/design/module-clauses.md`, section 7, batch 2. A declaration `f : τ̄ -> prop.` of a module
+body without a definition (and without clauses `f p̄ = e.`, which make it a member function) and the
+rules `f t̄ :- ψ.` of the same body define a formula function of the body. It is lifted as batch 1's
+member functions are (`MemberFunctions.functionMember`): a hidden global named after the member's path,
+over the same context, but a postulate until its rules define it; the member is the global applied to
+the context. The rules are elaborated after the member clause groups, each function a block of its own
+(`FormulaFunctions.elabMemberFormula`), in the context of all members; the definition is the
+disjunction closed over that context (`Lifting.closeTerm`: λ for bound variables, a let for each
+definition the formula uses, as `Lifting.letBound` does for leaves). Choices the design left open:
+
+- *Withheld until all are elaborated.* The definitions go into `DependencyOrder.withheld` until the rules
+  of every formula function of the body are elaborated, then the cycles are checked. As in a cycle of a
+  file's items, no formula function of the body unfolds in another's rules, and a cycle is reported
+  before anything unfolds it (installed eagerly, a self-referencing function made the object typing of
+  a later group's clause recurse forever).
+- *Cycles.* E0105 per cycle, at the first name of a clause that expands to the function again: a member
+  is followed through the definitions of the body it needs (`closeTerm` of the member's variable), so
+  `viaDef X :- d X.` with `d = [X] viaDef X` points at `d`. The functions of a cycle are false, and their
+  uses in the body's object items are left out silently (`ElabState.leftOutMembers`, by name and level,
+  restored after the body; the names are bound, so `erroneous` would not reach them).
+- *Paths in diagnostics.* E0105, W0005 and E0207 name the function by its path (`m.loop`), as batch 1's
+  coverage and termination messages do.
+- *Which declarations.* As at the top level, every such declaration is a formula function, also without
+  rules (W0005, always false); before, one without rules was E0907 ("meta declarations without a
+  definition or clauses"). Declarations with parameters or a refinement keep their E0907.
+- *Through module values.* The cycle check (`FormulaFunctions.refersTo`) now looks into module values:
+  a `Tm.Module` keeps its members out of `Tm.children`, so a cycle between a file's formula function and
+  a body's member through a path (`f X :- m.g X.` with `g X :- f X.` in `m`) was not reported and staging
+  overflowed the stack; this was already so for a body's definitions (`g : node -> prop = [X] f X.`).
+  It follows the definitions of all members of a module the formula function mentions, not only of the
+  member selected: coarse, but a module that a formula function uses and that uses it back is in its
+  cycle of items anyway. E0105 is reported at the path (`neg/mc_formula_members`).
+
+Diagnostics: no new codes; E0907 lost the subject "formula functions defined by rules in module
+bodies". Goldens: `run/mc_formula_members`, `neg/mc_formula_members`; `neg/mc_body_unsupported` no
+longer rejects its formula function.
+
 ## Standard library: lists and directives (#61, batch B4)
 
 Design: `docs/design/stdlib.md`, 5.3 and 5.6; its section 9 lists the deviations ("Deviations in B4").

@@ -16,10 +16,11 @@ import scala.collection.mutable
  *  refers to a later one is retried after it, and a member's name shadows the file's in the whole body
  *  ([[ElabState.bodyDeclared]]). A declaration `f : A.` with clauses `f p̄ = e.` in the body is a
  *  *member function* ([[MemberFunctions]]): its clauses are elaborated after the members, each function
- *  a block of its own; so are the rules of a body's formula functions. Then the body's object items (rules, queries, directives, edges) are elaborated
- *  in the context of all members. The body's type is the record type of its members, a telescope, and
- *  its value is a record: evaluation creates fresh object constants for the object members of each
- *  instance ([[Modules]]), and the handover stages the instance's items. */
+ *  a block of its own; so are the rules of a body's formula functions. Then the body's object items
+ *  (rules, queries, directives, edges) are elaborated in the context of all members. The body's type
+ *  is the record type of its members, a telescope, and its value is a record: evaluation creates fresh
+ *  object constants for the object members of each instance ([[Modules]]), and the handover stages the
+ *  instance's items. */
 trait ModuleBodies:
   self: Elaborator =>
   import core.*

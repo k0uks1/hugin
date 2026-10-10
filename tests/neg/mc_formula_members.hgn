@@ -1,0 +1,31 @@
+(* Formula functions of module bodies (issue #100, batch 2): a cycle is E0105 at the first use that
+   expands to the function again, also through a definition of the body, and the uses of the cycle are
+   left out without further errors; a formula function without rules is W0005; diagnostics name the
+   function by its path. *)
+node : type.
+edge : node -> node -> rel.
+m = {
+  loop : node -> node -> prop.
+  loop X Z :- edge X Y, loop Y Z. (*~ E0105 *)
+  ping : node -> prop.
+  ping X :- pong X. (*~ E0105 *)
+  pong : node -> prop.
+  pong X :- edge X _, ping X.
+  viaDef : node -> prop.
+  viaDef X :- d X. (*~ E0105 *)
+  d : node -> prop = [X] viaDef X.
+  never : node -> prop. (*~ W0005 *)
+  wrong : node -> prop.
+  wrong X Y :- edge X Y. (*~ E0207 *)
+  uses : node -> rel.
+  uses X :- edge X _, loop X X.
+  more : node -> rel.
+  more X :- edge X _, ping X.
+}.
+(* a cycle between a formula function of the file and one of a body, through a path *)
+f : node -> prop.
+f X :- m2.g X. (*~ E0105 *)
+m2 = {
+  g : node -> prop.
+  g X :- edge X _, f X.
+}.

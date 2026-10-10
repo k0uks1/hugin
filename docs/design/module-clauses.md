@@ -2,7 +2,7 @@
 
 Design note for [issue #100](https://github.com/k0uks1/hugin/issues/100). Status: approved by the designer;
 batch 1 implemented (see `docs/NOTES.md`, "Member functions in module bodies", for the choices the note
-left open); batch 2 not started.
+left open); batch 2 implemented (`docs/NOTES.md`, "Formula functions in module bodies").
 
 Contents: 1 recommendations, 2 Hugin today, 3 prior art, 4 assessments, 5 alternatives rejected,
 6 effects, 7 batches, 8 sources.

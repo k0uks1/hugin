@@ -55,7 +55,7 @@ The meta level has the following items. Each is defined in the chapter given.
 
 The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
 body does not support ([E0907](../errors/E0907.md)); in particular, a body may declare meta functions
-defined by clauses.
+defined by clauses and formula functions defined by rules.
 
 A declaration is classified by its type ([Declarations](../object/declarations.md#classification)): an
 object type, relation or constructor type gives an object constant; any other type is checked as a meta
@@ -140,9 +140,10 @@ The unknowns that the compiler creates while it elaborates an item (implicit arg
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.
 An item solves its own unknowns; the unknowns of earlier items are fixed while it is elaborated, so a
 later item never changes what an earlier one means. Unknowns are numbered from `?0` within each item in
-diagnostics. In a module body, the clauses of each member function count as one item inside the item
-that contains the body: the unknowns of the body's declarations and definitions are fixed while the
-clauses are elaborated, and the declaration of a member function must solve its own unknowns
+diagnostics. In a module body, the clauses of each member function, and the rules of each formula
+function, count as one item inside the item that contains the body: the unknowns of the body's
+declarations and definitions are fixed while the clauses are elaborated, and the declaration of a member
+function or formula function must solve its own unknowns
 ([E0903](../errors/E0903.md)), as a declaration of a file does.
 
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted
