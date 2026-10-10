@@ -324,6 +324,7 @@ label on the opener. Specific messages replace the generic one for common mistak
 | a `{` that the enclosing construct closes before any `}` (`(f { X)`) | ``unclosed `{` `` (E0005); what follows belongs to the enclosing construct | — |
 | `:-` inside parentheses in a quote (`'( p (f $X :- q )`) | ``unclosed `(` `` (E0005); the entry goes on with its body | — |
 | `where` right after the `=` of a clause (`f p = where e`) | ``expected an expression, found `where` ``; the `where` skipped, the clause damaged | — |
+| a `,` that ends the line of a `{` (`lib = { ,`) | ``expected a label, an item or `}`, found `,` ``; the `,` skipped, the braces damaged | — |
 | a token before the name of a declaration (`X sel : τ.`) | malformed declaration head (E0004); the declaration keeps the name after it, damaged | — |
 | `{` before a `,` or `.`, `[` before a `,` (no braces or list start with one; a selection `{.l` is skipped too) | ``expected a label, an item or `}` `` (for `{`) or ``expected an expression`` (for `[`), ``found `,` ``; the opener is skipped, the rest belongs to the enclosing construct | — |
 | `]` in a list over several lines that goes on after it | ``stray `]` `` + "the construct goes on after this `]`" | — |

@@ -1,0 +1,14 @@
+error[E0001]: expected a label, an item or `}`, found `,`
+ --> tests/recovery/r_stray_comma_body.hgn:5:9
+  |
+5 | lib = { , (*~ E0001 *)
+  |         ^ expected a label, an item or `}`
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+n : type.
+one : n.
+two : n.
+next : n -> n -> rel.
+next one two.

@@ -6,9 +6,17 @@ import scala.collection.mutable
  *  `%complete l`), record values and named patterns `{ l = e, .. }`, implicit binders `{A B : T}` and
  *  module bodies `{ items }`. */
 private[syntax] trait RecordSyntax extends ParserBase:
-  /** `{ … }`, at `{`: disambiguated by its first tokens. */
+  /** `{ … }`, at `{`: disambiguated by its first tokens. A `,` that ends the line of the `{` is stray (a
+   *  body over several lines follows, `lib = { ,`): reported and skipped, and the braces are damaged. */
   protected def parseBraces(): Tree =
     val open = advance()
+    if at(Tok.Comma) && toks(i + 1).kind != Tok.EOF && startsLine(i + 1) then
+      expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
+      advance()
+      damaged(braces(open))
+    else braces(open)
+
+  private def braces(open: Token): Tree =
     val start = open.span.start
     val k0 = kind
     val k1 = peekTok(1).kind
