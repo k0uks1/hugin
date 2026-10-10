@@ -12,7 +12,8 @@ import scala.collection.mutable
  *  - `' {(`, a token between the prime and the parenthesis on its line: the token is dropped;
  *  - `' p X )`, the parenthesis lost: a `)` closes the quote ahead, at depth 0 before the end of the
  *    item, so an empty `(` is inserted;
- *  - otherwise the prime is dropped, as a character the lexer did not recognise.
+ *  - otherwise (also before a closer, `$..B ' )`) the prime is dropped, as a character the lexer did not
+ *    recognise.
  *
  *  The parser reads such a quote without further errors in it until it resynchronises: the lexer reported
  *  the mistake. */
@@ -29,7 +30,8 @@ object QuoteOpeners:
         else if j + 2 < toks.length && toks(j + 2).kind == Tok.LParen && toks(j + 2).span.startLine == t.span.startLine then
           out += t
           j += 1 // the token in between
-        else if closedAhead(toks, j + 1) then
+        // a closer right after the prime (`$..B ' )`) closes something else: the prime is stray
+        else if !Set(Tok.RParen, Tok.RBrack, Tok.RBrace)(toks(j + 1).kind) && closedAhead(toks, j + 1) then
           val at = toks(j + 1).span.start
           out += t += Token(Tok.LParen, "", Span(t.span.source, at, at), spaceBefore = true)
         j += 1

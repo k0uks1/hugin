@@ -1,16 +1,22 @@
 error[E0001]: unexpected character `'`
- --> tests/recovery/r_quote_damaged_opener.hgn:7:15
+ --> tests/recovery/r_quote_damaged_opener.hgn:8:15
   |
-7 | symmetric R = ' R Y X :- R X Y. ). (*~ E0001 *)
+8 | symmetric R = ' R Y X :- R X Y. ). (*~ E0001 *)
   |               ^
 
 error[E0001]: unexpected character `'`
-  --> tests/recovery/r_quote_damaged_opener.hgn:13:35
+  --> tests/recovery/r_quote_damaged_opener.hgn:14:35
    |
-13 | reverse '( _ :- friend $X $Y ) = [' {( back $Y $X :- friend $X $Y )]. (*~ E0001 *)
+14 | reverse '( _ :- friend $X $Y ) = [' {( back $Y $X :- friend $X $Y )]. (*~ E0001 *)
    |                                   ^
 
-2 errors found
+error[E0001]: unexpected character `'`
+  --> tests/recovery/r_quote_damaged_opener.hgn:17:24
+   |
+17 | mirror '( friend $X $Y ' ) = '( friend $Y $X ). (*~ E0001 *)
+   |                        ^
+
+3 errors found
 (* ---------------- after elaborate ---------------- *)
 person : type.
 ann : person.
@@ -36,4 +42,18 @@ reverse : rule -> list rule.
   reverse (horn (cons _ nil) (cons (fdisj _ _) _)) = nil.
   reverse (horn (cons _ nil) (cons (fagg _ _ _ _) _)) = nil.
   reverse (horn (cons _ (cons _ _)) _) = nil.
+mirror : rule -> rule.
+  mirror (horn nil _) = horn nil _.
+  mirror (horn (cons (fatom ⟨friend⟩ nil) _) _) = horn (cons (fatom ⟨friend⟩ nil) _) _.
+  mirror (horn (cons (fatom ⟨friend⟩ (cons _ nil)) _) _) = horn (cons (fatom ⟨friend⟩ (cons _ nil)) _) _.
+  mirror (horn (cons (fatom ⟨friend⟩ (cons X#data (cons Y#data nil))) nil) nil) = horn (cons {formula} (fatom ⟨friend⟩ (cons {term} Y#data (cons {term} X#data (nil {term})))) (nil {formula})) (nil {formula}).
+  mirror (horn (cons (fatom ⟨friend⟩ (cons _ (cons _ nil))) nil) (cons _ _)) = horn (cons (fatom ⟨friend⟩ (cons _ (cons _ nil))) nil) (cons _ _).
+  mirror (horn (cons (fatom ⟨friend⟩ (cons _ (cons _ nil))) (cons _ _)) _) = horn (cons (fatom ⟨friend⟩ (cons _ (cons _ nil))) (cons _ _)) _.
+  mirror (horn (cons (fatom ⟨friend⟩ (cons _ (cons _ (cons _ _)))) _) _) = horn (cons (fatom ⟨friend⟩ (cons _ (cons _ (cons _ _)))) _) _.
+  mirror (horn (cons (fatom _ _) _) _) = horn (cons (fatom _ _) _) _.
+  mirror (horn (cons (fcmp _ _ _) _) _) = horn (cons (fcmp _ _ _) _) _.
+  mirror (horn (cons (fnot _) _) _) = horn (cons (fnot _) _) _.
+  mirror (horn (cons (fconj _ _) _) _) = horn (cons (fconj _ _) _) _.
+  mirror (horn (cons (fdisj _ _) _) _) = horn (cons (fdisj _ _) _) _.
+  mirror (horn (cons (fagg _ _ _ _) _) _) = horn (cons (fagg _ _ _ _) _) _.
 %output friend.
