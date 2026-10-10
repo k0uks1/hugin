@@ -9,6 +9,9 @@ level that computes object programs at compile time. This repository holds its l
 its reference implementation, written in Scala 3.
 
 ```
+%use "std/reflect".
+%use "std/graph".
+
 person : type.
 ann : person. bob : person. cid : person. dan : person.
 
@@ -22,7 +25,7 @@ symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '( R Y X :- R X Y. ).
 %symmetric knows.
 
-(* `tc` is a functor from the prelude: transitive closure of a graph *)
+(* `tc` is a functor from std/graph: transitive closure of a graph *)
 reach = tc { node = person, edge = knows }.
 
 ?- reach.path cid P, P <> cid.
