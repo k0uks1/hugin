@@ -762,3 +762,21 @@ of the note came before the sharing read-back of #108 and the stdlib split. An e
 weak in their keys (`readBack`, `termIds`; a weak identity map) made `meta_scaled` slower and its heap
 after collections larger (more GCs, 2–3× their pause time): the keys stay reachable anyway, through the
 memo's results, which must stay so that evaluation and its fresh names are unchanged. Not changed.
+
+## `std/nat` in the prelude (#127)
+
+The prelude opens `nat`, `zero` and `suc` of `std/nat` with a selective `%use`. `std/nat` declares no
+object constants, so it is lazy as `std/demand` is (docs/LIBRARIES.md, "Lazy re-export"): a program that
+writes none of the three names (nor a name E0101 would suggest one of them for) does not elaborate it.
+Measured with `Bench cpu` (4 rounds of 15 after 10 warm-up, thread CPU and allocation) with and without
+the prelude's `%use "std/nat"` line, on a loaded machine:
+
+| measurement | without | with | change |
+|---|---:|---:|---:|
+| prelude chain elaboration, uncached, eager (includes `std/nat`) | 53.3 ms, 19.04 MB | 47.1 ms, 19.34 MB | CPU within noise, +1.6 % allocation |
+| compile one-line program (lazy: no `std/nat`) | 3.91 ms, 0.68 MB | 3.34 ms, 0.69 MB | within noise |
+| check one-line | 3.82 ms, 0.67 MB | 3.04 ms, 0.69 MB | within noise |
+| run a01_transitive_closure | 9.89 ms, 1.46 MB | 10.36 ms, 1.47 MB | within noise |
+
+A program that uses `nat` pays for the three declarations and the two functions of `std/nat`, about
+0.3 MB of allocation and no measurable CPU time.

@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+ --> tests/neg/nat_literal_default.hgn:5:20
+  |
+5 | s : string = ident 3. (*~ E0901 *)
+  |                    ^ expected `string`, found `int`
+
+1 error found

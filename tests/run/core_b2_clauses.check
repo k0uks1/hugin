@@ -13,20 +13,20 @@ nat : Type.
 zero : nat.
 suc : nat -> nat.
 plus : nat -> nat -> nat.
-  plus zero N = N.
-  plus (suc M) N = suc (plus M N).
+  plus 0 N = N.
+  plus (M + 1) N = plus M N + 1.
 vec : Type -> nat -> Type.
-vnil : {A : Type} -> vec A zero.
-vcons : {A : Type} -> {N : nat} -> A -> vec A N -> vec A (suc N).
-head : {A : Type} -> {N : nat} -> vec A (suc N) -> A.
+vnil : {A : Type} -> vec A 0.
+vcons : {A : Type} -> {N : nat} -> A -> vec A N -> vec A (N + 1).
+head : {A : Type} -> {N : nat} -> vec A (N + 1) -> A.
   head (vcons X _) = X.
 append : {A : Type} -> {N : nat} -> {M : nat} -> vec A N -> vec A M -> vec A (plus N M).
   append vnil YS = YS.
   append (vcons X XS) YS = vcons X (append XS YS).
 fibm : nat -> int.
-  fibm zero = 0.
-  fibm (suc zero) = 1.
-  fibm (suc (suc N)) = fibm N + fibm (suc N).
+  fibm 0 = 0.
+  fibm 1 = 1.
+  fibm (N + 2) = fibm N + fibm (N + 1).
 fib : int -> int -> rel.
 fib 90 2880067194370816120.
 sumAll : {N : nat} -> vec int N -> int.
@@ -35,7 +35,7 @@ sumAll : {N : nat} -> vec int N -> int.
 total : int -> rel.
 total 42.
 isZero : nat -> int.
-  isZero zero = 1.
-  isZero (suc _) = 0.
+  isZero 0 = 1.
+  isZero (_ + 1) = 0.
 fib 90 2880067194370816120.
 total 42.

@@ -88,6 +88,14 @@ scalar value, and ([E0002](errors/E0002.md)) to leave a string unterminated.
 There is no literal for negative numbers. `-5` is the unary minus applied to `5`; the parser folds it
 into the literal −5.
 
+The type of a literal is given by its position. An integer literal is an object integer in object code,
+a meta value of a base type, or a numeral of a nat-like meta family such as `nat`; a literal at a type
+that is not yet known waits until the end of its item and is an `int` if nothing determines its type
+([Functions](meta/functions.md#literals-and-primitive-operations)). A numeral is a term of the two
+constructors of its family, so it is an error ([E0901](errors/E0901.md)) if an integer literal checked
+against a nat-like family is negative or larger than 100000
+([Inductive families](meta/families.md#numerals)).
+
 The following program shows each kind of literal. Facts are printed with the escapes of string
 literals, and negative numbers inside a fact in parentheses.
 
@@ -220,6 +228,10 @@ Application by juxtaposition (`edge X Y`) binds tighter than every binary operat
 `e.l` binds tighter than application. The prefix operators `not` and unary `-` apply to an application:
 `not edge X Y` is `not (edge X Y)`. Comparison operators do not associate: `A < B < C` is an error
 ([E0001](errors/E0001.md)).
+
+On a nat-like meta type, `+` with an integer literal as its right operand is the successor applied that
+many times, in expressions and in patterns: `N + 2` is `suc (suc N)`
+([Inductive families](meta/families.md#numerals), [Clauses](meta/clauses.md#patterns)).
 
 Three tokens are prefix where an operand starts and binary between operands: `-` is negation or
 subtraction, `^` is the lift `⇑` or string concatenation, and `<` opens a staging quote or compares. So

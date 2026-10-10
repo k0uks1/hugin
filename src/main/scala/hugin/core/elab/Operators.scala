@@ -45,10 +45,15 @@ trait Operators:
           val (t1, ty1) = inferS(c, first, s)
           (t1, ty1, s)
         case None => infer(c, first)
-      if s == Stage.S1 then operandType(c, op, fty, first.span)
-      val st2 = check(c, second, fty, s)
-      val (a, b) = if swapped then (st2, ft) else (ft, st2)
-      (Tm.Arith(op, a, b, s), fty, s)
+      (natType(fty), successorCount(second)) match
+        case (Some((_, suc)), Some(k)) if s == Stage.S1 && op == ArithOp.Add && !swapped =>
+          // `e + k` on a nat-like type: the successor applied `k` times (reference: meta/families)
+          (natSuccessor(suc, ft, k, first.span.to(second.span)), fty, s)
+        case _ =>
+          if s == Stage.S1 then operandType(c, op, fty, first.span)
+          val st2 = check(c, second, fty, s)
+          val (a, b) = if swapped then (st2, ft) else (ft, st2)
+          (Tm.Arith(op, a, b, s), fty, s)
 
   /** Comparisons are object formulas. */
   private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match

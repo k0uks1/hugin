@@ -56,9 +56,6 @@ In the following program the argument written `_` in `same` is determined only b
 `c` *α* with `c Y` by their arguments, which solves *α* `:= Y`.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 eqn : nat -> nat -> Type.
 refl : eqn N N.
 c : nat -> nat.
@@ -147,9 +144,6 @@ The following program leaves the argument of the outer `suc` as a hole. The comp
 `nat`.
 
 ```hugin,compile_fail,E0924
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 double : nat -> nat.
 double zero = zero.
 double (suc N) = suc (suc ?).
@@ -177,10 +171,42 @@ x : t = 5.
 
 ## Literals and primitive operations
 
-A literal checked against a meta type is a *meta value*: `3 : int` is a compile-time integer. A literal
-checked against a type with a constant constructor and a constructor with one recursive argument, such as
-`nat` with `zero` and `suc`, is the numeral `suc (… zero)` ([Inductive families](families.md#numerals)).
-A literal whose type is not determined is a meta value of its base type.
+A literal checked against a meta type is a *meta value*: `3 : int` is a compile-time integer. An integer
+literal checked against a type `A` is:
+
+1. the numeral of `A`, if `A` is a nat-like family, such as `nat` with `zero` and `suc`
+   ([Inductive families](families.md#numerals));
+2. a literal of `A` at the stage of its position, if `A` is a base type;
+3. if `A` is still an unknown, an unknown of type `A` that waits until the end of its item, or of the
+   member of a module body that contains it. The literal is then checked against `A` as the item has
+   determined it, by rule 1 or 2; if `A` is still unknown, it is `int` at stage 1.
+
+So a literal takes its type from the rest of its item: with `pick : {A : Type} -> A -> A -> A`, both
+`pick 3 zero` and `pick zero 3` are naturals, and `pick 3 4` is an `int`. A literal never becomes a
+numeral by default. A literal that is not checked against a type, such as an operand whose type is
+inferred, has its base type. A float or string literal has its base type.
+
+The following program takes the type of each literal from the other argument of `pick`.
+
+```hugin,run
+%use "std/nat".
+pick : {A : Type} -> A -> A -> A.
+pick X _ = X.
+a : nat = pick 3 zero.
+b = pick 4 5.
+shown : int -> rel.
+shown (toInt a).
+shown b.
+```
+
+```output
+shown 3.
+shown 4.
+```
+
+> **Rationale.** The default is `int`, not a nat-like type as in Agda or Lean, because most literals are
+> object integers, and a default must not change the stage of a term: a nat-like type has no lifting to
+> object code.
 
 The arithmetic operators `+`, `-`, `*`, `/` and `^` apply to meta values of the base types as they do to
 object values ([Arithmetic and comparisons](../object/arithmetic.md)); they are computed at compile time.

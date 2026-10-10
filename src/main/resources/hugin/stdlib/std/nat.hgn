@@ -1,0 +1,15 @@
+(* std/nat: the natural numbers of the meta level (reference: std/nat). The prelude opens `nat`, `zero`
+   and `suc`; a program writes `%use "std/nat".` for the functions. *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+
+(* The sum, by recursion on the second argument: `plus N 1` is `N + 1` *)
+plus : nat -> nat -> nat.
+plus N 0 = N.
+plus N (M + 1) = plus N M + 1.
+
+(* The integer of a natural number, to use it in object code *)
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.

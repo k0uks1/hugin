@@ -12,6 +12,7 @@ import scala.jdk.CollectionConverters.*
 class LazyStdlibSuite extends munit.FunSuite:
   private val Demand = SourceLoader.StdlibPrefix + "std/demand.hgn"
   private val Reflect = SourceLoader.StdlibPrefix + "std/reflect.hgn"
+  private val Nat = SourceLoader.StdlibPrefix + "std/nat.hgn"
 
   private def program(text: String, path: String = "p.hgn"): (String, Program) =
     path -> Parsed(hugin.util.SourceFile.virtual(path, text)).program
@@ -43,7 +44,8 @@ class LazyStdlibSuite extends munit.FunSuite:
   test("a file is lazy only if the prelude opens it selectively, and nothing else imports it") {
     val text = SourceLoader.stdlib(SourceLoader.PreludePath).get.replace("%use \"std/demand\" (demand).", "%use \"std/demand\".")
     val std = StdlibCache.bundledChain(text)
-    assertEquals(LazyStdlib.chain(std, List(program("p : int -> rel.")), builtinNames = true), std)
+    // `std/nat` stays lazy: the prelude opens it selectively
+    assertEquals(LazyStdlib.chain(std, List(program("p : int -> rel.")), builtinNames = true), std.filterNot(_.source.path == Nat))
   }
 
   test("`std/demand` declares no object constants; `std/reflect` does (shared data)") {
@@ -75,7 +77,7 @@ class LazyStdlibSuite extends munit.FunSuite:
     assertEquals(db(StdChain, key), List(Reflect, Demand, SourceLoader.PreludePath))
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n")
     db.set(EagerStdlib, (), true)
-    assertEquals(db(StdChain, key), List(Reflect, Demand, SourceLoader.PreludePath))
+    assertEquals(db(StdChain, key), List(Reflect, Nat, Demand, SourceLoader.PreludePath))
   }
 
   private def goldens: List[Path] =

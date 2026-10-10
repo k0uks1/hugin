@@ -17,6 +17,6 @@ nat : Type.
 zero : nat.
 suc : nat -> nat.
 double : nat -> nat.
-one : nat = suc zero.
-five : nat = suc (suc (suc one)).
-six : nat = suc five.
+one : nat = 1.
+five : nat = one + 3.
+six : nat = five + 1.

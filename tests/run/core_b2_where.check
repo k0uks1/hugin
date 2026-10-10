@@ -9,8 +9,8 @@ rect : int -> int -> shape.
 area : shape -> int.
   area (rect W H) = (W + 0) * (H * 1).
 fibPair : nat -> pair int int.
-  fibPair zero = mkPair 0 1.
-  fibPair (suc N) = mkPair (fibPair.b (fibPair N)) (fibPair.a (fibPair N) + fibPair.b (fibPair N)).
+  fibPair 0 = mkPair 0 1.
+  fibPair (N + 1) = mkPair (fibPair.b (fibPair N)) (fibPair.a (fibPair N) + fibPair.b (fibPair N)).
 fst : pair int int -> int.
   fst (mkPair X _) = X.
 addTo : int -> nat -> int.
