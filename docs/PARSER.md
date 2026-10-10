@@ -188,7 +188,7 @@ Recovery happens at the innermost construct that can continue:
 |---|---|---|
 | file, module body, `where` block (`ParserBase.parseItems`) | items | skip the rest of the item, up to its period, the next token in column 0 or a directive that starts an item; a `{` (which no item starts with) at the end of its line, or whose `}` follows within the item, is skipped with its contents, to its `}` |
 | query, rule body (after `?-`, `:-`) | formula | a token in column 0 is the next item: the formula is missing (`ErrorTree`), as for the operand of `⇑` |
-| item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file; otherwise report and skip to the period, a column-0 token (also inside a delimiter opened in the skipped text, unless it closes one), or the `}` of the enclosing body |
+| item (`endItem`) | `.` | insert `.` if the next token starts a line, closes the enclosing body or is the end of the file, or is a directive after a complete item (`leg%use "f".`, the item damaged); otherwise report and skip to the period, a column-0 token (also inside a delimiter opened in the skipped text, unless it closes one), or the `}` of the enclosing body |
 | rule heads, rule body, query | `,` `;` | a missing operand is an `ErrorTree`; the next conjunct parses normally |
 | argument list | juxtaposition | an argument that is missing is not consumed (the parent decides) |
 | `( … )`, `[ … ]`, `{ … }`, `'( … )`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |

@@ -1,0 +1,9 @@
+(* A directive right after a complete item on its line starts the next item: the period is missing (one
+   error), and the `%use` is kept, so `tc` resolves. After an error in an item, a directive is junk
+   instead (r_directive_in_item). *)
+ leg%use "std/graph". (*~ E0001 *)
+place : type. here : place. there : place.
+leg : place -> place -> rel.
+leg here there.
+legs = tc { node = place, edge = leg }.
+?- legs.path here X.

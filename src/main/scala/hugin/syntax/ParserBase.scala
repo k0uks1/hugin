@@ -140,6 +140,12 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
       if at(Tok.Period) && tok.span.start == stray.span.end then advance()
       skipItem()
       false
+    else if !quiet && at(Tok.Directive) && startsDirectiveItem(tok) then
+      // a directive after a complete item on its line starts the next item (`leg%use "f".`): the period is
+      // missing, and the item, not followed by a new line, is damaged (after an error in the item, the
+      // directive is junk, skipped with the rest: `f = %output …`)
+      error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, Some(tok.span)))
+      false
     else if at(Tok.EOF) || startsLine(i) || atBodyCloser then
       val next = Option.when(tok.kind != Tok.EOF && !atBodyCloser)(tok.span)
       error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, next))

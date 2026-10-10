@@ -1,0 +1,18 @@
+error[E0001]: expected `.` after the fact, found `%use`
+ --> tests/recovery/r_directive_after_item.hgn:4:5
+  |
+4 |  leg%use "std/graph". (*~ E0001 *)
+  |     ^--- next item starts here
+  |     expected `.` here
+  |
+  = help: every item ends with a period
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+place : type.
+here : place.
+there : place.
+leg : place -> place -> rel.
+leg here there.
+legs : { path : ⇑(place -> place -> rel) } = tc { node = ⟨place⟩, edge = ⟨leg⟩ }.
+?- legs.path here X.
