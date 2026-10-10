@@ -32,7 +32,8 @@ Without a staged compiler (`target/universal/stage/bin/hugin`) the build stops w
 `HUGIN=bin/hugin mdbook build reference`, `bin/hugin` stages the compiler on first use. Re-stage after
 changing the compiler, or the book shows the old highlighting.
 
-The links are checked in CI with [lychee](https://lychee.cli.rs/) (offline: internal links and anchors):
+The links are checked in CI with [lychee](https://lychee.cli.rs/) (offline: internal links and anchors),
+as part of the website built around the book (see CONTRIBUTING.md, "The website"):
 
 ```
 lychee --offline --include-fragments --exclude-path reference/book/404.html 'reference/book/**/*.html'
@@ -107,8 +108,12 @@ under `src/object/`.
 
 ## Publishing
 
-`.github/workflows/reference.yml` builds the book and checks its links on every push and pull request,
-and deploys it to GitHub Pages on pushes to the default and the development branch. Deployment needs
+`.github/workflows/reference.yml` (workflow "Site") builds the book into the website (issue #58: the
+landing page at `/hugin/`, the book at `/hugin/reference/`, the playground at `/hugin/play/`; built by
+`site/build.mjs`) and checks its links on every push and pull request, and deploys the site to GitHub
+Pages on pushes to the default and the development branch. The book's pages at their URLs before the
+move (`/hugin/<page>.html`, among them `/hugin/errors/<code>.html`) are redirect pages to their new URLs,
+so links to them keep working. Deployment needs
 Pages enabled with "GitHub Actions" as the source (repository settings); until then the deploy job fails
 without failing the workflow. `site-url.txt` holds the published URL, the base for links to error pages
 from `--explain`, the LSP's `codeDescription` and the JSON diagnostics; the path in `site-url` of

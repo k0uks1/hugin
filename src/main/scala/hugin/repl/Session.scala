@@ -7,7 +7,6 @@ import hugin.syntax.Trees.Query as QueryItem
 import hugin.util.*
 import hugin.util.diagnostics.{Code, Explanations}
 import java.nio.file.{Files, Path}
-import org.apache.commons.text.similarity.LevenshteinDistance
 
 /** What the session answers to one input: output lines, diagnostics, and whether to end the session. */
 final case class Reply(output: List[String] = Nil, diagnostics: List[Diagnostic] = Nil, quit: Boolean = false):
@@ -241,7 +240,7 @@ final class Session(settings: Settings = Settings(), initialStats: Boolean = fal
           case None => unknown(name)
 
   private def unknown(name: String): Reply =
-    val distance = LevenshteinDistance.getDefaultInstance
+    val distance = Levenshtein.distance
     val similar = commands.flatMap(c => c.name :: c.aliases).filter(c => distance(c, name) <= 2).minByOption(c => distance(c, name))
     error(
       s"unknown command `:$name`",

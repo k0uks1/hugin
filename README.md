@@ -1,14 +1,25 @@
+<div align="center">
+
 # Hugin
 
+**[Website](https://k0uks1.github.io/hugin/)** · [Playground](https://k0uks1.github.io/hugin/play/) ·
+[Install](https://k0uks1.github.io/hugin/install/) · [Reference](https://k0uks1.github.io/hugin/reference/) ·
+[Contributing](CONTRIBUTING.md)
+
 [![CI](https://github.com/k0uks1/hugin/actions/workflows/ci.yml/badge.svg)](https://github.com/k0uks1/hugin/actions/workflows/ci.yml)
-[![Reference](https://github.com/k0uks1/hugin/actions/workflows/reference.yml/badge.svg)](https://k0uks1.github.io/hugin/)
+[![Site](https://github.com/k0uks1/hugin/actions/workflows/reference.yml/badge.svg)](https://k0uks1.github.io/hugin/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+</div>
 
 Hugin is a typed Datalog with first-class facts at the object level and a total, dependently typed meta
 level that computes object programs at compile time. This repository holds its language reference and
 its reference implementation, written in Scala 3.
 
 ```
+%use "std/reflect".
+%use "std/graph".
+
 person : type.
 ann : person. bob : person. cid : person. dan : person.
 
@@ -22,7 +33,7 @@ symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '( R Y X :- R X Y. ).
 %symmetric knows.
 
-(* `tc` is a functor from the prelude: transitive closure of a graph *)
+(* `tc` is a functor from std/graph: transitive closure of a graph *)
 reach = tc { node = person, edge = knows }.
 
 ?- reach.path cid P, P <> cid.
@@ -77,10 +88,12 @@ lists all commands and options.
 
 ## Documentation
 
-- [The Hugin language reference](https://k0uks1.github.io/hugin/): the definition of the language, with
-  checked examples.
-- [Error index](https://k0uks1.github.io/hugin/errors/index.html): every diagnostic code with an
-  explanation, also printed by `hugin explain <code>`.
+- [The website](https://k0uks1.github.io/hugin/), with a [playground](https://k0uks1.github.io/hugin/play/)
+  that compiles and runs programs in the browser.
+- [The Hugin language reference](https://k0uks1.github.io/hugin/reference/): the definition of the
+  language, with checked examples.
+- [Error index](https://k0uks1.github.io/hugin/reference/errors/index.html): every diagnostic code with
+  an explanation, also printed by `hugin explain <code>`.
 - [`examples/`](examples): small programs (graphs, records, lists, formula functions, a type checker).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): the developer guide (architecture, tests, tooling).
 - [`docs/`](docs): design notes and the record of the redesign. They are historical; the reference is
@@ -89,7 +102,7 @@ lists all commands and options.
 ## Background
 
 Hugin builds on the following work. The reference lists all cited works in
-[Notation](https://k0uks1.github.io/hugin/notation.html#references).
+[Notation](https://k0uks1.github.io/hugin/reference/notation.html#references).
 
 - T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. *Datalog with First-Class
   Facts.* PVLDB 18(3), 2024. [arXiv:2411.14330](https://arxiv.org/abs/2411.14330). The object level is

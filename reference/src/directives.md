@@ -205,6 +205,10 @@ friend bob cid.
 friend cid bob.
 ```
 
+[`std/directives`](std/directives.md) defines what directive authors need beyond `std/reflect`: the parts
+of rules and modules, the calls of a relation, the binding analysis of terms and formulas, fresh variable
+names and `reject`.
+
 ## Demand
 
 `%demand r m.` makes the relation `r` *demand-driven*: `r` is computed only for the inputs that some rule

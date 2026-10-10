@@ -23,7 +23,7 @@ object LazyStdlib:
    *  other files are `others` (with their paths) elaborates: all of them, except a file that the prelude opens with a
    *  selective `%use` of an import, that no other file imports, that declares no object constants, and
    *  none of whose opened names the program may resolve; the files that only such a file imports are left
-   *  out with it. */
+   *  out with it (those that the program imports are then its libraries, [[outside]]). */
   def chain(std: List[Parsed], others: List[(String, Program)], builtinNames: Boolean): List[Parsed] =
     std.lastOption match
       case Some(prelude) if enabled && prelude.source.path == SourceLoader.PreludePath =>
@@ -52,6 +52,41 @@ object LazyStdlib:
           std.filter(p => (p eq prelude) || kept(p.source.path))
       case _ => std
 
+  /** The files of the prelude's chain `std` that [[chain]] left out (`kept` is its result) and that the
+   *  program's files `others` import, directly or through each other, in the order of `std`. A file that
+   *  only a lazy file imports may be imported by the program as well (`std/list`, which `std/demand`
+   *  imports): it is then elaborated as one of the program's libraries, after the prelude, so that the
+   *  prelude's chain stays the same for every program that does not use the lazy file. */
+  def outside(std: List[Parsed], kept: List[Parsed], others: List[(String, Program)]): List[Parsed] =
+    if kept.length == std.length then Nil
+    else
+      val left = std.filterNot(p => kept.exists(_ eq p)).map(p => p.source.path -> p).toMap
+      val needed = mutable.HashSet.empty[String]
+      def need(path: String): Unit =
+        if left.contains(path) && needed.add(path) then Library.importsOf(path, left(path).program).foreach(i => need(i._2))
+      others.foreach((path, p) => Library.importsOf(path, p).foreach(i => need(i._2)))
+      std.filter(p => needed(p.source.path))
+
+  /** The program's libraries: the files `rest` after the prelude in the import graph (in dependency
+   *  order), with the files `outside` (see [[outside]], with their imports `importsOf`) each placed just
+   *  before the first file of `rest` that imports it, or at the end, where the import graph places a file
+   *  that only the program imports. So the libraries before it keep their place in the chain. */
+  def placed(outside: List[Parsed], rest: List[String], importsOf: String => List[String]): List[String] =
+    if outside.isEmpty then rest
+    else
+      val byPath = outside.map(p => p.source.path -> p).toMap
+      val out = mutable.ListBuffer.empty[String]
+      val done = mutable.HashSet.empty[String]
+      def emit(path: String): Unit =
+        if byPath.contains(path) && done.add(path) then
+          Library.importsOf(path, byPath(path).program).foreach(i => emit(i._2))
+          out += path
+      for f <- rest do
+        importsOf(f).foreach(emit)
+        out += f
+      outside.foreach(p => emit(p.source.path))
+      out.toList
+
   /** The names written in `programs`: identifiers, fields and the names of directives. */
   private def namesIn(programs: List[Program]): Set[String] =
     programs.iterator.flatMap(p => TreeOps.nodes(p.items)).collect {
@@ -65,10 +100,9 @@ object LazyStdlib:
    *  edit distance of at most a third of the written name's length, see `Names.similarName`). */
   private def mayResolve(written: Set[String], name: String): Boolean =
     written(name) || {
-      val distance = org.apache.commons.text.similarity.LevenshteinDistance.getDefaultInstance
       written.exists { w =>
         val limit = (w.length / 3).max(1)
         w.headOption.map(_.isUpper) == name.headOption.map(_.isUpper) && (w.length - name.length).abs <= limit &&
-        distance.apply(w, name).intValue <= limit
+        hugin.util.Levenshtein.distance(w, name) <= limit
       }
     }

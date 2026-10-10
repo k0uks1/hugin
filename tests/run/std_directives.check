@@ -1,0 +1,28 @@
+name "fresh []" "x#0".
+name "fresh other" "y#0".
+name "fresh" "x#0000".
+names "fbound" (cons "N" nil).
+names "fbound" (cons "X" nil).
+names "fbound" nil.
+names "fneeds" (cons "X" (cons "M" nil)).
+names "fneeds" (cons "X" (cons "Y" (cons "Y" (cons "Z" (cons "Z" (cons "W" nil)))))).
+names "fneeds" (cons "Y" (cons "Z" nil)).
+names "fvars" (cons "N" (cons "X" (cons "N" (cons "M" nil)))).
+names "fvars" (cons "X" (cons "Y" (cons "X" (cons "Z" nil)))).
+names "fvars" (cons "X" (cons "Y" (cons "Y" (cons "Z" (cons "Z" (cons "W" nil)))))).
+names "tsvars" (cons "X" (cons "Y" nil)).
+names "tvars" (cons "X" (cons "Y" (cons "X" nil))).
+names "tvars" (cons "X" (cons "Y" nil)).
+names "tvars" nil.
+number "args" 6.
+number "body" 0.
+number "body" 2.
+number "calls" 3.
+number "heads" 1.
+number "rules" 31.
+truth "plain" false.
+truth "plain" true.
+truth "plains" false.
+truth "plains" true.
+?- path 1 X.
+X = 2.

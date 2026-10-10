@@ -27,7 +27,7 @@ trait Evaluation:
     case Tm.AppPruning(t, pr) => appPruning(env, eval(env, t), pr)
     case Tm.Lam(x, i, b) => Lam(x, i, Closure(env, b))
     case Tm.App(_, Tm.App(_, _: Tm.App, _), _) => evalArgChain(env, t)
-    case Tm.App(f, a, i) => app(eval(env, f), eval(env, a), i)
+    case Tm.App(f, a, i) => app(eval(env, f), argument(eval(env, a)), i)
     case Tm.Pi(x, i, a, b) => Pi(x, i, eval(env, a), Closure(env, b))
     case Tm.Let(_, _, d, b) => eval(eval(env, d) :: env, b)
     case Tm.U0 => U0
@@ -66,9 +66,10 @@ trait Evaluation:
       val Tm.App(f, a, i) = cur: @unchecked
       fs = (eval(env, f), i) :: fs
       cur = a
-    var v = eval(env, cur)
+    // every application but the last is an argument (instance names, [[Modules.argument]])
+    var v = argument(eval(env, cur))
     while fs.nonEmpty do
-      v = app(fs.head._1, v, fs.head._2)
+      v = if fs.tail.isEmpty then app(fs.head._1, v, fs.head._2) else argument(app(fs.head._1, v, fs.head._2))
       fs = fs.tail
     v
 

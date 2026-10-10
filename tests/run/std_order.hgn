@@ -1,0 +1,24 @@
+(* std/order (#61, B5): best, ranking and top over scores grouped by a key, with ties; order over a
+   finite set of numbers, also an empty and a one-element set. *)
+%use "std/order".
+team : type. red : team. blue : team. green : team.
+person : type. ann : person. bob : person. cid : person. dan : person. eve : person.
+points : team -> person -> int -> rel.
+points red ann 7. points red bob 9. points red cid 9. points blue dan 3. points green eve (-2).
+sc = { key = team, item = person, score = points }.
+b = best sc.
+r = ranking sc.
+t1 = top sc 1.
+t2 = top sc 3.
+day : int -> rel.
+day 3. day 10. day 7. day (-1).
+one : int -> rel.
+one 5.
+none_ : int -> rel.
+od = order { elem = day }.
+o1 = order { elem = one }.
+o0 = order { elem = none_ }.
+%output b.argmin. %output b.argmax. %output r.rank. %output t1.top. %output t2.top.
+%output od.first. %output od.next. %output od.position. %output o1.first. %output o1.next. %output o1.position.
+%output o0.first.
+?- t2.r.rank red X R.
