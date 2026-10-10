@@ -26,6 +26,10 @@ enum Command:
 
   /** The language server, speaking LSP over stdin and stdout. */
   case Lsp
+
+  /** Internal: the highlighting of code snippets read from stdin, for the build of the language reference
+   *  (see [[Highlight]]). Not listed in the usage. */
+  case Highlight
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -146,6 +150,10 @@ object CommandLine:
       cmd("lsp")
         .text("run the language server (LSP over stdin/stdout) for editors")
         .action((_, o) => o.copy(command = Command.Lsp)),
+      cmd("highlight")
+        .hidden()
+        .text("internal: highlight the JSON array of snippets on stdin (for the language reference)")
+        .action((_, o) => o.copy(command = Command.Highlight)),
       note(""),
       opt[String]("facts")
         .valueName("<file>")

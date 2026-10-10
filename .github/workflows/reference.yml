@@ -2,7 +2,9 @@ name: Reference
 
 # The language reference (reference/, issue #49): build the book with mdBook, check its internal links
 # and, on pushes to the default or the development branch, publish it on GitHub Pages. The Hugin
-# examples of the book are compiled by `sbt test` (ReferenceExamplesSuite) in ci.yml.
+# examples of the book are compiled by `sbt test` (ReferenceExamplesSuite) in ci.yml. Their highlighting
+# is computed by the compiler (reference/highlight.py runs `hugin highlight`), so the compiler is staged
+# before the book is built.
 
 on:
   push:
@@ -20,14 +22,22 @@ jobs:
   build:
     name: Build and link-check the book
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Stage the compiler (it highlights the code blocks)
+        run: sbt -batch stage
       - name: Install mdBook and lychee (pinned release binaries)
         uses: taiki-e/install-action@v2
         with:
           tool: mdbook@0.5.4,lychee@0.24.2
-      - name: Build the book (the error index is generated from docs/errors)
+      - name: Build the book (the error index is generated from docs/errors, the highlighting by the compiler)
         run: mdbook build reference
       - name: Check internal links and anchors (offline)
         run: >-
