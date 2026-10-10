@@ -1,8 +1,16 @@
+<div align="center">
+
 # Hugin
+
+**[Website](https://k0uks1.github.io/hugin/)** · [Playground](https://k0uks1.github.io/hugin/play/) ·
+[Install](https://k0uks1.github.io/hugin/install/) · [Reference](https://k0uks1.github.io/hugin/reference/) ·
+[Contributing](CONTRIBUTING.md)
 
 [![CI](https://github.com/k0uks1/hugin/actions/workflows/ci.yml/badge.svg)](https://github.com/k0uks1/hugin/actions/workflows/ci.yml)
 [![Site](https://github.com/k0uks1/hugin/actions/workflows/reference.yml/badge.svg)](https://k0uks1.github.io/hugin/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+</div>
 
 Hugin is a typed Datalog with first-class facts at the object level and a total, dependently typed meta
 level that computes object programs at compile time. This repository holds its language reference and
