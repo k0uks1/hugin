@@ -1,0 +1,8 @@
+(* A function whose clauses fail (here an unsolved hole) is left without a case tree, as one that may not
+   terminate: a use of it at compile time is stuck and reported, instead of evaluating a tree over the
+   undone metas of the failure. *)
+%use "std/reflect".
+knows : (int) -> rel.
+twice : ((A)) -> item.
+twice = ( _ ). (*~ E0903 *)
+%twice knows. (*~ E0918 *)

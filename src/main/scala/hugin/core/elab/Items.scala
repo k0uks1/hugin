@@ -239,11 +239,13 @@ trait Items:
     for (n, group) <- groups if !state.unelaborated(n) do
       inBlock {
         val start = metas.length
+        var fn = -1
         try
           undoOnFailure {
             // the records of a failed group are shown before its metas are undone
             try
               val id = declaredFunction(n, group.head)
+              fn = id
               elabFunction(id, group.flatMap(surfaceClause))
               checkSolved(start)
             catch
@@ -255,6 +257,12 @@ trait Items:
         catch
           case e: ElabError =>
             report(e)
+            // its case tree may refer to the undone metas: the function is stuck, as one that may not
+            // terminate (a use reduces no further)
+            if fn >= 0 then
+              globals(fn).kind match
+                case GlobalKind.Function(arity, Some(_)) => globals(fn).kind = GlobalKind.Function(arity, None)
+                case _ =>
             // dropped for an error that follows from a syntax error: its uses are not elaborated either
             if e.silent then state.unelaborated += n
       }
