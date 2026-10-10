@@ -34,7 +34,10 @@ object Playground:
         try
           given db: Database = Database()
           db.set(SourceText, request.file, source)
-          Json.obj("version" -> Json.num(Version), "tokens" -> tokens(request, db(Compile, CompileKey(request.file, request.settings)).index)).render
+          Json.obj(
+            "version" -> Json.num(Version),
+            "tokens" -> tokens(request, db(Compile, CompileKey(request.file, request.settings)).index)
+          ).render
         catch
           case NonFatal(e) => failure(s"internal error: $e")
           case e: StackOverflowError => failure(s"internal error: $e")
