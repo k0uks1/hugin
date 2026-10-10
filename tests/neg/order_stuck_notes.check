@@ -1,0 +1,27 @@
+error[E0901]: mismatched types
+  --> tests/neg/order_stuck_notes.hgn:14:19
+   |
+14 | g (suc N) = check refl N. (*~ E0901 *)
+   |                   ^^^^ expected `eqn (f zero) zero`, found `eqn zero zero`
+   |
+   = note: `f zero` does not reduce here: `f`, `g` and `check` refer to each other, and inside such a cycle no body unfolds
+
+error[E0912]: cannot show that `loop` terminates
+  --> tests/neg/order_stuck_notes.hgn:18:1
+   |
+18 | loop : nat -> nat. (*~ E0912 *)
+   | ^^^^ possibly non-terminating
+19 | loop N = loop N.
+   | ---------------- in this clause: `loop N`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+error[E0901]: mismatched types
+  --> tests/neg/order_stuck_notes.hgn:20:28
+   |
+20 | t : eqn (loop zero) zero = refl. (*~ E0901 *)
+   |                            ^^^^ expected `eqn (loop zero) zero`, found `eqn zero zero`
+   |
+   = note: `loop zero` does not reduce: `loop` was rejected by the termination check (E0912)
+
+3 errors found
