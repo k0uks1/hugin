@@ -99,10 +99,11 @@ trait ElabErrors:
         case Val.Obj(ObjForm.Loc(_), List(x)) => visit(x, depth + 1)
         case _ =>
     vs.foreach(visit(_, 0))
-    def names(ns: List[Name]) = ns.map(n => s"`$n`") match
-      case List(one) => s"$one refers to itself"
-      case init :+ last => s"${init.mkString(", ")} and $last refer to each other"
-      case Nil => "its bodies refer to each other"
+    def names(ns: List[Name]) =
+      val quoted = ns.map(n => s"`$n`")
+      if quoted.isEmpty then "its bodies refer to each other"
+      else if quoted.length == 1 then s"${quoted.head} refers to itself"
+      else s"${quoted.init.mkString(", ")} and ${quoted.last} refer to each other"
     found.toList.map { (g, v) =>
       val t = show(c, v)
       val f = globals(g).name

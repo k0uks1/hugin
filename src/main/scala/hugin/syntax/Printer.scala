@@ -26,7 +26,7 @@ object Printer:
     case Lambda(p, tpe, b) => s"[${show(p)}${tpe.map(t => " : " + show(t)).getOrElse("")}] ${show(b)}"
     case As(t, v) => s"(${show(t)} as ${v.name})"
     case Ascribe(t, tp) => s"(${show(t)} : ${show(tp)})"
-    case With(v, fs) => s"(${v.name} with ${fs.map(f => s"${f.label.name} = ${show(f.value)}").mkString("{ ", ", ", " }")})"
+    case With(v, fs) => s"(${show(v)} with ${fs.map(f => s"${f.label.name} = ${show(f.value)}").mkString("{ ", ", ", " }")})"
     case Not(a) => s"not ${showArg(a)}"
     case Agg(k, t, b) => s"${k.show} { ${show(t)} | ${show(b)} }"
     case BoundType(k, t) => s"${k.show} ${showArg(t)}"

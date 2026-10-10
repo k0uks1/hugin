@@ -211,7 +211,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val closed = close(open, Tok.RBrace)
         checked(Agg(k, term, body)(spanFrom(start)), !stray && bar && closed)
 
-  /** A variable after `as` or before `with`; a lowercase name there is reported (and taken as the variable),
+  /** A variable after `as`; a lowercase name there is reported (and taken as the variable),
    *  as is a stray token before the variable (and skipped with it). */
   private def variable(): Option[VarRef] =
     if at(Tok.Var) then
@@ -232,6 +232,27 @@ private[syntax] trait ExprSyntax extends ParserBase:
       expected(List(Expect.variable))
       None
 
+  /** `(e with { l = t, … })` after `e`, at `with`: a functional update of a fact (object level) or of a meta
+   *  record (reference: meta/records). */
+  private def update(open: Token, start: Int, subject: Tree): Tree =
+    advance()
+    val (fields, ok) =
+      if !at(Tok.LBrace) then
+        expected(List(Expect.Token(Tok.LBrace)))
+        (Nil, false)
+      else
+        parseBraces() match
+          case RecordLit(fs, false) => (fs, true)
+          case RecordLit(fs, true) =>
+            report(SyntaxError.RestInUpdate(tok.span))
+            (fs, true)
+          case ModuleBody(Nil) => (Nil, true)
+          case other =>
+            error(SyntaxError.ExpectedUpdateFields(other.span))
+            (Nil, false)
+    val closed = close(open, Tok.RParen)
+    checked(With(subject, fields)(spanFrom(start)), ok && closed)
+
   private def parseParens(): Tree =
     val open = advance()
     val start = open.span.start
@@ -242,28 +263,9 @@ private[syntax] trait ExprSyntax extends ParserBase:
     if strayOpener(Tok.RParen) then
       error(SyntaxError.Unclosed(open.text, open.span, ")", insertionPoint, found, tok.span))
       return ErrorTree(Nil)(open.span)
-    if (at(Tok.Var) || at(Tok.Name)) && peekTok(1).kind == Tok.KwWith then
-      val v = variable()
-      advance()
-      val (fields, ok) =
-        if !at(Tok.LBrace) then
-          expected(List(Expect.Token(Tok.LBrace)))
-          (Nil, false)
-        else
-          parseBraces() match
-            case RecordLit(fs, false) => (fs, true)
-            case RecordLit(fs, true) =>
-              report(SyntaxError.RestInUpdate(tok.span))
-              (fs, true)
-            case ModuleBody(Nil) => (Nil, true)
-            case other =>
-              error(SyntaxError.ExpectedUpdateFields(other.span))
-              (Nil, false)
-      val closed = close(open, Tok.RParen)
-      val tree = With(v.getOrElse(VarRef("_")(open.span)), fields)(spanFrom(start))
-      return checked(tree, v.isDefined && ok && closed)
     val inner = parseNonType(LvlSemi)
     kind match
+      case Tok.KwWith => update(open, start, inner)
       case Tok.KwAs =>
         advance()
         val v = variable()

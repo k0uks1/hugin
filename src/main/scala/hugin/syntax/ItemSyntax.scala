@@ -76,12 +76,21 @@ private[syntax] trait ItemSyntax extends ParserBase:
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:` (or a `::` reported already).
    *  A head without a name declares nothing: the item is parsed and dropped. One whose name follows a
    *  stray token (`X sel : τ.`) is damaged: it is not elaborated, and its name is erroneous. */
-  private def parseDeclRest(lhs: Tree, first: Token): List[Item] =
+  private def parseDeclRest(lhs: Tree, first: Token, more: List[Tree] = Nil): List[Item] =
     val colon = advance()
     val (head, strayHead) = declHead(lhs) match
       case Some((name, params, stray)) => (Some((name, params)), stray)
       case None => (None, false)
-    if at(Tok.Eq) && colon.kind == Tok.Colon && !tok.spaceBefore then
+    // the other names of `a, b, c : type.`: names alone, as the first one
+    val others = more.map {
+      case id: Ident => Some((id, List.empty[Param]))
+      case other =>
+        error(SyntaxError.MultiDeclarationHead(other.span))
+        None
+    }
+    if more.nonEmpty && head.exists(_._2.nonEmpty) then error(SyntaxError.MultiDeclarationHead(lhs.span))
+    val malformedNames = more.nonEmpty && (head.forall(_._2.nonEmpty) || others.contains(None))
+    if more.isEmpty && at(Tok.Eq) && colon.kind == Tok.Colon && !tok.spaceBefore then
       // `x := e`: a definition with a `:` too many (repaired; with a space between them, `x : = e` is
       // only an error: a missing type)
       error(SyntaxError.Expected(List(Expect.tpe), found, tok.span, None, Some(SyntaxHelp.ColonEquals(colon.span))))
@@ -92,17 +101,18 @@ private[syntax] trait ItemSyntax extends ParserBase:
       case other => other
     val sup = if at(Tok.SubT) then { advance(); Some(parseType(LvlBar)) }
     else None
-    val defn = if at(Tok.Eq) then { advance(); Some(parseNonType(LvlSemi)) }
+    // a declaration of several names has no definition
+    val defn = if at(Tok.Eq) && more.isEmpty then { advance(); Some(parseNonType(LvlSemi)) }
     else None
-    val expectations = if defn.isEmpty then List(Expect.period, Expect.Token(Tok.Eq)) else List(Expect.period)
-    val ok = endItem(Context("declaration", first.span), expectations) && !strayHead
+    val expectations = if defn.isEmpty && more.isEmpty then List(Expect.period, Expect.Token(Tok.Eq)) else List(Expect.period)
+    val ok = endItem(Context("declaration", first.span), expectations) && !strayHead && !malformedNames
     // the part an error after the item damages
     val (tpe1, sup1, defn1) =
       if ok then (tpe, sup, defn)
       else if defn.isDefined then (tpe, sup, defn.map(damaged))
       else if sup.isDefined then (tpe, sup.map(damaged), defn)
       else (damaged(tpe), sup, defn)
-    head.toList.map((name, params) => Decl(name, params, tpe1, sup1, defn1)(spanFrom(first.span.start)))
+    (head.toList ++ others.flatten).map((name, params) => Decl(name, params, tpe1, sup1, defn1)(spanFrom(first.span.start)))
 
   /** The rest of a definition `f params = e.` or a clause `f p̄ = e [where …].`, at the `=`. */
   private def parseDefRest(lhs: Tree, first: Token): Item =
@@ -138,6 +148,8 @@ private[syntax] trait ItemSyntax extends ParserBase:
       // `@r name : type.`: the rule name is ignored
       error(SyntaxError.RuleNameOnDeclaration(tok.span))
       return parseDeclRest(firstHead, first)
+    // `a, b, c : type.`: a declaration of several names, decided at the `:` (reference: object/declarations)
+    if at(Tok.Colon) && name.isEmpty && heads.length > 1 then return parseDeclRest(firstHead, first, heads.toList.tail)
     val body =
       if at(Tok.Turnstile) then
         advance()

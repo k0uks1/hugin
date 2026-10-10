@@ -4,7 +4,7 @@
 // The bundle declares the facade as a top-level `let Hugin`: a global binding of the script scope, which
 // is not a property of `self`, so it is read by its name.
 //
-// Page -> worker: { id, op: "run" | "check", source, printAfter }   (printAfter: a phase name or "")
+// Page -> worker: { id, op: "run" | "check" | "highlight", source, printAfter }   (printAfter: a phase name or "")
 // Worker -> page: { ready: true, phases: [..] } once loaded, or { ready: false, error } if the bundle is
 //                 missing; then { id, result } or { id, error } per request.
 //
@@ -16,6 +16,7 @@
 //     relations: [{ name, vars: [..], rows: [[..]] }],     // the `%output` relations
 //     printed: "<program after printAfter>" | undefined,
 //     tokens: [[text, [classes]]] | undefined }            // as `hugin highlight` returns them
+// (a `highlight` request has only the tokens)
 // Only `adapt` and `normalise` know the facade's names.
 "use strict";
 
@@ -42,7 +43,7 @@ function phases() {
 
 function adapt(op, source, printAfter) {
   const options = JSON.stringify({ printAfter: printAfter || null, file: "main.hgn" });
-  const fn = op === "check" && typeof api.check === "function" ? api.check : api.run;
+  const fn = op === "highlight" ? api.highlight : op === "check" ? api.check : api.run;
   return fn.call(api, source, options);
 }
 
