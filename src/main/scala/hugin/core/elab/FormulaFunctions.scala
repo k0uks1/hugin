@@ -66,7 +66,7 @@ trait FormulaFunctions:
     leaveOutUsesOf(done)
 
   /** The definitions and functions of the file that expand to one of the `failed` globals: their uses are
-   *  left out silently too, as those of a dropped item (reference: order of elaboration). */
+   *  left out silently too, as those of a dropped item (reference: meta/index, "Order of elaboration"). */
   def leaveOutUsesOf(failed: collection.Set[Int]): Unit =
     for n <- state.declaredHere; g <- scope.get(n) if failed.exists(f => refersTo(f, Tm.Global(g), self = false)) do
       state.unelaborated += n
