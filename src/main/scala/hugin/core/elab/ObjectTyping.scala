@@ -87,7 +87,12 @@ trait ObjectTyping:
     case (Tm.App(_, _, _), _) => checkArguments(c, tm)
     case _ =>
 
-  /** The object code among the arguments of a meta function's application, at the function's domains. */
+  /** The object code among the arguments of a meta function's application, at the function's domains.
+   *
+   *  An argument is evaluated only if the rest of the function's type depends on it: each argument is
+   *  itself walked by [[checkObjectFragments]], so evaluating every argument made a nested application
+   *  such as the numeral `suc (… (suc zero))` cost the square of its depth (issue #131: 65 s for the
+   *  literal `50000`). The value is not used otherwise. */
   private def checkArguments(c: Cxt, tm: Tm): Unit =
     def spine(t: Tm, acc: List[Tm]): (Tm, List[Tm]) = Tm.unloc(t) match
       case Tm.App(f, a, _) => spine(f, a :: acc)
@@ -98,7 +103,7 @@ trait ObjectTyping:
       ty.map(force) match
         case Some(Val.Pi(_, _, d, cl)) =>
           checkObjectFragments(c, a, d)
-          ty = Some(inst(cl, ev(c, a)))
+          ty = Some(inst(cl, if occurs(0, cl.body) then ev(c, a) else Val.Wild))
         case _ => ty = None
 
   private def checkFragment(c: Cxt, t: Tm, a: Val): Unit =

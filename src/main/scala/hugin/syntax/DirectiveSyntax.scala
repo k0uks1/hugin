@@ -86,7 +86,16 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
           args += (if at(Tok.Plus) || at(Tok.Minus) then parseModeArgs() else parsePostfix())
         declAt match
           case Some(k) if k == position =>
-            directive(DirArgs.Apply(args.toList, Some(Ident(tok.text)(tok.span)))) :: parseItem()
+            val attached = directive(DirArgs.Apply(args.toList, Some(Ident(tok.text)(tok.span))))
+            val items = parseItem()
+            // before a declaration of several names (`a, b : τ.`), the directive applies to each of them
+            if items.count(_.isInstanceOf[Decl]) <= 1 then attached :: items
+            else
+              items.flatMap {
+                case decl: Decl =>
+                  List(Directive(attached.kind, DirArgs.Apply(args.toList, Some(decl.name)))(attached.span, attached.kindSpan), decl)
+                case other => List(other)
+              }
           case _ =>
             val ok = endItem(context, List(Expect.period, Expect.Thing("an argument")))
             val args1 = if ok then args.toList
@@ -140,4 +149,8 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
                 case _ =>
               j -= 1
           case _ => ok = false
+      // the first of several names `a, b, c : τ`
+      while ok && j - 2 >= position && tokenAt(j).kind == Tok.Name && tokenAt(j - 1).kind == Tok.Comma &&
+        tokenAt(j - 2).kind == Tok.Name
+      do j -= 2
       Option.when(ok && j >= position && tokenAt(j).kind == Tok.Name)(j)

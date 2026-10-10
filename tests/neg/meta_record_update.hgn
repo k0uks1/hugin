@@ -1,0 +1,11 @@
+(* Errors of meta record updates (reference: meta/records). *)
+point : Type = { x : int, y : int }.
+origin : point = { x = 0, y = 0 }.
+a : point = (origin with { z = 5 }). (*~ E0906 *)
+b : point = (origin with { x = "s" }). (*~ E0901 *)
+n : int = 3.
+c : point = (n with { x = 1 }). (*~ E0906 *)
+d : point = (origin with { x = 1, x = 2 }). (*~ E0307 *)
+boxed : Type = { t : Type, v : t }.
+parcel : boxed = { t = string, v = "in" }.
+e : boxed = (parcel with { t = int }). (*~ E0901 *)

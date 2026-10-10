@@ -1,0 +1,16 @@
+(* bench: large nat literals (issue #131). A literal checked against a nat-like family is the numeral
+   `suc (… zero)`; these definitions measure the elaboration of numerals of 10000, 20000 and 50000. *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+toInt : nat -> int.
+toInt zero = 0.
+toInt (suc N) = toInt N + 1.
+n1 : nat = 10000.
+n2 : nat = 20000.
+n3 : nat = 50000.
+size : int -> rel.
+size (toInt n1).
+size (toInt n2).
+size (toInt n3).
+%output size.

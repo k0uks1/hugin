@@ -1,0 +1,5 @@
+(* An update of a fact applies to a variable only (reference: object/rules, records). *)
+item : type = { name : string, price : int }.
+item "pen" 2.
+sale : item -> rel.
+sale ((item "pen" 2) with { price = 1 }). (*~ E0303 *)

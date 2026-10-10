@@ -1,0 +1,5 @@
+at 1 2.
+at 5 0.
+at 5 10.
+content "out".
+reach c a.

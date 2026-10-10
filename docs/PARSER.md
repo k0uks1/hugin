@@ -74,6 +74,11 @@ start and skipped to a period at depth 0, a `}` closing the enclosing body, or a
   construct (a `}`/`]` at depth 0, a period at depth 0), so they are linear in the construct, not in the
   file, except on malformed input with unbalanced brackets, where they may scan into the following items.
   That only affects which interpretation is tried first; they stay.
+- **Several names, one declaration (#127).** `a, b, c : τ.` is parsed as the heads of a rule until the
+  `:` decides: the item becomes one `Decl` per name, each with the item's span (a prefix directive is
+  repeated before each, with its own span). Its slice yields several items, so it is taken from the
+  whole-file parse. `(e with { … })` takes any expression `e` before `with`; whether it is a variable
+  (object level, E0303) or a meta record is the elaborator's decision.
 - **Slices and incrementality** (`docs/INCREMENTALITY.md`, step 9). The file is parsed as a whole, then
   each top-level item's text is parsed again on its own and used if it parses without diagnostics and is
   congruent to the whole-file item. This needs nothing from the parser except that an item's span covers
