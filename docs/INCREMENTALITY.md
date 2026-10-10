@@ -259,8 +259,10 @@ Incremental now:
 Still coarse:
 * `ElabFile` (assembling the items), MetaEval, monomorphization and the object-level phases (directives,
   object typing, moding, records, demand, stratification, completeness, termination, lowering) run on
-  the whole program after every edit, and evaluation after every REPL query: they are global by nature
-  (the demand transformation depends on the queries) and cheap next to elaboration (`--stats`).
+  the whole program after every edit: they are global by nature (the demand transformation depends on
+  the queries). Evaluation runs again when the lowered rules or the facts change (a REPL query over an
+  unchanged program reuses the fixpoint; with `%demand`, a query that changes the transformed rules
+  evaluates the whole program again).
 * Declarations and definitions are elaborated together (`Signatures`): editing one elaborates all of
   them again, though only the items using a changed one follow. A meta probe in the REPL is a
   definition, so it and the next input elaborate the declarations again.
