@@ -691,3 +691,33 @@ the prelude, the goldens, the facts files and damaged copies.
 
 (The machine was loaded during this comparison; the CPU times of both builds are higher than in the
 measurements above, the differences hold across the four alternations.)
+
+### A reader for facts files (c)
+
+The reference defines a facts file as ground facts in Hugin's syntax, with comments (object/io, "Input
+facts"), and the loader parsed it with the program parser. `syntax/FactReader` reads the common form
+directly: every item `r a₁ … aₙ.` whose arguments are literals, names, `(-n)` and parenthesised
+constructor terms of the same form. It builds the trees, with the same spans, that the program parser
+builds for such a file. On anything else (a lexical error, another token, a token in column 0 at the
+start of a line inside an item, an integer out of range) it gives up and the program parser parses the
+file, so a facts file gets exactly the diagnostics it got before, and the language is still defined by
+the one parser. Soufflé likewise reads input facts with a reader of their own (`ReadStreamCSV`), not with
+its Datalog parser. The lexer is the program lexer.
+
+Equivalence: `FactReaderSuite` checks that wherever the reader accepts a file, the program parser parses
+it without diagnostics into the same trees with the same spans: on every facts file of the tests and the
+bench set, on 25 hand-written cases (accepted and rejected ones), on 3 000 mutated facts files (deleted
+characters, inserted delimiters, signs, newlines, comments, variables, directives; about a third
+accepted), and on 300 generated files with nested terms, negative numbers, strings and layout.
+Deliberately wrong spans or a wrong column-0 test are caught. The golden tests with facts files,
+including `tests/neg` with errors in facts files, are unchanged.
+
+| measurement (main thread, median of 120 runs) | parser only | with the reader | change |
+|---|---:|---:|---:|
+| `run shortest_grid`: CPU | 95.5 ms | 84.2 ms | −12 % |
+| `run shortest_grid`: allocated | 67.9 MB | 62.1 MB | −9 % |
+| `run strata`: CPU | 304 ms | 282 ms | −7 % |
+| `run strata`: allocated | 138.5 MB | 121.4 MB | −12 % |
+| `run a01_transitive_closure`, `run c1_aggregates` | | | within noise |
+
+What remains of reading facts is the lexer (7 % of `run shortest_grid`) and interning the facts.
