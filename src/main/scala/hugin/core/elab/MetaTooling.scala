@@ -21,7 +21,11 @@ trait MetaTooling:
   import core.*
 
   /** Records `f` for the end of the item: called with whether the item succeeded. */
-  def later(f: Boolean => Unit): Unit = if !index.muted && !toolingOff then toolingLog += f
+  def later(f: Boolean => Unit): Unit = if recording then toolingLog += f
+
+  /** Whether records are kept ([[later]] drops them otherwise): a record that is costly to compute checks
+   *  it first. */
+  def recording: Boolean = !index.muted && !toolingOff
 
   private var toolingOff = false
 

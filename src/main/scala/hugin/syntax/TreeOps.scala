@@ -25,6 +25,12 @@ object TreeOps:
    *  elsewhere would fail). */
   def hasSyntaxErrors(x: Any): Boolean = x match
     case _: ErrorTree | _: Param.Malformed => true
+    // the nodes of facts directly (a facts file has one item per fact, each checked): the same answers as
+    // the generic traversal below, without iterating over their fields
+    case _: Ident | _: Lit | _: VarRef | _: Wildcard => false
+    case Apply(f, a) => hasSyntaxErrors(f) || hasSyntaxErrors(a)
+    case Parens(t) => hasSyntaxErrors(t)
+    case Rule(_, heads, body) => heads.exists(hasSyntaxErrors) || body.exists(hasSyntaxErrors)
     case p: Product => p.productIterator.exists(hasSyntaxErrors)
     case it: Iterable[?] => it.exists(hasSyntaxErrors)
     case _ => false

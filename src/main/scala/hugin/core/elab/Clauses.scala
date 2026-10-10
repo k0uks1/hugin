@@ -226,13 +226,58 @@ trait Clauses:
       case _ => Nil
     (p1, args, unifyIndices(p1, eqs))
 
+  /** Whether constructor `c` can apply to a scrutinee of type `fam famSp`, i.e. its index unification does
+   *  not end in a conflict ([[unifyConstructor]]). Decided without unifying in two cases where every
+   *  equation is solved by Cockx & Abel's solution rule:
+   *
+   *  - the result of `c`'s type is its family applied to distinct variables of its own telescope (`cons :
+   *    {A} -> A -> list A -> list A`): each equation has a variable of the constructor on one side that
+   *    occurs in no other equation, nor in the scrutinee's indices (they only mention earlier variables);
+   *  - the scrutinee's indices are distinct free variables of the problem (`M : modes Ls`): each equation
+   *    has one on one side, which occurs in no other equation and not in the constructor's side (whose
+   *    variables are the constructor's own, or scrutinee variables of earlier equations).
+   *
+   *  Index unification renormalises the whole problem per solved equation, which made the tooling
+   *  records of [[recordSplits]] a sixth of the prelude's elaboration. (Agda's coverage checker likewise
+   *  treats parameters apart from indices.) */
+  private def canApply(p: SplitProblem, famSp: Spine, c: Int): Boolean =
+    def unified = unifyConstructor(p, famSp, c)._3 != IndexUnification.Conflict
+    if !linearResult(c) && !distinctFreeVariables(p, famSp) then unified
+    else
+      if Clauses.crossCheck then
+        Clauses.decidedWithoutUnifying.incrementAndGet()
+        if !unified then Clauses.mismatches.add(globals(c).name)
+      true
+
+  /** The variables applied in `sp`, if it applies only variables (`-1` for anything else). */
+  private def appliedVariables(sp: Spine, variable: Int => Boolean): List[Int] = sp.map {
+    case Elim.EApp(a, _) =>
+      force(a) match
+        case Val.Rigid(Head.Local(l), Nil) if variable(l) => l
+        case _ => -1
+    case _ => -1
+  }
+
+  private def distinct(vars: List[Int]): Boolean = !vars.contains(-1) && vars.distinct.length == vars.length
+
+  /** The result type of constructor `c` is its family applied to distinct variables of its telescope. */
+  private def linearResult(c: Int): Boolean =
+    val (binders, result) = telescope(globals(c).ty)
+    force(result) match
+      case Val.Rigid(Head.Glob(_), sp) => distinct(appliedVariables(sp, _ < binders.length))
+      case _ => false
+
+  /** The indices `famSp` of a scrutinee's type are distinct free variables of `p`. */
+  private def distinctFreeVariables(p: SplitProblem, famSp: Spine): Boolean =
+    distinct(appliedVariables(famSp, l => l < p.size && p.isFree(l)))
+
   /** A free variable of an inductive type none of whose constructors can apply: the branch is
    *  impossible, an empty split covers it (`lookup vnil i` with `i : fin zero`). */
   private def absurdSplit(p: SplitProblem): Option[CaseTree] =
     (0 until p.size).filter(p.isFree).find { x =>
       force(p.types(x)) match
         case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
-          constructors(fam).forall(c => unifyConstructor(p, famSp, c)._3 == IndexUnification.Conflict)
+          constructors(fam).forall(c => !canApply(p, famSp, c))
         case _ => false
     }.map(CaseTree.Split(_, Nil))
 
@@ -291,19 +336,18 @@ trait Clauses:
 
   /** The pattern variables of a clause that can be split (for tooling, [[MetaIndex.Split]]): those of an
    *  inductive type, with a pattern per constructor whose indices unify with the variable's type. */
-  private def recordSplits(p: SplitProblem, cl: ClauseState): Unit =
-    val taken = mutable.Set.from(cl.binds.map(_._1.name))
-    def fresh(base: String): String =
-      val name = Iterator.from(1).map(k => if k == 1 && !taken(base) then base else s"$base$k").find(!taken(_)).get
-      taken += name
-      name
+  private def recordSplits(p: SplitProblem, cl: ClauseState): Unit = if recording then
+    val fresh = FreshNames(cl.binds.map(_._1.name))
+    // the explicit binders of each constructor's type, for the pattern variables of the record
+    val explicitBinders = mutable.HashMap.empty[Int, List[Name]]
     for case (v, value, _) <- cl.binds if !v.implicitBinder && v.span.exists do
       force(value) match
         case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) =>
           force(p.types(x)) match
             case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
-              val patterns = constructors(fam).filter(c => unifyConstructor(p, famSp, c)._3 != IndexUnification.Conflict).map { c =>
-                val args = telescope(globals(c).ty)._1.collect { case (x, Icit.Expl, _) =>
+              val patterns = constructors(fam).filter(c => canApply(p, famSp, c)).map { c =>
+                val binders = explicitBinders.getOrElseUpdate(c, telescope(globals(c).ty)._1.collect { case (x, Icit.Expl, _) => x })
+                val args = binders.map { x =>
                   fresh(if x == "_" || x.isEmpty || !x.head.isLetter then v.name else x.capitalize)
                 }
                 if args.isEmpty then globals(c).name else (globals(c).name :: args).mkString("(", " ", ")")
@@ -336,3 +380,10 @@ trait Clauses:
     if f.name.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'') && clauses.nonEmpty && !index.muted then
       index.meta.missing(MetaIndex.MissingClauses(declared, f.name, f.missing.toList.map(_ + " = ?."), clauses.map(_.span).maxBy(_.end)))
     fail(ClauseProblem.NotCovering(f.name, f.missing.head, declared))
+
+object Clauses:
+  /** For tests: `canApply` also unifies where it decided without unifying; `decidedWithoutUnifying` counts those
+   *  decisions and `mismatches` collects the constructors where unification disagreed. */
+  @volatile var crossCheck: Boolean = false
+  val decidedWithoutUnifying: java.util.concurrent.atomic.AtomicLong = java.util.concurrent.atomic.AtomicLong()
+  val mismatches: java.util.concurrent.ConcurrentLinkedQueue[String] = java.util.concurrent.ConcurrentLinkedQueue()

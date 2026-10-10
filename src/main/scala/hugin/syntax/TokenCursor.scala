@@ -35,12 +35,42 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
   /** The empty span at the end of the previous token: where a missing token is inserted. */
   protected def insertionPoint: Span = Span(src, prevEnd, prevEnd)
 
+  /** The line of each token and whether it starts in column 0, computed once per parse: the parser asks
+   *  for them at every argument and recovery point, and `Span.startLine`/`startCol` search the line table
+   *  each time (docs/PERFORMANCE.md, "The rest of #60"). */
+  private lazy val tokenLines: Array[Int] =
+    // `lineOf` of each start, by one walk over the line table: the tokens come in the order of the text
+    val lines = new Array[Int](toks.length)
+    var line = 0
+    var previous = -1
+    val it = toks.iterator
+    var k = 0
+    while it.hasNext do
+      val sp = it.next().span
+      val (file, start) = (sp.source, sp.start)
+      if start < previous then line = file.lineOf(start)
+      else while line + 1 < file.lineCount && file.lineStart(line + 1) <= start do line += 1
+      lines(k) = line
+      previous = start
+      k += 1
+    lines
+
+  // a start is in column 0 exactly when it is its line's start (`startCol` counts the code points before it)
+  private lazy val tokenInColumn0: Array[Boolean] =
+    val lines = tokenLines
+    val col0 = new Array[Boolean](toks.length)
+    var k = 0
+    for t <- toks do
+      col0(k) = t.span.start == t.span.source.lineStart(lines(k))
+      k += 1
+    col0
+
   /** Whether the token at index `k` is the first of its line. */
-  protected def startsLine(k: Int): Boolean = k > 0 && toks(k - 1).span.startLine < toks(k).span.startLine
+  protected def startsLine(k: Int): Boolean = k > 0 && tokenLines(k - 1) < tokenLines(k)
 
   /** Whether the token at index `k` is the first of its line and in column 0: an argument cannot start
    *  there, and in recovery it is taken to start the next item (`docs/PARSER.md`, §4.4). */
-  protected def atColumn0(k: Int): Boolean = toks(k).span.startCol == 0 && startsLine(k)
+  protected def atColumn0(k: Int): Boolean = tokenInColumn0(k) && startsLine(k)
 
   /** Whether only white space precedes `span` on its line. */
   protected def firstOnLine(span: Span): Boolean =

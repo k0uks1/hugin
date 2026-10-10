@@ -601,3 +601,164 @@ alternating.
   included in the B2 numbers.
 * A program that uses `%demand` elaborates the same chain as before. The warm cached compile
   (`StdlibCache`) is unchanged.
+
+## The rest of #60
+
+What remained of issue #60 after #88 and the stdlib split (#61), re-measured at b4a8b28 (the same code
+as 9782dba; #118 changed only documents). The machine was shared with other builds (load average 2 to
+7), so wall times are not comparable between runs. Every comparison below is of the main thread's CPU
+time and allocated bytes (`Bench cpu`, `com.sun.management.ThreadMXBean`; compilation runs on the calling
+thread), with the two builds run in alternating JVMs, four JVMs each, two rounds per JVM in alternating
+order. Where a CPU difference is near the noise, the profile (async-profiler, `Bench loop`, main-thread
+samples) is given as well.
+
+### Re-measured
+
+| item | still real? | measured at b4a8b28 |
+|---|---|---|
+| (a) tooling records of clause splits (`Clauses.recordSplits`, #54) | yes | 12.5 % of the uncached prelude chain's main-thread samples; 65 % of it index unification against every constructor, 25 % a quadratic search for fresh names |
+| (b) derived `lift`/`reify` of shared types (#85) | yes, smaller | 7 % of the uncached prelude chain; genuine elaboration of generated clauses (coverage and size-change termination are checked as for hand-written ones), which runs without tooling records |
+| (c) the parser's per-token work on facts files (#53) | yes | `run shortest_grid`: parsing the facts file is 18 % of the main thread (lexing 7 %, `parseProgram` 10 %, of which `atColumn0` 3 %), `TreeOps.hasSyntaxErrors` per fact 6 %; `run strata` the same shares |
+| (d) `MemoKeys` keeps read-back values alive | see its section | |
+| (e) `ItemQueriesSuite` | see its section | |
+
+### Split records (a)
+
+`recordSplits` lists, for every pattern variable of every clause, the constructors that can replace it
+(the LSP code action "Split on `X`"). It ran index unification of every constructor against the
+variable's type, and index unification renormalises the whole split problem per solved equation.
+Changes, all keeping the records identical:
+
+* **Decided without unifying** (`Clauses.canApply`) in the two cases where every equation is solved by
+  Cockx & Abel's solution rule (*Elaborating dependent (co)pattern matching*, ICFP 2018): the
+  constructor's result is its family applied to distinct variables of its own telescope (`cons : {A} ->
+  A -> list A -> list A`; Agda's coverage checker likewise treats parameters apart from indices), or the
+  scrutinee's indices are distinct free variables of the problem (`M : modes Ls`). Each equation then has
+  a variable on one side that occurs nowhere else, so none can conflict. Everything else is unified as
+  before (`vec A (suc n)`, `same A A`).
+* **Fresh names** for the patterns resume their search per base name (`Clauses.FreshNames`); the search
+  from 1 every time was quadratic in the names of a base (a family with many constructors).
+* **No records where they are dropped**: `later` keeps nothing while tooling is off (the derived functions
+  of (b), generated code) or the index is muted (module directives); `recordSplits` now checks that first.
+* The explicit binders of a constructor are computed once per clause, not once per pattern variable.
+
+Equivalence: `ConstructorFastPathSuite` runs the bundled library and every golden program and example
+with a cross-check that also unifies wherever the new rules decided (no disagreement; deliberately wrong
+rules are caught by its indexed cases), and compares `FreshNames` with the old search on random
+sequences. The split records of the bundled library and of every program of `tests/{run,neg,pos,
+recovery,fix,json}` and `examples/` (25 687 records, through the query database as the language server
+reads them) were dumped with both builds and are byte-identical; the LSP transcript goldens are
+unchanged.
+
+| measurement (main thread) | before | after | change |
+|---|---:|---:|---:|
+| prelude chain, uncached: allocated | 24.5 MB | 20.4 MB | −17 % |
+| prelude chain, uncached: CPU, median (min) of 168 runs | 48.1 (31.1) ms | 44.7 (29.4) ms | −7 % (−6 %) |
+| prelude chain, uncached: profile samples per run | 42.3 ms | 38.2 ms | −10 % |
+| of which `recordSplits` | 5.3 ms | 2.1 ms | −60 % |
+| `run a10_meta_applicative`: CPU median | 15.8 ms | 13.9 ms | within noise |
+| `check gen_large`: CPU median | 1 622 ms | 1 572 ms | −3 % |
+
+The cached compile (`StdlibCache`, what a user pays per compile in a running JVM) is unchanged: the
+prelude is elaborated once per process.
+
+### The parser's per-token work (c)
+
+Two of the costs #53's resilient parser added per token or per item, removed without changing what it
+parses:
+
+* `ParserBase.atColumn0` and `startsLine` (asked at every argument and recovery point) looked up the line
+  of a token in the line table on every call (`Span.startLine`, a binary search; `startCol` a second one
+  and a code point count). The line of each token and whether it starts its line are now computed once
+  per parse, by one walk over the line table (tokens come in the order of the text; a start is in column
+  0 exactly when it is its line's start).
+* `TreeOps.hasSyntaxErrors`, called on every item a facts file loads, walked every node through
+  `productIterator`; the nodes of facts (names, literals, variables, applications, parentheses, rules) are
+  now matched directly, with the same answers.
+
+Equivalence: the parse trees (every node with its spans) and rendered diagnostics of every file under
+`tests/`, `examples/`, `bench/` and the bundled library, and of 11 damaged copies of each (characters
+deleted, newlines and delimiters inserted: 3 324 parses with 1 812 syntax errors), are byte-identical
+before and after; `TreeOpsSuite` compares `hasSyntaxErrors` with the generic traversal on every node of
+the prelude, the goldens, the facts files and damaged copies.
+
+| measurement (main thread, median of 120 runs) | before | after | change |
+|---|---:|---:|---:|
+| `run shortest_grid` (14 161 facts): CPU | 99.4 ms | 93.7 ms | −6 % |
+| `run shortest_grid`: allocated | 69.2 MB | 65.5 MB | −5 % |
+| `run strata`: CPU | 333 ms | 307 ms | −8 % |
+| `run strata`: allocated | 138.9 MB | 130.9 MB | −6 % |
+
+(The machine was loaded during this comparison; the CPU times of both builds are higher than in the
+measurements above, the differences hold across the four alternations.)
+
+### A reader for facts files (c)
+
+The reference defines a facts file as ground facts in Hugin's syntax, with comments (object/io, "Input
+facts"), and the loader parsed it with the program parser. `syntax/FactReader` reads the common form
+directly: every item `r a₁ … aₙ.` whose arguments are literals, names, `(-n)` and parenthesised
+constructor terms of the same form. It builds the trees, with the same spans, that the program parser
+builds for such a file. On anything else (a lexical error, another token, a token in column 0 at the
+start of a line inside an item, an integer out of range) it gives up and the program parser parses the
+file, so a facts file gets exactly the diagnostics it got before, and the language is still defined by
+the one parser. Soufflé likewise reads input facts with a reader of their own (`ReadStreamCSV`), not with
+its Datalog parser. The lexer is the program lexer.
+
+Equivalence: `FactReaderSuite` checks that wherever the reader accepts a file, the program parser parses
+it without diagnostics into the same trees with the same spans: on every facts file of the tests and the
+bench set, on 25 hand-written cases (accepted and rejected ones), on 3 000 mutated facts files (deleted
+characters, inserted delimiters, signs, newlines, comments, variables, directives; about a third
+accepted), and on 300 generated files with nested terms, negative numbers, strings and layout.
+Deliberately wrong spans or a wrong column-0 test are caught. The golden tests with facts files,
+including `tests/neg` with errors in facts files, are unchanged.
+
+| measurement (main thread, median of 120 runs) | parser only | with the reader | change |
+|---|---:|---:|---:|
+| `run shortest_grid`: CPU | 95.5 ms | 84.2 ms | −12 % |
+| `run shortest_grid`: allocated | 67.9 MB | 62.1 MB | −9 % |
+| `run strata`: CPU | 304 ms | 282 ms | −7 % |
+| `run strata`: allocated | 138.5 MB | 121.4 MB | −12 % |
+| `run a01_transitive_closure`, `run c1_aggregates` | | | within noise |
+
+What remains of reading facts is the lexer (7 % of `run shortest_grid`) and interning the facts.
+
+### The imports of the standard library, per compilation (found re-measuring (e))
+
+A profile of `ItemQueriesSuite` showed 17 % of its test thread in `TreeOps.nodes`, called by
+`ImportPaths.importsIn`: since the lazy re-export of `std/demand` (#61, B2), every compilation asks for
+the imports of the standard library's files (`LazyStdlib` decides which of them the program needs; the
+import graph asks too), and each time the whole parse tree of each file was walked, `std/reflect` and
+the prelude included, although the parsed files are shared by every compilation of a process
+(`StdlibCache`). The imports of a program are now a lazy field of the (immutable) `Program`, computed
+once per parsed file: the memoisation of a pure function of an immutable input, as salsa and rustc keep
+derived results of inputs that did not change. `TreeOpsSuite` checks it against the walk on the prelude
+and the goldens.
+
+| measurement (main thread, median of 248 runs) | before | after | change |
+|---|---:|---:|---:|
+| compile one-line program (check, new database): CPU | 6.3 ms | 3.5 ms | −44 % |
+| compile one-line program: allocated | 4.04 MB | 0.65 MB | −84 % |
+| `run a01_transitive_closure`: CPU / allocated | 11.9 ms / 4.8 MB | 8.1 ms / 1.4 MB | −32 % / −71 % |
+| `run c1_roundtrip`: CPU / allocated | 14.4 ms / 6.1 MB | 10.5 ms / 2.7 MB | −27 % / −57 % |
+| `run f_modules`: CPU / allocated | 20.9 ms / 7.8 MB | 18.8 ms / 4.3 MB | −10 % / −46 % |
+| `run a04_typechecker` (uses `%demand`): allocated | 11.9 MB | 8.9 MB | −25 % (CPU within noise) |
+
+### `ItemQueriesSuite` (e)
+
+It is still about 40 % of the suite's time (61 s of 143 s summed over suites in one run of the targeted
+set on this machine). Its test thread spends 90 % in compilations, and those are what it tests: every
+random edit of every golden program is compiled incrementally, from scratch in a new database, and
+directly without one, and the three are compared; the language-server probes are 7 %. Dropping any of
+the three compilations would drop a property, so the test design stays. The imports fix above takes its
+test thread from 45.8 s to 38.1 s of CPU (profiled, −17 %); its wall time on this 4-core machine did not
+move measurably (50–54 s before and after, alternating runs), since the JIT compiler threads, which use
+63–70 s of CPU over the run, compete with it for the cores.
+
+### `MemoKeys` (d)
+
+Not real any more. `jmap -histo:live` during `run meta_scaled` (the program the note was about) shows a
+live heap of 65–67 MB in all, of which the terms and values of the memo keys are a part; the 100–250 MB
+of the note came before the sharing read-back of #108 and the stdlib split. An experiment with caches
+weak in their keys (`readBack`, `termIds`; a weak identity map) made `meta_scaled` slower and its heap
+after collections larger (more GCs, 2–3× their pause time): the keys stay reachable anyway, through the
+memo's results, which must stay so that evaluation and its fresh names are unchanged. Not changed.
