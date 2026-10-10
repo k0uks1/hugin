@@ -9,9 +9,25 @@ name: Site
 # outputs again. The highlighting is computed by the compiler (reference/highlight.py and
 # site/build.mjs run `hugin highlight`), so the compiler is staged first.
 
+# Runs only when an input of the site changes: the book, the site, the error explanations, the compiler
+# (it highlights the examples and is the playground's bundle), its build, the grammar the playground
+# highlights with, or this workflow. Pushes run it on the development and default branches only (they
+# publish); a feature branch is checked through its pull request.
 on:
   push:
+    branches: [main, ccr-48027e29-daam41]
+    paths: &site
+      - "reference/**"
+      - "site/**"
+      - "docs/errors/**"
+      - "src/main/**"
+      - "web/**"
+      - "build.sbt"
+      - "project/**"
+      - "editors/vscode/syntaxes/**"
+      - ".github/workflows/reference.yml"
   pull_request:
+    paths: *site
 
 concurrency:
   group: site-${{ github.ref }}

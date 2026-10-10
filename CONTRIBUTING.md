@@ -388,7 +388,8 @@ src/main/scala/hugin/
 - Compiler queries: `SourceText` (input, by path) → `Parse` → `ParseProgram` → `Compile` → `Evaluate`
   (program and facts files); in between, libraries and the program's items are queries of their own
   (see below). The CLI is a client of the database. Editing a facts file re-evaluates
-  without recompiling. A program may be made of several files (the input `Composite`, used by the REPL):
+  without recompiling; adding a query recompiles without re-evaluating (`Fixpoint`, keyed on the
+  lowered rules). A program may be made of several files (the input `Composite`, used by the REPL):
   their items form one module body, and each item keeps its file for diagnostics and for resolving its
   `%import`s.
 - `SemanticIndex`, filled by the elaborator and staging (with object typing), records which symbol every name resolves
