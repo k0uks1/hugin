@@ -320,6 +320,7 @@ label on the opener. Specific messages replace the generic one for common mistak
 | `$` not followed by an expression | expected an expression; how holes and splices are written | — |
 | `:-` in parentheses or a list (the rule form of old) | a rule outside a quote; written `'( h :- b )` (#76) | — |
 | `}` without an open module body | unmatched `}` | — |
+| a stray `"` (an unterminated string whose text closes a delimiter opened before it on the line) | E0002 at the `"`; the rest of the line is read as code | — |
 | a broken list of names in `%use m (x, y).` | the error; the `%use` is damaged as one without a list (it might have opened any name) | — |
 | a `{` that the enclosing construct closes before any `}` (`(f { X)`) | ``unclosed `{` `` (E0005); what follows belongs to the enclosing construct | — |
 | `:-` inside parentheses in a quote (`'( p (f $X :- q )`) | ``unclosed `(` `` (E0005); the entry goes on with its body | — |

@@ -113,6 +113,17 @@ final class Lexer(src: SourceFile, reporter: Reporter):
   private def err(p: Span => SyntaxError, a: Int, b: Int) = reporter.report(p(span(a, b)))
 
   private def peek(k: Int = 0): Char = if pos + k < s.length then s.charAt(pos + k) else '\u0000'
+
+  /** Whether a delimiter opened on the line of `start`, before it, is not closed there. */
+  private def openBefore(start: Int): Boolean =
+    val line = src.lineOf(start)
+    val before = out.reverseIterator.takeWhile(t => t.span.startLine == line).toList.reverse
+    before.foldLeft(0)((d, t) =>
+      t.kind match
+        case Tok.LParen | Tok.LBrack | Tok.LBrace => d + 1
+        case Tok.RParen | Tok.RBrack | Tok.RBrace => (d - 1).max(0)
+        case _ => d
+    ) > 0
   private def isIdent(c: Char) = c.isLetterOrDigit && c < 128 || c == '_' || c == '\''
 
   def tokenize(): Vector[Token] =
@@ -269,10 +280,13 @@ final class Lexer(src: SourceFile, reporter: Reporter):
     var bad = false
     while !done do
       if pos >= s.length || peek() == '\n' then
-        // a comment opener in it was not meant as text (a stray `"` before `(* … *)`): the string ends
-        // before it, so that the comment stays one, also over several lines
+        // a closer of a delimiter open before it on the line was not meant as text (a stray `"` in
+        // `f ( "x : t) = {`): the `"` alone is the error, and the rest of the line is read as code
         val comment = s.indexOf("(*", start + 1)
-        if comment >= 0 && comment < pos then pos = comment
+        if openBefore(start) && s.substring(start + 1, pos).exists(c => c == ')' || c == ']' || c == '}') then pos = start + 1
+        // nor a comment opener (a stray `"` before `(* … *)`): the string ends before it, so that the
+        // comment stays one, also over several lines
+        else if comment >= 0 && comment < pos then pos = comment
         err(SyntaxError.UnterminatedString(_), start, pos)
         done = true
         bad = true

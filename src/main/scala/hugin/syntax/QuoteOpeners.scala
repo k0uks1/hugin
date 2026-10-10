@@ -9,7 +9,8 @@ import scala.collection.mutable
  *  it was meant to be, from the tokens after it:
  *
  *  - `' (`, with a space: the quote's opener (the `(` follows);
- *  - `' {(`, a token between the prime and the parenthesis on its line: the token is dropped;
+ *  - `' {(`, a token between the prime and the parenthesis on its line: the token is dropped (a token of
+ *    the lexer's errors is moved into the quote);
  *  - `' p X )`, the parenthesis lost: a `)` closes the quote ahead, at depth 0 before the end of the
  *    item, so an empty `(` is inserted;
  *  - otherwise (also before a closer, `$..B ' )`) the prime is dropped, as a character the lexer did not
@@ -29,7 +30,12 @@ object QuoteOpeners:
         if t.kind != Tok.Quote || toks(j + 1).kind == Tok.LParen then out += t
         else if j + 2 < toks.length && toks(j + 2).kind == Tok.LParen && toks(j + 2).span.startLine == t.span.startLine then
           out += t
-          j += 1 // the token in between
+          // the token in between is dropped; one of the lexer's errors is kept, in the quote, so that the
+          // parser sees it and damages the entry
+          if toks(j + 1).kind == Tok.Error then
+            out += toks(j + 2) += toks(j + 1)
+            j += 2
+          else j += 1
         // a closer right after the prime (`$..B ' )`) closes something else: the prime is stray
         else if !Set(Tok.RParen, Tok.RBrack, Tok.RBrace)(toks(j + 1).kind) && closedAhead(toks, j + 1) then
           val at = toks(j + 1).span.start
