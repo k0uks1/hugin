@@ -1,49 +1,40 @@
 # Coverage and unreachable clauses, independent of the split order
 
 Design note for [issue #67](https://github.com/k0uks1/hugin/issues/67), option (b). Status: approved by
-the designer except the evaluation decision (pending conformance review, 4.9). Nothing is implemented.
+the designer. Nothing is implemented.
 
 ## 1. Recommendations
 
-1. **Coverage is defined on probes, not on the case tree.** A *probe* is a maximal case of the telescope
-   at the positions the clauses inspect, impossibility decided by the existing index unifier (4.1). A
-   clause is *reachable* if some probe matches it and no earlier clause (else W0006); a probe is
-   *missing* if no clause matches it and none of its variables is empty (E0911 if one exists). This is
-   Maranget's usefulness with probes for values; no split order enters.
-2. **Each clause is elaborated once, in its own context** (the one its own patterns produce), not per
-   leaf: right-hand side, `where`, size-change calls and tooling split records. A leaf is a clause and a
-   substitution. Agda, Idris 2 and Lean 4 do this; it removes the tree from typing, termination and
-   printing (4.6).
+1. **Coverage is defined on probes, not on the case tree:** maximal cases at the inspected positions,
+   impossibility decided by the index unifier (4.1). A clause is *reachable* if some probe matches it and
+   no earlier clause (else W0006); a probe is *missing* if no clause matches it and none of its variables
+   is empty (E0911 if one exists). This is Maranget's usefulness with probes for values; no split order
+   enters.
+2. **Each clause is elaborated once, in its own context** (right-hand side, `where`, size-change calls,
+   split records), not per leaf, as in Agda, Idris 2 and Lean 4 (4.6).
 3. **Missing cases are the most general missing patterns** (4.4), in a fixed order: the error shows the
    first and a count; tooling gets the full non-overlapping cover, capped at 20.
 4. **A clause whose own constructors cannot occur is an error** (E0915, like Agda's
-   `ImpossibleConstructor`), with a fix that removes it. For a function whose domain is refuted, which
-   then has no clause left, Idris's `f p̄ impossible.` is proposed as the only new syntax (4.3, open).
-5. **One splitting pass in the canonical order** gives the diagnostics and the tree that defines
-   evaluation. The diagnostics do not depend on the order (Definitions 1 and 2). The order is stated in
-   the reference: at each node, the leftmost constructor position of the first remaining clause whose
-   split is decided. This is Agda's, Lean's and today's order. `qba` is used only for an optional second
-   tree for closed applications (Idris's runtime tree), where it cannot be observed (4.7).
+   `ImpossibleConstructor`), with a fix that removes it. Agda's absurd pattern `()` marks an empty
+   position in a clause without right-hand side (`r ()`), the only new syntax (4.3).
+5. **One pass in the canonical order** (stated in the reference: the leftmost decided constructor
+   position of the first remaining clause; Agda's, Lean's and today's) gives the diagnostics, which do
+   not depend on it, and the tree that defines evaluation. `qba` only for an optional closed-argument
+   tree (Idris's runtime tree), where it is unobservable (4.7).
 6. **Evaluation is the canonical tree** (Agda's "Case trees"), not a clause-matching fallback (no
    precedent). An opt-in lint `inexact_clauses`, like Agda's `--exact-split` (off by default), warns
    about clauses that do not hold definitionally.
 7. **E0915 for undecided splits follows the canonical order:** the unifier postpones stuck equations
    (Agda's unifier), and a stuck split falls back to the first clause's next position (Agda's `altM1`).
-8. **The reference gets a precise coverage chapter** (`meta/coverage.md` rewritten) and states the
-   canonical tree in `meta/clauses.md` "Evaluation". Three batches (7).
+8. **Reference:** `meta/coverage.md` rewritten; the canonical tree in `meta/clauses.md` "Evaluation" (7).
 
 ## 2. Hugin today
 
-`core/elab/Clauses.scala` (`buildTree`) makes a leaf when the first remaining clause has no equations
-left, and otherwise splits on that clause's leftmost constructor pattern (`split`, `splitAtom`).
-`unifyIndices` (`SplitProblem.scala`) drops conflicting constructors and fails at once on a stuck
-equation (E0915). A node without clauses is excused if some free variable has no possible constructor
-(`absurdSplit`), else it is a missing case (`missingCase`: E0911 for the first, ≤ 20 for tooling). A
-clause that never becomes a leaf is W0006. `leaf` checks the right-hand side, elaborates `where`, records
-the size-change calls and the tooling split records **at every leaf**, in its refined context.
-`--print-after elaborate` prints the leaves (`Staging.clauses`); `Matching.runTree` is stuck on a
-neutral. The reference (`meta/coverage.md`) defines W0006 and E0911 by the tree ("not the leaf of any
-branch", "a branch of the case tree has no clause").
+`Clauses.buildTree` splits on the first remaining clause's leftmost constructor pattern; `unifyIndices`
+drops conflicting constructors and fails on a stuck equation (E0915). A node without clauses is excused
+if a free variable is empty (`absurdSplit`), else missing (E0911; ≤ 20 for tooling); a clause that never
+becomes a leaf is W0006. Right-hand sides, `where`, size-change calls and split records are taken **at
+every leaf**; `--print-after elaborate` prints leaves. The reference defines W0006 and E0911 by the tree.
 
 Measured on bf14ffb (scratch programs with `nat`, `bool`, `vec`, `fin`, not committed):
 
@@ -100,35 +91,31 @@ decision trees* (ML 2008). Clones (`--depth 1`, in the scratchpad): agda/agda 19
 - Unreachable clauses are those outside the used set (lines 215–228); missing clauses with an empty
   telescope become absurd clauses (`checkEmptyTel`, lines 170–176).
 - Left-hand sides are checked clause by clause, trying splits in order (`Rules/LHS.hs`, lines 1029–1046);
-  the unifier tries every equation (`completeStrategyAt`, `Rules/LHS/Unify.hs`, 273–285). A conflicting
-  constructor is the error `ImpossibleConstructor`: "Possible solution: remove the clause, or use an
-  absurd pattern ()" (`Errors.hs`, lines 1297–1300). Absurd clauses may usually be omitted
-  (`coverage-checking.lagda.rst`, lines 189–235).
+  the unifier tries every equation (`completeStrategyAt`, `Rules/LHS/Unify.hs`, 273–285). Absurd patterns
+  and clauses: 4.3.
 - Evaluation is the compiled case tree built from the coverage split tree (`compileClauses`,
   `compileWithSplitTree`, `CompiledClause/Compile.hs`, lines 60–103, 132; `nextSplit`, line 189: "the
   first pattern that does a (non-lazy) match in the first clause"; `appDefE_`, `Reduce.hs`, line 981).
   Clause-by-clause reduction (`appDefE''`, lines 1027–1071) only serves while a definition has no
-  compiled clauses yet (`Rules/Def.hs`, lines 402–410). The manual states the tree as the semantics: "the
-  clause `max m zero = m` does not hold definitionally" (`function-definitions.lagda.rst`, "Case trees").
-  `--exact-split` (default off, `command-line-options.rst`, lines 854–868) warns about such clauses
-  (`CoverageNoExactSplit`, `Pretty/Warning.hs`, line 171) unless marked `{-# CATCHALL #-}`. The
-  overlapping, order-independent clauses of Cockx, Devriese and Piessens (ESOP 2014) appear in neither
-  the manual nor the type checker.
+  compiled clauses yet (`Rules/Def.hs`, lines 402–410). The manual: "the clause `max m zero = m` does not
+  hold definitionally" ("Case trees"). `--exact-split` (default off, `command-line-options.rst`, lines
+  854–868) warns about such clauses (`CoverageNoExactSplit`, `Pretty/Warning.hs`, line 171) unless marked
+  `{-# CATCHALL #-}`. The ESOP 2014 overlapping, order-independent clauses appear in neither manual nor
+  type checker.
 
 ### 3.3 Idris 2
 
 - Clauses are checked one by one (`checkClause`, `TTImp/ProcessDef.idr`, line 390). A clause `lhs
-  impossible` must fail with a conflict or contain an empty pattern, else it is the error `ValidCase`
-  (lines 390–415, `impossibleErrOK`, 131–147); a conflicting clause without `impossible` is an ordinary
-  unification error.
+  impossible` must fail with a conflict (else `ValidCase`, lines 390–415); without `impossible`, a
+  conflict is a unification error.
 - Evaluation uses the compile-time tree: `PMDef` holds `treeCT`, `treeRT` and the checked clauses (used
   for termination) (`Core/Context/Context.idr`, lines 77–87); `evalDef` runs `treeCT`
   (`Core/Normalise/Eval.idr`, line 505). There is no clause-level reduction.
 - The compile-time tree (type checking) always takes the first column; only the runtime tree uses
   Maranget's `f`, `b`, `a`, behind a flag (`nextIdxByScore`, `Core/Case/CaseBuilder.idr`, lines 744–754;
   `caseTreeHeuristics`, `Core/Options.idr`, line 199).
-- Unreachable clauses and missing cases come from `treeCT` (`ProcessDef.idr`, 918–922; `getMissing`,
-  `Core/Coverage.idr`, 335), filtered by `checkImpossible` and `checkMatched` (1046–1078).
+- Unreachable clauses and missing cases come from `treeCT` (`ProcessDef.idr`, 918–922;
+  `Core/Coverage.idr`, 335), filtered by `checkImpossible`, `checkMatched` (1046–1078).
 
 ### 3.4 Lean 4
 
@@ -137,8 +124,7 @@ decision trees* (ML 2008). Clones (`--depth 1`, in the scratchpad): agda/agda 19
   counter-examples (`processLeaf`, lines 477–495), at most 5 (`maxCounterExamples`, line 81;
   `reportMatcherResultErrors`, `Elab/Match.lean`, lines 1043–1066); unused alternatives never reach a
   leaf (`unusedAltIdxs`, line 1220).
-- Sparse splits can keep Lean from "noticing that a match statement is complete"
-  (`backward.match.sparseCases`, line 65).
+
 - A `match` unfolds definitionally through its matcher (the `casesOn` tree). First-match per alternative
   holds only as conditional equation theorems whose hypotheses exclude the overlapping earlier
   alternatives, with a `splitter` for case analysis (`MatchEqs.lean`, lines 59–64, 137–222).
@@ -165,7 +151,7 @@ which some clause has a constructor, literal or atom.
   has an empty variable.
 
 **Definition 1.** Clause `j` is *reachable* iff some probe is matched by `p̄ʲ` and by no `p̄ⁱ`, `i < j`.
-Otherwise it is *unreachable* (W0006).
+Otherwise it is *unreachable* (W0006; absurd clauses excepted, 4.3).
 
 **Definition 2.** A probe is *missing* iff no clause matches it and it is not refuted. The clauses are
 *not covering* (E0911) iff a missing probe exists.
@@ -174,17 +160,14 @@ Otherwise it is *unreachable* (W0006).
 Definition 2 his `U(P, _̄)`, with probes for values and "not refuted" for the non-empty type axiom: a
 type counts as inhabited unless every constructor of a variable conflicts. Deeper emptiness is not found:
 this test is decidable, unlike inhabitation, and it is today's. Refutation only excuses missing probes: a
-clause matching only refuted probes stays reachable, since without absurd patterns `h X` (t3) is how one
-writes a function on `fin zero`.
+clause matching only refuted probes stays reachable, since `h X` (t3) is a legitimate way to write a
+function on `fin zero`.
 
-**Well-defined and decidable.** A probe is determined by the constructors at the positions of `Π` it
-reaches; its context is the most general unifier of their index equations. The rules (deletion, solution,
-injectivity, conflict, cycle) compute most general unifiers, unique up to renaming, so when every split
-is decided the probes do not depend on the order of splits or equations. Matching is syntactic. `Π` is
-finite; a position has finitely many constructors (atoms: those named, plus the rest); unification
-terminates (each step removes an equation or a variable; cycles are conflicts); emptiness is one
-unification per constructor. The probes are a finite, computable set. The worst case is exponential, as
-for every usefulness checker (3.1) and for today's tree.
+**Well-defined and decidable.** A probe is fixed by its constructors at positions of `Π`; its context is
+the most general unifier of their index equations, unique up to renaming, so with all splits decided no
+order matters. `Π` is finite, positions have finitely many constructors (atoms: those named plus the
+rest), unification terminates, emptiness is one unification per constructor: the probes are finite and
+computable (worst case exponential, as for any usefulness checker).
 
 ### 4.2 Undecided splits
 
@@ -200,19 +183,43 @@ Definitions 1 and 2 apply. t6 stays E0915, as in Agda: its first clause inspects
 position. Refining a missing case to test refutation (4.4) skips undecided splits (the case counts as not
 refuted), so an E0911 never becomes an E0915.
 
-### 4.3 Impossible clauses
+### 4.3 Impossible clauses and absurd patterns
 
-**Assessment: an error, E0915, with no new pattern syntax.** A clause whose own constructors conflict
-(t4, t3's `h fzero`) is an invalid pattern: "the case for `vcons` is impossible here: its index `suc _`
-conflicts with `zero`", with a machine-applicable fix that removes the clause. This is Agda's
-`ImpossibleConstructor` and Idris's unification error (3.2, 3.3); E0915 ("invalid pattern") fits, so no
-new code. Absurd cases need no clause in Hugin (missing probes with an empty variable are excused, like
-Agda's omitted absurd clauses and Lean's `contradiction`), so Agda's `()` is not needed.
+**Assessment: a clause whose own constructors conflict is E0915** (t4, t3's `h fzero`): "the case for
+`vcons` is impossible here: its index `suc _` conflicts with `zero`", with a machine-applicable fix that
+removes the clause or, if it is the function's only clause, replaces the conflicting constructor pattern
+by `()`. This is Agda's `ImpossibleConstructor`, "remove the clause, or use an absurd pattern ()"
+(`Errors.hs`, 1297–1300), and Idris's unification error; E0915 ("invalid pattern") fits, so no new code.
 
-Left over: a function on a refuted domain whose only clause is impossible (t13, `r fzero`); without it,
-the declaration is a postulate. **Proposed, open:** Idris's `r fzero impossible.` (no right-hand side;
-E0915 if its patterns are possible, as `ValidCase`; it covers its probes, so it can also expose deeper
-emptiness). Without syntax, such functions become postulates and lose the totality check.
+**Absurd patterns, as in Agda.** `()` is a pattern for a position none of whose constructors can occur; a
+clause containing one has no right-hand side ("if the left-hand side of a clause contains an absurd
+pattern, its right-hand side must be omitted"; "the absurd pattern will only be accepted if all of these
+unifications end in a conflict", `function-definitions.lagda.rst`, "Absurd patterns";
+`checkAbsurdPattern` → `ensureEmptyType`, `Rules/LHS.hs`, 416–418). In Hugin:
+
+- **Syntax** (`meta/clauses.md`): `Pattern ::= … | "(" ")"` and `Clause ::= NAME Pattern* ("=" Expr
+  Where?)? "."`, the form without `=` only if some pattern contains `()`. Nested positions are allowed
+  (`f (vcons X ())`). `()` is the two tokens `(` `)` with only whitespace or comments between, so the
+  lexer is unchanged.
+- **Today `()` means nothing:** in a pattern, an expression, a fact or a rule it is E0001 "expected an
+  expression, found `)`" (measured; the reference never mentions it); `'()` is an empty quote (E0917), a
+  different token. Nothing clashes: an item `f p̄.` whose patterns contain `()` is an absurd clause, any
+  other `f p̄.` stays an atom.
+- **Checking:** the unifier must refute every constructor at the position, in the clause's context (4.6);
+  otherwise E0915 listing the possible ones (Agda's `ShouldBeEmpty`, `Errors.hs`, 434–437). An absurd
+  clause with `= e` is E0915 with a fix that removes `= e` (Agda warns, `AbsurdPatternRequiresAbsentRHS`,
+  `Rules/Def.hs`, 861; Hugin has no warning code for it); without `()`, an item without `=` stays an atom
+  (Agda: `AbsentRHSRequiresAbsurdPattern`, `Errors.hs`, 734).
+- **Coverage:** its positions join `Π`, so the probes below it are refuted and excused; it matches no
+  probe, is never W0006, and makes no leaf (the tree has `Split(x, Nil)` there, as Agda's absurd clauses
+  are childless nodes, `coverage-checking.lagda.rst`, 217–235). It can expose deeper emptiness; it stays
+  optional where the one-level test excuses the case (t9).
+- **Layout, recovery:** an absurd clause starts in column 0 like any clause, and `()` as an argument
+  cannot start in column 0 (the argument rule). `parseParens` builds an `Absurd` tree at `( )` instead of
+  E0001; outside clause patterns it is E0915 "an absurd pattern is only allowed in a clause's patterns".
+  A missing `)` keeps today's unclosed-bracket recovery.
+- **Tooling:** `()` gets the semantic token `EnumMember` (as a constructor pattern) and a TextMate rule
+  `\(\s*\)` in `editors/vscode/syntaxes`; hover shows the refuted type; t13's fix writes `r ().`.
 
 ### 4.4 Presenting missing cases
 
@@ -231,9 +238,8 @@ probes), capped at `MaxMissing` = 20. Implicit and #100's leading arguments stay
 
 `buildTree` changes in three places:
 
-1. **Column choice:** the canonical order (4.2), today's choice plus the fallback within the first
-   clause. The claim below allows any choice; the reference fixes this one because evaluation uses the
-   tree (4.7).
+1. **Column choice:** the canonical order (4.2); the claim below allows any, the reference fixes this one
+   (4.7).
 2. **Empty variables.** The tree emits `Split(x, Nil)` as today, but the analysis continues below it,
    emitting nothing, with the clauses that have no constructor there, so `h X` (t3) is marked used.
 3. **Missing nodes** are refined at the positions of `Π` below them (canonical order, at most
@@ -244,13 +250,12 @@ found are Definition 2.** Splits are at positions of `Π` and cover every possib
 and missing nodes partition the probes. At a leaf, clause `j` matches every probe below, and every
 earlier clause was dropped on the path because it fails there: `j` is reachable. Conversely, follow a
 witness `κ` for `j` down the tree: `j` is never dropped, and no earlier remaining clause can be a leaf
-(it would match `κ`), so the walk ends at a leaf for `j`. This is `U` computed by specialization along a
-tree (Maranget 2008 §7 relates necessity and usefulness the same way); no run of `U` per clause is
-needed.
+(it would match `κ`), so the walk ends at a leaf for `j`. This is `U` computed along a tree (cf. Maranget
+2008 §7); no run of `U` per clause is needed.
 
-**Dependent columns.** Any free variable of a family type may be split first (the `SplitProblem` solves
-variables globally, `telescopeOrder` rebuilds a telescope per leaf); the only cost of another order is
-undecided splits (4.2). So a free choice is possible, but evaluation makes it observable (4.7).
+**Dependent columns.** Any free variable of a family type may be split first (`SplitProblem` solves
+globally, `telescopeOrder` rebuilds telescopes), at the risk of undecided splits (4.2); a free choice is
+possible but observable through evaluation (4.7).
 
 ### 4.6 Clause contexts
 
@@ -269,11 +274,11 @@ the patterns: `w (suc N) X = X.`, `h (suc N) M = h N M.`
 
 ### 4.7 Evaluation
 
-A tree reduces `f ū` by clause `j` only if `ū` matches `p̄ʲ` and every earlier clause clashes with it.
-The converse fails for open terms. "Matches, and every earlier clause is incompatible" is Laville's
-semantics, which is not sequential (Maranget 2007 §4.2). In o1, `gg X (suc zero)` is determined, but the
-canonical tree is stuck on column 1, as Agda's tree is for `max m zero` (3.2). So the tree is observable
-on open terms, and a heuristic tree would change which programs type-check.
+A tree reduces `f ū` by clause `j` only if `ū` matches `p̄ʲ` and every earlier clause clashes with it;
+the converse (Laville's semantics) fails on open terms, as it is not sequential (Maranget 2007 §4.2). In
+o1, `gg X (suc zero)` is determined, but the canonical tree is stuck on column 1, as Agda's tree is for
+`max m zero` (3.2). So the tree is observable on open terms, and a heuristic tree would change which
+programs type-check.
 
 **Assessment: the canonical tree defines evaluation, stated in the reference** (`meta/clauses.md`
 "Evaluation": the split order of 4.2; an application is stuck when a split meets a neutral). This is
@@ -282,13 +287,11 @@ fallback has no precedent (Agda matches clause by clause only before compiling) 
 
 - **`inexact_clauses` (opt-in lint, a new W code):** clause `j` holds definitionally iff it is the leaf
   of exactly one node and that leaf's case is its clause context, which is Agda's test (trivial matching
-  substitution, `Coverage.hs`, `cover`, lines 303–318). It warns otherwise, like `gg _ (suc _)` in o1 or
-  `n2 _ _` in t16. It is off by default, as `--exact-split` is, so Agda's `CATCHALL` pragma is not
-  needed.
+  substitution, `Coverage.hs`, `cover`, lines 303–318). It flags `gg _ (suc _)` (o1) and `n2 _ _` (t16);
+  off by default like `--exact-split`, so no `CATCHALL` pragma.
 - **`qba` only where unobservable:** an optional second tree, used only for applications whose arguments
-  are closed (`Matching.reduceFunction` already detects them for memoisation). On closed arguments every
-  tree gives the first match. It is Idris's runtime tree with Maranget's cheap champion, and comes only
-  if #60 measures a gain.
+  are closed (detected for memoisation already), where every tree gives the first match. It is Idris's
+  runtime tree with Maranget's cheap champion, and comes only if #60 measures a gain.
 
 **Claim: the canonical tree is the only observable shape, and the reference fixes it.** W0006 and E0911
 do not depend on it (4.5), clauses carry typing, termination, splits and printing (4.6), and the `qba`
@@ -296,12 +299,10 @@ tree sees only closed arguments, on which every tree gives the first match.
 
 ### 4.8 Interactions
 
-- **Size-change termination:** calls per clause (4.6): `reverse _` adds one set of calls instead of 120.
-  A clause's matrix is its leaves' matrix without their refinement; only s1-like programs lose.
-- **#100 member functions:** leading arguments are wildcards, never split, hidden in `M`.
-- **Performance (#60):** one elaboration per clause (162 instead of 216 in the prelude), one pass as
-  today, `M` only on the E0911 path; the `qba` tree and maximal sharing (Maranget 2008 §9.1) are #60
-  items.
+- **Termination:** calls per clause (one set for `reverse _`, not 120); only s1-like programs lose.
+- **#100:** a member's leading arguments are wildcards, never split, hidden in `M`.
+- **#60:** one elaboration per clause (162, not 216, in the prelude), one pass, `M` only for E0911; the
+  `qba` tree and maximal sharing (Maranget 2008 §9.1) are #60 items.
 
 ### 4.9 Conformance
 
@@ -310,8 +311,8 @@ tree sees only closed arguments, on which every tree gives the first match.
 | W0006/E0911 by usefulness over probes | Maranget; Agda, Idris, Lean read them off their tree | JFP §3; `Coverage.hs` 215–228; `ProcessDef.idr` 918–922; `Match.lean` 1220 | Maranget: match. Others: same verdicts as their trees when splits are decided, except emptiness (t3) |
 | clause checked once in its own context | Agda, Idris, Lean | `Rules/LHS.hs` 1029–1046; `ProcessDef.idr` 416–425 | match |
 | missing: first plus count, full set for tooling | Lean (≤ 5 listed), Maranget (one) | `Elab/Match.lean` 1043–1066; JFP §5 | match (cap 20) |
-| impossible clause is an error | Agda `ImpossibleConstructor`; Idris unification error | `Errors.hs` 1297–1300; `ProcessDef.idr` 390–415 | match; no `()` (deviation, 4.3) |
-| `f p̄ impossible.` (open) | Idris `impossible`, `ValidCase` | `ProcessDef.idr` 390–415 | match |
+| impossible clause is an error | Agda `ImpossibleConstructor`; Idris unification error | `Errors.hs` 1297–1300; `ProcessDef.idr` 390–415 | match |
+| absurd pattern `()`, no right-hand side | Agda absurd patterns and clauses | manual "Absurd patterns"; `Rules/LHS.hs` 416–418; `Errors.hs` 434, 734 | match; `= e` is an error, Agda warns (deviation) |
 | canonical order: first clause, leftmost decided position | Agda `nextSplit`, `altM1`; Lean `rowMajor`; Idris first column | `Compile.hs` 189; `Coverage.hs` 508; `Match.lean` 74; `CaseBuilder.idr` 751 | Agda, Lean: match. Idris: column-major (deviation) |
 | evaluation is the canonical tree | Agda compiled clauses; Idris `treeCT`; Lean matcher (equations only as theorems) | `Reduce.hs` 981; `Eval.idr` 505; `Match.lean` 23–56; `MatchEqs.lean` 59–64 | match |
 | `inexact_clauses`, off by default | Agda `--exact-split` | `command-line-options.rst` 854–868; `Warning.hs` 171 | match; no `CATCHALL` (deviation) |
@@ -325,8 +326,8 @@ tree sees only closed arguments, on which every tree gives the first match.
 - **Laville's rule with a clause-matching fallback** (first draft): no system does it (4.7, 4.9).
 - **A heuristic tree for evaluation:** observable on open terms (o1); Idris keeps heuristics off it.
 - **`U` once per clause:** same answers as the pass, `m` times the cost. **True emptiness:** undecidable.
-- **Emptiness making clauses unreachable** (t3 today): flags the only clause of an empty type.
-- **Agda's absurd pattern `()`:** new pattern syntax that automatic absurd cases make unnecessary (4.3).
+- **Emptiness making clauses unreachable** (t3 today): flags a legitimate clause.
+- **Idris's `f p̄ impossible.`:** a keyword clause form; the designer chose Agda's `()`.
 - **`pba`:** the champion, but `p` needs usefulness at every node; `qba` is Maranget's choice without.
 
 ## 6. Effects
@@ -343,28 +344,32 @@ tree sees only closed arguments, on which every tree gives the first match.
 | o1 | E0901 | E0901 (as Agda's `max`); `inexact_clauses` flags `gg _ (suc _)` when enabled |
 | t16 `--print-after elaborate` | 3 leaves | the 2 clauses |
 | unreachable clause with a type error | silent | its error |
-| t13 `r fzero` over `fin zero` | W0006 | E0915; `r fzero impossible.` if 4.3's form is approved |
+| t13 `r fzero` over `fin zero` | W0006 | E0915, fix `r ().` |
 | t5, t9, t15 | — | unchanged |
 
 Newly rejected: right-hand sides and calls that need the refinement made by earlier clauses (r1, s1),
 impossible clauses (t3, t4, t13), and type errors in unreachable clauses. Changed messages: the missing
 case shown and its count. New: the opt-in `inexact_clauses` lint.
 
-Size: about +300/−150 lines (batch 1), +350/−80 (2), +150 (3); goldens about +250.
+Size: about +400/−150 lines (batch 1), +350/−80 (2), +150 (3); goldens +300.
 
 ## 7. Batches
 
-Each batch is one pull request with its reference changes (CONTRIBUTING.md).
+Each batch is one pull request with its reference changes.
+
 
 1. **Clause contexts** (4.3, 4.6). Code: a clause's own split; impossible clauses as E0915 with the
-   removal fix (and `impossible` clauses if approved); right-hand side, `where` and calls once per
+   removal fix; absurd patterns and clauses (parser `Absurd` tree, `Clause` without right-hand side, the
+   emptiness check, semantic token, TextMate grammar); right-hand side, `where` and calls once per
    clause; `Leaf(j, σ)` in `CaseTree` and `Matching`; `recordSplits` per clause; `Staging.clauses` prints
    clauses; the fix for refinement-dependent clauses. Reference: `meta/clauses.md` (new "Checking a
    clause": its context, implicit binder names, no refinement from other clauses), `meta/where.md` "Local
    definitions" ("at each leaf" → "once per clause"), `meta/termination.md` "The criterion" (the clause's
-   patterns), `meta/clauses.md` "Syntax" and "Patterns" (impossible clauses), `docs/errors/E0915.md`,
-   `W0006.md`, `E0901.md`, `E0912.md`. Goldens: `run/cov_clause_context`, `neg/cov_refinement` (r1, s1),
-   `neg/cov_impossible_clause` (t3, t4, t13), a `print-after` golden (t16), an LSP split golden.
+   patterns), `meta/clauses.md` "Syntax" and "Patterns" (impossible clauses, absurd patterns),
+   `meta/coverage.md` (absurd clauses), `docs/errors/E0915.md`, `W0006.md`, `E0901.md`, `E0912.md`.
+   Goldens: `run/cov_clause_context`, `neg/cov_refinement` (r1, s1), `neg/cov_impossible_clause` (t3, t4,
+   t13), `run/cov_absurd` (`r ()`, `f (vcons X ())`), `neg/cov_absurd` (a possible `()`, `= e`, `()` in
+   an expression), a recovery golden, a `print-after` golden (t16), an LSP split golden.
 2. **Order-independent coverage** (4.1, 4.2, 4.4, 4.5 items 2–3). Code: the unifier's worklist, the
    canonical fallback, the analysis below empty variables, refining missing nodes, `M`, the count, the
    tooling cover. Reference: `meta/coverage.md` rewritten: "Cases and probes" (Definitions 1 and 2, the
@@ -379,8 +384,7 @@ Each batch is one pull request with its reference changes (CONTRIBUTING.md).
    order, stuck applications, the lint), Maranget 2008 in `notation.md`, `docs/errors/` for the new W
    code. Goldens: `run/cov_open_reduction` (o1 stuck, o2), `run/cov_inexact`.
 
-Batch 2 needs batch 1; batch 3 needs both. Batch 1 is the riskiest: its pull request reports how many
-goldens and stdlib clauses need its fix.
+Batch 2 needs 1, batch 3 both. Batch 1 reports how many goldens and stdlib clauses need its fix.
 
 ## 8. Sources
 
