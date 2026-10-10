@@ -243,7 +243,34 @@ trait Declarations:
 
   def define(name: Ident, ty: Tm, tm: Tm, declSpan: Span): Int =
     val ztm = zonk(Nil, 0, tm)
-    declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)), declSpan)
+    scope.get(name.name).filter(id => provisional(id) && globals(id).declSpan == declSpan) match
+      case Some(id) =>
+        // declared with its type first ([[DependencyOrder.provisionalSignatures]]): a definition still may
+        // not reach itself through definitions alone
+        if unfoldsTo(id, ztm) then fail(ElabProblem.SelfReference(name.name, declSpan, name.span))
+        globals(id).kind = GlobalKind.Definition(ztm, eval(Nil, ztm))
+        id
+      case None => declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)), declSpan)
+
+  /** `x : A = e.` declared with its type alone, a postulate until its value is elaborated. */
+  def declareSignature(d: Decl): Unit =
+    val (c2, imps, ps) = declContext(d, Cxt.empty, definitionParam(d))
+    val result = checkType(c2, d.tpe, Stage.S1)
+    val ty = zonk(Nil, 0, pis(imps, Icit.Impl, pis(ps, Icit.Expl, result)))
+    provisional += declare(d.name, ty, Stage.S1, GlobalKind.Postulate, d.span)
+
+  /** Whether the term `t` refers to the global `id` through definitions alone. */
+  private def unfoldsTo(id: Int, t: Tm): Boolean =
+    val seen = scala.collection.mutable.Set.empty[Int]
+    def in(t: Tm): Boolean = Tm.exists(t) {
+      case Tm.Global(g) =>
+        g == id || seen.add(g) && (kindOf(g) match
+          case GlobalKind.Definition(d, _) => in(d)
+          case _ => false
+        )
+      case _ => false
+    }
+    in(t)
 
   /** `f params = e.` without a declaration of `f`: a definition with an inferred type. (After a
    *  declaration, it is a clause of the declared function.) */

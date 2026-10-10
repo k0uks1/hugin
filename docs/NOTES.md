@@ -1957,3 +1957,64 @@ not supported" is gone); E0915 (with a note) for a clause of a function the body
 for clauses of a body's object constant or definition. Goldens: `run/mc_member_functions` (with
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
+
+## Elaboration in dependency order (#91, batch 1)
+
+Design: `docs/design/elab-order.md`. A file's declaration items are elaborated by the strongly connected
+components of their dependency graph in topological order, independent components in source order
+(`core/elab/ElabOrder.scala`: nodes, mentions, the graph; `util/Graphs.components`: Tarjan and Kahn by
+earliest item). `core/elab/DependencyOrder.scala` elaborates each component: its plain items with the
+retry loop of `Items.elabInDependencyOrder` (`%use` first), the derived functions if the component holds
+them, the clause groups, the formula functions' rules; then `checkTermination` and `checkFormulaCycles`;
+then its bodies unfold. Module bodies keep `ModuleBodies.elabMembers` (batch 2).
+
+Implementation choices the design did not spell out:
+
+- *Sealing without a test in evaluation.* A function, definition or formula function of a component of
+  more than one node is marked `GlobalEntry.inCycle`; its case tree or definition is *withheld*
+  (`DependencyOrder.withheld`): the function has no case tree, the definition is a postulate, until the
+  end of the component. `force` already unfolds a global that became a definition after a value was
+  computed, and retries stuck applications, so values computed inside the cycle compute further where they
+  are used (row 9 of the design). A guard in `Matching.reduceFunction` (or in `Evaluation.globalValue`)
+  was tried first: `LongListsSuite` (400 items on a 1 MiB stack, #88) overflowed with it. That test
+  depends on the JIT: a level of `mirror`'s recursion takes about twice the stack while `Evaluation.eval`
+  is being recompiled (it is made not entrant and compiled again around the directive in both versions,
+  `-XX:+PrintCompilation`), so whether 400 levels fit in 1 MiB depends on the timing of that compilation.
+  Measured outside sbt (the test's two programs in one JVM): before and after the change, either version
+  passes or overflows at 700 KiB depending on the run. In the forked test JVM of sbt it overflowed after
+  the change in most runs of `hugin.core.*` (and passed in a run of all the suites named below), passed
+  before, and passes with sealing turned off. Open: the test needs a margin that does
+  not depend on the JIT (a larger stack, or fewer frames per level).
+  The checks that
+  read definitions' terms (size-change inlining, `refersTo` for formula cycles, `%use` of a module of the
+  file, the self-reference check of a provisional definition) read through `kindOf`.
+- *Typed definitions.* A typed definition is one node; its type and value are elaborated in one block, as
+  before (#66 granularity unchanged). The split of the design is done where it decides acceptance: when the
+  retry loop of a component is stuck and a typed definition waits for a signature (a declaration without
+  definition) of the component, the definition is declared with its type alone
+  (`DependencyOrder.provisionalSignatures`, `Declarations.declareSignature`), a postulate until its value
+  is elaborated in place (`Declarations.define`). A value that reaches its own definition through
+  definitions alone is E0105. A cycle of definitions alone keeps E0101 (no provisional declaration). Object
+  type definitions (`t : type = …`) are not sealed: object declarations in the same cycle need them.
+- *Mentions.* Every identifier of an item's syntax and its paths `T.f`, without labels and binder names,
+  ignoring shadowing. A name not declared in the file and not resolvable outside it (the prelude's, a
+  builtin type) depends on the `%use` items that may open it: those listing it, those of a module of the
+  file whose body (also through a functor of the file) declares it, and any `%use` of an import without a
+  list. Clause groups and rules depend on the derived functions' node if the file declares shared types;
+  when the file declares the compiler-known names itself (the standard library), every body depends on
+  their declarations, as before, when all declarations came first.
+- *Signatures only.* `FileEnv.signaturesOnly` elaborates the clause groups and rules that a plain node
+  depends on (`ElabOrder.Plan.neededBySignatures`); member clause groups are still skipped.
+- *Notes.* `ElabErrors.stuckNotes` adds to E0901 a note for an application stuck at a function or
+  definition of the cycle being elaborated (naming the cycle, `cycleNames`) or at a function rejected by
+  E0912. The design's third case, a function whose clauses were rejected, does not arise: the uses of such a
+  function are left out without a diagnostic (`state.unelaborated`), so no note is written for it.
+
+Measurement (the design's 5.6): every golden program (`tests/`), every example, the bench programs, the
+reference and error-index examples and the standard library files were checked (`hugin check`, 600
+programs) with the compiler before and after the change: the diagnostics are identical for all of them. No
+program of the repository relies on either newly rejected class (row 11; a clause group that unfolds an
+earlier clause group of its own cycle). Goldens: `run/order_definitions` (with `run/lib/order_vectors.hgn`
+for `%export`; the issue and the other six kinds, and a typed definition and a signature that need each
+other), `neg/order_cycle` (row 10 in both orders, with the note), `neg/order_stuck_notes` (the second
+rejected class, the E0912 note), `neg/order_unsolved` (row 11).

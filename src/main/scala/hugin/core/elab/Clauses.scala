@@ -62,7 +62,11 @@ trait Clauses:
       try buildTree(info, problem, target, states)
       catch case _: ElabError if info.missing.nonEmpty => notCovering(info, clauses)
     if info.missing.nonEmpty then notCovering(info, clauses)
-    g.kind = GlobalKind.Function(arity, Some(tree))
+    // a function of the cycle being elaborated gets its case tree when the cycle is done ([[DependencyOrder]])
+    if g.inCycle then
+      g.kind = GlobalKind.Function(arity, None)
+      withheld(id) = GlobalKind.Function(arity, Some(tree))
+    else g.kind = GlobalKind.Function(arity, Some(tree))
     checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) do
       reporter.report(ClauseProblem.UnreachableClause(g.name, cl.span).toDiagnostic)

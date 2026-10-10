@@ -2,7 +2,7 @@
 
 Design note for [issue #91](https://github.com/k0uks1/hugin/issues/91): definitions are elaborated
 before the clauses of functions, so a type that computes with a function defined by clauses is
-rejected. Status: approved by the designer; implementation follows #100 batch 1. The designer's
+rejected. Status: approved by the designer; batch 1 implemented (`docs/NOTES.md`, "Elaboration in dependency order"). The designer's
 decisions: follow established practice; inside a cycle the written order must not matter (5.3); the
 first rejected class of 5.6, the split of typed definitions and the #100 constraint are accepted.
 

@@ -167,6 +167,7 @@ class Elaborator(
     with Records
     with Operators
     with Items
+    with DependencyOrder
     with Declarations
     with Inductives
     with Patterns
