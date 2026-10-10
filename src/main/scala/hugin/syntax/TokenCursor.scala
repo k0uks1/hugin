@@ -202,8 +202,11 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
    *  at depth 0, which starts a line at the indentation of the line of the body's `{`. In valid text a
    *  body's `}` follows the period of its last item. */
   protected def strayBodyCloser: Boolean =
+    // more of the item follows on the line: also after a separator (`src Y }, X <> Y.`), but not a period
+    def itemGoesOn =
+      continuesLine(i) || toks(i + 1).span.startLine == tok.span.startLine && (toks(i + 1).kind == Tok.Comma || toks(i + 1).kind == Tok.Semi)
     bodyOpeners.headOption.flatten.exists { open =>
-      at(Tok.RBrace) && !startsLine(i) && toks(i - 1).kind != Tok.Period && continuesLine(i) && openerEndsLine(open) && {
+      at(Tok.RBrace) && !startsLine(i) && toks(i - 1).kind != Tok.Period && itemGoesOn && openerEndsLine(open) && {
         var k = i + 1
         var depth = 0
         while toks(k).kind != Tok.EOF && !(depth == 0 && toks(k).kind == Tok.RBrace) && !(atColumn0(k) && toks(k).kind != Tok.RBrace) do
