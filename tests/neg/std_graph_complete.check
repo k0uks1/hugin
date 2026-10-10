@@ -1,0 +1,103 @@
+error[E0602]: negation or aggregation over the incomplete relation `road`
+  --> <stdlib>/std/graph.hgn:64:27
+   |
+64 |   source X :- v.vertex X, not g.edge _ X.
+   |                           ^^^^^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `road` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `degrees`
+  --> tests/neg/std_graph_complete.hgn:8:6
+   |
+ 8 | dg = degrees { node = city, edge = road }. (*~ E0208 *)
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0602]: negation or aggregation over the incomplete relation `road`
+  --> <stdlib>/std/graph.hgn:66:25
+   |
+66 |   sink X :- v.vertex X, not g.edge X _.
+   |                         ^^^^^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `road` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `degrees`
+  --> tests/neg/std_graph_complete.hgn:8:6
+   |
+ 8 | dg = degrees { node = city, edge = road }. (*~ E0208 *)
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0602]: negation or aggregation over the incomplete relation `road`
+  --> <stdlib>/std/graph.hgn:68:49
+   |
+68 |   out_degree X N :- v.vertex X, N = count { Y | g.edge X Y }.
+   |                                                 ^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `road` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `degrees`
+  --> tests/neg/std_graph_complete.hgn:8:6
+   |
+ 8 | dg = degrees { node = city, edge = road }. (*~ E0208 *)
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0602]: negation or aggregation over the incomplete relation `road`
+  --> <stdlib>/std/graph.hgn:70:48
+   |
+70 |   in_degree X N :- v.vertex X, N = count { Y | g.edge Y X }.
+   |                                                ^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `road` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `degrees`
+  --> tests/neg/std_graph_complete.hgn:8:6
+   |
+ 8 | dg = degrees { node = city, edge = road }. (*~ E0208 *)
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0602]: negation or aggregation over the incomplete relation `points`
+  --> <stdlib>/std/order.hgn:7:46
+   |
+ 7 |   argmin K X :- s.score K X V, V = min { W | s.score K _ W }.
+   |                                              ^^^^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `points` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `best`
+  --> tests/neg/std_graph_complete.hgn:11:7
+   |
+11 | bst = best { key = city, item = city, score = points }. (*~ E0208 *)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0602]: negation or aggregation over the incomplete relation `points`
+  --> <stdlib>/std/order.hgn:9:46
+   |
+ 9 |   argmax K X :- s.score K X V, V = max { W | s.score K _ W }.
+   |                                              ^^^^^^^^^^^^^ incomplete relation used negatively
+   |
+   = note: `points` is declared %open
+   = note: the absence of a fact of an incomplete relation means unknown, not false
+note: in application of `best`
+  --> tests/neg/std_graph_complete.hgn:11:7
+   |
+11 | bst = best { key = city, item = city, score = points }. (*~ E0208 *)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0208]: relation `road` does not satisfy `%complete edge`
+ --> tests/neg/std_graph_complete.hgn:8:6
+  |
+8 | dg = degrees { node = city, edge = road }. (*~ E0208 *)
+  |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `road` is open
+ ::> <stdlib>/std/graph.hgn:5:68: required here
+  |
+  = note: the functor negates or aggregates over this relation, which needs complete knowledge
+
+error[E0208]: relation `points` does not satisfy `%complete score`
+  --> tests/neg/std_graph_complete.hgn:11:7
+   |
+11 | bst = best { key = city, item = city, score = points }. (*~ E0208 *)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `points` is open
+  ::> <stdlib>/std/order.hgn:3:79: required here
+   |
+   = note: the functor negates or aggregates over this relation, which needs complete knowledge
+
+8 errors found

@@ -242,7 +242,7 @@ trait Declarations:
     case other => (Nil, other)
 
   def define(name: Ident, ty: Tm, tm: Tm, declSpan: Span): Int =
-    resolveLiterals(0)
+    resolveLiterals(blockStart)
     val ztm = zonk(Nil, 0, tm)
     declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)), declSpan)
 

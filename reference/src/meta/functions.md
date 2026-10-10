@@ -179,7 +179,13 @@ literal checked against a type `A` is:
 2. a literal of `A` at the stage of its position, if `A` is a base type;
 3. if `A` is still an unknown, an unknown of type `A` that waits until the end of its item, or of the
    member of a module body that contains it. The literal is then checked against `A` as the item has
-   determined it, by rule 1 or 2; if `A` is still unknown, it is `int` at stage 1.
+   determined it, by rule 1 or 2; if `A` is still unknown, it is `int` at stage 1. The waiting literals
+   of an item are checked earlier where the item needs a value whose type is not known yet: before
+   such a value is used as object code (a value of unknown type is object code only if checking them
+   does not determine its type), and before it is reflected as syntax.
+
+An integer literal operand of arithmetic other than `e + k` next to an operand of unknown type makes
+that type `int` at once: `[x] x * 10` is a function on `int`.
 
 So a literal takes its type from the rest of its item: with `pick : {A : Type} -> A -> A -> A`, both
 `pick 3 zero` and `pick zero 3` are naturals, and `pick 3 4` is an `int`. A literal never becomes a

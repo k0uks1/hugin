@@ -66,13 +66,16 @@ trait Coercions:
         insertedQuote()
         Some((Tm.quote(t), Val.Lift(a)))
       case (Stage.S1, Stage.S0) =>
-        // the rule Lift; a meta value of unknown type is object code
-        lifted(c, t, a).orElse {
-          val m = ev(c, freshMeta(c, Val.U0, Stage.S0, Span.NoSpan, "object type"))
-          unify(c.lvl, a, Val.Lift(m))
-          insertedLifting(Tm.splice(t))
-          Some((Tm.splice(t), m))
-        }
+        // the rule Lift; a meta value of unknown type is object code, once the postponed literals have
+        // their types (a literal is not object code by default)
+        lifted(c, t, a)
+          .orElse(if settleLiterals() then lifted(c, t, a) else None)
+          .orElse {
+            val m = ev(c, freshMeta(c, Val.U0, Stage.S0, Span.NoSpan, "object type"))
+            unify(c.lvl, a, Val.Lift(m))
+            insertedLifting(Tm.splice(t))
+            Some((Tm.splice(t), m))
+          }
       case _ => None
 
   private def justUnify(c: Cxt, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Option[Tm] =

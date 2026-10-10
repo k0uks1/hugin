@@ -74,12 +74,13 @@ class LibraryQueriesSuite extends munit.FunSuite:
     given db: Database = setup()
     val compiled = db(Compile, CompileKey(main, settings))
     assert(!compiled.hasErrors, compiled.diagnostics)
-    // the prelude after the bundled files it imports
-    val std = List("std/reflect", "std/nat", "std/demand").map(m => SourceLoader.StdlibPrefix + m + ".hgn")
+    // the prelude after the bundled files it imports (`std/demand` imports `std/list`, so the import graph
+    // places it before the prelude)
+    val std = List("std/reflect", "std/nat", "std/list", "std/directives", "std/demand").map(m => SourceLoader.StdlibPrefix + m + ".hgn")
     val graph = SourceLoader.StdlibPrefix + "std/graph.hgn"
-    val list = SourceLoader.StdlibPrefix + "std/list.hgn"
-    assertEquals(compiled.context.unit.libraries.keys.toList, std ++ List(SourceLoader.PreludePath, geo, graph, routes, other, list))
-    // the prelude with its imports is one step of the chain
+    assertEquals(compiled.context.unit.libraries.keys.toList, std ++ List(SourceLoader.PreludePath, geo, graph, routes, other))
+    // the prelude with its imports is one step of the chain; the program does not use `%demand`, so
+    // `std/demand` is left out, and `std/list`, which the program imports, is its last library
     assertEquals(elaborations, 6)
   }
 

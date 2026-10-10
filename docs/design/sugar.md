@@ -370,11 +370,18 @@ E0001 "expected a variable" today (the parser reads the object form), not a type
   `%use "std/nat" (nat, zero, suc).` `plus` recurses on its *second* argument (as Lean's `Nat.add`), so
   that `plus N k` reduces to `N + k` for an open `N`, the same term as N4's expression form; this keeps
   the door open for a primitive representation (#131). Both functions are plain clause definitions.
-  `std/nat` declares no object constants, so the lazy re-export of #61 B2 applies to it: a program that
-  writes none of the three names does not elaborate it (docs/PERFORMANCE.md).
+  `std/nat` declares no object constants, but `std/list` imports it, so it is elaborated with the
+  prelude's chain (docs/PERFORMANCE.md).
 - **N3.** A literal checked against an unknown meta type is an unknown, resolved at the end of its item,
-  of a module member, or before a definition is stored (`core/elab/Literals.scala`). A type mismatch
-  found before that point may show the literal's type as an unknown (`vec ?0 1`).
+  of a module member, or before a definition is stored (`core/elab/Literals.scala`), and earlier where
+  the item needs a value of a type not yet known: before such a value is taken as object code (the
+  Lift rule's fallback "a meta value of unknown type is object code") and before a value is reflected as
+  syntax. An integer literal next to an operand of unknown type in arithmetic makes it `int` at once
+  (`[x] x * 10`). Without these two, the polymorphic functions of #61's `std/list` (`foldr ([x] [s] x - s)
+  0 [10, 4, 1]` in a rule) took their unknowns as object code. A type mismatch found before the end of
+  the item may show the literal's type as an unknown (`vec ?0 1`).
+- `std/list` (#61) declared its own `nat`; it now opens the one of `std/nat`. Since `std/list` is in the
+  prelude's chain (`std/demand` imports it), `std/nat` stays in every chain rather than being lazy.
 - **N4.** `Pat.PSucc` and the expression cases in `Bidirectional`/`Operators`; the construction of
   numerals and of `e + k` goes through `core/Naturals.scala` only.
 - **N5.** The printer shows `zero` as `0` as well, and `suc^k e` as `e + k` also in suggested clauses

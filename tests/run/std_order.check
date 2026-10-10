@@ -1,0 +1,35 @@
+b.argmax blue dan.
+b.argmax green eve.
+b.argmax red bob.
+b.argmax red cid.
+b.argmin blue dan.
+b.argmin green eve.
+b.argmin red ann.
+o1.first 5.
+o1.position 5 0.
+od.first (-1).
+od.next (-1) 3.
+od.next 3 7.
+od.next 7 10.
+od.position (-1) 0.
+od.position 10 3.
+od.position 3 1.
+od.position 7 2.
+r.rank blue dan 1.
+r.rank green eve 1.
+r.rank red ann 3.
+r.rank red bob 1.
+r.rank red cid 1.
+t1.top blue dan.
+t1.top green eve.
+t1.top red bob.
+t1.top red cid.
+t2.top blue dan.
+t2.top green eve.
+t2.top red ann.
+t2.top red bob.
+t2.top red cid.
+?- t2.r.rank red X R.
+X = ann, R = 3.
+X = bob, R = 1.
+X = cid, R = 1.

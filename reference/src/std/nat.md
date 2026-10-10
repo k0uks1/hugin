@@ -29,6 +29,8 @@ Since `plus` splits on its second argument, `plus N k` for a numeral `k` evaluat
 error ([E0902](../errors/E0902.md)). `toInt` converts it to an `int`, which is persisted as an object
 integer ([Staging](../meta/staging.md#lifting)).
 
+[`std/list`](list.md#fuel) uses `nat` as fuel: `size` and `iterate`.
+
 A program that declares a name of `std/nat` itself shadows the prelude's: with its own
 `nat : Type. zero : nat. suc : nat -> nat.`, its literals are numerals of its own `nat`.
 

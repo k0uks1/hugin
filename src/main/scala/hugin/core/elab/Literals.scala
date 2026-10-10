@@ -28,6 +28,12 @@ trait Literals:
     postponed(m) = Postponed(m, what, c, t, a, term)
     term
 
+  /** Resolves the literals postponed in the current block now (`false` if there is none): before a meta
+   *  value of a type that is still unknown is taken as object code, since a literal's default is `int` at
+   *  stage 1. A literal of an earlier item that failed is never resolved. */
+  def settleLiterals(): Boolean =
+    postponed.keysIterator.exists(_ >= blockStart) && { resolveLiterals(blockStart); true }
+
   /** Resolves the literals postponed since meta `start`, in their order (at the end of an item, and before
    *  a definition is stored): each is checked against its type,
    *  `int` (at stage 1) if that is still unknown, and its unknown is unified with the result. */

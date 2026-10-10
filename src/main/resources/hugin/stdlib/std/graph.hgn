@@ -1,13 +1,90 @@
-(* std/graph: graphs as modules (reference: prelude). `graph` is the signature of a graph; the
-   functors take one and return a module with the derived relation. *)
+(* std/graph: graphs as modules (reference: std/graph). `graph` is the signature of a graph; a functor
+   takes one and returns a module with the derived relations. The transformers (`reverse`, `undirected`)
+   return a graph, so they compose with every functor: `rtc (undirected g)` is the equivalence closure. *)
 graph : Type = { node : type, edge : node -> node -> rel }.
+complete_graph : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+weighted : Type = { node : type, edge : node -> node -> int -> rel }.
 
+(* the edges reversed *)
+reverse (g : graph) = {
+  node : type = g.node.
+  edge : node -> node -> rel.
+  edge Y X :- g.edge X Y.
+}.
+
+(* the symmetric closure *)
+undirected (g : graph) = {
+  node : type = g.node.
+  edge : node -> node -> rel.
+  edge X Y :- g.edge X Y.
+  edge Y X :- g.edge X Y.
+}.
+
+(* the nodes with an edge *)
+vertices (g : graph) = {
+  vertex : g.node -> rel.
+  vertex X :- g.edge X _.
+  vertex Y :- g.edge _ Y.
+}.
+
+(* the transitive closure: walks of one edge or more *)
 tc (g : graph) = {
   path : g.node -> g.node -> rel.
   path X Y :- g.edge X Y.
   path X Z :- g.edge X Y, path Y Z.
 }.
 
+(* the reflexive transitive closure, on the vertices *)
+rtc (g : graph) = {
+  v = vertices g.
+  t = tc g.
+  path : g.node -> g.node -> rel.
+  path X X :- v.vertex X.
+  path X Y :- t.path X Y.
+}.
+
+(* the nodes reachable from a seed, the seeds included *)
+reach (g : graph) (seed : g.node -> rel) = {
+  reached : g.node -> rel.
+  reached X :- seed X.
+  reached Y :- reached X, g.edge X Y.
+}.
+
+(* mutual reachability: the strongly connected components *)
+scc (g : graph) = {
+  r = rtc g.
+  same : g.node -> g.node -> rel.
+  same X Y :- r.path X Y, r.path Y X.
+}.
+
+(* sources, sinks and degrees of the vertices (negation and counting need a complete graph) *)
+degrees (g : complete_graph) = {
+  v = vertices g.
+  source : g.node -> rel.
+  source X :- v.vertex X, not g.edge _ X.
+  sink : g.node -> rel.
+  sink X :- v.vertex X, not g.edge X _.
+  out_degree : g.node -> int -> rel.
+  out_degree X N :- v.vertex X, N = count { Y | g.edge X Y }.
+  in_degree : g.node -> int -> rel.
+  in_degree X N :- v.vertex X, N = count { Y | g.edge Y X }.
+}.
+
+(* the least sum of weights of a walk *)
+shortest (g : weighted) = {
+  dist : g.node -> g.node -> (d : min int) -> rel.
+  dist X Y D :- g.edge X Y D.
+  dist X Z D :- dist X Y D1, g.edge Y Z W, D = D1 + W.
+}.
+
+(* the least number of edges of a walk *)
+hops (g : graph) = {
+  dist : g.node -> g.node -> (d : min int) -> rel.
+  dist X Y 1 :- g.edge X Y.
+  dist X Z D :- dist X Y D1, g.edge Y Z, D = D1 + 1.
+}.
+
+(* the walks of at most `limit` edges, by their length *)
 bounded (g : graph) (limit : int) = {
   hop : g.node -> g.node -> int -> rel.
   %terminates N (hop _ _ N).

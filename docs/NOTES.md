@@ -1958,6 +1958,70 @@ for clauses of a body's object constant or definition. Goldens: `run/mc_member_f
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
 
+## Standard library: lists and directives (#61, batch B4)
+
+Design: `docs/design/stdlib.md`, 5.3 and 5.6; its section 9 lists the deviations ("Deviations in B4").
+`std/list` has the meta list functions (`map`, `filter`, `foldr`, `foldl`, `length`, `concat`, `reverse`,
+`zip`, `any`, `all`, `elem`, `diff`, `lookup`), the fuel `nat` with `size` and `iterate`, and the object
+relations `len` and `member`. `std/directives` has `heads`, `body`, `rules`, `calls`, the binding analysis
+(`tvars`, `tsvars`, `fvars`, `fbound`, `fneeds`, `plain`, `plains`), `fresh` and `reject`. `std/demand`
+opens both and drops its own set and boolean helpers; the rules it generates are unchanged (every
+`%demand` golden, with its `--print-after stage` output, is unchanged).
+
+* **The chain and the program's imports.** `std/demand` imports `std/list`, so the import graph places
+  `std/list` before the prelude, in the prelude's chain. When `%demand` is unused, the lazy re-export (B2)
+  leaves out `std/demand` and the files only it imports, and a program that imported `std/list` itself
+  then had no `std/list` at all: its import named a file that was elaborated nowhere, and the program
+  printed nothing, without a diagnostic. `LazyStdlib.outside` now returns the left-out files that the
+  program's files import (transitively), and `LazyStdlib.placed` puts each just before the first program
+  file that imports it, or last, where the import graph puts a file only the root imports. They are
+  elaborated as the program's libraries, after the prelude (`MetaLevel.elaborateProgram`, the query
+  `ProgramLibraries` in `chainOf`). The prelude's chain therefore stays `std/reflect`, prelude for every
+  program that does not use `%demand`, so the per-process cache of the chain is shared as before, and the
+  libraries keep the positions they had before B4 (`LibraryQueriesSuite` is unchanged apart from the
+  import graph's order).
+* **Chain files open `std/reflect`.** Files of the chain have no enclosing scope, so `std/list` and
+  `std/directives` write `%use "std/reflect".` as `std/demand` does.
+* **`if` is strict.** The selectors whose branches are cheap became `if`; `dhead`, whose branches build
+  rules, keeps its clauses, so that only the taken branch is built.
+* **Startup and run time** (`Bench cpu`, thread CPU and allocation, medians of 2 JVMs × 2 rounds × 15
+  runs, base 186694b and B4 alternating, load average above 20). The full chain (with `std/demand`)
+  elaborates in 69.8 ms against 55.7 ms uncached (23.7 MB against 19.1 MB): `std/list` and
+  `std/directives` are two more files of the chain, which a program that uses `%demand` elaborates once
+  per process; a program that does not use it elaborates the same chain as before (one-line program:
+  CPU within noise, 0.73 MB against 0.66 MB, the larger import graph). A run of `%demand` costs about what
+  it did: `run a04_typechecker` 26.6 ms against 27.0 ms (9.8 MB against 8.9 MB, of which about 0.4 MB is
+  the larger base each compilation forks), `run meta_scaled` (10 `%demand` directives) 699 ms against
+  630 ms (341 MB against 318 MB), and 333 MB after `fbound` and `plains` lost their `if`s (one JVM).
+  The first rewrite used `filter`, `any` and `map` with lambdas in `diff`, `dshares` and the items: it
+  allocated 20.4 MB for `a04_typechecker` and 358 MB for `meta_scaled`, since a function argument is
+  part of the memo key of every meta application; the hot helpers are first-order now.
+
+## Standard library: graphs and order; instance names (#61, batch B5)
+
+Design: `docs/design/stdlib.md`, 5.4 and 5.5; deviations at the end of its section 9. `std/graph` has the
+signatures `graph`, `complete_graph` and `weighted` and the functors `reverse`, `undirected`, `vertices`,
+`tc`, `rtc`, `reach`, `scc`, `degrees`, `shortest`, `hops` and `bounded`; `std/order` has `scores`,
+`best`, `ranking`, `top`, `ints` and `order`. All are rules in functor bodies, as the design wrote them.
+
+**Instance names of composed functors.** Instances are named when they are created
+(`Modules.freshPrefix`, from the definition being elaborated, `hint`), and arguments are evaluated before
+the application, so `back = tc (reverse g)` named the instance of `reverse` `back` and that of `tc`
+`back#2`. Now:
+
+* the argument of an application is elaborated and evaluated with no name (`Modules.anonymously` in
+  `Applications.inferPositionalApp`, where checking the argument and instantiating the codomain evaluate
+  it first; `Modules.argument` in `Evaluation.eval` for applications evaluated later), so its instances
+  are `_m1`, `_m2`, …;
+* a member definition of a body is evaluated with the name `prefix.member` (`Modules.instantiate`), so
+  the member `v = vertices g` of `weak = rtc g` is the instance `weak.v`, whose relation is printed
+  `weak.v.vertex`, the path a program writes for it. The design asked for `_m1` for every inner instance;
+  for members the path is the better name, and arguments have none.
+
+Instances are memoised per site, so the first evaluation decides the name; within one item the
+elaboration of the application comes first. Goldens that print relations of composed functors changed
+accordingly (see the commit). Reference: modules, "Instances".
+
 ## The browser build (#58, batch W4)
 
 The compiler is built for the browser by Scala.js without moving sources (the no-move variant of
