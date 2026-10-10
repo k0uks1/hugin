@@ -4,9 +4,9 @@ name: Site
 # (reference/, issue #49) at /hugin/reference/ with redirect pages from its old URLs, and the playground
 # at /hugin/play/. The job builds the book with mdBook, builds the site into _site/ (site/build.mjs) and checks
 # its internal links (the book's included), and, on pushes to the default or the development branch,
-# publishes _site/ on GitHub Pages. The Hugin examples of the book and the landing page's example are
-# compiled by `sbt test` (ReferenceExamplesSuite, GoldenTests) in ci.yml; site/build.mjs checks the
-# example's output again. The highlighting is computed by the compiler (reference/highlight.py and
+# publishes _site/ on GitHub Pages. The Hugin examples of the book and the landing page's examples are
+# compiled by `sbt test` (ReferenceExamplesSuite, GoldenTests) in ci.yml; site/build.mjs checks their
+# outputs again. The highlighting is computed by the compiler (reference/highlight.py and
 # site/build.mjs run `hugin highlight`), so the compiler is staged first.
 
 on:

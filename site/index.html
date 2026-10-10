@@ -6,6 +6,7 @@
 <title>Hugin</title>
 <meta name="description" content="Hugin is a typed Datalog with first-class facts and a total, dependently typed meta level that computes object programs at compile time.">
 <link rel="stylesheet" href="style.css">
+<!-- build.mjs: theme -->
 </head>
 <body>
 <header class="nav">
@@ -14,8 +15,8 @@
     <nav>
       <a href="play/">Playground</a>
       <a href="reference/">Reference</a>
-      <a href="reference/errors/index.html">Errors</a>
       <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+      <!-- build.mjs: theme button -->
     </nav>
   </div>
 </header>
@@ -28,18 +29,11 @@
         <p class="lede"><strong>Hugin is a typed Datalog</strong> with first-class facts at the object level and a
         total, dependently typed meta level that computes object programs at compile time.</p>
         <div class="actions">
-          <a class="button primary" href="play/#example=people">Open in the playground</a>
-          <a class="button" href="reference/">Language reference</a>
+          <a class="button primary" href="install/">Install</a>
+          <a class="button" href="reference/">Learn</a>
         </div>
       </div>
-      <figure class="card">
-        <div class="card-head"><span class="file">people.hgn</span><span>example</span></div>
-<pre><code class="hugin"><!-- build.mjs: site/example.hgn, highlighted by `hugin highlight` --></code></pre>
-        <div class="out">
-          <div class="card-head"><span class="file">$ hugin run people.hgn</span><span>output</span></div>
-<pre><code><!-- build.mjs: site/example.check, the output of `hugin run` --></code></pre>
-        </div>
-      </figure>
+<!-- build.mjs: examples, highlighted by `hugin highlight`, with the output of `hugin run` -->
     </div>
   </section>
 
@@ -48,9 +42,9 @@
       <p class="eyebrow">Documentation</p>
       <h2>Links</h2>
       <ul class="links">
+        <li><a href="install/"><strong>Install</strong><span>Build the compiler and set up an editor.</span></a></li>
         <li><a href="play/"><strong>Playground</strong><span>The compiler, running in the browser.</span></a></li>
-        <li><a href="reference/"><strong>Language reference</strong><span>The definition of the language.</span></a></li>
-        <li><a href="reference/errors/index.html"><strong>Error index</strong><span>Every diagnostic code, with an explanation.</span></a></li>
+        <li><a href="reference/"><strong>Language reference</strong><span>The definition of the language, and an explanation of every diagnostic code.</span></a></li>
         <li><a href="https://github.com/k0uks1/hugin"><strong>GitHub</strong><span>The reference implementation, in Scala 3.</span></a></li>
       </ul>
     </div>
@@ -72,8 +66,7 @@
 
 <footer class="foot">
   <div class="wrap">
-    <span>Hugin is a research language; it changes without regard for compatibility. Apache License 2.0.</span>
-    <nav><a href="play/">Playground</a><a href="reference/">Reference</a><a href="reference/errors/index.html">Errors</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+    <nav><a href="install/">Install</a><a href="play/">Playground</a><a href="reference/">Reference</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
   </div>
 </footer>
 </body>

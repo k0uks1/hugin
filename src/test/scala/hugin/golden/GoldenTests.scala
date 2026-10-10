@@ -18,7 +18,7 @@ import scala.jdk.CollectionConverters.*
  *    and the program after `elaborate`, which shows that the items around the errors are elaborated.
  *  - `tests/pos/X.hgn`: must compile without errors.
  *  - `docs/design/examples/X.hgn`: the worked examples of the design notes, run like `tests/run`.
- *  - `site/example.hgn`: the example of the website's landing page (site/build.mjs shows its `.check`),
+ *  - `site/X.hgn`: the examples of the website's landing page (site/build.mjs shows their `.check`),
  *    run like `tests/run`.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
