@@ -24,6 +24,8 @@ trait Names:
 
   def resolve(c: Cxt, n: Name, span: Span): (Tm, Val, Stage) =
     c.scope.get(n) match
+      case Some(l) if state.leftOutMembers((n, l)) =>
+        throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
       case Some(l) =>
         val b = c.binder(l)
         recordParamUse(c, span, b)

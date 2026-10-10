@@ -26,23 +26,32 @@ members and to each other. A member function is checked for [coverage](meta/cove
 [termination](meta/termination.md) where it is written, and diagnostics name it by its path
 (`lib.double`, `tc.step` for a functor `tc`).
 
-A member function is elaborated once, where the body is written, and not for each instance. It is a
-function of the parameters of the enclosing functors and of the object constants of the enclosing bodies:
+Likewise, a declaration `f : τ₁ -> … -> τₙ -> prop.` without a definition and the rules `f t̄ :- φ.` of
+the same body define a [formula function](meta/staging.md#formula-functions) of the body, a field of the
+module. Its clauses are the rules of the body that declares it, and they may use the body's members,
+also later ones. A formula function of a body that refers to itself, directly or through other members,
+is an error ([E0105](errors/E0105.md)), as in a file, and so is one without clauses a warning
+([W0005](errors/W0005.md)); diagnostics name it by its path.
+
+A member function or formula function is elaborated once, where the body is written, and not for each
+instance. It is a function of the parameters of the enclosing functors and of the object constants of the enclosing bodies:
 the field of an instance is that function for the instance's arguments and object constants. Two
 instances of a functor have fields that compute the same results, and object code that a field returns
 mentions the object constants of its own instance.
 
 The items of a body are elaborated in phases, not in the dependency order of a file's items ([Order of
 elaboration](meta/index.md#order-of-elaboration)): first the declarations and definitions, each after the
-members it refers to, then the clauses of the member functions, each function one item, then the object
-items. A member function's clauses are therefore not available while the declarations and definitions are
+members it refers to, then the clauses of the member functions, each function one item, then the rules of
+the formula functions, each function one item, then the object items. The rules of a formula function do
+not expand the other formula functions of the body while they are elaborated (as in a cycle of a file's
+items); they are expanded where the body's object items and the program use them. A member function's
+clauses are therefore not available while the declarations and definitions are
 elaborated: a definition that applies a member function evaluates to that application, which is computed
 when it is used.
 
 It is an error ([E0907](errors/E0907.md)) to use in a module body: refinements, families of object
 constants, meta inductive families, meta declarations without a definition or clauses (postulates),
-formula functions defined by rules, reflected items `$e.`, `%use`, and additive or module-wide
-directives. A member that is rejected is left out, and its uses in the body are not reported again. It is
+reflected items `$e.`, `%use`, and additive or module-wide directives. A member that is rejected is left out, and its uses in the body are not reported again. It is
 an error ([E0915](errors/E0915.md)) to write clauses in a body for a function that the body does not
 declare, and ([E0105](errors/E0105.md)) if a definition of a body refers to itself. It is an error
 ([E0107](errors/E0107.md)) to select a member of a value that is not a module.

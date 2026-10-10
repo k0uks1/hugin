@@ -45,12 +45,12 @@ trait Inductives:
     globals(fam).kind = GlobalKind.Inductive(constructors(fam) :+ ctor)
 
   /** The Π binders of a closed type (name, icit, type, as values over the binders before) and its
-   *  result, instantiated with variables at levels 0, 1, …. */
-  def telescope(ty: Val): (List[(Name, Icit, Val)], Val) =
+   *  result, instantiated with variables at levels `from`, `from + 1`, …. */
+  def telescope(ty: Val, from: Int = 0): (List[(Name, Icit, Val)], Val) =
     def go(t: Val, l: Int, acc: List[(Name, Icit, Val)]): (List[(Name, Icit, Val)], Val) = force(t) match
       case Val.Pi(x, i, a, cl) => go(inst(cl, Val.local(l)), l + 1, (x, i, a) :: acc)
       case other => (acc.reverse, other)
-    go(ty, 0, Nil)
+    go(ty, from, Nil)
 
   /** Constructor `c : Δ -> T ū`: `T` fully applied, `T` only strictly positive in Δ, Δ in T's universe. */
   private def checkConstructor(d: Decl, fam: Int, binders: List[(Name, Icit, Val)], resultSp: Spine): Unit =
