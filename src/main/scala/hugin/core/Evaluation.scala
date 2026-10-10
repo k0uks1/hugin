@@ -15,7 +15,10 @@ trait Evaluation:
   /** Observes the staging of code at positions while the handover stages items (for tooling). */
   var observer: StagingObserver | Null = null
 
-  def eval(env: List[Val], t: Tm): Val = t match
+  /** One step of evaluation: `t` in `env`, its subterms by [[Machine.eval]]. Applications and `let` are
+   *  evaluated by [[Machine]], without native recursion per call of a meta function (issue #129); the
+   *  recursion here is bounded by the size of the term. */
+  protected def evalNode(env: List[Val], t: Tm): Val = t match
     case Tm.Obj(ObjForm.Loc(sp), List(inner)) if observer != null => observed(env, sp, inner)
     case Tm.Quote(t @ Tm.Obj(ObjForm.Loc(sp), _)) if observer != null =>
       val v = eval(env, t)
@@ -26,10 +29,9 @@ trait Evaluation:
     case Tm.Meta(m) => metaValue(m)
     case Tm.AppPruning(t, pr) => appPruning(env, eval(env, t), pr)
     case Tm.Lam(x, i, b) => Lam(x, i, Closure(env, b))
-    case Tm.App(_, Tm.App(_, _: Tm.App, _), _) => evalArgChain(env, t)
-    case Tm.App(f, a, i) => app(eval(env, f), eval(env, a), i)
+    case _: Tm.App => eval(env, t)
     case Tm.Pi(x, i, a, b) => Pi(x, i, eval(env, a), Closure(env, b))
-    case Tm.Let(_, _, d, b) => eval(eval(env, d) :: env, b)
+    case _: Tm.Let => eval(env, t)
     case Tm.U0 => U0
     case Tm.U1(l) => U1(l)
     case Tm.Lift(a) => Lift(eval(env, a))
@@ -51,26 +53,6 @@ trait Evaluation:
     case Tm.Module(b, menv) => evalModule(b, menv.map(eval(env, _)))
     case Tm.Persist(t) => persist(eval(env, t))
     case Tm.FactTy(r) => FactTy(eval(env, r))
-
-  /** `t`, an application whose argument is an application whose argument is one, and so on (`cons x1 (cons x2 (… nil))`, the
-   *  data of a long list): evaluated with a loop down the chain of arguments instead of a recursion per
-   *  element (issue #88). The order is that of the recursion: functions and arguments left to right, each
-   *  application done after its argument is evaluated. */
-  private def evalArgChain(env: List[Val], t: Tm): Val =
-    var fs: List[(Val, Icit)] = Nil
-    var cur = t
-    while cur match
-        case Tm.App(_, _: Tm.App, _) => true
-        case _ => false
-    do
-      val Tm.App(f, a, i) = cur: @unchecked
-      fs = (eval(env, f), i) :: fs
-      cur = a
-    var v = eval(env, cur)
-    while fs.nonEmpty do
-      v = app(fs.head._1, v, fs.head._2)
-      fs = fs.tail
-    v
 
   /** Object code at the position `sp`, a splice or a persisted value, observed. */
   private def observed(env: List[Val], sp: hugin.util.Span, inner: Tm): Val =
@@ -117,19 +99,6 @@ trait Evaluation:
     case (e :: env1, Some(i) :: pr1) => app(appPruning(env1, v, pr1), e, i)
     case (_ :: env1, None :: pr1) => appPruning(env1, v, pr1)
     case _ => throw Impossible("pruning does not match the environment")
-
-  def app(f: Val, a: Val, i: Icit): Val = f match
-    case Lam(_, _, cl) => inst(cl, a)
-    case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
-    case Rigid(h, sp) => rigid(h, Elim.EApp(a, i) :: sp)
-    case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
-    case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
-    case other => throw Impossible(s"application of a non-function value $other")
-
-  /** A neutral value; a function applied to enough arguments reduces ([[Matching]]). */
-  private def rigid(h: Head, sp: Spine): Val = h match
-    case Head.Glob(id) => reduceFunction(id, sp).getOrElse(Rigid(h, sp))
-    case _ => Rigid(h, sp)
 
   /** `⟨$t⟩ = t`, also for a splice at a position (the code spliced has positions of its own). */
   def vQuote(v: Val): Val = Val.unloc(v) match
