@@ -335,7 +335,7 @@ trait Clauses:
   /** The pattern variables of a clause that can be split (for tooling, [[MetaIndex.Split]]): those of an
    *  inductive type, with a pattern per constructor whose indices unify with the variable's type. */
   private def recordSplits(p: SplitProblem, cl: ClauseState): Unit = if recording then
-    val fresh = Clauses.FreshNames(cl.binds.map(_._1.name))
+    val fresh = FreshNames(cl.binds.map(_._1.name))
     // the explicit binders of each constructor's type, for the pattern variables of the record
     val explicitBinders = mutable.HashMap.empty[Int, List[Name]]
     for case (v, value, _) <- cl.binds if !v.implicitBinder && v.span.exists do
@@ -380,21 +380,6 @@ trait Clauses:
     fail(ClauseProblem.NotCovering(f.name, f.missing.head, declared))
 
 object Clauses:
-  /** Names not in `taken0` nor given before: `fresh(base)` is the first of `base` (if free), `base1`,
-   *  `base2`, … that is not taken. Each base resumes its search where the last one stopped: names are only
-   *  added, so the candidates before it are still taken (searching from 1 every time was quadratic in the
-   *  number of names of a base, which the split records of a large family made visible). */
-  final class FreshNames(taken0: Iterable[String]):
-    private val taken = mutable.Set.from(taken0)
-    private val from = mutable.HashMap.empty[String, Int]
-    private def candidate(base: String, k: Int) = if k == 1 && !taken(base) then base else s"$base$k"
-    def apply(base: String): String =
-      val k = Iterator.from(from.getOrElse(base, 1)).find(k => !taken(candidate(base, k))).get
-      val name = candidate(base, k)
-      from(base) = k
-      taken += name
-      name
-
   /** For tests: `canApply` also unifies where it decided without unifying; `decidedWithoutUnifying` counts those
    *  decisions and `mismatches` collects the constructors where unification disagreed. */
   @volatile var crossCheck: Boolean = false

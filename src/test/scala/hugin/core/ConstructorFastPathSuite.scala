@@ -2,7 +2,7 @@ package hugin.core
 
 import hugin.cli.Main
 import hugin.compiler.{Parsed, StdlibCache}
-import hugin.core.elab.Clauses
+import hugin.core.elab.{Clauses, FreshNames}
 import hugin.util.SourceFile
 import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters.*
@@ -85,7 +85,7 @@ class ConstructorFastPathSuite extends munit.FunSuite:
     for _ <- 0 until 2000 do
       val taken =
         Vector.fill(rnd.nextInt(5))(bases(rnd.nextInt(bases.length)) + (if rnd.nextBoolean() then "" else rnd.nextInt(4).toString))
-      val fresh = Clauses.FreshNames(taken)
+      val fresh = FreshNames(taken)
       val naive = Naive(taken)
       for _ <- 0 until rnd.nextInt(40) do
         val b = bases(rnd.nextInt(bases.length))
