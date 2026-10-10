@@ -1,0 +1,8 @@
+(* No item starts with `{`: a stray `{` where an item may start is one error and is skipped, instead of
+   opening a module body that would swallow the `%use` after it. *)
+%use "std/reflect". { %use "std/graph". (*~ E0001 *)
+person : type. ann : person. bob : person.
+knows : person -> person -> rel.
+knows ann bob.
+reach = tc { node = person, edge = knows }.
+?- reach.path ann P.

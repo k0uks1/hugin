@@ -1,0 +1,10 @@
+error[E0001]: expected a name, found `.`
+ --> tests/recovery/r_use_broken_names.hgn:3:21
+  |
+3 | %use "std/reflect" (. (*~ E0001 *)
+  |                     ^ expected a name
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+held : int -> rel.
+?- held X.

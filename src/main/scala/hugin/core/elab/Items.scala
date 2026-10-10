@@ -74,8 +74,13 @@ trait Items:
     withoutTooling(defineSharedFunctions())
     if !file.signaturesOnly then
       elabClauseGroups(clauses)
-      for f <- formulaFunctions if !state.unelaborated(f) do
-        inBlock(elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }))
+      def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
+      // a declaration `f : … -> prop.` defined by clauses `f p̄ = e.` is a function (checked for termination)
+      val byRules = formulaFunctions.toList
+        .filter(f => !state.unelaborated(f) && scope.get(f).exists(globals(_).kind == GlobalKind.Postulate))
+        .sortBy(scope.get(_).getOrElse(Int.MaxValue))
+      for f <- byRules do inBlock(elabFormulaClauses(f, clausesOf(f)))
+      checkFormulaCycles(byRules.map(f => (f, clausesOf(f))))
       exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
@@ -135,15 +140,35 @@ trait Items:
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
-            if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
-            // the names of a dropped item are erroneous: their uses are not reported again
-            declares(item).foreach(state.erroneous += _)
-            droppedUse(item)
+            drop(item, e)
             None
           case None => None
       }
       progress = pending.length < before
+      if !progress && pending.nonEmpty then
+        // no item could be elaborated: an item whose name no pending item declares was waiting only for a
+        // pending `%use` that might open it, which may itself wait for that item (`%use m.` before a broken
+        // `m = …`). Its error is final; then the others are retried, and see its names as erroneous.
+        val declared = pending.flatMap((i, _) => declares(i)).toSet
+        val waiting = pending.filter {
+          case (_, Some(e)) => e.unresolved.exists(n => !declared(n))
+          case _ => false
+        }
+        // first the items that a pending `%use` waits for, so that the `%use` fails with them and the names
+        // it might open are not reported either; the others after
+        val usedNames = pending.collect { case (i, Some(e)) if isUse(i) => e.unresolved }.flatten.toSet
+        val needed = waiting.filter((i, _) => declares(i).exists(usedNames))
+        val first = if needed.nonEmpty then needed else waiting
+        first.foreach { case (item, e) => e.foreach(drop(item, _)) }
+        pending = pending.filterNot(p => first.exists(_._1 eq p._1))
+        progress = first.nonEmpty
     reportCycles(pending.collect { case (item, Some(e)) => (item, e) })
+
+  /** Reports the error of a dropped item; its names are erroneous, so their uses are not reported again. */
+  private def drop(item: Item, e: ElabError): Unit =
+    if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
+    declares(item).foreach(state.erroneous += _)
+    droppedUse(item)
 
   /** Items that refer to each other in a cycle: refinements (E0404) and type definitions (E0104, once per
    *  cycle, at the reference that closes it) as the old typer reported them; others as unresolved names. */
@@ -214,11 +239,13 @@ trait Items:
     for (n, group) <- groups if !state.unelaborated(n) do
       inBlock {
         val start = metas.length
+        var fn = -1
         try
           undoOnFailure {
             // the records of a failed group are shown before its metas are undone
             try
               val id = declaredFunction(n, group.head)
+              fn = id
               elabFunction(id, group.flatMap(surfaceClause))
               checkSolved(start)
             catch
@@ -230,6 +257,12 @@ trait Items:
         catch
           case e: ElabError =>
             report(e)
+            // its case tree may refer to the undone metas: the function is stuck, as one that may not
+            // terminate (a use reduces no further)
+            if fn >= 0 then
+              globals(fn).kind match
+                case GlobalKind.Function(arity, Some(_)) => globals(fn).kind = GlobalKind.Function(arity, None)
+                case _ =>
             // dropped for an error that follows from a syntax error: its uses are not elaborated either
             if e.silent then state.unelaborated += n
       }
@@ -293,10 +326,12 @@ trait Items:
     val count = items.length
     val partCount = state.parts.length
     val names = scope.begin()
+    val mark = pendingMark
     val result =
       try f
       catch
         case e: ElabError =>
+          rollbackPending(mark)
           items.dropRightInPlace(items.length - count)
           state.parts.dropRightInPlace(state.parts.length - partCount)
           scope.rollback(names)

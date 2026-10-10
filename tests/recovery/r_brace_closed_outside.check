@@ -1,0 +1,17 @@
+error[E0005]: unclosed `{`
+  --> tests/recovery/r_brace_closed_outside.hgn:13:44
+   |
+13 |   typed (app F A) G T :- typed F G (arr S { T), typed A G S. (*~ E0005 *)
+   |                                           -^ expected `}` here
+   |                                           this `{` is never closed
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+expr : type.
+ctx : type.
+typ : type.
+ref : string -> expr.
+app : expr -> expr -> expr.
+arr : typ -> typ -> typ.
+typed : expr -> ctx -> typ -> rel.
+lookup : ctx -> string -> typ -> rel.

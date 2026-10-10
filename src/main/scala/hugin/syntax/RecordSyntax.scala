@@ -6,16 +6,25 @@ import scala.collection.mutable
  *  `%complete l`), record values and named patterns `{ l = e, .. }`, implicit binders `{A B : T}` and
  *  module bodies `{ items }`. */
 private[syntax] trait RecordSyntax extends ParserBase:
-  /** `{ … }`, at `{`: disambiguated by its first tokens. */
+  /** `{ … }`, at `{`: disambiguated by its first tokens. A `,` that ends the line of the `{` is stray (a
+   *  body over several lines follows, `lib = { ,`): reported and skipped, and the braces are damaged. */
   protected def parseBraces(): Tree =
     val open = advance()
+    if at(Tok.Comma) && toks(i + 1).kind != Tok.EOF && startsLine(i + 1) then
+      expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
+      advance()
+      damaged(braces(open))
+    else braces(open)
+
+  private def braces(open: Token): Tree =
     val start = open.span.start
     val k0 = kind
     val k1 = peekTok(1).kind
     if k0 == Tok.DotDot then
       advance()
       checked(RecordLit(Nil, rest = true)(spanFrom(start)), close(open, Tok.RBrace))
-    else if k0 == Tok.Var && implicitBinderAhead then
+    // a period first makes it a module body (`{ X`⏎`f : t.`, a stray `X`): a binder's type has none
+    else if k0 == Tok.Var && implicitBinderAhead && !periodFirst then
       val names = mutable.ListBuffer.empty[Tree]
       while at(Tok.Var) || at(Tok.Name) do
         val n = advance()
@@ -26,6 +35,20 @@ private[syntax] trait RecordSyntax extends ParserBase:
     else if ((k0 == Tok.Name && k1 == Tok.Colon) || (k0 == Tok.Directive && tok.text == "%complete")) && !periodFirst then
       parseRecordType(open)
     else if k0 == Tok.Name && k1 == Tok.Eq && !periodFirst then parseRecordLit(open)
+    else if k0 == Tok.Comma || k0 == Tok.Period then
+      // no braces start with `,` or `.`: the `{` is stray (`{ shop = "n" {, .. }`), and what follows it
+      // belongs to the enclosing construct; a selection right after it (`g {.place`, which the lexer saw as
+      // a period) is skipped with it
+      expected(List(Expect.label, Expect.item, Expect.Token(Tok.RBrace)))
+      if at(Tok.Period) && tok.span.start == open.span.end && peekTok(1).kind == Tok.Name && peekTok(1).span.start == tok.span.end then
+        advance()
+        advance()
+      ErrorTree(Nil)(spanFrom(open.span.start))
+    else if enclosingClosedFirst then
+      // `(arr S { T)`: the enclosing construct closes before any `}`: the `{` is stray and unclosed, and what
+      // follows it belongs to the enclosing construct
+      error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
+      ErrorTree(Nil)(open.span)
     else parseModuleBody(open)
 
   /** The items of a module body up to its `}`. If it is not closed, it ends at the end of the file if
@@ -34,10 +57,12 @@ private[syntax] trait RecordSyntax extends ParserBase:
   private def parseModuleBody(open: Token): Tree =
     val column0Members = atColumn0(position)
     val (items, clean) =
-      inBody(Tok.RBrace)(parseItems(!at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)), unexpectedInBody))
-    if at(Tok.RBrace) then
-      advance()
-      checked(ModuleBody(items)(spanFrom(open.span.start)), clean)
+      inBody(Tok.RBrace, Some(open))(parseItems(
+        !at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)),
+        unexpectedInBody
+      ))
+    // `close`: the `}` may be stray (`{ }`⏎`a : t`⏎`}`)
+    if at(Tok.RBrace) then checked(ModuleBody(items)(spanFrom(open.span.start)), close(open, Tok.RBrace) && clean)
     else
       resync() // a mistake of its own, also after one in the last item
       error(SyntaxError.Unclosed(open.text, open.span, "}", insertionPoint, found, tok.span))
@@ -45,6 +70,21 @@ private[syntax] trait RecordSyntax extends ParserBase:
 
   private def unexpectedInBody(t: Token): SyntaxError =
     SyntaxError.Expected(List(Expect.item, Expect.Token(Tok.RBrace)), found, t.span, None)
+
+  /** After a brace: whether a `)` or `]` at depth 0 comes before a `}` or a period at depth 0. */
+  private def enclosingClosedFirst: Boolean =
+    var k = i
+    var depth = 0
+    while k < toks.length do
+      toks(k).kind match
+        case Tok.LBrace | Tok.LParen | Tok.LBrack => depth += 1
+        case Tok.RParen | Tok.RBrack => if depth == 0 then return true else depth -= 1
+        case Tok.RBrace => if depth == 0 then return false else depth -= 1
+        case Tok.Period if depth == 0 => return false
+        case Tok.EOF => return false
+        case _ =>
+      k += 1
+    false
 
   /** At `{A B ... :` (after the brace): implicit binders. */
   private def implicitBinderAhead: Boolean =

@@ -1,0 +1,16 @@
+(* The argument of `%use`, `%export` or `%infix` does not start in column 0, like a directive's: such a
+   directive at the end of a line without its argument is one error, and the next item is parsed. *)
+%use "std/reflect".
+person : type. ann : person.
+knows : person -> person -> rel.
+symmetric : (r : ^(A -> A -> rel)) -> list item. %use
+symmetric R = '( R Y X :- R X Y. ). (*~ E0001 *)
+%symmetric knows.
+knows ann ann.
+%export
+known : person -> rel. (*~ E0001 *)
+known X :- knows X _.
+%infix
+mutual : person -> rel. (*~ E0001 *)
+mutual X :- knows X X.
+%output knows.

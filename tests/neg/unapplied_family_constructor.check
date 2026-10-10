@@ -1,0 +1,9 @@
+error[E0206]: cannot infer type argument `A` of family `some`
+ --> tests/neg/unapplied_family_constructor.hgn:4:24
+  |
+4 | wrapped L :- L = cons (some) nil. (*~ E0206 *)
+  |                        ^^^^ type not determined
+  |
+  = help: ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined
+
+1 error found

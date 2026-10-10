@@ -1,0 +1,10 @@
+(* A user-defined operator in column 0 starts the next item, as an argument there would: here the
+   declaration of `likes` after an item whose period is missing. *)
+%infix none 5 likes.
+person : type. ann : person. bob : person. mutual (*~ E0001 *)
+likes : person -> person -> rel.
+ann likes bob.
+bob likes ann.
+friends : person -> rel.
+friends X :- X likes Y, Y likes X.
+%output friends.

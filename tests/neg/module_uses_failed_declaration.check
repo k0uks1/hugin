@@ -1,0 +1,17 @@
+error[E0101]: unresolved name `node`
+ --> tests/neg/module_uses_failed_declaration.hgn:5:5
+  |
+5 | a : node. (*~ E0101 *)
+  |     ^^^^ not found in this scope
+  |
+  = help: a declaration with a similar name exists: `none`
+
+error[E0101]: unresolved name `node`
+ --> tests/neg/module_uses_failed_declaration.hgn:6:8
+  |
+6 | edge : node -> node -> rel. (*~ E0101 *)
+  |        ^^^^ not found in this scope
+  |
+  = help: a declaration with a similar name exists: `none`
+
+2 errors found

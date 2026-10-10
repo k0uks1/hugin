@@ -19,6 +19,9 @@ private[syntax] trait QuoteSyntax extends ParserBase:
   protected def parseQuote(): Tree =
     val q = advance()
     val paren = advance()
+    // a damaged opener (`' (`, [[QuoteOpeners]]) was reported by the lexer: the quote's region is silent, as
+    // after a token of the lexer's errors
+    if paren.span.start != q.span.end || paren.text.isEmpty then quiet = true
     val open = Token(Tok.LParen, "'(", q.span.to(paren.span), q.spaceBefore)
     val entries = mutable.ListBuffer.empty[Trees.Item]
     var terminated = false
@@ -27,10 +30,13 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     // the quote is a body: recovery inside an entry stops at the quote's `)` instead of skipping past it
     inBody(Tok.RParen) {
       while more do
-        entries += parseEntry()
+        val entry = parseEntry()
+        entries += entry
         terminated = at(Tok.Period)
         if terminated then
-          periods += 1
+          // a period after an entry with an error may be the error (`'( edge $ .X $Y )`): it does not make
+          // the quote one of several entries, whose stray `)` the next branch looks for
+          if !TreeOps.hasSyntaxErrors(entry) then periods += 1
           advance()
           resync()
         else if periods > 0 && strayCloser then
@@ -42,12 +48,14 @@ private[syntax] trait QuoteSyntax extends ParserBase:
           skipItem()
           terminated = toks(position - 1).kind == Tok.Period
           resync()
-        else if !at(Tok.RParen) && !at(Tok.EOF) && !atColumn0(position) then
-          // a damaged entry: skip to its period (or to the quote's `)`) and go on with the next entry
+        // a `]` or `}` closes an enclosing construct: the quote is unclosed, which `close` reports
+        else if !at(Tok.RParen) && !at(Tok.RBrack) && !at(Tok.RBrace) && !at(Tok.EOF) && !atColumn0(position) then
+          // a damaged entry: skip to its period (or to the quote's `)`) and go on with the next entry; a skip
+          // that ends before the next item (in column 0) took the quote's `)` with it: the same mistake
           expected(List(Expect.period))
           skipItem()
           terminated = toks(position - 1).kind == Tok.Period
-          resync()
+          if terminated || at(Tok.RParen) then resync()
         // as in a module body, an entry does not start in column 0: an unclosed quote ends before it
         more = terminated && !at(Tok.RParen) && startsEntry && !atColumn0(position)
     }
@@ -67,22 +75,24 @@ private[syntax] trait QuoteSyntax extends ParserBase:
       )
     }
 
+  /** An entry of a quote: an item, not a type, also in a quote inside a type (`m : module '( … )` without
+   *  its `=`), so comparisons do not end it. */
   private def parseEntry(): Trees.Item =
     val start = tok.span.start
     if at(Tok.Query) then
       advance()
-      Trees.Query(parseExpr(Parser.LvlSemi))(spanFrom(start))
+      Trees.Query(parseNonType(Parser.LvlSemi))(spanFrom(start))
     else
       val name =
         if at(Tok.RuleName) then
           val rn = advance()
           Some(Trees.Ident(rn.text.drop(1))(rn.span))
         else None
-      val e = parseExpr(Parser.LvlSemi)
+      val e = parseNonType(Parser.LvlSemi)
       if at(Tok.Turnstile) then
         advance()
         resync()
-        val body = parseExpr(Parser.LvlSemi)
+        val body = parseNonType(Parser.LvlSemi)
         Trees.Rule(name, conjuncts(e), Some(body))(spanFrom(start))
       else Trees.Rule(name, List(e), None)(spanFrom(start))
 
@@ -137,6 +147,11 @@ private[syntax] trait QuoteSyntax extends ParserBase:
     val open = advance()
     if strayOpener(Tok.RBrack) then
       error(SyntaxError.Unclosed(open.text, open.span, "]", insertionPoint, found, tok.span))
+      return ErrorTree(Nil)(open.span)
+    if at(Tok.Comma) then
+      // no list starts with `,`: the `[` is stray (`p $y [, q`), and what follows it belongs to the
+      // enclosing construct
+      expected(List(Expect.expression))
       return ErrorTree(Nil)(open.span)
     val elems = mutable.ListBuffer.empty[Tree]
     if !at(Tok.RBrack) then

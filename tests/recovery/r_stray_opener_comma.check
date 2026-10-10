@@ -1,0 +1,50 @@
+error[E0001]: expected a label, an item or `}`, found `,`
+ --> tests/recovery/r_stray_opener_comma.hgn:9:55
+  |
+9 | total S :- S = sum { R.price | sale { shop = "north" {, .. }, R = sale "north" "pen" 3 }. (*~ E0001 *)
+  |                                                       ^ expected a label, an item or `}`
+
+warning[W0003]: unused definition `x`
+  --> tests/recovery/r_stray_opener_comma.hgn:14:1
+   |
+14 | x : quoted node = qvar "x". (*~ W0003 *)
+   | ^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+warning[W0003]: unused definition `y`
+  --> tests/recovery/r_stray_opener_comma.hgn:15:1
+   |
+15 | y : quoted node = qvar "y". (*~ W0003 *)
+   | ^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0001]: expected an expression, found `,`
+  --> tests/recovery/r_stray_opener_comma.hgn:18:32
+   |
+18 |   '( path $x $y :- path $x $y [, edge $x $y ) (*~ E0001 *)
+   |                                ^ expected an expression
+
+error[E0001]: expected a label, an item or `}`, found `.`
+  --> tests/recovery/r_stray_opener_comma.hgn:24:16
+   |
+24 | reachable : g {.place -> rel. (*~ E0001 *)
+   |                ^ expected a label, an item or `}`
+
+3 errors, 2 warnings found
+(* ---------------- after elaborate ---------------- *)
+sale : (shop : string) -> (item : string) -> (price : int) -> rel.
+sale "north" "pen" 3.
+total : int -> rel.
+node : type.
+a : node.
+b : node.
+edge : node -> node -> rel.
+path : node -> node -> rel.
+edge a b.
+x : quoted ⟨node⟩ = qvar {⟨node⟩} "x".
+y : quoted ⟨node⟩ = qvar {⟨node⟩} "y".
+%output path.
+geo : Type = { place : ⇑type, here : ⇑$place }.
+g : geo = { place = ⟨int⟩, here = ⟨1⟩ }.

@@ -1,0 +1,12 @@
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/r_quote_stray_period.hgn:7:54
+  |
+7 | mirror ('( edge $X $Y :- $..B ) :: Rest) = '( edge $ .X $Y :- $..B ) :: '( edge $Y $X :- $..B ) :: mirror Rest. (*~ E0001 *)
+  |                                                      ^ expected an expression
+  |
+  = help: a hole or splice is written `$x`, `$(f x)`, `$..xs` or `$f[V]`
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+edge : int -> int -> rel.
+mirror : module -> module.

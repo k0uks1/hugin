@@ -1,0 +1,8 @@
+(* Tokens skipped after a stray token end before a directive on the same line, which starts an item: the
+   second `%use` is kept, so `tc` resolves. *)
+%use "std/reflect". : %use "std/graph". (*~ E0001 *)
+person : type. ann : person. bob : person.
+knows : person -> person -> rel.
+knows ann bob.
+reach = tc { node = person, edge = knows }.
+?- reach.path ann P.

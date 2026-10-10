@@ -1,0 +1,10 @@
+(* A module body that uses a declaration still pending (it waits for the names a `%use` might open) is
+   retried after it: when the declaration fails, its uses in the body are not reported again (E0101 is the
+   declaration's own error, for `node`, which nothing declares). *)
+%use "std/reflect".
+a : node. (*~ E0101 *)
+edge : node -> node -> rel. (*~ E0101 *)
+m = {
+  r : int -> rel.
+  edge a a.
+}.

@@ -1,0 +1,12 @@
+error[E0001]: stray `}`
+ --> tests/recovery/r_stray_empty_brace.hgn:4:11
+  |
+4 | %export { } (*~ E0001 *)
+  |           ^ the construct goes on after this `}`, and is closed later
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+color : type.
+red : color.
+paint : color -> rel.
+paint red.

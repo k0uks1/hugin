@@ -2,7 +2,7 @@ error[E0002]: unterminated string literal
  --> tests/recovery/lexer_errors.hgn:4:6
   |
 4 | name "bob. (*~ E0002 *)
-  |      ^^^^^^^^^^^^^^^^^^ string starts here
+  |      ^^^^^^ string starts here
 
 1 error found
 (* ---------------- after elaborate ---------------- *)

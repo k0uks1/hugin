@@ -5,6 +5,8 @@ import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
+import scala.collection.mutable
+
 /** `where` blocks of clauses: local definitions, Haskell-style (reference: meta/where; a designer addition to the redesign plan).
  *
  *  The bindings of a block are elaborated in order in the context of the clause's right-hand side (its
@@ -23,39 +25,45 @@ trait Where:
   self: Elaborator =>
   import core.*
 
-  /** Extends the context of a right-hand side with a `where` block. */
-  def elabWhere(c: Cxt, owner: Name, items: List[Item]): Cxt =
+  /** Extends the context of a right-hand side with a `where` block; with the right-hand sides of its
+   *  definitions and pattern bindings, each in its context, whose calls the termination check records
+   *  as those of the clause (the bound names hold their values, which may hide a call: `mkPair a b = f N`). */
+  def elabWhere(c: Cxt, owner: Name, items: List[Item]): (Cxt, List[(Cxt, Tm)]) =
     var cc = c
     var rest = items
+    val terms = mutable.ListBuffer.empty[(Cxt, Tm)]
     while rest.nonEmpty do
-      val (next, more) = binding(cc, owner, rest)
+      val (next, more) = binding(cc, owner, rest, terms)
       cc = next
       rest = more
-    cc
+    (cc, terms.toList)
 
   /** Elaborates the first binding of `items` (a signature takes its clauses along). */
-  private def binding(c: Cxt, owner: Name, items: List[Item]): (Cxt, List[Item]) = items.head match
-    case Decl(name, Nil, tpe, None, Some(e)) =>
-      val a = checkType(c, tpe, Stage.S1)
-      val av = ev(c, a)
-      val t = check(c, e, av, Stage.S1)
-      checkObjectFragments(c, t, av)
-      (local(define(c, name.name, av, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
-    case Def(name, Nil, rhs) =>
-      val (t, ty) = inferS(c, rhs, Stage.S1)
-      checkObjectFragments(c, t, ty)
-      (local(define(c, name.name, ty, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
-    case Decl(_, _, k @ Keyword(Kw.Data), _, _) =>
-      // a shared data declaration is top level only (E0923)
-      fail(SharedProblem.NotTopLevel(k.span, inWhere = true))
-    case d @ Decl(name, Nil, tpe, None, None) =>
-      val (clauses, rest) = items.tail.span(isClauseOf(name.name))
-      if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
-      (localFunction(c, owner, name, tpe, clauses.flatMap(localClause), d.span), rest)
-    case cl @ Clause(lhs, rhs, Nil) if constructorHead(lhs) =>
-      (patternBinding(c, owner, lhs, rhs, cl.span), items.tail)
-    case other =>
-      fail(ClauseProblem.InvalidLocal(other.span))
+  private def binding(c: Cxt, owner: Name, items: List[Item], terms: mutable.ListBuffer[(Cxt, Tm)]): (Cxt, List[Item]) =
+    items.head match
+      case Decl(name, Nil, tpe, None, Some(e)) =>
+        val a = checkType(c, tpe, Stage.S1)
+        val av = ev(c, a)
+        val t = check(c, e, av, Stage.S1)
+        checkObjectFragments(c, t, av)
+        terms += ((c, t))
+        (local(define(c, name.name, av, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
+      case Def(name, Nil, rhs) =>
+        val (t, ty) = inferS(c, rhs, Stage.S1)
+        checkObjectFragments(c, t, ty)
+        terms += ((c, t))
+        (local(define(c, name.name, ty, ev(c, t), Some(Site(name.span, "local definition")))), items.tail)
+      case Decl(_, _, k @ Keyword(Kw.Data), _, _) =>
+        // a shared data declaration is top level only (E0923)
+        fail(SharedProblem.NotTopLevel(k.span, inWhere = true))
+      case d @ Decl(name, Nil, tpe, None, None) =>
+        val (clauses, rest) = items.tail.span(isClauseOf(name.name))
+        if clauses.isEmpty then fail(ClauseProblem.LocalWithoutClauses(name.name, d.span))
+        (localFunction(c, owner, name, tpe, clauses.flatMap(localClause), d.span), rest)
+      case cl @ Clause(lhs, rhs, Nil) if constructorHead(lhs) =>
+        (patternBinding(c, owner, lhs, rhs, cl.span, terms), items.tail)
+      case other =>
+        fail(ClauseProblem.InvalidLocal(other.span))
 
   /** `c`, its last variable declared for tooling. */
   private def local(c: Cxt): Cxt =
@@ -122,8 +130,9 @@ trait Where:
     c2
 
   /** `c x̄ = e.`: a selector function per bound name. */
-  private def patternBinding(c: Cxt, owner: Name, lhs: Tree, rhs: Tree, span: Span): Cxt =
+  private def patternBinding(c: Cxt, owner: Name, lhs: Tree, rhs: Tree, span: Span, terms: mutable.ListBuffer[(Cxt, Tm)]): Cxt =
     val (et, ety) = inferS(c, rhs, Stage.S1)
+    terms += ((c, et))
     val (head, args) = TreeOps.flattenApp(lhs)
     val names = args.map {
       case Ident(n) => Some(n)
@@ -153,7 +162,7 @@ trait Where:
   private def constructorFieldTypes(c: Cxt, ctor: Ident, ty: Val, n: Int, span: Span): List[Tm] =
     val id = scope(ctor.name)
     var cty = globals(id).ty
-    val fields = scala.collection.mutable.ListBuffer.empty[Val]
+    val fields = mutable.ListBuffer.empty[Val]
     var more = true
     while more do
       force(cty) match

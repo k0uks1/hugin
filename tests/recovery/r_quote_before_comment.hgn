@@ -1,0 +1,7 @@
+(* A stray quote before a comment: the unterminated string ends before the comment opener, so the
+   comment stays one (here over two lines, with `code` in it) instead of turning into code. *)
+ "(* a comment over (*~ E0002 *)
+   two lines with `code` in it *)
+color : type. red : color.
+b : int -> rel. b 1.
+%output b.

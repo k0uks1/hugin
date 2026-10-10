@@ -1,0 +1,11 @@
+(* A space between the prime and the parenthesis of a quote is reported once, and the quote is read; the
+   region of that error is silent, so the `(` that the entry's `:-` finds unclosed is not reported again. *)
+%use "std/reflect".
+expr : type. ctx : type. e0 : expr. g0 : ctx.
+neg : expr -> expr.
+asked : (e : expr) -> (g : ctx) -> rel.
+guard : rule -> list rule.
+guard '( asked (neg $E) $G :- $..B ) = [ ' (( asked $E $G :- asked (neg $E) $G )]. (*~ E0001 *)
+guard R = [R].
+spaced : rule = ' ( asked e0 g0 ). (*~ E0001 *)
+$[spaced].

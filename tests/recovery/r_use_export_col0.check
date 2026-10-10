@@ -1,0 +1,38 @@
+error[E0001]: expected a module or the path of a file, found `symmetric`
+ --> tests/recovery/r_use_export_col0.hgn:7:1
+  |
+6 | symmetric : (r : ^(A -> A -> rel)) -> list item. %use
+  |                                                  ---- this directive starts here
+7 | symmetric R = '( R Y X :- R X Y. ). (*~ E0001 *)
+  | ^^^^^^^^^ expected a module or the path of a file
+
+error[E0001]: expected a signature, found `known`
+  --> tests/recovery/r_use_export_col0.hgn:11:1
+   |
+10 | %export
+   | ------- this directive starts here
+11 | known : person -> rel. (*~ E0001 *)
+   | ^^^^^ expected a signature
+
+error[E0001]: expected `left`, `right` or `none`, found `mutual`
+  --> tests/recovery/r_use_export_col0.hgn:14:1
+   |
+13 | %infix
+   | ------ this directive starts here
+14 | mutual : person -> rel. (*~ E0001 *)
+   | ^^^^^^ expected `left`, `right` or `none`
+
+3 errors found
+(* ---------------- after elaborate ---------------- *)
+person : type.
+ann : person.
+knows : person -> person -> rel.
+symmetric : {A : ⇑type} -> (r : ⇑($A -> $A -> rel)) -> list item.
+  symmetric R = cons (irule (horn (cons {formula} (fatom R (cons {term} (tvar "Y") (cons {term} (tvar "X") (nil {term})))) (nil {formula})) (cons {formula} (fatom R (cons {term} (tvar "X") (cons {term} (tvar "Y") (nil {term})))) (nil {formula})))) nil.
+knows Y X :- knows X Y.
+knows ann ann.
+known : person -> rel.
+known X :- knows X _.
+mutual : person -> rel.
+mutual X :- knows X X.
+%output knows.

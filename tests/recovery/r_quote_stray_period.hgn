@@ -1,0 +1,8 @@
+(* A period after a quoted entry with an error may be the error itself: it does not make the quote one of
+   several entries, so the quote's `)` still closes it (one error). *)
+%use "std/reflect".
+edge : int -> int -> rel.
+mirror : module -> module.
+mirror [] = [].
+mirror ('( edge $X $Y :- $..B ) :: Rest) = '( edge $ .X $Y :- $..B ) :: '( edge $Y $X :- $..B ) :: mirror Rest. (*~ E0001 *)
+mirror (I :: Rest) = I :: mirror Rest.

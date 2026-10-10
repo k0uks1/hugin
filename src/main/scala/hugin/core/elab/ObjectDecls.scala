@@ -180,9 +180,27 @@ trait ObjectDecls:
         case (_ :: _, Ident(n)) if objectTypes(n) => Some(ObjDecl.Constructor)
         case _ => None
 
+  /** The pending globals completed so far, with what they were before (undone by [[rollbackPending]]). */
+  private val completed = scala.collection.mutable.ArrayBuffer.empty[(Int, Tm, Val, GlobalKind)]
+
+  /** A mark of the completed pending globals, for [[rollbackPending]]. */
+  def pendingMark: Int = completed.length
+
+  /** Makes the globals completed since `mark` pending again: the item that completed them failed, and its
+   *  metas are undone, so their types may refer to metas that no longer exist. */
+  def rollbackPending(mark: Int): Unit =
+    for (id, tyTm, ty, kind) <- completed.drop(mark).reverseIterator do
+      val g = globals(id)
+      g.tyTm = tyTm
+      g.ty = ty
+      g.kind = kind
+      g.pending = true
+    completed.dropRightInPlace(completed.length - mark)
+
   /** Sets the type of a pending global, now that its declaration is elaborated. */
   def completePending(id: Int, ty: Tm, kind: GlobalKind): Int =
     val g = globals(id)
+    completed += ((id, g.tyTm, g.ty, g.kind))
     g.tyTm = ty
     g.ty = eval(Nil, ty)
     g.kind = kind

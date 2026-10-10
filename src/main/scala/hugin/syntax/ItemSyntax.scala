@@ -74,10 +74,13 @@ private[syntax] trait ItemSyntax extends ParserBase:
     case _: Directive => None
 
   /** The rest of a declaration `lhs : type [<: sup] [= defn].`, at the `:` (or a `::` reported already).
-   *  A head without a name declares nothing: the item is parsed and dropped. */
+   *  A head without a name declares nothing: the item is parsed and dropped. One whose name follows a
+   *  stray token (`X sel : τ.`) is damaged: it is not elaborated, and its name is erroneous. */
   private def parseDeclRest(lhs: Tree, first: Token): List[Item] =
     val colon = advance()
-    val head = declHead(lhs)
+    val (head, strayHead) = declHead(lhs) match
+      case Some((name, params, stray)) => (Some((name, params)), stray)
+      case None => (None, false)
     if at(Tok.Eq) && colon.kind == Tok.Colon && !tok.spaceBefore then
       // `x := e`: a definition with a `:` too many (repaired; with a space between them, `x : = e` is
       // only an error: a missing type)
@@ -92,7 +95,7 @@ private[syntax] trait ItemSyntax extends ParserBase:
     val defn = if at(Tok.Eq) then { advance(); Some(parseNonType(LvlSemi)) }
     else None
     val expectations = if defn.isEmpty then List(Expect.period, Expect.Token(Tok.Eq)) else List(Expect.period)
-    val ok = endItem(Context("declaration", first.span), expectations)
+    val ok = endItem(Context("declaration", first.span), expectations) && !strayHead
     // the part an error after the item damages
     val (tpe1, sup1, defn1) =
       if ok then (tpe, sup, defn)
@@ -105,7 +108,13 @@ private[syntax] trait ItemSyntax extends ParserBase:
   private def parseDefRest(lhs: Tree, first: Token): Item =
     val start = first.span.start
     advance()
-    val rhs = parseExpr(LvlSemi)
+    val rhs =
+      if at(Tok.KwWhere) && startsExpression(peekTok(1).kind) && peekTok(1).span.startLine == tok.span.startLine then
+        // `f p = where e`: a stray `where` before the right-hand side, skipped with an error
+        expected(List(Expect.expression))
+        advance()
+        damaged(parseExpr(LvlSemi))
+      else parseExpr(LvlSemi)
     val (where, clean) = if at(Tok.KwWhere) then parseWhere(first) else (Nil, true)
     if where.nonEmpty then Clause(lhs, checked(rhs, clean), where)(spanFrom(start))
     else
@@ -177,24 +186,30 @@ private[syntax] trait ItemSyntax extends ParserBase:
       case id: Ident if params.forall(_.isDefined) => Some((id, params.flatten))
       case _ => None
 
-  /** The name and parameters of a declaration head. A malformed parameter is reported and kept
-   *  ([[Param.Malformed]]); a head in parentheses is reported and taken without them; a head without a
-   *  name is reported, and the declaration is dropped. */
-  private def declHead(lhs: Tree): Option[(Ident, List[Param])] =
+  /** The name and parameters of a declaration head, and whether a stray token came before the name. A
+   *  malformed parameter is reported and kept ([[Param.Malformed]]); a head in parentheses is reported and
+   *  taken without them; a head that starts with another token than a name is reported, and its first
+   *  name taken as the declaration's, with the parameters after it (`X sel : τ.`); a head without a name
+   *  is reported, and the declaration is dropped. */
+  private def declHead(lhs: Tree): Option[(Ident, List[Param], Boolean)] =
     def flatten(t: Tree, acc: List[Tree]): (Tree, List[Tree]) = t match
       case Apply(f, a) => flatten(f, a :: acc)
       case other => (other, acc)
     def unparenthesised(t: Tree): Tree = t match
       case Parens(inner) => unparenthesised(inner)
       case other => other
-    val (hd, args) = flatten(lhs, Nil)
-    val name = hd match
-      case id: Ident => Some(id)
+    val (hd0, args0) = flatten(lhs, Nil)
+    var stray = false
+    val (name, args) = hd0 match
+      case id: Ident => (Some(id), args0)
       case other =>
         error(SyntaxError.MalformedDeclarationHead(other.span))
         unparenthesised(other) match
-          case id: Ident => Some(id)
-          case _ => None
+          case id: Ident => (Some(id), args0)
+          case _ =>
+            val k = args0.indexWhere(_.isInstanceOf[Ident])
+            stray = k >= 0
+            if stray then (Some(args0(k).asInstanceOf[Ident]), args0.drop(k + 1)) else (None, args0)
     val params = args.map {
       case v: VarRef => Param.VarParam(v)
       case a @ Ascribe(n @ (_: Ident | _: VarRef), t) => Param.Typed(n, t, a.span)
@@ -205,4 +220,4 @@ private[syntax] trait ItemSyntax extends ParserBase:
         error(SyntaxError.MalformedParameter(other.span))
         Param.Malformed(other)
     }
-    name.map((_, params))
+    name.map((_, params, stray))

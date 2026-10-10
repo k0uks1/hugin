@@ -1,0 +1,14 @@
+error[E0001]: expected `.`, found `{`
+ --> tests/recovery/r_skip_unclosed_brace.hgn:3:20
+  |
+3 | %use "std/reflect" {. (*~ E0001 *)
+  |                    ^ expected `.`
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+node : type.
+a : node.
+b : node.
+edge : node -> node -> rel.
+edge a b.
+%output edge.

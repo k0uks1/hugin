@@ -1,0 +1,19 @@
+error[E0902]: object code used where a compile-time value is needed
+ --> tests/neg/demand_constructor.hgn:5:14
+  |
+5 | %demand cons size2 +l -n. (*~ E0902 *)
+  |              ^^^^^ object code of type `(l : list[int]) -> (n : int) -> rel`
+  |
+  = note: a meta value of type `modes (cons {string} "" (cons {string} "" (nil {string})))` is expected here
+  = note: object terms (rule variables, constructor terms, formulas) only exist at run time; the meta level computes at compile time
+  = help: to take object code as an argument, declare the parameter with an object type (`⇑(l : list[int]) -> (n : int) -> rel` at the meta level)
+
+error[E0501]: rule is not range-restricted
+ --> tests/neg/demand_constructor.hgn:7:13
+  |
+7 | size2 (cons _ L) M :- size2 L N, M = N + 1. (*~ E0501 *)
+  |             ^ `_` not bound by the body
+  |
+  = note: every variable of the head must be bound by a positive atom or an equation in the body
+
+2 errors found

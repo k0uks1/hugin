@@ -1,0 +1,11 @@
+error[E0920]: the constructor `red` of the shared type `color` has an argument of type `⇑type`
+ --> tests/neg/shared_constructor_variable_param.hgn:3:5
+  |
+3 | red X : color. (*~ E0920 *)
+  |     ^ not a parameter, a base type or a shared type
+  |
+  = note: a shared type exists at both stages, so the arguments of its constructors must exist at both: its parameters, `int`, `float`, `string` and shared types
+  = note: functions, universes, object code `⇑A`, `sym`, relations, meta types and object types that are not shared exist at one stage only
+  = help: declare `⇑type` with `: data` as well, or declare this type as an object type (`: type`) or a meta type (`: Type`)
+
+1 error found

@@ -1,0 +1,42 @@
+warning[W0003]: unused definition `cheap`
+ --> tests/recovery/r_stray_body_brace.hgn:8:1
+  |
+8 | cheap : item -> prop = [I] I.price < 10. (*~ W0003 *)
+  | ^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0001]: expected an expression, found `.`
+ --> tests/recovery/r_stray_body_brace.hgn:9:41
+  |
+9 | select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
+  |                                         ^ expected an expression
+
+error[E0001]: expected an item, found `{`
+ --> tests/recovery/r_stray_body_brace.hgn:9:43
+  |
+9 | select (p : A -> prop) (r : A -> rel) = . { (*~ E0001 *) (*~ E0001 *)
+  |                                           ^ expected an item
+
+error[E0005]: unclosed `{`
+  --> tests/recovery/r_stray_body_brace.hgn:17:31
+   |
+17 |   marks K :- K = count { N | c. {mark N }. (*~ E0005 *) (*~ E0001 *)
+   |                        -      ^ expected `}` here
+   |                        this `{` is never closed
+
+error[E0001]: expected an item or `}`, found `{`
+  --> tests/recovery/r_stray_body_brace.hgn:17:33
+   |
+17 |   marks K :- K = count { N | c. {mark N }. (*~ E0005 *) (*~ E0001 *)
+   |                                 ^ expected an item or `}`
+
+4 errors, 1 warning found
+(* ---------------- after elaborate ---------------- *)
+item : (name : string) -> (price : int) -> rel.
+listed : item -> rel.
+%input listed.
+cheap : ⇑item -> ⇑prop = [I] ⟨$I.price < 10⟩.
+marking : Type = { mark : ⇑(int -> rel) }.
+listed (item "pen" 2).
+%output listed.

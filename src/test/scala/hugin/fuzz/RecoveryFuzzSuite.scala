@@ -53,8 +53,9 @@ class RecoveryFuzzSuite extends FuzzSuite:
    *  declaration (or makes it unrecognisable), its uses cannot be resolved, and nothing can tell. */
   private def declarationLost(m: OneToken, d: hugin.util.Diagnostic): Boolean =
     val line = m.original.linesIterator.drop(m.line).nextOption().getOrElse("")
-    // E0917: a name in quoted syntax that is not an object constant
-    (d.code == Code.E0101 || d.code == Code.E0917) && line.split("[^A-Za-z0-9_']+").contains(d.primarySpan.text)
+    // E0917: a name in quoted syntax that is not an object constant; a directive `%d` is a use of `d`
+    (d.code == Code.E0101 || d.code == Code.E0917) &&
+    line.split("[^A-Za-z0-9_']+").contains(d.primarySpan.text.stripPrefix("%"))
 
   private def show(ds: List[hugin.util.Diagnostic]): String =
     ds.map(d => s"  ${d.code.id} ${d.message} at ${d.primarySpan.show}").mkString("\n")

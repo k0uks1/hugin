@@ -1,0 +1,6 @@
+(* `%use m.` waits for `m`, and `m`, whose definition has an error, waits for names that the `%use` might
+   open. The definition's error is the only one: `%use m` fails with it, and neither `m` nor the names it
+   might have opened (`g`) are reported again. *)
+m = nofunctor 3. (*~ E0101 *)
+%use m.
+w = g.

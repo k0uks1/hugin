@@ -1,0 +1,4 @@
+(* A variable parameter of a constructor of a shared type has an inferred type, which is not shareable. *)
+color : data.
+red X : color. (*~ E0920 *)
+green : color.

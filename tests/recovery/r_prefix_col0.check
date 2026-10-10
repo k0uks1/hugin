@@ -1,0 +1,13 @@
+error[E0001]: expected an expression, found `e1`
+ --> tests/recovery/r_prefix_col0.hgn:4:1
+  |
+4 | e1 : string -> list int -> rel. (*~ E0001 *)
+  | ^^ expected an expression
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+e1 : string -> $(list ⟨int⟩) -> rel.
+e1 "a" nil[int].
+d1 : (a : string) -> (b : $(list ⟨int⟩)) -> rel.
+d1 S V1 :- e1 S V1.
+?- d1 "a" L.

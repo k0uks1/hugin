@@ -1,0 +1,7 @@
+error[E0101]: unresolved name `nofunctor`
+ --> tests/neg/use_of_failed_module.hgn:4:5
+  |
+4 | m = nofunctor 3. (*~ E0101 *)
+  |     ^^^^^^^^^ not found in this scope
+
+1 error found

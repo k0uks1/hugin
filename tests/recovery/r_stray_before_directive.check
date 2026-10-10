@@ -1,0 +1,15 @@
+error[E0001]: expected an item, found `:`
+ --> tests/recovery/r_stray_before_directive.hgn:3:21
+  |
+3 | %use "std/reflect". : %use "std/graph". (*~ E0001 *)
+  |                     ^ expected an item
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+person : type.
+ann : person.
+bob : person.
+knows : person -> person -> rel.
+knows ann bob.
+reach : { path : ⇑(person -> person -> rel) } = tc { node = ⟨person⟩, edge = ⟨knows⟩ }.
+?- reach.path ann P.

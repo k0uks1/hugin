@@ -1,0 +1,28 @@
+error[E0001]: stray `}`
+  --> tests/recovery/r_stray_brace_layout.hgn:10:23
+   |
+10 |     same : s.t -> s.t } -> rel. (*~ E0001 *)
+   |                       ^ the construct goes on after this `}`, and is closed later
+
+error[E0001]: stray `}`
+  --> tests/recovery/r_stray_brace_layout.hgn:15:17
+   |
+15 |     other : s.t } -> rel. (*~ E0001 *)
+   |                 ^ the construct goes on after this `}`, and is closed later
+
+error[E0001]: stray `}`
+  --> tests/recovery/r_stray_brace_layout.hgn:20:23
+   |
+20 |     differ : s.t -> s }.t -> rel. (*~ E0001 *)
+   |                       ^ the construct goes on after this `}`, and is closed later
+
+error[E0001]: stray `}`
+  --> tests/recovery/r_stray_brace_layout.hgn:25:29
+   |
+25 |     neq X Y :- src X, src Y }, X <> Y. (*~ E0001 *)
+   |                             ^ the construct goes on after this `}`, and is closed later
+
+4 errors found
+(* ---------------- after elaborate ---------------- *)
+setoid : Type = { t : ⇑type, eq : ⇑$t -> ⇑$t -> ⇑prop }.
+n : int -> rel.

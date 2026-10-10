@@ -1,0 +1,21 @@
+error[E0005]: unclosed `(`
+  --> tests/recovery/r_closer_of_enclosing.hgn:12:115
+   |
+12 | restrict '( count_ok $X :- $Y = count { V | $F[V] } ) = '( count_ok $X :- $Y = count { V | $ (F[V], not excluded V } ). (*~ E0005 *)
+   |                                                                                              -                    ^ expected `)` here
+   |                                                                                              this `(` is never closed
+
+error[E0001]: expected `}`, found `.`
+  --> tests/recovery/r_closer_of_enclosing.hgn:17:31
+   |
+17 |   marks K :- K = count { N | c. [mark N }. (*~ E0001 *)
+   |                               ^ expected `}`
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+item : type.
+stock : item -> rel.
+excluded : item -> rel.
+count_ok : int -> rel.
+restrict : rule -> rule.
+marking : Type = { mark : ⇑(int -> rel) }.

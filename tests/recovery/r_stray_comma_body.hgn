@@ -1,0 +1,16 @@
+(* A `,` that ends the line of a `{` is stray: a body over several lines follows. It is reported and
+   skipped (one error), and the body, damaged, is read to its own `}`; a `{` before a `,` on the same line
+   is the stray one instead (r_stray_opener_comma). *)
+graph : Type = { node : type, edge : node -> node -> rel }.
+lib = { , (*~ E0001 *)
+  limit : int = 3.
+  reach (g : graph) = {
+    r : g.node -> g.node -> rel.
+    r X Y :- g.edge X Y.
+  }.
+}.
+n : type. one : n. two : n.
+next : n -> n -> rel.
+next one two.
+hops = lib.reach { node = n, edge = next }.
+%output hops.r.

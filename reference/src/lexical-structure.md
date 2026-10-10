@@ -7,8 +7,8 @@ precedence of operators. Facts files (see [Input facts](object/io.md#input-facts
 ## Whitespace and comments
 
 Spaces, tabs and line breaks separate tokens and have no other meaning, with one exception: an
-argument, the body of a lambda, and the formula after `?-` or `:-`, cannot start in column 0 of a line
-(see [Items](#items)).
+argument, the operand of a prefix operator, the body of a lambda, and the formula after `?-` or `:-`,
+cannot start in column 0 of a line (see [Items](#items)).
 
 A *comment* starts with `(*` and ends with the matching `*)`. Comments nest: `(* a (* b *) c *)` is one
 comment. It is an error ([E0002](errors/E0002.md)) if a comment is not closed before the end of the file.
@@ -146,7 +146,7 @@ The productions of the items are given in the chapters that define them:
 and [directives](directives.md). Several items may share a line.
 
 An argument of an application or of a directive cannot start in column 0 of a line, nor can the operand
-of `$`, `⇑` or `^`, the content of a staging quote `<t>`, the body of a lambda `[x] e`, the formula of a query after `?-` or the body of a rule
+of `$`, `⇑`, `^`, `not` or a unary `-`, the content of a staging quote `<t>`, the body of a lambda `[x] e`, the formula of a query after `?-` or the body of a rule
 after `:-`. So a missing period, or a missing formula, at the end of a line is reported where the next
 item starts, and that item is still parsed. It is an error ([E0001](errors/E0001.md)) if an item does not
 end with a period.
@@ -162,6 +162,15 @@ road berlin paris.  road paris berlin.
 ```output
 road berlin paris.
 road paris berlin.
+```
+
+In the following program a stray `-` ends the first line. Its operand cannot be `e` in column 0, so the
+error is reported there, and the declaration of `e` is parsed.
+
+```hugin,compile_fail,E0001
+-
+e : int -> rel.
+e 1.
 ```
 
 ## Syntax errors
@@ -236,7 +245,9 @@ and looser than those of level *p* + 1. `a op b` is the application `op a b`.
 | operators | `;` | `,` | `->` | `\|` | comparisons | `+` `-` `^` | `*` `/` |
 
 The operator is in effect in the whole file, also before the directive. A rule head is parsed above
-the comparison level, so an operator of precedence 5 or more may appear in a head.
+the comparison level, so an operator of precedence 5 or more may appear in a head. Like an argument, the
+operator does not continue an expression from column 0 of a line: there it starts the next item, such
+as its declaration `op : …`.
 
 The following program declares `likes` as an infix operator of precedence 5, which binds tighter than
 the comparisons and looser than `+`. It uses the operator in facts, a head and a body.
@@ -254,4 +265,14 @@ mutual X Y :- X likes Y, Y likes X.
 ```output
 mutual ann bob.
 mutual bob ann.
+```
+
+In the following program the period after `bob : person` is missing. The operator `likes` in column 0
+starts the next item, its declaration: the error is reported there, and the declaration is parsed.
+
+```hugin,compile_fail,E0001
+%infix none 5 likes.
+person : type.  ann : person.  bob : person
+likes : person -> person -> rel.
+ann likes bob.
 ```
