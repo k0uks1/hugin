@@ -79,7 +79,7 @@
       {
         "code": "E0911",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0911.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0911.html"
         },
         "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
         "range": {
@@ -98,7 +98,7 @@
       {
         "code": "E0924",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0924.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0924.html"
         },
         "data": {
           "context": [
@@ -149,7 +149,7 @@
         {
           "code": "E0911",
           "codeDescription": {
-            "href": "https://k0uks1.github.io/hugin/errors/E0911.html"
+            "href": "https://k0uks1.github.io/hugin/reference/errors/E0911.html"
           },
           "message": "the clauses of `pred` do not cover all cases\nmissing: `pred zero`\nnote: meta functions are total: every argument must match a clause\nhelp: add a clause `pred zero = ….`",
           "range": {

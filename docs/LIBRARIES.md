@@ -2,8 +2,8 @@
 
 This note describes how a Hugin program is split over several files, how the standard library is
 provided, and how this relates to the module system of Section 4 of the definition draft. It addresses
-issue #6. The normative description is the reference chapter [Modules, functors and libraries](https://k0uks1.github.io/hugin/modules.html)
-and [The prelude](https://k0uks1.github.io/hugin/prelude.html); this note records the design and its implementation.
+issue #6. The normative description is the reference chapter [Modules, functors and libraries](https://k0uks1.github.io/hugin/reference/modules.html)
+and [The prelude](https://k0uks1.github.io/hugin/reference/prelude.html); this note records the design and its implementation.
 
 ## Files are module bodies
 
