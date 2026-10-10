@@ -263,13 +263,16 @@ Incremental now:
   depend on, shared by all programs, by the REPL session and by the language server's documents. The
   prelude is moreover parsed and elaborated once per process and text, for all databases
   (`StdlibCache`, docs/LIBRARIES.md).
-* The program's top level: named after every edit (cut off unless declarations change); declarations and
-  definitions are elaborated together when one of them changes; every other item is elaborated on its
-  own, again only when its text, a name it looks up, a declaration it reads or the order of a meta
-  definition it asked about changes. Moving items (blank lines, comments, other items growing)
-  elaborates nothing.
-* Clients: diagnostics by file from the accumulators; the language server publishes per file; REPL
-  queries and probes are extra items over the session's elaborated items; unused memos are evicted.
+* The program's top level: declarations and definitions are elaborated together when one of them
+  changes (`Signatures`); every other item is elaborated on its own (`ElabItem`), again only when its
+  text (with its position) or the declarations change. Moving items (blank lines, comments, other items
+  growing) elaborates nothing. After an edit, every item is revalidated (`ItemOf` executed and cut off)
+  in time linear in the number of items: `ObjectItems` is indexed by key, and `ItemKey` caches its hash
+  (issue #126, PR 2).
+* Clients: diagnostics by file (`FileDiagnostics.of` groups the compilation's diagnostics by file; no
+  query pushes to an accumulator any more, the mechanism is kept and tested by
+  `DatabaseAccumulatorSuite`); the language server publishes per file; REPL queries and probes are extra
+  items over the session's elaborated items; unused memos are evicted.
 
 Still coarse:
 * `ElabFile` (assembling the items), MetaEval, monomorphization and the object-level phases (directives,
@@ -278,8 +281,10 @@ Still coarse:
   the queries). Evaluation runs again when the lowered rules or the facts change (a REPL query over an
   unchanged program reuses the fixpoint; with `%demand`, a query that changes the transformed rules
   evaluates the whole program again).
-* Declarations and definitions are elaborated together (`Signatures`): editing one elaborates all of
-  them again, though only the items using a changed one follow. A meta probe in the REPL is a
+* Declarations and definitions are elaborated together (`Signatures`), and every object item depends on
+  the whole result, which has no useful equality: editing or adding any declaration elaborates all of
+  them and every object item again (step 10's per-name dependencies, `ScopeName` and `DeclAfter`, were
+  not ported to the redesigned meta level; see the note at the top). A meta probe in the REPL is a
   definition, so it and the next input elaborate the declarations again.
 * Libraries are elaborated as whole files (an edit of a library elaborates it, and the files importing
   it, again); a change of the `%infix` operators of a file parses all its items again.
