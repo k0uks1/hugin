@@ -1,0 +1,62 @@
+(* Elaboration in dependency order (issue #91, reference: meta/index, "Order of elaboration"): a type
+   may compute with a function defined by clauses anywhere in the file. Each kind below was rejected
+   when all declarations and definitions were elaborated before the clauses of functions. *)
+%use "lib/order_vectors" (total).
+nat : Type. zero : nat. suc : nat -> nat.
+one : nat = suc zero.
+
+(* the issue: `plus` is elaborated before `vec3`, and `vec3` before `v` *)
+vec3 : Type = vec int (plus one (suc one)).
+v : vec3 = vcons 1 (vcons 2 (vcons 3 vnil)).
+
+(* a declared type that computes *)
+w : vec int (plus one one) = vcons 4 (vcons 5 vnil).
+
+(* a definition that computes, in a type *)
+two : nat = plus one one.
+same : eqn two (suc one) = refl.
+
+(* a definition and a function that refer to each other: one cycle, checked before `t` *)
+g : nat -> nat = [x] f x.
+f : nat -> nat.
+f zero = zero.
+f (suc N) = g N.
+t : eqn (g one) zero = refl.
+
+(* a module body is part of its definition *)
+m = { u : vec int (plus one one) = vcons 6 (vcons 7 vnil). }.
+
+(* a signature that computes with a function written after it *)
+h : nat -> vec int (plus one one).
+h _ = vcons 8 (vcons 9 vnil).
+
+(* a typed definition and a signature that need each other: the definition's type comes first, its value
+   after the signature (`sel x` reduces, `sel` is in an earlier cycle) *)
+x : nat = pick zero.
+pick : nat -> sel x.
+pick N = N.
+sel : nat -> Type.
+sel _ = nat.
+fixed : eqn x zero = refl.
+
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc (plus M N).
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+vsum : vec int N -> int.
+vsum vnil = 0.
+vsum (vcons X Xs) = X + vsum Xs.
+proof : eqn N M -> int.
+proof refl = 1.
+
+sums : string -> int -> rel.
+sums "v" (vsum v).
+sums "w" (vsum w).
+sums "m" (vsum m.u).
+sums "h" (vsum (h zero)).
+sums "export" total.
+sums "proofs" (proof same + proof t + proof fixed).

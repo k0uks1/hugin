@@ -65,6 +65,7 @@ private final class DatabaseLibraries(using db: Database) extends Libraries:
   private def isProgram(root: String, program: hugin.syntax.Program): Boolean = db(ParseProgram, root).program eq program
   override def elaborate(root: String, program: hugin.syntax.Program, graph: ImportGraph, prelude: Boolean): ProgramElaboration =
     if isProgram(root, program) then db(ElabProgram, ProgramKey(root, prelude)) else super.elaborate(root, program, graph, prelude)
+  override def checkCancelled(): Unit = db.checkCancelled()
 
 /** A file of a program made of several files ([[Composite]]); its queries are left out unless `queries`. */
 final case class Part(path: String, queries: Boolean = true)

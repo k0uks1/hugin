@@ -1,0 +1,12 @@
+(* A stuck application no longer solves an unknown by its arguments when the function is elaborated
+   first (issue #91, reference: meta/index, "Order of elaboration"): `c` comes before `r`, so `c one`
+   reduces to `zero`, and `zero = c ?0` leaves the unknown unsolved, whatever the written order. *)
+nat : Type. zero : nat. suc : nat -> nat.
+one : nat = suc zero.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+r : int = q one _ refl. (*~ E0901 *)
+q : (x y : nat) -> eqn (c x) (c y) -> int.
+c : nat -> nat.
+c zero = zero.
+c (suc N) = zero.

@@ -88,6 +88,13 @@ final class GlobalEntry(
    *  same name at the other stage ([[SharedLink]]). */
   var shared: Option[SharedLink] = None
 
+  /** A function, definition or formula function of the component of the file's dependency graph being
+   *  elaborated: its body does not unfold until the component is done ([[elab.ElabOrder]]; reference:
+   *  meta/index, "Order of elaboration"). Its definition or case tree is withheld until then (it is a
+   *  postulate or a function without a case tree, [[elab.DependencyOrder.withheld]]), so evaluation
+   *  needs no test. */
+  var inCycle: Boolean = false
+
 /** The link between the two constants a shared data declaration declares under one name (reference:
  *  meta/families, shared data): the meta inductive family (or meta constructor) at `side` S1, the
  *  object family, type or constructor at `side` S0. On the meta family, `lift` and `reify` are the

@@ -1,0 +1,21 @@
+(* Inside a cycle no body unfolds another, whatever the written order (issue #91, reference: meta/index,
+   "Order of elaboration"): `d`'s type needs `k zero`, and `k`'s clauses need `d`. Rejected with `k`'s
+   clauses after `d` and before it, with a note that names the cycle. *)
+nat : Type. zero : nat. suc : nat -> nat.
+one : nat = suc zero.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+vlen : vec A N -> nat.
+vlen vnil = zero.
+vlen (vcons X Xs) = suc (vlen Xs).
+
+d : vec int (k zero) = vcons 1 vnil. (*~ E0901 *)
+k : nat -> nat.
+k zero = one.
+k (suc N) = vlen d.
+
+k2 : nat -> nat.
+k2 zero = one.
+k2 (suc N) = vlen d2.
+d2 : vec int (k2 zero) = vcons 1 vnil. (*~ E0901 *)

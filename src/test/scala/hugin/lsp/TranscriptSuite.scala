@@ -12,8 +12,9 @@ import scala.jdk.CollectionConverters.*
  *
  *  - `tests/lsp/X.in`: the client's messages, one JSON-RPC message per line (blank lines and lines
  *    starting with `//` are skipped). Each is sent with its `Content-Length` header; after a request the
- *    replay waits for its response, so the server's notifications (published diagnostics) land between
- *    the requests in a fixed order. The last messages should be `shutdown` and `exit`; the server must then
+ *    replay waits for its response, and after a notification it waits until the server has handled it
+ *    (the server works on a thread of its own and cancels work for a text that changes again), so the
+ *    server's notifications (published diagnostics) land between the client's messages in a fixed order. The last messages should be `shutdown` and `exit`; the server must then
  *    exit with code 0.
  *  - `tests/lsp/X.check`: the transcript, normalized: `-->` client messages compact, `<--` server messages
  *    pretty-printed, keys sorted.
@@ -68,7 +69,9 @@ class TranscriptSuite extends munit.FunSuite:
     val fromServer = PipedOutputStream()
     val clientIn = PipedInputStream(fromServer, 1 << 16)
     val exit = CompletableFuture[Int]()
-    val serving = Thread((() => { exit.complete(HuginLanguageServer.serve(serverIn, fromServer)); () }): Runnable, "transcript-server")
+    val server = HuginLanguageServer()
+    val serving =
+      Thread((() => { exit.complete(HuginLanguageServer.serve(serverIn, fromServer, server)); () }): Runnable, "transcript-server")
     serving.setDaemon(true)
     serving.start()
     val received = LinkedBlockingQueue[JsonObject]()
@@ -87,7 +90,7 @@ class TranscriptSuite extends munit.FunSuite:
     def record(m: JsonObject): Unit = transcript ++= "<-- " ++= pretty.toJson(sorted(m)) += '\n'
     try
       val messages = Files.readAllLines(script).asScala.map(_.trim).filter(l => l.nonEmpty && !l.startsWith("//"))
-      for text <- messages do
+      for (text, sent) <- messages.zipWithIndex.map((t, i) => (t, i + 1)) do
         val message = JsonParser.parseString(text).getAsJsonObject
         transcript ++= "--> " ++= compact.toJson(sorted(message)) += '\n'
         send(toServer, compact.toJson(message))
@@ -101,11 +104,23 @@ class TranscriptSuite extends munit.FunSuite:
             answered = m.has("id") && m.get("id") == id && !m.has("method")
         else if message.get("method").getAsString == "exit" then
           assertEquals(exit.get(timeoutSeconds, TimeUnit.SECONDS), 0, "exit code after `shutdown` and `exit`")
+        else
+          // a notification: lsp4j hands it to the server's worker in order; wait until the worker is done
+          handled(server, sent)
       Iterator.continually(received.poll()).takeWhile(_ != null).foreach(record)
       transcript.toString
     finally
       toServer.close()
       fromServer.close()
+
+  /** Waits until the server has handled the first `sent` messages: lsp4j's thread has passed them on
+   *  ([[HuginLanguageServer.messagesReceived]]) and the worker has done what they asked for. */
+  private def handled(server: HuginLanguageServer, sent: Int): Unit =
+    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+    while server.messagesReceived < sent do
+      if System.nanoTime() > deadline then fail(s"the server did not receive message $sent")
+      Thread.sleep(1)
+    server.idle().get(timeoutSeconds, TimeUnit.SECONDS)
 
   private val dir = Path.of("tests", "lsp")
   private val scripts =

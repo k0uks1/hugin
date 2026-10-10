@@ -62,7 +62,7 @@ trait Uses:
   private def fieldTerm(m: Tm, l: Name): Option[Tm] = m match
     case Tm.Rec(fs) => fs.collectFirst { case (`l`, t) => t }
     case Tm.Global(id) =>
-      globals(id).kind match
+      kindOf(id) match
         case GlobalKind.Definition(t, _) => fieldTerm(t, l)
         case _ => None
     case Tm.Proj(m2, l2) => fieldTerm(m2, l2).flatMap(fieldTerm(_, l))

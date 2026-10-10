@@ -123,6 +123,13 @@ over the definition. It is an error ([E0916](../errors/E0916.md)) to use them th
 `double : (x : int) -> int = x * 2.` is written `double (x : int) : int = x * 2.`, and `hugin fix` makes
 this change.
 
+A definition may compute with functions defined by clauses anywhere in the file, in its type and in its
+value: it is elaborated after the clauses it needs ([Order of elaboration](index.md#order-of-elaboration)).
+`two : nat = plus one one.` makes `eqn two (suc one)` and `eqn (suc one) (suc one)` the same type, also
+when `plus` is defined after `two`. A definition that a function's clauses refer to while it applies the
+function is in one cycle with the function: inside the cycle the type of a typed definition is known and
+its value is not, and the function's applications do not reduce.
+
 After a declaration `f : A.`, an item `f X₁ … Xₙ = e.` is a [clause](clauses.md) of `f`, not a
 definition.
 

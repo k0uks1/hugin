@@ -1,0 +1,20 @@
+(* Applications that do not reduce (issue #91, reference: meta/index, "Order of elaboration"): a clause
+   group does not unfold another clause group of its own cycle, even one written before it, and a
+   function rejected by the termination check never reduces. The mismatch says why. *)
+nat : Type. zero : nat. suc : nat -> nat.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+
+(* `f` and `g` call each other: `f zero` does not reduce in `g`'s clauses *)
+f : nat -> nat.
+f zero = zero.
+f (suc N) = g N.
+g : nat -> nat.
+g zero = zero.
+g (suc N) = check refl N. (*~ E0901 *)
+check : eqn (f zero) zero -> nat -> nat.
+check _ N = f N.
+
+loop : nat -> nat. (*~ E0912 *)
+loop N = loop N.
+t : eqn (loop zero) zero = refl. (*~ E0901 *)
