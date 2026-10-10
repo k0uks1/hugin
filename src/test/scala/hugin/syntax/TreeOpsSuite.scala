@@ -86,3 +86,18 @@ class TreeOpsSuite extends munit.FunSuite:
         assertEquals(TreeOps.hasSyntaxErrors(n), expected, t.take(80))
     assert(errors > 0, "no syntax errors in the damaged copies")
   }
+
+  test("a program's imports, computed once, are the imports among its nodes") {
+    import scala.jdk.CollectionConverters.*
+    val dirs = List("run", "neg", "pos").map(d => java.nio.file.Path.of("tests", d)).filter(java.nio.file.Files.isDirectory(_))
+    val files = dirs.flatMap(d => java.nio.file.Files.list(d).iterator.asScala.filter(_.toString.endsWith(".hgn")))
+    val texts = hugin.compiler.SourceLoader.stdlib(hugin.compiler.SourceLoader.PreludePath).get :: files.map(java.nio.file.Files.readString)
+    var found = 0
+    for text <- texts do
+      val program = Parser.parse(SourceFile.virtual("t", text), Reporter())
+      val expected = TreeOps.nodes(program.items).collect { case i: Trees.Import => i }.toList
+      assertEquals(program.imports, expected)
+      assert(program.imports eq program.imports)
+      found += expected.length
+    assert(found > 0)
+  }

@@ -721,3 +721,44 @@ including `tests/neg` with errors in facts files, are unchanged.
 | `run a01_transitive_closure`, `run c1_aggregates` | | | within noise |
 
 What remains of reading facts is the lexer (7 % of `run shortest_grid`) and interning the facts.
+
+### The imports of the standard library, per compilation (found re-measuring (e))
+
+A profile of `ItemQueriesSuite` showed 17 % of its test thread in `TreeOps.nodes`, called by
+`ImportPaths.importsIn`: since the lazy re-export of `std/demand` (#61, B2), every compilation asks for
+the imports of the standard library's files (`LazyStdlib` decides which of them the program needs; the
+import graph asks too), and each time the whole parse tree of each file was walked, `std/reflect` and
+the prelude included, although the parsed files are shared by every compilation of a process
+(`StdlibCache`). The imports of a program are now a lazy field of the (immutable) `Program`, computed
+once per parsed file: the memoisation of a pure function of an immutable input, as salsa and rustc keep
+derived results of inputs that did not change. `TreeOpsSuite` checks it against the walk on the prelude
+and the goldens.
+
+| measurement (main thread, median of 248 runs) | before | after | change |
+|---|---:|---:|---:|
+| compile one-line program (check, new database): CPU | 6.3 ms | 3.5 ms | −44 % |
+| compile one-line program: allocated | 4.04 MB | 0.65 MB | −84 % |
+| `run a01_transitive_closure`: CPU / allocated | 11.9 ms / 4.8 MB | 8.1 ms / 1.4 MB | −32 % / −71 % |
+| `run c1_roundtrip`: CPU / allocated | 14.4 ms / 6.1 MB | 10.5 ms / 2.7 MB | −27 % / −57 % |
+| `run f_modules`: CPU / allocated | 20.9 ms / 7.8 MB | 18.8 ms / 4.3 MB | −10 % / −46 % |
+| `run a04_typechecker` (uses `%demand`): allocated | 11.9 MB | 8.9 MB | −25 % (CPU within noise) |
+
+### `ItemQueriesSuite` (e)
+
+It is still about 40 % of the suite's time (61 s of 143 s summed over suites in one run of the targeted
+set on this machine). Its test thread spends 90 % in compilations, and those are what it tests: every
+random edit of every golden program is compiled incrementally, from scratch in a new database, and
+directly without one, and the three are compared; the language-server probes are 7 %. Dropping any of
+the three compilations would drop a property, so the test design stays. The imports fix above takes its
+test thread from 45.8 s to 38.1 s of CPU (profiled, −17 %); its wall time on this 4-core machine did not
+move measurably (50–54 s before and after, alternating runs), since the JIT compiler threads, which use
+63–70 s of CPU over the run, compete with it for the cores.
+
+### `MemoKeys` (d)
+
+Not real any more. `jmap -histo:live` during `run meta_scaled` (the program the note was about) shows a
+live heap of 65–67 MB in all, of which the terms and values of the memo keys are a part; the 100–250 MB
+of the note came before the sharing read-back of #108 and the stdlib split. An experiment with caches
+weak in their keys (`readBack`, `termIds`; a weak identity map) made `meta_scaled` slower and its heap
+after collections larger (more GCs, 2–3× their pause time): the keys stay reachable anyway, through the
+memo's results, which must stay so that evaluation and its fresh names are unchanged. Not changed.
