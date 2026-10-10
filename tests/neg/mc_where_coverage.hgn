@@ -1,0 +1,8 @@
+(* A coverage error of a local function shows the clauses as written: the variables of the enclosing
+   clause that lifting adds as arguments (here `N`) are left out (issue #100; before, the missing case
+   was `f.g _ (suc _)`). *)
+nat : Type. zero : nat. suc : nat -> nat.
+f : nat -> nat.
+f N = g N
+  where g : nat -> nat. (*~ E0911 *)
+        g zero = N.

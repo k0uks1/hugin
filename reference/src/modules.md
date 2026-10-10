@@ -16,11 +16,77 @@ local directives. Its value is a module: a record with a field for every constan
 is selected with a path `m.r`; paths nest (`lib.reach`).
 
 The items of a body are elaborated in a scope of their own, inside the scope of the enclosing file. They
-see the body's members, the parameters of an enclosing functor and the names of the file.
+see the body's members, the parameters of an enclosing functor and the names of the file. A member is in
+scope in the whole body, also before its declaration ([Scopes](#scopes)).
+
+A body accepts what a file accepts for meta functions. A declaration `f : A.` with a meta type and the
+clauses `f p̄ = e.` of the same body define a *member function*, a field of the module. Its clauses are
+those of the body that declares it ([Clauses](meta/clauses.md)); member functions may refer to later
+members and to each other. A member function is checked for [coverage](meta/coverage.md) and
+[termination](meta/termination.md) where it is written, and diagnostics name it by its path
+(`lib.double`, `tc.step` for a functor `tc`).
+
+A member function is elaborated once, where the body is written, and not for each instance. It is a
+function of the parameters of the enclosing functors and of the object constants of the enclosing bodies:
+the field of an instance is that function for the instance's arguments and object constants. Two
+instances of a functor have fields that compute the same results, and object code that a field returns
+mentions the object constants of its own instance.
+
+The items of a body are elaborated in the order of a file ([Order of
+elaboration](meta/index.md#order-of-elaboration)): first the declarations and definitions, each after the
+members it refers to, then the clauses of the member functions, each function one item, then the object
+items. A member function's clauses are therefore not available while the declarations and definitions are
+elaborated: a definition that applies a member function evaluates to that application, which is computed
+when it is used.
 
 It is an error ([E0907](errors/E0907.md)) to use in a module body: refinements, families of object
-constants, reflected items `$e.`, and additive or module-wide directives. It is an error
+constants, meta inductive families, meta declarations without a definition or clauses (postulates),
+formula functions defined by rules, reflected items `$e.`, `%use`, and additive or module-wide
+directives. A member that is rejected is left out, and its uses in the body are not reported again. It is
+an error ([E0915](errors/E0915.md)) to write clauses in a body for a function that the body does not
+declare, and ([E0105](errors/E0105.md)) if a definition of a body refers to itself. It is an error
 ([E0107](errors/E0107.md)) to select a member of a value that is not a module.
+
+The following functor defines two mutually recursive member functions, `even` and `odd`, and a rule
+that calls the member function `weight`. `parity` refers to `even` before its declaration. The two
+instances share the functions, each with its own relation `cost`.
+
+```hugin,run
+nat : Type. zero : nat. suc : nat -> nat.
+graph : Type = { node : type, edge : node -> node -> rel }.
+stepping (g : graph) = {
+  parity : nat -> string.
+  parity N = label (even N).
+  even : nat -> bool.
+  even zero = true.
+  even (suc N) = odd N.
+  odd : nat -> bool.
+  odd zero = false.
+  odd (suc N) = even N.
+  label : bool -> string.
+  label true = "even".
+  label false = "odd".
+  weight : nat -> int.
+  weight zero = 0.
+  weight (suc N) = 10 + weight N.
+  cost : g.node -> g.node -> int -> rel.
+  cost X Y (weight (suc (suc zero))) :- g.edge X Y.
+}.
+city : type. berlin : city. paris : city.
+road : city -> city -> rel.
+road berlin paris.
+s1 = stepping { node = city, edge = road }.
+s2 = stepping { node = city, edge = road }.
+answer : string -> rel.
+answer (s1.parity (suc (suc (suc zero)))).
+%output answer. %output s1.cost. %output s2.cost.
+```
+
+```output
+answer "odd".
+s1.cost berlin paris 20.
+s2.cost berlin paris 20.
+```
 
 ## Instances
 

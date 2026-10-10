@@ -1,0 +1,58 @@
+error[E0911]: the clauses of `lib.half` do not cover all cases
+ --> tests/neg/mc_member_totality.hgn:7:3
+  |
+7 |   half : nat -> nat. (*~ E0911 *)
+  |   ^^^^ missing: `lib.half zero`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `lib.half zero = ….`
+
+error[E0912]: cannot show that `lib.spin` terminates
+  --> tests/neg/mc_member_totality.hgn:10:3
+   |
+10 |   spin : nat -> nat. (*~ E0912 *)
+   |   ^^^^ possibly non-terminating
+11 |   spin N = spin (suc N).
+   |   ---------------------- in this clause: `spin (suc N)`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+warning[W0006]: unreachable clause of `lib.pred`
+  --> tests/neg/mc_member_totality.hgn:15:3
+   |
+15 |   pred zero = zero. (*~ W0006 *)
+   |   ^^^^^^^^^^^^^^^^^ this clause is never used
+   |
+   = note: the clauses before it cover all the cases it matches
+   = note: `-W unreachable_clauses` is on by default
+
+error[E0911]: the clauses of `tc.step` do not cover all cases
+  --> tests/neg/mc_member_totality.hgn:20:3
+   |
+20 |   step : nat -> g.node -> g.node -> prop. (*~ E0911 *)
+   |   ^^^^ missing: `tc.step zero _ _`
+   |
+   = note: meta functions are total: every argument must match a clause
+   = help: add a clause `tc.step zero _ _ = ….`
+
+error[E0912]: cannot show that `tc.inner.ping` terminates
+  --> tests/neg/mc_member_totality.hgn:25:5
+   |
+25 |     ping : nat -> nat. (*~ E0912 *)
+   |     ^^^^ possibly non-terminating
+26 |     ping N = pong (suc N).
+   |     ---------------------- in this clause: `pong (suc N)`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+error[E0912]: cannot show that `tc.inner.pong` terminates
+  --> tests/neg/mc_member_totality.hgn:27:5
+   |
+27 |     pong : nat -> nat. (*~ E0912 *)
+   |     ^^^^ possibly non-terminating
+28 |     pong N = ping N.
+   |     ---------------- in this clause: `ping N`
+   |
+   = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+5 errors, 1 warning found

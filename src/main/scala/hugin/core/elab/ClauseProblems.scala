@@ -17,7 +17,9 @@ enum ClauseProblem extends Problem:
   case PartialFamilyResult(family: String, at: Span)
   case ArgumentTooLarge(argument: String, family: String, universe: String, at: Span)
   case NotDefinableByClauses(fn: String, at: Span, declared: Span, kind: String)
-  case ClausesWithoutDeclaration(fn: String, at: Span)
+
+  /** `inBody`: the clauses are in a module body, which does not declare the function. */
+  case ClausesWithoutDeclaration(fn: String, at: Span, inBody: Boolean = false)
   case PatternCount(fn: String, expected: Int, at: Span)
   case TooManyPatterns(fn: String, explicit: Int, at: Span)
   case ClauseWithoutName(at: Span)
@@ -54,7 +56,7 @@ enum ClauseProblem extends Problem:
     case PartialFamilyResult(_, s) => s
     case ArgumentTooLarge(_, _, _, s) => s
     case NotDefinableByClauses(_, s, _, _) => s
-    case ClausesWithoutDeclaration(_, s) => s
+    case ClausesWithoutDeclaration(_, s, _) => s
     case PatternCount(_, _, s) => s
     case TooManyPatterns(_, _, s) => s
     case ClauseWithoutName(s) => s
@@ -81,7 +83,7 @@ enum ClauseProblem extends Problem:
     case PartialFamilyResult(fam, _) => msg"a constructor of ${Src(fam)} must return it applied to all its arguments"
     case ArgumentTooLarge(x, fam, _, _) => msg"the argument ${Src(x)} is too large for ${Src(fam)}"
     case NotDefinableByClauses(f, _, _, _) => msg"${Src(f)} cannot be defined by clauses"
-    case ClausesWithoutDeclaration(f, _) => msg"clauses of ${Src(f)} without a declaration"
+    case ClausesWithoutDeclaration(f, _, _) => msg"clauses of ${Src(f)} without a declaration"
     case PatternCount(f, _, _) => msg"all clauses of ${Src(f)} must have the same number of patterns"
     case TooManyPatterns(f, _, _) => msg"too many patterns for ${Src(f)}"
     case _: ClauseWithoutName => msg"a clause must start with the name of a function"
@@ -156,9 +158,11 @@ enum ClauseProblem extends Problem:
         msg"a `where` block contains definitions `x = e.`, local functions (`f : A.` and clauses `f p̄ = e.`) and pattern bindings `c x̄ = e.`"
       )
     case _: UnreachableClause => List(msg"the clauses before it cover all the cases it matches")
+    case ClausesWithoutDeclaration(_, _, true) => List(msg"the clauses of a module body define the functions that the body declares")
     case _ => Nil
 
   override def helps: List[Msg] = this match
     case NotCovering(_, m, _) => List(msg"add a clause ${Src(s"$m = ….")}")
-    case ClausesWithoutDeclaration(f, _) => List(msg"declare its type first: ${Src(s"$f : A -> B.")}")
+    case ClausesWithoutDeclaration(f, _, inBody) =>
+      List(msg"declare its type first${Lit(if inBody then " in the body" else "")}: ${Src(s"$f : A -> B.")}")
     case _ => Nil

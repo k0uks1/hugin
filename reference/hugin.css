@@ -11,3 +11,85 @@
 .content td:first-child a {
   white-space: nowrap;
 }
+/* Semantic highlighting of the Hugin code blocks: reference/highlight.py renders each token as
+   `<span class="hg-<type> hg-<modifier>…">`, with the token types and modifiers of the language server
+   (`hugin highlight`; src/main/scala/hugin/lsp/Tokens.scala) and lexical classes for the rest. The
+   colours are those of mdBook's highlight.js theme of each mdBook theme: highlight.css (light, rust),
+   tomorrow-night.css (coal, navy), ayu-highlight.css (ayu), with one yellow and one cyan of the same
+   scheme added for types and constructors where the theme has none. Directives share the colour of
+   numbers as the themes' `meta`/`preprocessor` do; parameters (meta level) are variables in italics;
+   declarations are bold. */
+code.hugin {
+  --hg-comment: #575757;
+  --hg-keyword: #9d00ec;
+  --hg-string: #008200;
+  --hg-number: #b21e00;
+  --hg-type: #8a6400;
+  --hg-function: #0030f2;
+  --hg-constructor: #00786c;
+  --hg-variable: #d70025;
+}
+.coal code.hugin,
+.navy code.hugin {
+  --hg-comment: #969896;
+  --hg-keyword: #b294bb;
+  --hg-string: #b5bd68;
+  --hg-number: #de935f;
+  --hg-type: #f0c674;
+  --hg-function: #81a2be;
+  --hg-constructor: #8abeb7;
+  --hg-variable: #cc6666;
+}
+.ayu code.hugin {
+  --hg-comment: #5c6773;
+  --hg-keyword: #ff7733;
+  --hg-string: #b8cc52;
+  --hg-number: #ffee99;
+  --hg-type: #36a3d9;
+  --hg-function: #ffb454;
+  --hg-constructor: #95e6cb;
+  --hg-variable: #f07178;
+}
+code.hugin .hg-comment {
+  color: var(--hg-comment);
+  font-style: italic;
+}
+code.hugin .hg-keyword,
+code.hugin .hg-operator {
+  color: var(--hg-keyword);
+}
+code.hugin .hg-string {
+  color: var(--hg-string);
+}
+code.hugin .hg-number,
+code.hugin .hg-decorator {
+  color: var(--hg-number);
+}
+/* object types, structs, meta families, modules */
+code.hugin .hg-type,
+code.hugin .hg-struct,
+code.hugin .hg-class,
+code.hugin .hg-namespace {
+  color: var(--hg-type);
+}
+/* relations, meta functions, formula functions */
+code.hugin .hg-function,
+code.hugin .hg-method,
+code.hugin .hg-macro {
+  color: var(--hg-function);
+}
+code.hugin .hg-enumMember {
+  color: var(--hg-constructor);
+}
+code.hugin .hg-variable {
+  color: var(--hg-variable);
+}
+/* meta parameters and local meta variables, typed holes, rule names */
+code.hugin .hg-parameter,
+code.hugin .hg-label {
+  color: var(--hg-variable);
+  font-style: italic;
+}
+code.hugin .hg-declaration {
+  font-weight: bold;
+}

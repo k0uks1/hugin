@@ -47,8 +47,11 @@ refute, such as an index `plus N M` that is a stuck function application against
 ## Missing cases
 
 It is an error ([E0911](../errors/E0911.md)) if a branch of the case tree has no clause and some
-constructor could occur in it. The diagnostic shows the missing pattern. A branch without clauses is
-accepted if some argument in it has a type without possible constructors.
+constructor could occur in it. The diagnostic shows the missing pattern, as the clauses are written: a
+local function of a [`where`](where.md) block or a member function of a
+[module body](../modules.md#module-bodies) is shown without the variables of its context that it uses
+(`f.g (suc _)` for a local function `g` of `f`). A branch without clauses is accepted if some argument in
+it has a type without possible constructors.
 
 The following function is rejected, since it has no clause for `zero`.
 
