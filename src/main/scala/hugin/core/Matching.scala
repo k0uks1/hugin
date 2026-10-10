@@ -33,7 +33,7 @@ trait Matching:
         val r =
           if hit != null then hit
           else
-            val v = runTree(tree, args.toVector)
+            val v = runTree(tree.tree, args.toVector)
             if key != null && v != null then memo(key) = v
             v
         if r == null then None else Some(appSp(r, later))
@@ -53,8 +53,23 @@ trait Matching:
    *  large for quoted patterns (`mirror ('( edge $X $Y :- $..B ) :: Rest)`, issue #88). */
   @scala.annotation.tailrec
   private def runTree(tree: CaseTree, env: Vector[Val]): Val | Null = tree match
-    case CaseTree.Leaf(body, size, order, _, _) =>
-      if env.length == size then eval(order.reverseIterator.map(env).toList, body) else null
+    case CaseTree.Leaf(body, size, subst, _) =>
+      if env.length != size then null
+      else
+        // the clause's variables at the leaf: mostly variables of the leaf (`σ` renames), otherwise a
+        // constructor term over them (a variable of the clause that the leaf refines)
+        var bodyEnv: List[Val] = Nil
+        var leafEnv: List[Val] = null
+        var k = 0
+        while k < subst.length do
+          val v = subst(k) match
+            case Tm.Var(ix) => env(size - 1 - ix)
+            case t =>
+              if leafEnv == null then leafEnv = env.reverseIterator.toList
+              eval(leafEnv, t)
+          bodyEnv = v :: bodyEnv
+          k += 1
+        eval(bodyEnv, body)
     case CaseTree.Split(level, branches) =>
       forceData(env(level)) match
         case Rigid(Head.Glob(c), csp) =>

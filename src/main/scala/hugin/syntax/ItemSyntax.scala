@@ -147,8 +147,13 @@ private[syntax] trait ItemSyntax extends ParserBase:
       else None
     val expectations =
       if body.isEmpty then List(Expect.period, Expect.Token(Tok.Comma), Expect.Token(Tok.Turnstile)) else List(Expect.period)
-    val construct = if body.isEmpty && heads.length == 1 && name.isEmpty then "fact" else "rule"
+    // `f p̄.` with an absurd pattern `()`: an absurd clause, without right-hand side (reference: meta/clauses)
+    val absurd = body.isEmpty && heads.length == 1 && name.isEmpty && TreeOps.hasAbsurd(firstHead)
+    val construct = if absurd then "clause" else if body.isEmpty && heads.length == 1 && name.isEmpty then "fact" else "rule"
     val ok = endItem(Context(construct, first.span), expectations)
+    if absurd then
+      val end = firstHead.span
+      return List(Clause(checked(firstHead, ok), Absent()(end.endPoint), Nil)(spanFrom(start)))
     val (heads1, body1) =
       if ok then (heads.toList, body)
       else if body.isDefined then (heads.toList, body.map(damaged))

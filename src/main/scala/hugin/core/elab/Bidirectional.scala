@@ -55,6 +55,7 @@ trait Bidirectional:
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
       fail(TypeProblem.CannotInferWildcard(t.span))
+    case Absurd() | Absent() => fail(ClauseProblem.MisplacedAbsurd(t.span))
     case SymRef(id, _) => globalRef(sharedAt(id, state.stage))
     case NamedVar(n) =>
       val a = freshMeta(c, Val.U0, Stage.S0, t.span, s"the type of `$n`", allowUnsolved = true)

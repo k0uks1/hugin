@@ -48,8 +48,9 @@ final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: V
 enum IndexUnification:
   case Solved(p: SplitProblem)
 
-  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct literals). */
-  case Conflict
+  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct literals): the
+   *  equation `a = b` that conflicts (`a` from the constructor's type, `b` from the scrutinee's). */
+  case Conflict(a: Val, b: Val)
 
   /** Neither: an equation between terms that are not constructor applications or variables. */
   case Stuck(a: Val, b: Val)
@@ -78,9 +79,9 @@ trait IndexUnifier:
           case (None, None) =>
             (a, b) match
               case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
-                if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict)
+                if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
                 else eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
-              case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict)
+              case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
               case _ => result = Some(IndexUnification.Stuck(a, b))
     result.getOrElse(IndexUnification.Solved(p))
 
@@ -91,7 +92,7 @@ trait IndexUnifier:
   /** `x = t`: solve, unless `x` occurs in `t` (a cycle under constructors is a conflict). */
   private def solveVar(p: SplitProblem, x: Int, t: Val): Either[IndexUnification, SplitProblem] =
     if !occurs(p.size - x - 1, quote(p.size, t)) then Right(p.solve(core, x, t))
-    else if constructorTerm(t) then Left(IndexUnification.Conflict)
+    else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), t))
     else Left(IndexUnification.Stuck(Val.local(x), t))
 
   private def constructorTerm(v: Val): Boolean = force(v) match

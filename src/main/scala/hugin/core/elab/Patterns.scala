@@ -19,7 +19,12 @@ enum Pat:
    *  it (reference: reflection). */
   case PAtom(key: Tm, span: Span)
 
-/** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function), with its `where` block. */
+  /** `()`, Agda's absurd pattern: matches nothing, and is allowed only at a position none of whose
+   *  constructors can occur (reference: meta/clauses). */
+  case PAbsurd(span: Span)
+
+/** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function), with its `where` block; an
+ *  absurd clause `f p̄.` has the right-hand side [[Absent]]. */
 final case class SurfaceClause(name: Ident, pats: List[Tree], rhs: Tree, span: Span, where: List[Item] = Nil)
 
 trait Patterns:
@@ -58,6 +63,7 @@ trait Patterns:
     case Parens(i) => pattern(i, expected)
     case VarRef(n) => Pat.PVar(n, t.span)
     case Wildcard() => Pat.PWild(t.span)
+    case Absurd() => Pat.PAbsurd(t.span)
     case Lit(Literal.IntL(n)) if n >= 0 => Pat.PLit(n, t.span)
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>

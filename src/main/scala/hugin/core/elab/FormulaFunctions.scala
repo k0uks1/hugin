@@ -77,16 +77,12 @@ trait FormulaFunctions:
     val seen = scala.collection.mutable.Set.empty[Int]
     def inGlobal(g: Int): Boolean = kindOf(g) match
       case GlobalKind.Definition(tm, _) => inTm(tm)
-      case GlobalKind.Function(_, Some(tree)) => inTree(tree)
+      case GlobalKind.Function(_, Some(fb)) => fb.clauses.exists(_.body.exists(inTm))
       case _ => false
     def inTm(t: Tm): Boolean = Tm.exists(t) {
       case Tm.Global(g) => g == target || seen.add(g) && inGlobal(g)
       case _ => false
     }
-    def inTree(t: CaseTree): Boolean = t match
-      case CaseTree.Leaf(body, _, _, _, _) => inTm(body)
-      case CaseTree.Split(_, bs) => bs.exists(b => inTree(b.tree))
-      case CaseTree.SplitAtom(_, bs, d) => bs.exists((_, b) => inTree(b)) || inTree(d)
     t match
       case Tm.Global(g) if !self => seen.add(g) && inGlobal(g)
       case _ => inTm(t)

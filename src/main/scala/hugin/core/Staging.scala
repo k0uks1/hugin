@@ -55,15 +55,15 @@ final class Staging(core: Core, reporter: Reporter):
           case _ => Tm.children(t).exists(hole)
     hole(t)
 
-  /** The leaves of a case tree as clauses, with their bodies normalised. */
-  private def clauses(f: Name, tree: CaseTree): List[String] = tree match
-    case CaseTree.Split(_, branches) => branches.flatMap(b => clauses(f, b.tree))
-    case CaseTree.SplitAtom(_, branches, default) => branches.flatMap(b => clauses(f, b._2)) ++ clauses(f, default)
-    case CaseTree.Leaf(body, _, order, names, patterns) =>
-      val ns = names.toList.reverse
-      val env = order.indices.reverse.map(Val.local).toList
-      val pats = patterns.map(p => showArg(ns, explicitOnly(p)))
-      List(s"  ${(f :: pats).mkString(" ")} = ${showTm(ns, explicitOnly(nf(env, body)))}.")
+  /** The clauses of a function as written (each in its own context), with their bodies normalised. */
+  private def clauses(f: Name, body: FunctionBody): List[String] = body.clauses.toList.map { cl =>
+    val ns = cl.names.toList.reverse
+    val env = cl.names.indices.reverse.map(Val.local).toList
+    val lhs = (f :: cl.patterns.map(p => showArg(ns, explicitOnly(p)))).mkString(" ")
+    cl.body match
+      case Some(b) => s"  $lhs = ${showTm(ns, explicitOnly(nf(env, b)))}."
+      case None => s"  $lhs."
+  }
 
   /** The position of an item in the source: items are staged and printed in source order (elaboration
    *  may have deferred some). */

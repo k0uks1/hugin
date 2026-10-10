@@ -2,6 +2,7 @@ package hugin.core
 package elab
 
 import hugin.util.*
+import hugin.util.diagnostics.{Applicability, Edit, Suggestion}
 import scala.collection.mutable
 
 /** Termination of meta functions (reference: meta/coverage) by the size-change principle (Lee, Jones & Ben-Amram,
@@ -24,9 +25,34 @@ trait SizeChange:
 
   /** A call `caller → callee` with its size-change matrix (`m(i)(j)`: argument `i` of the caller to
    *  argument `j` of the callee); `shown` prints it for a diagnostic (only then: printing is pure). */
-  private final case class Call(caller: Int, callee: Int, m: Vector[Vector[Option[Rel]]], span: Span, shown: () => String)
+  private final case class Call(caller: Int, callee: Int, m: Vector[Vector[Option[Rel]]], span: Span, shown: () => String, clause: Int)
 
   private val calls = mutable.ListBuffer.empty[Call]
+
+  /** The number of calls recorded so far. */
+  def callCount: Int = calls.length
+
+  /** The calls of a clause at the leaves of its function's case tree, where they refine its clause
+   *  context, and the clause written out at those leaves (reference: meta/clauses, "Checking a clause"). */
+  private final case class Alternative(calls: List[Call], text: String, span: Span)
+
+  /** The alternatives by function and clause. */
+  private val alternatives = mutable.HashMap.empty[(Int, Int), Alternative]
+
+  /** Records the calls of clause `clause` of `f` at the leaves that refine its clause context: each visit
+   *  is the caller's arguments at a leaf, a context for display, the environment of the context at the
+   *  leaf, the level of the leaf's variables and a term of the clause. If the termination check rejects
+   *  `f` but these calls make it terminate, its error has a fix that replaces the clause by `text`. */
+  def recordAlternative(
+      f: Clauses#FunctionInfo,
+      clause: Int,
+      visits: List[(Vector[Val], Cxt, List[Val], Int, Tm)],
+      source: SurfaceClause,
+      text: String
+  ): Unit =
+    val out = mutable.ListBuffer.empty[Call]
+    for (args, c, env, lvl, t) <- visits do CallCollector(f.id, args, c, source.span, clause, out).visit(t, env, lvl, Nil, None)
+    alternatives((f.id, clause)) = Alternative(out.toList, text, source.span)
 
   /** Records the calls of functions in the right-hand side `body` (elaborated in `c`) of a leaf of `f`.
    *
@@ -46,18 +72,18 @@ trait SizeChange:
    *    whose members and items see the body's parameters).
    *
    *  Definitions are not recursive (E0105), so inlining terminates. */
-  def recordCalls(f: Clauses#FunctionInfo, callerArgs: Vector[Val], c: Cxt, body: Tm, source: SurfaceClause): Unit =
-    CallCollector(f.id, callerArgs, c, source.span).visit(body, c.env, c.lvl, Nil, None)
+  def recordCalls(f: Clauses#FunctionInfo, callerArgs: Vector[Val], c: Cxt, body: Tm, source: SurfaceClause, clause: Int): Unit =
+    CallCollector(f.id, callerArgs, c, source.span, clause, calls).visit(body, c.env, c.lvl, Nil, None)
 
   /** The calls of one right-hand side; `site` is the term of the clause (in the clause's context) that
    *  a call shows in a diagnostic, `None` while visiting the clause's own syntax. */
-  private final class CallCollector(caller: Int, callerArgs: Vector[Val], c: Cxt, span: Span):
+  private final class CallCollector(caller: Int, callerArgs: Vector[Val], c: Cxt, span: Span, clause: Int, out: mutable.ListBuffer[Call]):
     private var depth = 0
     private var steps = 0
     private val unknownDone = mutable.HashSet.empty[Int]
 
     private def record(g: Int, args: List[Val], lvl: Int, site: Tm): Unit =
-      calls += Call(caller, g, matrix(callerArgs, args, lvl, arity(g)), span, () => showTm(c.names, zonk(c.env, c.lvl, site)))
+      out += Call(caller, g, matrix(callerArgs, args, lvl, arity(g)), span, () => showTm(c.names, zonk(c.env, c.lvl, site)), clause)
 
     /** `t` (in `env`, under `lvl` binders) applied to the further arguments `extra`. */
     def visit(t: Tm, env: List[Val], lvl: Int, extra: List[Val], site0: Option[Tm]): Unit =
@@ -389,13 +415,33 @@ trait SizeChange:
       if component(c.callee) then components += component
     if components.isEmpty then return
     val cyclic = calls.toList.filter(c => components.exists(k => k(c.caller) && k(c.callee)))
-    val bad = closure(cyclic).collect {
-      case (f, g, m) if f == g && compose(m, m) == m && !m.indices.exists(i => m(i)(i).contains(Rel.Lt)) => f
-    }.distinct
+    val bad = nonTerminating(cyclic)
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
       val call = calls.find(c => c.caller == f && c.callee == f).orElse(calls.find(_.caller == f))
-      reporter.report(ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown()))).toDiagnostic)
+      val d = ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown()))).toDiagnostic
+      reporter.report(refinementFix(f, cyclic, components).fold(d)(s => d.copy(suggestions = d.suggestions :+ s)))
+
+  /** The functions with an idempotent size-change graph `f → f` without a strict arc on its diagonal. */
+  private def nonTerminating(cyclic: List[Call]): List[Int] =
+    closure(cyclic).collect {
+      case (f, g, m) if f == g && compose(m, m) == m && !m.indices.exists(i => m(i)(i).contains(Rel.Lt)) => f
+    }.distinct
+
+  /** A fix for the rejection of `f`: the clauses of its components written out at their leaves, if their
+   *  calls there ([[recordAlternative]]) make `f` terminate (a call that decreases only through the
+   *  refinement made by earlier clauses, `h N M = h (predf N) M` after `h zero _ = zero`). */
+  private def refinementFix(f: Int, cyclic: List[Call], components: collection.Seq[collection.Set[Int]]): Option[Suggestion] =
+    def inComponent(c: Call) = components.exists(k => k(c.caller) && k(c.callee))
+    val used = alternatives.filter((key, _) => cyclic.exists(c => (c.caller, c.clause) == key))
+    if used.isEmpty then None
+    else
+      val replaced = cyclic.filterNot(c => used.contains((c.caller, c.clause))) ++ used.values.flatMap(_.calls).filter(inComponent)
+      if nonTerminating(replaced).contains(f) then None
+      else
+        val edits = used.values.toList.sortBy(_.span.start).map(a => Edit(a.span, a.text))
+        val shown = edits.map(e => s"`${e.replacement.linesIterator.map(_.trim).mkString(" ")}`").mkString(", ")
+        Some(Suggestion(s"write out the cases of the clause: $shown", edits, Applicability.MachineApplicable))
 
   /** The functions reachable from `f` (itself included) along `edges`. */
   private def reachable(f: Int, edges: mutable.HashMap[Int, mutable.Set[Int]]): mutable.Set[Int] =

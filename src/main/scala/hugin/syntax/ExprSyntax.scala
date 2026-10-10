@@ -235,6 +235,10 @@ private[syntax] trait ExprSyntax extends ParserBase:
   private def parseParens(): Tree =
     val open = advance()
     val start = open.span.start
+    // `()`: the absurd pattern (only whitespace or comments between the brackets)
+    if at(Tok.RParen) then
+      advance()
+      return Absurd()(spanFrom(start))
     if strayOpener(Tok.RParen) then
       error(SyntaxError.Unclosed(open.text, open.span, ")", insertionPoint, found, tok.span))
       return ErrorTree(Nil)(open.span)

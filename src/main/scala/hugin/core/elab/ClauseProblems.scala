@@ -3,6 +3,18 @@ package elab
 
 import hugin.util.Span
 import hugin.util.diagnostics.*
+
+/** Why a constructor pattern of a clause cannot occur in the clause's own context. */
+enum ClauseConflict:
+  /** Index unification ends in a conflict: `a` (from the constructor's type) against `b` (from the
+   *  argument's type). */
+  case Index(a: String, b: String)
+
+  /** Index unification determined the argument to be `found`, another constructor's application. */
+  case Argument(found: String)
+
+  /** The constructor does not belong to the argument's type `tpe`. */
+  case Family(tpe: String)
 import scala.language.implicitConversions
 
 /** The problems of meta functions and inductive families: coverage (E0911), termination (E0912),
@@ -41,6 +53,18 @@ enum ClauseProblem extends Problem:
   case DependentBinding(at: Span)
   case UnreachableClause(fn: String, at: Span)
 
+  /** A constructor pattern that cannot occur in its clause's own context: the clause matches nothing.
+   *  `removal` removes the clause; `absurd` (the clause is the function's only one, and no constructor
+   *  can occur at the pattern) is the pattern to replace by `()` and the right-hand side to remove. */
+  case ImpossibleClause(constructor: String, why: ClauseConflict, at: Span, removal: Option[Span], absurd: Option[(Span, Span)])
+
+  /** An absurd pattern `()` at a position of type `tpe` where the constructors `possible` can occur. */
+  case AbsurdNotEmpty(tpe: String, possible: List[String], at: Span)
+
+  /** An absurd clause with a right-hand side: `rhs` is ` = e`, from the patterns to the expression's end. */
+  case AbsurdWithRhs(rhs: Span, at: Span)
+  case MisplacedAbsurd(at: Span)
+
   def code: Code = this match
     case _: NotCovering => Code.E0911
     case _: NotTerminating => Code.E0912
@@ -75,6 +99,10 @@ enum ClauseProblem extends Problem:
     case BindingArity(_, _, _, s) => s
     case DependentBinding(s) => s
     case UnreachableClause(_, s) => s
+    case ImpossibleClause(_, _, s, _, _) => s
+    case AbsurdNotEmpty(_, _, s) => s
+    case AbsurdWithRhs(_, s) => s
+    case MisplacedAbsurd(s) => s
 
   def message: Msg = this match
     case NotCovering(f, _, _) => msg"the clauses of ${Src(f)} do not cover all cases"
@@ -102,6 +130,10 @@ enum ClauseProblem extends Problem:
     case BindingArity(c, n, _, _) => msg"${Src(c)} has $n explicit argument(s)"
     case _: DependentBinding => msg"pattern bindings of dependent fields are not supported"
     case UnreachableClause(f, _) => msg"unreachable clause of ${Src(f)}"
+    case ImpossibleClause(c, _, _, _, _) => msg"the case for ${Src(c)} is impossible here"
+    case AbsurdNotEmpty(t, _, _) => msg"the type ${Src(t)} is not empty here"
+    case _: AbsurdWithRhs => msg"an absurd clause has no right-hand side"
+    case _: MisplacedAbsurd => msg"an absurd pattern is only allowed in a clause's patterns"
 
   override def primaryLabel: Msg = this match
     case NotCovering(_, m, _) => msg"missing: ${Src(m)}"
@@ -127,6 +159,12 @@ enum ClauseProblem extends Problem:
     case BindingArity(_, _, f, _) => msg"found $f"
     case _: DependentBinding => msg"dependent field"
     case _: UnreachableClause => msg"this clause is never used"
+    case ImpossibleClause(_, ClauseConflict.Index(a, b), _, _, _) => msg"its index ${Src(a)} conflicts with ${Src(b)}"
+    case ImpossibleClause(_, ClauseConflict.Argument(found), _, _, _) => msg"the argument is ${Src(found)} here"
+    case ImpossibleClause(_, ClauseConflict.Family(t), _, _, _) => msg"not a constructor of ${Src(t)}"
+    case AbsurdNotEmpty(_, ps, _) => Msg.text(s"${ps.map(c => s"`$c`").mkString(", ")} can occur here")
+    case _: AbsurdWithRhs => msg"remove the right-hand side"
+    case _: MisplacedAbsurd => msg"absurd pattern"
 
   override def labels: List[(Span, Msg)] = this match
     case NotTerminating(_, _, Some((sp, shown))) => List(sp -> msg"in this clause: ${Src(shown)}")
@@ -158,7 +196,25 @@ enum ClauseProblem extends Problem:
         msg"a `where` block contains definitions `x = e.`, local functions (`f : A.` and clauses `f p̄ = e.`) and pattern bindings `c x̄ = e.`"
       )
     case _: UnreachableClause => List(msg"the clauses before it cover all the cases it matches")
+    case _: ImpossibleClause =>
+      List(msg"a clause is checked in its own context: no argument can match its patterns, so the clause can never apply")
+    case _: AbsurdNotEmpty => List(msg"an absurd pattern `()` stands for a position none of whose constructors can occur")
+    case _: AbsurdWithRhs => List(msg"a clause with an absurd pattern `()` matches no argument, so it has no right-hand side")
+    case _: MisplacedAbsurd => List(msg"`()` marks a pattern position of an empty type in an absurd clause `f p̄.`")
     case ClausesWithoutDeclaration(_, _, true) => List(msg"the clauses of a module body define the functions that the body declares")
+    case _ => Nil
+
+  override def suggestions: List[Suggestion] = this match
+    case ImpossibleClause(_, _, _, removal, absurd) =>
+      removal.toList.map(r => Suggestion.replace(r, "", msg"remove the clause", Applicability.MachineApplicable)) ++
+        absurd.toList.map { (pat, rhs) =>
+          Suggestion(
+            "replace the pattern by the absurd pattern `()` and remove the right-hand side",
+            List(Edit(pat, "()"), Edit(rhs, "")),
+            Applicability.MachineApplicable
+          )
+        }
+    case AbsurdWithRhs(rhs, _) => List(Suggestion.replace(rhs, "", msg"remove the right-hand side", Applicability.MachineApplicable))
     case _ => Nil
 
   override def helps: List[Msg] = this match
