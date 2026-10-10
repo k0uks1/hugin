@@ -79,7 +79,7 @@
       {
         "code": "W0003",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/W0003.html"
         },
         "message": "unused definition `two`\nnever referenced",
         "range": {
@@ -101,7 +101,7 @@
       {
         "code": "W0003",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/W0003.html"
         },
         "message": "unused definition `code`\nnever referenced",
         "range": {
@@ -123,7 +123,7 @@
       {
         "code": "W0003",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/W0003.html"
         },
         "message": "unused definition `later`\nnever referenced",
         "range": {
@@ -145,7 +145,7 @@
       {
         "code": "E0924",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0924.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0924.html"
         },
         "data": {
           "context": [],

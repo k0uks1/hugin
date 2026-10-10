@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hugin</title>
+<meta name="description" content="Hugin is a typed Datalog with first-class facts and a total, dependently typed meta level that computes object programs at compile time.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./">Hugin</a>
+    <nav>
+      <a href="play/">Playground</a>
+      <a href="reference/">Reference</a>
+      <a href="reference/errors/index.html">Errors</a>
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Hugin</h1>
+        <p class="lede"><strong>Hugin is a typed Datalog</strong> with first-class facts at the object level and a
+        total, dependently typed meta level that computes object programs at compile time.</p>
+        <div class="actions">
+          <a class="button primary" href="play/#example=people">Open in the playground</a>
+          <a class="button" href="reference/">Language reference</a>
+        </div>
+      </div>
+      <figure class="card">
+        <div class="card-head"><span class="file">people.hgn</span><span>example</span></div>
+<pre><code class="hugin"><!-- build.mjs: site/example.hgn, highlighted by `hugin highlight` --></code></pre>
+        <div class="out">
+          <div class="card-head"><span class="file">$ hugin run people.hgn</span><span>output</span></div>
+<pre><code><!-- build.mjs: site/example.check, the output of `hugin run` --></code></pre>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Documentation</p>
+      <h2>Links</h2>
+      <ul class="links">
+        <li><a href="play/"><strong>Playground</strong><span>The compiler, running in the browser.</span></a></li>
+        <li><a href="reference/"><strong>Language reference</strong><span>The definition of the language.</span></a></li>
+        <li><a href="reference/errors/index.html"><strong>Error index</strong><span>Every diagnostic code, with an explanation.</span></a></li>
+        <li><a href="https://github.com/k0uks1/hugin"><strong>GitHub</strong><span>The reference implementation, in Scala 3.</span></a></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <p class="eyebrow">Background</p>
+      <h2>Papers</h2>
+      <ol class="papers">
+        <li><a class="title" href="https://arxiv.org/abs/2411.14330">Datalog with First-Class Facts</a><span class="meta">T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. PVLDB 18(3), 2024.</span><span class="role">object level</span></li>
+        <li><a class="title" href="https://doi.org/10.1145/3547641">Staged Compilation with Two-Level Type Theory</a><span class="meta">A. Kovács. ICFP 2022.</span><span class="role">meta level</span></li>
+        <li><a class="title" href="https://arxiv.org/abs/1705.06927">Foundations of Declarative Data Analysis Using Limit Datalog Programs</a><span class="meta">M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. IJCAI 2017.</span><span class="role">bound columns</span></li>
+        <li><a class="title" href="https://doi.org/10.1145/360204.360210">The Size-Change Principle for Program Termination</a><span class="meta">C. S. Lee, N. D. Jones, A. M. Ben-Amram. POPL 2001.</span><span class="role">termination checks</span></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>Hugin is a research language; it changes without regard for compatibility. Apache License 2.0.</span>
+    <nav><a href="play/">Playground</a><a href="reference/">Reference</a><a href="reference/errors/index.html">Errors</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>
+</body>
+</html>

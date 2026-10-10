@@ -2,7 +2,7 @@
 
 > **Status: completed plan, kept as the record.** Phases A, B and C (C1–C3) are done; Phase D
 > (consolidation) is in progress ([issue #40](https://github.com/k0uks1/hugin/issues/40)). The language is
-> now specified by the [language reference](https://k0uks1.github.io/hugin/); where this plan and the
+> now specified by the [language reference](https://k0uks1.github.io/hugin/reference/); where this plan and the
 > reference differ, the reference applies. Deviations from the plan are recorded in the status notes of
 > §10 and in `docs/NOTES.md`; the notes this plan replaced are in `docs/history/`. The text below is the
 > plan as it was accepted and carried out; it is not updated any more except for these status notes.

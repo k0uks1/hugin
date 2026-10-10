@@ -149,7 +149,7 @@ title of the code in `Code.scala`; `ExplanationsSuite` checks it and the example
 3. `## Why this is an error`: the rule the program breaks, in the words of the reference, then one
    sentence on the example ("Here `X` is a `person` in one atom and a `city` in the other."). Link the
    chapter of the reference with its absolute URL, since `hugin explain` prints the text in a terminal:
-   "See [Termination](https://k0uks1.github.io/hugin/object/termination.html)."
+   "See [Termination](https://k0uks1.github.io/hugin/reference/object/termination.html)."
 4. `## How to fix it`: one sentence that says what the fix changes, ending with a colon ("Give the
    second relation a name of its own:"), then the fixed program.
 5. `## Related` (optional): other codes, as `E0002 (unterminated comment or string)`.
@@ -253,7 +253,7 @@ Better: "Facts are first class: [...] This is the logic DL∃! ([Gilray et al. 2
 > component, so it counts there too (see `docs/NOTES.md`). [...] (`min int` / `max int`)
 
 Better: "A rule that builds a constructor term in its head is also evaluated in the component of the
-constructor, so it counts there too. See [Termination](https://k0uks1.github.io/hugin/object/termination.html)."
+constructor, so it counts there too. See [Termination](https://k0uks1.github.io/hugin/reference/object/termination.html)."
 and "(`min int` or `max int`)".
 
 **Names that mean nothing** (`object/negation.md`):

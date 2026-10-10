@@ -1,0 +1,4 @@
+?- reach.path cid P, P <> cid.
+P = ann.
+P = bob.
+P = dan.
