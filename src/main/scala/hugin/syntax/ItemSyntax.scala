@@ -108,7 +108,13 @@ private[syntax] trait ItemSyntax extends ParserBase:
   private def parseDefRest(lhs: Tree, first: Token): Item =
     val start = first.span.start
     advance()
-    val rhs = parseExpr(LvlSemi)
+    val rhs =
+      if at(Tok.KwWhere) && startsExpression(peekTok(1).kind) && peekTok(1).span.startLine == tok.span.startLine then
+        // `f p = where e`: a stray `where` before the right-hand side, skipped with an error
+        expected(List(Expect.expression))
+        advance()
+        damaged(parseExpr(LvlSemi))
+      else parseExpr(LvlSemi)
     val (where, clean) = if at(Tok.KwWhere) then parseWhere(first) else (Nil, true)
     if where.nonEmpty then Clause(lhs, checked(rhs, clean), where)(spanFrom(start))
     else

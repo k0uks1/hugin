@@ -1,0 +1,10 @@
+(* A stray `where` right before the right-hand side of a clause: one error, the token is skipped, and the
+   clause (damaged) keeps its real `where` block, whose definitions are parsed without further errors. *)
+shape : Type.
+rect : int -> int -> shape.
+area : shape -> int.
+area (rect W H) = where w * h (*~ E0001 *)
+  where w = W + 0.
+        h = H * 1.
+answer : int -> rel.
+answer (area (rect 6 7)).

@@ -1,0 +1,12 @@
+error[E0001]: expected an expression, found `where`
+ --> tests/recovery/r_stray_where.hgn:6:19
+  |
+6 | area (rect W H) = where w * h (*~ E0001 *)
+  |                   ^^^^^ expected an expression
+
+1 error found
+(* ---------------- after elaborate ---------------- *)
+shape : Type.
+rect : int -> int -> shape.
+area : shape -> int.
+answer : int -> rel.
