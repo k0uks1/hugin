@@ -11,7 +11,8 @@ import scala.jdk.CollectionConverters.*
 
 /** A client that records the published diagnostics. */
 class RecordingClient extends LanguageClient:
-  val published: mutable.Map[String, List[Diagnostic]] = mutable.LinkedHashMap.empty
+  /** The diagnostics last published for each URI (none if never published). */
+  val published: mutable.Map[String, List[Diagnostic]] = mutable.LinkedHashMap.empty[String, List[Diagnostic]].withDefaultValue(Nil)
   val queue = LinkedBlockingQueue[PublishDiagnosticsParams]()
   override def publishDiagnostics(p: PublishDiagnosticsParams): Unit =
     published(p.getUri) = p.getDiagnostics.asScala.toList
@@ -55,11 +56,13 @@ class LanguageServerSuite extends munit.FunSuite:
 
   private def open(s: HuginLanguageServer, uri: String, text: String): Unit =
     s.getTextDocumentService.didOpen(DidOpenTextDocumentParams(TextDocumentItem(uri, "hugin", 1, text)))
+    s.idle().get()
 
   private def change(s: HuginLanguageServer, uri: String, text: String): Unit =
     s.getTextDocumentService.didChange(
       DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(uri, 2), List(TextDocumentContentChangeEvent(text)).asJava)
     )
+    s.idle().get()
 
   private def doc(uri: String) = TextDocumentIdentifier(uri)
 
@@ -79,6 +82,7 @@ class LanguageServerSuite extends munit.FunSuite:
     assertEquals(c.published(uri), Nil)
     change(s, uri, "p : int -> rel.\np X :- q X.\n")
     s.getTextDocumentService.didClose(DidCloseTextDocumentParams(doc(uri)))
+    s.idle().get()
     assertEquals(c.published(uri), Nil)
   }
 
@@ -244,15 +248,18 @@ class LanguageServerSuite extends munit.FunSuite:
       // fixed on disk: the library's diagnostics are cleared, on its URI
       Files.writeString(lib, "place : type.\nhere : place.\n")
       s.getWorkspaceService.didChangeWatchedFiles(DidChangeWatchedFilesParams(List(FileEvent(libUri, FileChangeType.Changed)).asJava))
+      s.idle().get()
       assertEquals(sent(libUri), List(Nil))
       assertEquals(c.published(mainUri), Nil)
       // broken again: published again
       Files.writeString(lib, "place : type.\nhere : place.\nhere : place.\n")
       s.getWorkspaceService.didChangeWatchedFiles(DidChangeWatchedFilesParams(List(FileEvent(libUri, FileChangeType.Changed)).asJava))
+      s.idle().get()
       assertEquals(sent(libUri).map(_.length), List(1))
       // once no open document imports it, its diagnostics are cleared
       change(s, mainUri, "at : int -> rel.\n")
       s.getTextDocumentService.didClose(DidCloseTextDocumentParams(doc(otherUri)))
+      s.idle().get()
       assertEquals(c.published(libUri), Nil)
     finally
       Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.delete)

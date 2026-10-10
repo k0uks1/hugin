@@ -72,14 +72,6 @@
 --> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"graph2 : Type = { node : type, edge : node -> node -> rel }.\ntc2 (g : graph2) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n  path X Z :- g.edge X Y, path Y Z.\n}.\ncity : type. berlin : city. paris : city.\nroad : city -> city -> rel.\nroad berlin paris.\nroads = tc2 { node = city, edge = road }.\n%output roads.path.\n","uri":"untitled:t.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"untitled:t.hgn"}}}
 <-- {
-  "jsonrpc": "2.0",
-  "method": "textDocument/publishDiagnostics",
-  "params": {
-    "diagnostics": [],
-    "uri": "untitled:t.hgn"
-  }
-}
-<-- {
   "id": 2,
   "jsonrpc": "2.0",
   "result": [

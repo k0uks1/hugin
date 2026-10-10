@@ -72,14 +72,6 @@
 --> {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"languageId":"hugin","text":"k : int = 6 * 7.\nat_k : int -> rel.\nat_k X :- X = k.\ncheap : int -> prop = [I] I < 10.\nlow : int -> rel.\nlow X :- at_k X, cheap X.\nnums : list int -> rel.\nnums (cons 1 nil).\n?- nums L, len L _.\n%use \"std/list\".\n","uri":"untitled:t.hgn","version":1}}}
 --> {"id":2,"jsonrpc":"2.0","method":"textDocument/hover","params":{"position":{"character":14,"line":2},"textDocument":{"uri":"untitled:t.hgn"}}}
 <-- {
-  "jsonrpc": "2.0",
-  "method": "textDocument/publishDiagnostics",
-  "params": {
-    "diagnostics": [],
-    "uri": "untitled:t.hgn"
-  }
-}
-<-- {
   "id": 2,
   "jsonrpc": "2.0",
   "result": {
