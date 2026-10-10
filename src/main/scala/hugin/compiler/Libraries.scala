@@ -195,5 +195,4 @@ object ImportPaths:
     SourceLoader.resolve(if imp.pathSpan.exists then imp.pathSpan.source.path else from, imp.path)
 
   /** All `%import` expressions of a program, in source order. */
-  def importsIn(program: Program): List[Trees.Import] =
-    hugin.syntax.TreeOps.nodes(program.items).collect { case i: Trees.Import => i }.toList
+  def importsIn(program: Program): List[Trees.Import] = program.imports

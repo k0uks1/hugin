@@ -14,7 +14,14 @@ import java.nio.file.Files
  *  sbt "Test/runMain hugin.bench.Bench warm"        # prelude elaboration and the bench set, warm
  *  sbt "Test/runMain hugin.bench.Bench first"       # one compile of a one-line program in this JVM
  *  sbt "Test/runMain hugin.bench.Bench gen"         # (re)writes the generated bench programs
+ *  sbt "Test/runMain hugin.bench.Bench cpu [names...]"  # thread CPU time and allocated bytes, see below
  *  }}}
+ *
+ *  `cpu` measures the current thread's CPU time and allocated bytes (`com.sun.management.ThreadMXBean`)
+ *  instead of wall time, which a shared machine disturbs; compilation runs on the calling thread, and the
+ *  allocated bytes stand for the garbage collector's work. It runs `HUGIN_BENCH_ROUNDS` rounds (default
+ *  4), alternating the order of the measurements between rounds; to compare two builds, run them in
+ *  alternation as well.
  *
  *  `HUGIN_BENCH_RUNS` (default 15) sets the number of measured runs, `HUGIN_BENCH_WARMUP` (default 10)
  *  the warm-up runs. */
@@ -36,11 +43,42 @@ object Bench:
         case name => () => BenchSet.all.find(_.name.contains(name)).get.runInProcess()
       report(s"loop $what", f())
       for _ <- 0 until n.toInt do f()
+    case "cpu" :: only => cpu(only)
     case "warm" :: only =>
       report("prelude elaboration (uncached, direct)", elabPrelude())
       report("compile one-line program (check, new database)", compileOneLine())
       for b <- BenchSet.all if only.isEmpty || only.exists(b.name.contains) do report(b.name, b.runInProcess())
-    case _ => println("usage: Bench gen | first | warm [names...] | loop prelude|one-line|<name> <n>")
+    case _ => println("usage: Bench gen | first | warm [names...] | cpu [names...] | loop prelude|one-line|<name> <n>")
+
+  private val rounds = env("HUGIN_BENCH_ROUNDS", 4)
+
+  /** The measurements of `warm`, by name. */
+  private def measurements: List[(String, () => Unit)] =
+    ("prelude elaboration (uncached, direct)", () => elabPrelude()) ::
+      ("compile one-line program (check, new database)", () => compileOneLine()) ::
+      BenchSet.all.map(b => (b.name, () => b.runInProcess()))
+
+  private def cpu(only: List[String]): Unit =
+    val mx = java.lang.management.ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
+    val ms = measurements.filter((n, _) => only.isEmpty || only.exists(n.contains))
+    val cpuTimes = collection.mutable.Map[String, Vector[Long]]().withDefaultValue(Vector())
+    val allocs = collection.mutable.Map[String, Vector[Long]]().withDefaultValue(Vector())
+    for r <- 0 until rounds do
+      for (name, f) <- if r % 2 == 0 then ms else ms.reverse do
+        for _ <- 0 until warmup do f()
+        for _ <- 0 until runs do
+          val c0 = mx.getCurrentThreadCpuTime
+          val a0 = mx.getCurrentThreadAllocatedBytes
+          f()
+          val c1 = mx.getCurrentThreadCpuTime
+          val a1 = mx.getCurrentThreadAllocatedBytes
+          cpuTimes(name) :+= c1 - c0
+          allocs(name) :+= a1 - a0
+    for (name, _) <- ms do
+      val ts = cpuTimes(name)
+      println(
+        f"$name%-50s cpu median ${median(ts) / 1e6}%9.2f ms  min ${ts.min / 1e6}%9.2f ms  alloc median ${median(allocs(name)) / 1e6}%9.2f MB  (n=${ts.length})"
+      )
 
   /** The time of one call of `f`, in nanoseconds. */
   def time(f: => Unit): Long =

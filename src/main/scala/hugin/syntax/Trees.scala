@@ -216,6 +216,10 @@ object Trees:
     /** `%export S.` (reference: modules): the file's module value is ascribed the signature `S`. */
     case Export(signature: Tree)
 
-  final case class Program(items: List[Item], span: Span)
+  final case class Program(items: List[Item], span: Span):
+    /** All `%import` expressions of the program, in source order. Computed once per program (trees are
+     *  immutable): the standard library's parsed files are shared by every compilation of a process, and
+     *  each compilation asks for their imports (`LazyStdlib`, the import graph). */
+    lazy val imports: List[Import] = TreeOps.nodes(items).collect { case i: Import => i }.toList
 
 export Trees.*
