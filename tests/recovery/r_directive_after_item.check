@@ -7,7 +7,13 @@ error[E0001]: expected `.` after the fact, found `%use`
   |
   = help: every item ends with a period
 
-1 error found
+error[E0001]: expected an expression, found `%use`
+ --> tests/recovery/r_directive_after_item.hgn:7:3
+  |
+7 |  [%use "std/reflect". (*~ E0001 *)
+  |   ^^^^ expected an expression
+
+2 errors found
 (* ---------------- after elaborate ---------------- *)
 place : type.
 here : place.

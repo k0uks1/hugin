@@ -140,10 +140,11 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
       if at(Tok.Period) && tok.span.start == stray.span.end then advance()
       skipItem()
       false
-    else if !quiet && at(Tok.Directive) && startsDirectiveItem(tok) && !startsLine(i) then
+    else if at(Tok.Directive) && startsDirectiveItem(tok) && !startsLine(i) && (!quiet || directiveItemAhead) then
       // a directive after a complete item on its line starts the next item (`leg%use "f".`): the period is
-      // missing, and the item, not followed by a new line, is damaged (after an error in the item, the
-      // directive is junk, skipped with the rest: `f = %output …`)
+      // missing, and the item, not followed by a new line, is damaged. After an error in the item, so does
+      // a directive whose item ends its line (` [%use "f".`); otherwise it is junk, skipped with the rest
+      // of the item (`f = %output '( … )`⏎`  where …`)
       error(SyntaxError.MissingPeriod(context.construct, found, insertionPoint, Some(tok.span)))
       false
     else if at(Tok.EOF) || startsLine(i) || atBodyCloser then
@@ -154,6 +155,19 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
       expected(expectations, Some(context))
       skipItem()
       false
+
+  /** At a directive: whether its item ends on its line with a period at depth 0, followed by the end of the
+   *  file or a token in column 0. */
+  private def directiveItemAhead: Boolean =
+    var k = i + 1
+    var depth = 0
+    while toks(k).kind != Tok.EOF && !startsLine(k) && !(depth == 0 && toks(k).kind == Tok.Period) do
+      toks(k).kind match
+        case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+        case Tok.RParen | Tok.RBrack | Tok.RBrace => depth = (depth - 1).max(0)
+        case _ =>
+      k += 1
+    toks(k).kind == Tok.Period && (toks(k + 1).kind == Tok.EOF || atColumn0(k + 1))
 
   /** Skips the rest of an item: to its period at depth 0 (consumed), or before a token in column 0, the `}`
    *  closing the enclosing body, or the end of the file. At the top level, a period followed by an
