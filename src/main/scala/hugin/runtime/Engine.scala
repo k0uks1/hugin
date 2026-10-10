@@ -370,7 +370,13 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
     case i: Infinity => if nested && i == Infinity.Neg then s"(${i.show})" else i.show
     case other => other.toString
 
+  /** The name of a relation and its current tuples, each argument printed as [[facts]] prints it. */
+  def rows(rel: Int): (String, List[List[String]]) =
+    val r = store(rel)
+    (r.sym.displayName, r.tuples.indices.filter(r.current).map(n => r.tuples(n).toVector.map(show(_, nested = true)).toList).toList)
+
   /** The facts of a relation, printed and sorted. For a relation with a bound column, the current (best) tuple of each key. */
+
   def facts(rel: Int): List[String] =
     val r = store(rel)
     r.tuples.indices.filter(r.current).map(n => show(Id(rel, n)) + ".").toList.sorted

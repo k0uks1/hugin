@@ -18,6 +18,8 @@ import scala.jdk.CollectionConverters.*
  *    and the program after `elaborate`, which shows that the items around the errors are elaborated.
  *  - `tests/pos/X.hgn`: must compile without errors.
  *  - `docs/design/examples/X.hgn`: the worked examples of the design notes, run like `tests/run`.
+ *  - `site/example.hgn`: the example of the website's landing page (site/build.mjs shows its `.check`),
+ *    run like `tests/run`.
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
  *    without errors, and be a fixed point (fixing it again changes nothing).
@@ -58,7 +60,7 @@ class GoldenTests extends munit.FunSuite:
       val expected = Files.readString(check)
       assertNoDiff(actual, expected, s"output of $p differs from ${check.getFileName}")
 
-  for p <- files("run") ++ files("design/examples", root = "docs") do
+  for p <- files("run") ++ files("design/examples", root = "docs") ++ files("", root = "site") do
     test(s"${p.getParent.getFileName}/${p.getFileName}") {
       val facts = sibling(p, ".facts")
       val factArgs = if Files.exists(facts) then List("--facts", facts.toString) else Nil
