@@ -61,6 +61,9 @@ class LongListsSuite extends munit.FunSuite:
          |?- q X.
          |?- edge X Y.
          |""".stripMargin
+    for k <- List(600, 700, 800, 900, 1000, 1100, 1200, 1400, 1700, 2000) do
+      val ok = try { val task = FutureTask[Any](() => hugin.TestSupport.run(code)); val th = Thread(null, task, "probe", k * 1024L); th.start(); task.get(); true } catch case _: Throwable => false
+      println(s"STACKPROBE $k $ok")
     val out = onDefaultStack(hugin.TestSupport.run(code)).fold(e => fail(s"errors: $e"), identity)
     assertEquals(out.count(_.matches("X = \\d+\\.")), 400)
     assert(out.contains("X = n1, Y = n0."), out.mkString("\n").take(2000))

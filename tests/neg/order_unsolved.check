@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+ --> tests/neg/order_unsolved.hgn:8:19
+  |
+8 | r : int = q one _ refl. (*~ E0901 *)
+  |                   ^^^^ expected `eqn zero (c ?0)`, found `eqn (c ?0) (c ?0)`
+
+1 error found

@@ -238,7 +238,7 @@ trait SizeChange:
   private val MaxInlineSteps = 10000
 
   /** The term of a definition. */
-  private def definitionTerm(g: Int): Option[Tm] = globals(g).kind match
+  private def definitionTerm(g: Int): Option[Tm] = kindOf(g) match
     case GlobalKind.Definition(tm, _) => Some(tm)
     case _ => None
 
@@ -354,6 +354,9 @@ trait SizeChange:
     }
 
   private val rejected = mutable.Set.empty[Int]
+
+  /** Whether the function `f` was rejected by the termination check (E0912): it never reduces. */
+  def rejectedByTermination(f: Int): Boolean = rejected(f)
 
   /** The number of recorded calls already checked by [[checkTermination]]. */
   private var checkedCalls = 0
