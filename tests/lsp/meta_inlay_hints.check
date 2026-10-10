@@ -79,7 +79,7 @@
       {
         "code": "W0003",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/W0003.html"
         },
         "message": "unused definition `three`\nnever referenced",
         "range": {
@@ -101,7 +101,7 @@
       {
         "code": "W0003",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/W0003.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/W0003.html"
         },
         "message": "unused definition `pair`\nnever referenced",
         "range": {

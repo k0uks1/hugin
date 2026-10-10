@@ -79,7 +79,7 @@
       {
         "code": "E0101",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0101.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0101.html"
         },
         "message": "unresolved name `d`\nnot found in this scope",
         "range": {
@@ -98,7 +98,7 @@
       {
         "code": "E0101",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0101.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0101.html"
         },
         "message": "unresolved name `fr`\nnot found in this scope",
         "range": {
@@ -117,7 +117,7 @@
       {
         "code": "E0101",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0101.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0101.html"
         },
         "message": "unknown directive `%sy`\nnot found in this scope\nnote: a directive `%d` applies the meta function `d` in scope; the prelude declares the primitive ones",
         "range": {
@@ -136,7 +136,7 @@
       {
         "code": "E0001",
         "codeDescription": {
-          "href": "https://k0uks1.github.io/hugin/errors/E0001.html"
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0001.html"
         },
         "message": "expected `.` after the directive, found `%use`\nexpected `.` here\nhelp: every item ends with a period",
         "range": {
