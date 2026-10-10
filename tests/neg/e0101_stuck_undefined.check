@@ -1,15 +1,15 @@
 error[E0101]: unresolved name `choose`
- --> tests/neg/e0101_stuck_undefined.hgn:5:14
+ --> tests/neg/e0101_stuck_undefined.hgn:6:14
   |
-5 | pick B X Y = choose B X Y. (*~ E0101 *)
+6 | pick B X Y = choose B X Y. (*~ E0101 *)
   |              ^^^^^^ not found in this scope
 
-error[E0909]: cannot compute a primitive value at compile time
-  --> tests/neg/e0101_stuck_undefined.hgn:20:1
+warning[W0003]: unused definition `twenty`
+  --> tests/neg/e0101_stuck_undefined.hgn:13:1
    |
-20 | measured (size (grow twenty [1])). (*~ E0909 *)
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `size (pick {list int} true (cons {int} (first (pick {list int} true (cons {int} (first (pick {list int} true (cons {int} (first (pick {list int} true (… …) …)) …) …)) …) …)) …) …)` does not evaluate to a literal
+13 | twenty : nat = suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc zero))))))))))))))))))). (*~ W0003 *)
+   | ^^^^^^ never referenced
    |
-   = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+   = note: `-W unused_definitions` is on by default
 
-2 errors found
+1 error, 1 warning found

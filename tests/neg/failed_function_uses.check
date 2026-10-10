@@ -1,0 +1,15 @@
+error[E0101]: unresolved name `missing`
+ --> tests/neg/failed_function_uses.hgn:7:14
+  |
+7 | step X = X + missing. (*~ E0101 *)
+  |              ^^^^^^^ not found in this scope
+
+error[E0402]: type mismatch
+  --> tests/neg/failed_function_uses.hgn:13:10
+   |
+13 | measured "four". (*~ E0402 *)
+   |          ^^^^^^ expected `int`, found `string`
+   |
+   = note: in column 1 of `measured`
+
+2 errors found

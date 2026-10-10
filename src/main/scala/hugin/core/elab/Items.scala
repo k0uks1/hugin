@@ -257,14 +257,16 @@ trait Items:
         catch
           case e: ElabError =>
             report(e)
-            // its case tree may refer to the undone metas: the function is stuck, as one that may not
-            // terminate (a use reduces no further)
+            // its case tree may refer to the undone metas: the function is left undefined
             if fn >= 0 then
               globals(fn).kind match
                 case GlobalKind.Function(arity, Some(_)) => globals(fn).kind = GlobalKind.Function(arity, None)
                 case _ =>
-            // dropped for an error that follows from a syntax error: its uses are not elaborated either
-            if e.silent then state.unelaborated += n
+            // the function failed: its uses, and those of what expands to it (definitions and functions
+            // elaborated before it), are left out without a further diagnostic, as those of a dropped item;
+            // so are those of a function dropped for an error that follows from a syntax error
+            if fn >= 0 || e.silent then state.unelaborated += n
+            if fn >= 0 then leaveOutUsesOf(Set(fn))
       }
 
   private def declaredFunction(n: Name, first: Item): Int =
