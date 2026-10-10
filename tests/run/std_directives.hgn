@@ -1,0 +1,54 @@
+(* std/directives (#61, B4): every function, through directives whose arguments are object syntax:
+   the parts of rules and modules, the calls of a relation (under `not`, in aggregates and in
+   disjunctions), the binding analysis, fresh names, and `reject` on an accepted argument. *)
+%use "std/reflect". %use "std/list". %use "std/directives".
+
+edge : int -> int -> rel.
+path : int -> int -> rel.
+pt : type. pair : pt -> pt -> pt. leaf : int -> pt.
+
+names : (what : string) -> (vars : list string) -> rel.
+number : (what : string) -> (n : int) -> rel.
+truth : (what : string) -> (b : bool) -> rel.
+name : (what : string) -> (n : string) -> rel.
+
+parts : rule -> list item.
+parts R = '( number "heads" $(length (heads R)). number "body" $(length (body R)). ).
+%parts '( path X Z :- edge X Y, path Y Z ).
+%parts '( edge 7 7 ).
+
+calling : sym -> formula -> list item.
+calling R F = '( number "calls" $(length (calls R F)). number "args" $(length (concat (calls R F))). ).
+%calling path (path X Y; not path Y X, N = count { Z | path X Z }, edge X N).
+
+terms : term -> list item.
+terms T = '( names "tvars" $(tvars T). truth "plain" $(plain T). ).
+%terms (pair (leaf X) (leaf (Y + X))).
+%terms (pair (leaf X) (leaf -Y)).
+%terms (leaf 3).
+
+atoms : formula -> list item.
+atoms (fatom S Ts) = '( names "tsvars" $(tsvars Ts). truth "plains" $(plains Ts). ).
+atoms F = reject "`%atoms` expects an atom".
+%atoms (edge X (Y * 2)).
+%atoms (edge X Y).
+
+formulas : formula -> list item.
+formulas F = '( names "fvars" $(fvars F). names "fbound" $(fbound F). names "fneeds" $(fneeds F). ).
+%formulas (X = Y + 1, not edge X Z).
+%formulas (X = Y, edge Y Z; Z < W).
+%formulas (N = count { Z | edge X Z }, N > M).
+
+name "fresh []" (fresh "x" []).
+name "fresh" (fresh "x" ["x#0", "x#000", "x#00", "y"]).
+name "fresh other" (fresh "y" ["x#0"]).
+
+total : module -> module.
+total Is = append ('( number "rules" $(length (rules Is)). ) : module) Is.
+%total.
+edge 1 2.
+@named path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
+?- path 1 X.
+
+%output names. %output number. %output truth. %output name.

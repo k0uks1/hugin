@@ -1,0 +1,8 @@
+(* std/list (#61, B4): `elem`, `diff` and `lookup` compare by `same`, which is stuck on constructed
+   values: the meta code that uses them does not evaluate to object code *) %use "std/list".
+found : bool -> rel.
+found (elem (some 1) [some 1]). (*~ E0909 *)
+keys : option int -> rel.
+keys (lookup [1] [{ key = [1], value = 2 }]). (*~ E0909 *)
+rest : list (list int) -> rel.
+rest (diff [[1], [2]] [[2]]). (*~ E0909 *)

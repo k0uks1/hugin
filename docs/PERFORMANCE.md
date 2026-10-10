@@ -602,6 +602,28 @@ alternating.
 * A program that uses `%demand` elaborates the same chain as before. The warm cached compile
   (`StdlibCache`) is unchanged.
 
+## `std/demand` on `std/list` and `std/directives` (#61, batch B4)
+
+`std/demand` now imports `std/list` and `std/directives`, so the chain of a program that uses `%demand` has
+two more files. Measured with `Bench cpu` (thread CPU time and allocated bytes, medians of 2 JVMs × 2
+rounds × 15 runs), 186694b against B4 in alternating JVMs, load average above 20:
+
+| measurement | before | B4 | change |
+|---|---:|---:|---:|
+| full chain elaboration, uncached (CPU / allocated) | 55.7 ms / 19.1 MB | 69.8 ms / 23.7 MB | +25 % / +24 % |
+| compile one-line program (CPU / allocated) | 3.8 ms / 0.66 MB | 3.8 ms / 0.73 MB | 0 / +11 % |
+| `run a04_typechecker` (CPU / allocated) | 27.0 ms / 8.9 MB | 26.6 ms / 9.8 MB | within noise / +10 % |
+| `run meta_scaled` (CPU / allocated) | 630 ms / 318 MB | 699 ms / 341 MB | +11 % / +7 % |
+
+* The chain's cost is paid once per process, by programs that use `%demand`; the others elaborate the same
+  chain as before (B2). Of the 0.9 MB per compilation of `a04_typechecker`, about 0.4 MB is the larger
+  base that every compilation forks (measured with today's `std/demand` over the new chain).
+* A first version wrote `diff`, `dshares` and the items with `filter`, `any` and `map` and lambdas:
+  `a04_typechecker` allocated 20.4 MB, `meta_scaled` 358 MB. A function argument is part of the memo key
+  of every meta application, so the helpers on the path of every `%demand` are first-order. After the
+  table was measured, `fbound` and `plains` of `std/directives` got clauses in place of `if`
+  (`meta_scaled` 333 MB, one JVM).
+
 ## The rest of #60
 
 What remained of issue #60 after #88 and the stdlib split (#61), re-measured at b4a8b28 (the same code

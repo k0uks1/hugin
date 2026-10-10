@@ -9,3 +9,5 @@ project/project/
 .claude/
 editors/vscode/node_modules/
 *.vsix
+site/node_modules/
+_site/

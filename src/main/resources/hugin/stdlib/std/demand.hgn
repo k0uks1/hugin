@@ -4,8 +4,11 @@
    rule or query of the module) passes its inputs as demand, from the conjuncts before it
    (`r.check t̄ :- prefix`): a seed rule outside `r`, a propagation rule inside it. The modes are typed by
    the labels of `r`'s columns (`modes (labels r)`): `+e` must name the first column, a plain `+` or `-`
-   any. The module exports `demand` only: its helpers are outside its signature. *)
+   any. The module exports `demand` only: its helpers are outside its signature. It is written on
+   `std/list` and the binding analysis of `std/directives`. *)
 %use "std/reflect".
+%use "std/list".
+%use "std/directives".
 %export { demand : (r : sym) -> modes (labels r) -> module -> module }.
 
 demand : (r : sym) -> modes (labels r) -> module -> module.
@@ -59,7 +62,7 @@ dmodule R Cs M G (I :: Is) = I :: dmodule R Cs M [] Is.
    it; any other with the demand of its calls *)
 dstep : sym -> list sym -> modes Ls -> list formula -> rule -> (rule -> item) -> module.
 dstep R Cs M G '( $S $..Ts :- $..B ) Mk = dhead (same R S) (derived S) R Cs M G S Ts B Mk.
-dstep R Cs M G Rl Mk = Mk Rl :: ditems (dbody R Cs M Rl).
+dstep R Cs M G Rl Mk = Mk Rl :: ditems (dcalls R Cs M [] (body Rl)).
 
 dhead : bool -> bool -> sym -> list sym -> modes Ls -> list formula -> sym -> list term -> list formula -> (rule -> item) -> module.
 dhead true D R Cs M G S Ts B Mk = dguarded (dguard R M Ts) S (dnamed "_" M Ts) B Mk :: ditems (dcalls R Cs M [dguard R M Ts] B).
@@ -75,16 +78,8 @@ dguard R M Ts = fatom (derive R "check") (dinputs M (dnamed "_" M Ts)).
 
 (* The guard the rules after `Rl` get: `Rl`'s if it is a rule of `r`, `G` if it is derived *)
 dguardOf : sym -> modes Ls -> rule -> list formula -> list formula.
-dguardOf R M '( $S $..Ts :- $..B ) G = dguardSel (same R S) (derived S) (dguard R M Ts) G.
+dguardOf R M '( $S $..Ts :- $..B ) G = if (same R S) ([dguard R M Ts]) (if (derived S) G []).
 dguardOf R M Rl G = [].
-
-dguardSel : bool -> bool -> formula -> list formula -> list formula.
-dguardSel true D F G = [F].
-dguardSel false true F G = G.
-dguardSel false false F G = [].
-
-dbody : sym -> list sym -> modes Ls -> rule -> list rule.
-dbody R Cs M (horn Hs B) = dcalls R Cs M [] B.
 
 (* The demand of the calls of `r` among the formulas `Fs`, each from the formulas before it *)
 dcalls : sym -> list sym -> modes Ls -> list formula -> list formula -> list rule.
@@ -128,11 +123,7 @@ dprefix Cs Is Pre = dpruned Cs Pre (dneed Cs Pre (dkeepCalls Cs (dneed Cs Pre []
    adds the needs of a kept aggregate) that the other formulas do not bind *)
 dneed : list sym -> list formula -> list formula -> list term -> list string.
 dneed Cs Pre Kept Is =
-  sdiff (append (tsvars Is) (append (dothers Cs fneeds Pre) (dallneeds Kept))) (dothers Cs fbound Pre).
-
-dallneeds : list formula -> list string.
-dallneeds [] = [].
-dallneeds (F :: Fs) = append (fneeds F) (dallneeds Fs).
+  diff (append (tsvars Is) (append (dothers Cs fneeds Pre) (dallneeds Kept))) (dothers Cs fbound Pre).
 
 dpruned : list sym -> list formula -> list string -> list formula.
 dpruned Cs Pre Need = dkeepCalls Cs Need Pre.
@@ -142,108 +133,38 @@ dkeepCalls Cs Need [] = [].
 dkeepCalls Cs Need (F :: Fs) = dkeepF Cs Need F (dkeepCalls Cs Need Fs).
 
 dkeepF : list sym -> list string -> formula -> list formula -> list formula.
-dkeepF Cs Need (fatom S Ts) Fs = dkeepIf (msym (derive S "check") Cs) (shares (tsvars Ts) Need) (fatom S Ts) Fs.
+dkeepF Cs Need (fatom S Ts) Fs =
+  if (elem (derive S "check") Cs) (dkeepIf (dshares (tsvars Ts) Need) (fatom S Ts) Fs) (fatom S Ts :: Fs).
 dkeepF Cs Need (fnot F) Fs = Fs.
-dkeepF Cs Need (fagg O X T F) Fs = dkeepIf true (shares (tvarsOf X) Need) (fagg O X T F) Fs.
+dkeepF Cs Need (fagg O X T F) Fs = dkeepIf (dshares (tvars X) Need) (fagg O X T F) Fs.
 dkeepF Cs Need F Fs = F :: Fs.
 
-dkeepIf : bool -> bool -> formula -> list formula -> list formula.
-dkeepIf true false F Fs = Fs.
-dkeepIf C N F Fs = F :: Fs.
+(* A call or an aggregate is kept if it binds a needed variable *)
+dkeepIf : bool -> formula -> list formula -> list formula.
+dkeepIf N F Fs = if N (F :: Fs) Fs.
+
+dshares : list string -> list string -> bool.
+dshares [] Ys = false.
+dshares (X :: Xs) Ys = if (elem X Ys) true (dshares Xs Ys).
 
 (* Whether a formula may be left out of a demand rule *)
 dcallOf : list sym -> formula -> bool.
-dcallOf Cs (fatom S Ts) = msym (derive S "check") Cs.
+dcallOf Cs (fatom S Ts) = elem (derive S "check") Cs.
 dcallOf Cs (fnot F) = true.
 dcallOf Cs (fagg O X T F) = true.
 dcallOf Cs F = false.
 
-msym : sym -> list sym -> bool.
-msym S [] = false.
-msym S (C :: Cs) = bor (same S C) (msym S Cs).
-
 (* The variables `V` gives of the formulas that are not such calls *)
 dothers : list sym -> (formula -> list string) -> list formula -> list string.
 dothers Cs V [] = [].
-dothers Cs V (F :: Fs) = append (dunless (dcallOf Cs F) (V F)) (dothers Cs V Fs).
+dothers Cs V (F :: Fs) = append (if (dcallOf Cs F) [] (V F)) (dothers Cs V Fs).
 
-dunless : bool -> list string -> list string.
-dunless true Xs = [].
-dunless false Xs = Xs.
-
-(* Variables of terms and formulas; those a formula binds (an atom all of its own, an equation those of
-   its sides without arithmetic, an aggregate its result) and those it needs bound *)
-tvarsOf : term -> list string.
-tvarsOf (tvar X) = [X].
-tvarsOf (tapp S Ts) = tsvars Ts.
-tvarsOf (tarith O A B) = append (tvarsOf A) (tvarsOf B).
-tvarsOf (tneg A) = tvarsOf A.
-tvarsOf T = [].
-
-tsvars : list term -> list string.
-tsvars [] = [].
-tsvars (T :: Ts) = append (tvarsOf T) (tsvars Ts).
-
-fvars : formula -> list string.
-fvars (fatom S Ts) = tsvars Ts.
-fvars (fcmp C A B) = append (tvarsOf A) (tvarsOf B).
-fvars (fnot F) = fvars F.
-fvars (fconj F G) = append (fvars F) (fvars G).
-fvars (fdisj F G) = append (fvars F) (fvars G).
-fvars (fagg O X T F) = append (tvarsOf X) (append (tvarsOf T) (fvars F)).
-
-fbound : formula -> list string.
-fbound (fatom S Ts) = tsvars Ts.
-fbound (fcmp ceq A B) = dequation (plain A) (plain B) A B.
-fbound (fagg O X T F) = tvarsOf X.
-fbound (fconj F G) = append (fbound F) (fbound G).
-fbound F = [].
-
-dequation : bool -> bool -> term -> term -> list string.
-dequation true true A B = append (tvarsOf A) (tvarsOf B).
-dequation true false A B = tvarsOf A.
-dequation false true A B = tvarsOf B.
-dequation false false A B = [].
-
-fneeds : formula -> list string.
-fneeds F = sdiff (fvars F) (fbound F).
-
-(* a term without arithmetic: a pattern *)
-plain : term -> bool.
-plain (tapp S Ts) = plains Ts.
-plain (tarith O A B) = false.
-plain (tneg A) = false.
-plain T = true.
-
-plains : list term -> bool.
-plains [] = true.
-plains (T :: Ts) = band (plain T) (plains Ts).
-
-(* Booleans and lists of strings as sets *)
-band : bool -> bool -> bool.
-band true B = B.
-band false B = false.
-
-bor : bool -> bool -> bool.
-bor true B = true.
-bor false B = B.
-
-member : string -> list string -> bool.
-member X [] = false.
-member X (Y :: Ys) = bor (same X Y) (member X Ys).
-
-sdiff : list string -> list string -> list string.
-sdiff [] Ys = [].
-sdiff (X :: Xs) Ys = dkeepS (member X Ys) X (sdiff Xs Ys).
-
-dkeepS : bool -> string -> list string -> list string.
-dkeepS true X Zs = Zs.
-dkeepS false X Zs = X :: Zs.
-
-shares : list string -> list string -> bool.
-shares [] Ys = false.
-shares (X :: Xs) Ys = bor (member X Ys) (shares Xs Ys).
-
+(* The rules as items, and the variables the formulas need (first-order: a closure would be part of the
+   memo key of every call) *)
 ditems : list rule -> module.
 ditems [] = [].
 ditems (Rl :: Rls) = irule Rl :: ditems Rls.
+
+dallneeds : list formula -> list string.
+dallneeds [] = [].
+dallneeds (F :: Fs) = append (fneeds F) (dallneeds Fs).
