@@ -37,11 +37,11 @@ final class IntBuf:
 final class Relation(val tag: Int, val sym: RelSym, val arity: Int, indexCols: Set[Vector[Int]]):
   val tuples: mutable.ArrayBuffer[Array[Any]] = mutable.ArrayBuffer.empty
   private val interned = mutable.HashMap.empty[Key, Int]
-  private val indexes: Map[Vector[Int], mutable.HashMap[Key, IntBuf]] =
-    indexCols.map(c => c -> mutable.HashMap.empty[Key, IntBuf]).toMap
+  private val indexes: mutable.HashMap[Vector[Int], mutable.HashMap[Key, IntBuf]] =
+    mutable.HashMap.from(indexCols.map(c => c -> mutable.HashMap.empty[Key, IntBuf]))
 
   /** The indexes with their columns as arrays, for [[append]]. */
-  private val indexList: Array[(Array[Int], mutable.HashMap[Key, IntBuf])] =
+  private var indexList: Array[(Array[Int], mutable.HashMap[Key, IntBuf])] =
     indexes.toArray.map((cols, idx) => (cols.toArray, idx))
 
   /** The bound column of the relation (its last column), if it has one: then [[intern]] keeps one tuple
@@ -111,14 +111,29 @@ final class Relation(val tag: Int, val sym: RelSym, val arity: Int, indexCols: S
     var i = 0
     while i < indexList.length do
       val (cols, idx) = indexList(i)
-      val key = new Array[Any](cols.length)
-      var j = 0
-      while j < cols.length do
-        key(j) = t(cols(j))
-        j += 1
-      idx.getOrElseUpdate(Key(key), IntBuf()) += n
+      addTo(idx, cols, t, n)
       i += 1
     n
 
+  private def addTo(idx: mutable.HashMap[Key, IntBuf], cols: Array[Int], t: Array[Any], n: Int): Unit =
+    val key = new Array[Any](cols.length)
+    var j = 0
+    while j < cols.length do
+      key(j) = t(cols(j))
+      j += 1
+    idx.getOrElseUpdate(Key(key), IntBuf()) += n
+
   /** Identities of the tuples with the given values in the given columns, ascending. */
-  def index(cols: Vector[Int]): mutable.HashMap[Key, IntBuf] = indexes(cols)
+  def index(cols: Vector[Int]): mutable.HashMap[Key, IntBuf] =
+    indexes.getOrElse(cols, built(cols))
+
+  /** An index the program did not ask for when the relation was created: a query answered against an
+   *  evaluated fixpoint that was kept for an earlier program with the same rules (the REPL,
+   *  [[hugin.query.Fixpoint]]) may check other columns. It is built from the tuples and kept up to date. */
+  private def built(cols: Vector[Int]): mutable.HashMap[Key, IntBuf] =
+    val idx = mutable.HashMap.empty[Key, IntBuf]
+    val cs = cols.toArray
+    for n <- tuples.indices do addTo(idx, cs, tuples(n), n)
+    indexes(cols) = idx
+    indexList = indexList :+ (cs, idx)
+    idx

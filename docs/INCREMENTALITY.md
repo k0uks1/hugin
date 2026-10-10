@@ -229,6 +229,16 @@ program under edits) is the safety net for all of them.
 The object-level phases (stratification, demand, termination, lowering) stay whole-program: they are
 global by nature and cheap compared with elaboration (`--stats` shows the split).
 
+Evaluation (issue #126, PR 3; `query/EvaluationQueries.scala`) is split like the compilation: `Lowered`
+projects a compilation onto what evaluation reads apart from the queries (relations with their columns,
+types and directives, the subtyping of the object types, the components and the lowered rules;
+`runtime/LoweredRules.scala`), comparable because symbols are replaced by their indexes; `Fixpoint` holds
+the engine after loading the facts files (each parsed once per text, `FactsFile`) and evaluating; and
+`Evaluate` answers the compilation's queries against it. A REPL query adds an item without changing the
+lowered rules, so it is answered against the memoised fixpoint (`FixpointReuseSuite`); a new rule or a
+changed facts file evaluates again. With `%demand` the transformed rules depend on the query, and the
+fixpoint is keyed on them: a query that changes them evaluates again.
+
 ## Status (after step 10)
 
 Incremental now:
