@@ -1,0 +1,11 @@
+(* std/graph and std/order (#61, B5): `degrees` negates and counts the edges, and the functors of
+   std/order aggregate over the scores, so their signatures require the relations to be complete *)
+%use "std/graph". %use "std/order".
+city : type. a : city. b : city.
+road : city -> city -> rel.
+%open road.
+road a b.
+dg = degrees { node = city, edge = road }. (*~ E0208 *)
+points : city -> city -> int -> rel.
+%open points.
+bst = best { key = city, item = city, score = points }. (*~ E0208 *)

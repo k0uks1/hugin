@@ -90,9 +90,11 @@ The standard library is split (design: `docs/design/stdlib.md`):
 |---|---|
 | `<stdlib>/prelude.hgn` | two `%use` items: `bool`, `true`, `false`, `if`, `same`, `list`, `nil`, `cons`, `append`, `option`, `none`, `some` and the primitive directives from `std/reflect`, `demand` from `std/demand` |
 | `<stdlib>/std/reflect.hgn` | what the compiler knows by name: `list`, `option` (shared), `bool`, `if`, the reflective types, `quoted`, `decl`/`attr`/`measure`, the primitive directives, `modes`, the primitives `same`, `labels`, `derive`, `derived` |
-| `<stdlib>/std/demand.hgn` | `%demand` (`%export { demand : … }`; its helpers are outside the signature) |
-| `<stdlib>/std/list.hgn` | `len` |
-| `<stdlib>/std/graph.hgn` | `graph`, `tc`, `bounded` |
+| `<stdlib>/std/demand.hgn` | `%demand` (`%export { demand : … }`; its helpers are outside the signature); since B4 on `std/list` and `std/directives` |
+| `<stdlib>/std/list.hgn` | `len`; since B4 the meta list functions, `nat`, `size`, `iterate` and `member` |
+| `<stdlib>/std/directives.hgn` | (B4) the parts of rules and modules, `calls`, the binding analysis, `fresh`, `reject` |
+| `<stdlib>/std/graph.hgn` | `graph`, `tc`, `bounded`; since B5 `complete_graph`, `weighted`, `reverse`, `undirected`, `vertices`, `rtc`, `reach`, `scc`, `degrees`, `shortest`, `hops` |
+| `<stdlib>/std/order.hgn` | (B5) `scores`, `best`, `ranking`, `top`, `ints`, `order` |
 
 `pair` was deleted (no program used it; meta code uses record types).
 
@@ -134,7 +136,8 @@ import graph, which is static. It is left out if all of the following hold:
   object constants, shared data or modules with a definition, and report no error. The result is cached
   per process and text.
 
-The files that only a left-out file imports are left out with it. The prelude's `%use` of a file that is
+The files that only a left-out file imports are left out with it; if the program imports one of them, it
+is one of the program's libraries (B4: `std/demand` imports `std/list`, which a program may import). The prelude's `%use` of a file that is
 not in the chain is dropped silently, as any `%use` of a missing import (its error was reported, or here,
 there is none). Since such a file creates no object constant, a program elaborated without it has the
 same output and diagnostics; `LazyStdlibSuite` compares lazy and eager compilations of golden programs.
@@ -145,6 +148,26 @@ database), since completion offers every name in scope.
 that the chains with and without a lazy file share `std/reflect`. In the query database, `StdChain` gives
 the files of the chain a program elaborates; it is cut off unless they change, so an edit elaborates the
 chain again only when the program starts or stops using a lazy file.
+
+### Lists and directives (#61, batch B4)
+
+`std/list` has the meta list functions of the design (5.3), the fuel `nat` with `size` and `iterate`, and
+the object relations `len` and `member`. `std/directives` has the binding analysis that `%demand` used
+(`tvars`, formerly `tvarsOf`, `tsvars`, `fvars`, `fbound`, `fneeds`, `plain`, `plains`), the parts of
+rules (`heads`, `body`) and modules (`rules`), `calls`, `fresh` and `reject`. `std/demand` opens both and
+uses `if`, `elem`, `diff` and `body` in place of its own `band`, `bor`, `member`, `sdiff`, `msym`,
+`dkeepS`, `dunless`, `dguardSel` and `dbody` (its first-order `ditems`, `dallneeds` and `dshares` stay, as
+closures in memo keys cost a run of `%demand` more); it generates the same
+rules (the `--print-after stage` goldens of the `%demand` tests are unchanged).
+
+Files of the prelude's chain are elaborated with no enclosing scope, so `std/list` and `std/directives`
+open `std/reflect` themselves. The chain of a program that uses `%demand` is `std/reflect`, `std/list`,
+`std/directives`, `std/demand`, the prelude. `std/list` declares object constants (`len`, `member`), but
+it is left out only with `std/demand`, whose laziness the check of B2 decides: what a left-out file
+imports is reachable only through it or through an import of the program. A left-out file that the
+program imports is one of the program's libraries (`LazyStdlib.outside`), elaborated after the prelude
+and placed before the first program file that imports it, or last (`LazyStdlib.placed`). So the chain of
+a program that does not use `%demand` stays `std/reflect`, prelude, and is shared as before.
 
 ### Shared `bool` (#61, batch B3)
 

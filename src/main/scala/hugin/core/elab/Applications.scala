@@ -114,8 +114,12 @@ trait Applications:
   private def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>
-        val at = withRequirements(dom, span, check(c, a, dom, fs))
-        val resTy = inst(cl, ev(c, at))
+        // the argument's instances are anonymous ([[Modules.argument]]): checking it may evaluate it
+        val (at, av) = core.anonymously {
+          val at = withRequirements(dom, span, check(c, a, dom, fs))
+          (at, ev(c, at))
+        }
+        val resTy = inst(cl, av)
         (functorApplication(f, span, Tm.App(ft, at, Icit.Expl), resTy), resTy, fs)
       // object syntax (a projection `E.loc`, a variable, a comparison, …) is never a function, even while
       // its type is still unknown: applying it is E0905, not an application to be solved by unification
@@ -124,8 +128,11 @@ trait Applications:
         val dom = ev(c, freshType(c, fs, a.span, "the type of an argument"))
         val cod = freshType(bind(c, "x", dom, fs), fs, span, "the type of an application")
         unifyAt(c, f.span, Val.Pi("x", Icit.Expl, dom, Closure(c.env, cod)), fty)
-        val at = check(c, a, dom, fs)
-        (Tm.App(ft, at, Icit.Expl), eval(ev(c, at) :: c.env, cod), fs)
+        val (at, av) = core.anonymously {
+          val at = check(c, a, dom, fs)
+          (at, ev(c, at))
+        }
+        (Tm.App(ft, at, Icit.Expl), eval(av :: c.env, cod), fs)
       case other => notAFunction(c, f, a, other, ft)
 
   private def isObjectSyntax(t: Tm): Boolean = Tm.unloc(t) match

@@ -61,13 +61,17 @@ object MetaLevel:
     val (std, rest) = graph.files.indexOf(hugin.compiler.SourceLoader.PreludePath) match
       case -1 => (Nil, graph.files)
       case i => (graph.files.take(i + 1), graph.files.drop(i + 1))
-    val base0 =
-      if std.isEmpty then ProgramElab.empty(prelude)
-      else
-        // the files the prelude re-exports lazily are left out unless the program may use them
-        val others = (root -> program) :: rest.flatMap(p => load(p).map(p -> _.program))
-        hugin.compiler.StdlibCache.prelude(hugin.compiler.LazyStdlib.chain(std.flatMap(load), others, prelude), prelude)
-    val libraries = hugin.compiler.Library.qualified(rest).map((p, q) => SourceItems(p, q, items(p)))
+    val others = (root -> program) :: rest.flatMap(p => load(p).map(p -> _.program))
+    // the files the prelude re-exports lazily are left out unless the program may use them; the files of
+    // the chain that only they import are the program's libraries if it imports them
+    val parsedStd = std.flatMap(load)
+    val chain = if std.isEmpty then Nil else hugin.compiler.LazyStdlib.chain(parsedStd, others, prelude)
+    val base0 = if std.isEmpty then ProgramElab.empty(prelude) else hugin.compiler.StdlibCache.prelude(chain, prelude)
+    val outside = hugin.compiler.LazyStdlib.outside(parsedStd, chain, others)
+    val imports = others.toMap
+    val placed =
+      hugin.compiler.LazyStdlib.placed(outside, rest, p => imports.get(p).fold(Nil)(hugin.compiler.Library.importsOf(p, _).map(_._2)))
+    val libraries = hugin.compiler.Library.qualified(placed).map((p, q) => SourceItems(p, q, items(p)))
     val e = elaborateOn(base0, SourceItems(root, "", program.items), libraries, reporter, index)
     hugin.compiler.ProgramElaboration(e, reporter.diagnostics, index)
 

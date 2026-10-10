@@ -1,0 +1,69 @@
+(* std/list (#61, B4): every meta function, with empty lists and edge cases, the fuel `nat` with `size`
+   and `iterate`, and the object relations `len` and `member`; `%demand len` in a program that opens
+   `std/list` (the prelude's chain then keeps `std/list` for both). *)
+%use "std/list".
+
+xs : list int = [3, 1, 2, 3].
+empty : list int = [].
+noLists : list (list int) = [].
+
+ints : (name : string) -> (value : list int) -> rel.
+ints "map" (map ([x] x * 10) xs).
+ints "map []" (map ([x] x * 10) empty).
+ints "filter" (filter ([x] if (same x 3) false true) xs).
+ints "concat" (concat [xs, [], [7]]).
+ints "concat []" (concat noLists).
+ints "reverse" (reverse xs).
+ints "reverse []" (reverse empty).
+ints "diff" (diff xs [3, 9]).
+ints "diff []" (diff empty xs).
+ints "iterate" (iterate (size [1, 2, 3]) ([l] 0 :: l) []).
+ints "iterate zero" (iterate zero ([l] 0 :: l) [5]).
+
+number : (name : string) -> (value : int) -> rel.
+number "foldr" (foldr ([x] [s] x - s) 0 [10, 4, 1]).
+number "foldl" (foldl ([s] [x] s - x) 0 [10, 4, 1]).
+number "length" (length xs).
+number "length []" (length empty).
+number "zip" (length (zip xs ["a", "b"])).
+number "zip []" (length (zip empty xs)).
+first : { fst : int, snd : string } -> int.
+first P = P.fst.
+ints "fst" (map first (zip xs ["a", "b", "c", "d", "e"])).
+
+text : (name : string) -> (value : string) -> rel.
+text "foldr" (foldr ([x] [s] x ^ s) "." ["a", "b", "c"]).
+text "foldl" (foldl ([s] [x] s ^ x) "." ["a", "b", "c"]).
+
+truth : (name : string) -> (value : bool) -> rel.
+truth "any" (any ([x] same x 2) xs).
+truth "any []" (any ([x] same x 2) []).
+truth "all" (all ([x] same x 3) xs).
+truth "all []" (all ([x] same x 3) []).
+truth "elem" (elem "b" ["a", "b"]).
+truth "elem []" (elem "b" []).
+
+found : (name : string) -> (value : option string) -> rel.
+found "lookup" (lookup 2 [{ key = 1, value = "one" }, { key = 2, value = "two" }, { key = 2, value = "deux" }]).
+found "lookup none" (lookup 3 [{ key = 1, value = "one" }]).
+
+twice : nat -> nat.
+twice zero = zero.
+twice (suc N) = suc (suc (twice N)).
+toInt : nat -> int.
+toInt zero = 0.
+toInt (suc N) = 1 + toInt N.
+number "size" (toInt (twice (size xs))).
+
+basket : list int -> rel.
+basket [3, 4, 5].
+basket [].
+?- basket L, len L N.
+?- basket L, member L X.
+
+(* lists built in rule bodies, measured on demand *)
+%demand len +l -n.
+measured : (n : int) -> rel.
+measured N :- len [1, 2] N.
+
+%output ints. %output number. %output text. %output truth. %output found. %output measured.

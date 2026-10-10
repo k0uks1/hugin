@@ -59,7 +59,7 @@ trait Machine:
     depth += 1
     try
       t match
-        case Tm.App(f, a, i) => app(eval(env, f), eval(env, a), i)
+        case Tm.App(f, a, i) => app(eval(env, f), argument(eval(env, a)), i)
         case Tm.Let(_, _, d, b) => eval(eval(env, d) :: env, b)
         case _ => evalNode(env, t)
     finally depth -= 1
@@ -100,99 +100,110 @@ trait Machine:
       env = r0.env
       t = r0.body
       mode = Eval
-    while mode != Done do
-      mode match
-        case Eval =>
-          t match
-            case Tm.App(fn, arg, ic) =>
-              if atomic(fn) then
-                val fv = evalNode(env, fn)
-                if atomic(arg) then
-                  f = fv
-                  a = evalNode(env, arg)
-                  i = ic
-                  mode = Apply
-                else
-                  k = KApp(fv, ic, k)
-                  t = arg
-              else
-                k = KArg(env, arg, ic, k)
-                t = fn
-            case Tm.Let(_, _, d, b) =>
-              k = KLet(env, b, k)
-              t = d
-            case _ =>
-              v = evalNode(env, t)
-              mode = Return
-        case Apply =>
-          f match
-            case Lam(_, _, cl) =>
-              env = a :: cl.env
-              t = cl.body
-              mode = Eval
-            case Obj(ObjForm.Loc(_), List(g)) => f = g
-            case Rigid(h @ Head.Glob(id), sp) =>
-              val sp1 = Elim.EApp(a, i) :: sp
-              matchFunction(id, sp1) match
-                case r: Reduct =>
-                  k = r.frames(k)
-                  if r.hit != null then
-                    v = r.hit.nn
-                    mode = Return
+    val hint0 = hint
+    try
+      while mode != Done do
+        mode match
+          case Eval =>
+            t match
+              case Tm.App(fn, arg, ic) =>
+                if atomic(fn) then
+                  val fv = evalNode(env, fn)
+                  if atomic(arg) then
+                    f = fv
+                    a = evalNode(env, arg)
+                    i = ic
+                    mode = Apply
                   else
-                    env = r.env
-                    t = r.body
+                    // the argument is evaluated with anonymous instances ([[Modules.argument]])
+                    k = KApp(fv, ic, hint, k)
+                    hint = ""
+                    t = arg
+                else
+                  k = KArg(env, arg, ic, k)
+                  t = fn
+              case Tm.Let(_, _, d, b) =>
+                k = KLet(env, b, k)
+                t = d
+              case _ =>
+                v = evalNode(env, t)
+                mode = Return
+          case Apply =>
+            f match
+              case Lam(_, _, cl) =>
+                env = a :: cl.env
+                t = cl.body
+                mode = Eval
+              case Obj(ObjForm.Loc(_), List(g)) => f = g
+              case Rigid(h @ Head.Glob(id), sp) =>
+                val sp1 = Elim.EApp(a, i) :: sp
+                matchFunction(id, sp1) match
+                  case r: Reduct =>
+                    k = r.frames(k)
+                    if r.hit != null then
+                      v = r.hit.nn
+                      mode = Return
+                    else
+                      env = r.env
+                      t = r.body
+                      mode = Eval
+                  case Matching.NotClauses =>
+                    v = reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
+                    mode = Return
+                  case Matching.Stuck =>
+                    v = Rigid(h, sp1)
+                    mode = Return
+              case Rigid(h, sp) =>
+                v = Rigid(h, Elim.EApp(a, i) :: sp)
+                mode = Return
+              case Flex(m, sp) =>
+                v = Flex(m, Elim.EApp(a, i) :: sp)
+                mode = Return
+              case Top(id, sp, u) =>
+                k = KTop(id, Elim.EApp(a, i) :: sp, k)
+                f = u.value
+              case other => throw Impossible(s"application of a non-function value $other")
+          case _ =>
+            if k == null then mode = Done
+            else
+              val fr = k.nn
+              k = fr.next
+              fr match
+                case KArg(e, arg, ic, _) =>
+                  if atomic(arg) then
+                    f = v
+                    a = evalNode(e, arg)
+                    i = ic
+                    mode = Apply
+                  else
+                    k = KApp(v, ic, hint, k)
+                    hint = ""
+                    env = e
+                    t = arg
                     mode = Eval
-                case Matching.NotClauses =>
-                  v = reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
-                  mode = Return
-                case Matching.Stuck =>
-                  v = Rigid(h, sp1)
-                  mode = Return
-            case Rigid(h, sp) =>
-              v = Rigid(h, Elim.EApp(a, i) :: sp)
-              mode = Return
-            case Flex(m, sp) =>
-              v = Flex(m, Elim.EApp(a, i) :: sp)
-              mode = Return
-            case Top(id, sp, u) =>
-              k = KTop(id, Elim.EApp(a, i) :: sp, k)
-              f = u.value
-            case other => throw Impossible(s"application of a non-function value $other")
-        case _ =>
-          if k == null then mode = Done
-          else
-            val fr = k.nn
-            k = fr.next
-            fr match
-              case KArg(e, arg, ic, _) =>
-                if atomic(arg) then
-                  f = v
-                  a = evalNode(e, arg)
+                case KApp(fv, ic, h, _) =>
+                  hint = h
+                  f = fv
+                  a = v
                   i = ic
                   mode = Apply
-                else
-                  k = KApp(v, ic, k)
-                  env = e
-                  t = arg
+                case KLet(e, b, _) =>
+                  env = v :: e
+                  t = b
                   mode = Eval
-              case KApp(fv, ic, _) =>
-                f = fv
-                a = v
-                i = ic
-                mode = Apply
-              case KLet(e, b, _) =>
-                env = v :: e
-                t = b
-                mode = Eval
-              case KMemo(key, _) => memoise(key, v)
-              case KElim(Elim.EApp(x, ic), _) =>
-                f = v
-                a = x
-                i = ic
-                mode = Apply
-              case KElim(e, _) => v = elim(v, e)
-              case KTop(id, sp, _) => v = Top(id, sp, Unfold(v))
+                case KMemo(key, _) => memoise(key, v)
+                case KElim(Elim.EApp(x, ic), _) =>
+                  f = v
+                  a = x
+                  i = ic
+                  mode = Apply
+                case KElim(e, _) => v = elim(v, e)
+                case KTop(id, sp, _) => v = Top(id, sp, Unfold(v))
+    catch
+      case e: Throwable =>
+        // as the `finally` of [[Modules.named]] around each argument would have
+        hint = hint0
+        throw e
     v
 
 object Machine:
@@ -211,8 +222,9 @@ object Machine:
   /** Evaluate the argument `arg` in `env`, then apply the value (the function) to it. */
   final case class KArg(env: List[Val], arg: Tm, i: Icit, override val next: Frame | Null) extends Frame(next)
 
-  /** Apply `f` to the value. */
-  final case class KApp(f: Val, i: Icit, override val next: Frame | Null) extends Frame(next)
+  /** Apply `f` to the value, the instance name hint restored to `hint` (the argument was evaluated with
+   *  anonymous instances, [[Modules.argument]]). */
+  final case class KApp(f: Val, i: Icit, hint: String, override val next: Frame | Null) extends Frame(next)
 
   /** Evaluate `body` in `env` extended with the value. */
   final case class KLet(env: List[Val], body: Tm, override val next: Frame | Null) extends Frame(next)
