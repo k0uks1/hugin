@@ -1,0 +1,37 @@
+found "lookup none" none.
+found "lookup" (some "two").
+ints "concat []" nil.
+ints "concat" (cons 3 (cons 1 (cons 2 (cons 3 (cons 7 nil))))).
+ints "diff []" nil.
+ints "diff" (cons 1 (cons 2 nil)).
+ints "filter" (cons 1 (cons 2 nil)).
+ints "fst" (cons 3 (cons 1 (cons 2 (cons 3 nil)))).
+ints "iterate zero" (cons 5 nil).
+ints "iterate" (cons 0 (cons 0 (cons 0 nil))).
+ints "map []" nil.
+ints "map" (cons 30 (cons 10 (cons 20 (cons 30 nil)))).
+ints "reverse []" nil.
+ints "reverse" (cons 3 (cons 2 (cons 1 (cons 3 nil)))).
+measured 2.
+number "foldl" (-15).
+number "foldr" 7.
+number "length []" 0.
+number "length" 4.
+number "size" 8.
+number "zip []" 0.
+number "zip" 2.
+text "foldl" ".abc".
+text "foldr" "abc.".
+truth "all []" true.
+truth "all" false.
+truth "any []" false.
+truth "any" true.
+truth "elem []" false.
+truth "elem" true.
+?- basket L, len L N.
+L = cons 3 (cons 4 (cons 5 nil)), N = 3.
+L = nil, N = 0.
+?- basket L, member L X.
+L = cons 3 (cons 4 (cons 5 nil)), X = 3.
+L = cons 3 (cons 4 (cons 5 nil)), X = 4.
+L = cons 3 (cons 4 (cons 5 nil)), X = 5.

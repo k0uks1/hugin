@@ -1957,3 +1957,30 @@ not supported" is gone); E0915 (with a note) for a clause of a function the body
 for clauses of a body's object constant or definition. Goldens: `run/mc_member_functions` (with
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
+
+## Standard library: lists and directives (#61, batch B4)
+
+Design: `docs/design/stdlib.md`, 5.3 and 5.6; its section 9 lists the deviations ("Deviations in B4").
+`std/list` has the meta list functions (`map`, `filter`, `foldr`, `foldl`, `length`, `concat`, `reverse`,
+`zip`, `any`, `all`, `elem`, `diff`, `lookup`), the fuel `nat` with `size` and `iterate`, and the object
+relations `len` and `member`. `std/directives` has `heads`, `body`, `rules`, `calls`, the binding analysis
+(`tvars`, `tsvars`, `fvars`, `fbound`, `fneeds`, `plain`, `plains`), `fresh` and `reject`. `std/demand`
+opens both and drops its own set and boolean helpers; the rules it generates are unchanged (every
+`%demand` golden, with its `--print-after stage` output, is unchanged).
+
+* **The chain and the program's imports.** `std/demand` imports `std/list`, so the import graph places
+  `std/list` before the prelude, in the prelude's chain. When `%demand` is unused, the lazy re-export (B2)
+  leaves out `std/demand` and the files only it imports, and a program that imported `std/list` itself
+  then had no `std/list` at all: its import named a file that was elaborated nowhere, and the program
+  printed nothing, without a diagnostic. `LazyStdlib.outside` now returns the left-out files that the
+  program's files import (transitively), and `LazyStdlib.placed` puts each just before the first program
+  file that imports it, or last, where the import graph puts a file only the root imports. They are
+  elaborated as the program's libraries, after the prelude (`MetaLevel.elaborateProgram`, the query
+  `ProgramLibraries` in `chainOf`). The prelude's chain therefore stays `std/reflect`, prelude for every
+  program that does not use `%demand`, so the per-process cache of the chain is shared as before, and the
+  libraries keep the positions they had before B4 (`LibraryQueriesSuite` is unchanged apart from the
+  import graph's order).
+* **Chain files open `std/reflect`.** Files of the chain have no enclosing scope, so `std/list` and
+  `std/directives` write `%use "std/reflect".` as `std/demand` does.
+* **`if` is strict.** The selectors whose branches are cheap became `if`; `dhead`, whose branches build
+  rules, keeps its clauses, so that only the taken branch is built.

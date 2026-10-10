@@ -358,7 +358,9 @@ which no meta function can.
 > use one of the names opened from it, such as `std/demand` for a program that writes `%demand`. A file
 > that does declare object constants is always elaborated. Since such a file creates nothing that the
 > object program contains, a program cannot tell the difference: its meaning, output and diagnostics are
-> the same either way. Only compile time changes.
+> the same either way. Only compile time changes. The files that such a file imports are elaborated with
+> it, or as the program's own imports if the program imports them (`std/list`, which `std/demand`
+> imports): their constants are reachable only through one of the two.
 
 
 ## Scopes

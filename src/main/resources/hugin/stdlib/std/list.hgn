@@ -1,6 +1,88 @@
-(* std/list: relations over the lists that are facts (reference: prelude). *)
+(* std/list: functions over meta lists, the fuel type `nat`, and relations over the lists that are facts
+   (reference: std/list). The meta functions are structurally recursive; `elem`, `diff` and `lookup`
+   compare by `same`, so they apply to lists of atoms (numbers, strings, symbols). *)
+%use "std/reflect".
 
-(* The length of every list (by guarded induction on `l`: its tail is a smaller fact) *)
+(* `map F Xs` applies `F` to every element *)
+map : (A -> B) -> list A -> list B.
+map F [] = [].
+map F (X :: Xs) = F X :: map F Xs.
+
+(* `filter P Xs` keeps the elements that satisfy `P`, in order *)
+filter : (A -> bool) -> list A -> list A.
+filter P [] = [].
+filter P (X :: Xs) = if (P X) (X :: filter P Xs) (filter P Xs).
+
+(* `foldr F Z [x₁, …, xₙ]` is `F x₁ (… (F xₙ Z))` *)
+foldr : (A -> B -> B) -> B -> list A -> B.
+foldr F Z [] = Z.
+foldr F Z (X :: Xs) = F X (foldr F Z Xs).
+
+(* `foldl F Z [x₁, …, xₙ]` is `F (… (F Z x₁)) xₙ` *)
+foldl : (B -> A -> B) -> B -> list A -> B.
+foldl F Z [] = Z.
+foldl F Z (X :: Xs) = foldl F (F Z X) Xs.
+
+length : list A -> int.
+length [] = 0.
+length (X :: Xs) = 1 + length Xs.
+
+concat : list (list A) -> list A.
+concat [] = [].
+concat (Xs :: Xss) = append Xs (concat Xss).
+
+reverse : list A -> list A.
+reverse Xs = foldl ([acc] [x] x :: acc) [] Xs.
+
+(* The pairs of elements at the same positions, as long as the shorter list *)
+zip : list A -> list B -> list { fst : A, snd : B }.
+zip (X :: Xs) (Y :: Ys) = { fst = X, snd = Y } :: zip Xs Ys.
+zip Xs Ys = [].
+
+any : (A -> bool) -> list A -> bool.
+any P [] = false.
+any P (X :: Xs) = if (P X) true (any P Xs).
+
+all : (A -> bool) -> list A -> bool.
+all P [] = true.
+all P (X :: Xs) = if (P X) (all P Xs) false.
+
+(* Whether an atom is an element *)
+elem : A -> list A -> bool.
+elem X [] = false.
+elem X (Y :: Ys) = if (same X Y) true (elem X Ys).
+
+(* The elements of the first list that are not elements of the second, in order *)
+diff : list A -> list A -> list A.
+diff [] Ys = [].
+diff (X :: Xs) Ys = if (elem X Ys) (diff Xs Ys) (X :: diff Xs Ys).
+
+(* The value of the first entry with the key `K` *)
+lookup : K -> list { key : K, value : V } -> option V.
+lookup K [] = none.
+lookup K (E :: Es) = if (same K E.key) (some E.value) (lookup K Es).
+
+(* Natural numbers as fuel: a meta function must be structurally recursive, so a fixed point at compile
+   time iterates a step a bounded number of times *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+
+size : list A -> nat.
+size [] = zero.
+size (X :: Xs) = suc (size Xs).
+
+(* `iterate N F X` applies `F` `N` times *)
+iterate : nat -> (A -> A) -> A -> A.
+iterate zero F X = X.
+iterate (suc N) F X = iterate N F (F X).
+
+(* The length of every list that is a fact (by guarded induction on `l`: its tail is a smaller fact) *)
 len : (l : list A) -> (n : int) -> rel.
 len nil 0.
 len (cons X L) M :- cons X L, len L N, M = N + 1.
+
+(* The elements of every list that is a fact *)
+member : (l : list A) -> (x : A) -> rel.
+member (cons X L) X :- cons X L.
+member (cons X L) Y :- cons X L, member L Y.

@@ -131,10 +131,30 @@ object StdChain extends Query[ProgramKey, List[String]]("stdChain"):
       case i =>
         val (std, rest) = graph.files.splitAt(i + 1)
         if db.get(EagerStdlib, ()) || !std.forall(db.has(SourceText, _)) then std
+        else LazyStdlib.chain(std.map(db(Parse, _)), programFiles(key, rest), key.prelude).map(_.source.path)
+
+/** The program's files after the prelude in its import graph (`rest`), with their parses. */
+private def programFiles(key: ProgramKey, rest: List[String])(using db: Database): List[(String, hugin.syntax.Program)] =
+  (key.path -> db(ParseProgram, key.path).program) :: rest.filter(db.has(SourceText, _)).map(p => p -> db(Parse, p).program)
+
+/** The program's libraries after the prelude, in dependency order: the files after the prelude in its
+ *  import graph, and the files of the prelude's chain that [[StdChain]] leaves out and the program imports
+ *  ([[hugin.compiler.LazyStdlib.outside]], [[hugin.compiler.LazyStdlib.placed]]). */
+object ProgramLibraries extends Query[ProgramKey, List[String]]("programLibraries"):
+  def compute(key: ProgramKey)(using db: Database): List[String] =
+    val graph = db(LibraryGraph, GraphKey(key.path, key.prelude))
+    graph.files.indexOf(SourceLoader.PreludePath) match
+      case -1 => graph.files
+      case i =>
+        val (std, rest) = graph.files.splitAt(i + 1)
+        val chain = db(StdChain, key)
+        if chain.length == std.length then rest
         else
-          val others =
-            (key.path -> db(ParseProgram, key.path).program) :: rest.filter(db.has(SourceText, _)).map(p => p -> db(Parse, p).program)
-          LazyStdlib.chain(std.map(db(Parse, _)), others, key.prelude).map(_.source.path)
+          val parsed = std.map(db(Parse, _))
+          val files = programFiles(key, rest)
+          val outside = LazyStdlib.outside(parsed, parsed.filter(p => chain.contains(p.source.path)), files)
+          val imports = files.toMap
+          LazyStdlib.placed(outside, rest, p => imports.get(p).fold(Nil)(Library.importsOf(p, _).map(_._2)))
 
 /** The chain of libraries a program is elaborated on: the files of its import graph. */
 private def chainOf(key: ProgramKey)(using db: Database): ChainKey =
@@ -144,7 +164,7 @@ private def chainOf(key: ProgramKey)(using db: Database): ChainKey =
     case -1 => ChainKey(Library.qualified(graph.files), key.prelude)
     case i =>
       val rest = graph.files.drop(i + 1)
-      ChainKey(db(StdChain, key).map(_ -> "") ++ Library.qualified(rest), key.prelude)
+      ChainKey(db(StdChain, key).map(_ -> "") ++ Library.qualified(db(ProgramLibraries, key)), key.prelude)
 
 /** The declarations of a program, elaborated on its libraries. */
 object Signatures extends Query[ProgramKey, ElaboratedDeclarations]("signatures"):

@@ -32,6 +32,7 @@
 - [The standard library](std/index.md)
     - [`std/reflect`](std/reflect.md)
     - [`std/list`](std/list.md)
+    - [`std/directives`](std/directives.md)
     - [`std/graph`](std/graph.md)
     - [`std/demand`](std/demand.md)
 

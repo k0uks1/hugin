@@ -2,7 +2,8 @@
 
 Design note for [issue #61](https://github.com/k0uks1/hugin/issues/61): split the prelude into a small
 auto-imported part and explicitly imported `std` modules, and decide their content. Status: revision 2
-approved by the designer; B0–B3 implemented (#107, #111, #115, #117), B4–B5 wait for #100. Revision 2
+approved by the designer; B0–B4 implemented (#107, #111, #115, #117, and B4 with the deviations listed at the
+end of section 9), B5 waits for B4. Revision 2
 replaces the `private` modifier by signature ascription (4.5, 4.6) after the designer's review. The
 spikes it cites were run against `9b82924` and are not committed.
 
@@ -1019,6 +1020,42 @@ update of `docs/LIBRARIES.md`; size M (~500 Scala, ~250 tests, ~200 reference).
 B0 and B1 come first, in that order. B2, B3, B4 and B5 are independent of each other. B4 before B2 lets
 the lazy check measure the rewritten `std/demand`. Every library definition passes coverage and
 size-change termination, which the build checks. Every reference example is a `hugin,run` block.
+
+### Deviations in B4
+
+B4 was implemented after #100 batch 1 (member functions in bodies), #106 (`'( … )` quotes, `<t>`, `^`),
+#96 and #120. The design's code is adapted where the language changed or the spike left a detail open:
+
+- **`std/list` and `std/directives` open `std/reflect`.** Files of the prelude's chain are elaborated
+  with no enclosing scope (4.1), and `std/demand` imports both, so they see neither `list` nor `if`
+  unless they open them, as `std/demand` already did.
+- **A left-out chain file that the program imports is one of its libraries** (`LazyStdlib.outside`).
+  4.8 leaves out the files that only the lazy file imports. `std/list` is now one of them, and a program
+  may import it as well; the program then lost it (its output was empty, without a diagnostic). Such a
+  file is now elaborated after the prelude, with the program's libraries, so the prelude's chain stays the
+  same for all programs that do not use `%demand`. The check that the lazy file declares no object
+  constants stays per file: `std/list` declares `len` and `member`, but they are reachable only through
+  `std/demand`, which is left out, or through the program's import, which elaborates them.
+- **`dequation` is not in `std/directives`.** `fbound` writes the equation case with `if`, so the helper
+  of today's prelude is not needed. `tvarsOf` is `tvars`, as 5.6 says.
+- **`fresh` tries `p#0`, `p#00`, `p#000`, …** One candidate more than the names in the list, so the
+  recursion is structural on the list; there is no conversion from numbers to strings. Its helper is
+  local to the clause (`where`).
+- **`%demand` keeps its own traversal of calls.** A demand rule needs the conjuncts before each call
+  (`dcall`, `dinner`), which `calls` does not give; `calls` is the prefix-free generalisation for other
+  directives.
+- **`if` and `std/list` replace the selectors and set functions** (`band`, `bor`, `member`, `sdiff`,
+  `msym`, `dguardSel`, `dkeepIf`'s two cases, `dunless`, `dkeepS`, `dbody`). `dhead` keeps its clauses:
+  `if` is strict, and its branches build whole rules. `ditems` and `dallneeds` stay first-order helpers,
+  and `shares` is `dshares`, first-order too: `map irule`, `concat (map fneeds …)` and
+  `any ([x] elem x ys)` cost a run of `%demand` measurably more (see the numbers below), since a function
+  argument is part of the memo key of every meta application.
+- **No member functions were needed.** `std/demand` hides its helpers by `%export`; the other modules
+  export everything. #100 removes the obstacle that 10 ("a sealed record inside the file") names, but no
+  B4 module has a reason to use it.
+- `std/list`'s `reverse` is a `foldl`, not one clause per constructor. `diff` is first-order: written
+  with `filter` and a lambda, it made a run of `%demand` allocate twice as much.
+- The example of 5.3 writes `l.if`; `if` is the prelude's (`docs/design/examples/graphs.hgn` uses it).
 
 ## 10. Alternatives
 

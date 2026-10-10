@@ -1,0 +1,25 @@
+error[E0909]: cannot compute object code at compile time
+ --> tests/neg/std_list_atoms.hgn:4:1
+  |
+4 | found (elem (some 1) [some 1]). (*~ E0909 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `bool.lift (if {bool} (same {option int} (some {int} 1) (some {int} 1)) true false)` does not evaluate to object code
+  |
+  = note: the meta code spliced here is stuck (it applies a postulate or a variable), so no object code results
+
+error[E0909]: cannot compute object code at compile time
+ --> tests/neg/std_list_atoms.hgn:6:1
+  |
+6 | keys (lookup [1] [{ key = [1], value = 2 }]). (*~ E0909 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `option.lift {int} {⟨int⟩} ([x] ⟨x⟩) (if {option int} (same {list int} (cons {int} 1 (nil {int})) (cons {int} 1 (nil {int}))) (some {int} 2) (none {int}))` does not evaluate to object code
+  |
+  = note: the meta code spliced here is stuck (it applies a postulate or a variable), so no object code results
+
+error[E0909]: cannot compute object code at compile time
+ --> tests/neg/std_list_atoms.hgn:8:1
+  |
+8 | rest (diff [[1], [2]] [[2]]). (*~ E0909 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `list.lift {list int} {⟨list[int]⟩} (list.lift {int} {⟨int⟩} ([x] ⟨x⟩)) (if {list (list int)} (if {bool} (if {bool} (same {list int} (cons {int} 1 (nil {int})) (… …)) … …) … …) … …)` does not evaluate to object code
+  |
+  = note: the meta code spliced here is stuck (it applies a postulate or a variable), so no object code results
+
+3 errors found
