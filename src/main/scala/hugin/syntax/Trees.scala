@@ -78,7 +78,7 @@ object Trees:
   final case class Lambda(param: Tree, tpe: Option[Tree], body: Tree)(val span: Span) extends Tree
   final case class As(term: Tree, v: VarRef)(val span: Span) extends Tree
   final case class Ascribe(term: Tree, tpe: Tree)(val span: Span) extends Tree
-  final case class With(v: VarRef, fields: List[Field])(val span: Span) extends Tree
+  final case class With(v: Tree, fields: List[Field])(val span: Span) extends Tree
   final case class Not(arg: Tree)(val span: Span) extends Tree
   final case class Agg(kind: AggKind, term: Tree, body: Tree)(val span: Span) extends Tree
 

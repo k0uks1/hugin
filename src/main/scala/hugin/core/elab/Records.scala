@@ -87,6 +87,43 @@ trait Records:
       (lb, ft)
     })
 
+  /** `(r with { l = e, … })`: at a meta position, the meta record `r` with the fields `l` replaced and
+   *  the others projected from `r`, checked as that record value against the type of `r`; object code
+   *  (at an object position, or `r` of an object type) is the functional update of a fact (reference:
+   *  meta/records). */
+  def inferUpdate(c: Cxt, w: With): (Tm, Val, Stage) =
+    def objectUpdate = atStage(Stage.S0)(inferObjectForm(c, w).get)
+    if state.stage == Stage.S0 then objectUpdate
+    else
+      dupLabels(w.fields.map(_.label))
+      val (qt, qty, qs) = insertAll(c, w.v.span, infer(c, w.v))
+      (force(qty), w.fields) match
+        case (rt: Val.RecTy, _) if qs == Stage.S1 => (updatedRecord(c, w, qt, rt), qty, Stage.S1)
+        case (Val.Lift(_), _) => objectUpdate
+        case _ if qs == Stage.S0 => objectUpdate
+        case (other, f :: _) => fail(TypeProblem.NotARecord(f.label.name, w.v.span, show(c, other), f.label.span))
+        case (other, Nil) => (qt, other, qs)
+
+  private def updatedRecord(c: Cxt, w: With, qt: Tm, rt: Val.RecTy): Tm =
+    w.fields.find(f => !rt.labels.contains(f.label.name)).foreach { f =>
+      val l = f.label.name
+      fail(TypeProblem.NoField(l, show(c, rt), rt.labels, similarName(l, rt.labels), f.label.span))
+    }
+    val byLabel = w.fields.map(f => f.label.name -> f).toMap
+    val qv = ev(c, qt)
+    var e = rt.env
+    Tm.Rec(rt.labels.zip(rt.tys).map { (lb, ty) =>
+      val expected = eval(e, ty)
+      val ft = byLabel.get(lb) match
+        case Some(f) => check(c, f.value, expected, Stage.S1)
+        case None =>
+          // a field kept from `r` must still have its type after the fields before it changed
+          fieldType(rt, qv, lb).foreach(kept => unifyAt(c, w.span, expected, kept))
+          Tm.Proj(qt, lb)
+      e = ev(c, ft) :: e
+      (lb, ft)
+    })
+
   /** `q.l`: a projection of a meta record, or of an object fact by column label. */
   def inferSelect(c: Cxt, sel: Select): (Tm, Val, Stage) = sel.qual match
     // `T.lift`, `T.reify`: the functions derived from a shared data declaration
