@@ -1,0 +1,17 @@
+(* A formula function is expanded where it is used: one whose clauses refer to it, directly or through
+   other formula functions and definitions, would expand forever (E0105, once per cycle). Its uses, and
+   those of what refers to it, are left out without further errors. *)
+expr : type. e : expr.
+known : expr -> prop.
+known E :- known E. (*~ E0105 *)
+even : expr -> prop.
+odd : expr -> prop.
+even E :- odd E. (*~ E0105 *)
+odd E :- even E.
+both : expr -> prop = [X] even X, known X.
+fine : expr -> prop.
+fine E :- E = e.
+p : expr -> rel.
+p X :- both X.
+p X :- known X.
+p X :- fine X.

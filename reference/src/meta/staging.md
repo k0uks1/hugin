@@ -248,6 +248,19 @@ variables of a clause other than its arguments are local to each use: every appl
 variables (*hygiene*). A formula function without clauses is always false; the compiler warns about it
 ([W0005](../errors/W0005.md), lint `empty_formula_functions`).
 
+A use of a formula function is replaced by its formula, so a formula function cannot refer to itself:
+it is an error ([E0105](../errors/E0105.md)) if its clauses use it, directly or through other formula
+functions, definitions or functions whose expansion uses it. Recursion is written with a relation. The
+error is reported once for each such cycle; the formula functions of the cycle are then left out, and so
+are their uses, without a further diagnostic.
+
+```hugin,compile_fail,E0105
+node : type.
+edge : node -> node -> rel.
+linked : node -> node -> prop.
+linked X Z :- edge X Y, linked Y Z.
+```
+
 The following program defines grandparenthood as a formula function. Its variable `Y` does not capture
 the variable `Y` of the rule that uses it.
 

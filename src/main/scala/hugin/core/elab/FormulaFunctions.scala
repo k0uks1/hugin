@@ -31,14 +31,61 @@ trait FormulaFunctions:
         if clauses.isEmpty then reporter.report(ElabProblem.FormulaFunctionWithoutClauses(name, g.span).toDiagnostic)
         var c = Cxt.empty
         for (x, _, ty) <- params.zipWithIndex.map((p, i) => (s"$name#${i + 1}", p._2, p._3)) do c = bind(c, x, ty, Stage.S1)
-        val alts = clauses.flatMap(cl => reporting(clause(c, name, params.map(_._3), cl)))
-        val formula = alts match
-          case List(single) => single
-          case many => Tm.Obj(ObjForm.Or, many)
-        val tm = params.foldRight(Tm.quote(formula))((p, acc) => Tm.Lam(p._1, p._2, acc))
-        val ztm = zonk(Nil, 0, tm)
-        g.kind = GlobalKind.Definition(ztm, eval(Nil, ztm))
+        define(id, clauses.flatMap(cl => reporting(clause(c, name, params.map(_._3), cl))))
     }
+
+  /** Defines the formula function `id` as the disjunction of `alts` (false if there are none). */
+  private def define(id: Int, alts: List[Tm]): Unit =
+    val formula = alts match
+      case List(single) => single
+      case many => Tm.Obj(ObjForm.Or, many)
+    val tm = telescope(globals(id).ty)._1.foldRight(Tm.quote(formula))((p, acc) => Tm.Lam(p._1, p._2, acc))
+    val ztm = zonk(Nil, 0, tm)
+    globals(id).kind = GlobalKind.Definition(ztm, eval(Nil, ztm))
+
+  /** E0105: the formula functions `fns` (with their clauses, in source order) whose clauses refer to them,
+   *  directly or through other definitions and functions: expanding one would not end. One error per
+   *  cycle, at the first such reference; every function of the cycle is then false, and the uses of the
+   *  cycle and of what refers to it are left out silently, as those of a dropped item. */
+  def checkFormulaCycles(fns: List[(Name, List[Rule])]): Unit =
+    val ids = fns.flatMap((n, cls) => scope.get(n).map(id => (n, id, cls)))
+    val done = scala.collection.mutable.Set.empty[Int]
+    for (name, id, cls) <- ids if !done(id) && refersTo(id, Tm.Global(id), self = false) do
+      val reaches = (g: Int) => g == id || refersTo(id, Tm.Global(g), self = false)
+      val at = cls.iterator
+        .flatMap(cl => cl.body.iterator.flatMap(TreeOps.nodes))
+        .collectFirst { case n: Ident if scope.get(n.name).exists(reaches) => n.span }
+      reporter.report(ElabProblem.RecursiveFormulaFunction(name, at.getOrElse(globals(id).span), globals(id).span).toDiagnostic)
+      for
+        (n, other, _) <- ids
+        if other == id || (refersTo(id, Tm.Global(other), self = false) && refersTo(other, Tm.Global(id), self = false))
+      do
+        done += other
+        state.unelaborated += n
+        define(other, Nil)
+    // the definitions and functions of the file that expand to one: their uses are left out too
+    for n <- state.declaredHere; g <- scope.get(n) if done.exists(f => refersTo(f, Tm.Global(g), self = false)) do
+      state.unelaborated += n
+
+  /** Whether `t` refers to the global `target`, through the definitions and functions it refers to; with
+   *  `self = false`, `t` being `target` itself does not count (only its definition does). */
+  private def refersTo(target: Int, t: Tm, self: Boolean): Boolean =
+    val seen = scala.collection.mutable.Set.empty[Int]
+    def inGlobal(g: Int): Boolean = globals(g).kind match
+      case GlobalKind.Definition(tm, _) => inTm(tm)
+      case GlobalKind.Function(_, Some(tree)) => inTree(tree)
+      case _ => false
+    def inTm(t: Tm): Boolean = Tm.exists(t) {
+      case Tm.Global(g) => g == target || seen.add(g) && inGlobal(g)
+      case _ => false
+    }
+    def inTree(t: CaseTree): Boolean = t match
+      case CaseTree.Leaf(body, _, _, _, _) => inTm(body)
+      case CaseTree.Split(_, bs) => bs.exists(b => inTree(b.tree))
+      case CaseTree.SplitAtom(_, bs, d) => bs.exists((_, b) => inTree(b)) || inTree(d)
+    t match
+      case Tm.Global(g) if !self => seen.add(g) && inGlobal(g)
+      case _ => inTm(t)
 
   private def reporting[A](a: => A): Option[A] =
     try Some(a)

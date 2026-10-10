@@ -162,9 +162,20 @@ trait MemoKeys:
           case Tm.Obj(_, as) => as.forall(closedObjectAt(_, d))
           case Tm.Negate(a, _) => closedObjectAt(a, d)
           case Tm.Proj(a, _) => closedObjectAt(a, d)
+          // an arrow type (`A -> B`) binds a variable in its codomain: open if anything else is free there
+          case Tm.Pi(_, _, a, b) => closedObjectAt(a, d) && closedUnder(b, 1)
           case _ => true
         closedObjects(id) = b
         b
+
+  /** Whether object code has no metas and no variables other than the `k` innermost bound around it
+   *  (uncached: the answer depends on `k`); a binder other than an arrow counts as open. */
+  private def closedUnder(t: Tm, k: Int): Boolean = t match
+    case Tm.Var(ix) => ix < k
+    case Tm.Pi(_, _, a, b) => closedUnder(a, k) && closedUnder(b, k + 1)
+    case Tm.Meta(_) | Tm.AppPruning(_, _) | Tm.Lam(_, _, _) | Tm.Splice(_) | Tm.Let(_, _, _, _) | Tm.Fresh(_, _) => false
+    case Tm.RecTy(_, _, _) | Tm.Module(_, _) => false
+    case other => Tm.children(other).forall(closedUnder(_, k))
 
   /** Runs `visit` on `root` and every node below it (children first, left to right) that is not `done`
    *  yet, with an explicit stack instead of a recursion. After `visit(x)`, `done(x)` must hold. */

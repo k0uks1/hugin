@@ -1,0 +1,11 @@
+(* A constructor of a shared type with parameters before its `:`: they are its first arguments, as in
+   `red : (x : int) -> color.`, at both stages. *)
+color : data.
+red (x : int) : color.
+mixed (a : color) (b : color) : color.
+green : color.
+pick : color -> rel.
+pick (red 3).
+pick green.
+pick (mixed green (red 1)).
+%output pick.

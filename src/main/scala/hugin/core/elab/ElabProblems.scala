@@ -43,6 +43,10 @@ enum ElabProblem extends Problem:
 
   /** `x : A = … x ….`: a definition referring to itself (only functions defined by clauses recurse). */
   case SelfReference(name: String, at: Span, defined: Span)
+
+  /** A formula function whose clauses refer to it, directly or through other definitions: its expansion
+   *  would not end. */
+  case RecursiveFormulaFunction(name: String, at: Span, defined: Span)
   case StuckObjectType(shown: String, at: Span)
 
   /** A name opened by `%use` for two different globals (`uses`: the `%use` items), used at `at`. */
@@ -108,7 +112,7 @@ enum ElabProblem extends Problem:
     case _: UsedBeforeDeclaration => Code.E0101
     case _: MalformedClause => Code.E0004
     case _: TypeBinderInDefinition => Code.E0916
-    case _: SelfReference => Code.E0105
+    case _: SelfReference | _: RecursiveFormulaFunction => Code.E0105
     case _: StuckObjectType => Code.E0909
     case _: PolymorphicRecursion => Code.E0205
     case _: FormulaFunctionWithoutClauses => Code.W0005
@@ -148,6 +152,7 @@ enum ElabProblem extends Problem:
     case MalformedClause(s) => s
     case TypeBinderInDefinition(_, s, _, _) => s
     case SelfReference(_, s, _) => s
+    case RecursiveFormulaFunction(_, s, _) => s
     case StuckObjectType(_, s) => s
     case PolymorphicRecursion(_, _, _, s) => s
     case FormulaFunctionWithoutClauses(_, s) => s
@@ -193,6 +198,7 @@ enum ElabProblem extends Problem:
     case _: MalformedClause => msg"malformed definition"
     case TypeBinderInDefinition(n, _, _, _) => msg"${Src(n)} is not in scope in the definition"
     case SelfReference(n, _, _) => msg"${Src(n)} refers to itself"
+    case RecursiveFormulaFunction(n, _, _) => msg"formula function ${Src(n)} refers to itself"
     case _: StuckObjectType => msg"cannot compute an object type at compile time"
     case _: PolymorphicRecursion => msg"polymorphic recursion"
     case FormulaFunctionWithoutClauses(n, _) => msg"formula function ${Src(n)} has no clauses"
@@ -240,6 +246,7 @@ enum ElabProblem extends Problem:
     case _: TypeFunction => msg"a function returning `type`"
     case _: UnknownBaseType => msg"not a builtin"
     case _: SelfReference => msg"recursive reference"
+    case _: RecursiveFormulaFunction => msg"expands to a use of it again"
     case _: MalformedClause => msg"expected a name applied to parameters before `=`"
     case _: MisplacedBuiltin => msg"not a type declaration"
     case _: PrimitiveType => msg"declared with another type"
@@ -261,6 +268,7 @@ enum ElabProblem extends Problem:
 
   override def labels: List[(Span, Msg)] = this match
     case SelfReference(_, _, d) => List(d -> msg"while elaborating this definition")
+    case RecursiveFormulaFunction(_, _, d) => List(d -> msg"declared here")
     case UnknownLabel(_, _, _, _, d) if d.exists => List(d -> msg"declared here")
     case DuplicateLabel(_, _, first) => List(first -> msg"first used here")
     case NotOpenType(_, _, d) => List(d -> msg"declared here")
@@ -282,6 +290,8 @@ enum ElabProblem extends Problem:
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
     case _: UnknownBaseType => List(msg"the builtin base types are float, int, string")
     case _: SelfReference => List(msg"only a function declared with its type and defined by clauses may be recursive")
+    case _: RecursiveFormulaFunction =>
+      List(msg"a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation")
     case NotAnAtom("not", _) =>
       List(msg"a formula function use may expand to an arbitrary formula; declare a relation for the negated condition")
     case _: Unclassifiable =>

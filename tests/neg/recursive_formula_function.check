@@ -1,0 +1,22 @@
+error[E0105]: formula function `known` refers to itself
+ --> tests/neg/recursive_formula_function.hgn:6:12
+  |
+5 | known : expr -> prop.
+  | ----- declared here
+6 | known E :- known E. (*~ E0105 *)
+  |            ^^^^^ expands to a use of it again
+  |
+  = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+error[E0105]: formula function `even` refers to itself
+ --> tests/neg/recursive_formula_function.hgn:9:11
+  |
+7 | even : expr -> prop.
+  | ---- declared here
+...
+9 | even E :- odd E. (*~ E0105 *)
+  |           ^^^ expands to a use of it again
+  |
+  = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+2 errors found

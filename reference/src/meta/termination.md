@@ -89,6 +89,7 @@ down (suc N) = apply down N.
 > **Limitation.** `down` terminates, since `apply` applies it to `N`. The check does not follow a
 > function into the body of the function it is passed to.
 
-> **Note.** Definitions `x = e.` cannot refer to themselves ([E0105](../errors/E0105.md)), and there is
+> **Note.** Definitions `x = e.` and formula functions ([Staging](staging.md#formula-functions)) cannot
+> refer to themselves ([E0105](../errors/E0105.md)), and there is
 > no general recursion. Together with strict positivity of inductive families and the exclusion of
 > `Type : Type`, the check makes every meta computation terminate.

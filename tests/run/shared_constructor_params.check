@@ -1,0 +1,3 @@
+pick (mixed green (red 1)).
+pick (red 3).
+pick green.

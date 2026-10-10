@@ -32,9 +32,10 @@ trait SharedData:
   def sharedFamily(id: Int): Option[SharedLink] =
     globals(id).shared.filter(l => l.side == Stage.S1 && globals(id).kind.isInstanceOf[GlobalKind.Inductive])
 
-  /** The shared family a declaration without definition returns, if it declares one of its constructors. */
+  /** The shared family a declaration without definition returns, if it declares one of its constructors
+   *  (also with parameters before its `:`, `c (x : int) : T.`, which are arguments of the constructor). */
   def sharedResult(d: Decl): Option[Int] =
-    if d.sup.isDefined || d.params.nonEmpty || state.functionNames(d.name.name) then None
+    if d.sup.isDefined || state.functionNames(d.name.name) then None
     else TreeOps.headName(TreeOps.codomain(d.tpe)).flatMap(n => lookupGlobal(n.name)).filter(sharedFamily(_).isDefined)
 
   // ---------------------------------------------------------------- declarations
@@ -64,7 +65,8 @@ trait SharedData:
     if reflectiveGlobals.isDefined then globals(m).shared.get.reify = declareShared(m, lift = false)
 
   /** A constructor `c : σ̄ -> T ā.` of the shared family `fam`: its meta and object constructors. */
-  def elabSharedConstructor(d: Decl, fam: Int): Unit =
+  def elabSharedConstructor(decl: Decl, fam: Int): Unit =
+    val d = withArguments(decl)
     val famName = globals(fam).name
     if !scope.get(famName).contains(fam) then
       fail(SharedProblem.ConstructorElsewhere(d.name.name, famName, d.name.span, globals(fam).declSpan))
@@ -104,7 +106,12 @@ trait SharedData:
           notUniform(s"the result is not `$famName` at its parameters", TreeOps.codomain(d.tpe).span)
         vs
       case _ => notUniform(s"the result is not `$famName` at its parameters", TreeOps.codomain(d.tpe).span)
-    val trees = argumentTypes(d.tpe)
+    // the parameters before the `:` come first; a variable `X` stands for its (inferred) type
+    val trees = d.params.map {
+      case Param.VarParam(v) => v
+      case Param.Typed(_, t, _) => t
+      case Param.Malformed(t) => t
+    } ++ argumentTypes(d.tpe)
     binders.zipWithIndex.collect { case ((_, Icit.Expl, a), l) => (a, l) }.zipWithIndex.foreach { case ((a, l), k) =>
       val at = trees.lift(k).map(_.span).getOrElse(d.tpe.span)
       def go(a: Val): Unit = forceData(a) match
@@ -119,6 +126,13 @@ trait SharedData:
         case other => fail(SharedProblem.NotShareable(d.name.name, famName, showVal(binders.take(l).map(_._1).reverse, other), at))
       go(a)
     }
+
+  /** `c (x : σ) : τ.` as `c : (x : σ) -> τ.`: the parameters of a constructor are its first arguments. A
+   *  variable parameter `X` is kept: its type is inferred, never shareable ([[checkShareable]]). */
+  private def withArguments(d: Decl): Decl =
+    val typed = d.params.collect { case Param.Typed(n: Ident, t, sp) => (n, t, sp) }
+    if d.params.isEmpty || typed.length != d.params.length then d
+    else Decl(d.name, Nil, typed.foldRight(d.tpe)((p, acc) => Arrow(Some(p._1), p._2, acc)(p._3)), d.sup, d.defn)(d.span)
 
   /** The type of each explicit argument of a constructor's declared type, as written. */
   private def argumentTypes(tpe: Tree): List[Tree] =

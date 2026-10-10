@@ -1,0 +1,4 @@
+(* A constructor of a family left unapplied where data is expected: its type is an arrow over an unknown
+   type argument, never a closed instance key, so it is reported instead of instantiating a family at it. *)
+wrapped : list (option int) -> rel.
+wrapped L :- L = cons (some) nil. (*~ E0206 *)

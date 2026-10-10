@@ -74,8 +74,10 @@ trait Items:
     withoutTooling(defineSharedFunctions())
     if !file.signaturesOnly then
       elabClauseGroups(clauses)
-      for f <- formulaFunctions if !state.unelaborated(f) do
-        inBlock(elabFormulaClauses(f, formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }))
+      def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
+      val defined = formulaFunctions.toList.filterNot(state.unelaborated).sortBy(scope.get(_).getOrElse(Int.MaxValue))
+      for f <- defined do inBlock(elabFormulaClauses(f, clausesOf(f)))
+      checkFormulaCycles(defined.map(f => (f, clausesOf(f))))
       exports.foreach(elabItemReporting)
     flushTooling(success = true)
 
@@ -135,15 +137,35 @@ trait Items:
         attemptItem(item) match
           case Some(e) if e.unresolved.exists(later) => Some((item, Some(e)))
           case Some(e) =>
-            if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
-            // the names of a dropped item are erroneous: their uses are not reported again
-            declares(item).foreach(state.erroneous += _)
-            droppedUse(item)
+            drop(item, e)
             None
           case None => None
       }
       progress = pending.length < before
+      if !progress && pending.nonEmpty then
+        // no item could be elaborated: an item whose name no pending item declares was waiting only for a
+        // pending `%use` that might open it, which may itself wait for that item (`%use m.` before a broken
+        // `m = …`). Its error is final; then the others are retried, and see its names as erroneous.
+        val declared = pending.flatMap((i, _) => declares(i)).toSet
+        val waiting = pending.filter {
+          case (_, Some(e)) => e.unresolved.exists(n => !declared(n))
+          case _ => false
+        }
+        // first the items that a pending `%use` waits for, so that the `%use` fails with them and the names
+        // it might open are not reported either; the others after
+        val usedNames = pending.collect { case (i, Some(e)) if isUse(i) => e.unresolved }.flatten.toSet
+        val needed = waiting.filter((i, _) => declares(i).exists(usedNames))
+        val first = if needed.nonEmpty then needed else waiting
+        first.foreach { case (item, e) => e.foreach(drop(item, _)) }
+        pending = pending.filterNot(p => first.exists(_._1 eq p._1))
+        progress = first.nonEmpty
     reportCycles(pending.collect { case (item, Some(e)) => (item, e) })
+
+  /** Reports the error of a dropped item; its names are erroneous, so their uses are not reported again. */
+  private def drop(item: Item, e: ElabError): Unit =
+    if e.unresolved.isDefined && e.unresolved == declares(item) then selfReference(item, e) else report(e)
+    declares(item).foreach(state.erroneous += _)
+    droppedUse(item)
 
   /** Items that refer to each other in a cycle: refinements (E0404) and type definitions (E0104, once per
    *  cycle, at the reference that closes it) as the old typer reported them; others as unresolved names. */
