@@ -1,0 +1,47 @@
+error[E0004]: malformed declaration head
+ --> tests/recovery/several_names.hgn:4:6
+  |
+4 | red, Green, blue : color. (*~ E0004 *)
+  |      ^^^^^ expected a name without parameters
+  |
+  = note: a declaration of several names has the form `a, b, c : type.`
+
+error[E0004]: malformed declaration head
+ --> tests/recovery/several_names.hgn:5:1
+  |
+5 | shade X, tone : color. (*~ E0004 *)
+  | ^^^^^^^ expected a name without parameters
+  |
+  = note: a declaration of several names has the form `a, b, c : type.`
+
+error[E0001]: expected `.`, found `=`
+ --> tests/recovery/several_names.hgn:6:21
+  |
+6 | dark, light : color = red. (*~ E0001 *)
+  |                     ^ expected `.`
+
+error[E0001]: expected an expression, found `:`
+ --> tests/recovery/several_names.hgn:7:7
+  |
+7 | pale, : color. (*~ E0001 *)
+  |       ^ expected an expression
+
+error[E0001]: expected `.` after the declaration, found `hot`
+ --> tests/recovery/several_names.hgn:8:19
+  |
+8 | warm, cold : color (*~ E0001 *)
+  |                   ^ expected `.` here
+9 | hot : color.
+  | --- next item starts here
+  |
+  = help: every item ends with a period
+
+5 errors found
+(* ---------------- after elaborate ---------------- *)
+color : type.
+warm : color.
+cold : color.
+hot : color.
+picked : color -> rel.
+picked hot.
+picked warm.

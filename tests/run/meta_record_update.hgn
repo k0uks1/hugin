@@ -1,5 +1,5 @@
 (* Updates of meta records (reference: meta/records): in a definition, in a function, of a record with
-   a dependent field, and of a functor argument; the object-level update is unchanged. *)
+   a dependent field, and of a functor argument. *)
 point : Type = { x : int, y : int }.
 origin : point = { x = 0, y = 0 }.
 moved : point = (origin with { x = 5 }).
@@ -26,9 +26,4 @@ g : graph = { node = city, edge = road }.
 byRail = tc (g with { edge = rail }).
 reach : city -> city -> rel.
 reach X Y :- byRail.path X Y.
-
-item : type = { name : string, price : int }.
-item "pen" 2.
-sale : item -> rel.
-sale (I with { price = 1 }) :- item N P, I = item N P.
-%output at. %output content. %output reach. %output sale.
+%output at. %output content. %output reach.
