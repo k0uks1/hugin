@@ -515,7 +515,7 @@ over a module of 5 000 items, `mirror` over 400 items, and memo keys and evaluat
 elements (all three overflow before the fix). With the launcher's stack, lists of 10 000 elements pass
 through `list.lift`, a recursive directive and a recursive meta function. What remains proportional to a
 list's length is a meta function's own recursion (one level per element: the evaluator is a recursive
-NbE evaluator), and the parser and elaborator on a source list literal of thousands of elements
+NbE evaluator; on the heap since #129, see below), and the parser and elaborator on a source list literal of thousands of elements
 (`Slices.congruent`, checking); see docs/NOTES.md (#88).
 
 ### Numbers (after #88)
@@ -784,3 +784,35 @@ of the note came before the sharing read-back of #108 and the stdlib split. An e
 weak in their keys (`readBack`, `termIds`; a weak identity map) made `meta_scaled` slower and its heap
 after collections larger (more GCs, 2–3× their pause time): the keys stay reachable anyway, through the
 memo's results, which must stay so that evaluation and its fresh names are unchanged. Not changed.
+
+## A meta function's recursion on the heap (#129)
+
+`core/Machine.scala` evaluates applications past a nesting depth of 96 with an explicit continuation
+stack, so a meta function's recursion over a long list costs heap instead of native stack (design and
+decisions in docs/NOTES.md, #129). Below the depth limit evaluation is the recursive evaluator of before.
+A first version ran every evaluation through the machine and cost up to ~15 % CPU (minimum of the runs)
+on the small meta-heavy programs (`c1_roundtrip`, `c2_module_wide`, `f_modules`), from frame objects and
+a `Reduct` per call; meta_scaled was +3 %.
+
+Measured with `Bench cpu` (main-thread CPU time and allocated bytes), the merge base
+(`origin/ccr-48027e29-daam41`, d3bb80e) against this branch, in alternating JVMs, four JVMs each, two
+rounds of 10 runs after 5 warm-up runs per JVM (`HUGIN_BENCH_ROUNDS=2 HUGIN_BENCH_WARMUP=5
+HUGIN_BENCH_RUNS=10`). The median is the median of the four JVMs' medians; the machine was otherwise idle.
+
+| measurement (main thread) | CPU median before | after | change | CPU min before | after | alloc before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prelude elaboration (uncached) | 66.8 ms | 63.1 ms | −6 % | 31.8 ms | 34.2 ms | 19.8 MB | 19.5 MB |
+| run a04_typechecker | 33.0 ms | 33.6 ms | +2 % | 14.6 ms | 14.5 ms | 9.0 MB | 9.0 MB |
+| run a10_meta_applicative | 16.5 ms | 15.5 ms | −6 % | 7.5 ms | 7.3 ms | 2.4 MB | 2.4 MB |
+| run f_modules | 24.3 ms | 23.6 ms | −3 % | 13.6 ms | 12.6 ms | 4.4 MB | 4.4 MB |
+| run c1_roundtrip | 13.5 ms | 13.7 ms | +2 % | 6.9 ms | 7.8 ms | 2.7 MB | 2.7 MB |
+| run c2_module_wide | 16.6 ms | 16.0 ms | −3 % | 10.6 ms | 9.9 ms | 4.2 MB | 4.2 MB |
+| run meta_scaled | 687 ms | 692 ms | +1 % | 564 ms | 576 ms | 321.5 MB | 327.2 MB |
+
+All within the noise of the JVM medians (meta_scaled's ranged 662–794 ms before, 643–711 ms after);
+meta_scaled allocates 2 % more, the frames of its recursion past 96 levels.
+
+Depth: `mirror` over 5 000 items passes on a 1 MiB thread (also interpreted, `-Xint`), and the browser
+bundle (`web/bundle`) passes it with `node --stack-size=200`; the merge base overflows the 1 MiB thread
+from ~590 items cold (400 with `-Xint`) and the bundle from ~1 500 items on node's default stack (400
+with `--stack-size=200`).
