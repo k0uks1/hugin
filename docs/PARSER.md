@@ -208,7 +208,8 @@ reported it.
 When the parser expects a closing delimiter and finds something else, it looks for the delimiter ahead,
 within the current item: over balanced brackets, ignoring closing delimiters of other kinds, stopping at a
 token in column 0 other than the delimiter itself (a `}` in column 0 closes a body over several lines), the
-end of the file, or a period at depth 0. A period does not stop the search if the delimiter follows it on
+end of the file, a period at depth 0, or a closer of another kind that closes the construct enclosing
+the one being closed (`count { V | $(F V, p V }`). A period does not stop the search if the delimiter follows it on
 its line (`count { X . | p X }`) or if the token after it cannot start an item (`{ a : t ., b : u }`).
 In a construct laid out over several lines (its opening delimiter ends its line) no period stops the
 search: such a construct ends with its closer, laid out at the start of a line at the indentation of the

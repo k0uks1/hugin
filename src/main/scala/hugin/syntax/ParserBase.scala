@@ -98,7 +98,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
       true
     else
       val stray = at(closer)
-      val ahead = if stray then closerAhead(closer, multiLine, i + 1) else closerAhead(closer, multiLine)
+      val ahead = if stray then closerAhead(closer, multiLine, i + 1) else closerAhead(closer, multiLine, open = Some(open))
       if ahead >= 0 then
         if stray then error(SyntaxError.StrayCloser(tok.text, tok.span)) else expected(List(Expect.Token(closer)), context)
         while i < ahead do advance()
@@ -140,7 +140,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
       if at(Tok.Period) && tok.span.start == stray.span.end then advance()
       skipItem()
       false
-    else if !quiet && at(Tok.Directive) && startsDirectiveItem(tok) then
+    else if !quiet && at(Tok.Directive) && startsDirectiveItem(tok) && !startsLine(i) then
       // a directive after a complete item on its line starts the next item (`leg%use "f".`): the period is
       // missing, and the item, not followed by a new line, is damaged (after an error in the item, the
       // directive is junk, skipped with the rest: `f = %output …`)

@@ -89,6 +89,12 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
     val start = src.lineStart(t.span.startLine)
     src.content.indexWhere(c => c != ' ' && c != '\t', start) - start
 
+  private def closerOf(t: Tok): Option[Tok] = t match
+    case Tok.LParen => Some(Tok.RParen)
+    case Tok.LBrack => Some(Tok.RBrack)
+    case Tok.LBrace => Some(Tok.RBrace)
+    case _ => None
+
   /** The innermost opening delimiter not closed before `open` (of an enclosing construct or body), back to
    *  the first token in column 0 of a line. */
   private def enclosingOpener(open: Token): Option[Token] =
@@ -108,8 +114,10 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
 
   /** The index of `closer` at depth 0 ahead, within the current item: not past a period at depth 0 (any
    *  period, in a construct laid out over several lines), a token in column 0 or the end of the file; -1
-   *  if there is none. The search starts at `from` (the current token by default). */
-  protected def closerAhead(closer: Tok, multiLine: Boolean = false, from: Int = -1): Int =
+   *  if there is none. The search starts at `from` (the current token by default). With the construct's
+   *  `open`, a closer of another kind at depth 0 that closes the construct enclosing it ends the search
+   *  (`count { V | $(F V, p V }`: the `}` is the aggregate's, the `(` is unclosed). */
+  protected def closerAhead(closer: Tok, multiLine: Boolean = false, from: Int = -1, open: Option[Token] = None): Int =
     val start = if from < 0 then i else from
     var k = start
     var depth = 0
@@ -125,6 +133,7 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
           // another closing delimiter at depth 0 is stray, or closes an enclosing construct, whose end
           // is then found by the period or the column-0 token after it
           if depth == 0 && t == closer then return k
+          if depth == 0 && open.exists(o => enclosingOpener(o).exists(e => closerOf(e.kind).contains(t))) then return -1
           depth = (depth - 1).max(0)
         // a period ends the item, unless the closer follows on its line (a stray period: `{ X . | p X }`) or
         // what follows it cannot start an item (`{ a : t ., b : u }`, over several lines); in a construct
