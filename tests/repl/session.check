@@ -159,7 +159,7 @@ chosen : int -> rel.
 chosen X :- item X, small X.
 ```
 
-Online: https://k0uks1.github.io/hugin/errors/W0005.html
+Online: https://k0uks1.github.io/hugin/reference/errors/W0005.html
 hugin> :lod x
 error[E1101]: unknown command `:lod`
   = help: did you mean `:load`?
