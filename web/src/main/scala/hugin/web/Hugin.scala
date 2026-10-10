@@ -16,6 +16,7 @@ import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
  *    "answers": [ { "query": "?- path a X.", "vars": ["X"], "rows": [["b"], ["c"]], "lines": ["X = b.", "X = c."] } ],
  *    "relations": [ { "name": "path", "vars": [], "rows": [["a", "b"], …] } ],   // the shown relations
  *    "output": [ … ],         // what `hugin run` prints on stdout: printed, facts, then queries and answers
+ *    "tokens": [ ["text", ["class", …]], … ],   // the highlighting, as `hugin highlight` (runs covering the program)
  *    "timeMs": 42 }
  *  }}}
  *
@@ -34,6 +35,10 @@ object Hugin:
   /** Compiles and evaluates the program, as `hugin run`. */
   @JSExport def run(source: String, options: js.UndefOr[js.Any] = js.undefined): String =
     Playground.compile(source, options, evaluate = true)
+
+  /** The highlighting of the program only (no diagnostics, no evaluation): `{ "version": 1, "tokens": … }`. */
+  @JSExport def highlight(source: String, options: js.UndefOr[js.Any] = js.undefined): String =
+    Playground.highlight(source, options)
 
   /** Makes the current Web Worker answer messages ([[WorkerMain]]); for a worker without a handler of
    *  its own: `importScripts("hugin.js"); Hugin.serveWorker()`. */

@@ -245,7 +245,7 @@ the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `web/sr
 - `hugin.platform.Platform` for JS: no file system, the bundled resources (the standard library, the error
   explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
   path arithmetic on strings, and cancellation by a deadline;
-- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.phases`; results as JSON, documented in
+- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.phases`; results as JSON, documented in
   `Hugin.scala`) and the Web Worker entry (`WorkerMain.scala`).
 
 ```
@@ -367,8 +367,10 @@ src/main/scala/hugin/
   query/           the query database (Database), the compiler's queries (CompilerQueries), diagnostics by
                    file (FileDiagnostics), position queries for tooling (Ide), the meta level for
                    language servers (MetaIde: types, stages, goals; Expansion: staged code)
+  ide/             semantic tokens (Tokens) and the highlighting of a program as classed runs
+                   (Highlighting), shared by the language server, `hugin highlight` and the playground
   lsp/             the language server (lsp4j): server and document state, request handlers (Features,
-                   MetaFeatures for the meta level, Tokens), position conversion (Positions), file URIs (Uris)
+                   MetaFeatures for the meta level, Tokens: the protocol's encoding), position conversion (Positions), file URIs (Uris)
   repl/            the interactive session (Session, testable without a terminal; its parts are Chunks),
                    the reading of inputs (Input) and the JLine front end (Repl)
   cli/             command-line parsing and the entry point (a client of the query database)
@@ -445,9 +447,11 @@ from disk, and every request is answered by `Ide` on the memoised compilation. I
   variable, adding missing clauses, the expansion of directives and functor applications (command
   `hugin.expansion`, code lenses), and type-directed, quote-aware completion.
 
-The semantic tokens (`hugin.lsp.Tokens`) also highlight the code blocks of the language reference: the
+The semantic tokens (`hugin.ide.Tokens`; `hugin.lsp.Tokens` encodes them for the protocol) also
+highlight the code blocks of the language reference, the landing page's examples and the playground: the
 internal command `hugin highlight` (`cli/Highlight`) computes them for a JSON array of snippets, with
-lexical classes for the text they do not cover, and the mdBook preprocessor `reference/highlight.py`
+lexical classes for the text they do not cover (`ide/Highlighting`, which the browser build's
+`Hugin.highlight` and the `tokens` of `Hugin.run` and `Hugin.check` use too), and the mdBook preprocessor `reference/highlight.py`
 renders them as HTML at build time (`reference/README.md`, "Highlighting"). A change to the tokens
 changes the reference's highlighting as well; the book is built in CI after `sbt stage`.
 

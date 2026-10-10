@@ -1,8 +1,9 @@
 // The playground's editor: CodeMirror 6 with a minimal setup (docs/design/website.md 4.6), Hugin
 // highlighting from the VS Code grammar, the compiler's diagnostics inline (underline, a line below the
 // code with the fix suggestions as buttons, and the lint tooltip and keyboard actions), and, after a
-// check, the compiler's semantic highlighting. Lines do not wrap, as in the landing page's code card:
-// long lines scroll horizontally, and the inline diagnostics are as wide as the visible editor (play.css). Any edit clears what the compiler said about the text.
+// check, a run or a pause in typing, the compiler's semantic highlighting (main.js asks for it). An edit
+// clears the diagnostics. Lines do not wrap, as in the landing page's code card: long lines scroll
+// horizontally, and the inline diagnostics are as wide as the visible editor (play.css).
 import { EditorView, keymap, lineNumbers, drawSelection, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState, StateField, StateEffect, Compartment } from "@codemirror/state";
 import { history, defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -61,18 +62,20 @@ class InlineDiagnostic extends WidgetType {
 const setInline = StateEffect.define();
 const setTokens = StateEffect.define();
 
-function decorationField(effect) {
+// decorations set by an effect; an edit drops them, or (`keep`) maps them through the change
+function decorationField(effect, keep = false) {
   return StateField.define({
     create: () => Decoration.none,
     update(deco, tr) {
       for (const e of tr.effects) if (e.is(effect)) return e.value;
-      return tr.docChanged ? Decoration.none : deco;
+      return !tr.docChanged ? deco : keep ? deco.map(tr.changes) : Decoration.none;
     },
     provide: (f) => EditorView.decorations.from(f),
   });
 }
 const inlineField = decorationField(setInline);
-const tokenField = decorationField(setTokens);
+// the semantic tokens survive edits (moved with the text) until the next highlighting replaces them
+const tokenField = decorationField(setTokens, true);
 const lexical = new Compartment();
 
 export function createEditor(parent, doc, { onRun, onEdit }) {
@@ -99,7 +102,7 @@ export function createEditor(parent, doc, { onRun, onEdit }) {
         ]),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
-            if (u.view.compilerSaid) queueMicrotask(() => clear(u.view));
+            if (u.view.compilerSaid) queueMicrotask(() => clearDiagnostics(u.view));
             onEdit();
           }
         }),
@@ -132,7 +135,7 @@ export function showDiagnostics(view, diagnostics) {
 }
 
 // the compiler's semantic tokens (runs of text and classes, as `hugin highlight`), replacing the
-// grammar's lexical highlighting until the next edit
+// grammar's lexical highlighting; they stay, moved with the text, until the next highlighting
 export function showTokens(view, runs) {
   if (!runs || runs.map((r) => r[0]).join("") !== view.state.doc.toString()) return;
   const marks = [];
@@ -142,8 +145,14 @@ export function showTokens(view, runs) {
       marks.push(Decoration.mark({ class: classes.map((c) => "hg-" + c).join(" ") }).range(at, at + text.length));
     at += text.length;
   }
-  view.compilerSaid = true;
   view.dispatch({ effects: [setTokens.of(Decoration.set(marks, true)), lexical.reconfigure([])] });
+}
+
+// what the compiler said about the text that an edit makes stale: the diagnostics
+function clearDiagnostics(view) {
+  view.compilerSaid = false;
+  view.dispatch(setDiagnostics(view.state, []));
+  view.dispatch({ effects: setInline.of(Decoration.none) });
 }
 
 export function clear(view) {
@@ -154,6 +163,8 @@ export function clear(view) {
   });
 }
 
+// a new program: the grammar's highlighting until the compiler's arrives
 export function setProgram(view, text) {
   view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+  clear(view);
 }

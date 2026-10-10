@@ -97,6 +97,15 @@ for (const file of programs('tests/json')) {
   } catch (e) { fail(file, String(e)); }
 }
 
+// the highlighting (Hugin.highlight, and `tokens` in run's answer): runs that cover the program, with the
+// semantic classes of `hugin highlight`
+const hlSource = 'edge : int -> int -> rel.\nedge 1 2.\npath : int -> int -> rel.\npath X Y :- edge X Y.\n';
+const hl = JSON.parse(Hugin.highlight(hlSource));
+const cls = (text) => hl.tokens?.find((r) => r[0] === text)?.[1] ?? [];
+if (hl.tokens?.map((r) => r[0]).join('') !== hlSource) fail('highlight', 'the runs do not cover the program: ' + JSON.stringify(hl));
+else if (!cls('path').includes('function') || !cls('X').includes('variable') || !cls('int').includes('type')) fail('highlight', 'unexpected classes: ' + JSON.stringify(hl.tokens));
+if (JSON.stringify(JSON.parse(Hugin.run(hlSource)).tokens) !== JSON.stringify(hl.tokens)) fail('highlight', 'run and highlight disagree');
+
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');
 const bad = JSON.parse(Hugin.run('x.', { printAfter: 'nonsense' }));
