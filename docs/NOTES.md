@@ -1922,9 +1922,10 @@ the object items. Implementation choices the design did not spell out:
   error (an unresolved name).
 - *Prelude lets.* The leaf of a lifted function re-defines the context's names (`Lifting.prelude`), and
   lets are evaluated when a leaf is: a member definition that calls the function (`limit = bound 2` next
-  to `bound`) recursed forever. `Clauses.letBound` now leaves out the prelude's lets that the leaf does
-  not use. A module value of the body that a member function uses is evaluated again at the call (an
-  instance of the call's site, as the design's 4.4 says of bodies on right-hand sides).
+  to `bound`) recursed forever. `Lifting.letBound` (used by `Clauses.leaf`) now leaves out the prelude's
+  lets that the leaf does not use. A module value of the body that a member function uses is evaluated
+  again at the call (an instance of the call's site, as the design's 4.4 says of bodies on right-hand
+  sides).
 - *Scope.* A member shadows the file's name in the whole body, also before its declaration, as the
   reference ("Scopes") already said: `ElabState.bodyDeclared` makes a not yet bound member an unresolved
   name, so the item is retried after it. Before, `m = { a : int = two. two : int = 3. }.` with a

@@ -358,22 +358,6 @@ trait Clauses:
             case _ =>
         case _ =>
 
-  /** Wraps the definitions bound after level `base` around `body` as lets. The names of a lifted
-   *  function's prelude (levels `base` to `preludeEnd`) that the leaf does not use are left out: lets are
-   *  evaluated when the leaf is, and a definition of a module body may call the function itself
-   *  (`limit = bound 2` next to `bound`, [[MemberFunctions]]). */
-  private def letBound(c: Cxt, base: Int, preludeEnd: Int, body: Tm): Tm =
-    c.binders.take(c.lvl - base).zipWithIndex.foldLeft(body) { case (acc, (b, k)) =>
-      val level = c.lvl - 1 - k
-      if level < preludeEnd && !occurs(0, acc) && !hasUnknowns(acc) then Tm.shift(acc, -1, 1)
-      else Tm.Let(b.name, b.tyTm, b.defn.getOrElse(throw Impossible("a pattern binder without definition")), acc)
-    }
-
-  private def hasUnknowns(t: Tm): Boolean = Tm.exists(t) {
-    case Tm.Meta(_) | Tm.AppPruning(_, _) => true
-    case _ => false
-  }
-
   /** A case no clause covers: collected (up to a bound), so that tooling can add them all; the tree
    *  returned in its place is never used, since coverage then fails ([[notCovering]]). */
   private def missingCase(f: FunctionInfo, p: SplitProblem): CaseTree =
