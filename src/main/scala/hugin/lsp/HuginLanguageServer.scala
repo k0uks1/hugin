@@ -26,7 +26,10 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
   db.set(EagerStdlib, (), true) // completion offers every name in scope ([[hugin.compiler.LazyStdlib]])
   private val worker = Worker(db)
   private var client: Option[LanguageClient] = None
-  private var shutdownRequested = false
+
+  /** Set on lsp4j's thread when `shutdown` arrives, so that an `exit` right after it sees it whether or not
+   *  the worker has reached the shutdown yet; read by [[serve]] on the main thread. */
+  @volatile private var shutdownRequested = false
 
   /** Whether the client asks for inlay hints again when told to (after a change of the settings). */
   private var refreshHints = false
@@ -69,10 +72,8 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
 
   /** Answered after the work for the messages before it is done. */
   override def shutdown(): CompletableFuture[Object] =
-    worker.request {
-      shutdownRequested = true
-      null
-    }
+    shutdownRequested = true
+    worker.request[Object](null)
 
   override def exit(): Unit = exited.complete(exitCode)
 
