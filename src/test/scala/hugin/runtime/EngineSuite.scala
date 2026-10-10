@@ -68,3 +68,34 @@ class EngineSuite extends munit.ScalaCheckSuite:
     // the wildcard is a variable of the aggregate: three distinct bindings (1,5) (2,5) (3,7)
     assertEquals(out, Right(List("c 3.", "s 17.", "z 0.")))
   }
+
+  /** The engine of a recursive program whose facts are written in it (four rounds of `path`). */
+  private def chain(cancellation: Option[hugin.util.Cancellation]): (Engine, Int) =
+    val code = tc.replace("%input edge.", "edge 1 2. edge 2 3. edge 3 4. edge 4 5. edge 5 6.")
+    val prog = TestSupport.compile(code).unit.core.nn
+    (cancellation.fold(Engine(prog))(Engine(prog, _)), prog.rels.indexWhere(_.name == "path"))
+
+  /** The message of the `InterruptedException` that `body` ends with (not `NonFatal`, so not `intercept`). */
+  private def stopped(body: => Unit): Option[String] =
+    try
+      body
+      None
+    catch case e: InterruptedException => Some(e.getMessage)
+
+  test("the cancellation is asked once per round; evaluation stops when it answers yes") {
+    var asked = 0
+    val (counted, path) = chain(Some(() => { asked += 1; false }))
+    counted.run()
+    assertEquals(asked, counted.stats.map(_.rounds).sum)
+    assert(asked > 0)
+    assertEquals(counted.facts(path).length, 15)
+    val (cancelled, _) = chain(Some(() => true))
+    assertEquals(stopped(cancelled.run()), Some("evaluation cancelled"))
+  }
+
+  test("by default, an interrupt of the evaluating thread cancels, and is cleared") {
+    val (engine, _) = chain(None)
+    Thread.currentThread.interrupt()
+    assertEquals(stopped(engine.run()), Some("evaluation cancelled"))
+    assert(!Thread.interrupted())
+  }

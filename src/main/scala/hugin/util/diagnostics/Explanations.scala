@@ -1,20 +1,18 @@
 package hugin.util.diagnostics
 
-import java.nio.charset.StandardCharsets.UTF_8
-import scala.util.Using
+import hugin.platform.Platform
 
 /** The long explanations of the codes: `docs/errors/<id>.md`, packaged as resources (see `build.sbt`). */
 object Explanations:
   /** The URL of the published language reference, ending in `/`: `reference/site-url.txt`, packaged as the
    *  resource `/hugin/site-url.txt` (see `build.sbt`). */
   lazy val siteUrl: String =
-    val in = Option(getClass.getResourceAsStream("/hugin/site-url.txt")).getOrElse(sys.error("resource /hugin/site-url.txt is missing"))
-    val url = Using.resource(in)(s => String(s.readAllBytes(), UTF_8)).trim
+    val url = Platform.files.readResource("/hugin/site-url.txt").getOrElse(sys.error("resource /hugin/site-url.txt is missing")).trim
     if url.endsWith("/") then url else url + "/"
 
   /** The Markdown explanation of a code, if one is packaged. */
   def markdown(code: Code): Option[String] =
-    Option(getClass.getResourceAsStream(code.explanationResource)).map(in => Using.resource(in)(s => String(s.readAllBytes(), UTF_8)))
+    Platform.files.readResource(code.explanationResource)
 
   /** The explanation as printed by `hugin explain` and `:explain`: the Markdown without the test
    *  attributes of its code blocks (` ```hugin fail=E0001 ` becomes ` ```hugin `). */

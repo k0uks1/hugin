@@ -1,7 +1,5 @@
 package hugin.util
 
-import java.nio.file.{Files, Path}
-
 /** A source file with lazily computed line table.
  *
  *  A file can also be a *slice*: the text of one top-level item of a file, parsed on its own so that its
@@ -79,7 +77,6 @@ final class SourceFile(val path: String, val content: String):
   override def toString: String = path
 
 object SourceFile:
-  def fromPath(p: Path): SourceFile = SourceFile(p.toString, Files.readString(p))
   def virtual(name: String, content: String): SourceFile = SourceFile(name, content)
   val NoSource: SourceFile = SourceFile("<no source>", "")
 
