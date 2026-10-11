@@ -173,7 +173,7 @@ object Main:
 
   private def answer(key: CompileKey, request: String, offset: Option[Int], opts: Options, out: String => Unit)(using Database): Int =
     request match
-      case "hover" => out(Ide.hover(key, offset.get).getOrElse("(no information)"))
+      case "hover" => out(hugin.ide.Hover.at(key, offset.get).fold("(no information)")(_.text))
       case "definition" => out(Ide.definition(key, offset.get).map(_.show).getOrElse("(no definition)"))
       case "references" => Ide.references(key, offset.get).foreach(s => out(s.show))
       case "completions" => Ide.completions(key, offset.get).foreach(c => out(s"${c.label}  (${c.kind})  ${c.detail}"))

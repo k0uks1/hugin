@@ -1,16 +1,18 @@
 package hugin.lsp
 
 import hugin.compiler.SymKind
-import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Ide, Parse, SourceText}
+import hugin.ide.{CandidateKind, Fix, FixKind, Target}
+import hugin.query.{CompileKey, Compile, Database, FileDiagnostics, Parse, SourceText}
 import hugin.util.{Diagnostic as HDiagnostic, Severity, SourceFile, Span}
-import hugin.util.diagnostics.{Code, Suggestion}
+import hugin.util.diagnostics.Code
 import org.eclipse.lsp4j.*
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
-import scala.util.control.NonFatal
 
-/** The language features of the server, answered through the [[hugin.query.Ide]] API and the compiler queries, in
- *  terms of the protocol: URIs, 0-based UTF-16 positions and lsp4j's data types.
+/** The language features of the server in terms of the protocol: URIs, 0-based UTF-16 positions and
+ *  lsp4j's data types. What the features answer is decided by the protocol-independent editor layer
+ *  [[hugin.ide]] (shared with the browser build and the CLI); every method converts the position to an
+ *  offset, calls it, and encodes the result.
  *
  *  Documents are keyed in the database by their path (see [[Uris]]); an open document's text is its
  *  `SourceText` input, and files that are not open (imports) are read from disk by the compiler. Programs
@@ -23,7 +25,7 @@ final class Features(using db: Database):
   /** The open documents: path to URI as the client spelled it. */
   private val opened = mutable.LinkedHashMap.empty[String, String]
 
-  def isFacts(path: String): Boolean = path.endsWith(".facts")
+  def isFacts(path: String): Boolean = hugin.ide.Files.isFacts(path)
 
   /** The URI of a path: the client's own for an open document. */
   def uriOf(path: String): Option[String] = opened.get(path).orElse(Uris.uri(path))
@@ -31,7 +33,6 @@ final class Features(using db: Database):
   private def key(path: String) = CompileKey(path)
   private def source(path: String): SourceFile = db(Parse, path).source
   private def offset(path: String, pos: Position): Int = Positions.offset(source(path), pos)
-  private def inFile(span: Span, path: String) = span.exists && span.source.path == path
   private def location(span: Span): Option[Location] =
     Option.when(span.exists)(span).flatMap(sp => uriOf(sp.source.path).map(Location(_, Positions.range(sp))))
 
@@ -59,17 +60,9 @@ final class Features(using db: Database):
   /** Whether a URI is that of an open document. */
   def isOpen(uri: String): Boolean = opened.valuesIterator.contains(uri)
 
-  /** The compiler's diagnostics for a document by file ([[hugin.query.FileDiagnostics]]): its own and those
-   *  in the files it imports, each library's read from the queries that named and elaborated it. */
-  def fileDiagnostics(path: String): List[FileDiagnostics] =
-    try
-      if isFacts(path) then List(FileDiagnostics(path, db(Parse, path).diagnostics)).filter(_.diagnostics.nonEmpty)
-      else FileDiagnostics.of(key(path))
-    catch
-      case NonFatal(e) =>
-        // a compiler crash must not take the other documents' diagnostics with it
-        val crash = HDiagnostic(Severity.Error, Code.E1102, s"internal compiler error: $e", notes = List("please report this as a bug"))
-        List(FileDiagnostics(path, List(crash)))
+  /** The compiler's diagnostics for a document by file ([[hugin.ide.Diagnostics]]): its own and those in
+   *  the files it imports, each library's read from the queries that named and elaborated it. */
+  def fileDiagnostics(path: String): List[FileDiagnostics] = hugin.ide.Diagnostics.of(key(path))
 
   /** The compiler's diagnostics for a document, including those in the files it imports. */
   def compilerDiagnostics(path: String): List[HDiagnostic] = fileDiagnostics(path).flatMap(_.diagnostics)
@@ -127,105 +120,66 @@ final class Features(using db: Database):
 
   // ----------------------------------------------------------------------------------- position queries
 
-  /** The signature as a Hugin code block, then the compiler's notes (staging, family instances) as
-   *  Markdown paragraphs. */
+  /** The signature as a Hugin code block, then the notes as Markdown paragraphs ([[hugin.ide.Hover]]). */
   def hover(uri: String, pos: Position): Option[Hover] =
     val path = Uris.path(uri)
-    if isFacts(path) then None
-    else
-      val off = offset(path, pos)
-      val base =
-        Ide.hoverInfo(key(path), off).toList.flatMap(info => info.signature.map(sig => s"```hugin\n$sig\n```").toList ++ info.notes)
-      val parts = base ++ meta.hover(path, off).filterNot(base.contains)
-      Option.when(parts.nonEmpty)(Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n"))))
+    hugin.ide.Hover.at(key(path), offset(path, pos)).map { h =>
+      val parts = h.signature.map(sig => s"```hugin\n$sig\n```").toList ++ h.notes
+      Hover(MarkupContent(MarkupKind.MARKDOWN, parts.mkString("\n\n")))
+    }
 
   /** The declaration of the name at a position; nothing for declarations of the bundled standard library. */
   def definition(uri: String, pos: Position): List[Location] =
     val path = Uris.path(uri)
-    if isFacts(path) then Nil else Ide.definition(key(path), offset(path, pos)).flatMap(location).toList
+    hugin.ide.Navigation.definition(key(path), offset(path, pos)).toList.flatMap {
+      case Target.InFile(span) => location(span)
+      case Target.Library(_, _) => None
+    }
 
   def references(uri: String, pos: Position, includeDeclaration: Boolean): List[Location] =
     val path = Uris.path(uri)
-    if isFacts(path) then Nil
-    else
-      val off = offset(path, pos)
-      val decl = Ide.definition(key(path), off)
-      Ide.references(key(path), off).filter(sp => includeDeclaration || !decl.contains(sp)).flatMap(location)
+    hugin.ide.Navigation.references(key(path), offset(path, pos), includeDeclaration).flatMap(location)
 
-  /** Characters after which clients should ask for completions: module members, labels, directives. */
-  val completionTriggers: List[String] = List(".", "{", "%")
+  /** Characters after which clients should ask for completions ([[hugin.ide.Completion.triggers]]). */
+  val completionTriggers: List[String] = hugin.ide.Completion.triggers
 
-  /** The compiler's candidates ([[Ide.completions]]), adapted on the meta level: inside a reflection
-   *  quote `'( … )` only object syntax (or, after `$`, meta values) is offered; where the elaborator knew
-   *  the type expected at the name being typed, the variables in scope there are added and the
-   *  candidates whose result type fits come first (`sortText`, `preselect`). */
+  /** The candidates of [[hugin.ide.Completion]]; where they are ranked, those that fit come first
+   *  (`sortText`) and are preselected. */
   def completion(uri: String, pos: Position): List[CompletionItem] =
     val path = Uris.path(uri)
-    if isFacts(path) then Nil
-    else
-      val off = offset(path, pos)
-      val text = source(path).content
-      val start =
-        Iterator.iterate(off)(_ - 1).find(i => i <= 0 || !(text.charAt(i - 1).isLetterOrDigit || "_'".contains(text.charAt(i - 1)))).get
-      val prefix = text.substring(start, off.min(text.length))
-      val base = Ide.completions(key(path), off)
-      val expected = if start > 0 && ".%{".contains(text.charAt(start - 1)) then None else meta.expected(path, start, off)
-      val locals =
-        expected.toList.flatMap(_._2).filter(_._1.startsWith(prefix)).map((x, t) => hugin.query.CompletionItem(x, "meta parameter", t))
-      val candidates = MetaFeatures.inQuote(text, start) match
-        case Some(afterDollar) => (locals ++ base).filter(c => MetaFeatures.isObjectKind(c.kind) != afterDollar)
-        case None => locals ++ base
-      val heads = expected.map(_ => hugin.query.MetaIde.headsByName(key(path))).getOrElse(Map.empty)
-      candidates.distinctBy(_.label).map { c =>
-        val item = CompletionItem(c.label)
-        item.setKind(completionKind(c.kind))
-        item.setDetail(c.detail)
-        val fits = expected.exists((head, _) => heads.getOrElse(c.label, Set.empty)(head) || locals.exists(_.label == c.label))
-        if expected.isDefined then item.setSortText((if fits then "0" else "1") + c.label)
-        if fits then item.setPreselect(true)
-        item
-      }
+    val cs = hugin.ide.Completion.at(key(path), offset(path, pos))
+    cs.items.map { c =>
+      val item = CompletionItem(c.label)
+      item.setKind(completionKind(c.kind))
+      item.setDetail(c.detail)
+      if cs.ranked then item.setSortText((if c.fits then "0" else "1") + c.label)
+      if c.fits then item.setPreselect(true)
+      item
+    }
 
-  private def completionKind(kind: String): CompletionItemKind = kind match
-    case "directive" => CompletionItemKind.Keyword
-    case "variable" | "meta parameter" => CompletionItemKind.Variable
-    case "label" => CompletionItemKind.Field
-    case "relation" => CompletionItemKind.Function
-    case "constructor" => CompletionItemKind.Constructor
-    case "struct" => CompletionItemKind.Struct
-    case "object type" | "base type" => CompletionItemKind.Class
-    case "type definition" => CompletionItemKind.TypeParameter
-    case "formula function" => CompletionItemKind.Method
-    case "meta definition" => CompletionItemKind.Module
-    case _ => CompletionItemKind.Text
+  private def completionKind(kind: CandidateKind): CompletionItemKind = kind match
+    case CandidateKind.Directive => CompletionItemKind.Keyword
+    case CandidateKind.Variable | CandidateKind.MetaParameter => CompletionItemKind.Variable
+    case CandidateKind.Label => CompletionItemKind.Field
+    case CandidateKind.Relation => CompletionItemKind.Function
+    case CandidateKind.Constructor => CompletionItemKind.Constructor
+    case CandidateKind.Struct => CompletionItemKind.Struct
+    case CandidateKind.ObjectType | CandidateKind.BaseType => CompletionItemKind.Class
+    case CandidateKind.TypeDefinition => CompletionItemKind.TypeParameter
+    case CandidateKind.FormulaFunction => CompletionItemKind.Method
+    case CandidateKind.MetaDefinition => CompletionItemKind.Module
+    case CandidateKind.Other => CompletionItemKind.Text
 
   // -------------------------------------------------------------------------------------------- outline
 
-  /** The outline, nested by enclosing definitions (module bodies). */
+  /** The outline ([[hugin.ide.Outline]]), nested by enclosing definitions (module bodies). */
   def documentSymbols(uri: String): List[DocumentSymbol] =
-    val path = Uris.path(uri)
-    if isFacts(path) then return Nil
-    final class Node(val sym: hugin.query.DocumentSymbol):
-      val children = mutable.ListBuffer.empty[Node]
-      def extent: Span = children.foldLeft(sym.extent)((sp, c) => sp.to(c.extent))
-      def toLsp: DocumentSymbol =
-        val out = DocumentSymbol(sym.name, symbolKind(sym.kind), Positions.range(extent), Positions.range(sym.span), sym.kind.describe)
-        out.setChildren(children.map(_.toLsp).asJava)
-        out
-    val roots = mutable.ListBuffer.empty[Node]
-    val all = mutable.ListBuffer.empty[Node]
-    for s <- Ide.symbols(key(path)) do
-      val node = Node(s)
-      val parent = s.container.flatMap { c =>
-        all
-          .filter(n =>
-            n.sym.name == c && n.sym.kind == SymKind.MetaDef && n.sym.extent.start <= s.span.start && s.span.end <= n.sym.extent.end
-          )
-          .minByOption(n => n.sym.extent.end - n.sym.extent.start)
-      }
-      parent.fold(roots)(_.children) += node
-      all += node
-    roots.map(_.toLsp).toList
+    def toLsp(n: hugin.ide.Outline.Node): DocumentSymbol =
+      val s = n.symbol
+      val out = DocumentSymbol(s.name, symbolKind(s.kind), Positions.range(n.extent), Positions.range(s.span), s.kind.describe)
+      out.setChildren(n.children.map(toLsp).asJava)
+      out
+    hugin.ide.Outline.of(key(Uris.path(uri))).map(toLsp)
 
   private def symbolKind(k: SymKind): SymbolKind = k match
     case SymKind.ObjType | SymKind.BaseType => SymbolKind.Class
@@ -253,50 +207,47 @@ final class Features(using db: Database):
   /** The staged result of the meta code at a position (command `hugin.expansion`). */
   def expansion(uri: String, pos: Position): Option[String] =
     val path = Uris.path(uri)
-    if isFacts(path) then None else meta.expansion(path, offset(path, pos))
+    hugin.ide.Expansions.at(key(path), offset(path, pos))
 
-  def codeLenses(uri: String): List[CodeLens] =
-    val path = Uris.path(uri)
-    if isFacts(path) then Nil else meta.codeLenses(uri, path)
+  def codeLenses(uri: String): List[CodeLens] = meta.codeLenses(uri, Uris.path(uri))
 
   // ---------------------------------------------------------------------------------------- inlay hints
 
-  def inlayHints(uri: String, range: Range): List[InlayHint] =
-    val path = Uris.path(uri)
-    if isFacts(path) then Nil else meta.inlayHints(path, range)
+  def inlayHints(uri: String, range: Range): List[InlayHint] = meta.inlayHints(Uris.path(uri), range)
 
   // --------------------------------------------------------------------------------------- code actions
 
-  /** Quick fixes for the diagnostics overlapping a range: their suggestions (see
-   *  [[hugin.util.diagnostics.Suggestion]]). Only the first machine-applicable suggestion of a diagnostic is
-   *  preferred, since editors may apply a preferred fix without asking; guesses (`MaybeIncorrect`) are only
-   *  offered. An edit may lie in another file (a signature); suggestions with edits in the bundled standard
-   *  library are not offered. */
+  /** The fixes of [[hugin.ide.Fixes]] for a range: quick fixes from the diagnostics' suggestions and the
+   *  code actions of interactive development. A fix with an edit in a file without a URI is not offered. */
   def codeActions(uri: String, range: Range): List[CodeAction] =
     val path = Uris.path(uri)
-    if isFacts(path) then return Nil
     val src = source(path)
     val (from, to) = (Positions.offset(src, range.getStart), Positions.offset(src, range.getEnd))
-    val here = compilerDiagnostics(path).filter(d => inFile(d.primarySpan, path) && d.primarySpan.start <= to && from <= d.primarySpan.end)
-    val fixes =
-      for
-        d <- here
-        preferred = d.suggestions.find(_.isMachineApplicable)
-        s <- d.suggestions
-        edits <- workspaceEdit(s).toList
-      yield
-        val action = CodeAction(s.message.capitalize)
-        action.setKind(CodeActionKind.QuickFix)
-        action.setDiagnostics(List(toLsp(d)).asJava)
-        action.setEdit(edits)
-        action.setIsPreferred(preferred.exists(_ eq s))
-        action
-    fixes ++ meta.codeActions(uri, path, from, to, here.map(d => (d, toLsp(d))))
+    hugin.ide.Fixes.at(key(path), path, from, to).flatMap(f => codeAction(f, uri, path))
 
-  /** The edits of a suggestion by document, or `None` if one of them lies in a file without a URI. */
-  private def workspaceEdit(s: Suggestion): Option[WorkspaceEdit] =
-    val byFile = s.edits.groupBy(_.span.source.path).toList
-    val targets = byFile.map((path, es) => uriOf(path).map(_ -> es.map(e => TextEdit(Positions.range(e.span), e.replacement)).asJava))
+  private def codeAction(f: Fix, uri: String, path: String): Option[CodeAction] =
+    workspaceEdit(f, uri, path).map { edit =>
+      val action = CodeAction(f.title)
+      action.setKind(f.kind match
+        case FixKind.QuickFix => CodeActionKind.QuickFix
+        case FixKind.Rewrite => CodeActionKind.RefactorRewrite
+      )
+      // a fix of a diagnostic says whether it is preferred; the others leave it to the client
+      f.diagnostic.foreach { d =>
+        action.setDiagnostics(List(toLsp(d)).asJava)
+        action.setIsPreferred(f.preferred)
+      }
+      action.setEdit(edit)
+      action
+    }
+
+  /** The edits of a fix by document (the request's URI for its own file), or `None` if one of them lies in
+   *  a file without a URI. */
+  private def workspaceEdit(f: Fix, uri: String, path: String): Option[WorkspaceEdit] =
+    val byFile = f.edits.groupBy(_.span.source.path).toList
+    val targets = byFile.map { (p, es) =>
+      (if p == path then Some(uri) else uriOf(p)).map(_ -> es.map(e => TextEdit(Positions.range(e.span), e.text)).asJava)
+    }
     Option.when(targets.forall(_.isDefined))(WorkspaceEdit(targets.flatten.toMap.asJava))
 
 object Features:

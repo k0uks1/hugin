@@ -52,7 +52,6 @@ that calls the member function `weight`. `parity` refers to `even` before its de
 instances share the functions, each with its own relation `cost`.
 
 ```hugin,run
-nat : Type. zero : nat. suc : nat -> nat.
 graph : Type = { node : type, edge : node -> node -> rel }.
 stepping (g : graph) = {
   parity : nat -> string.

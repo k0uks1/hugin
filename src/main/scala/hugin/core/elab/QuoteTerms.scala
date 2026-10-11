@@ -145,7 +145,12 @@ trait QuoteTerms:
   def metaValue(c: Cxt, t: Tree, k: RKind): Q =
     val notSyntax = ReflectionProblem.NotObjectSyntax(kindName(k), t.span)
     val (tm, ty, _) =
-      try undoOnFailure(insert(c, t.span, infer(c, t)))
+      try
+        undoOnFailure {
+          val r = insert(c, t.span, infer(c, t))
+          settleLiterals() // the value is computed now: its literals take their types (reference: meta/functions)
+          r
+        }
       catch case _: ElabError => fail(notSyntax)
     val v = eval(c.env, zonk(c.env, c.lvl, tm))
     if reflectiveKind(ty).contains(k) then Q.Raw(quote(c.lvl, v), t.span)

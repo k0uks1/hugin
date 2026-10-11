@@ -368,10 +368,15 @@ src/main/scala/hugin/
   query/           the query database (Database), the compiler's queries (CompilerQueries), diagnostics by
                    file (FileDiagnostics), position queries for tooling (Ide), the meta level for
                    language servers (MetaIde: types, stages, goals; Expansion: staged code)
-  ide/             semantic tokens (Tokens) and the highlighting of a program as classed runs
-                   (Highlighting), shared by the language server, `hugin highlight` and the playground
-  lsp/             the language server (lsp4j): server and document state, request handlers (Features,
-                   MetaFeatures for the meta level, Tokens: the protocol's encoding), position conversion (Positions), file URIs (Uris)
+  ide/             the editor features, independent of a protocol, in offsets (shared by the language
+                   server, the CLI and the browser build): hover (Hover), definition and references
+                   (Navigation), completion (Completion), fixes and the actions of interactive development
+                   (Fixes), the outline (Outline), inlay hints, goals and expansions (Meta), diagnostics
+                   with the crash guard (Files); semantic tokens (Tokens) and the highlighting of a program
+                   as classed runs (Highlighting), used by `hugin highlight` and the playground too
+  lsp/             the language server (lsp4j): server and document state, the protocol's encoding of the
+                   features of ide/ (Features, MetaFeatures for the meta level, Tokens), position conversion
+                   (Positions), file URIs (Uris)
   repl/            the interactive session (Session, testable without a terminal; its parts are Chunks),
                    the reading of inputs (Input) and the JLine front end (Repl)
   cli/             command-line parsing and the entry point (a client of the query database)
@@ -406,15 +411,22 @@ src/main/scala/hugin/
   - `definition` / `references`: for symbols across module paths; for object variables within their rule;
   - `completions`: names in scope at the position (innermost module body outwards, plus the variables
     of the rule), members after `m.`, labels inside a named pattern `c { ... }`, directives after `%`;
-  - `symbols` (an outline with enclosing definitions) and `diagnostics`:
+  - `symbols` (an outline with enclosing definitions) and `diagnostics`.
+
+`hugin query` answers with them; its `hover` is the editor layer's (`hugin.ide.Hover`, as the language
+server shows it, below), which adds the meta level's notes: the type and stage of the expression.
 
 ```
-$ hugin query examples/graphs.hgn hover 18:27
+$ hugin query examples/graphs.hgn hover 19:27
 relation roads.path : city -> city -> rel
-$ hugin query examples/graphs.hgn definition 18:27
-<stdlib>/prelude.hgn:31:3
-$ hugin query examples/graphs.hgn hover 18:16
+`roads.path` : `⇑(city -> city -> rel)`
+stage: meta, object code `⇑(city -> city -> rel)`
+$ hugin query examples/graphs.hgn definition 19:27
+<stdlib>/std/graph.hgn:32:3
+$ hugin query examples/graphs.hgn hover 19:16
 variable C : city
+`C` : `city`
+stage: object
 ```
 
 Incrementality is per item for the elaboration: the prelude and the imported files are elaborated as a
@@ -431,7 +443,9 @@ after an edit. See `docs/INCREMENTALITY.md` (issue #4).
 [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) over stdin and stdout
 (`hugin.lsp`, built on [LSP4J](https://github.com/eclipse-lsp4j/lsp4j)). It is a client of the query
 database: an open document's text is its `SourceText` input, files that are not open (imports) are read
-from disk, and every request is answered by `Ide` on the memoised compilation. Its work runs on one
+from disk, and every request is answered by the editor layer `hugin.ide` (on top of `Ide`, `MetaIde`
+and `Expansion`) on the memoised compilation; the server only converts positions to offsets and encodes
+the answers. Its work runs on one
 worker thread under a lock, off lsp4j's message thread: an edit cancels the computation for the previous
 text at its next query boundary (`Database.cancellation`), so a burst of keystrokes costs one
 compilation, and diagnostics of a superseded text are never published (`lsp/Worker.scala`). It provides
@@ -476,9 +490,14 @@ changes the reference's highlighting as well; the book is built in CI after `sbt
 $ hugin query examples/formula_functions.hgn hover 10:20
 meta parameter p : ⇑A -> ⇑prop
 spliced: the meta-level code `X.price < 10` is inserted here
-$ hugin query examples/lists.hgn hover 4:15
-relation len A : list A -> int -> rel
+`p` : `⇑A -> ⇑prop`
+stage: meta
+$ hugin query examples/lists.hgn hover 5:13
+relation len A : (l : list A) -> (n : int) -> rel
 instance: `len[int]`
+`len` : `⇑((l : list[int]) -> (n : int) -> rel)`
+stage: meta, object code `⇑((l : list[int]) -> (n : int) -> rel)`
+elaborated: `len {⟨int⟩}`
 ```
 
 **Suggestions.** Like rustc, a diagnostic can carry machine-applicable suggestions: an edit (a span and

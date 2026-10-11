@@ -62,8 +62,6 @@ The following program is rejected: `zero` is a value of the meta type `nat`, whi
 column of type `int`.
 
 ```hugin,compile_fail,E0902
-nat : Type.
-zero : nat.
 level : int -> rel.
 level zero.
 ```
