@@ -3,8 +3,9 @@
 Design note for [issue #91](https://github.com/k0uks1/hugin/issues/91): definitions are elaborated
 before the clauses of functions, so a type that computes with a function defined by clauses is
 rejected. Status: approved by the designer; batches 1 and 2 implemented (`docs/NOTES.md`, "Elaboration
-in dependency order" and "Module bodies in dependency order"). The designer's decisions: follow established practice; inside a cycle the written order must not matter (5.3); the
-first rejected class of 5.6, the split of typed definitions and the #100 constraint are accepted.
+in dependency order" and "Module bodies in dependency order"). The designer's decisions: follow
+established practice; inside a cycle the written order must not matter (5.3); the first rejected class
+of 5.6, the split of typed definitions and the #100 constraint are accepted.
 
 Contents: 1 recommendations, 2 conformance, 3 Hugin today, 4 prior art, 5 assessments, 6 alternatives
 rejected, 7 effects, 8 batches, 9 sources.
