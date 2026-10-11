@@ -13,14 +13,9 @@ final case class ComponentStats(rels: Vector[String], rounds: Int)
 final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platform.Platform.cancellation):
   val store: Vector[Relation] = prog.rels.zipWithIndex.map((r, i) => Relation(i, r, r.arity, prog.indexes.getOrElse(i, Set.empty)))
 
-  /** The statistics of each component of `prog` that was evaluated (or whose relations were copied with
-   *  their statistics, [[Reuse]]), by component index. */
+  /** The statistics of each evaluated (or copied, [[Reuse]]) component, by index; in order by [[stats]]. */
   private val statsByComp = new Array[ComponentStats | Null](prog.components.length)
-
-  /** The statistics of the evaluated components, in the program's order of components. */
   def stats: List[ComponentStats] = statsByComp.toList.flatMap(Option(_))
-
-  /** The statistics of one component, if it was evaluated; recorded for one copied here ([[Reuse]]). */
   def statsOf(ci: Int): Option[ComponentStats] = Option(statsByComp(ci))
   def setStats(ci: Int, s: ComponentStats): Unit = statsByComp(ci) = s
 
@@ -316,29 +311,22 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
       deltaRels.put(r, rels)
     rels
 
-  /** Evaluates the components of `order` (indexes into the program's components; all, in the program's
-   *  order, by default), in that order, which must respect their dependencies. A component in `resume`
-   *  already holds the fixpoint of its other rules (copied, [[Reuse]]): its first round fires only the
-   *  rules given there, and semi-naive evaluation continues from the new facts. `step` is called after
-   *  each component. Cancellable: `cancellation` (on the JVM, an interrupt of the evaluating
+  /** Evaluates the components of `order` (indexes into the program's components, in an order that respects
+   *  their dependencies; all by default), calling `step` after each. Cancellable: `cancellation` (on the JVM, an interrupt of the evaluating
    *  thread) ends evaluation with an `InterruptedException` at the next round (an editor that no longer
    *  needs the result). */
-  def run(
-      order: Seq[Int] = prog.components.indices,
-      resume: Map[Int, Vector[CompiledRule]] = Map.empty,
-      step: Int => Unit = _ => ()
-  ): Unit =
+  def run(order: Seq[Int] = prog.components.indices, step: Int => Unit = _ => ()): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
     for ci <- order do
       val comp = prog.components(ci)
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
-      // Init: every rule once (or the rules added to a resumed component), all atoms read the full relations
+      // Init: every rule once, all atoms read the full relations
       comp.foreach { t =>
         oldEnd(t) = store(t).size; deltaEnd(t) = store(t).size
       }
       deltaAt = -1
       val before = comp.map(t => store(t).size)
-      resume.getOrElse(ci, rules).foreach(fire)
+      rules.foreach(fire)
       comp.foreach { t =>
         oldEnd(t) = before(comp.indexOf(t)); deltaEnd(t) = store(t).size
       }
