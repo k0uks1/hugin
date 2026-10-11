@@ -246,6 +246,15 @@ trait Unification:
     // numerals by value; a numeral against a constructor application by one view step (Agda's
     // `constructorForm`): `suc ?m = 5` solves `?m := 4`
     case (Nat(f, a), Nat(g, b)) => if f != g || a != b then fail()
+    // offsets by value (Lean's `isDefEqOffset`): the smaller offset is taken off both sides
+    case (NatAdd(f, b, k), NatAdd(_, b2, k2)) =>
+      if k == k2 then unify(l, b, b2, cs)
+      else if k > k2 then unify(l, natAdd(f, b, k - k2), b2, cs)
+      else unify(l, b, natAdd(f, b2, k2 - k), cs)
+    case (NatAdd(f, b, k), Nat(_, n)) => if n >= k then unify(l, b, Nat(f, n - k), cs) else fail()
+    case (Nat(_, n), NatAdd(f, b, k)) => if n >= k then unify(l, Nat(f, n - k), b, cs) else fail()
+    case (NatAdd(_, _, _), Rigid(Head.Glob(c), sp)) => unifyView(l, natView(t), c, sp, cs)
+    case (Rigid(Head.Glob(c), sp), NatAdd(_, _, _)) => unifyView(l, natView(u), c, sp, cs)
     // (the view is decomposed here: forcing it would make it a numeral again)
     case (Nat(_, _), Rigid(Head.Glob(c), sp)) => unifyView(l, natView(t), c, sp, cs)
     case (Rigid(Head.Glob(c), sp), Nat(_, _)) => unifyView(l, natView(u), c, sp, cs)

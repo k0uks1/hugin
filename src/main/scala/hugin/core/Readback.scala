@@ -97,6 +97,7 @@ trait Readback:
       case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, go(l, v))))
       case Lit(x, st) => Tm.Lit(x, st)
       case Nat(f, n) => Tm.Nat(f, n)
+      case NatAdd(f, b, k) => Tm.NatAdd(f, go(l, b), k)
       case Base(b, st) => Tm.Base(b, st)
       case RelT => Tm.RelT
       case PropT => Tm.PropT
@@ -162,4 +163,5 @@ trait Readback:
             Tm.Fresh(ns, zonk(locals ++ env, l + ns.length, b))
           case Tm.Persist(a) => Tm.Persist(zonk(env, l, a))
           case Tm.FactTy(a) => Tm.FactTy(zonk(env, l, a))
+          case Tm.NatAdd(f, b, k) => Tm.NatAdd(f, zonk(env, l, b), k)
           case other => other

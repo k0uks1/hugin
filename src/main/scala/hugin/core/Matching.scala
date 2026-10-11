@@ -80,6 +80,20 @@ trait Matching:
                 if args.length == b.arity then runTree(b.tree, env ++ args, key, later) else Matching.Stuck
               case None => Matching.Stuck
           case _ => Matching.Stuck
+      case CaseTree.SplitNat(level, fam, values, offset, above, below) =>
+        natChain(forceData(env(level))) match
+          case Left(m) =>
+            values.find(_._1 == m) match
+              case Some((_, t)) => runTree(t, env, key, later)
+              case None =>
+                if offset > 0 && m >= offset then runTree(above, env :+ Nat(fam, m - offset), key, later)
+                else runTree(below, env, key, later)
+          // successors applied `i` times to a neutral: not a numeral below `i`, at least `i`
+          case Right((i, base)) =>
+            if values.exists(_._1 >= i) then Matching.Stuck
+            else if offset == 0 then runTree(below, env, key, later)
+            else if i >= offset then runTree(above, env :+ natSuccs(natLike(fam).get._2, base, i - offset), key, later)
+            else Matching.Stuck
       case CaseTree.SplitAtom(level, branches, default) =>
         atomKey(env(level)) match
           case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env, key, later)

@@ -49,13 +49,15 @@ trait Clauses:
       prelude: Vector[Val] => List[(Name, Val, Val)],
       /** The missing probes found so far (at most [[MaxMissing]]), and the cases of the tree they are below. */
       missingProbes: mutable.ListBuffer[SplitProblem] = mutable.ListBuffer.empty,
-      missingNodes: mutable.ListBuffer[SplitProblem] = mutable.ListBuffer.empty,
+      missingNodes: mutable.ListBuffer[(SplitProblem, List[SplitProblem])] = mutable.ListBuffer.empty,
       /** The leaves found so far, per clause: its case and its state there. */
       leaves: mutable.HashMap[Int, mutable.ListBuffer[(SplitProblem, ClauseState)]] = mutable.HashMap.empty,
       /** Π: the positions at which some clause has a constructor, an atom or `()` (paths, last step first). */
       pi: mutable.Set[List[Int]] = mutable.Set.empty,
       /** The clause contexts, by clause. */
-      contexts: mutable.ArrayBuffer[(SplitProblem, ClauseState)] = mutable.ArrayBuffer.empty
+      contexts: mutable.ArrayBuffer[(SplitProblem, ClauseState)] = mutable.ArrayBuffer.empty,
+      /** At the positions of Π with a numeral pattern: the literals and the offsets of the clauses there. */
+      natPoints: mutable.HashMap[List[Int], (Set[BigInt], Set[BigInt])] = mutable.HashMap.empty
   )
 
   /** A clause checked in its clause context `ctx` (whose free variables, in the telescope order `order`,
@@ -188,6 +190,13 @@ trait Clauses:
             e.pat match
               case Pat.PAtom(k, _) =>
                 val p2 = p.solve(core, x, eval(Nil, k))
+                next = Some(Right((p2, p2.norm(core, target))))
+              case Pat.PLit(k, _) =>
+                val p2 = p.solve(core, x, Val.Nat(natFamily(e.ty), k))
+                next = Some(Right((p2, p2.norm(core, target))))
+              case Pat.PSucc(_, j, _) =>
+                val p1 = p.extend(p.names(x), p.types(x))
+                val p2 = p1.solve(core, x, natSuccs(natType(e.ty).get._2, Val.local(p.size), j))
                 next = Some(Right((p2, p2.norm(core, target))))
               case pat @ Pat.PCon(ctor, _, span) =>
                 force(p.types(x)) match
@@ -344,8 +353,21 @@ trait Clauses:
             fail(ClauseProblem.BoundTwice(v.name, v.span))
           binds = binds :+ (v, e.term, e.ty)
         case Pat.PWild(_) =>
-        case lit @ (_: Pat.PLit | _: Pat.PSucc) =>
-          pending = e.copy(pat = natPattern(lit, e.ty, showVal(p.names.toList.reverse, e.ty))) :: pending
+        case pat @ (_: Pat.PLit | _: Pat.PSucc | _: Pat.PCon) if natType(e.ty).exists((z, s) =>
+              pat match
+                case Pat.PCon(c, _, _) => c == z || c == s
+                case _ => true
+            ) =>
+          // against a nat-like family: as a numeral, matched by value (reference: meta/clauses)
+          val (z, s) = natType(e.ty).get
+          natForm(pat, z, s) match
+            case NatPattern.Offset(q, j) if j == 0 => pending = e.copy(pat = q) :: pending
+            case np =>
+              natMatch(p, e, np, s) match
+                case NatMatch.Clash(term) => clash = Simplified.NoMatch(e.pat, term)
+                case NatMatch.Stuck(eqn) => stuck += eqn
+                case NatMatch.Next(eqn) => pending = eqn :: pending
+                case NatMatch.Done =>
         case Pat.PAtom(key, span) =>
           force(e.term) match
             case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => stuck += e
@@ -353,6 +375,8 @@ trait Clauses:
               atomKey(other) match
                 case Some(k) => if k != key then clash = Simplified.NoMatch(e.pat, other)
                 case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, other), span))
+        case Pat.PLit(_, span) => fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
+        case Pat.PSucc(_, _, span) => fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
         case Pat.PCon(c, args, span) =>
           forceView(e.term) match
             case term @ Val.Rigid(Head.Glob(c2), sp) if isConstructor(c2) =>
@@ -369,6 +393,60 @@ trait Clauses:
             // a constructor where the clause has `()`
             case other => clash = Simplified.NoMatch(e.pat, other)
     if matches then Simplified.Ready(cl.copy(eqns = stuck.toList, binds = binds)) else clash.nn
+
+  /** The outcome of matching a numeral pattern ([[natMatch]]). */
+  private enum NatMatch:
+    case Clash(term: Val)
+
+    /** The pattern, the rest of it, against a free variable. */
+    case Stuck(eqn: Eqn)
+
+    /** The pattern under the offset against the value under it. */
+    case Next(eqn: Eqn)
+    case Done
+
+  /** A numeral pattern against the term of `e` (of the nat-like family with the successor `s`), by value: a
+   *  literal against a numeral compares them, an offset `p + j` subtracts; successors applied to a free
+   *  variable are taken off first. A literal the variable's range excludes, or an offset at least its
+   *  bound, clashes. */
+  private def natMatch(p: SplitProblem, e: Eqn, np: NatPattern, s: Int): NatMatch =
+    val term = force(e.term)
+    natChain(term) match
+      case Left(m) =>
+        np match
+          case NatPattern.Literal(k, _) => if k == m then NatMatch.Done else NatMatch.Clash(term)
+          case NatPattern.Offset(q, j) =>
+            if m >= j then NatMatch.Next(Eqn(Val.Nat(natFamily(e.ty), m - j), q, e.ty)) else NatMatch.Clash(term)
+      case Right((i, base)) =>
+        val freeVar = base match
+          case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => Some(x)
+          case _ => None
+        np match
+          case NatPattern.Literal(k, span) =>
+            if k < i then NatMatch.Clash(term)
+            else
+              freeVar match
+                case Some(x) =>
+                  if p.range(x).allows(k - i) then NatMatch.Stuck(Eqn(base, Pat.PLit(k - i, span), e.ty)) else NatMatch.Clash(term)
+                case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, term), span))
+          case NatPattern.Offset(q, j) =>
+            if j <= i then NatMatch.Next(Eqn(natSuccs(s, base, i - j), q, e.ty))
+            else
+              freeVar match
+                case Some(x) =>
+                  if p.range(x).below.exists(_ <= j - i) then NatMatch.Clash(term)
+                  else NatMatch.Stuck(Eqn(base, Pat.PSucc(q, j - i, Span.NoSpan), e.ty))
+                case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, term), Span.NoSpan))
+
+  /** The nat-like family a type is. */
+  private def natFamily(ty: Val): Int = force(ty) match
+    case Val.Rigid(Head.Glob(f), _) => f
+    case _ => throw Impossible("not a nat-like type")
+
+  /** A stuck numeral pattern (a literal or an offset of at least 1) against a free variable. */
+  private def isNatEqn(e: Eqn): Boolean = e.pat match
+    case _: Pat.PLit | _: Pat.PSucc => true
+    case _ => false
 
   /** The equations for the explicit arguments of a matched constructor. */
   private def constructorArgs(c: Int, sp: Spine, pats: List[Pat]): List[Eqn] =
@@ -403,7 +481,8 @@ trait Clauses:
       leaf: LeafBuilder,
       refuted: Boolean = false
   ): CaseTree =
-    clauses.iterator.map(simplify(p, _)).collect { case Simplified.Ready(cl) => cl }.toList match
+    if p.dead then Discarded
+    else clauses.iterator.map(simplify(p, _)).collect { case Simplified.Ready(cl) => cl }.toList match
       case Nil => if refuted then Discarded else absurdSplit(p).getOrElse(missingNode(f, p))
       case first :: _ if first.eqns.isEmpty =>
         f.used += first.index
@@ -426,6 +505,7 @@ trait Clauses:
             case _ => throw Impossible("split on a non-variable")
           e.pat match
             case _: Pat.PAtom => result = Some(splitAtom(f, p, x, target, all, leaf, refuted))
+            case _: Pat.PLit | _: Pat.PSucc => result = Some(splitNat(f, p, x, e.ty, target, all, leaf, refuted))
             case pat =>
               val span = pat match
                 case Pat.PCon(_, _, s) => s
@@ -466,6 +546,44 @@ trait Clauses:
       val rest = clauses.filterNot(_.eqns.exists(e => force(e.term) == Val.local(x)))
       buildTree(f, p, target, rest, leaf, refuted = true)
     CaseTree.Split(x, branches)
+
+  /** Splits on variable `x` of a nat-like type by value (reference: meta/clauses, "Evaluation"; Agda's
+   *  literal branches, Lean's `caseValues`): a branch per literal that a remaining clause has against `x`;
+   *  then, if some clause has an offset `p + j` against `x`, a branch for the values of at least the least
+   *  offset `j`, with `x := y + j` for a new variable `y`, and a branch for the other values below `j`;
+   *  otherwise a branch for every other value. The clauses with literals do not apply in the branches
+   *  that are not their values', nor the clauses with offsets in the branch below. */
+  private def splitNat(
+      f: FunctionInfo,
+      p: SplitProblem,
+      x: Int,
+      ty: Val,
+      target: Val,
+      clauses: List[ClauseState],
+      leaf: LeafBuilder,
+      refuted: Boolean
+  ): CaseTree =
+    val fam = natFamily(ty)
+    val s = natLike(fam).get._2
+    def on(cl: ClauseState) = cl.eqns.find(e => isNatEqn(e) && force(e.term) == Val.local(x)).map(_.pat)
+    val literals = clauses.flatMap(on).collect { case Pat.PLit(k, _) => k }.distinct.sorted
+    val offset = clauses.flatMap(on).collect { case Pat.PSucc(_, j, _) => j }.minOption.getOrElse(BigInt(0))
+    val values = literals.filter(p.range(x).allows).map { k =>
+      val p2 = p.solve(core, x, Val.Nat(fam, k))
+      (k, buildTree(f, p2, p2.norm(core, target), clauses, leaf, refuted))
+    }
+    val rest = clauses.filterNot(cl => on(cl).exists(_.isInstanceOf[Pat.PLit]))
+    val others = NatRange(literals.toSet, None)
+    if offset > 0 then
+      val p1 = p.extend(p.names(x), p.types(x))
+      val p2 = p1.solve(core, x, natSuccs(s, Val.local(p.size), offset))
+      val above = buildTree(f, p2, p2.norm(core, target), rest, leaf, refuted)
+      val p3 = p.restrict(x, others.meet(NatRange(Set.empty, Some(offset))))
+      val below = buildTree(f, p3, target, rest.filterNot(cl => on(cl).exists(_.isInstanceOf[Pat.PSucc])), leaf, refuted)
+      CaseTree.SplitNat(x, fam, values, offset, above, below)
+    else
+      val p3 = p.restrict(x, others)
+      CaseTree.SplitNat(x, fam, values, BigInt(0), Discarded, buildTree(f, p3, target, rest, leaf, refuted))
 
   /** Splits on variable `x` of a type without constructors but with decidable equality: a branch per value
    *  that a clause matches it against, and a default branch for the clauses that do not. */
@@ -638,6 +756,14 @@ trait Clauses:
       case Val.Rigid(Head.Local(x), Nil) if ctx.isFree(x) => if !sub.contains(x) then sub(x) = b
       // a numeral is closed: no variable of the clause in it
       case Val.Nat(_, _) =>
+      // successors over a variable of the clause: the leaf's value with as many successors taken off
+      case n @ Val.NatAdd(fam, _, _) =>
+        natChain(n) match
+          case Right((i, base)) =>
+            natChain(b) match
+              case Left(m) => if m >= i then go(base, Val.Nat(fam, m - i))
+              case Right((j, bb)) => if j >= i then go(base, natAdd(fam, bb, j - i))
+          case Left(_) =>
       case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
         forceView(b) match
           case Val.Rigid(Head.Glob(c2), sp2) if c2 == c && sp.length == sp2.length =>
@@ -667,7 +793,7 @@ trait Clauses:
    *  termination check uses for a fix that writes out the clause's cases ([[SizeChange]]). */
   private def alternativeCalls(f: FunctionInfo, ch: Checked): Unit = ch.rhs match
     case Some(rhs) if rhs.calls =>
-      val leaves = f.leaves.get(ch.state.index).map(_.toList).getOrElse(Nil)
+      val leaves = expandedLeaves(f.leaves.get(ch.state.index).map(_.toList).getOrElse(Nil)).getOrElse(Nil)
       val subs = leaves.map((p, _) => (p, instantiation(f.arity, ch.ctx, p)))
       val exact = subs match
         case List((p, sub)) => isRenaming(sub, ch.order, p)
@@ -724,7 +850,7 @@ trait Clauses:
           buildTree(probe, problem, target, states, (_, _) => CaseTree.Split(-1, Nil))
           true
         catch case _: ElabError => false
-      val leaves = probe.leaves.get(cl.index).map(_.toList).getOrElse(Nil)
+      val leaves = expandedLeaves(probe.leaves.get(cl.index).map(_.toList).getOrElse(Nil)).getOrElse(Nil)
       def checksAt(p: SplitProblem, lcl: ClauseState): Boolean =
         val saved = index.muted
         val mark = reporter.mark
@@ -842,78 +968,154 @@ trait Clauses:
   // ---------------------------------------------------------------- probes and missing cases
 
   /** The positions of `v` (an argument's value, at `path`), each with the value there: a constructor
-   *  application's explicit arguments are its children (paths are lists, the last step first). */
+   *  application's explicit arguments are its children (paths are lists, the last step first). A value of
+   *  a nat-like family (a numeral, or successors applied to a value) is one position: its patterns are
+   *  numerals ([[Patterns.natForm]]). */
   private def walk(v: Val, path: List[Int], visit: (List[Int], Val) => Unit): Unit =
-    val f = forceView(v)
+    val f = force(v)
     visit(path, f)
     f match
+      case Val.Nat(_, _) | Val.NatAdd(_, _, _) =>
+      case Val.Rigid(Head.Glob(c), _) if isSuccessor(c) || constantOf(c) =>
       case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
         sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }.zipWithIndex.foreach((a, k) => walk(a, k :: path, visit))
       case _ =>
 
-  /** Adds the positions that clause `cl` inspects in its context `p` to Π: its constructors and atoms, and
-   *  its absurd patterns. */
+  /** Whether `v` (forced) is a numeral or a successor application. */
+  private def natValue(v: Val): Boolean = v match
+    case Val.Nat(_, _) | Val.NatAdd(_, _, _) => true
+    case Val.Rigid(Head.Glob(c), _) => isSuccessor(c) || constantOf(c)
+    case _ => false
+
+  /** Adds the positions that clause `cl` inspects in its context `p` to Π: its constructors, numerals and
+   *  atoms, and its absurd patterns; at a numeral position, its literal or offset. */
   private def inspected(f: FunctionInfo, p: SplitProblem, cl: ClauseState): Unit =
     val absurdVars =
       cl.eqns.collect { case Eqn(t, Pat.PAbsurd(_), _) => force(t) }.collect { case Val.Rigid(Head.Local(x), Nil) => x }.toSet
+    def point(path: List[Int], literal: Option[BigInt], offset: Option[BigInt]): Unit =
+      val (ls, os) = f.natPoints.getOrElse(path, (Set.empty[BigInt], Set.empty[BigInt]))
+      f.natPoints(path) = (ls ++ literal, os ++ offset)
+      f.pi += path
     for l <- 0 until f.arity do
       walk(
         p.values(l),
         List(l),
         (path, v) =>
           v match
+            case n if natValue(n) =>
+              natChain(n) match
+                case Left(m) => point(path, Some(m), None)
+                case Right((i, _)) => if i > 0 then point(path, None, Some(i))
             case Val.Rigid(Head.Glob(c), _) if isConstructor(c) => f.pi += path
             case Val.Rigid(Head.Local(x), Nil) if absurdVars(x) => f.pi += path
             case other => if atomKey(other).isDefined then f.pi += path
       )
 
+  /** A variable to split for the probes: of an inductive family by its constructors, or of a nat-like
+   *  family by value classes, `shift` successors below a position of Π. */
+  private enum ToSplit:
+    case Constructors(x: Int)
+    case Values(x: Int, path: List[Int], shift: BigInt)
+
   /** The leftmost free variable of `p` at a position of Π whose type is an inductive family (by argument,
    *  then depth first), other than those in `skip`. */
-  private def splittable(f: FunctionInfo, p: SplitProblem, skip: Set[Int]): Option[Int] =
-    var found: Option[Int] = None
-    for l <- 0 until f.arity if found.isEmpty do
+  private def splittable(f: FunctionInfo, p: SplitProblem, skip: Set[Int]): Option[ToSplit] =
+    var found: Option[ToSplit] = None
+    def free(v: Val) = v match
+      case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) && !skip(x) => Some(x)
+      case _ => None
+    for l <- 0 until f.arity do
       walk(
         p.values(l),
         List(l),
         (path, v) =>
-          v match
-            case Val.Rigid(Head.Local(x), Nil) if found.isEmpty && p.isFree(x) && !skip(x) && f.pi(path) =>
-              force(p.types(x)) match
-                case Val.Rigid(Head.Glob(fam), _) if isFamily(fam) => found = Some(x)
-                case _ =>
-            case _ =>
+          if found.isEmpty && f.pi(path) then
+            v match
+              case n if natValue(n) =>
+                natChain(n) match
+                  case Right((i, base)) => free(base).foreach(x => found = Some(ToSplit.Values(x, path, i)))
+                  case Left(_) =>
+              case other =>
+                free(other).foreach { x =>
+                  force(p.types(x)) match
+                    case Val.Rigid(Head.Glob(fam), _) if natLike(fam).isDefined => found = Some(ToSplit.Values(x, path, BigInt(0)))
+                    case Val.Rigid(Head.Glob(fam), _) if isFamily(fam) => found = Some(ToSplit.Constructors(x))
+                    case _ =>
+                }
       )
     found
+
+  /** The value classes of the variable `x` of a nat-like family, `shift` successors below the position
+   *  `path`, in the case `q` (reference: meta/coverage, "Cases and probes"): at the clauses' literals `l`
+   *  and offsets `j` there, the numerals are cut into the singletons and intervals that no clause tells
+   *  apart. A singleton or a bounded interval gives its numerals (which the range of `x` allows); the
+   *  unbounded interval from `a` gives `x := z + a` for a new variable `z`, or, from 0, leaves `x`. */
+  private def valueClasses(f: FunctionInfo, q: SplitProblem, x: Int, path: List[Int], shift: BigInt): Iterator[Either[SplitProblem, Unit]] =
+    val (ls, os) = f.natPoints.getOrElse(path, (Set.empty[BigInt], Set.empty[BigInt]))
+    val lits = ls.collect { case l if l >= shift => l - shift }
+    val offs = os.collect { case j if j > shift => j - shift }
+    val cuts = (Set(BigInt(0)) ++ lits ++ lits.map(_ + 1) ++ offs).toList.sorted
+    val r = q.range(x)
+    val fam = natFamily(q.types(x))
+    val s = natLike(fam).get._2
+    def value(v: BigInt): Iterator[Either[SplitProblem, Unit]] =
+      if r.allows(v) then Iterator(Left(q.solve(core, x, Val.Nat(fam, v)))) else Iterator.empty
+    def interval(a: BigInt, b: BigInt): Iterator[Either[SplitProblem, Unit]] =
+      Iterator.iterate(a)(_ + 1).takeWhile(_ < b).flatMap(value)
+    val bounded = cuts.zip(cuts.tail).iterator.flatMap((a, b) => interval(a, b))
+    val last = cuts.last
+    val unbounded: Iterator[Either[SplitProblem, Unit]] = r.below match
+      case Some(b) => interval(last, b)
+      case None =>
+        if last == 0 then Iterator(Right(()))
+        else
+          Iterator.single(()).map { _ =>
+            val q1 = q.extend(q.names(x), q.types(x))
+            Left(q1.solve(core, x, natSuccs(s, Val.local(q.size), last)))
+          }
+    bounded ++ unbounded
 
   /** The probes below the case `p` (reference: meta/coverage, "Cases and probes"), in the canonical order:
    *  `p` split at its variables at positions of Π until none can be split. A variable none of whose
    *  constructors can occur is *empty*, and its probes are *refuted*; an undecided split is skipped (its
-   *  case is not refuted). `visit` gets each probe and whether it is refuted, and returns whether to go on;
-   *  the enumeration stops after [[MaxProbeSteps]] splits (`false`). */
+   *  case is not refuted). A variable of a nat-like family splits into its value classes. `visit` gets
+   *  each probe and whether it is refuted, and returns whether to go on; the enumeration stops after
+   *  [[MaxProbeSteps]] splits (`false`). */
   private def probes(f: FunctionInfo, p: SplitProblem)(visit: (SplitProblem, Boolean) => Boolean): Boolean =
-    var stack = List((p, Set.empty[Int], false))
+    var stack: List[Iterator[(SplitProblem, Set[Int], Boolean)]] = List(Iterator((p, Set.empty[Int], false)))
     var steps = 0
     var go = true
     while go && stack.nonEmpty do
-      val (q, skip, refuted) = stack.head
-      stack = stack.tail
-      splittable(f, q, skip) match
-        case None => go = visit(q, refuted)
-        case Some(x) =>
-          steps += 1
-          if steps > MaxProbeSteps then go = false
-          else
-            force(q.types(x)) match
-              case Val.Rigid(Head.Glob(fam), famSp) =>
-                val unified = constructors(fam).map(c => (c, unifyConstructor(q, famSp, c)))
-                if unified.exists(_._2._3.isInstanceOf[IndexUnification.Stuck]) then stack = (q, skip + x, refuted) :: stack
-                else
-                  val cases = unified.collect { case (c, (_, args, IndexUnification.Solved(q2))) =>
-                    q2.solve(core, x, q2.norm(core, constructorApp(q2, c, args)))
-                  }
-                  if cases.isEmpty then stack = (q, skip + x, true) :: stack
-                  else stack = cases.map(c => (c, skip, refuted)) ++ stack
-              case _ => stack = (q, skip + x, refuted) :: stack
+      if !stack.head.hasNext then stack = stack.tail
+      else
+        val (q, skip, refuted) = stack.head.next()
+        if q.dead then ()
+        else
+          splittable(f, q, skip) match
+            case None => go = visit(q, refuted)
+            case Some(target) =>
+              steps += 1
+              if steps > MaxProbeSteps then go = false
+              else
+                target match
+                  case ToSplit.Values(x, path, shift) =>
+                    stack = valueClasses(f, q, x, path, shift).map {
+                      case Left(q2) => (q2, skip, refuted)
+                      case Right(()) => (q, skip + x, refuted)
+                    } :: stack
+                  case ToSplit.Constructors(x) =>
+                    force(q.types(x)) match
+                      case Val.Rigid(Head.Glob(fam), famSp) =>
+                        val unified = constructors(fam).map(c => (c, unifyConstructor(q, famSp, c)))
+                        if unified.exists(_._2._3.isInstanceOf[IndexUnification.Stuck]) then
+                          stack = Iterator((q, skip + x, refuted)) :: stack
+                        else
+                          val cases = unified.collect { case (c, (_, args, IndexUnification.Solved(q2))) =>
+                            q2.solve(core, x, q2.norm(core, constructorApp(q2, c, args)))
+                          }
+                          if cases.isEmpty then stack = Iterator((q, skip + x, true)) :: stack
+                          else stack = cases.iterator.map(c => (c, skip, refuted)) :: stack
+                      case _ => stack = Iterator((q, skip + x, refuted)) :: stack
     go && steps <= MaxProbeSteps
 
   /** A case of the tree that no clause applies to: its probes that are not refuted are missing (at most
@@ -922,20 +1124,23 @@ trait Clauses:
   private def missingNode(f: FunctionInfo, p: SplitProblem): CaseTree =
     var missing = false
     var emptyVar: Option[Int] = None
+    val mine = mutable.ListBuffer.empty[SplitProblem]
     val complete = probes(f, p) { (q, refuted) =>
       if refuted then
         if emptyVar.isEmpty then emptyVar = (0 until p.size).find(p.isFree)
       else
         missing = true
         f.missingProbes += q
+        mine += q
       f.missingProbes.length < MaxMissing
     }
     // too many splits: the case itself counts as missing
     if !complete && !missing then
       missing = true
       f.missingProbes += p
+      mine += p
     if missing then
-      f.missingNodes += p
+      f.missingNodes += ((p, mine.toList))
       if f.missingProbes.length >= MaxMissing then fail(ClauseProblem.NotCovering(f.name, "", globals(f.id).span, 0))
       Discarded
     else CaseTree.Split(emptyVar.getOrElse(0), Nil)
@@ -950,9 +1155,30 @@ trait Clauses:
     case Con(c: Int, args: List[MPat])
     case Atom(key: Tm)
 
-  private def toMPat(v: Val): MPat = forceView(v) match
-    case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) => MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
-    case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
+    /** The numeral `k` of the nat-like family `fam`. */
+    case Lit(fam: Int, k: BigInt)
+
+    /** `_ + j` (`j ≥ 1`) of the nat-like family with the successor `suc`. */
+    case Succ(suc: Int, j: BigInt)
+
+  private def toMPat(v: Val): MPat =
+    val f = force(v)
+    if natValue(f) then
+      val fam = f match
+        case Val.Nat(fam, _) => fam
+        case Val.NatAdd(fam, _, _) => fam
+        case Val.Rigid(Head.Glob(c), _) =>
+          globals(c).kind match
+            case GlobalKind.Constructor(fam) => fam
+            case _ => -1
+        case _ => -1
+      natChain(f) match
+        case Left(m) => MPat.Lit(fam, m)
+        case Right((i, _)) => if i > 0 then MPat.Succ(natLike(fam).get._2, i) else MPat.Wild
+    else
+      f match
+        case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) => MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
+        case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
 
   /** The explicit arguments of a case as patterns. */
   private def patternsOf(f: FunctionInfo, p: SplitProblem): List[MPat] = f.explicit.map(l => toMPat(p.values(l)))
@@ -961,6 +1187,8 @@ trait Clauses:
     case MPat.Wild => Pat.PWild(Span.NoSpan)
     case MPat.Con(c, as) => Pat.PCon(c, as.map(toPat), Span.NoSpan)
     case MPat.Atom(k) => Pat.PAtom(k, Span.NoSpan)
+    case MPat.Lit(_, k) => Pat.PLit(k, Span.NoSpan)
+    case MPat.Succ(_, j) => Pat.PSucc(Pat.PWild(Span.NoSpan), j, Span.NoSpan)
 
   /** The common instance of two patterns, if they do not clash. */
   private def merge(a: MPat, b: MPat): Option[MPat] = (a, b) match
@@ -970,6 +1198,10 @@ trait Clauses:
       val ms = as.zip(bs).map(merge)
       Option.when(ms.forall(_.isDefined))(MPat.Con(c, ms.flatten))
     case (MPat.Atom(k), MPat.Atom(j)) if k == j => Some(a)
+    case (MPat.Lit(_, k), MPat.Lit(_, j)) if k == j => Some(a)
+    case (MPat.Lit(_, k), MPat.Succ(_, j)) => Option.when(k >= j)(a)
+    case (MPat.Succ(_, j), MPat.Lit(_, k)) => Option.when(k >= j)(b)
+    case (MPat.Succ(_, i), MPat.Succ(_, j)) => Some(if i >= j then a else b)
     case _ => None
 
   /** `a` is an instance of `b`. */
@@ -977,6 +1209,9 @@ trait Clauses:
     case (_, MPat.Wild) => true
     case (MPat.Con(c, as), MPat.Con(d, bs)) => c == d && as.length == bs.length && as.zip(bs).forall(instanceOf)
     case (MPat.Atom(k), MPat.Atom(j)) => k == j
+    case (MPat.Lit(_, k), MPat.Lit(_, j)) => k == j
+    case (MPat.Lit(_, k), MPat.Succ(_, j)) => k >= j
+    case (MPat.Succ(_, i), MPat.Succ(_, j)) => i >= j
     case _ => false
 
   /** The ordering of missing patterns: argument by argument, `_` first, constructors in declaration order. */
@@ -986,9 +1221,16 @@ trait Clauses:
     case (_, MPat.Wild) => 1
     case (MPat.Con(c, as), MPat.Con(d, bs)) =>
       if c != d then c.compare(d) else compareAll(as, bs)
+    // numerals as their unary terms: `0` (the constant) before the successor, `_` before a constructor
+    case (MPat.Lit(_, k), MPat.Lit(_, j)) => k.compare(j)
+    case (MPat.Succ(_, i), MPat.Succ(_, j)) => i.compare(j)
+    case (MPat.Lit(_, k), MPat.Succ(_, j)) => if k < j then -1 else 1
+    case (MPat.Succ(_, j), MPat.Lit(_, k)) => if k < j then 1 else -1
     case (MPat.Con(_, _), _) => -1
     case (_, MPat.Con(_, _)) => 1
     case (MPat.Atom(k), MPat.Atom(j)) => showTm(Nil, k).compare(showTm(Nil, j))
+    case (MPat.Atom(_), _) => -1
+    case (_, MPat.Atom(_)) => 1
 
   private def compareAll(as: List[MPat], bs: List[MPat]): Int =
     as.zip(bs).iterator.map(compareM).find(_ != 0).getOrElse(as.length.compare(bs.length))
@@ -1022,10 +1264,17 @@ trait Clauses:
     }
 
     /** The patterns with one constructor or atom replaced by `_`, in preorder. */
+    // the numerals at which a generalization of a numeral can change whether a clause matches below it
+    val cuts = (clausePatterns.flatten.flatMap(numbers) ++ List(BigInt(0))).distinct.sorted
+    def offsets(s: Int, below: BigInt): List[MPat] =
+      cuts.filter(_ < below).map(d => if d == 0 then MPat.Wild else MPat.Succ(s, d))
     def steps(q: List[MPat]): List[List[MPat]] =
       def one(m: MPat): List[MPat] = m match
         case MPat.Wild => Nil
         case MPat.Atom(_) => List(MPat.Wild)
+        // `k` is `suc^k zero`, `_ + j` is `suc^j _`: a subterm replaced by `_` is `_ + d` for a smaller `d`
+        case MPat.Lit(fam, k) => offsets(natLike(fam).get._2, k + 1)
+        case MPat.Succ(s, j) => offsets(s, j)
         case MPat.Con(c, as) => MPat.Wild :: as.indices.toList.flatMap(i => one(as(i)).map(a => MPat.Con(c, as.updated(i, a))))
       q.indices.toList.flatMap(i => one(q(i)).map(a => q.updated(i, a)))
     var budget = 5000
@@ -1039,11 +1288,22 @@ trait Clauses:
         }
       if next.isEmpty then maximal += q
       else for n <- next if visited.add(n) do generalize(n)
-    for node <- f.missingNodes do
-      val q = patternsOf(f, node)
-      if visited.add(q) then generalize(q)
+    // from a missing case of the tree, or from its probes if it has a variable with a range (the case is
+    // not a pattern then)
+    for (node, below) <- f.missingNodes do
+      val starts = if (0 until node.size).exists(x => node.isFree(x) && node.ranges.contains(x)) then below else List(node)
+      for start <- starts do
+        val q = patternsOf(f, start)
+        if visited.add(q) then generalize(q)
     val all = maximal.toList
     all.filterNot(q => all.exists(r => r != q && q.zip(r).forall(instanceOf))).sortWith(compareAll(_, _) < 0)
+
+  /** The numerals in a pattern, and one more than each (where an interval of numerals starts). */
+  private def numbers(m: MPat): List[BigInt] = m match
+    case MPat.Lit(_, k) => List(k, k + 1)
+    case MPat.Succ(_, j) => List(j)
+    case MPat.Con(_, as) => as.flatMap(numbers)
+    case _ => Nil
 
   /** A missing pattern as the left-hand side of a clause: the hidden arguments of a lifted function are
    *  not written by users ([[Lifting]]). */
@@ -1052,6 +1312,9 @@ trait Clauses:
       case MPat.Wild => Tm.Var(0)
       case MPat.Con(c, as) => as.foldLeft(Tm.Global(c): Tm)((acc, a) => Tm.App(acc, term(a), Icit.Expl))
       case MPat.Atom(k) => k
+      case MPat.Lit(fam, k) => Tm.Nat(fam, k)
+      // `_ + j` printed as the sum it is
+      case MPat.Succ(_, j) => Tm.Arith(hugin.obj.ArithOp.Add, Tm.Var(0), Tm.Nat(-1, j), Stage.S1)
     val args = q.drop(globals(f.id).hidden).map { m =>
       val s = showTm(List("_"), term(m))
       if s.contains(' ') then s"($s)" else s
@@ -1089,10 +1352,53 @@ trait Clauses:
     for ch <- checked if !ch.state.absurd && linted(ch.state.source.span) do
       f.leaves.get(ch.state.index).map(_.toList).getOrElse(Nil) match
         case Nil =>
-        case List((p, _)) if isRenaming(instantiation(f.arity, ch.ctx, p), ch.order, p) =>
+        case List((p, _)) if p.ranges.isEmpty && isRenaming(instantiation(f.arity, ch.ctx, p), ch.order, p) =>
         case leaves =>
-          val cases = leaves.map((p, _) => caseText(f, p))
+          val cases = leaves.flatMap((p, _) => expandRanges(p).map(_.map(caseText(f, _))).getOrElse(List(caseText(f, p) + " …")))
           reporter.report(ClauseProblem.InexactClause(f.name, cases, ch.state.source.span).toDiagnostic)
+
+  /** A case of the tree with ranges on its variables ([[NatRange]]) as the cases without ranges that it
+   *  stands for, as the unary tree would have them: a variable that cannot be the numerals of a set `E`
+   *  is each allowed numeral below `max E + 1` and `Q + (max E + 1)` for a new variable `Q`; one below a
+   *  bound is each allowed numeral below it. `None` if there would be more than [[MaxExpanded]]. */
+  private def expandRanges(p: SplitProblem): Option[List[SplitProblem]] =
+    p.ranges.keys.toList.sorted.find(p.isFree) match
+      case None => Some(List(p.copy(ranges = Map.empty)))
+      case Some(x) =>
+        val r = p.range(x)
+        val q = p.copy(ranges = p.ranges - x)
+        val fam = natFamily(p.types(x))
+        val top = r.below.getOrElse(r.excluded.maxOption.map(_ + 1).getOrElse(BigInt(0)))
+        if top > MaxExpanded then None
+        else
+          val values = (BigInt(0) until top).filter(r.allows).map(v => q.solve(core, x, Val.Nat(fam, v))).toList
+          val rest =
+            if r.below.isDefined || top == 0 then Nil
+            else
+              val q1 = q.extend(q.names(x), q.types(x))
+              List(q1.solve(core, x, natSuccs(natLike(fam).get._2, Val.local(q.size), top)))
+          val cases = (values ++ rest).filterNot(_.dead)
+          if cases.length > MaxExpanded then None
+          else
+            val expanded = cases.map(expandRanges)
+            if expanded.contains(None) then None
+            else
+              val all = expanded.flatten.flatten
+              Option.when(all.length <= MaxExpanded)(all)
+
+  private val MaxExpanded = 20
+
+  /** The leaves of a clause with their ranges expanded ([[expandRanges]]), each with the clause's state in
+   *  it; `None` if there would be too many. */
+  private def expandedLeaves(leaves: List[(SplitProblem, ClauseState)]): Option[List[(SplitProblem, ClauseState)]] =
+    val expanded = leaves.map((p, cl) =>
+      expandRanges(p).map(_.flatMap(q =>
+        simplify(q, cl) match
+          case Simplified.Ready(c) => Some((q, c))
+          case _ => None
+      ))
+    )
+    Option.when(!expanded.contains(None))(expanded.flatten.flatten)
 
   /** A case of the tree as a left-hand side of `f`, with `_` for its variables. */
   private def caseText(f: FunctionInfo, p: SplitProblem): String =

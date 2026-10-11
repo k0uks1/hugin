@@ -9,10 +9,6 @@ package hugin.core
 trait Naturals:
   self: Core =>
 
-  /** The largest literal or successor count in a pattern: patterns are matched one constructor at a time
-   *  (E0901). */
-  val maxNatPattern: Long = 100000L
-
   /** The nat-like families found so far, with the constructor list they were decided for (a family gets
    *  its constructors one declaration at a time). */
   private val natFamilies = scala.collection.mutable.HashMap.empty[Int, (List[Int], Option[(Int, Int)])]
@@ -44,18 +40,29 @@ trait Naturals:
     case Some((`c`, _)) => Some(Val.Nat(fam, BigInt(0)))
     case _ => None
 
-  /** The successor `c` of the nat-like family `fam` applied to `a`, if `a` is a numeral: the next numeral
-   *  (closed numerals are never constructor chains, as Agda's `reduceNat`). */
+  /** The successor `c` of the nat-like family `fam` applied to `a`: the next numeral if `a` is a numeral
+   *  (closed numerals are never constructor chains, as Agda's `reduceNat`), and an offset otherwise. */
   def natSuccessorOf(fam: Int, c: Int, a: Val): Option[Val] = natLike(fam) match
     case Some((_, `c`)) =>
       numeral(a) match
         case Val.Nat(`fam`, n) => Some(Val.Nat(fam, n + 1))
-        case _ => None
+        case Val.NatAdd(`fam`, b, k) => Some(Val.NatAdd(fam, b, k + 1))
+        // over anything else: an offset of 1, the one form of an open successor
+        case _ => Some(Val.NatAdd(fam, a, BigInt(1)))
     case _ => None
+
+  /** `base + k` of the nat-like family `fam`: the numeral if `base` is one, offsets added up, else
+   *  [[Val.NatAdd]] (the successor applied `k` times, without a term of that depth). */
+  def natAdd(fam: Int, base: Val, k: BigInt): Val =
+    if k == 0 then base
+    else
+      numeral(base) match
+        case Val.Nat(f, n) => Val.Nat(f, n + k)
+        case Val.NatAdd(f, b, j) => Val.NatAdd(f, b, j + k)
+        case _ => Val.NatAdd(fam, base, k)
 
   /** `v` with folded definitions and solved metas at its head unfolded, without reducing applications:
    *  forcing the argument of every successor would make a chain over a neutral quadratic. */
-  @scala.annotation.tailrec
   private def numeral(v: Val): Val = v match
     case Val.Top(_, _, u) => numeral(u.value)
     case Val.Flex(m, Nil) =>
@@ -63,6 +70,12 @@ trait Naturals:
         case Some(s) => numeral(s)
         case None => v
     case Val.Obj(ObjForm.Loc(_), List(x)) => numeral(x)
+    case Val.NatAdd(f, b, k) =>
+      // an offset over a value that has become a numeral or an offset
+      numeral(b) match
+        case Val.Nat(_, n) => Val.Nat(f, n + k)
+        case Val.NatAdd(_, b2, j) => Val.NatAdd(f, b2, j + k)
+        case _ => v
     case other => other
 
   /** A value seen as a constructor application, one constructor at a time: the numeral 0 is the
@@ -75,7 +88,36 @@ trait Naturals:
           if n == 0 then Val.Rigid(Head.Glob(z), Nil)
           else Val.Rigid(Head.Glob(s), List(Elim.EApp(Val.Nat(fam, n - 1), Icit.Expl)))
         case None => v
+    case Val.NatAdd(fam, b, k) =>
+      natLike(fam) match
+        case Some((_, s)) => Val.Rigid(Head.Glob(s), List(Elim.EApp(if k == 1 then b else Val.NatAdd(fam, b, k - 1), Icit.Expl)))
+        case None => v
     case other => other
+
+  /** A value as a numeral (`Left`), or as the successor of its nat-like family applied `i` times to a value
+   *  that is neither a numeral nor a successor application (`Right`, forced). */
+  def natChain(v: Val): Either[BigInt, (BigInt, Val)] =
+    var i = BigInt(0)
+    var cur = force(v)
+    var result: Either[BigInt, (BigInt, Val)] | Null = null
+    while result == null do
+      cur match
+        case Val.Nat(_, m) => result = Left(m + i)
+        case Val.NatAdd(_, b, k) =>
+          i += k
+          cur = force(b)
+        case Val.Rigid(Head.Glob(c), List(Elim.EApp(a, Icit.Expl))) if isSuccessor(c) =>
+          i += 1
+          cur = force(a)
+        case Val.Rigid(Head.Glob(c), Nil) if constantOf(c) => result = Left(i)
+        case other => result = Right((i, other))
+    result.nn
+
+  /** Whether `c` is the successor of a nat-like family. */
+  def isSuccessor(c: Int): Boolean = successorOf(c).isDefined
+
+  /** The successor `suc` applied `k` times to the value `v`. */
+  def natSuccs(suc: Int, v: Val, k: BigInt): Val = natAdd(familyOf(suc).get, v, k)
 
   /** [[force]], then [[natView]]: what code that matches constructor applications inspects. */
   def forceView(v: Val): Val = natView(force(v))
@@ -86,19 +128,18 @@ trait Naturals:
       natLike(fam) match
         case Some((z, s)) => if n == 0 then Tm.Global(z) else Tm.App(Tm.Global(s), Tm.Nat(fam, n - 1), Icit.Expl)
         case None => t
+    case Tm.NatAdd(fam, b, k) =>
+      natLike(fam) match
+        case Some((_, s)) => Tm.App(Tm.Global(s), if k == 1 then b else Tm.NatAdd(fam, b, k - 1), Icit.Expl)
+        case None => t
     case other => other
 
   /** `e + k`: the successor `suc` applied `k` times to `e`; a numeral if `e` is one. */
   def natSucc(suc: Int, e: Tm, k: BigInt): Tm = e match
     case Tm.Nat(fam, n) => Tm.Nat(fam, n + k)
     case Tm.Global(z) if familyOf(z).flatMap(natLike).exists(_._1 == z) => Tm.Nat(familyOf(z).get, k)
-    case _ =>
-      var t = e
-      var i = BigInt(0)
-      while i < k do
-        t = Tm.App(Tm.Global(suc), t, Icit.Expl)
-        i += 1
-      t
+    case Tm.NatAdd(fam, b, j) => Tm.NatAdd(fam, b, j + k)
+    case _ => if k == 0 then e else Tm.NatAdd(familyOf(suc).get, e, k)
 
   /** The numeral `n` of the family with the constructors `zero` and `suc`. */
   def natTerm(zero: Int, suc: Int, n: BigInt): Tm = Tm.Nat(familyOf(zero).get, n)
@@ -107,6 +148,10 @@ trait Naturals:
    *  successor: how numerals are printed. */
   def numeralView(t: Tm): Option[(Option[Tm], BigInt)] = t match
     case Tm.Nat(_, n) => Some((None, n))
+    case Tm.NatAdd(_, b, k) =>
+      numeralView(b) match
+        case Some((e, j)) => Some((e, j + k))
+        case None => Some((Some(b), k))
     case Tm.App(Tm.Global(s), a, Icit.Expl) if successorOf(s).isDefined =>
       val zero = successorOf(s).get
       var k = BigInt(1)
@@ -119,6 +164,10 @@ trait Naturals:
       e match
         case Tm.Global(`zero`) => Some((None, k))
         case Tm.Nat(_, n) => Some((None, k + n))
+        case Tm.NatAdd(_, b, j) =>
+          numeralView(b) match
+            case Some((e2, j2)) => Some((e2, k + j + j2))
+            case None => Some((Some(b), k + j))
         case _ => Some((Some(e), k))
     case Tm.Global(z) if constantOf(z) => Some((None, BigInt(0)))
     case _ => None
@@ -126,7 +175,7 @@ trait Naturals:
   /** For the successor constructor of a nat-like family: the constant constructor. */
   private def successorOf(id: Int): Option[Int] = familyOf(id).flatMap(natLike).collect { case (z, s) if s == id => z }
 
-  private def constantOf(id: Int): Boolean = familyOf(id).flatMap(natLike).exists(_._1 == id)
+  def constantOf(id: Int): Boolean = familyOf(id).flatMap(natLike).exists(_._1 == id)
 
   private def familyOf(id: Int): Option[Int] =
     if id < 0 || id >= globals.length then None

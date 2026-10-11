@@ -1,0 +1,14 @@
+(* #131: coverage of numeral patterns by value classes: the missing cases are those of the unary
+   patterns (reference: meta/coverage, "Cases and probes") *)
+f : nat -> int. (*~ E0911 *)
+f 0 = 0.
+f 3 = 3.
+f (N + 7) = 7.
+g : nat -> int. (*~ E0911 *)
+g 2 = 2.
+g (N + 6) = 6.
+h : nat -> int.
+h 0 = 0.
+h (N + 2) = 2.
+h 7 = 7. (*~ W0006 *)
+h 1 = 1.

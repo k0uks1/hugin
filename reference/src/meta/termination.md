@@ -10,7 +10,9 @@ evaluates it.
 A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argument `aⱼ` to the patterns,
 in the [clause context](clauses.md#checking-a-clause) (the clauses before it do not refine them):
 `aⱼ` is *smaller* than `pᵢ` if it is a variable bound inside the constructor pattern `pᵢ`, such as `N` in
-`suc N`; it is *equal* to `pᵢ` if it is the variable `pᵢ` itself. These relations form a *size-change
+`suc N` or in `N + 2`; it is *equal* to `pᵢ` if it is the variable `pᵢ` itself. Numerals are the unary
+terms they stand for, compared by value: the numeral `m` is smaller than the literal pattern `k` if
+`m < k`, so `f 5 = f 3` decreases. These relations form a *size-change
 graph* from the arguments of `f` to those of `g`. The *call graph* of the program has these graphs as its
 edges; calls through the local functions of a [`where`](where.md) block are calls of those functions.
 A call through a definition, a field of a record, a member of a module or a functor application is the

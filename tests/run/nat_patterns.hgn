@@ -1,0 +1,15 @@
+(* #131: literal and successor patterns split by value: `f 50000` is one test, literals and offsets mix
+   (reference: meta/clauses, "Evaluation") *)
+f : nat -> int.
+f 50000 = 1.
+f _ = 0.
+g : nat -> int.
+g 0 = 0.
+g (N + 2) = 2.
+g 1 = 1.
+huge : nat -> int.
+huge 100000000000000000000 = 1.
+huge (N + 100001) = 2.
+huge _ = 0.
+out : int -> int -> int -> int -> int -> int -> int -> rel.
+out (f 50000) (f 49999) (g 7) (g 1) (huge 100000000000000000000) (huge 100001) (huge 100000).
