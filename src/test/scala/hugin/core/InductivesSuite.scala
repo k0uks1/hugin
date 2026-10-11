@@ -16,7 +16,7 @@ class InductivesSuite extends munit.FunSuite:
     assertEquals(e.global("nat").kind, GlobalKind.Inductive(List(e.elab.scope("zero"), e.elab.scope("suc"))))
     assertEquals(e.global("vec").kind, GlobalKind.Inductive(List(e.elab.scope("vnil"), e.elab.scope("vcons"))))
     assertEquals(e.global("vcons").kind, GlobalKind.Constructor(e.elab.scope("vec")))
-    assertEquals(e.typeOf("vcons"), "{A : Type} -> {N : nat} -> A -> vec A N -> vec A (suc N)")
+    assertEquals(e.typeOf("vcons"), "{A : Type} -> {N : nat} -> A -> vec A N -> vec A (N + 1)")
     assertEquals(e.global("opaque").kind, GlobalKind.Postulate)
   }
 
@@ -43,7 +43,7 @@ class InductivesSuite extends munit.FunSuite:
 
   test("nat literals by expected type") {
     val e = ok("nat : Type.\nzero : nat.\nsuc : nat -> nat.\nthree : nat = 3.\nk : int = 3.\n")
-    assertEquals(e.nfOf("three"), "suc (suc (suc zero))")
+    assertEquals(e.nfOf("three"), "3")
     assertEquals(e.nfOf("k"), "3")
     assertEquals(errors("nat : Type.\nzero : nat.\nsuc : nat -> nat.\nm : nat = -1.\n"), List("E0901"))
   }

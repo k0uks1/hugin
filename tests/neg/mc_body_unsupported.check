@@ -30,12 +30,4 @@ error[E0907]: meta declarations without a definition or clauses in module bodies
    |
    = note: see the open issues of the redesign in docs/NOTES.md
 
-error[E0907]: formula functions defined by rules in module bodies are not supported by the meta level
-  --> tests/neg/mc_body_unsupported.hgn:13:3
-   |
-13 |   near : node -> prop. (*~ E0907 *)
-   |   ^^^^^^^^^^^^^^^^^^^^ not supported
-   |
-   = note: see the open issues of the redesign in docs/NOTES.md
-
-5 errors found
+4 errors found

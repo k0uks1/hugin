@@ -13,7 +13,7 @@ final class CompletenessPhase extends Phase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
-    val es = DepGraph.edges(p)
+    val es = DepGraph.edgesOf(ctx.unit)
     // reason for incompleteness, propagated backwards along positive edges
     val why = mutable.LinkedHashMap.empty[RelSym, Incompleteness]
     val facts = ctx.unit.facts

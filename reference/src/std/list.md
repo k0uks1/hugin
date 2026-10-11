@@ -1,8 +1,7 @@
 # `std/list`
 
-The module `std/list` defines functions over meta lists, the natural numbers that serve as fuel for
-fixed points at compile time, and relations over the lists that are facts. A program opens it with
-`%use "std/list".` The lists are the shared lists of [`std/reflect`](reflect.md): a meta list computed
+The module `std/list` defines functions over meta lists, fuel for fixed points at compile time, and
+relations over the lists that are facts. A program opens it with `%use "std/list".` The lists are the shared lists of [`std/reflect`](reflect.md): a meta list computed
 by these functions is used as an object list where one is expected
 ([Staging](../meta/staging.md#lifting)).
 
@@ -21,7 +20,6 @@ by these functions is used as an object list where one is expected
 | `elem : A -> list A -> bool` | whether an atom is an element |
 | `diff : list A -> list A -> list A` | the elements of the first list that are not elements of the second, in order |
 | `lookup : K -> list { key : K, value : V } -> option V` | the value of the first entry with a key |
-| `nat : Type`, `zero : nat`, `suc : nat -> nat` | natural numbers, as fuel |
 | `size : list A -> nat` | the number of elements, as a `nat` |
 | `iterate : nat -> (A -> A) -> A -> A` | `iterate n f x` applies `f` to `x` `n` times |
 | `len : (l : list A) -> (n : int) -> rel` | the length of every list that is a fact |
@@ -208,8 +206,8 @@ name none.
 ## Fuel
 
 A meta function must be structurally recursive ([Termination of meta functions](../meta/termination.md)),
-so a fixed point at compile time iterates a step a bounded number of times. `nat` is the type of such
-bounds: `size` gives the number of elements of a list as a `nat`, and `iterate n f x` applies `f` to `x`
+so a fixed point at compile time iterates a step a bounded number of times. The `nat` of
+[`std/nat`](nat.md), which the prelude opens, is the type of such bounds: `size` gives the number of elements of a list as a `nat`, and `iterate n f x` applies `f` to `x`
 `n` times.
 
 `size` measures a list as a `nat`.

@@ -39,6 +39,7 @@ trait ObjectItems:
         val (c, vars) = bindRuleVarsFrom(base, r.heads ++ r.body.toList)
         val heads = r.heads.map(h => elabHead(c, h))
         val body = r.body.map(b => check(c, b, Val.PropT, Stage.S0))
+        resolveLiterals(start)
         checkObjectItem(c, varTypes(c, vars), heads, body.toList)
         val familyHead = openFamilyHead(c, heads)
         // a rule over unknown type arguments is a family of rules only if its head is an instance of a
@@ -100,7 +101,9 @@ trait ObjectItems:
     recordPart(ModulePart.Source(q))
 
   def queryItem(base: Cxt, q: Query): CoreItem =
+    val start = metas.length
     val (c, vars) = bindRuleVarsFrom(base, List(q.body))
     val body = check(c, q.body, Val.PropT, Stage.S0)
+    resolveLiterals(start)
     checkObjectItem(c, varTypes(c, vars), Nil, List(body))
     CoreItem.QueryItem(vars, body, q.span)

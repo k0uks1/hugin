@@ -1,0 +1,22 @@
+hugin> (* Numerals of the prelude's `nat` are shown as digits (reference: meta/families, numerals). *)
+hugin> two : nat = 1 + 1.
+hugin> vec : Type -> nat -> Type.
+hugin> vnil : vec A 0.
+hugin> vcons : A -> vec A N -> vec A (suc N).
+hugin> :type vcons
+meta definition vcons A N : A -> vec A N -> vec A (suc N)
+hugin> :print elaborate two
+(* ---------------- after elaborate ---------------- *)
+two : nat = 2.
+hugin> pred : nat -> nat.
+hugin> pred (N + 2) = N.
+error[E0911]: the clauses of `pred` do not cover all cases
+ --> <input 5>:1:1
+  |
+1 | pred : nat -> nat.
+  | ^^^^ missing: `pred 0`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `pred 0 = ….`
+
+hugin> :quit
