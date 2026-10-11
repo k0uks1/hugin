@@ -1,0 +1,50 @@
+(* #131: the operations of `std/nat` compute on numerals as numbers, and by their clauses on open terms
+   (reference: std/nat, native arithmetic) *)
+%use "std/nat".
+
+(* large numerals: one step each *)
+big : nat = times 123456789 987654321.
+huge : nat = plus (times big big) 1.
+div : nat -> nat -> nat.
+div N 0 = 0.
+div N (D + 1) = divSucAux 0 D N D.
+mod : nat -> nat -> nat.
+mod N 0 = N.
+mod N (D + 1) = modSucAux 0 D N D.
+
+(* open terms: the clauses run as far as the arguments allow *)
+three : nat -> nat.
+three N = plus N 3.
+double : nat -> nat.
+double N = times N 2.
+less3 : nat -> bool.
+less3 N = less (N + 3) 3.
+equal1 : nat -> bool.
+equal1 N = equal (N + 1) 0.
+down : nat -> nat.
+down N = minus (N + 5) 2.
+
+(* `plus N 1` is `N + 1`, so a vector's length computes in its type *)
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+vhead : vec A (plus N 1) -> A.
+vhead (vcons X _) = X.
+
+r : (name : string) -> (n : int) -> rel.
+r "plus" (toInt (plus 25000 25000)).
+r "minus" (toInt (minus 3 10)).
+r "minus" (toInt (minus 1000000 1)).
+r "times" (toInt big).
+r "div" (toInt (div big 1000000007)).
+r "mod" (toInt (mod huge 1000000007)).
+r "equal" (if (equal 50000 (plus 25000 25000)) 1 0).
+r "less" (if (less 50000 (plus 25000 25000)) 1 0).
+r "less" (if (less 49999 (plus 25000 25000)) 1 0).
+r "open" (toInt (three 4)).
+r "open" (toInt (double 21)).
+r "open" (toInt (down 0)).
+r "open" (if (less3 7) 1 0).
+r "open" (if (equal1 7) 1 0).
+r "vec" (vhead (vcons 9 (vcons 8 vnil))).
+?- r S N.

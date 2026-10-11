@@ -41,7 +41,8 @@ trait Matching:
     case _ => None
 
   /** Global `id` applied to the spine, if it is a function defined by clauses applied to at least its
-   *  arity: its memoised result, or the body its case tree selects, to be evaluated ([[Reduct]]);
+   *  arity: its memoised result, its native result on numerals (an operation of `std/nat`,
+   *  [[NatArithmetic]]), or the body its case tree selects, to be evaluated ([[Reduct]]);
    *  [[Matching.Stuck]] if a split meets a neutral; [[Matching.NotClauses]] for any other global. The body
    *  is not evaluated here: [[Machine]] evaluates it, past a depth without native recursion (issue #129). */
   def matchFunction(id: Int, sp: Spine): Reduct | Matching.Stuck.type | Matching.NotClauses.type =
@@ -51,13 +52,25 @@ trait Matching:
         val args = first.reverse.collect { case Elim.EApp(a, _) => a }
         if args.length != arity then Matching.Stuck
         else
-          val key = closedKeyIds(args) match
-            case Some(ids) => (id, ids)
-            case None => null
-          val hit = if key == null then null else memo.getOrElse(key, null)
-          if hit != null then Reduct(hit, null, Nil, null, later)
-          else runTree(tree.tree, args.toVector, key, later)
+          // an operation of `std/nat` on numerals computes on numbers (`toInt` beyond 64 bits is stuck);
+          // on anything else its clauses run (Agda's `primClauses`)
+          val native = tree.native match
+            case Some(n) => nativeResult(n, args)
+            case None => None
+          native match
+            case Some(Some(v)) => Reduct(v, null, Nil, null, later)
+            case Some(None) => Matching.Stuck
+            case None => runClauses(id, tree, args, later)
       case _ => Matching.NotClauses
+
+  /** [[matchFunction]] by the case tree of `tree`, for `args` (as many as its arity). */
+  private def runClauses(id: Int, tree: FunctionBody, args: List[Val], later: Spine): Reduct | Matching.Stuck.type =
+    val key = closedKeyIds(args) match
+      case Some(ids) => (id, ids)
+      case None => null
+    val hit = if key == null then null else memo.getOrElse(key, null)
+    if hit != null then Reduct(hit, null, Nil, null, later)
+    else runTree(tree.tree, args.toVector, key, later)
 
   protected def memoise(key: (Int, List[Int]), v: Val): Unit = memo(key) = v
 
