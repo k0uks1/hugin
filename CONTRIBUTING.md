@@ -372,8 +372,9 @@ src/main/scala/hugin/
                    server, the CLI and the browser build): hover (Hover), definition and references
                    (Navigation), completion (Completion), fixes and the actions of interactive development
                    (Fixes), the outline (Outline), inlay hints, goals and expansions (Meta), diagnostics
-                   with the crash guard (Files); semantic tokens (Tokens) and the highlighting of a program
-                   as classed runs (Highlighting), used by `hugin highlight` and the playground too
+                   with the crash guard (Files), the annotation table of a file (Annotations); semantic
+                   tokens (Tokens) and the highlighting of a program as classed runs (Highlighting), used
+                   by `hugin highlight` and the playground too
   lsp/             the language server (lsp4j): server and document state, the protocol's encoding of the
                    features of ide/ (Features, MetaFeatures for the meta level, Tokens), position conversion
                    (Positions), file URIs (Uris)
@@ -473,6 +474,16 @@ lexical classes for the text they do not cover (`ide/Highlighting`, which the br
 `Hugin.highlight` and the `tokens` of `Hugin.run` and `Hugin.check` use too), and the mdBook preprocessor `reference/highlight.py`
 renders them as HTML at build time (`reference/README.md`, "Highlighting"). A change to the tokens
 changes the reference's highlighting as well; the book is built in CI after `sbt stage`.
+
+`hugin highlight --info` (issue #132, `docs/design/web-ide.md`, 7.1) adds each snippet's annotation
+table (`hugin.ide.Annotations`, the bulk form of hover and navigation for a whole file): every name with
+its hover, its declaration (an offset in the snippet, or `[module, name]` in the bundled standard
+library) and its occurrence group. Each snippet's element is then an object
+`{"runs": [[text, [class, …], name?], …], "names": [{"hover", "group", "decl", "target"}, …], "hovers":
+[[signature, note, …], …]}`: a run that is exactly a name carries the name's index, a name's `hover`
+indexes the deduplicated `hovers` (null where hover shows nothing), and a hover is its signature (or
+null) followed by its notes. Without `--info` the output stays as above. `tests/annotations` holds the
+golden tables of a few programs.
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 
@@ -605,6 +616,9 @@ Three kinds of tests, all run by `sbt test`:
   - `tests/fix/X.hgn` — `hugin fix` applied to a copy must give `X.fixed`, which must compile without
     errors and be a fixed point (one test per kind of machine-applicable suggestion).
   - `tests/json/X.hgn` — checked with `--error-format=json`; the JSON lines must equal `X.check`.
+  - `tests/annotations/X.hgn` — the annotation table of the program (`hugin.ide.Annotations`: names with
+    their hovers, declarations and occurrence groups; the hovers; the inlay hints), as text, must equal
+    `X.check`.
   - `tests/repl/X.in` — a REPL session run by `hugin repl --batch --echo`; the transcript (inputs after
     their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds the files to load.
 - **Fuzz suites** (`src/test/scala/hugin/fuzz`), a short deterministic run; see below.

@@ -1,0 +1,10 @@
+(* annotations of object-level names: types, constructors, relations, object variables *)
+city : type.
+berlin : city.
+paris : city.
+road : city -> city -> rel.
+road berlin paris.
+path : city -> city -> rel.
+path X Y :- road X Y.
+path X Z :- road X Y, path Y Z.
+?- path berlin C.

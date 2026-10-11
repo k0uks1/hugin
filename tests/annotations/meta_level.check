@@ -1,0 +1,134 @@
+names:
+  2:1-2:4 `nat`  group 0  declaration  hover 0  -> 2:1
+  3:1-3:5 `zero`  group 1  declaration  hover 1  -> 3:1
+  3:8-3:11 `nat`  group 0  hover 0  -> 2:1
+  4:1-4:4 `suc`  group 2  declaration  hover 2  -> 4:1
+  4:7-4:10 `nat`  group 0  hover 0  -> 2:1
+  4:14-4:17 `nat`  group 0  hover 0  -> 2:1
+  5:1-5:7 `double`  group 3  declaration  hover 3  -> 5:1
+  5:10-5:13 `nat`  group 0  hover 0  -> 2:1
+  5:17-5:20 `nat`  group 0  hover 0  -> 2:1
+  6:1-6:7 `double`  group 3  hover 3  -> 5:1
+  6:8-6:12 `zero`  group 1  hover 1  -> 3:1
+  6:15-6:19 `zero`  group 1  hover 4  -> 3:1
+  7:1-7:7 `double`  group 3  hover 3  -> 5:1
+  7:9-7:12 `suc`  group 2  hover 2  -> 4:1
+  7:13-7:14 `N`  group 4  declaration  hover 5  -> 7:13
+  7:18-7:21 `suc`  group 2  hover 6  -> 4:1
+  7:23-7:26 `suc`  group 2  hover 6  -> 4:1
+  7:28-7:34 `double`  group 3  hover 7  -> 5:1
+  7:35-7:36 `N`  group 4  hover 8  -> 7:13
+  8:1-8:5 `four`  group 5  declaration  hover 9  -> 8:1
+  8:8-8:11 `nat`  group 0  hover 10  -> 2:1
+  8:14-8:20 `double`  group 3  hover 7  -> 5:1
+  8:22-8:25 `suc`  group 2  hover 6  -> 4:1
+  8:27-8:30 `suc`  group 2  hover 6  -> 4:1
+  8:31-8:35 `zero`  group 1  hover 4  -> 3:1
+  9:1-9:5 `item`  group 6  declaration  hover 11  -> 9:1
+  10:1-10:7 `listed`  group 7  declaration  hover 12  -> 10:1
+  10:10-10:14 `item`  group 6  hover 13  -> 9:1
+  11:8-11:14 `listed`  group 7  hover 14  -> 10:1
+  12:1-12:7 `select`  group 8  declaration  hover 15  -> 12:1
+  12:9-12:10 `p`  group 9  declaration  hover 16  -> 12:9
+  12:13-12:17 `item`  group 6  hover 17  -> 9:1
+  13:3-13:6 `sel`  group 10  declaration  hover 18  -> 13:3
+  13:9-13:13 `item`  group 6  hover 13  -> 9:1
+  14:7-14:8 `I`  group 11  declaration  hover 19  -> 14:7
+  14:12-14:18 `listed`  group 7  hover 20  -> 10:1
+  14:19-14:20 `I`  group 11  hover 19  -> 14:7
+  14:22-14:23 `p`  group 9  hover 21  -> 12:9
+  14:24-14:25 `I`  group 11  hover 22  -> 14:7
+  16:1-16:6 `cheap`  group 12  declaration  hover 23  -> 16:1
+  16:9-16:13 `item`  group 6  hover 17  -> 9:1
+  16:25-16:26 `I`  group 13  declaration  hover 24  -> 16:25
+  16:28-16:29 `I`  group 13  hover 25  -> 16:25
+  17:1-17:9 `bargains`  group 14  declaration  hover 26  -> 17:1
+  17:12-17:18 `select`  group 8  hover 27  -> 12:1
+  17:19-17:24 `cheap`  group 12  hover 28  -> 16:1
+  18:9-18:17 `bargains`  group 14  hover 29  -> 17:1
+  18:18-18:21 `sel`  group 10  hover 30  -> 13:3
+hovers:
+  0   meta definition nat : Type
+  1   meta definition zero : nat
+  2   meta definition suc : nat -> nat
+  3   meta definition double : nat -> nat
+  4   meta definition zero : nat
+      `zero` : `nat`
+      stage: meta
+  5   pattern variable N : nat
+  6   meta definition suc : nat -> nat
+      `suc` : `nat -> nat`
+      stage: meta
+  7   meta definition double : nat -> nat
+      `double` : `nat -> nat`
+      stage: meta
+  8   pattern variable N : nat
+      `N` : `nat`
+      stage: meta
+  9   meta definition four : nat
+  10   meta definition nat : Type
+      `nat` : `Type`
+      stage: meta
+  11   relation item : (name : string) -> (price : int) -> rel
+  12   relation listed : item -> rel
+  13   relation item : (name : string) -> (price : int) -> rel
+      `item` : `type`
+      stage: object
+  14   relation listed : item -> rel
+      directive application `%input listed` : `decl`
+      footprint: local: it changes a declaration
+  15   meta definition select : (p : ⇑item -> ⇑prop) -> { sel : ⇑(item -> rel) }
+  16   meta parameter p : ⇑item -> ⇑prop
+  17   relation item : (name : string) -> (price : int) -> rel
+      `item -> prop` : `Type`
+      stage: meta
+  18   relation sel : item -> rel
+      `{ sel : item -> rel. sel I :- listed I, p I.` : `{ sel : ⇑(item -> rel) }`
+      stage: meta
+      elaborated: `{ sel }`
+  19   variable I : item
+      `I` : `item`
+      stage: object
+  20   relation listed : item -> rel
+      `listed` : `item -> rel`
+      stage: object
+  21   meta parameter p : ⇑item -> ⇑prop
+      spliced: the meta-level code `I.price < 10` is inserted here
+      `p` : `⇑item -> ⇑prop`
+      stage: meta
+  22   variable I : item
+      quoted: passed to the meta level as the code `I`
+      `I` : `⇑item`
+      stage: meta, object code `⇑item`
+      elaborated: `⟨I⟩`
+  23   formula function cheap : item -> prop
+  24   parameter I : ⇑item
+      `[I] I.price < 10` : `⇑item -> ⇑prop`
+      stage: meta
+      elaborated: `[I] ⟨$I.price < 10⟩`
+  25   parameter I : ⇑item
+      spliced: the meta-level code `I` is inserted here
+      `I.price` : `int`
+      stage: object
+      elaborated: `$I.price`
+  26   meta definition bargains : { sel : ⇑(item -> rel) }
+  27   meta definition select : (p : ⇑item -> ⇑prop) -> { sel : ⇑(item -> rel) }
+      `select` : `(p : ⇑item -> ⇑prop) -> { sel : ⇑(item -> rel) }`
+      stage: meta
+  28   formula function cheap : item -> prop
+      `cheap` : `⇑item -> ⇑prop`
+      stage: meta
+  29   meta definition bargains : { sel : ⇑(item -> rel) }
+      directive application `%output bargains.sel` : `decl`
+      footprint: local: it changes a declaration
+  30   relation bargains.sel : item -> rel
+      directive application `%output bargains.sel` : `decl`
+      footprint: local: it changes a declaration
+hints:
+  12:21 `⇑` (Staging)
+  14:22 `$` (Staging)
+  14:24 `⟨` (Staging)
+  14:25 `⟩` (Staging)
+  16:17 `⇑` (Staging)
+  16:28 `⟨` (Staging)
+  16:40 `⟩` (Staging)

@@ -1,0 +1,11 @@
+(* annotations of library names: a functor of std/graph, a family of std/list, the prelude's list *)
+%use "std/graph".
+%use "std/list".
+city : type.
+road : city -> city -> rel.
+%input road.
+roads = tc { node = city, edge = road }.
+%output roads.path.
+nums : list int -> rel.
+nums (cons 1 (cons 2 nil)).
+?- nums L, len L N.
