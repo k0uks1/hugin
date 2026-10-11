@@ -2014,10 +2014,12 @@ and a module value used as a whole (an argument of a functor), are followed in a
 before, which is safe and stricter than the reference's rule only there (stated in
 `reference/src/meta/staging.md`). Goldens: `run/mc_formula_paths` (the issue's example, also through a
 nested path and a functor instance), `neg/mc_formula_members` (cycles through a nested path and an
-instance; a module passed whole to a functor still reports). Observed and not changed: in
-`run/mc_formula_paths`, the instance `inst` whose member uses a formula function that uses `inst.a` is
-named `_m1` (its object constants are `_m1.more`; cause not investigated, the program was rejected
-before); the golden prints its relation through a top-level one.
+instance; a module passed whole to a functor still reports). Programs newly accepted put
+functors and their instances in a cycle of items (`inst = mk edge.` with a member of `mk` using `h`,
+and `h X :- inst.a X.`): while the component is sealed, `inst` evaluates to a stuck application of
+`mk`, which created its instance lazily at each later use, anonymously (`_m1.more`) and in that use's
+item. The definitions of a component are now evaluated again when it is done, each in its own item
+(`DependencyOrder.reevaluateDefinitions`), so the instance is created once and named `inst`.
 
 ## Standard library: lists and directives (#61, batch B4)
 

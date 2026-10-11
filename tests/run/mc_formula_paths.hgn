@@ -1,6 +1,7 @@
 (* The cycle check of formula functions follows only the member a path selects (issue #151): `f` uses
    `m.a`, and a different member `m.b` of the same body uses `f`, which closes no cycle; so do a member
-   reached through a nested path and one of a functor instance. *)
+   reached through a nested path and one of a functor instance. The instance `inst`, in a cycle of items
+   with `mk` and `h`, is named after its definition and created once (`inst.more`). *)
 edge : int -> int -> rel.
 edge 1 2. edge 2 3. edge 3 4.
 
@@ -55,3 +56,4 @@ viaInst X :- inst.more X.
 %output viaN.
 %output viaInst.
 %output viaH.
+%output inst.more.
