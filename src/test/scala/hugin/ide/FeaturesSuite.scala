@@ -113,7 +113,7 @@ class FeaturesSuite extends munit.FunSuite:
     val d = Diagnostics.all(key2).find(_.code.id == "E0911").get
     val add = Fixes.at(key2, key2.path, d.primarySpan.start, d.primarySpan.start).find(_.title.startsWith("Add the")).get
     assert(add.preferred)
-    assertEquals(add.edits.map(e => (e.span.start, e.text)), List((at(missing, "M.", 2), "\nboth zero _ = ?.\nboth (suc _) zero = ?.")))
+    assertEquals(add.edits.map(e => (e.span.start, e.text)), List((at(missing, "M.", 2), "\nboth 0 _ = ?.\nboth (_ + 1) 0 = ?.")))
     val decl = nat + "size : nat -> int.\n"
     val key3 = program(decl, "p3.hgn")
     assertEquals(Fixes.at(key3, key3.path, at(decl, "size"), at(decl, "size")).map(_.title), List("Add a clause for `size`"))
