@@ -1,0 +1,39 @@
+(* The members of a module body are elaborated in dependency order (issue #91, batch 2; reference:
+   modules, "Module bodies"): a member's type or value may compute with a member function of the body,
+   wherever its clauses are written; each kind below was rejected when a body's declarations and
+   definitions were elaborated before the clauses of its member functions. *)
+nat : Type. zero : nat. suc : nat -> nat.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+vsum : vec int N -> int.
+vsum vnil = 0.
+vsum (vcons X Xs) = X + vsum Xs.
+
+lib = {
+  (* the issue's example in a body: `plus` is elaborated before `vec3`, and `vec3` before `v` *)
+  vec3 : Type = vec int (plus one (suc one)).
+  v : vec3 = vcons 1 (vcons 2 (vcons 3 vnil)).
+  (* a declared type that computes *)
+  w : vec int (plus one one) = vcons 4 (vcons 5 vnil).
+  (* a definition that computes, in a type *)
+  two : nat = plus one one.
+  same : eqn two (suc one) = refl.
+  one : nat = suc zero.
+  plus : nat -> nat -> nat.
+  plus zero N = N.
+  plus (suc M) N = suc (plus M N).
+  (* a definition and a member function that refer to each other: one cycle, done before `t` *)
+  g : nat -> nat = [x] f x.
+  f : nat -> nat.
+  f zero = zero.
+  f (suc N) = g N.
+  t : eqn (g one) zero = refl.
+}.
+
+sums : string -> int -> rel.
+sums "v" (vsum lib.v).
+sums "w" (vsum lib.w).
+%output sums.

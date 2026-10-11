@@ -12,11 +12,12 @@ import scala.collection.mutable
  *  The declarations and definitions of a body are its *members*, elaborated in the context of the body
  *  (the enclosing variables, such as a functor's parameters) and of the members before them; each member
  *  is a variable of that context: an object constant `r : τ` is a variable of type `⇑τ` (as a functor's
- *  relation parameter is), a definition is let-bound. Members may be written in any order: one that
- *  refers to a later one is retried after it, and a member's name shadows the file's in the whole body
- *  ([[ElabState.bodyDeclared]]). A declaration `f : A.` with clauses `f p̄ = e.` in the body is a
- *  *member function* ([[MemberFunctions]]): its clauses are elaborated after the members, each function
- *  a block of its own; so are the rules of a body's formula functions. Then the body's object items
+ *  relation parameter is), a definition is let-bound. Members may be written in any order: they are
+ *  elaborated in dependency order ([[elabMembers]]), and a member's name shadows the file's in the whole
+ *  body ([[ElabState.bodyDeclared]]). A declaration `f : A.` with clauses `f p̄ = e.` in the body is a
+ *  *member function* ([[MemberFunctions]]): its clauses are elaborated in its component, after the
+ *  component's members, each function a block of its own; so are the rules of a body's formula
+ *  functions. Then the body's object items
  *  (rules, queries, directives, edges) are elaborated in the context of all members. The body's type
  *  is the record type of its members, a telescope, and its value is a record: evaluation creates fresh
  *  object constants for the object members of each instance ([[Modules]]), and the handover stages the
@@ -53,7 +54,6 @@ trait ModuleBodies:
       val functions = mutable.LinkedHashMap.empty[Name, MemberFunction]
       val (cb, members) = elabMembers(c, parts, functions)
       recordBody(c, cb, body.span, members, parts.members)
-      if !file.signaturesOnly then elabMemberClauses(cb, parts, members, functions.toMap)
       val items = objectItems(cb, parts.objects)
       val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items)
       val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
@@ -113,18 +113,17 @@ trait ModuleBodies:
   def retriedOutside(e: ElabError): Boolean =
     e.unresolved.exists(n => state.declaredHere(n) && lookupGlobal(n).forall(globals(_).pending))
 
-  /** Elaborates the members in dependency order (as the top level's declarations), in two phases: first
-   *  the object constants and the definitions they need, then the signatures of the member functions with
-   *  the other definitions. So the context that member functions are lifted over (the enclosing variables
-   *  and the body's object constants) is fixed before the first of them, and all of them take the same
-   *  leading arguments ([[MemberFunctions]]). An object constant that waits for a member function, through
-   *  a definition, is left out with its error. The order of the members is decided here only. */
+  /** Elaborates the members, the clauses of the member functions and the rules of the formula functions in
+   *  dependency order, as a file's items (reference: modules, "Module bodies"; `docs/design/elab-order.md`,
+   *  5.5). First the object constants and the definitions their types mention, so that the context member
+   *  functions are lifted over (the enclosing variables and the body's object constants) is fixed before
+   *  the first of them, and all of them take the same leading arguments ([[MemberFunctions]]); an object
+   *  constant that waits for a member function, through a definition, is left out with its error. Then the
+   *  other members by the components of their dependency graph ([[ElabOrder]], [[elabMemberComponent]]).
+   *  The order of the members is decided here only. */
   private def elabMembers(c: Cxt, parts: BodyItems, functions: mutable.Map[Name, MemberFunction]): (Cxt, List[Member]) =
     var cb = c
     val members = mutable.ListBuffer.empty[Member]
-    def isSignature(item: Item) = item match
-      case d: Decl => parts.lifted(d.name.name)
-      case _ => false
     def isObjectConstant(item: Item) = item match
       case d: Decl => !parts.lifted(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
       case _ => false
@@ -161,12 +160,75 @@ trait ModuleBodies:
         }
         progress = pending.length < before
       pending
-    val (signatures, others) = parts.members.partition(isSignature)
-    val left = inDependencyOrder(others, signatures.flatMap(memberName).toSet)
-    val (stuckObjects, definitions) = left.partition(isObjectConstant)
+    // the object constants and the definitions (not lifted) that their types mention, transitively
+    val byName = parts.members.flatMap(i => memberName(i).map(_ -> i)).toMap
+    val first = mutable.LinkedHashSet.from(parts.members.filter(isObjectConstant))
+    val todo = mutable.Stack.from(first)
+    while todo.nonEmpty do
+      for n <- ElabOrder.mentions(todo.pop()); d <- byName.get(n) if !parts.lifted(n) && first.add(d) do todo.push(d)
+    val firstItems = parts.members.filter(first)
+    val others = parts.members.filterNot(first)
+    val left = inDependencyOrder(firstItems, others.flatMap(memberName).toSet)
+    val (stuckObjects, waiting) = left.partition(isObjectConstant)
     stuckObjects.foreach(finish)
-    inDependencyOrder(definitions ++ signatures, Set.empty).foreach(finish)
+    // the other members, the clause groups and the formula functions' rules, by components
+    val rest = (waiting ++ others).sortBy(_.span.start)
+    val groups = memberClauseGroups(parts)
+    val declared = parts.members.flatMap(memberName).toSet
+    val formulaRules =
+      for n <- parts.members.flatMap(memberName).distinct if parts.formulas(n)
+      yield (n, parts.rules.filter(clauseOf(Set(n))(_).isDefined): List[Item], byName(n).span.start)
+    val plan = ElabOrder.plan(
+      ElabOrder.Input(rest.map(i => (i, memberName(i).toList)), groups.toList, formulaRules, None, Set.empty, n => !declared(n))
+    )
+    for component <- plan.components do
+      val nodes = component.map(plan.nodes(_))
+      val plain = nodes.collect { case n if n.kind == ElabOrder.Kind.Plain => n.items }.flatten.sortBy(_.span.start)
+      inDependencyOrder(plain, Set.empty).foreach(finish)
+      cb = elabMemberComponent(cb, nodes, parts, members.toList, functions.toMap)
     (cb, members.toList)
+
+  /** The bodies of one component of a module body's members, after its members: the clause groups of its
+   *  member functions and the rules of its formula functions, each a block. In a component of several
+   *  nodes, its member functions are sealed until it is done, as a file's: no clause group of the
+   *  component unfolds another (`DependencyOrder`). At its end, termination and the cycles of its formula
+   *  functions are checked and its bodies unfold. Unlike a file's (`DependencyOrder.reevaluateDefinitions`),
+   *  its definitions are not evaluated again: none can be stuck at a function of its cycle (docs/NOTES.md,
+   *  "Module bodies in dependency order"). */
+  private def elabMemberComponent(
+      cb: Cxt,
+      nodes: List[ElabOrder.Node],
+      parts: BodyItems,
+      members: List[Member],
+      functions: Map[Name, MemberFunction]
+  ): Cxt =
+    val sealing = nodes.length > 1
+    val names = nodes.flatMap(n =>
+      n.kind match
+        case ElabOrder.Kind.Clauses(f) => List(f)
+        case ElabOrder.Kind.Rules(f) => List(f)
+        case ElabOrder.Kind.Plain => n.items.flatMap(memberName)
+        case ElabOrder.Kind.Derived => Nil
+    ).distinct
+    val sealedIds = if sealing then names.flatMap(functions.get).map(_.id).filterNot(globals(_).inCycle) else Nil
+    sealedIds.foreach(globals(_).inCycle = true)
+    val savedCycle = cycleNames
+    if sealing then cycleNames = names
+    try
+      val formulas = if file.signaturesOnly then Nil
+      else
+        for case ElabOrder.Node(ElabOrder.Kind.Clauses(f), group, _) <- nodes do memberClauseGroup(cb, f, group, members, parts, functions)
+        nodes.flatMap {
+          case ElabOrder.Node(ElabOrder.Kind.Rules(f), rules, _) =>
+            memberFormula(cb, f, rules.collect { case r: Rule => r }, parts, functions)
+          case _ => None
+        }
+      checkTermination()
+      for id <- sealedIds; kind <- withheld.remove(id) if !rejectedByTermination(id) do globals(id).kind = kind
+      sealedIds.foreach(globals(_).inCycle = false)
+      finishMemberFormulas(cb, formulas)
+      cb
+    finally cycleNames = savedCycle
 
   /** Reports the error of a member that is left out (E0105 if it refers to itself); its name is
    *  erroneous, so its uses in the body are not reported again. */
