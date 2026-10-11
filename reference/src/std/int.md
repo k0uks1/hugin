@@ -1,6 +1,6 @@
 # `std/int`
 
-The meta level's integers are an inductive type, as Lean's `Int` is: unbounded, with two constructors
+The meta level's integers are an inductive family, like Lean's `Int`: unbounded, with two constructors
 over the natural numbers of [`std/nat`](nat.md). The family and its constructors are declared in
 `std/nat`; the module `std/int` defines their arithmetic and comparisons. The
 [prelude](../prelude.md) opens `ofNat`, `negSucc`, `iequal`, `iless`, `ileq` and `fits64` in every file;
