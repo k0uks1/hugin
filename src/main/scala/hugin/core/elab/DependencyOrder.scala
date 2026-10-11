@@ -81,6 +81,7 @@ trait DependencyOrder:
       // the component's call cycles and formula cycles are known: its bodies may unfold now
       checkTermination()
       for (f, kind) <- withheld if !rejectedByTermination(f) do globals(f).kind = kind
+      reevaluateDefinitions(withheld.keys.filterNot(rejectedByTermination).toList.sorted)
       withheld.clear()
       checkFormulaCycles(defined)
       sealedHere.foreach(globals(_).inCycle = false)
@@ -88,6 +89,20 @@ trait DependencyOrder:
       provisional.clear()
       sealing = false
       cycleNames = Nil
+
+  /** The values of the component's definitions, evaluated again now that its bodies unfold (in the order
+   *  of their globals), each as part of its own item: while the component was sealed, a definition that
+   *  applies a functor of the component (`inst = mk edge.`) evaluated to a stuck application, which
+   *  would otherwise create its module instance at each later use, anonymous and in that use's item,
+   *  instead of once, named after the definition (reference: modules). */
+  private def reevaluateDefinitions(ids: List[Int]): Unit =
+    for id <- ids do
+      val g = globals(id)
+      g.kind match
+        case GlobalKind.Definition(tm, _) =>
+          val item = if g.declSpan.exists then g.declSpan else g.span
+          g.kind = GlobalKind.Definition(tm, at(item, g.name)(eval(Nil, tm)))
+        case _ =>
 
   /** The functions, definitions and formula functions a node gives a body. */
   private def bodyNames(n: ElabOrder.Node): List[Name] = n.kind match

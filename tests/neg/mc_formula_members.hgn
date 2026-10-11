@@ -1,7 +1,8 @@
 (* Formula functions of module bodies (issue #100, batch 2): a cycle is E0105 at the first use that
    expands to the function again, also through a definition of the body, and the uses of the cycle are
    left out without further errors; a formula function without rules is W0005; diagnostics name the
-   function by its path. *)
+   function by its path. Paths are followed to the member they select (issue #151), also nested and
+   through functor instances; a module passed whole as an argument is followed in all its members. *)
 node : type.
 edge : node -> node -> rel.
 m = {
@@ -29,3 +30,36 @@ m2 = {
   g : node -> prop.
   g X :- edge X _, f X.
 }.
+(* a cycle through a nested path *)
+f3 : node -> prop.
+f3 X :- n3.inner.g X. (*~ E0105 *)
+n3 = {
+  inner = {
+    g : node -> prop.
+    g X :- edge X _, f3 X.
+  }.
+}.
+(* a cycle through a functor instance *)
+mk (r : node -> node -> rel) = {
+  g : node -> prop.
+  g X :- r X _, f4 X.
+}.
+inst = mk edge.
+f4 : node -> prop.
+f4 X :- inst.g X. (*~ E0105 *)
+(* a module passed whole to a functor is followed in all its members: `w.x` uses only `m5.a`, but `m5.b`
+   uses `f5`, so the check reports a cycle (it does not see which members the functor uses) *)
+sig5 : Type = { a : node -> prop, b : node -> prop }.
+wrap (s : sig5) = {
+  x : node -> prop.
+  x X :- s.a X.
+}.
+m5 : sig5 = {
+  a : node -> prop.
+  a X :- edge X _.
+  b : node -> prop.
+  b X :- edge _ X, f5 X.
+}.
+w = wrap m5.
+f5 : node -> prop.
+f5 X :- w.x X. (*~ E0105 *)

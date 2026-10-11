@@ -248,6 +248,15 @@ A module body `{ … }` that is not closed ends at the end of the file if its fi
 of a line of its own (the layout of the file then gives no hint), and otherwise before the first item in
 column 0. The body is damaged.
 
+A module body whose `{` was lost leaves its `}`. At the top level that `}` closes nothing (``unmatched
+`}` ``, E0001), and the body's indented members are skipped with the damaged definition. Inside a body
+laid out over several lines, the same layout rule tells the lost body's `}` from the enclosing body's: a
+`}` that starts a line indented deeper than the line of the enclosing body's `{`, while the next `}` at
+depth 0 starts a line at that line's indentation, is stray (``stray `}` ``, E0001) and skipped with its
+period, instead of closing the enclosing body early. So in `hops (g : graph) = {`⏎`  inner =`⏎`    step :
+g.node -> g.node -> prop.`⏎`  }.`⏎`  tagged : string -> g.node -> prop.`⏎`}.` the members after the
+stray `}` stay in the body of `hops`, where `g` is in scope (`tests/recovery/f_lost_nested_body_brace`).
+
 ### 4.4 Line heuristic
 
 An argument cannot start in column 0 (reference: lexical-structure, items). The parser uses the same

@@ -1997,13 +1997,29 @@ definition the formula uses, as `Lifting.letBound` does for leaves). Choices the
   a `Tm.Module` keeps its members out of `Tm.children`, so a cycle between a file's formula function and
   a body's member through a path (`f X :- m.g X.` with `g X :- f X.` in `m`) was not reported and staging
   overflowed the stack; this was already so for a body's definitions (`g : node -> prop = [X] f X.`).
-  It follows the definitions of all members of a module the formula function mentions, not only of the
-  member selected: coarse, but a module that a formula function uses and that uses it back is in its
-  cycle of items anyway. E0105 is reported at the path (`neg/mc_formula_members`).
+  E0105 is reported at the path (`neg/mc_formula_members`). Batch 2 followed every member of a module the
+  formula function mentions; #151 made it precise (below).
 
 Diagnostics: no new codes; E0907 lost the subject "formula functions defined by rules in module
 bodies". Goldens: `run/mc_formula_members`, `neg/mc_formula_members`; `neg/mc_body_unsupported` no
 longer rejects its formula function.
+
+**Precise paths (#151).** The cycle check follows a path `p.l` only into the member `l` it selects, and
+the members before `l` that its definition uses (in member `i`'s definition, member `j < i` is the
+variable `i - 1 - j`; `occurs`, transitively), when `p` resolves statically to a module body: a module
+value, a definition or a member whose value is one (nested paths), or a functor application (the head's
+lambdas, then the body; the arguments and let definitions around it are followed in full). Resolution
+unfolds each global at most once per path and gives up past a depth of 32; a path that does not resolve,
+and a module value used as a whole (an argument of a functor), are followed in all their members as
+before, which is safe and stricter than the reference's rule only there (stated in
+`reference/src/meta/staging.md`). Goldens: `run/mc_formula_paths` (the issue's example, also through a
+nested path and a functor instance), `neg/mc_formula_members` (cycles through a nested path and an
+instance; a module passed whole to a functor still reports). Programs newly accepted put
+functors and their instances in a cycle of items (`inst = mk edge.` with a member of `mk` using `h`,
+and `h X :- inst.a X.`): while the component is sealed, `inst` evaluates to a stuck application of
+`mk`, which created its instance lazily at each later use, anonymously (`_m1.more`) and in that use's
+item. The definitions of a component are now evaluated again when it is done, each in its own item
+(`DependencyOrder.reevaluateDefinitions`), so the instance is created once and named `inst`.
 
 ## Standard library: lists and directives (#61, batch B4)
 
@@ -2208,6 +2224,51 @@ earlier clause group of its own cycle). Goldens: `run/order_definitions` (with `
 for `%export`; the issue and the other six kinds, and a typed definition and a signature that need each
 other), `neg/order_cycle` (row 10 in both orders, with the note), `neg/order_stuck_notes` (the second
 rejected class, the E0912 note), `neg/order_unsolved` (row 11).
+
+## Module bodies in dependency order (#91, batch 2)
+
+Design: `docs/design/elab-order.md`, 5.5 and 8.2. `ModuleBodies.elabMembers` elaborates first the object
+constants with the definitions their types mention (syntactically, transitively; by the retry loop, as
+before), so that the context member functions are lifted over is fixed; an object constant that waits for
+a member function through a definition is still left out with its error. The other members (definitions
+and the signatures of member functions and formula functions), the clause groups and the formula
+functions' rules are then nodes of `ElabOrder.plan` (names not declared in the body are outside: no
+edges), elaborated by components (`elabMemberComponent`): the plain nodes by the retry loop, then the
+clause groups, then the rules, each a block. In a component of several nodes the member functions are
+sealed (`inCycle`, their case trees `withheld`) and the component's names are the note's cycle
+(`cycleNames`); at its end termination is checked, the withheld case trees of its functions are
+installed, and the formula functions' definitions are installed and their cycles checked
+(`finishMemberFormulas`, per component instead of once per body).
+
+Choices and restrictions:
+
+- *Definitions are not sealed.* A body's definitions are local lets of the context, not globals; making
+  one opaque would bind it as a variable, which member functions would then be lifted over. Inside a
+  component they are elaborated before its clause groups, which see their values (no function of the
+  component computes there, so the written order still decides nothing).
+- *No re-evaluation of members.* A file's component re-evaluates its definitions when it is done (#151,
+  `DependencyOrder.reevaluateDefinitions`); a body's does not need to: a member value can only be stuck
+  at a sealed function `f` of its own component if `f` mentions it, and (a) a mention in `f`'s clauses
+  makes the call `f (suc N)` → `d` → `f c` fail the termination check (E0912), while (b) a mention in
+  `f`'s signature needs the typed definition's type before the signature and its value after it, which
+  bodies reject (next point).
+- *Typed definition and signature in one cycle* (`x : nat = pick zero.`, `pick : nat -> sel x.`): a file
+  declares the definition's type first (`provisionalSignatures`); a body cannot, for the same reason as
+  above, so both are left out with their errors, as before this batch. Stated in `modules.md`.
+- *Cycles through a member that a lifted function uses.* A member function or formula function closes
+  over the members it uses as lets (`Lifting.closeTerm`), which are evaluated eagerly; the formula cycle
+  check follows such a let's whole value. So in a body, `inst = mk edge.` with `mk` a member whose body
+  mentions the formula function `h`, and `h X :- inst.a X.`, is E0105, although the same program is
+  accepted at the top level (`run/mc_formula_paths`): following only `inst.a` there would accept a program
+  whose evaluation does not end (tried: `h`'s let of `inst` instantiates `mk`, whose member `b` applies
+  the lifted `b`, which lets `h` again). Lazy lets in `closeTerm` would lift this. Stated in `modules.md`;
+  golden `neg/order_members_instance_cycle`.
+
+Reference: `modules.md` "Module bodies" (the order, the example, the two restrictions). Goldens:
+`run/order_members` (the issue's example in a body; a definition and a member function in one cycle, done
+before a later member's type uses them), `neg/order_members_instance_cycle`;
+`recovery/f_lost_nested_body_brace` numbers its fresh variables differently (the formula functions of
+`lib` are elaborated in dependency order, `link` before `near`).
 
 ## A meta function's recursion on the heap (#129)
 

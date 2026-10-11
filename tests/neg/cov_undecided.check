@@ -1,0 +1,9 @@
+error[E0915]: cannot decide whether `vnil` applies here
+  --> tests/neg/cov_undecided.hgn:15:5
+   |
+15 | e N vnil = 0. (*~ E0915 *)
+   |     ^^^^ in this pattern
+   |
+   = note: unifying the indices of its type requires `0 = double n`, which is neither solvable nor impossible
+
+1 error found

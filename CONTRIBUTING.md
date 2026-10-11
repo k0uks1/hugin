@@ -246,10 +246,11 @@ the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `web/sr
 - `hugin.platform.Platform` for JS: no file system, the bundled resources (the standard library, the error
   explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
   path arithmetic on strings, and cancellation by a deadline;
-- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.analyse`, `Hugin.phases`;
-  results as JSON, documented in `Hugin.scala`), the persistent query database all calls share (`Session.scala`,
-  which also encodes the annotation table of `hugin.ide.Annotations` for the playground) and the Web Worker
-  entry (`WorkerMain.scala`).
+- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.analyse`,
+  `Hugin.complete`, `Hugin.actions`, `Hugin.expansion`, `Hugin.phases`; results as JSON, documented in
+  `Hugin.scala`), the persistent query database all calls share (`Session.scala`, which also encodes the
+  annotation table of `hugin.ide.Annotations` for the playground) and the Web Worker entry
+  (`WorkerMain.scala`).
 
 ```
 sbt web/bundle                          # web/target/bundle/hugin.js (classic script) and hugin.mjs (ES module)
@@ -485,7 +486,9 @@ library) and its occurrence group. Each snippet's element is then an object
 [[signature, note, …], …]}`: a run that is exactly a name carries the name's index, a name's `hover`
 indexes the deduplicated `hovers` (null where hover shows nothing), and a hover is its signature (or
 null) followed by its notes. Without `--info` the output stays as above. `tests/annotations` holds the
-golden tables of a few programs.
+golden tables of a few programs. `reference/highlight.py` uses `--info` for the hovers and definition
+links of the reference's code blocks, shown by `reference/hugin-info.js` (`reference/README.md`, "Hovers
+and definitions"); the build fails if they add more than 8 KB gzip to a page.
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 
@@ -744,6 +747,14 @@ site/
   play/ide.js             the editor features of the annotation table (docs/design/web-ide.md 6): hover,
                           the info bar under the program, Ctrl-K Ctrl-I, go to definition (F12,
                           Ctrl/Cmd-click), the occurrences of the name at the cursor, references (Shift-F12)
+  play/complete.js        completion (@codemirror/autocomplete): the worker's `complete` at the cursor,
+                          filtered locally while typing; candidates that fit the expected type first
+  play/actions.js         the actions at the cursor (Ctrl-., the info bar's "Fix"): the worker's `actions`
+                          (split, missing clauses, a clause, refine a hole, the suggestions) as a menu,
+                          and "Show expansion" (`expansion`: the object items of the directive or functor
+                          application at the cursor, in the results' Expansion tab)
+  play/hints.js           inlay hints from the annotation table (quotes, splices, implicit arguments,
+                          levels); off by default, switched in the toolbar, the choice in localStorage
   play/hugin-lang.js      highlighting from editors/vscode/syntaxes/hugin.tmLanguage.json
   play/worker.js          the Web Worker that loads the compiler bundle hugin.js; `adapt` and
                           `normalise` hold the bundle's API (batch W4)

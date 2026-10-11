@@ -3,7 +3,8 @@
 //     diagnostics, as `// ` comments, and Hugin.run's `output` must equal X.check, as GoldenTests builds it
 //     from `hugin run` (X.flags translated to options);
 //   - every tests/json program: Hugin.check's diagnostics must equal the JSON lines of X.check;
-//   - the highlighting and the editor's analysis (Hugin.highlight, Hugin.analyse) on small programs;
+//   - the highlighting, the editor's analysis and completion (Hugin.highlight, Hugin.analyse,
+//     Hugin.complete, Hugin.actions, Hugin.expansion) on small programs;
 // and prints the bundle's size. Usage, from the repository root: node scripts/js-golden.mjs [web/target/bundle]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -120,6 +121,35 @@ else if (an.info.hovers[use[2]]?.[0] !== 'relation edge : int -> int -> rel') fa
 if (JSON.stringify(JSON.parse(Hugin.run(hlSource)).info) !== JSON.stringify(an.info)) fail('analyse', 'run and analyse disagree');
 const lib = JSON.parse(Hugin.analyse('%use "std/graph".\nc : type.\nr : c -> c -> rel.\n%input r.\nt = tc { node = c, edge = r }.\n'));
 if (!lib.info?.names?.some((n) => JSON.stringify(n[5]) === '["std/graph","tc"]')) fail('analyse', 'no library target: ' + JSON.stringify(lib.info));
+
+// completion (Hugin.complete): the identifier being typed, the candidates, the ranking by the expected type
+const cSource = 'nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nquad : nat -> nat.\nquad Nat = s.\n';
+const cOff = cSource.indexOf('= s.') + 3;
+const comp = JSON.parse(Hugin.complete(cSource, cOff));
+const suc = comp.items?.find((i) => i.label === 'suc');
+if (comp.from !== cOff - 1 || !comp.ranked || !suc?.fits || suc.kind !== 'metaDefinition' || comp.items.find((i) => i.label === 'size')?.fits)
+  fail('complete', 'unexpected completions: ' + JSON.stringify(comp));
+worker.onmessage?.({ data: { id: 9, op: 'complete', source: cSource, offset: cOff } });
+if (posted.at(-1)?.result?.from !== cOff - 1) fail('worker', 'complete: ' + JSON.stringify(posted.at(-1)));
+
+// actions (Hugin.actions): a split at the cursor, in UTF-16 offsets
+const aSource = 'nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble N = suc (suc N).\n';
+const aOff = aSource.indexOf('N = suc');
+const acts = JSON.parse(Hugin.actions(aSource, aOff, aOff));
+const split = acts.actions?.find((a) => a.title === 'Split on `N`');
+const clause = aSource.indexOf('double N');
+if (split?.kind !== 'rewrite' || split.edits[0]?.from !== clause || split.edits[0]?.to !== aSource.length - 1 || !split.edits[0].insert.startsWith('double zero'))
+  fail('actions', 'unexpected actions: ' + JSON.stringify(acts));
+worker.onmessage?.({ data: { id: 10, op: 'actions', source: aSource, from: aOff, to: aOff } });
+if (!posted.at(-1)?.result?.actions?.length) fail('worker', 'actions: ' + JSON.stringify(posted.at(-1)));
+
+// the expansion (Hugin.expansion) of a functor application, and the inlay hints of the table
+const eSource = 'p : int -> rel.\n%input p.\nmk (r : int -> rel) = { s : int -> rel. s X :- r X. }.\nm = mk p.\n%output m.s.\n';
+const exp = JSON.parse(Hugin.expansion(eSource, eSource.indexOf('mk p')));
+if (!exp.text?.includes('m.s X :- p X.')) fail('expansion', 'unexpected expansion: ' + JSON.stringify(exp));
+if (JSON.parse(Hugin.expansion(eSource, 0)).text !== null) fail('expansion', 'an expansion where there is none');
+const hints = JSON.parse(Hugin.analyse('ident : A -> A = [x] x.\nthree : int = ident 3.\n')).info?.hints;
+if (!hints?.some((h) => h[1] === '{int}' && h[3] === 'implicit')) fail('analyse', 'no implicit hint: ' + JSON.stringify(hints));
 
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');
