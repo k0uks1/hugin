@@ -25,10 +25,11 @@ trait Matching:
   /** [[reduceFunction]] of a global that is not a function defined by clauses: a primitive or a family
    *  applied to its arity reduces, anything else does not. */
   def reduceOther(id: Int, sp: Spine): Option[Val] = globals(id).kind match
-    // the successor of a nat-like family applied to a numeral is the next numeral
+    // the successor of a nat-like family applied to a numeral is the next numeral, and a constructor of
+    // the meta `int` applied to one an integer
     case GlobalKind.Constructor(fam) =>
       sp match
-        case List(Elim.EApp(a, Icit.Expl)) => natSuccessorOf(fam, id, a)
+        case List(Elim.EApp(a, Icit.Expl)) => natSuccessorOf(fam, id, a).orElse(intOfConstructor(id, a))
         case _ => None
     case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
       val (later, first) = sp.splitAt(sp.length - op.arity)
@@ -62,6 +63,7 @@ trait Matching:
           native match
             case Some(Some(v)) =>
               Matching.nativeSteps += 1
+              step()
               Reduct(v, null, Nil, null, later)
             case Some(None) => Matching.Stuck
             case None => runClauses(id, tree, args, later)
@@ -69,9 +71,15 @@ trait Matching:
 
   /** [[matchFunction]] by the case tree of `tree`, for `args` (as many as its arity). */
   private def runClauses(id: Int, tree: FunctionBody, args: List[Val], later: Spine): Reduct | Matching.Stuck.type =
-    val key = closedKeyIds(args) match
-      case Some(ids) => (id, ids)
-      case None => null
+    // a native operation is not memoised: on numerals it computes in one step, and its clauses, which run
+    // on anything else, take a step per constructor of an argument (the key of an open argument, stuck
+    // meta code that shares values, cost a read-back at every application)
+    val key =
+      if tree.native.isDefined then null
+      else
+        closedKeyIds(args) match
+          case Some(ids) => (id, ids)
+          case None => null
     val hit = if key == null then null else memo.getOrElse(key, null)
     if hit != null then Reduct(hit, null, Nil, null, later)
     else
@@ -92,6 +100,7 @@ trait Matching:
     native match
       case Some(Some(v)) =>
         Matching.nativeSteps += 1
+        step()
         Reduct(v, null, Nil, null, later)
       case Some(None) => Matching.Stuck
       case None =>
@@ -215,6 +224,9 @@ trait Matching:
     case Lit(l, Stage.S1) => Some(Tm.Lit(l, Stage.S1))
     // a numeral is an atom too: `same 3 3` reduces
     case Nat(f, n) => Some(Tm.Nat(f, n))
+    // an integer as the literal it was before integers were inductive (the key of a quoted pattern's
+    // literal), or as a number beyond 64 bits
+    case IntNum(n) => Some(if Integers.fits64(n) then Tm.Lit(hugin.syntax.Literal.IntL(n.toLong), Stage.S1) else Tm.IntNum(n))
     case Quote(t) =>
       forceData(t) match
         case Rigid(Head.Glob(id), Nil) => Some(Tm.Quote(Tm.Global(id)))

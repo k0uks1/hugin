@@ -567,8 +567,10 @@ dropped and elaboration continues with the next one.
   possibly non-terminating function is ever evaluated during elaboration.
 * **Literals (Q2).** A literal checked against a nat-like family (exactly a constant constructor and one
   with a single recursive argument, `zero`/`suc`) is the unary numeral `suc (… zero)`, also in patterns;
-  otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Meta `int`
-  has no conversion to `nat` yet (a function by clauses on `nat` gives the other direction).
+  otherwise literals are meta `int`/`float`/`string` values (or object literals at stage 0). Since #186
+  P4 the meta `int` is the inductive family of `std/nat` (`ofNat`, `negSucc`), unbounded, with closed
+  integers represented as numbers (`Val.IntNum`, `core/Integers.scala`) and the arithmetic of `std/int`
+  native on them; `natAbs` and `ofNat` convert between `int` and `nat`.
 
 ### Decisions (B3a: the handover to the object level)
 

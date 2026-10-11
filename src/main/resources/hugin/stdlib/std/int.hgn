@@ -1,0 +1,82 @@
+(* std/int: the arithmetic of the meta level's integers (reference: std/int). The family `int` with its
+   constructors `ofNat` and `negSucc` is declared in `std/nat`; the operators `+`, `-`, `*`, `/` and the
+   negation `-x` on meta integers apply the functions of this file, whatever the names in scope of a
+   program. The prelude opens `iequal`, `iless`, `ileq` and `fits64`. The clauses define the functions,
+   as Lean 4's `Int` defines them (`src/Init/Data/Int/Basic.lean`); the compiler computes each of them
+   directly on numbers when all its arguments are numerals, after checking these clauses against its own
+   operation (reference: std/int, native arithmetic). *)
+%use "std/reflect" (bool, true, false).
+%use "std/nat".
+
+(* The negation of a natural number *)
+negOfNat : nat -> int.
+negOfNat 0 = 0.
+negOfNat (N + 1) = negSucc N.
+
+(* The difference of two natural numbers, as an integer *)
+subNatNat : nat -> nat -> int.
+subNatNat M 0 = ofNat M.
+subNatNat 0 (N + 1) = negSucc N.
+subNatNat (M + 1) (N + 1) = subNatNat M N.
+
+(* `-x` *)
+ineg : int -> int.
+ineg (ofNat N) = negOfNat N.
+ineg (negSucc N) = ofNat (N + 1).
+
+(* `x + y` *)
+iplus : int -> int -> int.
+iplus (ofNat M) (ofNat N) = ofNat (plus M N).
+iplus (ofNat M) (negSucc N) = subNatNat M (N + 1).
+iplus (negSucc M) (ofNat N) = subNatNat N (M + 1).
+iplus (negSucc M) (negSucc N) = negSucc (plus M N + 1).
+
+(* `x - y` *)
+iminus : int -> int -> int.
+iminus X Y = iplus X (ineg Y).
+
+(* `x * y` *)
+itimes : int -> int -> int.
+itimes (ofNat M) (ofNat N) = ofNat (times M N).
+itimes (ofNat M) (negSucc N) = negOfNat (times M (N + 1)).
+itimes (negSucc M) (ofNat N) = negOfNat (times (M + 1) N).
+itimes (negSucc M) (negSucc N) = ofNat (times (M + 1) (N + 1)).
+
+(* `x / y`, rounded toward zero as the object level's division (Lean's `Int.tdiv`); `x / 0` is `0` *)
+idiv : int -> int -> int.
+idiv (ofNat M) (ofNat 0) = 0.
+idiv (ofNat M) (ofNat (N + 1)) = ofNat (divSucAux 0 N M N).
+idiv (ofNat M) (negSucc N) = negOfNat (divSucAux 0 N M N).
+idiv (negSucc M) (ofNat 0) = 0.
+idiv (negSucc M) (ofNat (N + 1)) = negOfNat (divSucAux 0 N (M + 1) N).
+idiv (negSucc M) (negSucc N) = ofNat (divSucAux 0 N (M + 1) N).
+
+(* Equality and order of integers, as booleans *)
+iequal : int -> int -> bool.
+iequal (ofNat M) (ofNat N) = equal M N.
+iequal (ofNat M) (negSucc N) = false.
+iequal (negSucc M) (ofNat N) = false.
+iequal (negSucc M) (negSucc N) = equal M N.
+
+iless : int -> int -> bool.
+iless (ofNat M) (ofNat N) = less M N.
+iless (ofNat M) (negSucc N) = false.
+iless (negSucc M) (ofNat N) = true.
+iless (negSucc M) (negSucc N) = less N M.
+
+ileq : int -> int -> bool.
+ileq (ofNat M) (ofNat N) = less M (N + 1).
+ileq (ofNat M) (negSucc N) = false.
+ileq (negSucc M) (ofNat N) = true.
+ileq (negSucc M) (negSucc N) = less N (M + 1).
+
+(* Whether an integer is in the object level's 64-bit range, -2^63 to 2^63 - 1: exactly the integers that
+   can be used as object code (reference: meta/staging, lifting) *)
+fits64 : int -> bool.
+fits64 (ofNat N) = less N 9223372036854775808.
+fits64 (negSucc N) = less N 9223372036854775808.
+
+(* The absolute value, as a natural number *)
+natAbs : int -> nat.
+natAbs (ofNat N) = N.
+natAbs (negSucc N) = N + 1.

@@ -1,0 +1,39 @@
+(* #186 P4: proof by evaluation with `std/decide` (reference: std/decide): a decider is a boolean check
+   with a soundness lemma, and a closed instance is proved by `tt`; the comparisons evaluate natively,
+   also on large numbers. Then the library's lemmas about `nat` and `int`. *)
+%use "std/eq" (eq, refl, sym, trans, empty, tt).
+%use "std/nat".
+%use "std/decide".
+
+(* the order of natural numbers as a family, and a decider for it (chapter 1 of the design note) *)
+lt : nat -> nat -> Type.
+ltz : {n : nat} -> lt 0 (n + 1).
+lts : {m n : nat} -> lt m n -> lt (m + 1) (n + 1).
+
+lessSound : (m n : nat) -> so (less m n) -> lt m n.
+lessSound M 0 ().
+lessSound 0 (N + 1) T = ltz.
+lessSound (M + 1) (N + 1) T = lts (lessSound M N T).
+
+pair : Type = { fst : nat, snd : nat }.
+ltDec : decider pair ([p] lt p.fst p.snd) = { check = [p] less p.fst p.snd, sound = [p] lessSound p.fst p.snd }.
+
+small : lt 2 5 = decide ltDec { fst = 2, snd = 5 } tt.
+large : lt 3 100000 = decide ltDec { fst = 3, snd = 100000 } tt.
+
+(* equalities decided by the library's deciders; arithmetic on both sides evaluates first *)
+product : eq (times 123456789 987654321) 121932631112635269 = decide natEqual { fst = times 123456789 987654321, snd = 121932631112635269 } tt.
+negative : eq (3 - 10 * 2) (-17) = decide intEqual { fst = 3 - 10 * 2, snd = -17 } tt.
+huge : eq (100000000000000000000 * 100000000000000000000) 10000000000000000000000000000000000000000 = refl.
+
+(* the library's lemmas, used at variables *)
+comm : (a b : int) -> eq (a + b) (b + a) = [a] [b] iplusComm a b.
+twice : (a : int) -> eq (-(-(a + 0))) a = [a] trans (inegNeg (a + 0)) (iplusZero a).
+assoc : (l m n : nat) -> eq (plus l (plus m n)) (plus (plus l m) n) = [l] [m] [n] sym (plusAssoc l m n).
+notLess : so (less 7 7) -> empty = lessIrrefl 7.
+sound : (a b : int) -> so (iequal a b) -> eq a b = iequalSound.
+
+%opaque small large product negative huge comm twice assoc notLess sound.
+
+checked : string -> rel.
+checked "decided".

@@ -6,7 +6,7 @@ import scala.collection.mutable
  *  `Print Assumptions`): the postulates `x : A = %postulate.` and the trusted primitives it depends on,
  *  through its type, its value or its clauses, and through those of every constant they mention,
  *  transitively. The trusted primitives are the operations `x : A = %builtin p.` of the library and the
- *  functions of `std/nat` that compute natively: code of the compiler that the program relies on
+ *  functions of `std/nat` and `std/int` that compute natively: code of the compiler that the program relies on
  *  without a proof, as Lean lists `Lean.ofReduceBool`. `--safe` rejects postulates, not primitives. */
 object Assumptions:
   /** The postulates of the program, in declaration order. */

@@ -92,6 +92,8 @@ trait Naturals:
       natLike(fam) match
         case Some((_, s)) => Val.Rigid(Head.Glob(s), List(Elim.EApp(if k == 1 then b else Val.NatAdd(fam, b, k - 1), Icit.Expl)))
         case None => v
+    // an integer of the meta `int` is `ofNat n` or `negSucc n` ([[Integers]])
+    case Val.IntNum(n) => intView(n)
     case other => other
 
   /** A value as a numeral (`Left`), or as the successor of its nat-like family applied `i` times to a value
@@ -132,6 +134,7 @@ trait Naturals:
       natLike(fam) match
         case Some((_, s)) => Tm.App(Tm.Global(s), if k == 1 then b else Tm.NatAdd(fam, b, k - 1), Icit.Expl)
         case None => t
+    case Tm.IntNum(n) => intViewTm(n)
     case other => other
 
   /** `e + k`: the successor `suc` applied `k` times to `e`; a numeral if `e` is one. */

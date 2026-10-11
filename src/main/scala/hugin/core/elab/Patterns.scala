@@ -82,6 +82,10 @@ trait Patterns:
     case VarRef(n) => Pat.PVar(n, t.span)
     case Wildcard() => Pat.PWild(t.span)
     case Absurd() => Pat.PAbsurd(t.span)
+    // against the meta `int`: `ofNat k` for `k ≥ 0`, `negSucc (k - 1)` for `-k` (reference: std/int)
+    case Lit(Literal.IntL(n)) if intExpected(expected) => intPattern(BigInt(n), t.span)
+    case BigLit(n) if intExpected(expected) => intPattern(n, t.span)
+    case Neg(BigLit(n)) if intExpected(expected) => intPattern(-n, t.span)
     case Lit(Literal.IntL(n)) if n >= 0 => Pat.PLit(BigInt(n), t.span)
     case BigLit(n) => Pat.PLit(n, t.span)
     case Infix("+", p, k) if successorCount(k).isDefined => Pat.PSucc(pattern(p, expected), BigInt(successorCount(k).get), t.span)
@@ -115,6 +119,14 @@ trait Patterns:
           Pat.PCon(c, args.zip(types).map(pattern(_, _)), t.span, implicits)
         case _ =>
           fail(ClauseProblem.InvalidPattern(t.span))
+
+  private def intExpected(expected: Option[Val]): Boolean = metaInt != null && expected.exists(a => isMetaInt(force(a)))
+
+  /** The integer `n` as a pattern of constructors of the meta `int`, over a numeral pattern. */
+  private def intPattern(n: BigInt, span: Span): Pat =
+    val m = metaInt.nn
+    if n >= 0 then Pat.PCon(m.ofNat, List(Pat.PLit(n, span)), span)
+    else Pat.PCon(m.negSucc, List(Pat.PLit(-n - 1, span)), span)
 
   /** A pattern against the nat-like family with the constant `z` and the successor `s`, as a numeral or as
    *  a pattern with the successor applied `j` times (reference: meta/clauses): `3` and `suc (suc (suc

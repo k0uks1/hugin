@@ -1,0 +1,9 @@
+error[E0909]: cannot compute a primitive value at compile time
+ --> tests/neg/p4_int_limit.hgn:8:1
+  |
+8 | r (if (fits64 (grow 40 2)) 1 0). (*~ E0909 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `if {int} (fits64 (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩ * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩) * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩ * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩)) * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩ * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩) * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩ * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩))) * (⟨integer of 8388609 bits⟩ * ⟨integer of 8388609 bits⟩ * (⟨integer of 8388609 bits⟩ * …) * … * …) * … * … * … * … * … * … * … * … * … * … * … * …)) … …` does not evaluate to a literal
+  |
+  = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+
+1 error found

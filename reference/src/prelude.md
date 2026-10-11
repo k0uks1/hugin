@@ -7,14 +7,15 @@ program may shadow any of them ([Modules](modules.md#scopes)). The prelude holds
 program uses; everything else is in the modules of the [standard library](std/index.md), which a program
 imports.
 
-The prelude consists of three `%use` items:
+The prelude consists of four `%use` items:
 
 ```hugin,ignore
 %use "std/reflect" (
   bool, true, false, if, same, list, nil, cons, append, option, none, some,
   input, output, open, derivations, terminates
 ).
-%use "std/nat" (nat, zero, suc).
+%use "std/nat" (nat, zero, suc, ofNat, negSucc).
+%use "std/int" (iequal, iless, ileq, fits64).
 %use "std/demand" (demand).
 ```
 
@@ -22,18 +23,23 @@ So the names in scope in every file are:
 
 | names | what | defined in |
 |---|---|---|
-| `int`, `float`, `string` | the base types, built into the compiler | [Object types](object/types.md#base-types) |
+| `int`, `float`, `string` | the base types, built into the compiler; as a meta type, `int` is the family of the meta integers | [Object types](object/types.md#base-types), [`std/int`](std/int.md) |
 | `bool`, `true`, `false`, `if` | booleans, shared by both stages, and the choice between two values | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `same` | equality of symbols and literals (primitive) | [`std/reflect`](std/reflect.md#primitives) |
 | `list`, `nil`, `cons`, `append` | lists, shared by both stages, and the concatenation of meta lists | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `option`, `none`, `some` | optional values, shared by both stages | [`std/reflect`](std/reflect.md#lists-options-and-booleans) |
 | `nat`, `zero`, `suc` | the natural numbers of the meta level | [`std/nat`](std/nat.md) |
+| `ofNat`, `negSucc` | the constructors of the meta integers | [`std/nat`](std/nat.md), [`std/int`](std/int.md#the-meta-int) |
+| `iequal`, `iless`, `ileq`, `fits64` | the comparisons of meta integers, and their test of the object level's 64-bit range | [`std/int`](std/int.md) |
 | `%input`, `%output`, `%open`, `%derivations`, `%terminates` | the primitive directives | [Directives](directives.md#the-primitive-directives) |
 | `%demand` | demand-driven evaluation | [Directives](directives.md#demand), [`std/demand`](std/demand.md) |
 
 `int`, `float` and `string` are in scope in every program that includes the prelude. A program compiled
 with `--no-prelude` declares the base types it uses ([Object types](object/types.md#base-types)), and it
-may import modules of the standard library itself.
+may import modules of the standard library itself. It has no meta integers
+([E0931](errors/E0931.md)): `std/nat` and `std/int`, which define them, are elaborated with the prelude,
+in every program, also where the program uses none of their names, since any literal or operator may
+use them.
 
 The following program uses only names of the prelude: a meta list, `if`, `same` and `%output`.
 

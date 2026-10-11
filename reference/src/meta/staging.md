@@ -173,16 +173,24 @@ type](families.md#shared-data) to the liftings of its elements; stage inference 
 empty. The rule *Lift* of stage inference states that a meta value `e : τ` used where object code of type
 `A` is expected, with `τ⁰` a subtype of `A`, is the object code `$(ℓ e)`, for the lifting `ℓ` of `τ`.
 
-A value of a base type is *persisted*: it becomes the literal of its value. A value of object code is
-spliced. A value of a shared data type becomes the object term of the same constructors, whose arguments
+A value of a base type is *persisted*: it becomes the literal of its value. The base type `int` used as a
+meta type is the family of the meta integers ([`std/int`](../std/int.md#the-meta-int)), whose lifting is
+persisting as well: a meta integer becomes the object literal of its value, which must lie in the object
+level's 64-bit range, from −9223372036854775808 to 9223372036854775807. It is an error
+([E0930](../errors/E0930.md)) otherwise, where the value is persisted, never a wrapped number; the same
+check applies to a meta integer inside a lifted value and to the literal of reflected `tint` data
+([Reflection](../reflection.md)). `fits64` tests the range. A value of object code is spliced. A value of a shared data type becomes the object term of the same constructors, whose arguments
 are lifted in turn: a compile-time `[2, 3] : list int` used as object code is the term
 `cons 2 (cons 3 nil)`, which a rule head derives as a fact with its nested facts. A compile-time list of
 object code, `list (⇑int)`, is the object list of that code. It is an error ([E0902](../errors/E0902.md))
 if the type has no lifting; the error names the first type that is not shared.
 
 Arithmetic in object code whose operands are both meta values is computed at compile time and
-persisted. It is an error ([E0909](../errors/E0909.md)) if such a value is undefined (an overflow, a
-division by zero) or does not evaluate to a literal, for example because it applies a postulate.
+persisted. On meta integers it is the object operation computed exactly, on unbounded integers, so only
+its result must fit into 64 bits ([E0930](../errors/E0930.md)): with `big = 9223372036854775807`,
+`size (big * 2 / 2)` is `size 9223372036854775807`. A division by zero is undefined, as it is at the
+object level. It is an error ([E0909](../errors/E0909.md)) if such a value is undefined (a division by
+zero) or does not evaluate to a literal, for example because it applies a postulate.
 
 The following program persists a compile-time integer, explicitly with `$` and implicitly, and passes
 object code of type `⇑int`.

@@ -31,7 +31,7 @@ fib : int -> int -> rel.
 fib 90 2880067194370816120.
 sumAll : {N : nat} -> vec int N -> int.
   sumAll vnil = 0.
-  sumAll (vcons X XS) = X + sumAll {_} XS.
+  sumAll (vcons X XS) = X + sumAll XS.
 total : int -> rel.
 total 42.
 isZero : nat -> int.

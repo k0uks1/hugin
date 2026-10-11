@@ -121,6 +121,7 @@ trait Primitives:
     case Lift(_) => false
     case U0 | U1(_) => false
     case Base(_, Stage.S1) => false
+    case t if isMetaInt(t) => false
     case _ => true
 
   private def stringList(xs: List[String], ctors: List[Int]): Val =

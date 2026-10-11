@@ -1,7 +1,8 @@
-(* std/nat: the natural numbers of the meta level (reference: std/nat). The prelude opens `nat`, `zero`
-   and `suc`; a program writes `%use "std/nat".` for the functions. The clauses define the functions;
-   the compiler computes each of them directly on numbers when all its arguments are numerals, after
-   checking these clauses against its own operation (reference: std/nat, native arithmetic). *)
+(* std/nat: the natural numbers of the meta level (reference: std/nat), and the integers built on them
+   (reference: std/int). The prelude opens `nat`, `zero`, `suc`, `ofNat` and `negSucc`; a program writes
+   `%use "std/nat".` for the functions. The clauses define the functions; the compiler computes each of
+   them directly on numbers when all its arguments are numerals, after checking these clauses against its
+   own operation (reference: std/nat, native arithmetic). *)
 %use "std/reflect" (bool, true, false).
 
 nat : Type.
@@ -48,7 +49,13 @@ less N 0 = false.
 less 0 (M + 1) = true.
 less (N + 1) (M + 1) = less N M.
 
+(* The integers of the meta level (reference: std/int), as Lean 4's `Int`: `ofNat n` is `n`, and
+   `negSucc n` is `-(n + 1)`. The name `int` denotes this family wherever it is a meta type, also in a
+   file that does not open it; its arithmetic is in `std/int`. *)
+int : Type.
+ofNat : nat -> int.
+negSucc : nat -> int.
+
 (* The integer of a natural number, to use it in object code *)
 toInt : nat -> int.
-toInt 0 = 0.
-toInt (N + 1) = toInt N + 1.
+toInt N = ofNat N.

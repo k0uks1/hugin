@@ -38,6 +38,11 @@ trait Names:
             // a function whose clauses have a syntax error: its uses are not elaborated
             state.used += id
             throw ElabError(ElabProblem.UnresolvedName(n, span, None, false).toDiagnostic, silent = true)
+          // the family `int` of `std/nat`, opened by a `%use`, is the meta `int`: the name `int` denotes the
+          // base type, whose meta reading the family is (reference: std/int)
+          case Some(found) if isMetaIntFamily(found) =>
+            state.used += found
+            (Tm.Base(hugin.obj.BaseType.IntT, Stage.S0), Val.U0, Stage.S0)
           case Some(found) =>
             val id = sharedAt(found, state.stage)
             state.used += found

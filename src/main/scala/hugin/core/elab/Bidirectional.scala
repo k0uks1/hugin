@@ -23,6 +23,8 @@ trait Bidirectional:
     case k: Keyword => inferKeyword(k)
     case b @ Builtin(n) => inferBuiltin(n, b.span)
     case p: Postulate => fail(ElabProblem.MisplacedPostulate(p.span))
+    case Lit(Literal.IntL(k)) if metaInt != null => (Tm.IntNum(BigInt(k)), metaIntType, Stage.S1)
+    case Lit(Literal.IntL(_)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     case s: Select => inferSelect(c, s)
@@ -59,6 +61,9 @@ trait Bidirectional:
     case Wildcard() =>
       fail(TypeProblem.CannotInferWildcard(t.span))
     case Absurd() | Absent() => fail(ClauseProblem.MisplacedAbsurd(t.span))
+    // an integer literal beyond 64 bits is a meta integer (reference: std/int), or a numeral of a nat-like
+    // type it is checked against
+    case BigLit(n) if metaInt != null => (Tm.IntNum(n), metaIntType, Stage.S1)
     case BigLit(_) => fail(TypeProblem.IntegerOutOfRange(t.span))
     case SymRef(id, _) => globalRef(sharedAt(id, state.stage))
     case NamedVar(n) =>
@@ -90,7 +95,11 @@ trait Bidirectional:
 
   private def inferAt(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
     case Parens(i) => inferS(c, i, st)
+    case Lit(Literal.IntL(k)) if st == Stage.S1 && metaInt != null => (Tm.IntNum(BigInt(k)), metaIntType)
+    case Lit(Literal.IntL(_)) if st == Stage.S1 && noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, st), Val.Base(BaseType.of(l), st))
+    case BigLit(n) if st == Stage.S1 && metaInt != null => (Tm.IntNum(n), metaIntType)
+    case BigLit(_) => fail(TypeProblem.IntegerOutOfRange(t.span))
     case Wildcard() if st == Stage.S0 =>
       val a = freshMeta(c, Val.U0, Stage.S0, t.span, "the type of `_`", allowUnsolved = true)
       (Tm.Wild, ev(c, a))
@@ -104,6 +113,11 @@ trait Bidirectional:
       // implicit arguments first: a constructor of a family (`nil`) is object code once applied
       val (tm, ty, s) = if st == Stage.S0 then insert(c, t.span, infer(c, t)) else infer(c, t)
       adjust(c, t.span, tm, ty, s, st)
+
+  /** Whether this compilation has no meta integers: it has no `std/nat`, whose family `int` the meta
+   *  `int` is, and was compiled without the prelude (the elaborator's own tests elaborate bare files, in
+   *  which the meta `int` is the primitive). */
+  def noMetaInt: Boolean = metaInt == null && !file.builtinNames
 
   /** Checks a term against a type at a stage. */
   def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
@@ -138,6 +152,8 @@ trait Bidirectional:
         case _ => quoteWithoutType(c, q, Some(ty))
     case (ListLit(_) | ConsE(_, _), ty) if st == Stage.S1 && !ty.isInstanceOf[Val.Lift] => checkList(c, t, a)
     case (ListLit(_) | ConsE(_, _), _) if st == Stage.S0 => check(c, objectList(t), a, st)
+    // an object integer literal is 64-bit (reference: lexical-structure)
+    case (BigLit(_), _) if st == Stage.S0 => fail(TypeProblem.IntegerOutOfRange(t.span))
     case (Lit(l), ty) if st == Stage.S0 =>
       // the literal's type determines unknowns (`cons "b" nil`); refinements of it are object typing's
       coe(c, t.span, Tm.Lit(l, Stage.S0), Val.Base(BaseType.of(l), Stage.S0), Stage.S0, ty, Stage.S0)
@@ -159,7 +175,13 @@ trait Bidirectional:
     case (ImplicitPi(ns, d, cod), Val.U1(l)) => checkImplicitPi(c, ns, d, cod, l)
     case (RecordType(entries), Val.U1(l)) => checkRecordType(c, entries, l)
     case (RecordLit(fields, false), rt: Val.RecTy) => checkRecord(c, t, fields, rt)
+    case (Lit(Literal.IntL(_)), Val.Base(BaseType.IntT, Stage.S1)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case (Lit(l), Val.Base(b, s)) if b == BaseType.of(l) => Tm.Lit(l, s)
+    // an integer literal of the meta `int`, also beyond 64 bits and negative (reference: std/int)
+    case (Lit(Literal.IntL(k)), ty) if isMetaInt(ty) => Tm.IntNum(BigInt(k))
+    case (BigLit(n), ty) if isMetaInt(ty) && metaInt != null => Tm.IntNum(n)
+    case (Neg(BigLit(n)), ty) if isMetaInt(ty) && metaInt != null => Tm.IntNum(-n)
+    case (BigLit(_), Val.Flex(_, _)) if st == Stage.S1 && metaInt != null => postponeLiteral(c, t, a)
     case (Lit(l @ Literal.IntL(_)), other) if natType(other).isDefined => natLiteral(c, l, other, t.span).get
     case (BigLit(n), other) if natType(other).isDefined => natTerm(natType(other).get._1, natType(other).get._2, n)
     case (Wildcard(), _) => if st == Stage.S0 then Tm.Wild else freshMeta(c, a, Stage.S1, t.span, "`_`")

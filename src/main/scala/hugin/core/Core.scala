@@ -145,6 +145,7 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 final class Core private (val levels: Levels) extends Evaluation with Machine with Matching with Families with Modules with Requirements
     with Readback with Renaming with Unification with Printing with Primitives with MemoKeys
     with Naturals
+    with Integers
     with NatArithmetic with WeakHead:
   def this() = this(Levels())
 
@@ -182,6 +183,7 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
     c.copyRequirements(this)
     c.copyEvaluation(this)
     c.copyPrimitives(this)
+    c.copyIntegers(this)
     c.cancellation = cancellation
     c
 

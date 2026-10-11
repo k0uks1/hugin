@@ -97,5 +97,6 @@ final class DeclAttributes(core: Core):
     case ("tint" | "tfloat" | "tstr", List(l), s) =>
       peel(l, s) match
         case (Val.Lit(lit, _), _) => PatternTerm.Literal(lit)
+        case (Val.IntNum(n), _) if Integers.fits64(n) => PatternTerm.Literal(hugin.syntax.Literal.IntL(n.toLong))
         case (other, s2) => notClosed(other, s2)
     case _ => PatternTerm.Other

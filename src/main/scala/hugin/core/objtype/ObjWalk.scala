@@ -137,6 +137,7 @@ final class ObjWalk(env: ObjEnv, scope: ObjWalk.Scope):
     case Tm.Var(ix) => s.metaType(s.lvl - ix - 1)
     case Tm.Global(id) => Some(globals(id).ty)
     case Tm.Lit(l, Stage.S1) => Some(Val.Base(hugin.obj.BaseType.of(l), Stage.S1))
+    case Tm.IntNum(_) => Some(metaIntType)
     case Tm.App(f, a, _) =>
       metaType(f, s).map(force) match
         case Some(Val.Pi(_, _, _, cl)) =>

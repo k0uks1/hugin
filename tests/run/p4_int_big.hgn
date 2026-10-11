@@ -1,0 +1,51 @@
+(* #186 P4: the meta `int` is inductive (`ofNat`, `negSucc`) and unbounded (reference: std/int): literals
+   beyond 64 bits, negative literals, arithmetic in one native step, comparisons, `fits64`, patterns on
+   the constructors and integer literal patterns. Only values within 64 bits are used as object code. *)
+%use "std/int" (natAbs).
+%use "std/nat" (toInt).
+
+googol : int = 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000 * 10000000000.
+big : int = 340282366920938463463374607431768211456.
+minus : int = -100000000000000000000.
+
+(* the sign and the absolute value, by the constructors and by literals *)
+sign : int -> int.
+sign 0 = 0.
+sign (ofNat (N + 1)) = 1.
+sign (negSucc N) = -1.
+
+isMinusOne : int -> bool.
+isMinusOne (-1) = true.
+isMinusOne X = false.
+
+absolute : int -> int.
+absolute (negSucc N) = ofNat (N + 1).
+absolute X = X.
+
+(* compile-time factorial over `nat`, unbounded *)
+fact : nat -> int.
+fact 0 = 1.
+fact (N + 1) = ofNat (N + 1) * fact N.
+
+result : string -> int -> rel.
+result "googol / 10^90" (googol / 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000).
+result "2^128 / 2^70" (big / 1180591620717411303424).
+result "minus / big" (minus / big).
+result "20! / 18!" (fact 20 / fact 18).
+result "30! fits" (if (fits64 (fact 30)) 1 0).
+result "20! fits" (if (fits64 (fact 20)) 1 0).
+result "sign" (sign minus).
+result "sign 0" (sign 0).
+result "abs" (absolute (-42)).
+result "natAbs" (toInt (natAbs (minus / 10000000000000000000))).
+result "-1" (if (isMinusOne (3 - 4)) 1 0).
+result "truncated" (-7 / 2).
+result "by zero" (googol / 0 + 5).
+result "max" (9223372036854775807 + googol - googol).
+result "min" (-9223372036854775807 - 1).
+
+compare : string -> bool -> rel.
+compare "less" (iless minus googol).
+compare "leq" (ileq big big).
+compare "equal" (iequal (googol - googol) 0).
+compare "same" (same big (big + 0)).

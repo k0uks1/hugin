@@ -118,6 +118,18 @@ trait Printing:
         case (Some(e), k) => par(p, 3, s"${go(ns, e, 3)} + $k")
     case Tm.Nat(_, n) => n.toString
     case Tm.NatAdd(_, b, k) => par(p, 3, s"${go(ns, b, 3)} + $k")
+    // an integer of the meta `int`; a negative one is parenthesised as an argument
+    case Tm.IntNum(n) =>
+      // an integer of thousands of digits is shown by its size (computing its digits alone takes long)
+      if n.bitLength > Printing.MaxShownBits then s"⟨integer of ${n.bitLength} bits⟩"
+      else if n < 0 then par(p, 5, n.toString)
+      else n.toString
+    // the arithmetic of the meta `int` as the operators it is written with (reference: std/int)
+    case Tm.App(Tm.App(Tm.Global(f), a, Icit.Expl), b, Icit.Expl) if intOperatorSymbol(f).exists(_ != "-x") =>
+      val op = intOperatorSymbol(f).get
+      val q = if op == "*" || op == "/" then 4 else 3
+      par(p, q, s"${go(ns, a, q)} $op ${go(ns, b, q + 1)}")
+    case Tm.App(Tm.Global(f), a, Icit.Expl) if intOperatorSymbol(f).contains("-x") => s"-${go(ns, a, 6)}"
     case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
     case Tm.Meta(m) => showMeta(m)
@@ -217,3 +229,7 @@ trait Printing:
     case (ObjForm.Union, ms) => par(p, 1, ms.map(go(ns, _, 2)).mkString(" | "))
     case (ObjForm.BoundCol(k), List(a)) => par(p, 5, s"${k.show} ${go(ns, a, 6)}")
     case _ => s"<malformed ${f.toString}>"
+
+object Printing:
+  /** Integers with more bits (about 1200 decimal digits) are shown by their size. */
+  inline val MaxShownBits = 4096

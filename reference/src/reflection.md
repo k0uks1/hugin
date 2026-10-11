@@ -561,7 +561,9 @@ elaborated and checked like a hand-written item, at the object level too (typing
 termination). It is an error ([E0918](errors/E0918.md)) if the data is not closed, because it depends on
 a postulate or on a parameter of a meta function. It is also an error if the data does not describe
 object code, such as a variable without a name, a rule without heads or a bound index outside its
-aggregate.
+aggregate. The meta integer of a term `tint n` becomes an object literal, so it must fit into the object
+level's 64 bits ([E0930](errors/E0930.md)), as a persisted meta integer must
+([Staging](meta/staging.md#lifting)).
 
 Reflected code is [typed](object/types.md#where-object-code-is-typed) like code written by hand. Data
 built by the constructors of the reflective types or by `qterm` has not been typed before, so its type

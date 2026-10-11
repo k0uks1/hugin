@@ -1,0 +1,20 @@
+(* bench: arithmetic on meta integers at compile time (#186 P4): sums, a memoised recursion, and division
+   and comparison in a loop; every value fits into 64 bits *)
+%use "std/nat".
+sumSq : nat -> int.
+sumSq 0 = 0.
+sumSq (N + 1) = toInt (N + 1) * toInt (N + 1) + sumSq N.
+fibm : nat -> int.
+fibm 0 = 0.
+fibm 1 = 1.
+fibm (N + 2) = fibm N + fibm (N + 1).
+steps : nat -> int -> int.
+steps 0 X = 0.
+steps (F + 1) X = if (same X 1) 0 (1 + steps F (if (same (X - X / 2 * 2) 0) (X / 2) (3 * X + 1))).
+total : nat -> int.
+total 0 = 0.
+total (N + 1) = steps 300 (toInt (N + 1)) + total N.
+result : string -> int -> rel.
+result "sum of squares" (sumSq 3000).
+result "fib" (fibm 90).
+result "collatz" (total 400).

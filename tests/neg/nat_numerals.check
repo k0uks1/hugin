@@ -11,9 +11,9 @@ error[E0901]: mismatched types
   |           ^^ a negative number is not a `nat`
 
 error[E0003]: integer literal out of range
- --> tests/neg/nat_numerals.hgn:7:11
+ --> tests/neg/nat_numerals.hgn:8:3
   |
-7 | i : int = 100000000000000000000. (*~ E0003 *)
-  |           ^^^^^^^^^^^^^^^^^^^^^ does not fit into a 64-bit integer
+8 | o 100000000000000000000. (*~ E0003 *)
+  |   ^^^^^^^^^^^^^^^^^^^^^ does not fit into a 64-bit integer
 
 3 errors found

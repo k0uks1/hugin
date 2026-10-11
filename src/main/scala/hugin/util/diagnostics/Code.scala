@@ -148,6 +148,8 @@ enum Code(
   case E0927 extends Code(927, Phase.Elaboration, "ill-typed abstraction")
   case E0928 extends Code(928, Phase.Elaboration, "cannot rewrite")
   case E0929 extends Code(929, Phase.Elaboration, "equality library not loaded")
+  case E0930 extends Code(930, Phase.Elaboration, "integer out of the object range")
+  case E0931 extends Code(931, Phase.Elaboration, "meta integers not available")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
   case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")

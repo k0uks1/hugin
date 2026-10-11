@@ -1,0 +1,8 @@
+(* #186 P4: native arithmetic does not compute integers beyond the size limit of 2^24 bits (reference:
+   std/int, native arithmetic): `grow 40 2` would be 2^(2^40); its application stays stuck, so object code
+   that needs it is E0909, instead of an overflow of the JVM's numbers. Large integers are shown by size. *)
+grow : nat -> int -> int.
+grow 0 X = X.
+grow (N + 1) X = grow N (X * X).
+r : int -> rel.
+r (if (fits64 (grow 40 2)) 1 0). (*~ E0909 *)

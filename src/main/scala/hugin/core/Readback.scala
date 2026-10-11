@@ -97,6 +97,7 @@ trait Readback:
       case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, go(l, v))))
       case Lit(x, st) => Tm.Lit(x, st)
       case Nat(f, n) => Tm.Nat(f, n)
+      case IntNum(n) => Tm.IntNum(n)
       case NatAdd(f, b, k) => Tm.NatAdd(f, go(l, b), k)
       case Base(b, st) => Tm.Base(b, st)
       case RelT => Tm.RelT

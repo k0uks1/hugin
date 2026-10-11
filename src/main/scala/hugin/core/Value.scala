@@ -70,6 +70,11 @@ enum Val:
   /** The successor of `fam` applied `k ≥ 1` times to `base`, a value that is neither a numeral nor an
    *  offset itself ([[Naturals.natAdd]]); seen through [[Naturals.natView]] like a numeral. */
   case NatAdd(fam: Int, base: Val, k: BigInt)
+
+  /** The integer `n` of the meta `int` (reference: std/int): a closed integer is always in this form,
+   *  never an application of `ofNat` or `negSucc` to a numeral ([[Integers]]); consumers that inspect
+   *  constructors see it through [[Naturals.natView]], one constructor at a time. */
+  case IntNum(n: BigInt)
   case RelT
   case PropT
 

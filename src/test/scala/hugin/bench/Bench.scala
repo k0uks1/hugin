@@ -168,7 +168,8 @@ object BenchSet:
     BenchProgram("run nat_numerals_small", "bench/meta/nat_numerals_small.hgn"),
     BenchProgram("run nat_index_small", "bench/meta/nat_index_small.hgn"),
     BenchProgram("run nat_arith_small", "bench/meta/nat_arith_small.hgn"),
-    BenchProgram("run nat_large", "bench/meta/nat_large.hgn")
+    BenchProgram("run nat_large", "bench/meta/nat_large.hgn"),
+    BenchProgram("run int_arith", "bench/meta/int_arith.hgn")
   )
 
   val datalog: List[BenchProgram] = List(

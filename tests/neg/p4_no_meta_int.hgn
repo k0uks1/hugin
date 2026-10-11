@@ -1,0 +1,7 @@
+(* #186 P4: without the prelude and without `std/nat`, there are no meta integers: the meta `int` is the
+   family `int` of `std/nat` (E0931). Object integers are unaffected. *)
+int : type = %builtin int.
+p : int -> rel.
+p 1.
+?- p X, X = 2.
+limit : int = 3. (*~ E0931 *)

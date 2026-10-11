@@ -1,0 +1,5 @@
+(* #186 P4: `decide` on an instance whose check evaluates to `false`: its last argument must be a proof
+   of `so false`, the empty type, so `tt` does not fit (reference: std/decide) *)
+%use "std/eq" (eq, tt).
+%use "std/decide".
+wrong : eq (2 + 2) 5 = decide intEqual { fst = 2 + 2, snd = 5 } tt. (*~ E0901 *)

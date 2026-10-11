@@ -1,0 +1,10 @@
+error[E0931]: meta integers are not part of this compilation
+ --> tests/neg/p4_no_meta_int.hgn:7:15
+  |
+7 | limit : int = 3. (*~ E0931 *)
+  |               ^ a meta integer
+  |
+  = note: the meta `int` is the family `int` of `std/nat`, with its arithmetic in `std/int`, which the prelude imports
+  = help: compile the program with the prelude, or use object integers only
+
+1 error found

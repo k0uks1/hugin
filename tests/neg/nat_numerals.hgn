@@ -1,7 +1,8 @@
 (* #131: numerals that cannot exist: `suc ?m = 0`, a negative literal, a literal beyond 64 bits that is
-   not a numeral *)
+   neither a numeral nor a meta integer (an object literal) *)
 same : nat -> nat -> Type.
 refl : same N N.
 r : same (_ + 1) 0 = refl. (*~ E0901 *)
 m : nat = -1. (*~ E0901 *)
-i : int = 100000000000000000000. (*~ E0003 *)
+o : int -> rel.
+o 100000000000000000000. (*~ E0003 *)

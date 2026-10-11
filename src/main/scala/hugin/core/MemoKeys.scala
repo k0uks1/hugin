@@ -70,6 +70,7 @@ trait MemoKeys:
       val (t, stable) = v match
         case Val.Lit(l, st) => (Tm.Lit(l, st), true)
         case Val.Nat(f, n) => (Tm.Nat(f, n), true)
+        case Val.IntNum(n) => (Tm.IntNum(n), true)
         case Val.Base(b, st) => (Tm.Base(b, st), true)
         case Val.U0 => (Tm.U0, true)
         case Val.U1(l) => (Tm.U1(l), true)
@@ -138,7 +139,7 @@ trait MemoKeys:
       case None =>
         val d = depth + 1
         val b = t match
-          case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
+          case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.IntNum(_) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
           case Tm.App(f, a, _) => closedIdAt(f, d) && closedIdAt(a, d)
           case Tm.Rec(fs) => fs.forall(f => closedIdAt(f._2, d))
           case Tm.Quote(a) => closedObjectAt(a, 0)
@@ -215,6 +216,7 @@ trait MemoKeys:
         val (t, stable) = v match
           case Val.Lit(l, st) => (Tm.Lit(l, st), true)
           case Val.Nat(f, n) => (Tm.Nat(f, n), true)
+          case Val.IntNum(n) => (Tm.IntNum(n), true)
           case Val.Base(b, st) => (Tm.Base(b, st), true)
           case Val.U0 => (Tm.U0, true)
           case Val.U1(l) => (Tm.U1(l), true)
@@ -250,7 +252,7 @@ trait MemoKeys:
     case Tm.App(f, a, _) => List(f, a)
     case Tm.Quote(a) => List(a)
     case Tm.Obj(_, as) => as
-    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) => Nil
+    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.IntNum(_) => Nil
     case _ =>
       def go(x: Any): Iterator[Tm] = x match
         case u: Tm => Iterator(u)
@@ -295,7 +297,7 @@ trait MemoKeys:
     bottomUp(root)(children, t => closedTerms.contains(termId(t))) { t =>
       def closed(u: Tm): Boolean = closedTerms(termId(u))
       closedTerms(termId(t)) = t match
-        case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
+        case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.IntNum(_) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
         case Tm.App(f, a, _) => closed(f) && closed(a)
         case Tm.Rec(fs) => fs.forall(f => closed(f._2))
         case Tm.Quote(a) => closedObjectAt(a, 0)

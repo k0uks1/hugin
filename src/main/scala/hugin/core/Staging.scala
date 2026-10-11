@@ -24,6 +24,10 @@ final class Staging(core: Core, reporter: Reporter):
       t match
         case Tm.Splice(x) =>
           bad(elab.Unstaged.StuckSplice, showTmBounded(names, x), x)
+        // a meta integer outside the object level's 64 bits (D8a)
+        case Tm.Persist(Tm.IntNum(n)) =>
+          if ok then reporter.report(elab.TypeProblem.IntegerCrossing(n.toString, span).toDiagnostic)
+          ok = false
         case Tm.Persist(x) =>
           bad(elab.Unstaged.StuckPrimitive, showTmBounded(names, x), x)
         case Tm.Arith(_, a, b, Stage.S1) =>
@@ -83,7 +87,7 @@ final class Staging(core: Core, reporter: Reporter):
       g.kind match
         case GlobalKind.Definition(tm, _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.")
         case GlobalKind.Function(_, Some(tree)) =>
-          // an operation of `std/nat` computes on numerals (reference: std/nat, native arithmetic)
+          // an operation of `std/nat` or `std/int` computes on numerals (reference: std/nat, native arithmetic)
           val native = tree.native.map(n => s"  (* native: ${n.op.key} *)").toList
           s"${g.name} : $ty." :: native ++ clauses(g.name, tree)
         // opaque: as written, followed by its directive

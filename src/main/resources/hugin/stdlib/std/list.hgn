@@ -3,6 +3,7 @@
    compare by `same`, so they apply to lists of atoms (numbers, strings, symbols). *)
 %use "std/reflect".
 %use "std/nat" (nat, zero, suc).
+%use "std/int" (iless).
 
 (* `map F Xs` applies `F` to every element *)
 map : (A -> B) -> list A -> list B.

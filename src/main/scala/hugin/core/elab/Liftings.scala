@@ -25,13 +25,14 @@ trait Liftings:
   /** The rule Lift: the meta code `t : a` as object code, with its object type, if `a` has a lifting. */
   def liftCode(c: Cxt, t: Tm, a: Val): Option[(Tm, Val)] = forceData(a) match
     case Val.Lift(x) => Some((Tm.splice(t), x))
-    case Val.Base(b, Stage.S1) => Some((Tm.Persist(t), Val.Base(b, Stage.S0)))
+    case p if metaBase(p).isDefined => Some((Tm.Persist(t), Val.Base(metaBase(p).get, Stage.S0)))
     case other => sharedLifting(c, other).map((l, o) => (Tm.Splice(Tm.App(l, t, Icit.Expl)), o))
 
   /** `· ⊢ a ⇝ ℓ`: `ℓ : a → ⇑a⁰` as a meta function, and `a⁰`. */
   private def lifting(c: Cxt, a: Val): Option[(Tm, Val)] = forceData(a) match
     case Val.Lift(x) => Some((Tm.Lam("x", Icit.Expl, Tm.Var(0)), x))
-    case Val.Base(b, Stage.S1) => Some((Tm.Lam("x", Icit.Expl, Tm.Quote(Tm.Persist(Tm.Var(0)))), Val.Base(b, Stage.S0)))
+    case p if metaBase(p).isDefined =>
+      Some((Tm.Lam("x", Icit.Expl, Tm.Quote(Tm.Persist(Tm.Var(0)))), Val.Base(metaBase(p).get, Stage.S0)))
     case other => sharedLifting(c, other)
 
   private def sharedLifting(c: Cxt, a: Val): Option[(Tm, Val)] = sharedApplication(a).filter(_._1.lift >= 0).flatMap {
@@ -58,8 +59,8 @@ trait Liftings:
   /** `· ⊢ a ⇝ʳ r`: `r : a → term`. */
   private def reifying(c: Cxt, a: Val): Option[Tm] = reflectiveGlobals.flatMap { r =>
     forceData(a) match
-      case Val.Base(b, Stage.S1) =>
-        val ctor = b match
+      case p if metaBase(p).isDefined =>
+        val ctor = metaBase(p).get match
           case BaseType.IntT => "tint"
           case BaseType.FloatT => "tfloat"
           case BaseType.StringT => "tstr"
@@ -105,7 +106,8 @@ trait Liftings:
 
   /** The first type in `a` that is not shared, if `a` has no lifting (for the note of E0902). */
   def firstUnshared(c: Cxt, a: Val): Option[String] = forceData(a) match
-    case Val.Lift(_) | Val.Base(_, Stage.S1) => None
+    case p @ (Val.Lift(_) | Val.Base(_, Stage.S1)) => None
+    case p if isMetaInt(p) => None
     case other =>
       sharedApplication(other) match
         case Some((_, args)) => args.iterator.flatMap(firstUnshared(c, _)).nextOption()

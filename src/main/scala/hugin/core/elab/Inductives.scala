@@ -33,6 +33,8 @@ trait Inductives:
           GlobalKind.Constructor(fam)
         case Val.Base(b, _) if binders.isEmpty =>
           fail(ElabProblem.Unclassifiable(d.name.name, b.show, true, d.tpe.span))
+        // the meta `int` of another file: as the base type it is written as
+        case i if binders.isEmpty && isMetaInt(i) => fail(ElabProblem.Unclassifiable(d.name.name, "int", true, d.tpe.span))
         case Val.U0 | Val.Lift(Val.U0) => fail(ElabProblem.TypeFunction(d.name.name, d.tpe.span))
         // a function without clauses: its coverage is checked once the file's constructors are declared
         case _ if state.clauseless(d.name.name) => GlobalKind.Function(-1, None)

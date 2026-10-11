@@ -63,6 +63,14 @@ enum TypeProblem extends Problem:
   case ObjectTypeArgument(at: Span)
   case ObjectFunction(at: Span)
   case NotStaged(kind: Unstaged, shown: String, at: Span)
+
+  /** A meta integer used as object code (persisted, or reflected as a literal) outside the object level's
+   *  64-bit range (D8a): `shown` is the integer. */
+  case IntegerCrossing(shown: String, at: Span)
+
+  /** A meta integer in a compilation without `std/nat`, whose family `int` the meta `int` is
+   *  (`--no-prelude`). */
+  case NoMetaInt(at: Span)
   case IncompleteHead(at: Span)
   case InvalidHead(tpe: String, at: Span)
 
@@ -90,6 +98,8 @@ enum TypeProblem extends Problem:
     case _: Unsupported => Code.E0907
     case _: ObjectTypeArgument | _: ObjectFunction => Code.E0908
     case _: NotStaged => Code.E0909
+    case _: IntegerCrossing => Code.E0930
+    case _: NoMetaInt => Code.E0931
     case _: IncompleteHead | _: InvalidHead => Code.E0910
     case _: UnsolvedGoal => Code.E0924
     case _: NoImplicitNamed | _: NamedArgumentAlone => Code.E0926
@@ -120,6 +130,8 @@ enum TypeProblem extends Problem:
     case ObjectTypeArgument(s) => s
     case ObjectFunction(s) => s
     case NotStaged(_, _, s) => s
+    case IntegerCrossing(_, s) => s
+    case NoMetaInt(s) => s
     case IncompleteHead(s) => s
     case InvalidHead(_, s) => s
     case UnsolvedGoal(_, _, _, _, s) => s
@@ -155,6 +167,8 @@ enum TypeProblem extends Problem:
         case Unstaged.UndefinedArithmetic => msg"compile-time arithmetic failure"
         case Unstaged.Unsolved => msg"cannot infer object code"
         case Unstaged.NotObjectCode => msg"not object code"
+    case _: IntegerCrossing => msg"integer out of the range of the object level's `int`"
+    case _: NoMetaInt => msg"meta integers are not part of this compilation"
     case _: IncompleteHead => msg"incomplete rule head"
     case _: InvalidHead => msg"invalid rule head"
     case UnsolvedGoal(n, _, _, _, _) => msg"unsolved goal ${Src("?" + n.getOrElse(""))}"
@@ -188,6 +202,8 @@ enum TypeProblem extends Problem:
         case Unstaged.UndefinedArithmetic => msg"${Src(shown)} is undefined"
         case Unstaged.Unsolved => msg"unsolved"
         case Unstaged.NotObjectCode => msg"${Src(shown)}"
+    case IntegerCrossing(n, _) => msg"${Src(n)} does not fit into 64 bits"
+    case _: NoMetaInt => msg"a meta integer"
     case _: IncompleteHead => msg"missing arguments"
     case InvalidHead(t, _) => msg"this has type ${Src(t)}"
     case UnsolvedGoal(_, g, _, _, _) => msg"goal: ${Src(g)}"
@@ -236,6 +252,13 @@ enum TypeProblem extends Problem:
         case Unstaged.Unsolved => msg"an unknown in object code was not determined by elaboration"
         case Unstaged.NotObjectCode => msg"only object terms and formulas can occur in object items"
       )
+    case _: IntegerCrossing =>
+      List(
+        msg"meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807",
+        msg"a meta integer is checked against this range where it is used as object code"
+      )
+    case _: NoMetaInt =>
+      List(msg"the meta `int` is the family `int` of `std/nat`, with its arithmetic in `std/int`, which the prelude imports")
     case _: IncompleteHead => List(msg"a rule head must apply a relation (or a constructor) to all of its columns")
     case _: InvalidHead => List(msg"a rule head is an atom of a relation or a constructor term")
     case UnsolvedGoal(_, g, st, ctx, _) =>
@@ -253,4 +276,7 @@ enum TypeProblem extends Problem:
       List(Msg.text(s"to take object code as an argument, declare the parameter with an object type (`⇑$f` at the meta level)"))
     case NoField(_, _, _, Some(s), _) => List(msg"did you mean ${Src(s)}?")
     case UnsolvedGoal(_, g, _, _, _) => List(msg"replace the hole with an expression of type ${Src(g)}")
+    case _: IntegerCrossing =>
+      List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
+    case _: NoMetaInt => List(msg"compile the program with the prelude, or use object integers only")
     case _ => Nil

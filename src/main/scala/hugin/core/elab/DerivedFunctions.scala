@@ -105,6 +105,7 @@ trait DerivedFunctions:
     def ty(a: Val): Ty = forceData(a) match
       case Val.Rigid(Head.Local(x), Nil) if params.contains(x) => sigma(params.indexOf(x))
       case Val.Base(b, Stage.S1) => Ty.Base(b)
+      case t if isMetaInt(t) => Ty.Base(hugin.obj.BaseType.IntT)
       case Val.Rigid(Head.Glob(g), sp) if sharedFamily(g).isDefined => Ty.App(g, sp.reverse.collect { case Elim.EApp(x, _) => ty(x) })
       case other => throw Impossible(s"not a shareable type: ${showVal(Nil, other)}")
     binders.collect { case (_, Icit.Expl, a) => ty(a) }

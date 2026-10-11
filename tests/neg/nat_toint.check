@@ -1,9 +1,11 @@
-error[E0909]: cannot compute a primitive value at compile time
+error[E0930]: integer out of the range of the object level's `int`
  --> tests/neg/nat_toint.hgn:5:1
   |
-5 | r (toInt (times 4294967296 2147483648)). (*~ E0909 *)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `toInt 9223372036854775808` does not evaluate to a literal
+5 | r (toInt (times 4294967296 2147483648)). (*~ E0930 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `9223372036854775808` does not fit into 64 bits
   |
-  = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+  = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807
+  = note: a meta integer is checked against this range where it is used as object code
+  = help: test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does
 
 1 error found

@@ -63,10 +63,11 @@ that its type, its value or its clauses mention, and, transitively, those of eve
 mention, also inside [opaque](index.md#opaque-definitions) definitions and functions, which do not
 unfold but whose proofs rest on what they mention. The *trusted primitives* are code of the compiler that the meta level relies on without a
 proof: the primitive operations `x : A = %builtin p.` of the standard library (`same`, `sameTrue`,
-`apart`, `labels`, `derive`, `derived`, `qatom`), and the functions of [`std/nat`](../std/nat.md#native-arithmetic) that
-compute natively, whose native operation is checked against their clauses when the library is
-elaborated. The arithmetic of the meta type `int` and the evaluator are part of the language, not
-assumptions.
+`apart`, `labels`, `derive`, `derived`, `qatom`), and the functions of [`std/nat`](../std/nat.md#native-arithmetic) and
+[`std/int`](../std/int.md#native-arithmetic) that compute natively, whose native operation is checked
+against their clauses when the library is elaborated. The arithmetic operators on meta integers apply
+the functions of `std/int`, so a constant computed with them rests on those functions. The arithmetic of
+the meta types `float` and `string` and the evaluator are part of the language, not assumptions.
 
 The directive `%assumptions f.` prints the assumptions of the constant `f` in scope when the program is
 compiled, as Lean's `#print axioms` and Rocq's `Print Assumptions` do. It is an
@@ -104,7 +105,8 @@ note: assumptions of `proved`: none
 
 and `hugin check --safe unit.hgn` reports E0925 for `plusZero`. A line for a trusted primitive ends in
 `(trusted primitive %builtin same)` with the primitive's name, and a line for a native function of
-`std/nat` in `(trusted native operation add)` with the operation's name.
+`std/nat` or `std/int` in `(trusted native operation add)` with the operation's name (`int add` for
+`iplus`).
 
 ## Trusted base
 
