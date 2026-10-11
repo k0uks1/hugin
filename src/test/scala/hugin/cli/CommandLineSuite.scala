@@ -9,6 +9,15 @@ class CommandLineSuite extends munit.FunSuite:
     assert(CommandLine.parse(List("check", "a.hgn", "--explain-termination")).toOption.get.settings.explainTermination)
   }
 
+  test("--safe and --print-assumptions (#186)") {
+    val o = CommandLine.parse(List("run", "a.hgn", "--safe", "--print-assumptions", "f", "--print-assumptions", "g")).toOption.get
+    assert(o.settings.safe)
+    assertEquals(o.settings.printAssumptions, List("f", "g"))
+    val d = CommandLine.parse(List("check", "a.hgn")).toOption.get
+    assert(!d.settings.safe)
+    assertEquals(d.settings.printAssumptions, Nil)
+  }
+
   test("phase names are validated") {
     assert(CommandLine.parse(List("check", "a.hgn", "--print-after", "elaborate,derivations")).isRight)
     assertEquals(CommandLine.parse(List("check", "a.hgn", "--stop-after", "nope")), Left("unknown phase `nope`; see `hugin phases`"))

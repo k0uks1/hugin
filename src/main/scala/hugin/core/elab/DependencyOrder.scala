@@ -158,10 +158,10 @@ trait DependencyOrder:
       }
     } > 0
 
-  /** A definition `x : A = e.` whose value can follow its type: not a type definition, a builtin or a
-   *  module body (those are elaborated as a whole). */
+  /** A definition `x : A = e.` whose value can follow its type: not a type definition, a builtin, a
+   *  postulate or a module body (those are elaborated as a whole). */
   private def definitionWithType(tpe: hugin.syntax.Tree, e: hugin.syntax.Tree): Boolean = (tpe, e) match
-    case (Keyword(_), _) | (_, _: Builtin) | (_, _: ModuleBody) => false
+    case (Keyword(_), _) | (_, _: Builtin) | (_, _: Postulate) | (_, _: ModuleBody) => false
     case (VarRef("Type"), _) => false
     case _ => true
 

@@ -48,6 +48,10 @@ not work (see "Deferred" in `docs/NOTES.md`, "LSP for the meta level (#54)").
   initialization option `{ "inlayHints": { "staging": true, "implicits": true, "levels": false } }` and
   by `workspace/didChangeConfiguration` with `{ "hugin": { "inlayHints": { … } } }`; the server asks the
   client to refresh its hints if it supports that.
+- **Safe mode**: the initialization option `{ "safe": true }`, or `{ "hugin": { "safe": true } }` sent
+  by `workspace/didChangeConfiguration`, compiles every document as `hugin check --safe` does: each
+  postulate `x : A = %postulate.` is an error (E0925). The diagnostics are published again when it
+  changes.
 - **Staged output**: the command `hugin.expansion` (`workspace/executeCommand`, arguments
   `[uri, line, character]` or `[{ "uri", "position" }]`) returns the object rules and queries the
   directive or functor application at the position produced (or the staged instances of the item

@@ -11,13 +11,26 @@ class InductivesSuite extends munit.FunSuite:
                  |vec : Type -> nat -> Type.
                  |vnil : vec A zero.
                  |vcons : A -> vec A N -> vec A (suc N).
-                 |opaque : nat -> int.
+                 |opaque : nat -> int = %postulate.
                  |""".stripMargin)
     assertEquals(e.global("nat").kind, GlobalKind.Inductive(List(e.elab.scope("zero"), e.elab.scope("suc"))))
     assertEquals(e.global("vec").kind, GlobalKind.Inductive(List(e.elab.scope("vnil"), e.elab.scope("vcons"))))
     assertEquals(e.global("vcons").kind, GlobalKind.Constructor(e.elab.scope("vec")))
     assertEquals(e.typeOf("vcons"), "{A : Type} -> {N : nat} -> A -> vec A N -> vec A (N + 1)")
     assertEquals(e.global("opaque").kind, GlobalKind.Postulate)
+    assert(e.global("opaque").axiom)
+    assert(!e.global("vcons").axiom)
+  }
+
+  test("a declaration that is not a family or a constructor is a function, also without clauses (#186)") {
+    // no clauses cover a function out of an empty type
+    val e = ok("empty : Type.\nabsurd : empty -> int.\n")
+    assert(e.global("absurd").kind.isInstanceOf[GlobalKind.Function], e.global("absurd").kind.toString)
+    // otherwise they do not cover it: the declaration is not a postulate
+    assertEquals(errors("boom : (A : Type) -> A.\n"), List("E0911"))
+    assertEquals(errors("nat : Type.\nzero : nat.\nk : nat -> nat.\n"), List("E0911"))
+    // nor when the constructors of the argument's family come after the function
+    assertEquals(errors("nat : Type.\nk : nat -> nat.\nzero : nat.\n"), List("E0911"))
   }
 
   test("constructors may be declared before their family is (any order)") {

@@ -5,6 +5,7 @@ vnil : vec A 0.
 vcons : A -> vec A N -> vec A (suc N).
 :type vcons
 :print elaborate two
+(* A meta function without clauses is rejected: a function and its clauses are one input. *)
 pred : nat -> nat.
-pred (N + 2) = N.
+pred : nat -> nat. pred (N + 2) = N.
 :quit

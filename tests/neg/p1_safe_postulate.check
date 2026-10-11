@@ -1,0 +1,27 @@
+error[E0925]: postulate `plusZero` is not allowed with --safe
+ --> tests/neg/p1_safe_postulate.hgn:8:1
+  |
+8 | plusZero : (n : nat) -> eqn (plus n 0) n = %postulate. (*~ E0925 *)
+  | ^^^^^^^^ an axiom: a constant without a value
+  |
+  = note: a postulate can assume anything, also a false statement; --safe accepts only proved ones
+  = help: prove the statement: define the constant by clauses or by a value
+
+warning[W0003]: unused definition `twoPlusZero`
+ --> tests/neg/p1_safe_postulate.hgn:9:1
+  |
+9 | twoPlusZero : eqn (plus 2 0) 2 = plusZero 2. (*~ W0003 *)
+  | ^^^^^^^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0925]: postulate `anything` is not allowed with --safe
+  --> tests/neg/p1_safe_postulate.hgn:10:1
+   |
+10 | anything : (A : Type) -> A = %postulate. (*~ E0925 *)
+   | ^^^^^^^^ an axiom: a constant without a value
+   |
+   = note: a postulate can assume anything, also a false statement; --safe accepts only proved ones
+   = help: prove the statement: define the constant by clauses or by a value
+
+2 errors, 1 warning found

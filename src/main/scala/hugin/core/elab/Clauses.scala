@@ -83,7 +83,8 @@ trait Clauses:
     for cl <- clauses if cl.name.span.text == g.name do recordUse(cl.name.span, id)
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
-    val n = clauses.head.pats.length
+    // without clauses, the function's explicit arguments are all inspected ([[Items.checkClauseless]])
+    val n = clauses.headOption.fold(explicitPositions.length)(_.pats.length)
     clauses.find(_.pats.length != n).foreach { cl =>
       fail(ClauseProblem.PatternCount(g.name, n, cl.span))
     }
@@ -1339,7 +1340,7 @@ trait Clauses:
       index.meta.missing(
         MetaIndex.MissingClauses(declared, f.name, cover.toList.map(showMissing(f, _) + " = ?."), clauses.map(_.span).maxBy(_.end))
       )
-    fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0)))
+    fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0), clauses.isEmpty))
 
   // ---------------------------------------------------------------- inexact clauses (#67 batch 3)
 

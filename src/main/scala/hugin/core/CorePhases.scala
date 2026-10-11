@@ -22,6 +22,14 @@ final class ElaboratePhase extends Phase:
     u.elaborated = result.elaborated
     u.index.include(result.index)
     result.diagnostics.foreach(ctx.report)
+    // `--safe` rejects the postulates of the program and of its libraries; `--print-assumptions` lists those
+    // a constant depends on (reference: meta/functions, "Postulates")
+    val core = result.elaborated.core
+    if ctx.settings.safe then
+      for p <- Assumptions.postulates(core) do
+        val g = core.globals(p)
+        ctx.report(elab.ElabProblem.PostulateInSafeMode(g.name, g.span).toDiagnostic)
+    for n <- ctx.settings.printAssumptions do u.explanations ++= Assumptions.report(core, root, n)
 
   override def show(using Context): String =
     Option(ctx.unit.elaborated).fold("")(_.nn.render(Reporter()).mkString("\n"))

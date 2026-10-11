@@ -207,6 +207,14 @@ object CommandLine:
       opt[Unit]("explain-termination")
         .text("print the termination argument of every recursive component (Section 10)")
         .action((_, o) => o.copy(settings = o.settings.copy(explainTermination = true))),
+      opt[Unit]("safe")
+        .text("reject postulates (`x : A = %postulate.`), also those of imported files")
+        .action((_, o) => o.copy(settings = o.settings.copy(safe = true))),
+      opt[String]("print-assumptions")
+        .valueName("<name>")
+        .unbounded()
+        .text("print the postulates that the meta constant <name> depends on, transitively (repeatable)")
+        .action((n, o) => o.copy(settings = o.settings.copy(printAssumptions = o.settings.printAssumptions :+ n))),
       checkConfig(o =>
         o.command match
           case Command.Help => failure("no command given")

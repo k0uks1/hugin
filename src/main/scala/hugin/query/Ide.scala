@@ -194,7 +194,7 @@ object Ide:
           val typed = itemVariables(source, start, offset).map(v => CompletionItem(v, "variable", "variable"))
           matching((vars ++ typed).filterNot(_.label == "_") ++ names)
 
-  private val directives = List("infix", "import", "builtin", "use", "export")
+  private val directives = List("infix", "import", "builtin", "postulate", "use", "export")
 
   private def isIdentChar(c: Char): Boolean = c.isLetterOrDigit || c == '_' || c == '\''
 

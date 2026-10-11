@@ -74,7 +74,7 @@ class StagingSuite extends munit.FunSuite:
   }
 
   test("stuck meta code in object items is a staging error") {
-    assertEquals(errors("f : int -> int.\nq : int -> rel.\nq (f 1).\n"), List("E0909"))
+    assertEquals(errors("f : int -> int = %postulate.\nq : int -> rel.\nq (f 1).\n"), List("E0909"))
     assertEquals(errors("k : int = 1 / 0.\np : int -> rel.\np k.\n"), List("E0909"))
   }
 

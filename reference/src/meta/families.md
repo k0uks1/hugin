@@ -16,13 +16,14 @@ A meta declaration without a definition and without clauses is classified by its
 
 - `T : Δ -> Type.`, whose type ends in a universe, declares an inductive family with the arguments `Δ`;
 - `c : Δ -> T ū.`, whose type ends in a family `T` of the same file, declares a meta constructor of `T`;
-- any other meta declaration declares a postulate ([The meta level](index.md#meta-items)).
+- any other meta declaration declares a meta function defined by its [clauses](clauses.md), possibly
+  none.
 
 The constructors of a family are the constructor declarations that return it, in the order of the file. A
 constructor must return the family applied to all of its arguments. It is an error otherwise
 ([E0914](../errors/E0914.md), or [E0901](../errors/E0901.md) if the result is not a type). A program
 cannot add constructors to a family of the standard library or of another file: `x : formula.` in a
-program declares a postulate.
+program declares a function without clauses, an error ([E0911](../errors/E0911.md)).
 
 Free uppercase variables in the type of a constructor are implicit arguments
 ([Functions](functions.md#implicit-arguments)): `vcons : A -> vec A N -> vec A (suc N).` has the implicit

@@ -25,7 +25,7 @@ private val MaxInexactCases = 5
  *  definitions (E0915), and unreachable clauses (W0006). Names and terms are given as shown to users. */
 enum ClauseProblem extends Problem:
   /** `more`: the number of most general missing patterns after the one shown. */
-  case NotCovering(fn: String, missing: String, at: Span, more: Int = 0)
+  case NotCovering(fn: String, missing: String, at: Span, more: Int = 0, clauseless: Boolean = false)
 
   /** `call`: a clause on the cycle of calls that does not decrease, with its call. */
   case NotTerminating(fn: String, at: Span, call: Option[(Span, String)])
@@ -83,7 +83,7 @@ enum ClauseProblem extends Problem:
     case _ => Code.E0915
 
   def primary: Span = this match
-    case NotCovering(_, _, s, _) => s
+    case NotCovering(_, _, s, _, _) => s
     case NotTerminating(_, s, _) => s
     case NonPositive(_, _, _, s) => s
     case PartialFamilyResult(_, s) => s
@@ -115,7 +115,7 @@ enum ClauseProblem extends Problem:
     case MisplacedAbsurd(s) => s
 
   def message: Msg = this match
-    case NotCovering(f, _, _, _) => msg"the clauses of ${Src(f)} do not cover all cases"
+    case NotCovering(f, _, _, _, _) => msg"the clauses of ${Src(f)} do not cover all cases"
     case NotTerminating(f, _, _) => msg"cannot show that ${Src(f)} terminates"
     case NonPositive(fam, _, _, _) => msg"${Src(fam)} occurs in a non-positive position"
     case PartialFamilyResult(fam, _) => msg"a constructor of ${Src(fam)} must return it applied to all its arguments"
@@ -147,8 +147,8 @@ enum ClauseProblem extends Problem:
     case _: MisplacedAbsurd => msg"an absurd pattern is only allowed in a clause's patterns"
 
   override def primaryLabel: Msg = this match
-    case NotCovering(_, m, _, 0) => msg"missing: ${Src(m)}"
-    case NotCovering(_, m, _, k) => msg"missing: ${Src(m)} and $k more"
+    case NotCovering(_, m, _, 0, _) => msg"missing: ${Src(m)}"
+    case NotCovering(_, m, _, k, _) => msg"missing: ${Src(m)} and $k more"
     case _: NotTerminating => msg"possibly non-terminating"
     case NonPositive(_, k, _, _) => msg"in the type of the constructor's argument $k"
     case _: PartialFamilyResult => msg"partially applied family"
@@ -186,6 +186,11 @@ enum ClauseProblem extends Problem:
     case _ => Nil
 
   override def notes: List[Msg] = this match
+    case NotCovering(f, _, _, _, true) =>
+      List(
+        msg"meta functions are total: every argument must match a clause",
+        msg"${Src(f)} is declared without clauses: a meta declaration that is not a family or a constructor declares a function"
+      )
     case _: NotCovering => List(msg"meta functions are total: every argument must match a clause")
     case _: NotTerminating =>
       List(
@@ -244,7 +249,9 @@ enum ClauseProblem extends Problem:
         absurd.toList.map(_ => msg"replace the pattern by the absurd pattern `()`, without a right-hand side")
     case AbsurdNotEmpty(_, ps, _) => List(msg"replace `()` by a pattern, and give the clause a right-hand side")
     case _: AbsurdWithRhs => List(msg"remove the right-hand side")
-    case NotCovering(_, m, _, _) => List(msg"add a clause ${Src(s"$m = ….")}")
+    case NotCovering(f, m, _, _, true) =>
+      List(msg"add a clause ${Src(s"$m = ….")}", msg"to assume the constant as an axiom, define it as ${Src(s"$f : … = %postulate.")}")
+    case NotCovering(_, m, _, _, _) => List(msg"add a clause ${Src(s"$m = ….")}")
     case _: InexactClause => List(msg"to make the clause hold definitionally, write its cases as separate clauses")
     case ClausesWithoutDeclaration(f, _, inBody) =>
       List(msg"declare its type first${Lit(if inBody then " in the body" else "")}: ${Src(s"$f : A -> B.")}")

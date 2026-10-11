@@ -2,7 +2,7 @@
    and `first R` do not reduce, and each level of `grow` refers to the level below twice and splits on
    it. The value has linear size but an exponential tree; compilation reports it at once and shows it in
    part. *) %use "std/reflect" (term, tint).
-undecided : term.
+undecided : term = %postulate.
 pick : term -> A -> A -> A.
 pick (tint _) X Y = X.
 pick _ X Y = Y.

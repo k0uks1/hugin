@@ -110,7 +110,9 @@ A *definition* gives a constant a value. Its forms are:
 - `x = e.`: the type of `x` is the inferred type of `e`;
 - `f p₁ … pₙ = e.` and `f p₁ … pₙ : A = e.`: `f` is the function `[p₁] … [pₙ] e`; a parameter `(x : T)`
   has the type `T`, and a parameter `X` an inferred type (in a type definition `t X : type = τ.`, `X`
-  ranges over object types).
+  ranges over object types);
+- `x : A = %postulate.` and `f p₁ … pₙ : A = %postulate.`: a [postulate](#postulates), a constant of type
+  `A` (under the parameters) without a value.
 
 A definition is a value: it is evaluated where it is used. Diagnostics, the language server and
 `--print-after elaborate` show it by its name where a type or an implicit argument comes from it
@@ -129,6 +131,62 @@ its value is not, and the function's applications do not reduce.
 
 After a declaration `f : A.`, an item `f X₁ … Xₙ = e.` is a [clause](clauses.md) of `f`, not a
 definition.
+
+## Postulates
+
+```text
+Postulate ::= NAME Param* ":" Type "=" "%postulate" "."
+```
+
+A *postulate* `x : A = %postulate.` declares a constant of the meta type `A` without a value: an axiom.
+Meta code that applies it is stuck, and it is an error ([E0909](../errors/E0909.md)) if object code
+depends on a stuck value. A postulate can assume any statement, also a false one, so it is never
+implicit: a declaration without a value or clauses that is not an inductive family or a constructor
+declares a function, which is an error ([E0911](../errors/E0911.md)) unless no clauses cover it
+([Clauses](clauses.md#syntax)). `%postulate` is only the definition of a declaration at the top level of
+a file: elsewhere it is an error ([E0103](../errors/E0103.md)), and in a
+[module body](../modules.md#module-bodies) [E0907](../errors/E0907.md). The parameters of a functor and
+the fields of a signature are not postulates: they are bound to values where the functor is applied
+or the signature ascribed ([Modules](../modules.md)).
+
+The following program assumes that `0` is a right unit of `plus`, and uses the assumption in a proof.
+
+```hugin,run
+plus : nat -> nat -> nat.
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
+eqn : nat -> nat -> Type.
+same : eqn N N.
+plusZero : (n : nat) -> eqn (plus n 0) n = %postulate.
+step : (n : nat) -> eqn (plus n 0) n -> nat.
+step N _ = N.
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+two : nat = step 2 (plusZero 2).
+checked : int -> rel.
+checked (toInt two).
+```
+
+```output
+checked 2.
+```
+
+The option `--safe` of `hugin check` and `hugin run` rejects every postulate of the program and of the
+files it imports ([E0925](../errors/E0925.md)); the standard library has none. The option
+`--print-assumptions f` prints the postulates that the meta constant `f` depends on: those its type, its
+value or its clauses mention, and, transitively, those of every constant they mention (Lean's
+`#print axioms`). The primitive operations of the prelude and the native arithmetic of `std/nat` are
+trusted code of the compiler, not assumptions. For the program above, saved as `unit.hgn`:
+
+```text
+$ hugin check unit.hgn --print-assumptions step --print-assumptions two
+note: assumptions of `step`: none
+note: assumptions of `two`:
+  plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at unit.hgn:6:1)
+$ hugin check --safe unit.hgn
+error[E0925]: postulate `plusZero` is not allowed with --safe
+```
 
 ## Typed holes
 

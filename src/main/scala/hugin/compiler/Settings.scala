@@ -13,7 +13,12 @@ final case class Settings(
     /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
     prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */
-    explainTermination: Boolean = false
+    explainTermination: Boolean = false,
+    /** Reject postulates `x : A = %postulate.` (`--safe`, E0925). */
+    safe: Boolean = false,
+    /** The meta constants whose assumptions (the postulates they depend on) are printed
+     *  (`--print-assumptions`). */
+    printAssumptions: List[String] = Nil
 )
 
 /** How diagnostics are shown. Compilation always produces all diagnostics; clients filter and render

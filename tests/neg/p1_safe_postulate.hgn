@@ -1,0 +1,10 @@
+(* `--safe` rejects every postulate `x : A = %postulate.` (issue #186, P1; E0925), the one that a proof
+   uses and an unused one. *)
+eqn : nat -> nat -> Type.
+same : eqn N N.
+plus : nat -> nat -> nat.
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
+plusZero : (n : nat) -> eqn (plus n 0) n = %postulate. (*~ E0925 *)
+twoPlusZero : eqn (plus 2 0) 2 = plusZero 2. (*~ W0003 *)
+anything : (A : Type) -> A = %postulate. (*~ E0925 *)

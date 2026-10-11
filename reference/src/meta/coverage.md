@@ -175,6 +175,16 @@ clauses are written: a local function of a [`where`](where.md) block or a member
 [module body](../modules.md#module-bodies) is shown without the variables of its context that it uses
 (`f.g (_ + 1)` for a local function `g` of `f`). Implicit arguments are not shown.
 
+A function declared without clauses ([Clauses](clauses.md#syntax)) is checked as a function whose
+clauses have a variable pattern for each explicit argument: no clause matches any probe, so it is covered
+only if an explicit argument has an empty type, and otherwise `M` is the pattern `f _ … _`. So
+`absurd : empty -> nat.` (with a family `empty` without constructors) needs no clause, and
+`boom : (A : Type) -> A.` is rejected with `boom _` missing.
+
+```hugin,compile_fail,E0911
+boom : (A : Type) -> A.
+```
+
 Literal and successor patterns of a nat-like type are constructor patterns
 ([Clauses](clauses.md#patterns)): `0` is `zero` and `N + 1` is `suc N`, so the clauses `f 0 = …` and
 `f (N + 1) = …` cover `nat`. A missing case of a nat-like type is shown with numerals: `f 0`, `f (_ + 1)`.

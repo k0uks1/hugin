@@ -7,7 +7,7 @@ import hugin.util.*
 
 /** Inductive families (reference: meta/families). A meta declaration without clauses is classified by its
  *  type: `T : Δ -> Type.` declares an inductive family, `c : Δ -> T ū.` (for a family `T` of the module)
- *  one of its constructors; anything else is a postulate. Constructors are checked for strict positivity
+ *  one of its constructors; anything else is a function defined by no clauses ([[Items.checkClauseless]]). Constructors are checked for strict positivity
  *  and predicativity (their arguments live in the family's universe). All arguments of a family are
  *  treated as indices: pattern matching unifies them (no separate parameters are needed).
  *
@@ -31,6 +31,8 @@ trait Inductives:
         case Val.Base(b, _) if binders.isEmpty =>
           fail(ElabProblem.Unclassifiable(d.name.name, b.show, true, d.tpe.span))
         case Val.U0 | Val.Lift(Val.U0) => fail(ElabProblem.TypeFunction(d.name.name, d.tpe.span))
+        // a function without clauses: its coverage is checked once the file's constructors are declared
+        case _ if state.clauseless(d.name.name) => GlobalKind.Function(-1, None)
         case _ => GlobalKind.Postulate
 
   def isFamily(id: Int): Boolean = globals(id).kind.isInstanceOf[GlobalKind.Inductive]

@@ -35,6 +35,7 @@ object Printer:
     case Disj(l, r) => s"(${show(l)} ; ${show(r)})"
     case Parens(i) => s"(${show(i)})"
     case Builtin(n) => s"%builtin ${n.name}"
+    case Postulate() => "%postulate"
     case Import(path) => s"%import ${Literal.quote(path)}"
     case SpliceE(a) => s"$$${showArg(a)}"
     case LiftE(a) => s"⇑${showArg(a)}"

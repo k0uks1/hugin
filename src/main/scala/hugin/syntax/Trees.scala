@@ -102,6 +102,10 @@ object Trees:
   /** `%builtin int`: a base type provided by the implementation (used by the prelude). */
   final case class Builtin(name: Ident)(val span: Span) extends Tree
 
+  /** `%postulate`: the definition `x : A = %postulate.` of a deliberate axiom, a constant without a value
+   *  (reference: meta/functions, "Postulates"). */
+  final case class Postulate()(val span: Span) extends Tree
+
   /** `%import "path"`: the module value of another source file (Section 4.3, M-Body). */
   final case class Import(path: String)(val span: Span, val pathSpan: Span) extends Tree
 

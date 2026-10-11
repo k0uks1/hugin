@@ -123,7 +123,7 @@ trait Tooling:
   private def skeleton(id: Int, item: Item): Unit =
     val g = globals(id)
     item match
-      case d: Decl if d.defn.isEmpty && g.stage == Stage.S1 && g.kind == GlobalKind.Postulate =>
+      case d: Decl if d.defn.isEmpty && g.stage == Stage.S1 && (g.kind == GlobalKind.Postulate || clauselessFunction(id)) =>
         val (binders, result) = telescope(g.ty)
         val explicit = binders.filter(_._2 == Icit.Expl)
         val isFormula = force(result) match

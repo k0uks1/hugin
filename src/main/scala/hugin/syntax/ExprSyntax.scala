@@ -162,6 +162,9 @@ private[syntax] trait ExprSyntax extends ParserBase:
         expect(Tok.Name) match
           case Some(n) => Builtin(Ident(n.text)(n.span))(spanFrom(start))
           case None => ErrorTree(Nil)(spanFrom(start))
+      case Tok.Directive if t.text == "%postulate" =>
+        advance()
+        Postulate()(t.span)
       case Tok.Directive if t.text == "%import" =>
         advance()
         expect(Tok.StrLit) match
