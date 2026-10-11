@@ -57,8 +57,10 @@ not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
 A literal pattern and a successor pattern are constructor patterns: [coverage](coverage.md) and
 [termination](termination.md) see `suc (suc N)` for `N + 2`, so `N` is a constructor subterm of the
 argument. It is an error ([E0915](../errors/E0915.md)) if the type of the argument is not nat-like, or if
-a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. It
-is an error ([E0901](../errors/E0901.md)) if `k` is larger than 100000.
+a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. A
+pattern is matched one constructor at a time, so it is an error ([E0901](../errors/E0901.md)) if a
+literal pattern or the `k` of a successor pattern is larger than 100000; numerals as values have no
+such bound ([Inductive families](families.md#numerals)).
 
 The following function is rejected: `N - 1` is not a pattern, since it is not built from constructors.
 
@@ -153,7 +155,9 @@ comes after the clause's other patterns); a position whose split is undecided is
 clause's next one ([Undecided splits](coverage.md#undecided-splits)). A split has a branch per
 constructor that can occur ([Index unification](coverage.md#index-unification)), in which the clauses
 with another constructor there no longer apply. When the first clause that may still apply has no such
-pattern left, its right-hand side gives the value. On arguments that are all known (closed constructor
+pattern left, its right-hand side gives the value. A numeral matches the constant of its family if it is
+`0`, and the successor applied to its predecessor otherwise ([Inductive families](families.md#numerals)).
+On arguments that are all known (closed constructor
 applications), this is the first clause whose patterns match them.
 
 An application whose tree splits on an argument that is not a constructor application (a variable of an

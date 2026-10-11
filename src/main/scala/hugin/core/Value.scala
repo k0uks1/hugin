@@ -61,6 +61,11 @@ enum Val:
   case Rec(fields: List[(Name, Val)])
   case Lit(l: Literal, st: Stage)
   case Base(b: BaseType, st: Stage)
+
+  /** The numeral `n` of the nat-like family `fam`: a closed numeral is always in this form, never a chain
+   *  of constructor applications ([[Naturals]]); consumers that inspect constructors see it through
+   *  [[Naturals.natView]], one constructor at a time. */
+  case Nat(fam: Int, n: BigInt)
   case RelT
   case PropT
 

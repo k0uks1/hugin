@@ -141,9 +141,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
             // only reachable as the operand of unary minus for Long.MinValue
             if b == BigInt(Long.MaxValue) + 1 && i >= 2 && toks(i - 2).kind == Tok.Minus then
               Lit(Literal.IntL(Long.MinValue))(t.span) // negated again by unary minus: -MinValue == MinValue
-            else
-              report(SyntaxError.IntegerOutOfRange(t.span))
-              Lit(Literal.IntL(0))(t.span)
+            // beyond the 64-bit range: a numeral of a nat-like family, or E0003 in the elaborator
+            else BigLit(b)(t.span)
           case _ => Lit(Literal.IntL(0))(t.span)
       case Tok.FloatLit => advance(); Lit(Literal.FloatL(t.value.asInstanceOf[Double]))(t.span)
       case Tok.StrLit => advance(); Lit(Literal.StrL(t.value.asInstanceOf[String]))(t.span)
