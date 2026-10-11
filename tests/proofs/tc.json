@@ -1,0 +1,160 @@
+{
+  "trees": [
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]}, "children": []}
+    },
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]}, "children": []}
+    },
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]}, "children": []}
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "b"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "c"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "c"}]},
+              "children": [
+                {
+                  "node": {
+                    "label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]},
+                    "children": []
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "d"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "d"}]},
+              "children": [
+                {
+                  "node": {
+                    "label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]},
+                    "children": []
+                  }
+                },
+                {
+                  "node": {
+                    "label": {"symbol": "path", "terms": [{"constant": "c"}, {"constant": "d"}]},
+                    "children": [
+                      {
+                        "node": {
+                          "label": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]},
+                          "children": []
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "c"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "d"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "path", "terms": [{"constant": "c"}, {"constant": "d"}]},
+              "children": [
+                {
+                  "node": {
+                    "label": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]},
+                    "children": []
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "path", "terms": [{"constant": "c"}, {"constant": "d"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "program": [
+    {"head": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]}, "body": []},
+    {
+      "head": {"symbol": "path", "terms": [{"variable": "X"}, {"variable": "Y"}]},
+      "body": [{"symbol": "edge", "terms": [{"variable": "X"}, {"variable": "Y"}]}]
+    },
+    {
+      "head": {"symbol": "path", "terms": [{"variable": "X"}, {"variable": "Z"}]},
+      "body": [
+        {"symbol": "edge", "terms": [{"variable": "X"}, {"variable": "Y"}]},
+        {"symbol": "path", "terms": [{"variable": "Y"}, {"variable": "Z"}]}
+      ]
+    }
+  ],
+  "hugin": {"version": 1, "format": "trees", "assumptionSymbols": [], "assumedFacts": [], "omittedRules": []}
+}

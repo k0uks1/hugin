@@ -77,6 +77,8 @@ not use them:
 | anchor | the finite set in which guarded induction keeps the measure of a head | [Termination](object/termination.md#guarded-induction-b) |
 | answer | a valuation of the variables of a query under which its formula holds | [Queries and output](object/io.md#queries) |
 | ascription | a term `(t : τ)` that states the type of `t`, or tests it as a checked downcast | [Object types](object/types.md#ascriptions) |
+| assumed fact | a fact of a proof export that no exported rule derives and that is not a fact of an input relation; a leaf of the proofs | [Queries and output](object/io.md#proof-export) |
+| assumption relation | a relation `not r` or `op` of a proof export whose atoms stand for negated atoms and comparisons; its atoms are leaves of the proofs | [Queries and output](object/io.md#proof-export) |
 | atom | a formula `r t̄` that holds if `r t̄` is a fact | [Rules](object/rules.md#formulas) |
 | attribute | what a local directive attaches to a declaration, such as `ainput` for `%input` | [Directives](directives.md#local-directives) |
 | base type | `int`, `float` or `string` | [Object types](object/types.md#base-types) |
@@ -93,12 +95,14 @@ not use them:
 | database | the set of facts that a program denotes | [Evaluation](object/index.md#evaluation) |
 | demand relation | the relation `r.check` that `%demand` declares for `r`; it holds the inputs for which `r` is computed | [Directives](directives.md#demand) |
 | dependency graph | the graph with an edge from `r` to `s` if a rule of `r` reads `s`; an edge under `not` or in an aggregate is negative | [Evaluation](object/index.md#evaluation) |
+| derivation fact | a fact of a derivation relation `@n`: a fact derived by an instance of the rule `@n`, with the premises of the instance | [Queries and output](object/io.md#derivation-facts) |
 | derived constant | an object constant `r.l` named after another constant `r` by the primitive `derive` | [Reflection](reflection.md#symbols-and-derived-constants) |
 | descent (A) | the termination argument by which every cycle of derivation steps makes an argument smaller | [Termination](object/termination.md#descent-along-derivations-a) |
 | directive | an item `%d a₁ … aₙ.` that applies the meta function `d` to change the program | [Directives](directives.md) |
 | export signature | the signature `S` of an item `%export S.`, which an import of the file is ascribed | [Modules](modules.md#export-signatures) |
 | fact | a ground atom that holds in the database; it has an identity | [Facts and identity](object/facts.md) |
 | fact type | the type `c` of a relation, struct or constructor `c`, whose values are the identities of the facts of `c` | [Object types](object/types.md#fact-types) |
+| exported fragment | the rules that a proof export exports: function-free rules with negated atoms and comparisons, without aggregates | [Queries and output](object/io.md#proof-export) |
 | family | a declaration with type parameters (`list A : type.`); its applications to object types are instances | [Families](object/types.md#families) |
 | finite source | a positive body atom of a relation outside the component of the rule | [Termination](object/termination.md#value-invention) |
 | footprint | the part of the program a directive changes, read off its type: local, additive or module-wide | [Directives](directives.md#footprints) |
@@ -130,6 +134,7 @@ not use them:
 | meta level | the compile-time language: a total, dependently typed functional language (stage 1) | [The meta level](meta/index.md) |
 | meta value | a value of a meta type, computed at compile time | [Functions](meta/functions.md#literals-and-primitive-operations) |
 | module | a record value whose fields are the constants of a module body or of a file | [Modules](modules.md) |
+| negative premise | the premise `(not r v̄)` of a derivation fact for a negated atom of the rule | [Queries and output](object/io.md#derivation-facts) |
 | nested fact | a fact that occurs as a subterm of another fact; deriving or loading a fact adds its nested facts | [Facts and identity](object/facts.md#constructor-terms-in-heads) |
 | object code | a term of the object level as a meta value: a term, formula, relation or item to be staged | [Staging](meta/staging.md) |
 | object constant | an object type, constructor or relation | [Declarations](object/declarations.md) |
@@ -141,6 +146,7 @@ not use them:
 | pattern | the left side of a clause, matched against arguments | [Clauses](meta/clauses.md#patterns) |
 | postulate | a meta constant with a type and no value | [The meta level](meta/index.md#meta-items) |
 | prelude | the file included in every program, whose names are in scope in every file | [The prelude](prelude.md) |
+| proof export | the file that `hugin run --export-proofs` writes: a proof of every derived fact, in the format of Tantow et al.'s verified checker | [Queries and output](object/io.md#proof-export) |
 | query | an item `?- φ.` that asks for the answers of `φ` | [Queries and output](object/io.md#queries) |
 | quote | `'( … )`: object syntax as reflective data, of the category the expected type gives | [Reflection](reflection.md#quotes) |
 | quoted pattern | a quote used as a pattern over reflective data, with holes | [Reflection](reflection.md#quoted-patterns) |
@@ -186,6 +192,7 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | Cockx and Abel 2018 | J. Cockx, A. Abel. *Elaborating Dependent (Co)pattern Matching.* ICFP 2018. Case trees and index unification for clauses. |
 | Fogarty and Vardi 2012 | S. Fogarty, M. Y. Vardi. *Büchi Complementation and Size-Change Termination.* Logical Methods in Computer Science 8(1:13), 2012. [arXiv:1110.6183](https://arxiv.org/abs/1110.6183). Subsumption in the size-change closure. |
 | Gilray et al. 2024 | T. Gilray, A. Sahebolamri, Y. Sun, S. Kunapaneni, S. Kumar, K. Micinski. *Datalog with First-Class Facts.* PVLDB 18(3), 2024. [arXiv:2411.14330](https://arxiv.org/abs/2411.14330). The language DL∃!, with Skolem identity of facts, on which the object level is based. |
+| Gelfond and Lifschitz 1988 | M. Gelfond, V. Lifschitz. *The Stable Model Semantics for Logic Programming.* ICLP/SLP 1988. The reduct of a program by a set of facts, which the proof export uses for negated atoms. |
 | Hugin definition | *Hugin: A Two-Level Typed Datalog with First-Class Facts. Formal Language Definition*, draft revision 7. The definition of the language before the redesign. Section numbers of the form "Section 6.4" in diagnostics refer to it. |
 | Kaminski et al. 2017 | M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data Analysis Using Limit Datalog Programs.* IJCAI 2017. [arXiv:1705.06927](https://arxiv.org/abs/1705.06927). Limit Datalog, the source of bound columns. |
 | Kovács 2022 | A. Kovács. *Staged Compilation with Two-Level Type Theory.* ICFP 2022. [doi:10.1145/3547641](https://doi.org/10.1145/3547641). Stage inference and the two-level type theory of the meta level. |
@@ -193,3 +200,4 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | Maranget 2007 | L. Maranget. *Warnings for Pattern Matching.* Journal of Functional Programming 17(3), 2007. Usefulness of clauses and exhaustiveness, defined on values (Definitions 4–6). |
 | Maranget 2008 | L. Maranget. *Compiling Pattern Matching to Good Decision Trees.* ML Workshop 2008. Column heuristics for case trees, which the fixed split order of clauses does not use. |
 | Stucki et al. 2018 | N. Stucki, A. Biboudis, M. Odersky. *A Practical Unification of Multi-stage Programming and Macros.* GPCE 2018. Quoted patterns with holes. |
+| Tantow et al. 2025 | J. Tantow, L. Gerlach, S. Mennicke, M. Krötzsch. *Verifying Datalog Reasoning with Lean.* ITP 2025, LIPIcs 352, 36. [doi:10.4230/LIPIcs.ITP.2025.36](https://doi.org/10.4230/LIPIcs.ITP.2025.36). The verified checker of Datalog proofs ([knowsys/CertifyingDatalog](https://github.com/knowsys/CertifyingDatalog), v0.2.0) and its JSON format, which the proof export writes. |

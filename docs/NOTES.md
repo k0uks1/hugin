@@ -149,7 +149,11 @@ elaboration, no variables local to negations or aggregates).
   aggregate counts distinct bindings of its variables as usual (issue #1, item B4). The version before
   C3 supplied the inputs by the demand transformation; see the history.
 * **Demand relations** are named `c.check` (derived constants, C3; formerly `c^d[m]`), derivation relations `@r` or `@r#i`. Derivation relations
-  are output relations; they cannot be referenced in atoms.
+  are output relations; they cannot be referenced in atoms. Their columns after the derived fact follow `RelSym.premises`: one identity
+  per positive atom, and per negated atom the values of its bound variables, which `Engine.show` prints as `(not r v̄)` (#186, P8a).
+  With `--export-proofs`, `DerivationsPhase` also adds a proof relation `proof#k` (`RelKind.Proof`, never printed) for every head of
+  every rule in the exported fragment, which records the values of its comparisons' variables as well; `runtime/ProofExport.scala`
+  reads them after the run (reference: object/io, "Proof export").
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
   compare by code point. NaN is never produced by the primitive operations.
 * **Input facts** are accepted for relations declared `%input` or `%open`.

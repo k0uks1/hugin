@@ -1,0 +1,12 @@
+// warning: proof export: the rule `buyer (account C) :- order C _.` (tests/proofs/omitted.hgn:10:1) is not exported, because its head has an argument that is a constructor term or an expression; the facts it derives are assumed
+// warning: proof export: the rule `buyers N :- N = count { B | buyer B }.` (tests/proofs/omitted.hgn:14:1) is not exported, because it has an aggregate; the facts it derives are assumed
+// warning: proof export: 3 fact(s) have no exported derivation and are assumed (listed under `hugin.assumedFacts`)
+buyer (account 1).
+buyer (account 2).
+buyers 2.
+many 2.
+order 1 "lamp".
+order 1 "pen".
+order 2 "cup".
+regular (account 1).
+regular (account 2).

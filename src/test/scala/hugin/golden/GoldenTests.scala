@@ -20,6 +20,8 @@ import scala.jdk.CollectionConverters.*
  *  - `docs/design/examples/X.hgn`: the worked examples of the design notes, run like `tests/run`.
  *  - `site/X.hgn`: the examples of the website's landing page (site/build.mjs shows their `.check`),
  *    run like `tests/run`.
+ *  - `tests/proofs/X.hgn`: run like `tests/run` with `--export-proofs`; the exported proofs must equal
+ *    `X.json` (validated against the format by `hugin.runtime.ProofExportSuite`).
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
  *    without errors, and be a fixed point (fixing it again changes nothing).
@@ -71,6 +73,20 @@ class GoldenTests extends munit.FunSuite:
       assertEquals(code, 0, s"compilation or run failed:\n$err")
       val warnings = if err.nonEmpty then err.linesIterator.map("// " + _).mkString("\n") + "\n" else ""
       compare(p, warnings + out)
+    }
+
+  for p <- files("proofs") do
+    test(s"proofs/${p.getFileName}") {
+      val facts = sibling(p, ".facts")
+      val factArgs = if Files.exists(facts) then List("--facts", facts.toString) else Nil
+      val json = Files.createTempFile("hugin-proofs", ".json")
+      try
+        val (code, out, err) = runMain(List("run", p.toString, "--export-proofs", json.toString) ++ factArgs ++ flags(p))
+        assertEquals(code, 0, s"compilation or run failed:\n$err")
+        val warnings = if err.nonEmpty then err.linesIterator.map("// " + _).mkString("\n") + "\n" else ""
+        compare(p, warnings + out)
+        compare(p, Files.readString(json), ".json")
+      finally Files.deleteIfExists(json)
     }
 
   for p <- files("neg") do

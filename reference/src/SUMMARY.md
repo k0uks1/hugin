@@ -37,6 +37,7 @@
     - [`std/graph`](std/graph.md)
     - [`std/order`](std/order.md)
     - [`std/demand`](std/demand.md)
+- [The command line](command-line.md)
 
 ---
 

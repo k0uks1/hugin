@@ -1,0 +1,14 @@
+(* --export-proofs (reference: object/io): a negated atom and a comparison become atoms of the assumption
+   relations `not parent` and `<`; the wildcard of the negated atom is the constant `_` *)
+person : type.
+alice, bob, carol : person.
+parent : person -> person -> rel.
+parent alice bob.
+parent alice carol.
+age : person -> int -> rel.
+age alice 40. age bob 12. age carol 9.
+childless : person -> rel.
+childless X :- age X _, not parent X _.
+younger : person -> person -> rel.
+younger X Y :- childless X, childless Y, age X A, age Y B, A < B.
+%output childless. %output younger.

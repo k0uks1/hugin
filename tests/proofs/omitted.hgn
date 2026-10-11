@@ -1,0 +1,16 @@
+(* --export-proofs (reference: object/io): a rule with a constructor term in its head and a rule with an
+   aggregate are not exported; the facts they derive are assumed, with a warning *)
+customer : type.
+account : (id : int) -> customer.
+order : (customer : int) -> (item : string) -> rel.
+order 1 "pen".
+order 1 "lamp".
+order 2 "cup".
+buyer : customer -> rel.
+buyer (account C) :- order C _.
+regular : customer -> rel.
+regular B :- buyer B.
+buyers : int -> rel.
+buyers N :- N = count { B | buyer B }.
+many : int -> rel.
+many N :- buyers N, N > 1.

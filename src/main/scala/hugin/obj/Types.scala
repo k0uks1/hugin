@@ -52,6 +52,28 @@ enum RelKind:
   /** Auxiliary relation introduced by the compiler, e.g. for a disjunction inside an aggregate. */
   case Auxiliary(purpose: String)
 
+  /** Proof relation of `--export-proofs`: the instances of one head of one rule, like a derivation
+   *  relation, also with the values of the variables of its comparisons. Never printed. */
+  case Proof
+
+/** A premise of a derivation or proof relation, in the order of the relation's columns after the derived
+ *  fact (reference: object/io, "Derivation facts"). */
+enum Premise:
+  /** A positive body atom: one column, the identity of the premise fact. */
+  case Pos(rel: RelSym)
+
+  /** A negated atom: one column per variable of the atom that the rest of the body binds (`vars`, in
+   *  order); its other variables are local to the negation. */
+  case Neg(atom: Formula.Atom, vars: List[String])
+
+  /** A comparison (proof relations only): one column per variable of the comparison (`vars`, in order). */
+  case Cmp(cmp: Formula.Cmp, vars: List[String])
+
+  def width: Int = this match
+    case Pos(_) => 1
+    case Neg(_, vs) => vs.length
+    case Cmp(_, vs) => vs.length
+
 /** An object relation (plain relation, constructor or struct). The fact type has the same name. Its
  *  declaration (`cols`, `result`, `instanceOf`) is filled in when the symbol is created, by the handover
  *  from the meta level or the phase that introduces it; what later phases learn about it is in
@@ -69,6 +91,9 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
    *  display name of that relation. Provenance for diagnostics only. */
   var derivedFrom: Option[String] = None
 
+  /** For a derivation or proof relation: the layout of its columns after the derived fact. */
+  var premises: Vector[Premise] = Vector.empty
+
   def arity: Int = cols.length
 
   /** The kind of the relation's bound column (`min τ` / `max τ`, reference: object/bound-columns), which is its last
@@ -77,7 +102,7 @@ final class RelSym(val name: String, val kind: RelKind, val span: Span, val orig
     if kind == RelKind.Ctor || kind == RelKind.Struct then None else cols.lastOption.flatMap(_.bound)
   def isCtor: Boolean = kind == RelKind.Ctor
 
-  def isDerivation: Boolean = kind match { case RelKind.Derivation(_) => true; case _ => false }
+  def isDerivation: Boolean = kind match { case RelKind.Derivation(_) | RelKind.Proof => true; case _ => false }
 
   /** Source name used in output: qualified, without type arguments. */
   def displayName: String = instanceOf.map(_._1.displayName).getOrElse(name)

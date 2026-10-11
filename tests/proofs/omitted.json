@@ -1,0 +1,100 @@
+{
+  "trees": [
+    {"node": {"label": {"symbol": "buyer", "terms": [{"constant": "account 1"}]}, "children": []}},
+    {"node": {"label": {"symbol": "buyer", "terms": [{"constant": "account 2"}]}, "children": []}},
+    {"node": {"label": {"symbol": "buyers", "terms": [{"constant": "2"}]}, "children": []}},
+    {
+      "node": {
+        "label": {"symbol": "many", "terms": [{"constant": "2"}]},
+        "children": [
+          {"node": {"label": {"symbol": "buyers", "terms": [{"constant": "2"}]}, "children": []}},
+          {
+            "node": {
+              "label": {"symbol": ">", "terms": [{"constant": "2"}, {"constant": "1"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "order", "terms": [{"constant": "1"}, {"constant": "\"lamp\""}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "order", "terms": [{"constant": "1"}, {"constant": "\"pen\""}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "order", "terms": [{"constant": "2"}, {"constant": "\"cup\""}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "regular", "terms": [{"constant": "account 1"}]},
+        "children": [
+          {
+            "node": {"label": {"symbol": "buyer", "terms": [{"constant": "account 1"}]}, "children": []}
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "regular", "terms": [{"constant": "account 2"}]},
+        "children": [
+          {
+            "node": {"label": {"symbol": "buyer", "terms": [{"constant": "account 2"}]}, "children": []}
+          }
+        ]
+      }
+    }
+  ],
+  "program": [
+    {"head": {"symbol": "order", "terms": [{"constant": "1"}, {"constant": "\"pen\""}]}, "body": []},
+    {
+      "head": {"symbol": "order", "terms": [{"constant": "1"}, {"constant": "\"lamp\""}]},
+      "body": []
+    },
+    {"head": {"symbol": "order", "terms": [{"constant": "2"}, {"constant": "\"cup\""}]}, "body": []},
+    {
+      "head": {"symbol": "regular", "terms": [{"variable": "B"}]},
+      "body": [{"symbol": "buyer", "terms": [{"variable": "B"}]}]
+    },
+    {
+      "head": {"symbol": "many", "terms": [{"variable": "N"}]},
+      "body": [
+        {"symbol": "buyers", "terms": [{"variable": "N"}]},
+        {"symbol": ">", "terms": [{"variable": "N"}, {"constant": "1"}]}
+      ]
+    }
+  ],
+  "hugin": {
+    "version": 1,
+    "format": "trees",
+    "assumptionSymbols": [">"],
+    "assumedFacts": [
+      {"symbol": "buyer", "terms": [{"constant": "account 1"}]},
+      {"symbol": "buyer", "terms": [{"constant": "account 2"}]},
+      {"symbol": "buyers", "terms": [{"constant": "2"}]}
+    ],
+    "omittedRules": [
+      {
+        "rule": "buyer (account C) :- order C _.",
+        "at": "tests/proofs/omitted.hgn:10:1",
+        "reason": "its head has an argument that is a constructor term or an expression"
+      },
+      {
+        "rule": "buyers N :- N = count { B | buyer B }.",
+        "at": "tests/proofs/omitted.hgn:14:1",
+        "reason": "it has an aggregate"
+      }
+    ]
+  }
+}
