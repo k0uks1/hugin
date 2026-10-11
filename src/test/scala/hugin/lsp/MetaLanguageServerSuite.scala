@@ -85,9 +85,10 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     val d = c.published(uri).find(_.getCode.getLeft == "E0911").get
     val add = actions(s, d.getRange.getStart, List(d)).find(_.getTitle.startsWith("Add the")).get
     assert(add.getIsPreferred)
-    assertEquals(edit(add), (Range(pos(text, "M.", 2), pos(text, "M.", 2)), "\nboth 0 _ = ?.\nboth (_ + 1) 0 = ?."))
-    // the diagnostic itself is unchanged: the first missing case
-    assert(d.getMessage.contains("missing: `both 0 _`"), d.getMessage)
+    // the most general missing patterns, `_` first (reference: meta/coverage, "Missing cases")
+    assertEquals(edit(add), (Range(pos(text, "M.", 2), pos(text, "M.", 2)), "\nboth _ 0 = ?.\nboth 0 _ = ?."))
+    // the diagnostic shows the first of them and the number of the others
+    assert(d.getMessage.contains("missing: `both _ 0` and 1 more"), d.getMessage)
   }
 
   test("start the clauses of a declared function") {
