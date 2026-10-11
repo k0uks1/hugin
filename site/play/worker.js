@@ -4,11 +4,11 @@
 // The bundle declares the facade as a top-level `let Hugin`: a global binding of the script scope, which
 // is not a property of `self`, so it is read by its name.
 //
-// Page -> worker: { id, op: "run" | "check" | "analyse" | "complete" | "actions", version, source, printAfter,
-//                   offset, from, to }
+// Page -> worker: { id, op: "run" | "check" | "analyse" | "complete" | "actions" | "expansion", version, source,
+//                   printAfter, offset, from, to }
 //                 (printAfter: a phase name or ""; version: the page's counter of the editor's text, echoed
-//                 in the result; offset: the cursor of a `complete` request, from and to the selection of an
-//                 `actions` request, in UTF-16 units)
+//                 in the result; offset: the cursor of a `complete` or `expansion` request, from and to the
+//                 selection of an `actions` request, in UTF-16 units)
 // Worker -> page: { ready: true, phases: [..] } once loaded, or { ready: false, error } if the bundle is
 //                 missing; then { id, result } or { id, error } per request.
 //
@@ -24,7 +24,8 @@
 //     version }
 // (an `analyse` request has only the tokens and the table; a `complete` request answers
 //   { from, items: [{ label, kind, detail, fits }], ranked, version }, and an `actions` request
-//   { actions: [{ title, kind, preferred, edits: [{ from, to, insert }] }], version }: the facade's JSON). The compiler keeps one database for the
+//   { actions: [{ title, kind, preferred, edits: [{ from, to, insert }] }], version }, and an `expansion`
+//   request { text, version }, text null if none: the facade's JSON). The compiler keeps one database for the
 // worker's lifetime, so a request on the text of the previous one costs no compilation.
 // Only `adapt` and `normalise` know the facade's names.
 "use strict";
@@ -86,6 +87,11 @@ onmessage = (e) => {
       const r = JSON.parse(api.complete(source, offset, JSON.stringify({ file: "main.hgn" })));
       if (r.error) throw new Error(r.error);
       return postMessage({ id, result: { from: r.from, items: r.items || [], ranked: !!r.ranked, version } });
+    }
+    if (op === "expansion") {
+      const r = JSON.parse(api.expansion(source, offset, JSON.stringify({ file: "main.hgn" })));
+      if (r.error) throw new Error(r.error);
+      return postMessage({ id, result: { text: r.text == null ? null : String(r.text), version } });
     }
     if (op === "actions") {
       const r = JSON.parse(api.actions(source, from, to, JSON.stringify({ file: "main.hgn" })));

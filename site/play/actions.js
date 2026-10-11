@@ -2,7 +2,9 @@
 // Ctrl-. opens a menu of what the compiler offers at the cursor (hugin.ide.Fixes: split a pattern
 // variable, add the missing clauses, add a clause, refine a hole, and the diagnostics' suggestions), asked
 // from the worker (`actions`). When the cursor rests, the same request tells the info bar (ide.js)
-// whether to show its "Fix" button, the touch path to the menu. The diagnostics' own lint actions and
+// whether to show its "Fix" button, the touch path to the menu. Where meta code expanded to object items
+// (a directive or functor application), the menu also offers "Show expansion" (`expansion`), which shows
+// them in the results' Expansion tab. The diagnostics' own lint actions and
 // inline buttons stay as they are (editor.js).
 import { StateField, StateEffect } from "@codemirror/state";
 import { ViewPlugin, showTooltip, keymap } from "@codemirror/view";
@@ -19,7 +21,10 @@ export const fixesField = StateField.define({
   },
 });
 
-export const hasFixes = (state) => !!state.field(fixesField, false)?.list.length;
+export const hasFixes = (state) => {
+  const f = state.field(fixesField, false);
+  return !!f && (f.list.length > 0 || f.expansion != null);
+};
 
 // the menu: a tooltip at the cursor with one button per action
 const setMenu = StateEffect.define();
@@ -47,13 +52,13 @@ function closeMenu(view) {
   return true;
 }
 
-function menuDom(view, list) {
+function menuDom(view, list, expansion, onExpansion) {
   const dom = document.createElement("div");
   dom.className = "hg-actions";
   const menu = document.createElement("ul");
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Actions at the cursor");
-  if (!list.length) {
+  if (!list.length && expansion == null) {
     const li = document.createElement("li");
     li.className = "hg-actions-none";
     li.textContent = "No actions at the cursor";
@@ -66,6 +71,16 @@ function menuDom(view, list) {
     b.textContent = a.title;
     if (a.preferred) b.classList.add("preferred");
     b.onclick = () => apply(view, a);
+    const li = document.createElement("li");
+    li.append(b);
+    menu.append(li);
+  }
+  if (expansion != null && onExpansion) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "menuitem");
+    b.textContent = "Show expansion";
+    b.onclick = () => { closeMenu(view); onExpansion(expansion); };
     const li = document.createElement("li");
     li.append(b);
     menu.append(li);
@@ -86,25 +101,28 @@ function menuDom(view, list) {
 
 // `ask(source, from, to)` resolves to the worker's { version, actions } or to null (busy, unavailable or
 // stale); the extension and the function that opens the menu (Ctrl-., the info bar's "Fix" button)
-export function actionsExtension(ask) {
+// `expand(source, offset)` resolves to the worker's { version, text } or to null, and `onExpansion(text)`
+// shows an expansion
+export function actionsExtension(ask, expand, onExpansion) {
   async function fixesAt(view) {
     const sel = view.state.selection.main;
     const known = view.state.field(fixesField);
-    if (known && known.pos === sel.head) return known.list;
-    const doc = view.state.doc;
-    const answer = await ask(doc.toString(), sel.from, sel.to);
+    if (known && known.pos === sel.head) return known;
+    const doc = view.state.doc, source = doc.toString();
+    const [answer, expanded] = await Promise.all([ask(source, sel.from, sel.to), expand ? expand(source, sel.head) : null]);
     if (!answer || view.state.doc !== doc || view.state.selection.main.head !== sel.head) return null;
-    view.dispatch({ effects: setFixes.of({ pos: sel.head, list: answer.actions }) });
-    return answer.actions;
+    const fixes = { pos: sel.head, list: answer.actions, expansion: expanded ? expanded.text : null };
+    view.dispatch({ effects: setFixes.of(fixes) });
+    return fixes;
   }
 
   async function openMenu(view) {
     const pos = view.state.selection.main.head;
-    const list = await fixesAt(view);
-    if (list == null) return;
+    const fixes = await fixesAt(view);
+    if (fixes == null) return;
     view.dispatch({
       effects: setMenu.of({ tooltip: { pos, above: false, create: (v) => {
-        const dom = menuDom(v, list);
+        const dom = menuDom(v, fixes.list, fixes.expansion, onExpansion);
         return { dom, mount: () => (dom.querySelector("button") || dom).focus?.() };
       } } }),
     });

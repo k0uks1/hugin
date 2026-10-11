@@ -85,3 +85,8 @@ pre.text { margin: 0; font-size: 0.82rem; line-height: 1.55; white-space: pre-wr
 .hg-actions-none { padding: 0.3rem 0.8rem; font: 0.8rem/1.4 var(--sans); color: var(--muted); }
 @media (pointer: coarse) { .hg-actions button { min-height: 2.75rem; } }
 @media (pointer: coarse) { .hg-infobar .fix { min-height: 2.75rem; padding: 0 0.35rem; } }
+/* inlay hints (hints.js) and their switch in the toolbar */
+.hg-hint { font-family: var(--mono); font-size: 0.85em; color: var(--muted); background: var(--surface-2); border-radius: 3px; padding: 0 0.15em; margin: 0 0.05em; }
+.hg-hint-implicit { margin-left: 0.25em; }
+.toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; color: var(--fg); cursor: pointer; min-height: 2.75rem; padding: 0 0.25rem; }
+.toggle input { accent-color: var(--accent); width: 1rem; height: 1rem; margin: 0; }

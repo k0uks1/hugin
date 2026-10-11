@@ -3,8 +3,8 @@
 Design note for [issue #147](https://github.com/k0uks1/hugin/issues/147) (the language server's editor
 features in the playground, computed by the compiler in the playground's Web Worker) and
 [issue #132](https://github.com/k0uks1/hugin/issues/132) (hover and go to definition in the reference's
-code samples, computed at build time). Status: approved by the designer; I1, I2, P1, R1, P2 and
-P3 implemented. The measurements this note cites were made against `a1a4274`
+code samples, computed at build time). Status: approved by the designer; I1, I2, P1, R1 and P2 to
+P4 implemented. The measurements this note cites were made against `a1a4274`
 (`origin/ccr-48027e29-daam41`) in a scratch copy and are not committed.
 
 The binding rules are those of #58 and `docs/design/website.md`: prior art first; the site stays fast

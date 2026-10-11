@@ -98,7 +98,7 @@ const el = (tag, cls, ...children) => {
 };
 
 // Hugin code with the classes of the playground's grammar (hugin-lang.js)
-function code(text, block) {
+export function code(text, block) {
   const out = el(block ? "pre" : "code", "hugin" + (block ? " hg-code" : ""));
   text.split("\n").forEach((line, i) => {
     if (i) out.append("\n");
@@ -302,6 +302,8 @@ const infoBar = (onFix) => (view) => {
     if (hover) text.append(hover.signature ? code(hover.signature) : note(hover.notes[0].split("\n")[0]));
     button.hidden = !(n && declaration(state, n.value));
     fix.hidden = !(onFix && hasFixes(state));
+    // "Fix" for actions, "Expansion" where the menu would only show the expansion
+    if (!fix.hidden) fix.textContent = state.field(fixesField, false).list.length ? "Fix" : "Expansion";
   };
   render(view.state);
   return {

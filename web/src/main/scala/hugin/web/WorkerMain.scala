@@ -10,6 +10,7 @@ import scala.util.control.NonFatal
  *  { id, op: "check" | "run" | "analyse", source: "…", options: { … } }   →   { id, result: { …the JSON of Hugin… } }
  *  { id, op: "complete", source: "…", offset: n, options: { … } }   →   { id, result: { …the JSON of Hugin.complete… } }
  *  { id, op: "actions", source: "…", from: n, to: n, options: { … } }   →   { id, result: { …the JSON of Hugin.actions… } }
+ *  { id, op: "expansion", source: "…", offset: n, options: { … } }   →   { id, result: { …the JSON of Hugin.expansion… } }
  *  { id, op: "phases" }                                       →   { id, result: [ … ] }
  *  }}}
  *
@@ -41,8 +42,9 @@ object WorkerMain:
         case "run" => Hugin.run(source, options)
         case "analyse" => Hugin.analyse(source, options)
         case "complete" => Hugin.complete(source, number(request.offset, "offset"), options)
+        case "expansion" => Hugin.expansion(source, number(request.offset, "offset"), options)
         case "actions" => Hugin.actions(source, number(request.from, "from"), number(request.to, "to"), options)
         case "phases" => Hugin.phases()
-        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run, analyse, complete, actions or phases")
+        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run, analyse, complete, actions, expansion or phases")
       js.Dynamic.literal(id = id, result = js.JSON.parse(json))
     catch case NonFatal(e) => js.Dynamic.literal(id = id, result = js.Dynamic.literal(version = Playground.Version, error = e.getMessage))

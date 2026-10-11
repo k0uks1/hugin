@@ -5,7 +5,7 @@
 // clears the diagnostics. Lines do not wrap, as in the landing page's code card: long lines scroll
 // horizontally, and the inline diagnostics are as wide as the visible editor (play.css). The editor
 // features of the annotation table (hover, the info bar, definition, occurrences, references) are ide.js,
-// completion complete.js, the actions at the cursor (Ctrl-.) actions.js.
+// completion complete.js, the actions at the cursor (Ctrl-.) actions.js, the inlay hints hints.js.
 import { EditorView, keymap, lineNumbers, drawSelection, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState, StateField, StateEffect, Compartment } from "@codemirror/state";
 import { history, defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -15,6 +15,7 @@ import { huginLanguage, huginHighlight } from "./hugin-lang.js";
 import { ideExtensions, showInfo } from "./ide.js";
 import { completion, completionKeymap } from "./complete.js";
 import { actionsExtension } from "./actions.js";
+import { hintsExtension, showHints } from "./hints.js";
 
 const SEVERITY = { error: "error", warning: "warning" };
 
@@ -83,8 +84,8 @@ const inlineField = decorationField(setInline);
 const tokenField = decorationField(setTokens, true);
 const lexical = new Compartment();
 
-export function createEditor(parent, doc, { onRun, onEdit, complete, actions }) {
-  const fixes = actionsExtension(actions);
+export function createEditor(parent, doc, { onRun, onEdit, complete, actions, expansion, onExpansion }) {
+  const fixes = actionsExtension(actions, expansion, onExpansion);
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -101,6 +102,7 @@ export function createEditor(parent, doc, { onRun, onEdit, complete, actions }) 
         ideExtensions({ onFix: fixes.openMenu }),
         completion(complete),
         fixes.extension,
+        hintsExtension(),
         EditorView.contentAttributes.of({ class: "hugin", "aria-label": "Program", spellcheck: "false" }),
         keymap.of([
           { key: "Mod-Enter", run: () => (onRun(), true) },
@@ -168,6 +170,7 @@ function clearDiagnostics(view) {
 export function clear(view) {
   view.compilerSaid = false;
   showInfo(view, null);
+  showHints(view, null);
   view.dispatch(setDiagnostics(view.state, []));
   view.dispatch({
     effects: [setInline.of(Decoration.none), setTokens.of(Decoration.none), lexical.reconfigure(huginHighlight)],

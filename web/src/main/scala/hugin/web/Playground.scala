@@ -1,7 +1,7 @@
 package hugin.web
 
 import hugin.compiler.Compiler
-import hugin.ide.{Annotations, Completion, FixKind, Fixes, Highlighting}
+import hugin.ide.{Annotations, Completion, Expansions, FixKind, Fixes, Highlighting}
 import hugin.platform.Platform
 import hugin.query.*
 import hugin.runtime.Evaluation
@@ -106,6 +106,21 @@ object Playground:
                 )
             }
           Json.obj("version" -> Json.num(Version), "actions" -> Json.Arr(actions)).render
+        }
+
+  /** What the meta code at an offset (UTF-16 code units) of the program expanded to, from
+   *  `hugin.ide.Expansions`: the object rules and queries of the innermost directive or functor
+   *  application around it (or of the item there), as Hugin text: `{ "version": 1, "text": "…" }`, with
+   *  `text` null if there is none. */
+  def expansion(source: String, offset: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val text = Expansions.at(CompileKey(request.file, request.settings), offset.max(0).min(source.length))
+          Json.obj("version" -> Json.num(Version), "text" -> text.fold(Json.Null)(Json.str)).render
         }
 
   /** The annotation table of the program, as [[Session.info]] encodes it. */
