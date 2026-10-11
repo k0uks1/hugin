@@ -28,7 +28,8 @@ to their own column.
 
 ## Local definitions
 
-The items of a `where` block are elaborated in order, at each leaf of the clause's case tree.
+The items of a `where` block are elaborated in order, once per clause, in its [clause
+context](clauses.md#checking-a-clause).
 
 - A *definition* `x = e.` or `x : A = e.` binds `x` to the value of `e`.
 - A *local function* `f : A.` followed by its clauses is a function by clauses like a top-level one. It
@@ -44,16 +45,13 @@ pattern binding, `area` names two values, and `addTo` has a local function that 
 variable `K` of its clause.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 pair : Type -> Type -> Type.
 mkPair : A -> B -> pair A B.
 fst : pair int int -> int.
 fst (mkPair X _) = X.
 fibPair : nat -> pair int int.
-fibPair zero = mkPair 0 1.
-fibPair (suc N) = mkPair b (a + b)
+fibPair 0 = mkPair 0 1.
+fibPair (N + 1) = mkPair b (a + b)
   where mkPair a b = fibPair N.
 shape : Type.
 rect : int -> int -> shape.
@@ -64,8 +62,8 @@ area (rect W H) = w * h
 addTo : int -> nat -> int.
 addTo K M = go M
   where go : nat -> int.
-        go zero = K.
-        go (suc N) = go N + 1.
+        go 0 = K.
+        go (N + 1) = go N + 1.
 answer : string -> int -> rel.
 answer "fib" (fst (fibPair 20)).
 answer "area" (area (rect 5 6)).

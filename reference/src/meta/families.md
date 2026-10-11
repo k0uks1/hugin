@@ -29,13 +29,10 @@ Free uppercase variables in the type of a constructor are implicit arguments
 arguments `A` and `N`. All arguments of a family are indices: pattern matching unifies them, and there is
 no separate notion of parameters.
 
-The following program declares the natural numbers and vectors indexed by their length, and appends
+The following program declares vectors indexed by their length, a `nat` of the prelude, and appends
 two vectors. The type of `append` states the length of the result.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 plus : nat -> nat -> nat.
 plus zero N = N.
 plus (suc M) N = suc (plus M N).
@@ -84,10 +81,44 @@ such as `A` in `vcons`, does not count.
 ## Numerals
 
 A family is *nat-like* if it has exactly two constructors, one without arguments and one with a single
-argument of the family itself, such as `zero : nat` and `suc : nat -> nat`. An integer literal `n`
-checked against a nat-like family is the numeral `suc (… (suc zero))` with `n` applications, also in
-patterns. The meta type `int` has no conversion to a nat-like family; a function by clauses converts in
-the other direction.
+argument of the family itself, such as `zero : nat` and `suc : nat -> nat`. The rule is structural: every
+nat-like family has numerals, whatever the names of the family and its constructors, such as the
+[`nat`](../std/nat.md) of the prelude, a `nat` that a program declares itself, and `index` of
+[`std/reflect`](../std/reflect.md).
+
+- An integer literal `n` checked against a nat-like family is the *numeral* `suc (… (suc zero))` with
+  `n` applications of the successor, also in patterns. It is an error ([E0901](../errors/E0901.md)) if
+  `n` is negative or larger than 100000: numerals are terms of the two constructors.
+- A *successor expression* `e + k`, where `k` is an integer literal of at least 1, is the successor
+  applied `k` times to `e` if it is checked against a nat-like family or if `e` has a nat-like type:
+  `n + 2` is `suc (suc n)`. The same form is a pattern ([Clauses](clauses.md#patterns)). It is an error
+  ([E0901](../errors/E0901.md)) if `k` is larger than 100000.
+
+Arithmetic does not apply to nat-like families otherwise: `m + n` of two naturals, `n - 1` and `n * 2`
+are errors ([E0901](../errors/E0901.md)); a function by clauses computes them, such as `plus` of
+[`std/nat`](../std/nat.md). The meta type `int` has no conversion to a nat-like family; a function by
+clauses converts in the other direction, such as `toInt` of `std/nat`.
+
+Diagnostics, `--print-after`, the REPL and the language server show a numeral as its digits, and the
+successor applied `k` times to another term `e` as `e + k`: `suc (suc zero)` is shown as `2`, `zero` as
+`0` and `suc (suc N)` as `N + 2`.
+
+The following program indexes vectors by the prelude's `nat`, with numerals and successor expressions
+in their types.
+
+```hugin,run
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+second : vec A (N + 2) -> A.
+second (vcons _ (vcons X _)) = X.
+picked : int -> rel.
+picked (second (vcons 1 (vcons 2 (vcons 3 vnil)))).
+```
+
+```output
+picked 2.
+```
 
 ## Shared data
 
@@ -125,8 +156,6 @@ The following declaration is rejected: the argument of `dots` has the meta type 
 object counterpart.
 
 ```hugin,compile_fail,E0920
-nat : Type.
-zero : nat.
 shape : data.
 dots : (amount : nat) -> shape.
 ```

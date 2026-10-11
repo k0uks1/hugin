@@ -72,7 +72,8 @@ starting with `-D` to the JVM, so with it write `--deny <lint>`.
 
 `hugin fix FILE` applies the suggestions marked machine-applicable (adding a missing `.`, replacing a
 singleton variable by `_`, adding missing labels as `_`, `%complete`, the
-binders of a declared type as parameters of the definition) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
+binders of a declared type as parameters of the definition, removing a clause that can never apply,
+writing out the cases of a clause that needs the refinement made by the clauses before it) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
 does. Suggestions that are guesses (a similar name) are only shown, and lints at `-A` are not fixed.
 
 
@@ -484,7 +485,9 @@ library) and its occurrence group. Each snippet's element is then an object
 [[signature, note, …], …]}`: a run that is exactly a name carries the name's index, a name's `hover`
 indexes the deduplicated `hovers` (null where hover shows nothing), and a hover is its signature (or
 null) followed by its notes. Without `--info` the output stays as above. `tests/annotations` holds the
-golden tables of a few programs.
+golden tables of a few programs. `reference/highlight.py` uses `--info` for the hovers and definition
+links of the reference's code blocks, shown by `reference/hugin-info.js` (`reference/README.md`, "Hovers
+and definitions"); the build fails if they add more than 8 KB gzip to a page.
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 

@@ -1,0 +1,54 @@
+(* Formula functions defined by rules in module bodies (issue #100, batch 2, reference: modules and
+   meta/staging): the rules of a body's formula function are its clauses, it may use later members
+   and the functor's parameters, it is elaborated once per body, and it is used by the body's rules,
+   by member functions and through paths and instances. *)
+nat : Type. zero : nat. suc : nat -> nat.
+city : type. berlin : city. paris : city. rome : city. oslo : city. bergen : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome. road rome oslo. road oslo bergen.
+
+paths : Type = { near : city -> city -> prop, within : nat -> city -> city -> prop }.
+(* a signature lists formula functions; `hidden` is not visible through `lib` *)
+lib : paths = {
+  (* `near` uses `link`, declared after it *)
+  near : city -> city -> prop.
+  near X Y :- link X Y ; link Y X.
+  link : city -> city -> prop.
+  link X Y :- road X Y.
+  (* a member function that returns a use of a formula function of the body *)
+  within : nat -> city -> city -> prop.
+  within zero X Y = near X Y.
+  within (suc N) X Y = near X Y ; within N X Y.
+  hidden : city -> prop.
+  hidden X :- road X _.
+}.
+close : city -> city -> rel.
+close X Y :- lib.within (suc zero) X Y.
+
+graph : Type = { node : type, edge : node -> node -> rel }.
+hops (g : graph) = {
+  (* a nested body *)
+  inner = {
+    step : g.node -> g.node -> prop.
+    step X Y :- g.edge X Y.
+    from : g.node -> rel.
+    from X :- step X _.
+  }.
+  (* a meta parameter, a clause per tag *)
+  tagged : string -> g.node -> prop.
+  tagged "src" X :- inner.step X _.
+  tagged "dst" Y :- inner.step _ Y.
+  (* a formula function next to a negated relation of the body *)
+  ends : g.node -> rel.
+  ends X :- tagged "dst" X, not inner.from X.
+  (* variables other than the arguments are fresh at each use: `Y` is not shared by the two uses *)
+  two : g.node -> g.node -> prop.
+  two X Z :- inner.step X Y, inner.step Y Z.
+  four : g.node -> g.node -> rel.
+  four X Z :- two X Y, two Y Z.
+}.
+h1 = hops { node = city, edge = road }.
+h2 = hops { node = city, edge = road }.
+viaPath : city -> city -> rel.
+viaPath X Y :- h1.inner.step X Y, h2.tagged "src" X.
+%output close. %output h1.inner.from. %output h1.ends. %output h2.four. %output viaPath.

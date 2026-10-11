@@ -23,9 +23,9 @@ class ClausesSuite extends munit.FunSuite:
 
   test("plus evaluates at compile time") {
     val e = ok(nat)
-    assertEquals(e.eval("plus 2 3"), "suc (suc (suc (suc (suc zero))))")
+    assertEquals(e.eval("plus 2 3"), "5")
     assertEquals(e.eval("[n : nat] plus zero n"), "[n] n")
-    assertEquals(e.eval("[n : nat] plus n zero"), "[n] plus n zero")
+    assertEquals(e.eval("[n : nat] plus n zero"), "[n] plus n 0")
   }
 
   test("head needs no vnil clause: the case is impossible by index unification") {
@@ -41,7 +41,7 @@ class ClausesSuite extends munit.FunSuite:
         |tail : vec A (suc N) -> vec A N.
         |tail (vcons _ XS) = XS.
         |""".stripMargin)
-    assertEquals(e.eval("tail (append (vcons 1 vnil) (vcons 2 vnil))"), "vcons {int} {zero} 2 (vnil {int})")
+    assertEquals(e.eval("tail (append (vcons 1 vnil) (vcons 2 vnil))"), "vcons {int} {0} 2 (vnil {int})")
   }
 
   test("an argument with no possible constructor needs no clause (absurd)") {
@@ -58,7 +58,7 @@ class ClausesSuite extends munit.FunSuite:
   test("missing cases are reported with the missing pattern") {
     val text = firstError(nat + "pred : nat -> nat.\npred (suc N) = N.\n")
     assert(text.contains("error[E0911]"), text)
-    assert(text.contains("missing: `pred zero`"), text)
+    assert(text.contains("missing: `pred 0`"), text)
     val text2 = firstError(vec + "first : vec A N -> A.\nfirst (vcons X _) = X.\n")
     assert(text2.contains("missing: `first vnil`"), text2)
   }

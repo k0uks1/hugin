@@ -18,7 +18,7 @@ class SizeChangeSuite extends munit.FunSuite:
         |ack (suc M) zero = ack M 1.
         |ack (suc M) (suc N) = ack M (ack (suc M) N).
         |""".stripMargin)
-    assertEquals(e.eval("ack 2 1"), "suc (suc (suc (suc (suc zero))))")
+    assertEquals(e.eval("ack 2 1"), "5")
   }
 
   test("mutual recursion") {
@@ -98,7 +98,7 @@ class SizeChangeSuite extends munit.FunSuite:
       |""".stripMargin
     val text = firstError(code)
     assert(text.contains("cannot show that `f` terminates"), text)
-    assert(text.contains("in this clause: `f (suc N)`"), text)
+    assert(text.contains("in this clause: `f (N + 1)`"), text)
   }
 
   test("a definition passed as a value calls with unknown arguments, as the function itself does") {

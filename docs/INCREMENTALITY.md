@@ -262,6 +262,15 @@ the names it might declare, the formula function it may be a clause of, the name
 dependencies in the order of elaboration (#91), and its start; it is compared by these, not by its
 text. The declarations are elaborated again only when one of them changes (`BrokenItemsSuite`).
 
+Per-component evaluation reuse (issue #126, PR 4; `runtime/Reuse.scala`, `runtime/ComponentKeys.scala`).
+When the rules change, `Fixpoint` copies from its earlier value (`Database.previous`, which the result
+must not depend on) the relations as they were after the longest prefix of steps (loading the facts
+files, then the components in the program's order) whose keys are equal: the rules of the component and
+the shapes of the relations they name, relations named by the index of their first occurrence. Then it
+evaluates the rest. The result is the evaluation from scratch, tuple for tuple and with the same
+identities (`ComponentReuseSuite`); continuing a component that only gained rules from its old
+relations would number its facts differently and is not done.
+
 ## Status (after step 10)
 
 Incremental now:

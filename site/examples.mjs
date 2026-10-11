@@ -42,8 +42,8 @@ function examplesOf(src, { title, file }) {
 // site/<file>.check (GoldenTests runs them as it runs tests/run; site/build.mjs checks the output again).
 export const landingExamples = [
   { id: "people", file: "example", name: "people.hgn", topic: "Directives and functors" },
-  { id: "routes", file: "example-routes", name: "routes.hgn", topic: "Bound columns" },
-  { id: "exprs", file: "example-exprs", name: "exprs.hgn", topic: "First-class facts" },
+  { id: "intervals", file: "example-intervals", name: "intervals.hgn", topic: "Interval analysis" },
+  { id: "regex", file: "example-regex", name: "regex.hgn", topic: "Rules generated at compile time" },
 ];
 
 export function collectExamples(root) {

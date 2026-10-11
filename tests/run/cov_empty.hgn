@@ -1,0 +1,19 @@
+(* #67: refuted probes need no clause, and a clause that matches only refuted probes is reachable
+   (reference: meta/coverage, "Cases and probes") *)
+fin : nat -> Type.
+fzero : fin (N + 1).
+fsuc : fin N -> fin (N + 1).
+two : Type.
+yes : two.
+no : two.
+(* no W0006: `X` matches the refuted probe of `fin 0` *)
+none : fin 0 -> int.
+none X = 0.
+both : two -> fin 0 -> int.
+both yes X = 1.
+both no X = 2.
+(* no clause for `no`: its second argument would be empty *)
+pick : two -> fin 0 -> int.
+pick yes X = 1.
+answer : int -> rel.
+answer 42.

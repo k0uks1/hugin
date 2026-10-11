@@ -1,0 +1,41 @@
+(* a regular expression compiled to rules at compile time: one relation
+   per subexpression; `m I J` holds when the text from I to J matches *)
+%use "std/reflect".
+
+re : Type.
+chr : string -> re.
+seq, alt : re -> re -> re.
+star : re -> re.
+
+text : (at : int) -> (c : string) -> rel.
+
+(* `m.l`, a relation derived from `m`, with the columns of `m` *)
+part : sym -> string -> item.
+part M L = irelation (derive M L) [colof M izero, colof M (isuc izero)].
+
+regex : sym -> re -> module.
+one : sym -> re -> (sym -> module) -> module.
+two : sym -> re -> re -> (sym -> sym -> module) -> module.
+regex M (chr C) = '( $M I (I + 1) :- text I $C. ).
+regex M (seq A B) = two M A B ([l] [r] '( $M I K :- $l I J, $r J K. )).
+regex M (alt A B) = two M A B ([l] [r] '(
+  $M I J :- $l I J.
+  $M I J :- $r I J. )).
+regex M (star A) = one M A ([s] '(
+  $M I I :- text I _.
+  $M I K :- $s I J, $M J K. )).
+one M A F = part M "s" :: append (F s) (regex s A)
+  where s = derive M "s".
+two M A B F = part M "l" :: part M "r" ::
+  append (F l r) (append (regex l A) (regex r B))
+  where l = derive M "l".
+        r = derive M "r".
+
+(* (ab|b)*c *)
+pattern : re =
+  seq (star (alt (seq (chr "a") (chr "b")) (chr "b"))) (chr "c").
+m : (from : int) -> (to : int) -> rel.
+%regex m pattern.
+
+text 0 "a". text 1 "b". text 2 "b". text 3 "c". text 4 "a". text 5 "c".
+?- m I J.

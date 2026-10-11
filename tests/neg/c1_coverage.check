@@ -2,7 +2,7 @@ error[E0911]: the clauses of `guard` do not cover all cases
  --> tests/neg/c1_coverage.hgn:5:1
   |
 5 | guard : rule -> list rule. (*~ E0911 *)
-  | ^^^^^ missing: `guard (horn nil _)`
+  | ^^^^^ missing: `guard (horn nil _)` and 3 more
   |
   = note: meta functions are total: every argument must match a clause
   = help: add a clause `guard (horn nil _) = ….`

@@ -221,6 +221,14 @@ and it is preserved by strengthening, so the verdict is the full closure's (the 
 generated programs). The idempotent test itself would be unsound with subsumption: the weaker graph that
 replaces a bad idempotent one need not be idempotent. `tests/run/t_termination_large_closure.hgn` has a
 full closure of 10 085 graphs (formerly rejected) and an antichain of 3.
+Without its reset rule (a fuzzer mutant, #150; also #67) the antichain is the whole closure: 10 082
+permutations of the seven carried arguments, pairwise incomparable, ~20 s. So the check first runs the
+closure of the arguments that can carry a descent (`SizeChangeProjection`: those on a cycle through a
+strict arc, in its direction, of the graph of all arcs) and accepts if that passes; otherwise the closure
+of all arguments decides and reports, unchanged. The first alternative of the criterion is the same on
+the projected graphs; the second (every argument on an `=` cycle) is used there only when the left-out
+arguments are permuted one to one by `=` arcs at every step and joined to no kept argument, since they
+then lie on `=` cycles in every graph. The two mutants decide with at most 8 graphs.
 
 *Soundness.* Let C be the component, evaluated after the components it depends on, which are finite by
 induction over the evaluation order (Definition 8.7; their check is this argument or the finiteness of
@@ -503,7 +511,7 @@ dropped and elaboration continues with the next one.
   variables. A declaration with clauses declares a function; clauses are elaborated after all
   declarations, so functions may be (mutually) recursive and may use every declaration of the module.
   Patterns are uppercase variables (bound once), `_`, constructors applied to their explicit arguments,
-  and natural-number literals of a nat-like type. Implicit arguments are not written in patterns; the
+  natural-number literals and successor patterns `P + k` of a nat-like type (#127). Implicit arguments are not written in patterns; the
   names of the function's implicit binders (`A`, `N` in `head : vec A (suc N) -> A`) are in scope in the
   right-hand side unless a pattern variable shadows them. The arguments up to the last explicit pattern
   are matched; the right-hand side is checked against the rest of the type.
@@ -1958,6 +1966,45 @@ for clauses of a body's object constant or definition. Goldens: `run/mc_member_f
 `run/lib/numbers.hgn` for `%export` of a module field), `neg/mc_member_totality`,
 `neg/mc_body_unsupported`, `neg/mc_member_clauses`, `neg/mc_where_coverage`.
 
+## Formula functions in module bodies (#100, batch 2)
+
+Design: `docs/design/module-clauses.md`, section 7, batch 2. A declaration `f : τ̄ -> prop.` of a module
+body without a definition (and without clauses `f p̄ = e.`, which make it a member function) and the
+rules `f t̄ :- ψ.` of the same body define a formula function of the body. It is lifted as batch 1's
+member functions are (`MemberFunctions.functionMember`): a hidden global named after the member's path,
+over the same context, but a postulate until its rules define it; the member is the global applied to
+the context. The rules are elaborated after the member clause groups, each function a block of its own
+(`FormulaFunctions.elabMemberFormula`), in the context of all members; the definition is the
+disjunction closed over that context (`Lifting.closeTerm`: λ for bound variables, a let for each
+definition the formula uses, as `Lifting.letBound` does for leaves). Choices the design left open:
+
+- *Withheld until all are elaborated.* The definitions go into `DependencyOrder.withheld` until the rules
+  of every formula function of the body are elaborated, then the cycles are checked. As in a cycle of a
+  file's items, no formula function of the body unfolds in another's rules, and a cycle is reported
+  before anything unfolds it (installed eagerly, a self-referencing function made the object typing of
+  a later group's clause recurse forever).
+- *Cycles.* E0105 per cycle, at the first name of a clause that expands to the function again: a member
+  is followed through the definitions of the body it needs (`closeTerm` of the member's variable), so
+  `viaDef X :- d X.` with `d = [X] viaDef X` points at `d`. The functions of a cycle are false, and their
+  uses in the body's object items are left out silently (`ElabState.leftOutMembers`, by name and level,
+  restored after the body; the names are bound, so `erroneous` would not reach them).
+- *Paths in diagnostics.* E0105, W0005 and E0207 name the function by its path (`m.loop`), as batch 1's
+  coverage and termination messages do.
+- *Which declarations.* As at the top level, every such declaration is a formula function, also without
+  rules (W0005, always false); before, one without rules was E0907 ("meta declarations without a
+  definition or clauses"). Declarations with parameters or a refinement keep their E0907.
+- *Through module values.* The cycle check (`FormulaFunctions.refersTo`) now looks into module values:
+  a `Tm.Module` keeps its members out of `Tm.children`, so a cycle between a file's formula function and
+  a body's member through a path (`f X :- m.g X.` with `g X :- f X.` in `m`) was not reported and staging
+  overflowed the stack; this was already so for a body's definitions (`g : node -> prop = [X] f X.`).
+  It follows the definitions of all members of a module the formula function mentions, not only of the
+  member selected: coarse, but a module that a formula function uses and that uses it back is in its
+  cycle of items anyway. E0105 is reported at the path (`neg/mc_formula_members`).
+
+Diagnostics: no new codes; E0907 lost the subject "formula functions defined by rules in module
+bodies". Goldens: `run/mc_formula_members`, `neg/mc_formula_members`; `neg/mc_body_unsupported` no
+longer rejects its formula function.
+
 ## Standard library: lists and directives (#61, batch B4)
 
 Design: `docs/design/stdlib.md`, 5.3 and 5.6; its section 9 lists the deviations ("Deviations in B4").
@@ -2218,3 +2265,13 @@ Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thre
 child JVM run with `-Xint` (the largest frames); the 100 000-element list of #88 now goes through the
 machine (the argument chain is deeper than 96). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
 the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).
+
+*Operands (#160).* After #160's reference samples (`fib (N + 2) = fib N + fib (N + 1)`) the corpus test
+overflowed on JDK 17: a recursive call that is an operand of arithmetic (or sits in object code, a
+quote, a record, …) was evaluated by a step of `evalNode`, whose `eval` of the operand entered a new
+machine, so every level nested `evalNode` and `Machine.run`. The machine now has frames for every
+compound term (`KArith`, `KArithWith`, `KMap` for one subterm, `KList` for object code, records and
+module environments, `KOrigin` for a trace frame), in `evalNode`'s order of evaluation; only leaves, and
+object code and quotes while an observer records staging, stay `evalNode` steps. The native depth counts
+every compound term, not only applications. `LongListsSuite` evaluates `steps (N + 1) = steps N + 1`
+5 000 levels deep on a 1 MiB thread (computed numbers: a large literal is a deep term, walked elsewhere).

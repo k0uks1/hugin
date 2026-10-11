@@ -1,0 +1,12 @@
+(* #67: `--print-after elaborate` prints the clauses as written, not the leaves of the case tree *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+n2 : nat -> nat -> nat.
+n2 zero zero = zero.
+n2 _ _ = suc zero.
+r : fin zero -> nat.
+r ().

@@ -15,7 +15,7 @@ termination: {len[string]}: terminates, measure inferred
   inferred measure: `%terminates l len[string].`
   measure of `len[string]`: argument 1 `l` (structural)
   guarded induction (B): each recursive call is smaller than the head; the head's measure lies in a finite set
-  rule at <stdlib>/std/list.hgn:83:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
+  rule at <stdlib>/std/list.hgn:81:1: call `len[string] L N`: `L` is a proper subterm of `cons[string] X L`; anchored: `cons[string] X L` is bound by relations outside the component
 ?- fib 10 F.
 F = 55.
 ?- words L, len L N.
