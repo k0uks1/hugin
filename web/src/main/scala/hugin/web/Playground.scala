@@ -1,7 +1,7 @@
 package hugin.web
 
 import hugin.compiler.Compiler
-import hugin.ide.{Annotations, Highlighting}
+import hugin.ide.{Annotations, Completion, Highlighting}
 import hugin.platform.Platform
 import hugin.query.*
 import hugin.runtime.Evaluation
@@ -49,6 +49,35 @@ object Playground:
           db.set(SourceText, request.file, source)
           val key = CompileKey(request.file, request.settings)
           Json.obj("version" -> Json.num(Version), "tokens" -> tokens(request, db(Compile, key).index), "info" -> info(request, key)).render
+        }
+
+  /** The completions at an offset of the program (UTF-16 code units), from `hugin.ide.Completion`:
+   *  `{ "version": 1, "from": n, "items": [{ "label", "kind", "detail", "fits" }, …], "ranked": bool }`.
+   *  The items replace the text from `from` to the offset; `kind` is `hugin.ide.CandidateKind`'s name
+   *  with a lowercase initial (`relation`, `metaDefinition`, …); if `ranked`, the type expected there is
+   *  known and `fits` marks the candidates whose result type fits it. */
+  def complete(source: String, offset: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val cs = Completion.at(CompileKey(request.file, request.settings), offset.max(0).min(source.length))
+          val items = cs.items.map { c =>
+            Json.obj(
+              "label" -> Json.str(c.label),
+              "kind" -> Json.str(c.kind.toString.head.toLower.toString + c.kind.toString.tail),
+              "detail" -> Json.str(c.detail),
+              "fits" -> Json.Bool(c.fits)
+            )
+          }
+          Json.obj(
+            "version" -> Json.num(Version),
+            "from" -> Json.num(cs.from.toLong),
+            "items" -> Json.Arr(items),
+            "ranked" -> Json.Bool(cs.ranked)
+          ).render
         }
 
   /** The annotation table of the program, as [[Session.info]] encodes it. */

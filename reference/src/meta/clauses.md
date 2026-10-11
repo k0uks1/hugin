@@ -149,7 +149,8 @@ still apply, and while the first of them has a constructor, literal or quoted pa
 that is not yet known, the tree *splits* on that argument. The argument split is the leftmost such
 position of the first clause that may still apply: the first argument with one, and within an argument,
 the outermost position first, then its constructor arguments from left to right (an absurd pattern `()`
-comes after the clause's other patterns). A split has a branch per
+comes after the clause's other patterns); a position whose split is undecided is passed over for the
+clause's next one ([Undecided splits](coverage.md#undecided-splits)). A split has a branch per
 constructor that can occur ([Index unification](coverage.md#index-unification)), in which the clauses
 with another constructor there no longer apply. When the first clause that may still apply has no such
 pattern left, its right-hand side gives the value. On arguments that are all known (closed constructor
@@ -206,11 +207,11 @@ The following program defines addition by clauses with a variable pattern for th
 
 ```hugin,run
 plus : nat -> nat -> nat.
-plus zero N = N.
-plus (suc M) N = suc (plus M N).
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
 toInt : nat -> int.
-toInt zero = 0.
-toInt (suc N) = toInt N + 1.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
 total : int -> rel.
 total (toInt (plus 2 3)).
 ```

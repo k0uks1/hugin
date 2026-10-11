@@ -68,3 +68,11 @@ pre.text { margin: 0; font-size: 0.82rem; line-height: 1.55; white-space: pre-wr
 .keys { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.8rem; }
 .keys kbd { font: 0.75rem var(--mono); padding: 0 0.3em; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface); }
 @media (prefers-reduced-motion: reduce) { .cm-tooltip { transition: none; animation: none; } }
+/* completion (complete.js): CodeMirror's list in the site's colours */
+#editor .cm-tooltip.cm-tooltip-autocomplete { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); }
+#editor .cm-tooltip.cm-tooltip-autocomplete > ul { font: 0.8rem/1.5 var(--mono); max-width: min(32rem, calc(100vw - 2rem)); max-height: 14rem; }
+#editor .cm-tooltip.cm-tooltip-autocomplete > ul > li { padding: 0.15rem 0.6rem 0.15rem 0.3rem; }
+#editor .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--accent-soft); color: var(--fg); }
+.cm-completionDetail { margin-left: 0.8em; color: var(--muted); font-style: normal; }
+.cm-completionMatchedText { text-decoration: none; font-weight: 600; color: var(--accent); }
+@media (pointer: coarse) { #editor .cm-tooltip.cm-tooltip-autocomplete > ul > li { padding-top: 0.95rem; padding-bottom: 0.95rem; } #editor .cm-tooltip.cm-tooltip-autocomplete > ul { max-height: 16rem; } }
