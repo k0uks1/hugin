@@ -30,7 +30,7 @@ constructor term `red` in the head of `paint` is ground. The term `label Y` in t
 takes its argument from the relation `item`, which is outside the component.
 
 ```hugin,run
-color : type. red : color. green : color.
+color : type. red, green : color.
 tag : type. label : int -> tag.
 item : int -> rel. item 1. item 2.
 paint : int -> color -> rel.
