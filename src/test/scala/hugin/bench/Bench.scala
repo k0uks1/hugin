@@ -65,8 +65,14 @@ object Bench:
     val ms = measurements.filter((n, _) => only.isEmpty || only.exists(n.contains))
     val cpuTimes = collection.mutable.Map[String, Vector[Long]]().withDefaultValue(Vector())
     val allocs = collection.mutable.Map[String, Vector[Long]]().withDefaultValue(Vector())
+    // the case-tree runs and native operations of one run: deterministic, unlike the times
+    val steps = collection.mutable.Map[String, (Long, Long)]()
     for r <- 0 until rounds do
       for (name, f) <- if r % 2 == 0 then ms else ms.reverse do
+        if !steps.contains(name) then
+          val (c0, n0) = (hugin.core.Matching.clauseSteps, hugin.core.Matching.nativeSteps)
+          f()
+          steps(name) = (hugin.core.Matching.clauseSteps - c0, hugin.core.Matching.nativeSteps - n0)
         for _ <- 0 until warmup do f()
         for _ <- 0 until runs do
           val c0 = mx.getCurrentThreadCpuTime
@@ -79,7 +85,7 @@ object Bench:
     for (name, _) <- ms do
       val ts = cpuTimes(name)
       println(
-        f"$name%-50s cpu median ${median(ts) / 1e6}%9.2f ms  min ${ts.min / 1e6}%9.2f ms  alloc median ${median(allocs(name)) / 1e6}%9.2f MB  (n=${ts.length})"
+        f"$name%-50s cpu median ${median(ts) / 1e6}%9.2f ms  min ${ts.min / 1e6}%9.2f ms  alloc median ${median(allocs(name)) / 1e6}%9.2f MB  steps ${steps(name)._1}%d + native ${steps(name)._2}%d  (n=${ts.length})"
       )
 
   /** The time of one call of `f`, in nanoseconds. */
@@ -140,7 +146,11 @@ object BenchSet:
     golden("c1_roundtrip"),
     golden("c2_module_wide"),
     BenchProgram("run meta_scaled", "bench/meta/meta_scaled.hgn"),
-    BenchProgram("run nat_literals", "bench/meta/nat_literals.hgn")
+    BenchProgram("run nat_literals", "bench/meta/nat_literals.hgn"),
+    BenchProgram("run nat_numerals", "bench/meta/nat_numerals.hgn"),
+    BenchProgram("run nat_patterns", "bench/meta/nat_patterns.hgn"),
+    BenchProgram("run nat_arith", "bench/meta/nat_arith.hgn"),
+    BenchProgram("run nat_large", "bench/meta/nat_large.hgn")
   )
 
   val datalog: List[BenchProgram] = List(

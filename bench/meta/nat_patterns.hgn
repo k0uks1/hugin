@@ -1,0 +1,13 @@
+(* bench: literal and successor patterns (issue #131): a literal of 200 and an offset of 150, sizes that
+   the unary splits before #131 finish. *)
+f : nat -> int.
+f 200 = 1.
+f _ = 0.
+g : nat -> int.
+g 0 = 0.
+g (N + 150) = 2.
+g 100 = 1.
+g _ = 3.
+out : int -> int -> int -> int -> rel.
+out (f 200) (f 199) (g 151) (g 100).
+%output out.

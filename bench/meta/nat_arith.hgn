@@ -1,0 +1,15 @@
+(* bench: arithmetic on numerals (issue #131): `std/nat`'s `plus` (native after #131) and a program's own
+   multiplication and comparison on top of it, sizes that the clauses before #131 finish. *)
+%use "std/nat".
+mul : nat -> nat -> nat.
+mul M 0 = 0.
+mul M (N + 1) = plus (mul M N) M.
+lt : nat -> nat -> int.
+lt _ 0 = 0.
+lt 0 (N + 1) = 1.
+lt (M + 1) (N + 1) = lt M N.
+out : int -> rel.
+out (toInt (plus 25000 25000)).
+out (toInt (mul 200 250)).
+out (lt 4999 5000).
+%output out.
