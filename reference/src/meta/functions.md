@@ -66,10 +66,10 @@ pick X Y E = X.
 same : nat -> nat.
 same Y = pick _ Y refl.
 size : nat -> int.
-size zero = 0.
-size (suc N) = size N + 1.
+size 0 = 0.
+size (N + 1) = size N + 1.
 answer : int -> rel.
-answer (size (same (suc (suc zero)))).
+answer (size (same 2)).
 ```
 
 ```output
