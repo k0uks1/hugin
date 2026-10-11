@@ -65,7 +65,7 @@ class ElabErrorsSuite extends munit.FunSuite:
   }
 
   test("E0909 staging failure") {
-    assertError("E0909", "f : int -> int.\nq : int -> rel.\nq (f 1).\n", "cannot compute a primitive value at compile time")
+    assertError("E0909", "f : int -> int = %postulate.\nq : int -> rel.\nq (f 1).\n", "cannot compute a primitive value at compile time")
   }
 
   test("E0910 invalid rule head") {

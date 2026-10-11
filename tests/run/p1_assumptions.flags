@@ -1,0 +1,1 @@
+-A unused_definitions --print-assumptions lemma --print-assumptions both --print-assumptions needs --print-assumptions proved --print-assumptions plusZero --print-assumptions missing

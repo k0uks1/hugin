@@ -1,0 +1,7 @@
+error[E0101]: unresolved name `nowhere`
+ --> tests/neg/p1_assumptions_unknown.hgn:2:14
+  |
+2 | %assumptions nowhere. (*~ E0101 *)
+  |              ^^^^^^^ not found in this scope
+
+1 error found

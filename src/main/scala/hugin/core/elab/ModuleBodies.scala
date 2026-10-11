@@ -261,6 +261,7 @@ trait ModuleBodies:
         (cx, m, None)
 
   private def memberOf(c: Cxt, item: Item): (Cxt, Member) = item match
+    case Decl(_, _, _, _, Some(p: Postulate)) => unsupportedAt(p.span, "postulates (`%postulate`) in module bodies")
     case d: Decl if d.defn.isDefined && !isStructDecl(d) =>
       val (ty, tm) = inMember(d.name.name)(declDefinition(c, d, d.defn.get))
       defined(c, d.name, ty, tm, d.span)

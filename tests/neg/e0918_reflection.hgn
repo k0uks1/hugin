@@ -2,7 +2,7 @@
    variable without a name, a rule without heads. *) %use "std/reflect".
 p : int -> rel.
 
-opaque : formula.
+opaque : formula = %postulate.
 $'( p 1 :- $opaque. ). (*~ E0918 *)
 
 unnamed : rule = horn [fatom '( p ) [tvar ""]] [].

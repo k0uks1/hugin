@@ -56,6 +56,12 @@ trait Items:
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
+    state.clauseless = prog.collect {
+      case d: Decl
+          if d.defn.isEmpty && d.sup.isEmpty && !isDataDecl(d) && !isStructDecl(d) && !state.functionNames(d.name.name) &&
+            !formulaFunctions(d.name.name) =>
+        d.name.name
+    }.toSet
     val (formulaClauses, meta0) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
     // `%use` first (the names it opens are retried for), `%export` after all declarations ([[Uses]])
     // `%opaque x.` (reference: meta/index): the definitions and functions it names are opaque
@@ -79,6 +85,7 @@ trait Items:
     def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
     val rules = meta.collect { case d: Decl if formulaFunctions(d.name.name) => (d.name.name, clausesOf(d.name.name), d.span.start) }
     elabByComponents(meta, groups.toList, rules.distinctBy(_._1))
+    checkClauseless()
     // the operations of `std/nat` compute on numbers once its clauses are checked against them
     bindNativeOperations()
     dropPending()
@@ -272,7 +279,24 @@ trait Items:
     case d: Def if declared(d.name.name) => Some(d.name.name)
     case _ => None
 
-  /** Elaborates the clauses of the function `n` (a block). */
+  /** Whether the global `id` is a meta function declared without clauses ([[ElabState.clauseless]]) whose
+   *  coverage is not checked yet. */
+  private[elab] def clauselessFunction(id: Int): Boolean =
+    val g = globals(id)
+    state.clauseless(g.name) && g.kind == GlobalKind.Function(-1, None) && scope.get(g.name).contains(id)
+
+  /** The meta functions declared without clauses: no clauses must cover their arguments, as for any
+   *  function (E0911), so a declaration is not silently an axiom (`boom : (A : Type) -> A.`); a function
+   *  whose argument is of an empty type is fine. Checked after the file's other declarations, when the
+   *  constructors of every family are known (a function without clauses mentions none). Not for the
+   *  signatures of a file whose bodies are not elaborated. */
+  private def checkClauseless(): Unit =
+    if !file.signaturesOnly then
+      val ids = state.clauseless.toList.flatMap(scope.get).filter(clauselessFunction).sorted
+      for id <- ids do elabClauseGroup(globals(id).name, Nil)
+
+  /** Elaborates the clauses of the function `n` (a block); `group` is empty for a function declared
+   *  without clauses ([[checkClauseless]]). */
   private[elab] def elabClauseGroup(n: Name, group: List[Item]): Unit =
     if !state.unelaborated(n) then
       inBlock {
@@ -282,7 +306,7 @@ trait Items:
           undoOnFailure {
             // the records of a failed group are shown before its metas are undone
             try
-              val id = declaredFunction(n, group.head)
+              val id = declaredFunction(n, group.headOption)
               fn = id
               elabFunction(id, group.flatMap(surfaceClause))
               checkSolved(start)
@@ -309,14 +333,15 @@ trait Items:
             if fn >= 0 then leaveOutUsesOf(Set(fn))
       }
 
-  private def declaredFunction(n: Name, first: Item): Int =
+  private def declaredFunction(n: Name, first: Option[Item]): Int =
+    def at = first.fold(hugin.util.Span.NoSpan)(_.span)
     scope.get(n) match
       case Some(id) if globals(id).kind.isInstanceOf[GlobalKind.Function] => id
       case Some(id) =>
-        fail(ClauseProblem.NotDefinableByClauses(n, first.span, globals(id).span, describeKind(id)))
-      case None if state.erroneous(n) => syntaxError(first.span) // its declaration had a syntax error
+        fail(ClauseProblem.NotDefinableByClauses(n, at, globals(id).span, describeKind(id)))
+      case None if state.erroneous(n) => syntaxError(at) // its declaration had a syntax error
       case None =>
-        fail(ClauseProblem.ClausesWithoutDeclaration(n, first.span))
+        fail(ClauseProblem.ClausesWithoutDeclaration(n, at))
 
   private def describeKind(id: Int): String = kindOf(id) match
     case _ if globals(id).stage == Stage.S0 => "an object constant"

@@ -1,0 +1,18 @@
+warning[W0003]: unused definition `deep`
+ --> tests/neg/p1_large_index.hgn:6:1
+  |
+6 | deep : rep (rep int) = wrap (wrap 1). (*~ W0003 *)
+  | ^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0914]: the argument `A` of `wrap` is too large for `rep`
+ --> tests/neg/p1_large_index.hgn:7:8
+  |
+7 | unit : rep int. (*~ E0914 *)
+  |        ^^^^^^^ argument in a larger universe
+  |
+  = note: `rep` lives in `Type`; its constructors may only take arguments of types in that universe (predicativity)
+  = note: `A` is at an index of `rep`, not a parameter: only the leading arguments that every constructor returns as the same variable are parameters, exempt from this rule; this constructor does not keep it fixed
+
+1 error, 1 warning found

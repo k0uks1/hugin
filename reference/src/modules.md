@@ -73,7 +73,7 @@ itself ([E0105](errors/E0105.md)) if any member of `mk`'s body uses `h`, althoug
 same program is accepted ([Formula functions](meta/staging.md#formula-functions)).
 
 It is an error ([E0907](errors/E0907.md)) to use in a module body: refinements, families of object
-constants, meta inductive families, meta declarations without a definition or clauses (postulates),
+constants, meta inductive families, meta declarations without a definition or clauses, postulates,
 reflected items `$e.`, `%use`, and additive or module-wide directives. A member that is rejected is left out, and its uses in the body are not reported again. It is
 an error ([E0915](errors/E0915.md)) to write clauses in a body for a function that the body does not
 declare, and ([E0105](errors/E0105.md)) if a definition of a body refers to itself. It is an error

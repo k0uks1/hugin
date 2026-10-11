@@ -39,6 +39,8 @@ CI builds the `.vsix` on every push: download the artifact `hugin-vscode` of a w
 - `hugin.inlayHints.staging`, `hugin.inlayHints.implicits` (both on by default) and
   `hugin.inlayHints.levels` (off): which inlay hints are shown (the quotes `⟨ ⟩`, splices `$` and lifts
   `⇑` stage inference inserted; inferred implicit arguments; universe levels).
+- `hugin.safe` (off): compile as `hugin check --safe`, reporting every postulate `x : A = %postulate.`
+  as an error (E0925).
 
 ## Commands
 

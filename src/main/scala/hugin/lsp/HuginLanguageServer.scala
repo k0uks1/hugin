@@ -67,6 +67,7 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
     caps.setCodeLensProvider(CodeLensOptions(false))
     caps.setExecuteCommandProvider(ExecuteCommandOptions(List(MetaFeatures.ExpansionCommand).asJava))
     features.meta.hintSettings = HintSettings.from(params.getInitializationOptions, features.meta.hintSettings)
+    features.meta.compileSettings = CompileSettings.from(params.getInitializationOptions, features.meta.compileSettings)
     refreshHints = scala.util.Try(params.getCapabilities.getWorkspace.getInlayHint.getRefreshSupport.booleanValue).getOrElse(false)
     completedFuture(InitializeResult(caps, ServerInfo("hugin")))
 
@@ -162,12 +163,14 @@ final class HuginLanguageServer extends LanguageServer with LanguageClientAware:
       )
 
   private final class Workspace extends WorkspaceService:
-    /** The settings under `hugin` (`inlayHints`); hints are asked for again by the client. */
+    /** The settings under `hugin` (`inlayHints`, `safe`); hints are asked for again by the client, and the
+     *  diagnostics are published again (where `safe` changed them). */
     override def didChangeConfiguration(params: DidChangeConfigurationParams): Unit =
       worker.run {
         features.meta.hintSettings = HintSettings.from(params.getSettings, features.meta.hintSettings)
         if refreshHints then client.foreach(c => scala.util.Try(c.refreshInlayHints()))
       }
+      worker.edit(features.meta.compileSettings = CompileSettings.from(params.getSettings, features.meta.compileSettings))(publish)
 
     /** `hugin.expansion` ([[MetaFeatures.ExpansionCommand]]): the expansion at a position, or null. */
     override def executeCommand(params: ExecuteCommandParams): CompletableFuture[Object] =

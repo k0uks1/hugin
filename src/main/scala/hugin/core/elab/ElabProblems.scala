@@ -67,6 +67,12 @@ enum ElabProblem extends Problem:
   case UnknownBaseType(name: String, at: Span)
   case MisplacedBuiltin(name: String, at: Span)
 
+  /** `%postulate` other than as the definition `x : A = %postulate.` of a top-level declaration. */
+  case MisplacedPostulate(at: Span)
+
+  /** `x : A = %postulate.` compiled with `--safe` (reference: meta/functions, "Postulates"). */
+  case PostulateInSafeMode(name: String, at: Span)
+
   /** `x : A = %builtin p.` for a primitive operation `p` whose type is not `A`. */
   case PrimitiveType(name: String, expected: String, at: Span)
 
@@ -120,7 +126,9 @@ enum ElabProblem extends Problem:
     case _: AmbiguousName => Code.E0109
     case _: MisplacedExport => Code.E0110
     case _: UnusedDefinition => Code.W0003
-    case _: Unclassifiable | _: TypeFunction | _: UnknownBaseType | _: MisplacedBuiltin | _: PrimitiveType => Code.E0103
+    case _: Unclassifiable | _: TypeFunction | _: UnknownBaseType | _: MisplacedBuiltin | _: MisplacedPostulate | _: PrimitiveType =>
+      Code.E0103
+    case _: PostulateInSafeMode => Code.E0925
     case _: NotAModule => Code.E0107
     case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
@@ -164,6 +172,8 @@ enum ElabProblem extends Problem:
     case TypeFunction(_, s) => s
     case UnknownBaseType(_, s) => s
     case MisplacedBuiltin(_, s) => s
+    case MisplacedPostulate(s) => s
+    case PostulateInSafeMode(_, s) => s
     case PrimitiveType(_, _, s) => s
     case NotAModule(_, _, s) => s
     case UndeterminedTypeArgument(_, s) => s
@@ -211,6 +221,8 @@ enum ElabProblem extends Problem:
     case TypeFunction(n, _) => msg"cannot classify the declaration of ${Src(n)}"
     case UnknownBaseType(n, _) => msg"unknown base type ${Src(n)}"
     case MisplacedBuiltin(n, _) => msg"${Src(s"%builtin $n")} is only allowed as the definition of a base type"
+    case _: MisplacedPostulate => msg"${Src("%postulate")} is only allowed as the definition of a top-level declaration"
+    case PostulateInSafeMode(n, _) => msg"postulate ${Src(n)} is not allowed with --safe"
     case PrimitiveType(n, e, _) => msg"the primitive ${Src(s"%builtin $n")} has type ${Src(e)}"
     case NotAModule(n, _, _) => msg"${Src(n)} is not a module"
     case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
@@ -249,6 +261,8 @@ enum ElabProblem extends Problem:
     case _: RecursiveFormulaFunction => msg"expands to a use of it again"
     case _: MalformedClause => msg"expected a name applied to parameters before `=`"
     case _: MisplacedBuiltin => msg"not a type declaration"
+    case _: MisplacedPostulate => msg"not the definition of a declaration"
+    case _: PostulateInSafeMode => msg"an axiom: a constant without a value"
     case _: PrimitiveType => msg"declared with another type"
     case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
     case _: UndeterminedTypeArgument => msg"type not determined"
@@ -289,6 +303,7 @@ enum ElabProblem extends Problem:
       List(if ls.isEmpty then msg"the columns of ${Src(r)} are not labelled" else msg"labels of ${Src(r)}: ${Lit(ls.mkString(", "))}")
     case _: StuckObjectType => List(msg"the meta code that computes this type is stuck, so no object type results")
     case _: UnknownBaseType => List(msg"the builtin base types are float, int, string")
+    case _: PostulateInSafeMode => List(msg"a postulate can assume anything, also a false statement; --safe accepts only proved ones")
     case _: SelfReference => List(msg"only a function declared with its type and defined by clauses may be recursive")
     case _: RecursiveFormulaFunction =>
       List(msg"a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation")
@@ -316,6 +331,7 @@ enum ElabProblem extends Problem:
     case SingletonVariable(n, _) => List(msg"use `_` or ${Src("_" + n)} if this is intended")
     case Unclassifiable(n, r, _, _) => List(msg"to define a compile-time constant, write ${Src(s"$n : $r = ...")}.")
     case TypeFunction(n, _) => List(msg"declare a family with type parameters instead: ${Src(s"$n A : type.")}")
+    case _: PostulateInSafeMode => List(msg"prove the statement: define the constant by clauses or by a value")
     case _: UndeterminedTypeArgument =>
       List(msg"ascribe a term with its type, e.g. `(nil : list int)`, so that the type argument is determined")
     case UnresolvedName(_, _, Some(s), _) => List(msg"a declaration with a similar name exists: ${Src(s)}")

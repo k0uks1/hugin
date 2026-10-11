@@ -70,6 +70,11 @@
           "type": "boolean",
           "default": false,
           "description": "Show the inferred universe levels of `Type`, as inlay hints."
+        },
+        "hugin.safe": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compile as `hugin check --safe`: report every postulate `x : A = %postulate.` as an error (E0925)."
         }
       }
     },

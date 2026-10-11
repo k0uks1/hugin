@@ -8,12 +8,24 @@ meta definition vcons A N : A -> vec A N -> vec A (suc N)
 hugin> :print elaborate two
 (* ---------------- after elaborate ---------------- *)
 two : nat = 2.
+hugin> (* A meta function without clauses is rejected: a function and its clauses are one input. *)
 hugin> pred : nat -> nat.
-hugin> pred (N + 2) = N.
 error[E0911]: the clauses of `pred` do not cover all cases
  --> <input 5>:1:1
   |
 1 | pred : nat -> nat.
+  | ^^^^ missing: `pred _`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = note: `pred` is declared without clauses: a meta declaration that is not a family or a constructor declares a function
+  = help: add a clause `pred _ = ….`
+  = help: to assume the constant as an axiom, define it as `pred : … = %postulate.`
+
+hugin> pred : nat -> nat. pred (N + 2) = N.
+error[E0911]: the clauses of `pred` do not cover all cases
+ --> <input 6>:1:1
+  |
+1 | pred : nat -> nat. pred (N + 2) = N.
   | ^^^^ missing: `pred 0` and 1 more
   |
   = note: meta functions are total: every argument must match a clause

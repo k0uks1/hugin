@@ -11,6 +11,7 @@ import scala.collection.mutable
  *  by elaboration: the parser knows only the forms with a grammar of their own:
  *
  *  - `%infix assoc p name` (operators are resolved while parsing);
+ *  - `%assumptions name` (a name, resolved by elaboration);
  *  - `%partial` (removed) and `%complete` (only in signatures, [[RecordSyntax]]).
  */
 private[syntax] trait DirectiveSyntax extends ParserBase:
@@ -74,6 +75,15 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
             ErrorTree(Nil)(insertionPoint)
         val ok = endItem(context, List(Expect.period))
         List(directive(DirArgs.Export(if ok then signature else damaged(signature))))
+      case "assumptions" =>
+        // `%assumptions f.`: a name, like `%infix`'s operator, not in column 0
+        val n =
+          if at(Tok.Name) && !atColumn0(position) then Some(advance())
+          else
+            expected(List(Expect.Thing("the name of a constant")), Some(context))
+            None
+        val ok = endItem(context, List(Expect.period))
+        n.filter(_ => ok).map(n => directive(DirArgs.Assumptions(Ident(n.text)(n.span)))).toList
       case "partial" | "complete" =>
         error(if name == "partial" then SyntaxError.RemovedPartial(d.span) else SyntaxError.CompleteOutsideSignature(d.span))
         if !at(Tok.Period) then skipItem() else advance()
