@@ -131,12 +131,14 @@ function application) against `0`, is *postponed* until the other equations make
 in Agda's unifier: a later equation may solve `N`, after which `double N` reduces. Unification is
 *stuck* if a whole round of the postponed equations solves nothing.
 
-Unification evaluates each side of an equation only until its head is known (its weak-head normal form,
-as Agda's unifier and the conversion checks of Lean and Rocq do), and an argument only when it reaches an
-equation between arguments. Once `n := 9223372036854775807` is solved, the index `double n` against `0`
-conflicts after one step of `double`, which gives two successors; the whole value is never computed. The
-outcome is the one of unifying the normal forms. A diagnostic shows an index normalised if that takes
-few evaluation steps, and otherwise as it is: `its index 0 conflicts with double 9223372036854775807`.
+Unification needs each side of an equation only until its head is known (its weak-head normal form,
+as for Agda's unifier and the conversion checks of Lean and Rocq), and an argument only when it reaches
+an equation between arguments. A side that takes many evaluation steps is evaluated one function
+application at a time: once `n := 9223372036854775807` is solved, the index `double n` against `0`
+conflicts after one step of `double`, which gives two successors, and the whole value is never computed.
+The outcome is the one of unifying the normal forms. A diagnostic shows an index normalised if that
+takes few evaluation steps, and otherwise as it is: `its index 0 conflicts with double
+9223372036854775807`.
 
 ## Undecided splits
 

@@ -12,10 +12,12 @@ package hugin.core
  *  Here an application of a function defined by clauses is *delayed*: it stays the neutral
  *  `Rigid(Head.Glob(f), sp)` it is before its arguments are known, a value that [[Evaluation.force]] and
  *  read-back evaluate as usual, so a delayed value means what its strict evaluation means and every other
- *  consumer stays correct. [[whnf]] runs one function at the head at a time, its case tree splitting on
- *  arguments evaluated to weak-head form only ([[Matching.matchWeak]]), and its body evaluated with the
- *  applications in it delayed ([[evalWeak]]). Numerals keep their O(1) views: a successor is a head
- *  ([[Val.NatAdd]], [[Naturals.natView]]), and an operation of `std/nat` on numerals computes natively. */
+ *  consumer stays correct. [[whnf]] evaluates a delayed application at the head strictly if that takes
+ *  few steps (memoised and shared, as evaluation is; call by name alone would evaluate a value used twice
+ *  twice), and otherwise runs it one step: its case tree splits on arguments evaluated to weak-head form
+ *  only ([[Matching.matchWeak]]), and its body is evaluated with the applications in it delayed
+ *  ([[evalWeak]]). Numerals keep their O(1) views: a successor is a head ([[Val.NatAdd]],
+ *  [[Naturals.natView]]), and an operation of `std/nat` on numerals computes natively. */
 trait WeakHead:
   self: Core =>
   import Val.*
@@ -39,9 +41,14 @@ trait WeakHead:
             val (later, first) = sp.splitAt(sp.length - arity)
             if !first.forall(_.isInstanceOf[Elim.EApp]) then v
             else
-              matchWeak(tree, first.reverse.collect { case Elim.EApp(a, _) => a }, later) match
-                case r: Reduct => whnf(appSpWeak(if r.hit != null then r.hit.nn else evalWeak(r.env, r.body), r.later))
-                case Matching.Stuck => v
+              // evaluated as evaluation does if that is cheap (memoised, and shared: a value used twice is
+              // evaluated once); otherwise one step, the applications of the body delayed
+              withinPolls(StrictPolls)(force(v)) match
+                case Some(w) => w
+                case None =>
+                  matchWeak(tree, first.reverse.collect { case Elim.EApp(a, _) => a }, later) match
+                    case r: Reduct => whnf(appSpWeak(if r.hit != null then r.hit.nn else evalWeak(r.env, r.body), r.later))
+                    case Matching.Stuck => v
         case _: GlobalKind.Function | _: GlobalKind.Opaque | GlobalKind.Postulate => v
         // constructors (numerals), primitives and families reduce as evaluation reduces them
         case _ => force(v)
@@ -49,6 +56,10 @@ trait WeakHead:
     case NatAdd(_, _, _) => numeral(v)
     case _: Rigid | _: Obj | _: Arith | _: Negate | _: Persist => force(v)
     case other => other
+
+  /** Steps of evaluation (in polls of [[Machine.cancellation]]) that [[whnf]] spends on evaluating a
+   *  delayed application strictly before it evaluates it one step at a time. */
+  private inline val StrictPolls = 32
 
   /** [[whnf]] without the positions around the value ([[Matching.forceData]]). */
   final def whnfData(v: Val): Val =
@@ -119,7 +130,7 @@ trait WeakHead:
   final def substitute(values: Vector[Val], v: Val): Val =
     val n = values.length
     def go(v: Val): Val = v match
-      case Rigid(Head.Local(x), sp) => appSpWeak(if x < n then values(x) else v, goSp(sp))
+      case Rigid(Head.Local(x), sp) => appSpWeak(if x < n then values(x) else Rigid(Head.Local(x), Nil), goSp(sp))
       case Rigid(Head.Glob(id), sp) => if sp.isEmpty then v else Rigid(Head.Glob(id), goSp(sp))
       case Rigid(Head.Module(b, env), sp) => Rigid(Head.Module(b, env.map(go)), goSp(sp))
       case Flex(m, sp) =>

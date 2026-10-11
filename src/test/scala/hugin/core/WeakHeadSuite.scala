@@ -77,21 +77,27 @@ class WeakHeadSuite extends munit.FunSuite:
     assert(shown.contains("its index `0` conflicts with `10`"), shown)
   }
 
-  test("weak-head forms: one step of a function, arguments delayed; the normal form is unchanged") {
+  test("weak-head forms: a cheap application evaluated, an expensive one one step; normal forms unchanged") {
     val e = elaborate(huge.replace("9223372036854775807", "5"))
     val core = e.core
     val double = e.elab.scope("double")
     val fam = e.elab.scope("nat")
-    val delayed = core.appWeak(Val.Rigid(Head.Glob(double), Nil), Val.Nat(fam, 5), Icit.Expl)
-    assertEquals(delayed, Val.Rigid(Head.Glob(double), List(Elim.EApp(Val.Nat(fam, 5), Icit.Expl))))
-    core.whnf(delayed) match
-      case Val.NatAdd(`fam`, Val.Rigid(Head.Glob(`double`), List(Elim.EApp(Val.Nat(_, n), _))), k) =>
-        assertEquals((n, k), (BigInt(4), BigInt(2)))
+    def delayed(n: BigInt) = core.appWeak(Val.Rigid(Head.Glob(double), Nil), Val.Nat(fam, n), Icit.Expl)
+    assertEquals(delayed(5), Val.Rigid(Head.Glob(double), List(Elim.EApp(Val.Nat(fam, 5), Icit.Expl))))
+    // cheap: evaluated as evaluation does
+    assertEquals(core.whnf(delayed(5)), Val.Nat(fam, 10))
+    assertEquals(core.quote(0, delayed(5)), Tm.Nat(fam, 10))
+    assert(core.sameWeak(0, delayed(5), Val.Nat(fam, 10)))
+    assert(!core.sameWeak(0, delayed(5), Val.Nat(fam, 9)))
+    // expensive: one step of `double`, which gives two successors over the next application, delayed
+    val k = BigInt(2).pow(62)
+    core.whnf(delayed(k)) match
+      case Val.NatAdd(`fam`, Val.Rigid(Head.Glob(`double`), List(Elim.EApp(Val.Nat(_, n), _))), j) =>
+        assertEquals((n, j), (k - 1, BigInt(2)))
       case other => fail(s"not one step of double: $other")
-    assertEquals(core.quote(0, delayed), Tm.Nat(fam, 10))
-    assert(core.sameWeak(0, delayed, Val.Nat(fam, 10)))
-    assert(!core.sameWeak(0, delayed, Val.Nat(fam, 9)))
-    assert(!core.sameWeak(0, delayed, Val.Nat(fam, 0)))
+    assert(!core.sameWeak(0, delayed(k), Val.Nat(fam, 0)))
+    assert(!core.sameWeak(0, delayed(k), Val.Nat(fam, 1)))
+    assert(core.sameWeak(0, delayed(k), delayed(k)))
   }
 
   test("meta evaluation stops at the poll where the cancellation answers yes") {

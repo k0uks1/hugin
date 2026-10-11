@@ -23,7 +23,8 @@ trait SourceFiles:
   def resolveSibling(from: String, path: String): String
 
 /** A check, made at points where stopping is safe, whether the work in progress is no longer wanted: an
- *  evaluation's fixpoint loop asks it once per round and ends with an `InterruptedException` if so. */
+ *  evaluation's fixpoint loop asks it once per round, and meta evaluation every so many steps
+ *  (`hugin.core.Machine.cancellation`), and each ends with an `InterruptedException` if so. */
 trait Cancellation:
   /** Whether the work has been cancelled. A cancellation is reported once: asking again after it was
    *  reported may answer `false`. */

@@ -34,8 +34,10 @@ trait Machine:
   private var depth = 0
 
   /** Whether the work in progress is no longer wanted (issue #195): asked every [[Machine.PollEvery]] steps
-   *  of evaluation (the applications of the machine and of the native evaluator, and the functions defined
-   *  by clauses run, also weak-head ones), so that a meta computation that takes too long stops with the
+   *  of evaluation, a step being a function defined by clauses run by its case tree (by the machine, by the
+   *  native evaluator, or weak-head, [[Matching.matchFunction]], [[Matching.matchWeak]]): every unbounded
+   *  computation, in the machine's loop or in native recursion, runs functions by clauses, since nothing
+   *  else recurses. So a meta computation that takes too long stops with the
    *  `InterruptedException("evaluation cancelled")` of the fixpoint engine ([[hugin.runtime.Engine.run]])
    *  instead of running on in an abandoned thread. By default the platform's: on the JVM an interrupt of
    *  the evaluating thread (a test's or the fuzzer's time limit), in the browser the playground's deadline. */
@@ -60,18 +62,23 @@ trait Machine:
       if pollBudget == 0 then throw OutOfPolls
       pollBudget -= 1
 
-  /** `f` if it evaluates within `polls` polls of [[cancellation]] (`polls` × [[Machine.PollEvery]] steps),
-   *  else `None` (a diagnostic that shows the normal form of a value only if it is cheap to compute). A
-   *  cancellation is not caught. Nested budgets are not added up: the inner one applies while it runs. */
+  /** `f` if it evaluates within `polls` polls of [[cancellation]] (about `polls` × [[Machine.PollEvery]]
+   *  steps), else `None`: what is worth computing only if it is cheap (a normal form a diagnostic shows, a
+   *  strict evaluation before a weak-head one). A cancellation is not caught. Inside another budget, the
+   *  polls are spent from both, and the outer one ends the inner one if it runs out first. */
   def withinPolls[A](polls: Long)(f: => A): Option[A] =
-    val (savedBudget, savedUntil) = (pollBudget, untilPoll)
-    pollBudget = polls
-    untilPoll = PollEvery
+    val outer = pollBudget
+    val limit = if outer >= 0 then polls.min(outer) else polls
+    pollBudget = limit
     try Some(f)
-    catch case OutOfPolls => None
-    finally
-      pollBudget = savedBudget
-      untilPoll = savedUntil
+    catch
+      case OutOfPolls =>
+        // the outer budget is spent as well: it ends there
+        if outer >= 0 && limit == outer then
+          pollBudget = 0
+          throw OutOfPolls
+        None
+    finally pollBudget = if outer >= 0 then outer - (limit - pollBudget) else -1
 
   /** The value of `t` in `env`. */
   def eval(env: List[Val], t: Tm): Val = t match
@@ -109,21 +116,19 @@ trait Machine:
         case _ => evalNode(env, t)
     finally depth -= 1
 
-  private def appNative(f: Val, a: Val, i: Icit): Val =
-    step()
-    f match
-      case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
-      case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
-      case Rigid(h @ Head.Glob(id), sp) =>
-        val sp1 = Elim.EApp(a, i) :: sp
-        matchFunction(id, sp1) match
-          case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
-          case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
-          case Matching.Stuck => Rigid(h, sp1)
-      case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
-      case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
-      case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
-      case other => throw Impossible(s"application of a non-function value $other")
+  private def appNative(f: Val, a: Val, i: Icit): Val = f match
+    case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
+    case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
+    case Rigid(h @ Head.Glob(id), sp) =>
+      val sp1 = Elim.EApp(a, i) :: sp
+      matchFunction(id, sp1) match
+        case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
+        case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
+        case Matching.Stuck => Rigid(h, sp1)
+    case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
+    case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
+    case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
+    case other => throw Impossible(s"application of a non-function value $other")
 
   /** A term that evaluates without effects and without evaluating a subterm. */
   private def atomic(t: Tm): Boolean = t match
@@ -216,7 +221,6 @@ trait Machine:
                 v = evalNode(env, t)
                 mode = Return
           case Apply =>
-            step()
             f match
               case Lam(_, _, cl) =>
                 env = a :: cl.env
@@ -315,8 +319,9 @@ object Machine:
    *  (an interpreted JVM, ~2.6 KiB per level of a meta function's recursion) 96 levels take ~250 KiB. */
   inline val NativeDepth = 96
 
-  /** Steps of evaluation between two polls of [[Machine.cancellation]]: a poll is a call (on the JVM,
-   *  `Thread.interrupted`, an intrinsic), at most a few hundred nanoseconds apart. */
+  /** Steps of evaluation (case-tree runs of functions defined by clauses) between two polls of
+   *  [[Machine.cancellation]]: a poll is a call (on the JVM, `Thread.interrupted`, an intrinsic), about a
+   *  millisecond of evaluation apart. */
   inline val PollEvery = 1024
 
   /** Thrown when the budget of polls of [[Machine.withinPolls]] is spent. */
