@@ -13,21 +13,24 @@ types (D4); `match` and `rewrite` move to right-hand sides (P3); and a compariso
 rewrite was added (4.2). The second review also asked whether a more principled design than a
 per-relation `%semantics` directive exists. Chapter 8 surveys the alternatives. It recommends one
 semantic judgment, `derives`, as an ordinary library family, with rule-name patterns as the only sugar.
-Chapter 1, the plan and the decisions now follow that recommendation.
+Chapter 1, the plan and the decisions now follow that recommendation. The third review accepted it,
+added the code bridge between `⇑A` and the reflective syntax (7.7, P7a), and asked whether a layered
+modal foundation would fit better (chapter 9: not now, with the conditions under which it would).
 
 Contents: 1 the end state (a tour and two complete proofs), 2 recommendations, 3 Hugin today, 4 gap
-analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs,
-8 alternatives to `%semantics`, 9 worked examples against hand-written families, 10 batches,
-11 decisions for the designer, 12 sources.
+analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs
+(with the code bridge, 7.7), 8 alternatives to `%semantics`, 9 is a (layered) modal foundation worth
+it?, 10 worked examples against hand-written families, 11 batches, 12 decisions for the designer,
+13 sources.
 
 ## 1. The end state: proving with Hugin
 
-This chapter shows the language once batches P1–P8 (chapter 10) are in, and proves two properties end
+This chapter shows the language once batches P1–P8 (chapter 11) are in, and proves two properties end
 to end, as a user would write them. Everything here is hypothetical syntax built on today's syntax from
 `reference/src`: clauses, implicit binders `{x : A}`, records, `where` blocks, directives `%name …` and
 reflection quotes `'( … )`. Places marked **(proposal)** are syntax the designer has not yet decided
 (D11). Nothing in this chapter has been compiled; the programs were checked by hand against the rules
-of chapters 3–8 and of the reference.
+of chapters 3–9 and of the reference.
 
 ### 1.1 A tour of the additions
 
@@ -233,7 +236,7 @@ an instantiation vector of the rule's variables, the premises in body order and 
 (7.3). Branches whose head cannot unify with the goal atom are impossible: in `firstHop`, an `edge`
 rule could not occur. `@input I` matches an input fact; it exists only for relations without rules in
 the program (here `edge`), so `firstHop` needs no `@input` clause for `path`. The editor prints
-`derives linP d (atom '(path) [x, z])` as `linP ⊢ path x z` **(proposal)**. → **P7**.
+`derives linP d (atom '(path) [x, z])` as `linP ⊢ path x z` **(proposal)**. → **P7b**.
 
 **Programs of functors.** `body f` is the reified body of a functor, whose parameter relations are
 input relations of the program.
@@ -244,12 +247,12 @@ tcP : program = compile (body tc).        (* (proposal) primitive; `g.edge` is a
 ```
 
 So a theorem about `tcP` holds for every graph a program passes to `tc`: the graph's edges are part of
-the input database. → **P7**.
+the input database. → **P7a** (the code bridge, 7.7).
 
 **One adequacy statement.** The link between the judgment and what a run prints is a single statement
 about the compiler and the engine, the same for every program: for a program whose rules are the module
 `m`, a run on the input facts `d` prints the fact `a` exactly when `derives (compile m) d a` holds. It
-is trusted, written in the reference, and checked per run by `--certify`. → **P7** (statement),
+is trusted, written in the reference, and checked per run by `--certify`. → **P7b** (statement),
 **P8b** (check).
 
 **Derivations and certified runs.** `%derivations` exists today. P8 adds negative premises, an export
@@ -412,8 +415,8 @@ linear specification derives.
 | the run prints exactly what `derives dblP d` derives (one adequacy statement for all programs) | trusted, or checked for each run by `--certify` (P8b) |
 
 **Bridges.** `iff`, `%opaque` and `--print-assumptions` → P1, P2. `derives`, `compile` → P5. Rule
-patterns and `linP ⊢ …` display → P7. `--certify` → P8b. The same proof against hand-written families
-needs only today's language (chapter 9). Chapter 8 compares this formulation with `%semantics` and the
+patterns and `linP ⊢ …` display → P7b. `--certify` → P8b. The same proof against hand-written families
+needs only today's language (chapter 10). Chapter 8 compares this formulation with `%semantics` and the
 other alternatives.
 
 ### 1.3 Proof B: a program analysis over-approximates
@@ -513,7 +516,7 @@ by `areached`, and a country that is not printed contains no reached city.
 | `$coarse.` stages the rules of `coarse` | trusted (compiler) |
 | the run prints exactly what `derives cP d` derives | trusted, or checked by `--certify` |
 
-**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. `derives` → P5. Rule patterns → P7. `--certify`
+**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. `derives` → P5. Rule patterns → P7b. `--certify`
 and checked queries → P8b.
 
 ### 1.4 Where each piece comes from
@@ -526,7 +529,8 @@ and checked queries → P8b.
 | inductive meta `int` with native arithmetic and comparisons; `std/decide` | P4 | yes |
 | `std/semantics` (positive): `value`, `program`, `compile`, `derives`, `monotone` | P5 | partly |
 | negation and aggregates in `derives` | P6 | no |
-| rule patterns `@r`, `@input`, `p ⊢ a` display, `body f`, the adequacy statement in the reference | P7 | no |
+| `quote`/`unquote`, `quoteF`/`unquoteF`, `symOf`, `body f`, the missing syntax forms | P7a | yes |
+| rule patterns `@r`, `@input`, `p ⊢ a` display, the adequacy statement in the reference | P7b | no |
 | `--export-proofs` | P8a | yes |
 | `--certify` | P8b | no |
 
@@ -556,11 +560,13 @@ and checked queries → P8b.
    aggregates (P6) work stratum by stratum, as in Benzaken, Contejean and Dumbrava (ITP 2017). This is
    the specification, and generic theorems (monotonicity, correctness of module-wide directives) are
    stated over it.
-5. **Rule patterns instead of `%semantics` (P7).** For a closed program, a derivation is matched and
+5. **Rule patterns instead of `%semantics` (P7b), over a code bridge (P7a).** For a closed program, a derivation is matched and
    built by the program's rule names (`@step E P`), elaborated to the general constructor. This is
    Abella's `case` on a specification judgment (chapter 8), obtained with ordinary dependent matching.
    No per-relation families are generated, so there are no per-relation adequacy lemmas: one adequacy
-   statement covers every program. `body f` reifies a functor body. Example 1.2 proves an optimising
+   statement covers every program. P7a first makes `⇑A` and the reflective syntax interconvert
+   (`quote`, `unquote`, with `unquote (quote c) ≡ c`; 7.7), and `body f` reifies a functor body. Chapter
+   9 explains why this suffices, so that no modal foundation is needed. Example 1.2 proves an optimising
    rewrite correct, and 1.3 an analysis sound, in this style.
 6. **The engine stays trusted, with a certificate mode (P8).** Verifying the Scala engine is out of
    reach. Hugin already emits derivation facts (`%derivations`). P8a exports them as Datalog proof
@@ -568,7 +574,7 @@ and checked queries → P8b.
    verified. P8b adds `--certify`, which runs a meta-level checker, proven sound against `derives`, on
    the reified output: proof trees give soundness, and a one-round model check gives completeness.
 7. **Not now:** a `Prop` universe or definitional proof irrelevance, tactics or meta-level elaborator
-   reflection, a separate kernel, univalence, intensional analysis of `⇑A` (chapter 8), and a core
+   reflection, a separate kernel, univalence, a layered modal foundation (chapter 9), and a core
    judgment former. Erasure comes for free: meta code never reaches the object program.
 
 ## 3. Hugin today
@@ -641,7 +647,7 @@ Sources: Agda a3f41e8 (manual `doc/user-manual/language/*.lagda.rst`, `src/full/
 | Prop universe | `--prop` (`prop.lagda.rst`), matching only by `()` into `Set` | impredicative `Prop`; large elimination only for subsingletons (`src/kernel/inductive.cpp`, `elim_only_at_universe_zero`, :510) | `Prop`, `SProp` (`language/core/sorts.rst`; empty/singleton elimination, `language/core/inductive.rst`:1306) | none | no (D6) |
 | proof irrelevance, erasure | `irrelevance.lagda.rst`; `@0` (`runtime-irrelevance.lagda.rst`) | `Prop` erased by the compiler; `lcProof` (`Prelude.lean`:242) | extraction erases `Prop` (`addendum/extraction.rst`) | the whole meta level is erased by staging | free; opaque theorems for compile time (P2) |
 | induction principles | by matching; `TermCheck.hs` (`src/full/Agda/Termination/`) | generated recursors; structural or well-founded (`src/Lean/Elab/PreDefinition/{Structural,WF}`) | `Fixpoint`, generated `_rect`/`_ind` | by matching, size-change | enough; no infinitary (applied-subterm) recursion |
-| inductive families as evidence | yes | yes | yes | yes (examples 1.2, 9.1) | already there |
+| inductive families as evidence | yes | yes | yes | yes (examples 1.2, 10.1) | already there |
 | params vs indices | declared parameters; `--large-indices` off by default since 2.6.4 | declared, plus `inductive.autoPromoteIndices` (`src/Lean/Elab/MutualInductive.lean`:52, `fixedIndicesToParams`) | declared parameters | no parameters; forced implicit binders exempt from predicativity | P1 (D2) |
 | `with` / `match` / rewrite | `with-abstraction.lagda.rst` (with, `with … in eq`, rewrite) | `match h : e with`, `rw`, `▸` | `destruct e eqn:H`, `rewrite` | `where`-local functions only; `subst` after P2 | P3 (4.2) |
 | explicit implicits, implicit patterns | `{x = e}`, `{n}` | `(x := e)`, `@f` | `(x:=e)`, `@f` | no | P2 |
@@ -811,7 +817,7 @@ third parties. A core re-checker is the long-term answer (D7).
 - Bégay, Crégut and Monin, *Developing and Certifying Datalog Optimizations in Coq/MathComp*, CPP 2021.
   A static analysis and two program transformations are certified on top of the Coq/MathComp
   formalisation, with a new trace semantics. Their transformations are what Hugin's module-wide
-  directives are; a "rewrite preserves the facts" theorem (1.2, 9.3) is the same kind of result.
+  directives are; a "rewrite preserves the facts" theorem (1.2, 10.3) is the same kind of result.
 - Schlichtkrull, Hansen and Nielson, AFP entry *Stratified Datalog* (2025; SAC 2024 paper
   *Isabelle-verified correctness of Datalog programs for program analysis*). It proves that every
   stratified program has a least solution, and proves five bit-vector analyses correct. These are
@@ -956,10 +962,10 @@ rules", follows as a theorem, as in their `modelAndProofTreeSemanticsEquivalent`
 
 Theorems this enables: monotonicity of negation-free programs in the input; correctness of
 module-wide directives (`(m : module) -> iff (derives (compile m) d a) (derives (compile (dir m)) d a)`,
-chapter 9.3); and "at most N facts" for programs with finite carriers, which needs a finite enumeration
+chapter 10.3); and "at most N facts" for programs with finite carriers, which needs a finite enumeration
 of the model and is the most expensive.
 
-### 7.3 Rule patterns (P7)
+### 7.3 Rule patterns (P7b)
 
 For a closed program, the rule pattern `@r p₁ … pₖ` against `derives p d a` stands for
 
@@ -1004,7 +1010,7 @@ The chain from a theorem to the facts that a run prints has three links.
 3. **Staged program → output.** This is the engine: semi-naive evaluation in
    `runtime/{Engine,Evaluation}.scala`. The adequacy statement says that a run of the module `m` on the
    input facts `d` prints `a` iff `derives (compile m) d a`. It is one statement for all programs,
-   written in the reference (P7) and checked per run by `--certify` (P8b).
+   written in the reference (P7b) and checked per run by `--certify` (P8b).
 
 ### 7.5 Trusted, verified or certified engine
 
@@ -1028,6 +1034,85 @@ evaluator runs `check : program -> facts -> derivs -> bool`, proven in Hugin aga
 naive round) adds completeness, and negation then rests on checked lower strata. The meta evaluator is
 slow on large outputs, so this is a CI and audit mode, not the default. Rule patterns change nothing
 here: the certificate is about `derives`, the one judgment.
+
+### 7.7 The code bridge: `quote` and `unquote` (P7a)
+
+Hugin has two notions of object code: `⇑A`, staged and opaque (reference `meta/staging.md`), and the
+reflective syntax (`term`, `quoted A`, `formula`, `module`), which programs can take apart (reference
+`reflection.md`). The bridge makes the compiler guarantee that the two interconvert faithfully, so that
+code written as ordinary object code can be the object of proof. For Hugin's first-order object
+language this is Kovács's "analysable deep embedding" escape (ICFP 2022, §6); chapter 9 explains why
+it is sound here.
+
+**What exists today.**
+
+| direction | today | reference |
+|---|---|---|
+| source syntax → data | `'( … )` quotes, typed where written; quoted patterns; `qvar` | `reflection.md`, "Quotes", "Quoted patterns", "Typed variables" |
+| data → object code | at object positions, a `term`, `formula` or `quoted A` "stands for the term it describes", re-typed, closed data only (E0918); `$e.` reflects items | `reflection.md`, "Typed terms", "Reflecting data into the program" |
+| shared data → both | `T.lift` (to `⇑`) and `T.reify` (to `term`) | `meta/families.md`, "Shared data" |
+| `⇑A` → data | **missing**: "a quoted term is not object code `⇑A`", and a hole whose value is `⇑A` is E0901 | `reflection.md`, "Quotes" |
+| data → `⇑A` as a meta value | **missing**: the conversion exists only at object positions, not as a meta function | same |
+| `as`, ascription, projection, update | **missing** from the syntax: quoting them is E0917 | `reflection.md`, "Quotes" |
+| a functor body as data | **missing** | — |
+
+**Types.**
+
+```hugin
+quote    : {A : ⇑type} -> ⇑A -> quoted A.          (* terms *)
+unquote  : {A : ⇑type} -> quoted A -> ⇑A.
+quoteF   : ⇑prop -> formula.                       (* formulas, e.g. a formula function's result *)
+unquoteF : formula -> ⇑prop.
+symOf    : {R : Type} -> ⇑R -> sym.                (* relation code; R a relation type (proposal) *)
+body f   : module                                  (* special form: f names a functor with a body *)
+```
+
+All of them are primitives in P7a. `body f` is a special form, not a function, since a functor is a meta
+function and cannot be inspected. It reifies the body's rules, with the parameter relations as fresh
+input symbols (one per parameter field), and is what `compile (body tc)` in chapter 1 uses.
+
+**Equations.**
+
+1. `quote` *computes* on canonical code, structurally: constants to symbols, literals to `tint`/`tstr`,
+   applications to `tapp`, object arithmetic to `tarith`, aggregates to `fagg` with their bound variable
+   as a `tbound` index, and so on through every `ObjForm` (`core/ObjForm.scala`). Positions (`Loc`) are
+   dropped, as unification already looks through them. Rule-local variables named by hygiene
+   (`Tm.Fresh`, `X#k`) are renamed canonically by first occurrence, so that `quote` does not depend on
+   the hygiene counter. A persisted meta value quotes to its literal (`quote ⟨$k⟩ = qterm (tint k)`),
+   and a lifted shared value to its reification (`quote (T.lift ℓ v) = T.reify … v`). These are
+   definitional: they are how `quote` evaluates.
+2. `quote` is *stuck* on neutral code: a variable of type `⇑A`, or a splice of a stuck meta application.
+   It never decides anything about code it cannot see, which is what makes it stable under the
+   substitutions Hugin performs (chapter 9).
+3. `unquote (quote c) ≡ c` is **definitional**, for every `c`. For canonical `c` it follows by
+   computation (up to positions and canonical names, which conversion ignores). For neutral `c` it is
+   a conversion rule, like today's `$⟨t⟩ = t`.
+4. `quote (unquote q) = q` holds only for well-typed data in canonical form, because `unquote` must
+   type the data (as reflection does today: E0402, E0918), and `qterm` makes data without a check. It
+   is **propositional**: a trusted lemma for data made by quotes (which are typed where written), listed
+   by `--print-assumptions`, or D12's alternative, `unquote` taking typing evidence.
+
+**Interaction with stage inference.** `quote` is never inserted implicitly: it is an intensional
+operation, and a program should say where it inspects code. `unquote` generalises what object
+positions already do with data, and is inserted where a `quoted A` is used as `⇑A`, which today is
+E0901. A hole `$c` with `c : ⇑A` inside a reflection quote stops being E0901 and means `$(quote c)`.
+
+**Interaction with monomorphisation and generativity.** Families are memoised meta functions from
+object types to constants (reference `meta/staging.md`, "Instances"). `quote` of code that uses
+`len` at `list int` yields the symbol of the instance `len[int]`, created on demand as staging would
+create it. Code inside a functor body sees its parameter relations as neutral, so `quote` is stuck on
+them, except under `body f`, which binds them to input symbols. Instances of generative modules quote to
+their own symbols: two items that apply the same functor quote to two programs, as they stage to two.
+
+**What proofs gain.** Programs no longer have to be written as quotes to be proved about. A functor
+written as ordinary rules is `compile (body tc)`. A formula function's result is
+`quoteF (cheap X)`, which a theorem can analyse, for example "reads only input relations". A meta
+function that generates code (`gen : nat -> ⇑prop`) can be verified through `quoteF (gen n)`. And the
+untyped `qterm` escape matters less, since typed code converts to typed data.
+
+**Cost.** 900–1400 lines: `quote` over every object form, the missing syntax constructors (`as`,
+ascription, projection, update), `body`, the cancellation rule, the canonical naming and tests. It fits
+before rule patterns: P7a, then P7b.
 
 ## 8. Alternatives to `%semantics`
 
@@ -1059,7 +1144,7 @@ turn Horn clauses into an inductive predicate: one constructor per clause. That 
 (Harper, Honsell and Plotkin, JACM 1993; Pfenning and Schürmann, *System description: Twelf*, CADE
 1999). Twelf checks meta-theorems as total relations; see the `%total` declarations in
 `examples/tapl-ch13/theorems.elf` (twelf/twelf 4224d07). Shahin's Lean embedding of Datalog (2026) is
-exactly this, and so are the hand-written families of chapter 9:
+exactly this, and so are the hand-written families of chapter 10:
 
 ```hugin
 lin : (m : graph.model) -> m.node -> m.node -> Type.
@@ -1117,12 +1202,12 @@ linTrans (@step E P) Q = @step E (linTrans P Q).
 
 - **Core change, as a primitive:** a judgment former, its intro and elim rules, case trees over computed
   clause instances, coverage and termination for them, and a consistency argument for the extension.
-  **As a library family:** none; P5 representation plus P7 sugar.
+  **As a library family:** none; P5 representation plus P7b sugar.
 - **Soundness:** as a primitive, it must be argued, for example by a model in which `derives` is the
   inductive family. As a library, it is inherited.
 - **Adequacy:** one statement for every program, in both cases.
 - **Cost:** a primitive, 2000–3000 lines of core and a new proof obligation. A library, P5 (1500–2200,
-  mostly Hugin) plus P7 (800–1200).
+  mostly Hugin) plus P7b (800–1200).
 
 ### 8.4 Beluga, contextual modal type theory and Mœbius
 
@@ -1209,7 +1294,7 @@ system supplies a semantics modality for Horn clauses.
 |---|---|---|---|---|---|
 | `%semantics` (8.2, automated) | generated families | none | one lemma per relation | `lin1`/`lin2` | 1200–1800 |
 | Abella-style primitive (8.3) | none | judgment former and elimination | one statement | `@base`/`@step` | 2000–3000 and a consistency argument |
-| **library `derives` + rule patterns** (8.3, 7.2–7.3) | none | none (sugar only) | one statement | `@base`/`@step` | P5 + P7, about 2300–3400 |
+| **library `derives` + rule patterns** (8.3, 7.2–7.3) | none | none (sugar only) | one statement | `@base`/`@step` | P5 + P7b, about 2300–3400 |
 | Beluga / CMTT (8.4) | LF families | contextual types | per family | as 8.2 | 5000+ |
 | layered modal (8.5) | none | layers, staging redesign | narrows link 2 | needs `derives` anyway | redesign |
 | 2LTT / MTT (8.6) | — | none / redesign | — | — | — |
@@ -1223,24 +1308,150 @@ Replace `%semantics` with a primitive judgment that the language does not need t
    index unification make it definable, so it needs no core former, and its consistency is that of
    families.
 2. **Abella's `case` as rule patterns.** For a closed program, `@r p̄` matches and builds derivations by
-   rule name (P7). This is sugar, elaborated to `fire`, and needs no generated declarations.
+   rule name (P7b). This is sugar, elaborated to `fire`, and needs no generated declarations.
 3. **One adequacy statement** for every program (7.4), checked per run by `--certify`.
 4. **Optional naming** comes from the rule names `@r` that Hugin already has, not from a directive.
 
 Two things are lost, and the note accepts both. First, typed abstract carriers: a functor's
 `g.node` disappears, since nodes are `value`s and "for every graph" becomes "for every input database".
 Second, matching on derivations of an abstract program (generic theorems use `fire` and `input` directly,
-as in 9.3). The plan changes accordingly: P7 becomes rule patterns, `body f`, the `⊢` display and the
-adequacy statement, instead of derived families and per-relation lemmas (chapter 10).
+as in 10.3). The plan changes accordingly: P7 becomes the code bridge (P7a, 7.7) and rule patterns with
+the `⊢` display and the adequacy statement (P7b), instead of derived families and per-relation lemmas
+(chapter 11).
 
-## 9. Worked examples against hand-written families
+## 9. Is a (layered) modal foundation worth it?
 
-This chapter is the baseline of 8.2: proofs over families written by hand, in today's syntax. 9.1 and
-9.2 use only features that exist today. They show that inductive families as evidence already work;
-chapter 1 states the same theorems over `derives`, which ties them to the program. 9.3 is a generic
+The designer's question: Hugin has two notions of object code, `⇑A` (staged, opaque) and reflection (a
+deep embedding that can be matched on). Layered modal type theory would unify them; is a modal
+foundation therefore more fitting? This chapter answers it against the code bridge of 7.7.
+
+### 9.1 What would be unified
+
+| today | layered / contextual modal (one code type `□A`) |
+|---|---|
+| `⇑A`, written with inferred quotes `⟨t⟩` and splices `$e` (reference `meta/staging.md`) | `□A` with `box` and `letbox`/unbox, or a Fitch-style lock |
+| `quoted A`, `term`, `formula`, `rule`, `item`, `module`, made by `'( … )` | `□A` again: a quote is a box |
+| quoted patterns and holes `$X`, `$..Xs`, `$F[V]` | pattern matching on `□` code at a higher layer, with pattern variables for subterms |
+| `$e.` (reflecting items), data at object positions | splicing code of item type |
+| `T.lift` / `T.reify` for shared data | a lift into `□`, with matching replacing `reify` |
+| `qterm` (unchecked), E0918 (data not closed) | gone: code is typed by construction, and open code carries its context |
+
+The candidates:
+
+- **Layered modal type theory** (Hu and Pientka, ESOP 2024): layer 0 is a core calculus, and layer 1
+  adds contextual `□` types whose values can be pattern-matched while normalisation is preserved. The
+  dependent version, DeLaM (POPL 2025), has three layers: static syntax, MLTT with computation, and
+  meta-programming.
+- **Contextual modal type theory** (Nanevski, Pfenning and Pientka 2008) and Beluga give `[Ψ ⊢ A]` with
+  first-class contexts.
+- **Mœbius** (POPL 2022) adds polymorphism over code with type refinement during matching.
+- **Fitch-style and multimodal type theory** (Gratzer, Kavvos, Nuyts and Birkedal, LICS 2020) would make
+  `⇑` one modality among several. Kovács notes that 2LTT is the degenerate case, with `⇑` as its only
+  modality and no restriction on contexts (ICFP 2022, §8).
+
+### 9.2 The core question: does first-order Datalog make the two coincide?
+
+LMTT needs layers because matching on code conflicts with equality of code up to computation. If code
+is identified up to β and η, a match can distinguish β-equal terms and break conversion. Layering
+keeps the matched code at a layer where it is static syntax (Hu and Pientka 2024). Kovács (2022,
+§6) states the same obstruction semantically. In the standard presheaf model, code is stable under
+*substitution*, and even decidable equality of object terms is not, since unequal variables can be
+mapped to equal terms. He also states the escape: if the object theory needs only *weakenings*, "a wide
+range of intensional analysis features" are stable, at the price that the object theory then cannot
+have dependent or polymorphic types.
+
+Hugin's object level fits that escape. Where does its equality of code go beyond syntax?
+
+| source | equality of object code | verdict |
+|---|---|---|
+| β, η | none: the object level has no lambdas or object functions (E0908); records and facts are data, and projections and updates are evaluated by the engine, not by conversion (`core/ObjForm.scala`: object code is "inert data for evaluation, unification and read-back") | no conflict |
+| object-variable substitution | never at compile time: rule variables are instantiated only by the engine, at run time. Formula-function inlining is a *meta* β-step whose arguments are object terms | weakening only, Kovács's escape |
+| meta computation inside splices | `⟨… $e …⟩` is equal up to conversion of `e`; `$⟨t⟩ = t`, `⟨$e⟩ = e` | `quote` acts on normal forms and is stuck on neutral `e` (7.7, equations 1–3) |
+| persisted values | object arithmetic on two meta operands is computed at compile time; `T.lift` builds object terms from meta data | equations `quote ⟨$k⟩ = tint k`, `quote ∘ T.lift = T.reify` |
+| positions | `Loc` is transparent to unification | `quote` drops positions |
+| α | rule variables, hygiene names `X#k` (`Tm.Fresh`), the variable an aggregate binds | canonical names and `tbound` indices |
+| functor application | generative instances: the same source code gives different constants in different items | an evaluation effect, not an equation; `quote` sees the instance's symbols |
+| typed object code (#56) | `⇑` is covariant, and subtyping inserts nothing; unions and refinements are types, not terms | no term equations |
+| `%open` types | constructors can be added in any file | no equation, but no closed "syntax of `A`" exists: matching on code of an open type needs a default case (as reflection over `sym` has today) |
+| families (monomorphisation) | memoised by normalised type arguments | type arguments are meta; the object theory stays simply typed, as the weakening escape requires |
+| stage polymorphism (`docs/design/stage-polymorphism.md`) | shared data exists at both stages, related by `lift` | structural |
+
+So equality of object code in Hugin is syntactic, modulo α and modulo the meta level's own computation
+inside splices. There is no object β or η, and no object-level substitution in conversion. The conflict
+that LMTT's layers resolve therefore does not arise, and a `quote` that is a homomorphism stuck on
+neutral code is sound in Kovács's weakening-only model. In practice the two approaches coincide:
+matching on layer-0 code at layer 1 *is* `quote` followed by matching on the reflected data.
+
+### 9.3 What a modal foundation would add, and what it would cost
+
+**Gains over the bridge.**
+
+- One code type instead of two, and one set of quote syntax.
+- Typed matching on code with type refinement (Mœbius), instead of matching untyped data with a
+  phantom index (`quoted A`). This removes `qterm`'s unchecked escape and the re-typing at reflection.
+- Open code with explicit contexts (contextual types), instead of E0918's closedness rule and names
+  as variables.
+- `unquote` total by construction, with `quote (unquote q) = q` definitional.
+
+**Costs.** The core, elaboration and inference would all change.
+
+| part | what changes |
+|---|---|
+| core (`core/Syntax.scala`, `Value.scala`, NbE) | `□` types with contexts or layers, box and letbox or locks, pattern matching on code in case trees; `Obj` stops being inert |
+| unification | higher-order pattern unification for contextual objects (Abel and Pientka, TLCA 2011, as Beluga does), pruning across layers |
+| stage inference | Kovács's inference works because `⇑` imposes no context restriction (2022, §8). Boxes restrict contexts, and no published inference exists for layered or contextual boxes. Hugin's promise that "a program does not write these quotes" (reference `meta/index.md`) would be given up or would become research |
+| monomorphisation and families | families as memoised meta functions from object types must be rephrased for layer-0 types; the `⇑type : Type₀` refinement (NOTES "Decisions (B1)") is re-proved |
+| typed object code (#56) | the one checker over `ObjForm` (`core/objtype/*`) must run on contextual code; `⇑` covariance becomes modal subtyping |
+| redesign B1–B3 | the staging handover (`core/handover/*`) reads normalised core terms with inert `Obj` nodes; it would be rebuilt |
+| directives | generic directives over all relations (`%demand`) work on untyped `term`; they would need `Σ A. □A` or keep an untyped layer anyway |
+
+### 9.4 Maturity
+
+- **Beluga** is implemented (OCaml), with contextual types and higher-order pattern unification for them
+  (Abel and Pientka, TLCA 2011).
+- **Mœbius** (POPL 2022) is a calculus with an operational semantics and type preservation; no
+  production implementation was found.
+- **LMTT** (ESOP 2024): its NbE algorithm is mechanised and implemented in Agda.
+- **DeLaM** (POPL 2025) is a theory for type-safe tactics; no production implementation was found.
+- **mitten** (Stassen, Gratzer and Birkedal, TYPES 2022, LIPIcs 2023) is a prototype proof assistant for
+  multimodal type theory, with NbE and bidirectional checking for any decidable preordered mode theory.
+  Agda ships modalities (`doc/user-manual/language/flat.lagda.rst`) but no intensional analysis of code.
+- **Stage inference** exists only for 2LTT's degenerate `⇑` (Kovács 2022), which Hugin implements.
+
+None of these is a dependently typed language with inferred staging and pattern matching on code.
+
+### 9.5 Recommendation
+
+**Do not adopt a modal foundation now. Adopt the code bridge (7.7, P7a).**
+
+For Hugin's object level, `quote`/`unquote` give the unification the designer is after: one direction
+is a structural homomorphism, the round trip `unquote ∘ quote` is definitional, and the converse holds
+for well-typed data. They give it at a fraction of the cost and without giving up stage inference. The
+bridge is also forward-compatible: if a modal core comes later, `quoted A` becomes `□A`, `quote`
+becomes the identity, and proofs over `derives` are unchanged.
+
+The recommendation flips if any of these happens:
+
+1. **The object level gains lambdas, higher-order rules or object functions.** Code equality then
+   includes β/η, and matching needs layers (LMTT's original motivation).
+2. **Conversion starts substituting object variables:** object-level `let`, inlining of rules by
+   conversion, or polymorphic object types instantiated in the object theory. Kovács's weakening-only
+   escape then no longer applies.
+3. **Analysing open code becomes central**, such as meta functions that take rules apart under object
+   binders, where E0918 and names as variables hurt. Contextual types then pay off.
+4. **Hugin wants tactics over its own meta level.** Reflecting meta terms is DeLaM's motivation, and
+   2LTT does not provide it.
+5. **A mature implementation appears** that combines dependent types, inferred staging and modal pattern
+   matching.
+
+## 10. Worked examples against hand-written families
+
+This chapter is the baseline of 8.2: proofs over families written by hand, in today's syntax. 10.1 and
+10.2 use only features that exist today. They show that inductive families as evidence already work;
+chapter 1 states the same theorems over `derives`, which ties them to the program. 10.3 is a generic
 theorem over `derives` and needs P2 and P5.
 
-### 9.1 Reachability is transitive
+### 10.1 Reachability is transitive
 
 The rules of `tc` (`std/graph`: `path X Y :- g.edge X Y.` and `path X Z :- g.edge X Y, path Y Z.`) as a
 family written by hand:
@@ -1266,7 +1477,7 @@ The family is a copy of the rules. Nothing ties it to the relation that `tc g` c
 gap that `derives` (7.2) and rule patterns (7.3) close: in 1.2, `linTrans` is this proof, over the
 program itself.
 
-### 9.2 Two closure programs derive the same facts
+### 10.2 Two closure programs derive the same facts
 
 The left-linear rule `path X Z :- path X Y, g.edge Y Z.` in place of the right-linear one:
 
@@ -1294,7 +1505,7 @@ sameFacts : {m : model} -> {x y : m.node} -> iff (path m x y) (lpath m x y) = { 
 The same proof over `derives`, with `@`-patterns in place of the constructors, states that the two
 programs derive the same facts from every input; 1.2 does this for the doubling rule.
 
-### 9.3 A module-wide rewrite preserves the derived facts (generic)
+### 10.3 A module-wide rewrite preserves the derived facts (generic)
 
 A rewrite that reverses the body of every rule, of the kind a join-order optimiser would apply. On
 compiled programs:
@@ -1336,7 +1547,7 @@ is the same proof plus `reverse (reverse bs) = bs`, a `std/eq` lemma used with `
 `revBodies : module -> module`; it is a statement about `compile`, proved by induction on the module.
 Together, they make `%reorder` a *verified* directive: using it changes no fact.
 
-## 10. Batches
+## 11. Batches
 
 Each batch is one PR. Line counts are rough (Scala plus Hugin library plus reference and tests).
 "Standalone" marks batches that are useful even if the full goal is never reached.
@@ -1347,25 +1558,26 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 | **P2** proof basics | `std/eq` (J, `subst`, `cong`, `sym`, `trans`), `empty`, `unit`, `either`, `dec`, `iff`; explicit implicits `f {n := e}` and implicit patterns; `%opaque` theorems (no unfolding, no eager evaluation, W0003 exempt); `decEq` for atoms and the symbol conflict rule; polymorphic families confirmed | 900–1400 | all of chapter 1's lemmas | the spelling `{n := e}` (`{n = e}` clashes with a record value argument; reference `meta/records.md`, "Syntax") | **yes** |
 | **P3** `match` and `rewrite` | right-hand-side `match e with \| p => e'`, `match H : e with` (abstraction in the goal after normalising with definitions unfolded; desugared to a `where`-local function); `rewrite H in e` via `subst` | 700–1000 | shorter proofs; case expressions in all meta code | which occurrences are abstracted (4.2); error messages for ill-typed abstractions (Agda's experience) | **yes**: Hugin has no case expression today |
 | **P4** numbers and decision | inductive meta `int` (`ofNat`, `negSucc`), unbounded, native arithmetic checked against its clauses (#184's method), comparison functions, literals; the range check at the meta→object crossing (D8a); `std/decide` (`so`, `decider`, `decide`), `nat`/`int` lemmas | 1000–1500 | arithmetic in proofs; `add64` in the semantics; meta comparisons | migration of meta `int` code (overflow becomes a crossing error instead of a stuck value); performance of the native path | **yes** |
-| **P5** `derives`, positive | `std/semantics`: `value`, `gatom`, `program`, `compile`, `derives`/`premises` with `fire`, `input`, `sub`; `add64` and friends; monotonicity; the model-theoretic equivalence | 1500–2200, mostly Hugin | generic theorems (9.3); the target of P7 and P8b | positivity of the mutual families; meta evaluation speed of `compile` | partly: a reference semantics in the language |
+| **P5** `derives`, positive | `std/semantics`: `value`, `gatom`, `program`, `compile`, `derives`/`premises` with `fire`, `input`, `sub`; `add64` and friends; monotonicity; the model-theoretic equivalence | 1500–2200, mostly Hugin | generic theorems (9.3); the target of P7b and P8b | positivity of the mutual families; meta evaluation speed of `compile` | partly: a reference semantics in the language |
 | **P6** negation and aggregates | strata, `cneg`, `count`/`sum`/`min`/`max` with finite witnesses; bound columns maybe later | 1000–1500 | full stratified Datalog∃! | aggregate proofs are heavy | no |
-| **P7** rule patterns | `@r p̄` and `@input` patterns and expressions over closed programs, elaborated to `fire`/`input` (7.3); case splits and `p ⊢ a` display in the editor; `body f` for functor bodies; the adequacy statement in the reference | 800–1200 | chapter 1's proofs tied to the program | evaluation of `compile` during elaboration; name resolution of `@r` by the scrutinee's type | no |
+| **P7a** code bridge | `quote : ⇑A -> quoted A`, `unquote`, `quoteF`/`unquoteF`, `symOf`, `body f`; `unquote (quote c) ≡ c` as a conversion rule; canonical names; the missing syntax forms (`as`, ascription, projection, update); holes of type `⇑A` in quotes (7.7) | 900–1400 | programs written as ordinary object code (functors, formula functions, generators) as objects of proof | the converse round trip (D12); quote of open code under functor parameters | **yes**: typed code analysis for directives |
+| **P7b** rule patterns | `@r p̄` and `@input` patterns and expressions over closed programs, elaborated to `fire`/`input` (7.3); case splits and `p ⊢ a` display in the editor; the adequacy statement in the reference | 800–1200 | chapter 1's proofs tied to the program | evaluation of `compile` during elaboration; name resolution of `@r` by the scrutinee's type | no |
 | **P8a** proof-tree export | negative premises in `%derivations`; Tantow et al. JSON export | 300–500 | external verified checking of runs | format drift | **yes** |
 | **P8b** certified runs | `--certify`: reified output checked by a meta checker proven against `derives` | 800–1200 | per-run guarantees without a verified engine | meta evaluator speed on large outputs | no |
 
-Order: P1 → P2 → (P3, P4) → P5 → P7 → P6 → P8b. P8a can go at any time. Compared with the previous
-version, P7 shrinks: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
-a lemma generator), it adds rule patterns and one adequacy statement (chapter 8).
+Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b. P8a can go at any time. Compared with the previous
+version, P7 changes: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
+a lemma generator), it adds the code bridge (P7a) and rule patterns with one adequacy statement (P7b; chapters 8, 9).
 
-## 11. Decisions for the designer
+## 12. Decisions for the designer
 
-D4, D8 and the `match`/`rewrite` form are accepted. D3 changes with chapter 8. The others are open.
+D3 (as below), D4, D8 and the `match`/`rewrite` form are accepted. The others are open.
 
 | | decision | options | recommendation |
 |---|---|---|---|
 | D1 | postulate syntax and policy | keep silent postulates; marker `= %postulate` with a warning; marker required (error) | marker, a warning for one release, then an error with a quick fix; `--safe` rejects marked ones too |
-| D2 | forced large indices | keep; Agda 2.6.4 (count forced large binders); Lean (promote fixed indices to parameters, exempt only parameters); exclude forced large binders from size-change | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 9.1 small, plus Agda's default for the rest |
-| D3 | form of the semantics | per-relation families (`%semantics`); Abella-style core judgment; library judgment with rule patterns | **library `derives` with rule patterns** (chapter 8): no core former, no per-relation declarations, one adequacy statement |
+| D2 | forced large indices | keep; Agda 2.6.4 (count forced large binders); Lean (promote fixed indices to parameters, exempt only parameters); exclude forced large binders from size-change | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
+| D3 | form of the semantics | per-relation families (`%semantics`); Abella-style core judgment; library judgment with rule patterns | **accepted:** library `derives` with rule patterns (chapter 8): no core former, no per-relation declarations, one adequacy statement |
 | D4 | carrier of values | **accepted:** one universal `value` over the existing base types (`int`, `float`, `string`) and symbols for facts | `vint`, `vfloat`, `vstr`, `vfact`; no copies of base types |
 | D5 | engine | trusted; verified; certificate | trusted by default, certificate mode (P8); no verified engine |
 | D6 | `Prop`, irrelevance | add `Prop`/`SProp`; none | none for now; revisit if quotients or subset types with proof fields are needed |
@@ -1375,8 +1587,10 @@ D4, D8 and the `match`/`rewrite` form are accepted. D3 changes with chapter 8. T
 | D9 | K | keep; `--without-K` | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
 | D10 | generativity | ignore; forbid functor instantiation in opaque theorems; theorems about programs only | theorems about programs (`compile`, `body f`), never about instances; audit whether memoised closed applications can share a module instance across items |
 | D11 | syntax of the proof features | as proposed in chapter 1; alternatives per item | decide per batch: `= %postulate` (as `= %builtin`), `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e` on right-hand sides, `@r p̄` and `@input` (unnamed rules not matchable, or `@2` by position), `p ⊢ r v̄` in display, `body f`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
+| D12 | the converse round trip `quote (unquote q) = q` | trusted lemma for data made by quotes, listed by `--print-assumptions`; `unquote` taking typing evidence; none | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
+| D13 | a layered or contextual modal foundation (chapter 9) | adopt now; the code bridge now and revisit | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
 
-## 12. Sources
+## 13. Sources
 
 - agda/agda a3f41e8: `doc/user-manual/language/{safe-agda,postulates,prop,irrelevance,runtime-irrelevance,with-abstraction,reflection,without-k,two-level,termination-checking,opaque-definitions}.lagda.rst`,
   `doc/user-manual/tools/command-line-options.rst` (`--large-indices`, `--forced-argument-recursion`),
@@ -1435,6 +1649,10 @@ D4, D8 and the `match`/`rewrite` form are accepted. D3 changes with chapter 8. T
 - A. Kovács: Staged compilation with two-level type theory, ICFP 2022 (arXiv 2209.09729), §6
   "Intensional analysis" and §8. D. Gratzer, G. A. Kavvos, A. Nuyts, L. Birkedal: Multimodal dependent
   type theory, LICS 2020.
+- A. Abel, B. Pientka: Higher-order dynamic pattern unification for dependent types and records, TLCA
+  2011. P. Stassen, D. Gratzer, L. Birkedal: mitten: a flexible multimodal proof assistant, TYPES 2022
+  (LIPIcs 269, 2023). Agda `doc/user-manual/language/flat.lagda.rst`. Hugin `core/ObjForm.scala`,
+  `docs/design/stage-polymorphism.md`.
 - R. Harper, F. Honsell, G. Plotkin: A framework for defining logics, JACM 40(1), 1993. F. Pfenning,
   C. Schürmann: System description: Twelf, CADE 1999.
 - R. F. Stärk: The theoretical foundations of LPTP (a logic program theorem prover), JLP 36(3), 1998.
