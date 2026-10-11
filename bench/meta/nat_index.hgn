@@ -1,0 +1,28 @@
+(* bench: indexed families at large indices (issue #131). `fin 20000` against `fin (N + 1)` and
+   `vec int 20000` against `vec A (N + 1)` unify a numeral with a successor, and `eqn 20000 20000`
+   compares two numerals; sizes that the unary representation before #131 finishes. *)
+fin : nat -> Type.
+fz : fin (N + 1).
+fs : fin N -> fin (N + 1).
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+vhead : vec A (N + 1) -> A.
+vhead (vcons X _) = X.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+x1 : fin 20000 = fs (fs (fs fz)).
+x2 : fin 19999 = fs (fs fz).
+x3 : fin 19998 = fs fz.
+h1 : vec int 20000 -> int.
+h1 V = vhead V.
+h2 : vec int 19999 -> int.
+h2 V = vhead V.
+h3 : vec int 19998 -> int.
+h3 V = vhead V.
+e1 : eqn 20000 20000 = refl.
+e2 : eqn 19999 19999 = refl.
+e3 : eqn 19998 19998 = refl.
+ok : int -> rel.
+ok 1.
+%output ok.

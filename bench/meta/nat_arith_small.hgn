@@ -1,0 +1,15 @@
+(* bench: nat_arith scaled down to sizes that the clauses before #131 finish on the JVM's default 1 MiB
+   thread stack: `std/nat`'s `plus` and `toInt`, and a program's own multiplication and comparison. *)
+%use "std/nat".
+mul : nat -> nat -> nat.
+mul M 0 = 0.
+mul M (N + 1) = plus (mul M N) M.
+lt : nat -> nat -> int.
+lt _ 0 = 0.
+lt 0 (N + 1) = 1.
+lt (M + 1) (N + 1) = lt M N.
+out : int -> rel.
+out (toInt (plus 250 250)).
+out (toInt (mul 20 25)).
+out (lt 499 500).
+%output out.
