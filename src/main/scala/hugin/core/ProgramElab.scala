@@ -44,6 +44,8 @@ final class ElaboratedItem(
     val portable: Boolean,
     /** What the item contributes to the module that module-wide directives rewrite. */
     val parts: List[elab.ModulePart] = Nil,
+    /** What it read of the declarations ([[Footprint]]). */
+    val footprint: Footprint | Null = null,
     /** The declarations it was elaborated against (assembly may move it onto later ones, [[Rebase]]). */
     val declarations: ElaboratedDeclarations | Null = null
 )
@@ -130,11 +132,22 @@ object ProgramElab:
     ElaboratedDeclarations(base, e, e.items.toList, reporter.diagnostics, e.index)
 
   /** One object item of a program, elaborated against its declarations in a fork of their core. */
-  def item(decls: ElaboratedDeclarations, item: Item): ElaboratedItem =
+  def item(decls: ElaboratedDeclarations, item: Item): ElaboratedItem = observed(decls, item, None)
+
+  /** [[item]], with the reads of the declarations reported to `reads` instead of recorded in the item's
+   *  footprint (for the test that the footprint covers every read, [[Unrecorded]]). */
+  def observed(decls: ElaboratedDeclarations, item: Item, reads: Option[DeclarationReads]): ElaboratedItem =
     val core = decls.core.fork()
     val reporter = Reporter()
     val e = decls.elaborator.fork(core, reporter, SemanticIndex())
-    e.elabItemReporting(item)
+    val footprint = Footprint(DeclarationRanges.of(decls.base.core, decls.core))
+    val observer = reads.getOrElse(footprint)
+    core.observe(observer)
+    e.state.observe(observer)
+    try e.elabItemReporting(item)
+    finally
+      core.observe(null)
+      e.state.observe(null)
     val items = e.items.toList
     val parts = e.state.parts.toList
     ElaboratedItem(
@@ -146,6 +159,7 @@ object ProgramElab:
       e.state.used.toSet,
       portable(decls.core, core, items, parts),
       parts,
+      footprint,
       decls
     )
 

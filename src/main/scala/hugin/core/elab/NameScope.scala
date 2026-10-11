@@ -16,8 +16,17 @@ import scala.collection.mutable
 final class NameScope private (private var names: VectorMap[Name, Int]) extends mutable.AbstractMap[Name, Int]:
   def this() = this(VectorMap.empty)
 
-  def get(key: Name): Option[Int] = names.get(key)
-  def iterator: Iterator[(Name, Int)] = names.iterator
+  /** The reads of the declarations' names, when an item is elaborated in a copy ([[hugin.core.DeclarationReads]]). */
+  var reads: hugin.core.DeclarationReads | Null = null
+
+  def get(key: Name): Option[Int] =
+    val r = reads
+    if r != null then r.name("scope", key)
+    names.get(key)
+  def iterator: Iterator[(Name, Int)] =
+    val r = reads
+    if r != null then r.all("scope")
+    names.iterator
   override def size: Int = names.size
   override def knownSize: Int = names.size
 

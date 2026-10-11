@@ -82,6 +82,7 @@ trait Evaluation:
 
   /** A fresh object variable named after `x` (`X#k`). */
   def freshObjectVariable(x: Name): Val =
+    readAll("hygiene")
     hygiene += 1
     Obj(ObjForm.Named(s"$x#$hygiene"), Nil)
 

@@ -129,8 +129,20 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
     with Naturals:
   def this() = this(Levels())
 
-  val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty
-  val metas: mutable.ArrayBuffer[MetaEntry] = mutable.ArrayBuffer.empty
+  /** The reads of a program's declarations made in this core (the fork in which one object item is
+   *  elaborated, [[ProgramElab.item]]), if they are observed ([[DeclarationReads]]). */
+  var reads: DeclarationReads | Null = null
+
+  /** Observes the reads of the declarations made in this core (and its universe levels), or stops. */
+  def observe(r: DeclarationReads | Null): Unit =
+    reads = r
+    levels.reads = if r == null then Levels.ignore else r.level
+
+  /** Reports a read of a whole table of the core to the observer, if any. */
+  def readAll(channel: String): Unit = { val r = reads; if r != null then r.all(channel) }
+
+  val globals: Entries[GlobalEntry] = Entries(i => { val r = reads; if r != null then r.global(i) }, () => readAll("globals"))
+  val metas: Entries[MetaEntry] = Entries(i => { val r = reads; if r != null then r.meta(i) }, () => readAll("metas"))
 
   /** A copy of this core that can be extended independently (the elaboration of one item against the
    *  declarations of its program, [[ProgramElab]]). The globals are shared: an elaboration only changes
@@ -140,7 +152,7 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
   def fork(): Core =
     val c = Core(levels.copy())
     c.globals ++= globals
-    c.objEdges = objEdges
+    c.edges = edges
     c.relInfoCache ++= relInfoCache
     c.metas ++= metas
     sharedBelow = metas.length
@@ -170,7 +182,11 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
 
   /** The subtyping edges `τ <: a` of the program and its libraries (closed `τ`, the open type `a`), for
    *  object typing ([[objtype.ObjEnv]]); the handover adds those of module instances. */
-  var objEdges: List[(Val, Int)] = Nil
+  private var edges: List[(Val, Int)] = Nil
+  def objEdges: List[(Val, Int)] =
+    readAll("objEdges")
+    edges
+  def objEdges_=(es: List[(Val, Int)]): Unit = edges = es
 
   /** The columns of object constants as object typing sees them ([[objtype.ObjEnv.relInfo]]). */
   val relInfoCache: mutable.HashMap[Int, Option[AnyRef]] = mutable.HashMap.empty
@@ -290,3 +306,25 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
           throw e
     commit(c)
     result
+
+/** The globals or metas of a core: entries by position whose reads are reported to the core's observer
+ *  ([[Core.reads]]): one entry by `read`, all of them (an iteration) by `readAll`. */
+final class Entries[A](read: Int => Unit, readAll: () => Unit):
+  private val buf = mutable.ArrayBuffer.empty[A]
+  def apply(i: Int): A =
+    read(i)
+    buf(i)
+  def update(i: Int, a: A): Unit = buf(i) = a
+  def length: Int = buf.length
+  def indices: Range = buf.indices
+  def +=(a: A): this.type =
+    buf += a
+    this
+  def ++=(other: Entries[A]): this.type =
+    buf ++= other.buf
+    this
+  def dropRightInPlace(n: Int): Unit = buf.dropRightInPlace(n)
+  def toList: List[A] =
+    readAll()
+    buf.toList
+  def filter(p: A => Boolean): List[A] = toList.filter(p)

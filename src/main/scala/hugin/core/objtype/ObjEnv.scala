@@ -77,6 +77,8 @@ final class ObjEnv(val core: Core, locals: ObjEnv.Locals = ObjEnv.NoLocals):
   def relInfo(h: OHead, as: List[OTy]): Option[RelInfo] = h match
     case OHead.G(id) if as.isEmpty && !globals(id).pending =>
       // a global's columns are closed: kept with the core
+      // the cached information of a global is a read of the global ([[hugin.core.DeclarationReads]])
+      core.globals(id)
       core.relInfoCache.getOrElseUpdate(id, computeRelInfo(h, as)).asInstanceOf[Option[RelInfo]]
     case _ => computeRelInfo(h, as)
 

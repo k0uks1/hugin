@@ -19,18 +19,22 @@ trait Families:
   protected def copyFamilies(from: Families): Unit = familyMemo ++= from.familyMemo
 
   /** The instances of all families, in creation order. */
-  def instances: List[Int] = familyMemo.values.toList
+  def instances: List[Int] =
+    readAll("instances")
+    familyMemo.values.toList
 
   /** The instance of family `fam` (with `arity` arguments) at `args`, if they are closed: its code
    *  `⟨inst⟩`, the value of the family's application. */
   def familyInstance(fam: Int, args: List[Val]): Option[Val] =
     closedKey(args).map(_.map(stripPositions)).map { key =>
+      readAll("instances")
       val id = familyMemo.getOrElseUpdate((fam, key), createInstance(fam, args, key))
       Val.Quote(Val.Rigid(Head.Glob(id), Nil))
     }
 
   /** The instance of family `fam` at the closed, normal arguments `key` (of this core). */
   def instanceAt(fam: Int, key: List[Tm]): Int =
+    readAll("instances")
     familyMemo.getOrElseUpdate((fam, key), createInstance(fam, key.map(eval(Nil, _)), key))
 
   private def createInstance(fam: Int, args: List[Val], key: List[Tm]): Int =
