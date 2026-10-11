@@ -56,7 +56,15 @@ final class Levels:
     out(n) = edges
 
   /** The value of a level in the current least solution. */
-  def value(l: Level): Int = if l.isConst then l.k else sol(l.v) + l.k
+  /** Reports a read of a level variable (the fork in which an item is elaborated reports the reads of
+   *  the declarations' levels, [[DeclarationReads]]). */
+  var reads: Int => Unit = Levels.ignore
+
+  def value(l: Level): Int =
+    if l.isConst then l.k
+    else
+      reads(l.v)
+      sol(l.v) + l.k
 
   private def node(l: Level): Int = if l.isConst then 0 else l.v
 
@@ -93,6 +101,8 @@ final class Levels:
     out.clear(); out ++= s._2
 
   private def addEdge(u: Int, w: Int, c: Int): Boolean =
+    reads(u)
+    reads(w)
     if u == w then c <= 0
     else
       val changed = mutable.HashMap.empty[Int, Int]
@@ -107,7 +117,7 @@ final class Levels:
           val work = mutable.Queue(w)
           while ok && work.nonEmpty do
             val n = work.dequeue()
-            for (m, d) <- out(n) if ok && sol(m) < sol(n) + d do
+            for (m, d) <- out(n) if { reads(m); ok && sol(m) < sol(n) + d } do
               if m == u || m == 0 then ok = false
               else
                 bump(m, sol(n) + d)
@@ -120,5 +130,7 @@ final class Levels:
         false
 
 object Levels:
+  val ignore: Int => Unit = _ => ()
+
   /** A state to return to ([[Levels.checkpoint]]): the number of nodes and the length of the trail. */
   final class Checkpoint private[Levels] (private[Levels] val nodes: Int, private[Levels] val at: Int)
