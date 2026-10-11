@@ -112,11 +112,11 @@ private[syntax] trait QuoteSyntax extends ParserBase:
       val arg = parsePostfix()
       if at(Tok.LBrack) && !tok.spaceBefore then
         val open = advance()
-        val args = mutable.ListBuffer(parseExpr(Parser.LvlComma + 1))
+        val args = mutable.ListBuffer(inside(parseExpr(Parser.LvlComma + 1)))
         while at(Tok.Comma) do
           advance()
           resync()
-          args += parseExpr(Parser.LvlComma + 1)
+          args += inside(parseExpr(Parser.LvlComma + 1))
         val closed = close(open, Tok.RBrack)
         checked(SpliceHO(arg, args.toList)(spanFrom(start)), closed)
       else SpliceE(arg)(spanFrom(start))
@@ -167,7 +167,7 @@ private[syntax] trait QuoteSyntax extends ParserBase:
 
   /** A list element; a `:-` after it is the rule syntax of old, which is written in a quote now. */
   private def listElement(): Tree =
-    val e = parseExpr(Parser.LvlComma + 1)
+    val e = inside(parseExpr(Parser.LvlComma + 1))
     if at(Tok.Turnstile) then ruleOutsideQuote()
     e
 

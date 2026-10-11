@@ -17,12 +17,12 @@ const SCOPES = [
   ["keyword.control.directive", "decorator"],
   ["entity.name.label", "label"], ["keyword.other.hole", "label"],
   ["entity.name.function.declaration", "declaration"],
-  ["storage.type", "keyword"], ["keyword.other.where", "keyword"], ["keyword.operator.word", "keyword"],
+  ["storage.type", "keyword"], ["keyword.other.where", "keyword"], ["keyword.control.match", "keyword"], ["keyword.operator.word", "keyword"],
   ["support.function.aggregate", "keyword"], ["support.type.base", "type"],
   ["punctuation.section.quote", "keyword"],
   ["keyword.operator.splice", "operator"], ["keyword.operator.lift", "operator"],
   ["keyword.operator.cons", "operator"], ["keyword.operator.rule", "operator"],
-  ["keyword.operator.type", "operator"],
+  ["keyword.operator.type", "operator"], ["keyword.operator.branch", "operator"],
   ["variable", "variable"],
 ];
 const CLASSES = ["comment", "string", "number", "decorator", "label", "declaration", "keyword", "type", "operator", "variable"];

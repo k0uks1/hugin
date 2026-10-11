@@ -1,0 +1,3 @@
+(* #186 P3: `match H : e` and `rewrite` use `eq` of `std/eq`, which the program must load (E0929) *)
+f : bool -> int.
+f B = match H : B with | true => 1 | false => 0. (*~ E0929 *)

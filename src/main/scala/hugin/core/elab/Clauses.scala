@@ -59,7 +59,10 @@ trait Clauses:
       /** At the positions of Π with a numeral pattern: the literals and the offsets of the clauses there. */
       natPoints: mutable.HashMap[List[Int], (Set[BigInt], Set[BigInt])] = mutable.HashMap.empty,
       /** The implicit arguments that some clause matches by name (`{x := p}`), by position. */
-      named: Map[Int, Name] = Map.empty
+      named: Map[Int, Name] = Map.empty,
+      /** For the function a `match` elaborates to (reference: meta/match): the span of `match e`. Its
+       *  clauses are the branches, so diagnostics and tooling speak of branches. */
+      matchAt: Option[Span] = None
   ):
     /** The arguments a missing case shows: the explicit ones and the implicit ones matched by name. */
     def shown: List[Int] = (explicit ++ named.keys).distinct.sorted
@@ -80,8 +83,21 @@ trait Clauses:
   private final case class CheckedRhs(c: Cxt, body: Tm, whereTerms: List[(Cxt, Tm)], calls: Boolean)
 
   /** Elaborates the clauses of a declared function into its case tree. `prelude` gives the names a
-   *  lifted local function sees (from its arguments in a clause context): name, type, value. */
-  def elabFunction(id: Int, clauses: List[SurfaceClause], prelude: Vector[Val] => List[(Name, Val, Val)] = _ => Nil): Unit =
+   *  lifted local function sees (from its arguments in a clause context): name, type, value. `matchAt`
+   *  marks the function of a `match` ([[FunctionInfo.matchAt]]). */
+  def elabFunction(
+      id: Int,
+      clauses: List[SurfaceClause],
+      prelude: Vector[Val] => List[(Name, Val, Val)] = _ => Nil,
+      matchAt: Option[Span] = None
+  ): Unit = withMatchOwner(globals(id).name)(elabFunctionClauses(id, clauses, prelude, matchAt))
+
+  private def elabFunctionClauses(
+      id: Int,
+      clauses: List[SurfaceClause],
+      prelude: Vector[Val] => List[(Name, Val, Val)],
+      matchAt: Option[Span]
+  ): Unit =
     val g = globals(id)
     // the clauses' names are uses of the function (for tooling)
     for cl <- clauses if cl.name.span.text == g.name do recordUse(cl.name.span, id)
@@ -102,7 +118,7 @@ trait Clauses:
     val arity = (explicitArity :: namedPositions.flatMap(_.keys.map(_ + 1))).max
     val (problem, target) = initialProblem(g.ty, arity)
     val named = namedPositions.flatMap(_.keys).distinct.map(l => l -> binders(l)._1).toMap
-    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude, named = named)
+    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude, named = named, matchAt = matchAt)
     val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i, namedPositions(i)))
     // each clause in its own context: its left-hand side, then its right-hand side
     val contexts = states.map(cl => clauseContext(problem, target, cl, states.length == 1))
@@ -126,7 +142,8 @@ trait Clauses:
     for ch <- checked do alternativeCalls(info, ch)
     checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) && !states(i).absurd do
-      reporter.report(ClauseProblem.UnreachableClause(g.name, cl.span).toDiagnostic)
+      val problem = if matchAt.isDefined then ClauseProblem.UnreachableBranch(cl.span) else ClauseProblem.UnreachableClause(g.name, cl.span)
+      reporter.report(problem.toDiagnostic)
     reportInexact(info, checked)
     // `%opaque f.`: checked, and from now on neutral (after the termination check, which records the
     // function's calls of itself as calls of a function)
@@ -883,7 +900,7 @@ trait Clauses:
       states: List[ClauseState],
       cl: ClauseState
   ): ElabError =
-    if cl.source.where.nonEmpty || cl.absurd then e
+    if cl.source.where.nonEmpty || cl.absurd || f.matchAt.isDefined then e
     else
       val probe = f.copy(
         used = mutable.Set.empty,
@@ -932,7 +949,7 @@ trait Clauses:
     val source = cl.source
     val hidden = globals(f.id).hidden
     val written = source.pats.drop(hidden)
-    if !source.span.exists || written.exists(t =>
+    if !source.span.exists || f.matchAt.isDefined || written.exists(t =>
         !t.span.exists || TreeOps.nodes(t).exists(n => n.isInstanceOf[hugin.syntax.Trees.Quote] || n.isInstanceOf[NamedArg])
       )
     then
@@ -997,7 +1014,10 @@ trait Clauses:
     val fresh = FreshNames(cl.binds.map(_._1.name))
     // the explicit binders of each constructor's type, for the pattern variables of the record
     val explicitBinders = mutable.HashMap.empty[Int, List[Name]]
-    for case (v, value, _) <- cl.binds if !v.implicitBinder && v.span.exists do
+    // only the variables written in the clause (not the equation `H` of a `match`, written before its branches)
+    def written(sp: Span) =
+      sp.exists && (sp.origin eq cl.source.span.origin) && sp.from >= cl.source.span.from && sp.until <= cl.source.span.until
+    for case (v, value, _) <- cl.binds if !v.implicitBinder && written(v.span) do
       force(value) match
         case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) =>
           force(p.types(x)) match
@@ -1357,7 +1377,10 @@ trait Clauses:
 
   /** A missing pattern as the left-hand side of a clause: the hidden arguments of a lifted function are
    *  not written by users ([[Lifting]]). */
-  private def showMissing(f: FunctionInfo, q: List[MPat]): String =
+  private def showMissing(f: FunctionInfo, q: List[MPat]): String = (f.name :: missingArgs(f, q)).mkString(" ")
+
+  /** The arguments of a missing case as written in a clause (without the hidden ones). */
+  private def missingArgs(f: FunctionInfo, q: List[MPat]): List[String] =
     def term(m: MPat): Tm = m match
       case MPat.Wild => Tm.Var(0)
       case MPat.Con(c, as) => as.foldLeft(Tm.Global(c): Tm)((acc, a) => Tm.App(acc, term(a), Icit.Expl))
@@ -1372,7 +1395,7 @@ trait Clauses:
         case Some(x) => Option.when(m != MPat.Wild)(s"{$x := $s}")
         case None => Some(if s.contains(' ') then s"($s)" else s)
     }
-    (f.name :: args).mkString(" ")
+    args
 
   /** E0911 with the first of the most general missing patterns and their number; tooling gets a cover of
    *  the missing probes by them, without redundant patterns, in their order (at most [[MaxMissing]]). */
@@ -1384,12 +1407,33 @@ trait Clauses:
     for q <- general if cover.length < MaxMissing do
       def below(r: List[MPat])(pr: List[MPat]) = pr.zip(r).forall(instanceOf)
       if probes.exists(pr => below(q)(pr) && !cover.exists(c => below(c)(pr))) then cover += q
+    f.matchAt.foreach(at => notCoveringBranches(f, at, general, cover.toList, clauses))
     val shown = general.map(showMissing(f, _))
     if f.name.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'') && clauses.nonEmpty && !index.muted then
       index.meta.missing(
         MetaIndex.MissingClauses(declared, f.name, cover.toList.map(showMissing(f, _) + " = ?."), clauses.map(_.span).maxBy(_.end))
       )
     fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0), clauses.isEmpty))
+
+  /** E0911 for the branches of a `match` at `at`: the missing patterns of its scrutinee (the first
+   *  explicit argument after the hidden ones; the equation is implicit and not shown). Tooling gets the
+   *  missing branches, at the indentation of the last branch. */
+  private def notCoveringBranches(
+      f: FunctionInfo,
+      at: Span,
+      general: List[List[MPat]],
+      cover: List[List[MPat]],
+      clauses: List[SurfaceClause]
+  ): Nothing =
+    // a branch's pattern needs no parentheses (`| suc _ => …`)
+    def branch(q: List[MPat]) =
+      missingArgs(f, q).headOption.map(s => if s.length > 2 && s.startsWith("(") then s.drop(1).dropRight(1) else s).getOrElse("_")
+    val shown = general.map(branch)
+    if clauses.nonEmpty && !index.muted then
+      val last = clauses.map(_.span).maxBy(_.end)
+      val indent = " " * (last.start - last.source.lineStart(last.source.lineOf(last.start)))
+      index.meta.missing(MetaIndex.MissingClauses(at, "match", cover.map(q => s"$indent| ${branch(q)} => ?"), last))
+    fail(ClauseProblem.BranchesNotCovering(shown.headOption.getOrElse("_"), at, (shown.length - 1).max(0)))
 
   // ---------------------------------------------------------------- inexact clauses (#67 batch 3)
 

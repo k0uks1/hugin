@@ -27,6 +27,10 @@ enum ClauseProblem extends Problem:
   /** `more`: the number of most general missing patterns after the one shown. */
   case NotCovering(fn: String, missing: String, at: Span, more: Int = 0, clauseless: Boolean = false)
 
+  /** The branches of a `match` (whose head, `match e`, is at `at`) do not cover all cases (reference:
+   *  meta/match): `missing` is a missing pattern, and `more` the number of the others. */
+  case BranchesNotCovering(missing: String, at: Span, more: Int = 0)
+
   /** `call`: a clause on the cycle of calls that does not decrease, with its call. */
   case NotTerminating(fn: String, at: Span, call: Option[(Span, String)])
   case NonPositive(family: String, argument: Int, argumentType: String, at: Span)
@@ -63,6 +67,9 @@ enum ClauseProblem extends Problem:
   case DependentBinding(at: Span)
   case UnreachableClause(fn: String, at: Span)
 
+  /** A branch of a `match` that the branches before it cover. */
+  case UnreachableBranch(at: Span)
+
   /** A clause that does not hold definitionally (opt-in lint, W0009): `cases` are the cases of the case
    *  tree that use it, as left-hand sides. */
   case InexactClause(fn: String, cases: List[String], at: Span)
@@ -80,16 +87,18 @@ enum ClauseProblem extends Problem:
   case MisplacedAbsurd(at: Span)
 
   def code: Code = this match
-    case _: NotCovering => Code.E0911
+    case _: NotCovering | _: BranchesNotCovering => Code.E0911
     case _: NotTerminating => Code.E0912
     case _: NonPositive => Code.E0913
     case _: PartialFamilyResult | _: ArgumentTooLarge | _: NotDefinableByClauses => Code.E0914
-    case _: UnreachableClause => Code.W0006
+    case _: UnreachableClause | _: UnreachableBranch => Code.W0006
     case _: InexactClause => Code.W0009
     case _ => Code.E0915
 
   def primary: Span = this match
     case NotCovering(_, _, s, _, _) => s
+    case BranchesNotCovering(_, s, _) => s
+    case UnreachableBranch(s) => s
     case NotTerminating(_, s, _) => s
     case NonPositive(_, _, _, s) => s
     case PartialFamilyResult(_, s) => s
@@ -123,6 +132,8 @@ enum ClauseProblem extends Problem:
 
   def message: Msg = this match
     case NotCovering(f, _, _, _, _) => msg"the clauses of ${Src(f)} do not cover all cases"
+    case _: BranchesNotCovering => msg"the branches of this `match` do not cover all cases"
+    case _: UnreachableBranch => msg"unreachable branch of a `match`"
     case NotTerminating(f, _, _) => msg"cannot show that ${Src(f)} terminates"
     case NonPositive(fam, _, _, _) => msg"${Src(fam)} occurs in a non-positive position"
     case PartialFamilyResult(fam, _) => msg"a constructor of ${Src(fam)} must return it applied to all its arguments"
@@ -158,6 +169,9 @@ enum ClauseProblem extends Problem:
   override def primaryLabel: Msg = this match
     case NotCovering(_, m, _, 0, _) => msg"missing: ${Src(m)}"
     case NotCovering(_, m, _, k, _) => msg"missing: ${Src(m)} and $k more"
+    case BranchesNotCovering(m, _, 0) => msg"missing: ${Src(m)}"
+    case BranchesNotCovering(m, _, k) => msg"missing: ${Src(m)} and $k more"
+    case _: UnreachableBranch => msg"this branch is never used"
     case _: NotTerminating => msg"possibly non-terminating"
     case NonPositive(_, k, _, _) => msg"in the type of the constructor's argument $k"
     case _: PartialFamilyResult => msg"partially applied family"
@@ -202,6 +216,8 @@ enum ClauseProblem extends Problem:
         msg"${Src(f)} is declared without clauses: a meta declaration that is not a family or a constructor declares a function"
       )
     case _: NotCovering => List(msg"meta functions are total: every argument must match a clause")
+    case _: BranchesNotCovering => List(msg"a `match` is total: every value of the scrutinee must match a branch")
+    case _: UnreachableBranch => List(msg"the branches before it cover all the cases it matches")
     case _: NotTerminating =>
       List(
         msg"meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls"
@@ -269,6 +285,7 @@ enum ClauseProblem extends Problem:
     case NotCovering(f, m, _, _, true) =>
       List(msg"add a clause ${Src(s"$m = ….")}", msg"to assume the constant as an axiom, define it as ${Src(s"$f : … = %postulate.")}")
     case NotCovering(_, m, _, _, _) => List(msg"add a clause ${Src(s"$m = ….")}")
+    case BranchesNotCovering(m, _, _) => List(msg"add a branch ${Src(s"| $m => …")}")
     case _: InexactClause => List(msg"to make the clause hold definitionally, write its cases as separate clauses")
     case ClausesWithoutDeclaration(f, _, inBody) =>
       List(msg"declare its type first${Lit(if inBody then " in the body" else "")}: ${Src(s"$f : A -> B.")}")

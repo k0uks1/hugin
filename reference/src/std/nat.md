@@ -102,7 +102,7 @@ compute with them as before: a `vec A (plus N 1)` is a `vec A (N + 1)`.
 `toInt` of a numeral is the integer in one step, also beyond 64 bits: `ofNat` applied to a numeral is an
 integer, which is represented as a number as well ([`std/int`](int.md#the-meta-int)). Meta integers are
 unbounded; one that does not fit into 64 bits is an error where object code uses it
-([E0927](../errors/E0927.md)), never a wrapped number.
+([E0930](../errors/E0930.md)), never a wrapped number.
 
 `nat` is a meta type: it has no lifting to object code, so a natural number in an object position is an
 error ([E0902](../errors/E0902.md)). `toInt` converts it to an `int`, which is persisted as an object

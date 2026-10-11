@@ -1,5 +1,7 @@
 package hugin.syntax
 
+import scala.collection.mutable
+
 /** Expressions (reference: lexical-structure, operators and precedence), mixed into [[Parser]]: a
  *  precedence-climbing loop over the binary operators, prefix operators (`not`, unary `-`, lambdas
  *  `[x] e`), application by juxtaposition, selection `e.l` and the primary expressions. Precedence levels
@@ -13,7 +15,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
     case Tok.Comma => Some((",", LvlComma, Assoc.Left))
     case Tok.Arrow => Some(("->", LvlArrow, Assoc.Right))
     case Tok.ColonColon => Some(("::", LvlCons, Assoc.Right))
-    case Tok.Bar => Some(("|", LvlBar, Assoc.Left))
+    // in a branch of a `match`, `|` starts the next branch
+    case Tok.Bar => if barEnds then None else Some(("|", LvlBar, Assoc.Left))
     case Tok.Eq => Some(("=", LvlCmp, Assoc.NonAssoc))
     case Tok.Neq => Some(("<>", LvlCmp, Assoc.NonAssoc))
     case Tok.Lt => Some(("<", LvlCmp, Assoc.NonAssoc))
@@ -25,6 +28,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
     case Tok.Caret => Some(("^", LvlAdd, Assoc.Left))
     case Tok.Star => Some(("*", LvlMul, Assoc.Left))
     case Tok.Slash => Some(("/", LvlMul, Assoc.Left))
+    case Tok.Name if inEnds && t.text == "in" => None
     case Tok.Name => infixOps.get(t.text).map((a, l) => (t.text, l, a))
     case _ => None
 
@@ -93,13 +97,82 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val ok = close(open, Tok.RBrack)
         val body = parseExpr(minLevel.max(LvlSemi))
         checked(Lambda(param, tpe, body)(spanFrom(start)), ok)
+      case Tok.KwMatch => parseMatch(minLevel)
+      case Tok.KwRewrite => parseRewrite(minLevel)
       case _ => parseApp()
+
+  /** `match [H :] e with | p₁ => e₁ | … | pₙ => eₙ`, at `match` (reference: meta/match). Each branch is a
+   *  recovery region. `|` ends a branch's pattern and expression ([[barEnds]]); the expression of the
+   *  last branch extends as far as the expression around the `match` allows (`minLevel`), as a lambda's
+   *  body does. A branch whose pattern has `()` may have no expression (an absurd branch). */
+  private def parseMatch(minLevel: Int): Tree =
+    val kw = advance()
+    val start = kw.span.start
+    val eqn =
+      if at(Tok.Var) && peekTok(1).kind == Tok.Colon then
+        val v = advance()
+        advance()
+        Some(VarRef(v.text)(v.span))
+      else None
+    val scrutinee =
+      // `|` ends it too (`match B | true => …` lacks its `with`): a union is written in parentheses there
+      if atColumn0(position) || at(Tok.KwWith) then missing(Expect.expression) else endingAtBar(true)(parseExpr(LvlSemi))
+    val head = spanFrom(start)
+    var ok = keyword(Tok.KwWith, "match")
+    val branches = mutable.ListBuffer.empty[MatchBranch]
+    if ok && !at(Tok.Bar) then
+      expected(List(Expect.Token(Tok.Bar)))
+      ok = false
+    while at(Tok.Bar) do
+      val bar = advance()
+      resync()
+      val pat = endingAtBar(true)(parseExpr(LvlBar + 1))
+      val rhs =
+        if at(Tok.FatArrow) then
+          advance()
+          endingAtBar(true)(parseExpr(minLevel.max(LvlSemi)))
+        else if TreeOps.hasAbsurd(pat) then Absent()(insertionPoint)
+        else
+          val help = Option.when(at(Tok.Arrow) || at(Tok.Eq))(SyntaxHelp.BranchArrow(tok.span))
+          expected(List(Expect.Token(Tok.FatArrow)), None, help)
+          ok = false
+          ErrorTree(Nil)(insertionPoint)
+      branches += MatchBranch(pat, rhs)(spanFrom(bar.span.start))
+    checked(Match(eqn, scrutinee, branches.toList)(spanFrom(start), head), ok)
+
+  /** The keyword `k` that continues a `match` or `rewrite` (`kw`): consumed, or reported as expected,
+   *  with the help that `kw` is a keyword (it may have been meant as a name). */
+  private def keyword(k: Tok, kw: String): Boolean =
+    if at(k) then
+      advance()
+      true
+    else
+      // the help unless the construct evidently goes on (`match B | true => 1`)
+      expected(List(Expect.Token(k)), None, Option.when(!at(Tok.Bar))(SyntaxHelp.Keyword(kw)))
+      false
+
+  /** `rewrite h in e`, at `rewrite` (reference: meta/match); `e` extends as a lambda's body does. */
+  private def parseRewrite(minLevel: Int): Tree =
+    val kw = advance()
+    val start = kw.span.start
+    val eqn = if atColumn0(position) || atIn then missing(Expect.expression) else inside(endingAtIn(parseExpr(LvlSemi)))
+    val head = spanFrom(start)
+    val ok =
+      if atIn then
+        advance()
+        true
+      else
+        expected(List(Expect.Thing("`in`")), None, Some(SyntaxHelp.Keyword("rewrite")))
+        false
+    val body = if !ok then ErrorTree(Nil)(insertionPoint)
+    else if atColumn0(position) then missing(Expect.expression) else parseExpr(minLevel.max(LvlSemi))
+    checked(Rewrite(eqn, body)(spanFrom(start), head), ok)
 
   private def startsArg(t: Token): Boolean = !atColumn0(i) && (t.kind match
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Dollar | Tok.Up | Tok.Quote | Tok.Hole => true
     case Tok.LBrack => listAhead
-    case Tok.Name => !infixOps.contains(t.text)
+    case Tok.Name => !infixOps.contains(t.text) && !(inEnds && t.text == "in")
     case _ => false
   )
 
@@ -171,7 +244,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
           case Some(p) => Import(p.value.asInstanceOf[String])(spanFrom(start), p.span)
           case None => ErrorTree(Nil)(spanFrom(start))
       case Tok.LBrack if listAhead => parseList()
-      case Tok.KwNot | Tok.Minus | Tok.LBrack => parsePrefix(LvlSemi)
+      case Tok.KwNot | Tok.Minus | Tok.LBrack | Tok.KwMatch | Tok.KwRewrite => parsePrefix(LvlSemi)
       case Tok.Dollar =>
         advance()
         parseDollar(start)
@@ -207,9 +280,9 @@ private[syntax] trait ExprSyntax extends ParserBase:
     expect(Tok.LBrace).orElse(Option.when(stray) { advance(); advance() }) match
       case None => ErrorTree(Nil)(spanFrom(start))
       case Some(open) =>
-        val term = parseExpr(LvlCmp)
+        val term = inside(parseExpr(LvlCmp))
         val bar = expect(Tok.Bar).isDefined
-        val body = if bar then parseExpr(LvlSemi) else ErrorTree(Nil)(insertionPoint)
+        val body = if bar then inside(parseExpr(LvlSemi)) else ErrorTree(Nil)(insertionPoint)
         val closed = close(open, Tok.RBrace)
         checked(Agg(k, term, body)(spanFrom(start)), !stray && bar && closed)
 

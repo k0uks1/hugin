@@ -103,7 +103,7 @@ trait Operators:
    *  it is computed at compile time and the result persisted as a literal (`q (k + 1)` with `k = 42`
    *  stages to `q 43`); otherwise it is object arithmetic, whose operand types object typing checks. On
    *  meta integers the object operation is computed exactly, so only the result must fit into 64 bits
-   *  (E0927); a division by zero is undefined, as at the object level (E0909). */
+   *  (E0930); a division by zero is undefined, as at the object level (E0909). */
   private def objectArith(c: Cxt, op: ArithOp, l: Tree, r: Tree): (Tm, Val) =
     val (lt, lty, ls) = insert(c, l.span, infer(c, l))
     val (rt, rty, rs) = insert(c, r.span, infer(c, r))

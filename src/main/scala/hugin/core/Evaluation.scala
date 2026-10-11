@@ -170,7 +170,7 @@ trait Evaluation:
       case _ => Negate(a, st)
 
   /** A meta value persisted into object code: a literal, if it is one. A meta integer must be in the
-   *  object level's 64-bit range (D8a); one outside stays persisted, and staging reports it (E0927). */
+   *  object level's 64-bit range (D8a); one outside stays persisted, and staging reports it (E0930). */
   def persist(v: Val): Val = unfolded(v) match
     case Lit(l, Stage.S1) => Lit(l, Stage.S0)
     case IntNum(n) if Integers.fits64(n) => Lit(Literal.IntL(n.toLong), Stage.S0)

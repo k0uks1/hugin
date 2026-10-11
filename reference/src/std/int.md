@@ -136,7 +136,7 @@ primitives of the meta level ([Consistency](../meta/consistency.md#assumptions))
 
 The object level's `int` stays 64-bit. A meta integer used as object code is persisted as a literal
 ([Staging](../meta/staging.md#lifting)), and it must lie between −9223372036854775808 and
-9223372036854775807: it is an error ([E0927](../errors/E0927.md)) otherwise, where the value crosses into
+9223372036854775807: it is an error ([E0930](../errors/E0930.md)) otherwise, where the value crosses into
 object code, never a wrapped number. `fits64` tests the range, for proofs and for code that branches on
 it.
 

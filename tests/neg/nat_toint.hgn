@@ -1,5 +1,5 @@
 (* #131, #186 P4: `toInt` of a numeral beyond 64 bits is an unbounded meta integer, so object code
-   cannot use it: the range is checked where it is persisted (reference: meta/staging, lifting; E0927) *)
+   cannot use it: the range is checked where it is persisted (reference: meta/staging, lifting; E0930) *)
 %use "std/nat".
 r : (n : int) -> rel.
-r (toInt (times 4294967296 2147483648)). (*~ E0927 *)
+r (toInt (times 4294967296 2147483648)). (*~ E0930 *)

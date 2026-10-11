@@ -138,6 +138,9 @@ trait Printing:
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
     case Tm.App(f, a, i) =>
       liftedApp(t) match
+        case Some((id, args)) if globals(id).matchFunction && args.headOption.exists(_._2 == Icit.Expl) =>
+          // the function of a `match`, applied to its scrutinee (and the proof of its equation)
+          par(p, 0, s"match ${go(ns, args.head._1, 1)} with …")
         case Some((id, args)) =>
           // a lifted function without its hidden arguments, as users write it ([[elab.Lifting]])
           val shown = args.map((a, i) => if i == Icit.Impl then s"{${go(ns, a, 0)}}" else go(ns, a, 6))
@@ -198,7 +201,8 @@ trait Printing:
       case Tm.App(f, a, i) => spine(f, (a, i) :: acc)
       case other => (other, acc)
     spine(t, Nil) match
-      case (Tm.Global(id), args) if id < globals.length && globals(id).hidden > 0 => Some((id, args.drop(globals(id).hidden)))
+      case (Tm.Global(id), args) if id < globals.length && (globals(id).hidden > 0 || globals(id).matchFunction) =>
+        Some((id, args.drop(globals(id).hidden)))
       case _ => None
 
   private def goObj(ns: List[Name], f: ObjForm, as: List[Tm], p: Int): String = (f, as) match

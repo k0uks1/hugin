@@ -48,7 +48,12 @@ The following names are *keywords*. They cannot be used as names of constants.
 
 ```text
 type   rel   prop   not   as   with   count   sum   min   max   where
+match   rewrite
 ```
+
+`in` is a *contextual keyword*: it ends the equation of [`rewrite h in e`](meta/match.md#rewrite) and is
+an ordinary name everywhere else, so a relation `in X S` or a meta function `in` may be declared. In the
+equation of a `rewrite`, a name `in` is written in parentheses: `rewrite f (in X) in e`.
 
 `min` and `max` are keywords in two roles: before `{` they start an aggregate, otherwise they start a
 [bound column](object/bound-columns.md) type `min τ`.
@@ -117,7 +122,7 @@ reading "south\tB" (-0.5) (-2).
 The remaining tokens are:
 
 ```text
-:-   ?-   ->   <:   <>   <=   >=   ..   ::   .   ,   ;   :   |   =   <   >
+:-   ?-   ->   =>   <:   <>   <=   >=   ..   ::   .   ,   ;   :   |   =   <   >
 +    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '
 ```
 
@@ -242,6 +247,10 @@ subtraction, `^` is the lift `⇑` or string concatenation, and `<` opens a stag
 `f -1` is a subtraction and `f ^A` a concatenation; an argument that starts with one of them is
 parenthesised: `f (-1)`, `f (^A)`, `f (<t>)`. The content of `<t>` is parsed above the comparison level,
 so a comparison in it is parenthesised: `<(X > 1)>`.
+
+The meta level's `match` and `rewrite` are prefix forms like a lambda: the expression of the last branch
+of a `match`, and the expression after the `in` of a `rewrite`, extend as far as the body of a lambda
+does, and `|` ends a branch ([`match` and `rewrite`](meta/match.md#syntax)).
 
 The head of a rule is parsed above the comparison level: in `p X, q X :- r X.` the comma separates two
 heads. Inside a type, the comparison operators end the type, so that `x : int = 5.` parses.

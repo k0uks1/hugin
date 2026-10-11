@@ -75,6 +75,8 @@ trait Bidirectional:
     case h: Hole => inferHole(c, h)
     case _: SpliceSeq | _: SpliceHO => fail(ReflectionProblem.HoleOutsideQuote(t.span))
     case w: With => inferUpdate(c, w)
+    case m: Match => inferMatch(c, m)
+    case r: Rewrite => fail(MatchProblem.RewriteWithoutGoal(r.kwSpan))
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
@@ -159,6 +161,9 @@ trait Bidirectional:
     case (_, Val.Pi(x, Icit.Impl, dom, cl)) =>
       // an implicit Π is introduced by an inserted implicit lambda
       Tm.Lam(x, Icit.Impl, check(newBinder(c, x, dom, Stage.S1), t, inst(cl, Val.local(c.lvl)), st))
+    // before the rule for `⇑A`: the branches are checked against the goal, also one of object code
+    case (m: Match, _) if st == Stage.S1 => checkMatch(c, m, a)
+    case (r: Rewrite, _) if st == Stage.S1 => checkRewrite(c, r, a)
     case (_, Val.Lift(x)) if st == Stage.S1 =>
       // every value of `⇑A` is a quote (up to conversion): check object code under a quote
       val code = check(c, t, x, Stage.S0)

@@ -35,9 +35,23 @@ object Highlighting:
     if pos < text.length then out += Run(text.substring(pos), Nil)
     out.toList
 
-  private val operators = Set(Tok.Turnstile, Tok.Query, Tok.Arrow, Tok.SubT, Tok.ColonColon)
+  private val operators = Set(Tok.Turnstile, Tok.Query, Tok.Arrow, Tok.SubT, Tok.ColonColon, Tok.FatArrow)
   private val keywords =
-    Set(Tok.KwType, Tok.KwRel, Tok.KwProp, Tok.KwNot, Tok.KwAs, Tok.KwWith, Tok.KwCount, Tok.KwSum, Tok.KwMin, Tok.KwMax, Tok.KwWhere)
+    Set(
+      Tok.KwType,
+      Tok.KwRel,
+      Tok.KwProp,
+      Tok.KwNot,
+      Tok.KwAs,
+      Tok.KwWith,
+      Tok.KwCount,
+      Tok.KwSum,
+      Tok.KwMin,
+      Tok.KwMax,
+      Tok.KwWhere,
+      Tok.KwMatch,
+      Tok.KwRewrite
+    )
 
   /** The lexical classes of a source, from its tokens; comments are the text between tokens that is not
    *  white space (the lexer skips them). */

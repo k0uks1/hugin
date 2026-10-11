@@ -91,6 +91,24 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assert(d.getMessage.contains("missing: `both _ 0` and 1 more"), d.getMessage)
   }
 
+  test("#186 P3: split a pattern variable of a `match` branch: one branch per constructor") {
+    val text = nat + "pred : nat -> nat.\npred M = match M with\n  | N => suc N.\n"
+    val (s, _) = server(text)
+    val split = actions(s, pos(text, "N =>")).find(_.getTitle == "Split on `N`").get
+    assertEquals(split.getKind, CodeActionKind.RefactorRewrite)
+    assertEquals(edit(split), (Range(pos(text, "| N"), pos(text, "N.", 1)), "| zero => suc zero\n  | (suc N1) => suc (suc N1)"))
+  }
+
+  test("#186 P3: add the missing branches of a `match`, and hover in a branch") {
+    val text = nat + "isZero : nat -> nat.\nisZero M = match M with\n  | zero => suc zero.\n"
+    val (s, c) = server(text)
+    val d = c.published(uri).find(_.getCode.getLeft == "E0911").get
+    assert(d.getMessage.contains("missing: `_ + 1`"), d.getMessage)
+    val add = actions(s, d.getRange.getStart, List(d)).find(_.getTitle.startsWith("Add the")).get
+    assertEquals(edit(add), (Range(pos(text, "zero.", 4), pos(text, "zero.", 4)), "\n  | _ + 1 => ?"))
+    assert(hover(s, pos(text, "suc zero.")).contains("`suc` : `nat -> nat`"), hover(s, pos(text, "suc zero.")))
+  }
+
   test("start the clauses of a declared function") {
     val text = nat + "size : nat -> int.\n"
     val (s, _) = server(text)

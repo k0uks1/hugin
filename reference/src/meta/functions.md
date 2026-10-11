@@ -335,7 +335,7 @@ functions `iequal`, `iless` and `ileq` of the prelude ([`std/int`](../std/int.md
 
 A meta value of a base type used as object code is *persisted* as a literal
 ([Staging](staging.md#lifting)). It is an error ([E0909](../errors/E0909.md)) if its computation is
-undefined or stuck, and ([E0927](../errors/E0927.md)) if it is a meta integer outside the object level's
+undefined or stuck, and ([E0930](../errors/E0930.md)) if it is a meta integer outside the object level's
 64-bit range.
 
 The following program computes a constant at compile time and uses it in object code.

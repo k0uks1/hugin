@@ -1,14 +1,14 @@
 (* #186 P4, D8a: a meta integer is unbounded; where it is used as object code (persisted, lifted inside a
-   list, reflected as a literal) it must fit into the object level's 64 bits (E0927). Compile-time
+   list, reflected as a literal) it must fit into the object level's 64 bits (E0930). Compile-time
    arithmetic in object code is exact, so only its result is checked. *)
 big : int = 9223372036854775807.
 r : int -> rel.
-r (big + 1). (*~ E0927 *)
+r (big + 1). (*~ E0930 *)
 r (big * 2 / 2).
-r (-big - 2). (*~ E0927 *)
+r (-big - 2). (*~ E0930 *)
 r 100000000000000000000. (*~ E0003 *)
 listed : list int -> rel.
-listed [1, big * big]. (*~ E0927 *)
+listed [1, big * big]. (*~ E0930 *)
 %use "std/reflect" (item, irule, horn, fatom, tint).
 again : list item = [irule (horn [fatom '( r ) [tint (big + 1)]] [])].
-$again. (*~ E0927 *)
+$again. (*~ E0930 *)

@@ -60,6 +60,10 @@ K): any two proofs of the same equation are equal. On `refl`, the lemmas compute
 `H`. An equation that holds by evaluation is proved by `refl` itself: `plus 2 2` evaluates to `4`, so
 `refl` proves `eq (plus 2 2) 4`.
 
+The equation of [`match H : e`](../meta/match.md#the-equation) is `eq`, and
+[`rewrite h in e`](../meta/match.md#rewrite) elaborates to `subst` and `sym`; both need a program that
+loads `std/eq`.
+
 The following program proves that `0` is a left unit of `plus` of [`std/nat`](nat.md), which recurses on
 its second argument, by induction with `cong`, and uses the proof to transport a vector.
 

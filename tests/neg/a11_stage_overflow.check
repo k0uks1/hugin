@@ -6,7 +6,7 @@ warning[W0003]: unused definition `next`
   |
   = note: `-W unused_definitions` is on by default
 
-error[E0927]: integer out of the range of the object level's `int`
+error[E0930]: integer out of the range of the object level's `int`
  --> tests/neg/a11_stage_overflow.hgn:6:1
   |
 6 | r X :- X = big * 2.

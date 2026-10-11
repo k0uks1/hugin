@@ -37,7 +37,7 @@ So the names in scope in every file are:
 `int`, `float` and `string` are in scope in every program that includes the prelude. A program compiled
 with `--no-prelude` declares the base types it uses ([Object types](object/types.md#base-types)), and it
 may import modules of the standard library itself. It has no meta integers
-([E0928](errors/E0928.md)): `std/nat` and `std/int`, which define them, are elaborated with the prelude,
+([E0931](errors/E0931.md)): `std/nat` and `std/int`, which define them, are elaborated with the prelude,
 in every program, also where the program uses none of their names, since any literal or operator may
 use them.
 

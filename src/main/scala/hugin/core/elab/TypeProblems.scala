@@ -98,8 +98,8 @@ enum TypeProblem extends Problem:
     case _: Unsupported => Code.E0907
     case _: ObjectTypeArgument | _: ObjectFunction => Code.E0908
     case _: NotStaged => Code.E0909
-    case _: IntegerCrossing => Code.E0927
-    case _: NoMetaInt => Code.E0928
+    case _: IntegerCrossing => Code.E0930
+    case _: NoMetaInt => Code.E0931
     case _: IncompleteHead | _: InvalidHead => Code.E0910
     case _: UnsolvedGoal => Code.E0924
     case _: NoImplicitNamed | _: NamedArgumentAlone => Code.E0926

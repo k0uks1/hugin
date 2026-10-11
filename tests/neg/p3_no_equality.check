@@ -1,0 +1,10 @@
+error[E0929]: `match H : e` needs the equality of the library `std/eq`
+ --> tests/neg/p3_no_equality.hgn:3:13
+  |
+3 | f B = match H : B with | true => 1 | false => 0. (*~ E0929 *)
+  |             ^ needs `eq`, `refl`, `subst` and `sym` of `std/eq`
+  |
+  = note: the branches get an equation `eq e p` of the family `eq` of `std/eq`
+  = help: add `%use "std/eq".` to the file
+
+1 error found

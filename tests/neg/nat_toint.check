@@ -1,7 +1,7 @@
-error[E0927]: integer out of the range of the object level's `int`
+error[E0930]: integer out of the range of the object level's `int`
  --> tests/neg/nat_toint.hgn:5:1
   |
-5 | r (toInt (times 4294967296 2147483648)). (*~ E0927 *)
+5 | r (toInt (times 4294967296 2147483648)). (*~ E0930 *)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `9223372036854775808` does not fit into 64 bits
   |
   = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807

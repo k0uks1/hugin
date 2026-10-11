@@ -1,0 +1,37 @@
+error[E0001]: expected `=>`, found `->`
+ --> tests/recovery/p3_match.hgn:6:10
+  |
+6 |   | true -> 1 (*~ E0001 *)
+  |          ^^ expected `=>`
+  |
+  = help: a branch of a `match` is written `| pattern => expression`
+
+error[E0001]: expected `with`, found `|`
+ --> tests/recovery/p3_match.hgn:9:15
+  |
+9 | g B = match B | true => 1. (*~ E0001 *)
+  |               ^ expected `with`
+
+error[E0001]: expected an item, found `match`
+  --> tests/recovery/p3_match.hgn:10:1
+   |
+10 | match : int -> rel. (*~ E0001 *)
+   | ^^^^^ expected an item
+   |
+   = help: `match` is a keyword (of `match H : e with | p => e` and `rewrite h in e`), so it cannot be a name
+
+error[E0001]: expected `in`, found `.`
+  --> tests/recovery/p3_match.hgn:16:22
+   |
+16 | k = rewrite refl refl. (*~ E0001 *)
+   |                      ^ expected `in`
+   |
+   = help: `rewrite` is a keyword (of `match H : e with | p => e` and `rewrite h in e`), so it cannot be a name
+
+4 errors found
+(* ---------------- after elaborate ---------------- *)
+f : bool -> int.
+g : bool -> int.
+h : bool -> int.
+  h B = match B with ….
+k : eq {int} 1 1.
