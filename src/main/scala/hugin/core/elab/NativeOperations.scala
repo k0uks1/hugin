@@ -132,6 +132,7 @@ trait NativeOperations:
     def s(v: Val): Val = app(Val.Rigid(Head.Glob(suc), Nil), v, Icit.Expl)
     def call(g: Int, args: Val*): Val = args.foldLeft(Val.Rigid(Head.Glob(g), Nil): Val)(app(_, _, Icit.Expl))
     def fn(args: Val*): Val = call(f, args*)
+
     /** The function bound to the operation `o` already (of `std/nat`, or one of `std/int` before `f`). */
     def op(o: NatOp): Option[Int] =
       (NativeOperations.operations ++ NativeOperations.intOperations).find(_._2 == o).flatMap((name, _) => lookupGlobal(name)).filter { g =>
@@ -145,6 +146,7 @@ trait NativeOperations:
     def ofNat(v: Val): Val = call(mi.ofNat, v)
     def negSucc(v: Val): Val = call(mi.negSucc, v)
     def int(k: Int): Val = Val.IntNum(BigInt(k))
+
     /** Equations over the operations `os` (all bound), or none if one is not. */
     def using(os: NatOp*)(eqs: Seq[Int] => List[(Val, Val)]): List[List[(Val, Val)]] =
       val ids = os.map(op)
@@ -203,13 +205,13 @@ trait NativeOperations:
       case NatOp.IntNeg =>
         using(NatOp.NegOfNat) { ids =>
           val negOfNat = ids(0)
-         
+
           List(fn(ofNat(x)) -> call(negOfNat, x), fn(negSucc(x)) -> ofNat(s(x)))
         }
       case NatOp.IntAdd =>
         using(NatOp.Add, NatOp.SubNatNat) { ids =>
           val plus = ids(0); val subNatNat = ids(1)
-         
+
           List(
             fn(ofNat(x), ofNat(y)) -> ofNat(call(plus, x, y)),
             fn(ofNat(x), negSucc(y)) -> call(subNatNat, x, s(y)),
@@ -220,11 +222,12 @@ trait NativeOperations:
       case NatOp.IntSub =>
         using(NatOp.IntAdd, NatOp.IntNeg) { ids =>
           val add = ids(0); val neg = ids(1)
-          List(fn(x, y) -> call(add, x, call(neg, y))) }
+          List(fn(x, y) -> call(add, x, call(neg, y)))
+        }
       case NatOp.IntMul =>
         using(NatOp.Mul, NatOp.NegOfNat) { ids =>
           val times = ids(0); val negOfNat = ids(1)
-         
+
           List(
             fn(ofNat(x), ofNat(y)) -> ofNat(call(times, x, y)),
             fn(ofNat(x), negSucc(y)) -> call(negOfNat, call(times, x, s(y))),
@@ -236,7 +239,7 @@ trait NativeOperations:
         // division by a successor `d + 1` is `divSucAux 0 d n d`
         using(NatOp.DivSucAux, NatOp.NegOfNat) { ids =>
           val divSucAux = ids(0); val negOfNat = ids(1)
-         
+
           def div(a: Val, d: Val) = call(divSucAux, z0, d, a, d)
           List(
             fn(ofNat(x), ofNat(z0)) -> int(0),
@@ -250,7 +253,7 @@ trait NativeOperations:
       case NatOp.IntEq =>
         using(NatOp.Eq) { ids =>
           val equal = ids(0)
-         
+
           List(
             fn(ofNat(x), ofNat(y)) -> call(equal, x, y),
             fn(ofNat(x), negSucc(y)) -> bool(false),
@@ -261,7 +264,7 @@ trait NativeOperations:
       case NatOp.IntLt =>
         using(NatOp.Lt) { ids =>
           val less = ids(0)
-         
+
           List(
             fn(ofNat(x), ofNat(y)) -> call(less, x, y),
             fn(ofNat(x), negSucc(y)) -> bool(false),
@@ -272,7 +275,7 @@ trait NativeOperations:
       case NatOp.IntLe =>
         using(NatOp.Lt) { ids =>
           val less = ids(0)
-         
+
           List(
             fn(ofNat(x), ofNat(y)) -> call(less, x, s(y)),
             fn(ofNat(x), negSucc(y)) -> bool(false),
@@ -284,7 +287,7 @@ trait NativeOperations:
         // within -2^63 … 2^63 - 1: `ofNat n` and `negSucc n` for `n < 2^63`
         using(NatOp.Lt) { ids =>
           val less = ids(0)
-         
+
           val bound = Val.Nat(n.fam, BigInt(2).pow(63))
           List(fn(ofNat(x)) -> call(less, x, bound), fn(negSucc(x)) -> call(less, x, bound))
         }

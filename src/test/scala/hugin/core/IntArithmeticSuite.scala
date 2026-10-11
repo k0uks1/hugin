@@ -89,7 +89,8 @@ class IntArithmeticSuite extends munit.FunSuite:
   test("a closed integer is a number; its constructors are a view of it") {
     val (core, ids) = compiled
     val m = core.metaInt.nn
-    def ctor(c: Int, n: Int): Tm = core.quote(0, core.force(core.app(Val.Rigid(Head.Glob(c), Nil), Val.Nat(ids("nat"), BigInt(n)), Icit.Expl)))
+    def ctor(c: Int, n: Int): Tm =
+      core.quote(0, core.force(core.app(Val.Rigid(Head.Glob(c), Nil), Val.Nat(ids("nat"), BigInt(n)), Icit.Expl)))
     assertEquals(ctor(m.ofNat, 5), Tm.IntNum(5))
     assertEquals(ctor(m.negSucc, 2), Tm.IntNum(-3))
     assertEquals(core.natView(Val.IntNum(-3)), Val.Rigid(Head.Glob(m.negSucc), List(Elim.EApp(Val.Nat(ids("nat"), BigInt(2)), Icit.Expl))))
@@ -105,7 +106,8 @@ class IntArithmeticSuite extends munit.FunSuite:
     val natElab = Elaborator(core, reporter, FileEnv(path = NativeOperations.NatPath))
     natElab.elabProgram(natProg.items)
     assert(!reporter.hasErrors, reporter.diagnostics.map(_.message).mkString("\n"))
-    val opened = List("bool", "true", "false", "nat", "zero", "suc", "int", "ofNat", "negSucc", "plus", "times", "divSucAux", "equal", "less")
+    val opened =
+      List("bool", "true", "false", "nat", "zero", "suc", "int", "ofNat", "negSucc", "plus", "times", "divSucAux", "equal", "less")
     val parent = opened.map(n => n -> natElab.scope(n)).toMap
     val int = edit(intSource.replace("%use \"std/reflect\" (bool, true, false).\n%use \"std/nat\".", ""))
     val intProg = hugin.syntax.Parser.parse(SourceFile.virtual(NativeOperations.IntPath, int), reporter)
@@ -117,18 +119,25 @@ class IntArithmeticSuite extends munit.FunSuite:
     val core = asLibraries(identity)
     val bound = core.globals.toList.flatMap(g =>
       g.kind match
-        case GlobalKind.Function(_, Some(b)) => b.native.filterNot(n => NativeOperations.operations.exists(_._2 == n.op)).map(n => g.name -> n.op)
+        case GlobalKind.Function(_, Some(b)) =>
+          b.native.filterNot(n => NativeOperations.operations.exists(_._2 == n.op)).map(n => g.name -> n.op)
         case _ => None
     )
     assertEquals(bound, NativeOperations.intOperations)
   }
 
   test("a wrong clause in the library is an internal error") {
-    val e = intercept[Exception](asLibraries(_.replace("iplus (negSucc M) (negSucc N) = negSucc (plus M N + 1).", "iplus (negSucc M) (negSucc N) = negSucc (plus M N).")))
+    val e = intercept[Exception](asLibraries(_.replace(
+      "iplus (negSucc M) (negSucc N) = negSucc (plus M N + 1).",
+      "iplus (negSucc M) (negSucc N) = negSucc (plus M N)."
+    )))
     assert(e.getMessage.contains("`iplus` is not the native int add"), e.getMessage)
     val e2 = intercept[Exception](asLibraries(_.replace("idiv (ofNat M) (ofNat 0) = 0.", "idiv (ofNat M) (ofNat 0) = ofNat M.")))
     assert(e2.getMessage.contains("`idiv` is not the native int div"), e2.getMessage)
-    val e3 = intercept[Exception](asLibraries(_.replace("fits64 (negSucc N) = less N 9223372036854775808.", "fits64 (negSucc N) = less N 9223372036854775807.")))
+    val e3 = intercept[Exception](asLibraries(_.replace(
+      "fits64 (negSucc N) = less N 9223372036854775808.",
+      "fits64 (negSucc N) = less N 9223372036854775807."
+    )))
     assert(e3.getMessage.contains("`fits64` is not the native fits64"), e3.getMessage)
   }
 

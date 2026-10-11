@@ -947,3 +947,43 @@ the branch runs it in 7.7 s cold with the default stack (2.1 s CPU warm, above).
 the base runs `nat_literals` in 4.4 s, `nat_numerals` 5.9 s, `nat_index` 5.5 s, `nat_arith` 7.4 s; the
 branch with the default stack 5.3 s, 4.1 s, 3.8 s, 3.8 s (a one-line check takes 2.9 s cold on both,
 single runs on a shared machine).
+
+## Inductive meta integers (#186 P4)
+
+The meta `int` became the inductive family of `std/nat` (`ofNat`, `negSucc`), unbounded; the operators on
+it apply the functions of `std/int`, which compute natively on integers (one step per operation, as
+`std/nat`'s do). `std/nat` and `std/int` are elaborated with every prelude (they are no longer left out by
+the lazy re-export), and their native operations are checked once per process. Three changes keep the
+native path cheap: an application of a native operation of one or two arguments to numerals is computed
+without building the application or a reduct (`NatArithmetic.nativeApplication`, from `Machine`); native
+operations are not memoised (the memo key of an open argument cost a read-back of stuck meta code at every
+operator); and the termination check does not record calls of functions of other files, so it no longer
+evaluates the operands of `+` (with an open integer, `steps 300 (toInt (N + 1))` of `bench/meta/int_arith`
+was exponential in the fuel before this). A stuck application is also not retried twice within one
+`force` (`Evaluation.forceApplication`).
+
+`bench/meta/int_arith.hgn` is new: sums of squares to 3000, a memoised Fibonacci to 90, and 400 Collatz
+loops with division and `same`, all within 64 bits so that the base runs it too. `Bench cpu`, warm, 2 rounds
+of 11 runs after 8 warm-up runs per JVM, three JVMs of each build in the order base, branch, branch, base,
+base, branch (base: `18b5060`; medians of the three JVMs' medians; the #195 benchmark overlapped from
+21:45, so the medians are noisy):
+
+| program | base CPU | branch CPU | base alloc | branch alloc | base steps | branch steps |
+|---|---|---|---|---|---|---|
+| prelude elaboration (uncached) | 78.6 ms | 88.8 ms | 32.9 MB | 40.3 MB | 2183 + 0 | 1595 + 0 |
+| run int_arith | 212.7 ms | 250.5 ms | 209.6 MB | 220.2 MB | 28592 + 12800 | 35109 + 150738 |
+| run nat_arith | 24.1 ms | 22.8 ms | 22.0 MB | 22.6 MB | 10505 + 511 | 10508 + 505 |
+| run nat_literals | 206.9 ms | 199.5 ms | 202.9 MB | 207.8 MB | 130007 + 0 | 130007 + 130000 |
+| run nat_numerals | 6.0 ms | 6.0 ms | 1.68 MB | 1.81 MB | 5 + 24 | 11 + 15 |
+| run a10_meta_applicative | 11.8 ms | 10.9 ms | 2.90 MB | 3.05 MB | 7 + 0 | 7 + 0 |
+| run a04_typechecker | 25.6 ms | 24.5 ms | 10.1 MB | 11.0 MB | 2836 + 0 | 2067 + 0 |
+| run a01_transitive_closure (control) | 8.7 ms | 7.2 ms | 1.78 MB | 1.91 MB | 159 + 0 | 340 + 0 |
+
+The programs that use meta integers as programs do (constants, `toInt`, numerals, functors over integer
+parameters) are within the noise of the base. The arithmetic microbenchmark `int_arith`, 150738 integer
+operations, is about 17 % slower: each operator is now an application of a `std/int` function (a partial
+application, a lookup of the function's native operation, `BigInt` arithmetic) where the base computed
+`Long` arithmetic on a primitive node. The uncached prelude is larger (`std/nat` and `std/int` are
+elaborated and checked; once per process, shared by every compilation of the JVM); the case-tree steps of
+the elaboration fell because `toInt` and the operators no longer run clauses. The native counts of
+`nat_literals` are its `toInt` applications, now `ofNat` on a numeral.

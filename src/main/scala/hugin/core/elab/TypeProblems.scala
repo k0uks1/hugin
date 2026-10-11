@@ -276,6 +276,7 @@ enum TypeProblem extends Problem:
       List(Msg.text(s"to take object code as an argument, declare the parameter with an object type (`⇑$f` at the meta level)"))
     case NoField(_, _, _, Some(s), _) => List(msg"did you mean ${Src(s)}?")
     case UnsolvedGoal(_, g, _, _, _) => List(msg"replace the hole with an expression of type ${Src(g)}")
-    case _: IntegerCrossing => List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
+    case _: IntegerCrossing =>
+      List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
     case _: NoMetaInt => List(msg"compile the program with the prelude, or use object integers only")
     case _ => Nil
