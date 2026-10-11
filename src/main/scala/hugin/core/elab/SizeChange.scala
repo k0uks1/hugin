@@ -92,7 +92,10 @@ trait SizeChange:
       lazy val argVals = args.map(a => eval(env, a)) ++ extra
       args.foreach(a => visit(a, env, lvl, Nil, site0))
       head match
-        case Tm.Global(g) if isFunction(g) => record(g, argVals, lvl, site)
+        // a function of another file (an import, the standard library) is on no cycle with this one, as the
+        // import graph is acyclic: its call is not recorded, and its arguments not evaluated (the operators
+        // on meta integers apply functions of `std/int`, whose open arguments may be large stuck code)
+        case Tm.Global(g) if isFunction(g) => if !otherFile(g) then record(g, argVals, lvl, site)
         case Tm.Global(g) =>
           definitionTerm(g).foreach(d => inlining(g, lvl, site)(visitApplied(d, Nil, lvl, argVals, site)))
         case Tm.Var(ix) => env.lift(ix).foreach(v => visitValue(v, lvl, argVals, site, deep = false))
@@ -324,6 +327,10 @@ trait SizeChange:
     )
 
   private def isFunction(g: Int): Boolean = globals(g).kind.isInstanceOf[GlobalKind.Function]
+
+  private def otherFile(g: Int): Boolean =
+    val sp = globals(g).span
+    sp.exists && sp.source.path != file.path
 
   private def arity(g: Int): Int = globals(g).kind match
     case GlobalKind.Function(a, _) if a >= 0 => a

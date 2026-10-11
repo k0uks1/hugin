@@ -73,15 +73,24 @@ trait Machine:
     case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
     case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
     case Rigid(h @ Head.Glob(id), sp) =>
-      val sp1 = Elim.EApp(a, i) :: sp
-      matchFunction(id, sp1) match
-        case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
-        case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
-        case Matching.Stuck => Rigid(h, sp1)
+      val fast = nativeFast(id, a, sp)
+      if fast != null then fast.nn
+      else
+        val sp1 = Elim.EApp(a, i) :: sp
+        matchFunction(id, sp1) match
+          case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
+          case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
+          case Matching.Stuck => Rigid(h, sp1)
     case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
     case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
     case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
     case other => throw Impossible(s"application of a non-function value $other")
+
+  /** A native operation of `std/nat` or `std/int` on numerals: `id` applied to `sp` and then `a`, if that
+   *  computes in one step ([[NatArithmetic.nativeApplication]]); null otherwise. */
+  private def nativeFast(id: Int, a: Val, sp: Spine): Val | Null = globals(id).kind match
+    case GlobalKind.Function(_, Some(body)) if body.native.isDefined => nativeApplication(body, a, sp)
+    case _ => null
 
   /** A term that evaluates without effects and without evaluating a subterm. */
   private def atomic(t: Tm): Boolean = t match
@@ -181,23 +190,28 @@ trait Machine:
                 mode = Eval
               case Obj(ObjForm.Loc(_), List(g)) => f = g
               case Rigid(h @ Head.Glob(id), sp) =>
-                val sp1 = Elim.EApp(a, i) :: sp
-                matchFunction(id, sp1) match
-                  case r: Reduct =>
-                    k = r.frames(k)
-                    if r.hit != null then
-                      v = r.hit.nn
+                val fast = nativeFast(id, a, sp)
+                if fast != null then
+                  v = fast.nn
+                  mode = Return
+                else
+                  val sp1 = Elim.EApp(a, i) :: sp
+                  matchFunction(id, sp1) match
+                    case r: Reduct =>
+                      k = r.frames(k)
+                      if r.hit != null then
+                        v = r.hit.nn
+                        mode = Return
+                      else
+                        env = r.env
+                        t = r.body
+                        mode = Eval
+                    case Matching.NotClauses =>
+                      v = reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
                       mode = Return
-                    else
-                      env = r.env
-                      t = r.body
-                      mode = Eval
-                  case Matching.NotClauses =>
-                    v = reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
-                    mode = Return
-                  case Matching.Stuck =>
-                    v = Rigid(h, sp1)
-                    mode = Return
+                    case Matching.Stuck =>
+                      v = Rigid(h, sp1)
+                      mode = Return
               case Rigid(h, sp) =>
                 v = Rigid(h, Elim.EApp(a, i) :: sp)
                 mode = Return

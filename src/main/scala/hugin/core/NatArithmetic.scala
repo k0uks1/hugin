@@ -75,28 +75,70 @@ trait NatArithmetic:
 
   /** The operation `n` on numbers. */
   def computeNative(n: NativeNat, xs: List[BigInt]): Option[Val] =
-    def nat(x: BigInt) = Val.Nat(n.fam, x)
-    def bool(b: Boolean) = Val.Rigid(Head.Glob(if b then n.ctors(0) else n.ctors(1)), Nil)
     (n.op, xs) match
-      case (NatOp.Add, List(a, b)) => Some(nat(a + b))
-      case (NatOp.Monus, List(a, b)) => Some(nat((a - b).max(0)))
-      case (NatOp.Mul, List(a, b)) => Some(nat(a * b))
       // Agda's `primNatDivSucAux` and `primNatModSucAux`
-      case (NatOp.DivSucAux, List(k, m, x, j)) => Some(nat(k + (x + m - j).max(0) / (m + 1)))
-      case (NatOp.ModSucAux, List(k, m, x, j)) => Some(nat(if x > j then (x - j - 1) % (m + 1) else k + x))
-      case (NatOp.Eq, List(a, b)) => Some(bool(a == b))
-      case (NatOp.Lt, List(a, b)) => Some(bool(a < b))
-      case (NatOp.NegOfNat, List(a)) => Some(Val.IntNum(-a))
-      case (NatOp.SubNatNat, List(a, b)) => Some(Val.IntNum(a - b))
-      case (NatOp.IntNeg, List(a)) => Some(Val.IntNum(-a))
-      case (NatOp.IntAdd, List(a, b)) => Some(Val.IntNum(a + b))
-      case (NatOp.IntSub, List(a, b)) => Some(Val.IntNum(a - b))
-      case (NatOp.IntMul, List(a, b)) => Some(Val.IntNum(a * b))
-      // truncated toward zero, as the object level's (and Lean's `Int.tdiv`); `x / 0` is `0`
-      case (NatOp.IntDiv, List(a, b)) => Some(Val.IntNum(if b == 0 then BigInt(0) else a / b))
-      case (NatOp.IntEq, List(a, b)) => Some(bool(a == b))
-      case (NatOp.IntLt, List(a, b)) => Some(bool(a < b))
-      case (NatOp.IntLe, List(a, b)) => Some(bool(a <= b))
-      case (NatOp.Fits64, List(a)) => Some(bool(Integers.fits64(a)))
-      case (NatOp.NatAbs, List(a)) => Some(nat(a.abs))
+      case (NatOp.DivSucAux, List(k, m, x, j)) => Some(Val.Nat(n.fam, k + (x + m - j).max(0) / (m + 1)))
+      case (NatOp.ModSucAux, List(k, m, x, j)) => Some(Val.Nat(n.fam, if x > j then (x - j - 1) % (m + 1) else k + x))
+      case (_, List(a)) if n.op.arity == 1 => Some(native1(n, a))
+      case (_, List(a, b)) if n.op.arity == 2 => Some(native2(n, a, b))
       case _ => throw Impossible(s"native ${n.op.key} on ${xs.length} arguments")
+
+  private def bool(n: NativeNat, b: Boolean): Val = Val.Rigid(Head.Glob(if b then n.ctors(0) else n.ctors(1)), Nil)
+
+  /** An operation of one argument on a number. */
+  private def native1(n: NativeNat, a: BigInt): Val = n.op match
+    case NatOp.NegOfNat | NatOp.IntNeg => Val.IntNum(-a)
+    case NatOp.Fits64 => bool(n, Integers.fits64(a))
+    case NatOp.NatAbs => Val.Nat(n.fam, a.abs)
+    case op => throw Impossible(s"native ${op.key} on 1 argument")
+
+  /** An operation of two arguments on numbers. */
+  private def native2(n: NativeNat, a: BigInt, b: BigInt): Val = n.op match
+    case NatOp.Add => Val.Nat(n.fam, a + b)
+    case NatOp.Monus => Val.Nat(n.fam, (a - b).max(0))
+    case NatOp.Mul => Val.Nat(n.fam, a * b)
+    case NatOp.Eq | NatOp.IntEq => bool(n, a == b)
+    case NatOp.Lt | NatOp.IntLt => bool(n, a < b)
+    case NatOp.IntLe => bool(n, a <= b)
+    case NatOp.SubNatNat | NatOp.IntSub => Val.IntNum(a - b)
+    case NatOp.IntAdd => Val.IntNum(a + b)
+    case NatOp.IntMul => Val.IntNum(a * b)
+    // truncated toward zero, as the object level's (and Lean's `Int.tdiv`); `x / 0` is `0`
+    case NatOp.IntDiv => Val.IntNum(if b == 0 then BigInt(0) else a / b)
+    case op => throw Impossible(s"native ${op.key} on 2 arguments")
+
+  /** The number of a numeral argument (of the family `fam`, or an integer), or null. */
+  private def numberOf(v: Val, fam: Int): BigInt | Null = numeral(v) match
+    case Val.Nat(f, x) if f == fam => x
+    case Val.IntNum(x) => x
+    case _ => null
+
+  /** The application of the function `f` to the arguments `sp` (innermost first) and then `a`, if `f` has
+   *  a native operation of one or two arguments and these are exactly its arguments, all numerals: its
+   *  value, computed without building the application ([[matchFunction]] computes the same); null
+   *  otherwise. The arithmetic on meta integers takes this path at every operator. */
+  final def nativeApplication(f: FunctionBody, a: Val, sp: Spine): Val | Null =
+    val n = f.native match
+      case Some(x) => x
+      case None => return null
+    if n.op.arity == 1 then
+      if sp.nonEmpty then null
+      else
+        val x = numberOf(a, n.fam)
+        if x == null then null
+        else
+          Matching.nativeSteps += 1
+          native1(n, x.nn)
+    else if n.op.arity == 2 then
+      sp match
+        case List(Elim.EApp(first, _)) =>
+          val x = numberOf(first, n.fam)
+          if x == null then null
+          else
+            val y = numberOf(a, n.fam)
+            if y == null then null
+            else
+              Matching.nativeSteps += 1
+              native2(n, x.nn, y.nn)
+        case _ => null
+    else null

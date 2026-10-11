@@ -31,6 +31,7 @@ programs=(
   "run nat_index_small|run bench/meta/nat_index_small.hgn"
   "run nat_arith_small|run bench/meta/nat_arith_small.hgn"
   "run nat_large|run bench/meta/nat_large.hgn"
+  "run int_arith|run bench/meta/int_arith.hgn"
   "run tc_chain|run bench/datalog/tc.hgn --facts bench/datalog/tc.facts"
   "run shortest_grid|run bench/datalog/sp.hgn --facts bench/datalog/sp.facts"
   "run strata|run bench/datalog/strata.hgn --facts bench/datalog/strata.facts"

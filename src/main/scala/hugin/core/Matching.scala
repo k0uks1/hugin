@@ -70,9 +70,15 @@ trait Matching:
 
   /** [[matchFunction]] by the case tree of `tree`, for `args` (as many as its arity). */
   private def runClauses(id: Int, tree: FunctionBody, args: List[Val], later: Spine): Reduct | Matching.Stuck.type =
-    val key = closedKeyIds(args) match
-      case Some(ids) => (id, ids)
-      case None => null
+    // a native operation is not memoised: on numerals it computes in one step, and its clauses, which run
+    // on anything else, take a step per constructor of an argument (the key of an open argument, stuck
+    // meta code that shares values, cost a read-back at every application)
+    val key =
+      if tree.native.isDefined then null
+      else
+        closedKeyIds(args) match
+          case Some(ids) => (id, ids)
+          case None => null
     val hit = if key == null then null else memo.getOrElse(key, null)
     if hit != null then Reduct(hit, null, Nil, null, later)
     else

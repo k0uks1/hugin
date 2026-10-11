@@ -197,7 +197,7 @@ trait Evaluation:
       globals(id).kind match
         // a global defined after the value was computed (a formula function defined by its clauses)
         case GlobalKind.Definition(_, d) => force(appSp(d, sp))
-        case _ => reduceFunction(id, sp).map(force).getOrElse(v)
+        case _ => forceApplication(v, id, sp)
     case Rigid(Head.Module(b, env), sp) if closedEnv(env).isDefined => force(appSp(evalModule(b, env), sp))
     // compile-time arithmetic stuck on an application that may reduce now
     case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
@@ -210,6 +210,33 @@ trait Evaluation:
       val fb = force(b)
       if fb eq b then v else natAdd(f, fb, k)
     case other => other
+
+  /** The applications found stuck since the outermost [[force]] that is still running began, by identity
+   *  (null if none was found), and the depth of [[forceApplication]]s. Stuck meta code shares values: a
+   *  stuck application whose arguments are stuck applications is retried once per path to it, so forcing
+   *  it took time exponential in its depth (an `if` over an integer computed from an open one, issue
+   *  #108). Within one outermost force no meta is solved and no global changes, so an application found
+   *  stuck stays stuck until it ends. */
+  private var stuckSeen: java.util.IdentityHashMap[Val, Unit] | Null = null
+  private var forcing = 0
+
+  /** [[force]] of the application `v` of the global `id` to `sp`: its reduct, forced, or `v` if it is stuck. */
+  private def forceApplication(v: Val, id: Int, sp: Spine): Val =
+    val seen = stuckSeen
+    if seen != null && seen.containsKey(v) then v
+    else
+      forcing += 1
+      try
+        reduceFunction(id, sp) match
+          case Some(r) => force(r)
+          case None =>
+            if sp.nonEmpty then
+              if stuckSeen == null then stuckSeen = java.util.IdentityHashMap()
+              stuckSeen.nn.put(v, ())
+            v
+      finally
+        forcing -= 1
+        if forcing == 0 then stuckSeen = null
 
   /** [[force]] without unfolding definitions: solved metas at the head are unfolded and stuck function
    *  applications retried, but a [[Val.Top]] stays folded (for printing and meta solutions). */

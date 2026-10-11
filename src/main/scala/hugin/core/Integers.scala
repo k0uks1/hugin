@@ -10,8 +10,9 @@ final case class MetaInt(fam: Int, ofNat: Int, negSucc: Int, natFam: Int)
 
 /** Integers of the meta level (reference: std/int). The base type `int` used as a meta type is the
  *  inductive family `int` of `std/nat` once that file is elaborated ([[registerMetaInt]]); before, and
- *  in a compilation without `std/nat` (`--no-prelude`), it is the primitive `Val.Base(int, meta)`, which
- *  has no values. A closed integer is represented as a number ([[Val.IntNum]], [[Tm.IntNum]]), as a
+ *  in a compilation without `std/nat`, it is the primitive `Val.Base(int, meta)`. A program compiled
+ *  with `--no-prelude` then has no meta integers (E0928); only the elaborator's own tests elaborate bare
+ *  files, in which its literals are primitive 64-bit values. A closed integer is represented as a number ([[Val.IntNum]], [[Tm.IntNum]]), as a
  *  closed numeral of a nat-like family is ([[Naturals]]), and code that inspects constructors sees it
  *  through [[Naturals.natView]]: `ofNat n` for `n ≥ 0`, `negSucc (-n - 1)` below. The clauses of
  *  `std/int` stay the definition of the operations; [[NatArithmetic]] computes them on numbers. */
