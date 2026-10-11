@@ -96,6 +96,12 @@ trait Names:
     case Arrow(None, Ascribe(ns, a), c) if boundNames(ns).isDefined =>
       freeVarsIn(a, bound) ++ freeVarsIn(c, bound ++ boundNames(ns).get.map(nameOf))
     case Lambda(p, ann, b) => freeVarsIn(ann, bound) ++ freeVarsIn(b, bound + nameOf(p))
+    // a branch's pattern variables and the equation are bound in its expression
+    case Match(h, e, bs) =>
+      freeVarsIn(e, bound) ++ bs.flatMap { b =>
+        val vars = TreeOps.nodes(b.pat).collect { case v: VarRef => v.name }.toSet
+        freeVarsIn(b.rhs, bound ++ vars ++ h.map(_.name))
+      }
     case p: Product => p.productIterator.toList.flatMap(freeVarsIn(_, bound))
     case it: Iterable[?] => it.toList.flatMap(freeVarsIn(_, bound))
     case _ => Nil

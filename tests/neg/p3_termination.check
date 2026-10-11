@@ -1,0 +1,21 @@
+error[E0912]: cannot show that `loop` terminates
+ --> tests/neg/p3_termination.hgn:4:1
+  |
+4 | loop : nat -> int. (*~ E0912 *)
+  | ^^^^ possibly non-terminating
+5 | loop N = match less N 3 with (*~ E0912 *)
+  | ----------------------------------------- in this clause: `match less N 3 with …`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+error[E0912]: cannot show that `loop.match` terminates
+ --> tests/neg/p3_termination.hgn:5:10
+  |
+5 | loop N = match less N 3 with (*~ E0912 *)
+  |          ^^^^^^^^^^^^^^ possibly non-terminating
+6 |   | true => loop (N + 1)
+  |   ---------------------- in this clause: `loop (N + 1)`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+2 errors found

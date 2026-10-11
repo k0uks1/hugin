@@ -1,0 +1,35 @@
+(* #186 P3: `match H : e` abstracts the scrutinee in the goal, and `rewrite h in e` rewrites it with an
+   equation (reference: meta/match; the examples of the design note, chapter 1) *)
+%use "std/eq".
+%use "std/nat".
+maxN : nat -> nat -> nat = [m] [n] if (less m n) n m.
+(* the goal unfolds `maxN`; `less M N` is abstracted, so each branch sees `if true …` or `if false …` *)
+maxIs : (m n : nat) -> either (eq (maxN m n) m) (eq (maxN m n) n).
+maxIs M N = match less M N with
+  | true => right refl
+  | false => left refl.
+(* the equation `E : eq (less M N) false` in the second branch *)
+below : (m n : nat) -> eq (less m n) true -> eq (maxN m n) n.
+below M N H = match E : less M N with
+  | true => refl
+  | false => absurdBool (trans (sym E) H).
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+(* `plus 0 N` is rewritten to `N`: the expression is checked against `eq (plus 0 N) N` *)
+twice : (n : nat) -> eq (plus 0 (plus 0 n)) n.
+twice N = rewrite zeroPlus N in zeroPlus N.
+(* the left side may occur once; `N` alone stays *)
+back : (n : nat) -> eq n (plus 0 n).
+back N = rewrite zeroPlus N in refl.
+(* an absurd branch; an indexed family, whose impossible constructor needs no branch *)
+noBool : eq false true -> nat.
+noBool E = match E with | ().
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+head : {A : Type} -> {n : nat} -> vec A (n + 1) -> A.
+head V = match V with
+  | vcons X _ => X.
+answer : int -> rel.
+answer (head (vcons 42 vnil)).

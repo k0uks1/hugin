@@ -358,7 +358,7 @@ trait Items:
     // the names it declares are erroneous (`docs/PARSER.md`, §5)
     if hasSyntaxErrors(item) then syntaxError(item.span)
     // the records of a failed item are shown before its metas are undone ([[solvedAndRecorded]])
-    try at(item.span, declares(item).getOrElse(""))(elabItemAt(item))
+    try at(item.span, declares(item).getOrElse(""))(withMatchOwner(declares(item).getOrElse(""))(elabItemAt(item)))
     catch
       case e: ElabError =>
         flushTooling(success = false)
