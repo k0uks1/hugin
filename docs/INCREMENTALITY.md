@@ -282,7 +282,10 @@ Incremental now:
   (`StdlibCache`, docs/LIBRARIES.md).
 * The program's top level: declarations and definitions are elaborated together when one of them
   changes (`Signatures`); every other item is elaborated on its own (`ElabItem`), again only when its
-  text (with its position) or the declarations change. Moving items (blank lines, comments, other items
+  text (with its position) or what it read of the declarations changes (issue #126, PR 7: the item's
+  footprint, compared by the fingerprints of the globals it read, the outcomes of the names it looked
+  up and the tables it read as a whole; an item elaborated against earlier declarations is moved onto
+  the current ones by the stable keys of their globals). Moving items (blank lines, comments, other items
   growing) elaborates nothing. After an edit, every item is revalidated (`ItemOf` executed and cut off)
   in time linear in the number of items: `ObjectItems` is indexed by key, and `ItemKey` caches its hash
   (issue #126, PR 2).
@@ -298,11 +301,11 @@ Still coarse:
   the queries). Evaluation runs again when the lowered rules or the facts change (a REPL query over an
   unchanged program reuses the fixpoint; with `%demand`, a query that changes the transformed rules
   evaluates the whole program again).
-* Declarations and definitions are elaborated together (`Signatures`), and every object item depends on
-  the whole result, which has no useful equality: editing or adding any declaration elaborates all of
-  them and every object item again (step 10's per-name dependencies, `ScopeName` and `DeclAfter`, were
-  not ported to the redesigned meta level; see the note at the top). A meta probe in the REPL is a
-  definition, so it and the next input elaborate the declarations again.
+* Declarations and definitions are elaborated together (`Signatures`): editing or adding one elaborates
+  all of them again; the object items that read a changed one follow (PR 7). An item with an unresolved
+  name depends on every name in scope (its suggestion lists them), and an item that touches a meta or a
+  universe level the declarations created depends on all of them (the designer's choices). A meta probe
+  in the REPL is a definition, so it and the next input elaborate the declarations again.
 * Libraries are elaborated as whole files (an edit of a library elaborates it, and the files importing
   it, again); a change of the `%infix` operators of a file parses all its items again.
 * The slices' placement (`SourceFile.place`) is mutable state set by `ItemSlices`; it relies on the
