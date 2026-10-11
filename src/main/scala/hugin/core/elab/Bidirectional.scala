@@ -56,6 +56,7 @@ trait Bidirectional:
     case Wildcard() =>
       fail(TypeProblem.CannotInferWildcard(t.span))
     case Absurd() | Absent() => fail(ClauseProblem.MisplacedAbsurd(t.span))
+    case BigLit(_) => fail(TypeProblem.IntegerOutOfRange(t.span))
     case SymRef(id, _) => globalRef(sharedAt(id, state.stage))
     case NamedVar(n) =>
       val a = freshMeta(c, Val.U0, Stage.S0, t.span, s"the type of `$n`", allowUnsolved = true)
@@ -152,6 +153,7 @@ trait Bidirectional:
     case (RecordLit(fields, false), rt: Val.RecTy) => checkRecord(c, t, fields, rt)
     case (Lit(l), Val.Base(b, s)) if b == BaseType.of(l) => Tm.Lit(l, s)
     case (Lit(l @ Literal.IntL(_)), other) if natType(other).isDefined => natLiteral(c, l, other, t.span).get
+    case (BigLit(n), other) if natType(other).isDefined => natTerm(natType(other).get._1, natType(other).get._2, n)
     case (Wildcard(), _) => if st == Stage.S0 then Tm.Wild else freshMeta(c, a, Stage.S1, t.span, "`_`")
     case (Infix("+", l, r), ty) if st == Stage.S1 && natType(ty).isDefined && successorCount(r).isDefined =>
       natSuccessor(natType(ty).get._2, check(c, l, a, st), successorCount(r).get, t.span)

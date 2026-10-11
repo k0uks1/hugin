@@ -346,7 +346,7 @@ trait SizeChange:
 
   /** `b` is a proper subterm of the constructor term `a`. */
   private def properSubterm(b: Tm, a: Tm): Boolean =
-    val (h, args) = spine(a)
+    val (h, args) = spine(natViewTm(a))
     h match
       case Tm.Global(c) if isConstructor(c) => args.exists(x => x == b || properSubterm(b, x))
       case _ => false

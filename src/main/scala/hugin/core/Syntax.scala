@@ -104,6 +104,10 @@ enum Tm:
   /** A base type at a stage: `int : type` at stage 0, the meta primitive `int : Type₀` at stage 1. */
   case Base(b: BaseType, st: Stage)
 
+  /** The numeral `n` of the nat-like family `fam` (reference: meta/families, numerals): the unary term
+   *  `sucⁿ zero`, represented as a number ([[Naturals]]). */
+  case Nat(fam: Int, n: BigInt)
+
   /** `rel` and `prop`, the object sorts of relations and formulas. */
   case RelT
   case PropT
@@ -166,7 +170,7 @@ object Tm:
     case Module(_, env) => env
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
-    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => Nil
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => Nil
 
   /** `t` with `f` applied to its immediate subterms (those under binders included); a module body's own
    *  terms are not subterms (its environment is). */
@@ -191,7 +195,7 @@ object Tm:
     case Module(b, env) => Module(b, env.map(f))
     case Persist(a) => Persist(f(a))
     case FactTy(a) => FactTy(f(a))
-    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT => t
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => t
 
   /** `t` with its globals and metas renamed by `g` and `m`. */
   def rename(t: Tm, g: Int => Int, m: Int => Int): Tm = t match

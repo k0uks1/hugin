@@ -68,8 +68,13 @@ trait Patterns:
     case VarRef(n) => Pat.PVar(n, t.span)
     case Wildcard() => Pat.PWild(t.span)
     case Absurd() => Pat.PAbsurd(t.span)
-    case Lit(Literal.IntL(n)) if n >= 0 => Pat.PLit(n, t.span)
-    case Infix("+", p, k) if successorCount(k).isDefined => Pat.PSucc(pattern(p, expected), successorCount(k).get, t.span)
+    case Lit(Literal.IntL(n)) if n >= 0 =>
+      if n > maxNatPattern then fail(TypeProblem.NatPatternTooLarge(t.span))
+      Pat.PLit(n, t.span)
+    case BigLit(_) => fail(TypeProblem.NatPatternTooLarge(t.span))
+    case Infix("+", p, k) if successorCount(k).isDefined =>
+      if successorCount(k).get > maxNatPattern then fail(TypeProblem.NatPatternTooLarge(t.span))
+      Pat.PSucc(pattern(p, expected), successorCount(k).get, t.span)
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
@@ -93,7 +98,6 @@ trait Patterns:
     case (Pat.PLit(0, span), Some((z, _))) => Pat.PCon(z, Nil, span)
     case (Pat.PLit(n, span), Some((_, s))) => Pat.PCon(s, List(Pat.PLit(n - 1, span)), span)
     case (Pat.PSucc(q, k, span), Some((_, s))) =>
-      if k > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
       Pat.PCon(s, List(if k == 1 then q else Pat.PSucc(q, k - 1, span)), span)
     case (Pat.PLit(_, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))
     case (Pat.PSucc(_, _, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))

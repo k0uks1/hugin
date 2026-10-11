@@ -1,0 +1,26 @@
+// warning[W0003]: unused definition `p`
+//   --> tests/run/nat_numerals.hgn:11:1
+//    |
+// 11 | p : same (pred 50001) n = refl.
+//    | ^ never referenced
+//    |
+//    = note: `-W unused_definitions` is on by default
+// 
+// warning[W0003]: unused definition `q`
+//   --> tests/run/nat_numerals.hgn:12:1
+//    |
+// 12 | q : same (pred big + 1) big = refl.
+//    | ^ never referenced
+//    |
+//    = note: `-W unused_definitions` is on by default
+// 
+// warning[W0003]: unused definition `r`
+//   --> tests/run/nat_numerals.hgn:17:1
+//    |
+// 17 | r : same (_ + 1) 5 = refl.
+//    | ^ never referenced
+//    |
+//    = note: `-W unused_definitions` is on by default
+// 
+// 3 warnings found
+out 4 19.

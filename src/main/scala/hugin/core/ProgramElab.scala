@@ -200,6 +200,7 @@ object ProgramElab:
     val e = decls.elaborator.fork(core, reporter, index)
     val diagnostics = mutable.ListBuffer.from(decls.base.diagnostics ++ decls.diagnostics)
     val parts = mutable.ListBuffer.empty[elab.ModulePart]
+    var reported = 0 // the reporter's diagnostics already in `diagnostics`
     val elaborated = results.flatMap { r =>
       movable(decls, r, core) match
         case Some(moved) =>
@@ -209,8 +210,11 @@ object ProgramElab:
           parts ++= r.parts.map(moved.part)
           moved.items(r.items)
         case None =>
-          val (beforeItems, beforeParts) = (e.items.length, e.state.parts.length)
+          val (beforeItems, beforeParts, mark) = (e.items.length, e.state.parts.length, reporter.mark)
           e.elabItemReporting(r.item)
+          // its diagnostics in item order, as for the items moved (and as when elaborated with the others)
+          diagnostics ++= reporter.diagnostics.drop(mark)
+          reported = reporter.mark
           parts ++= e.state.parts.drop(beforeParts)
           e.items.drop(beforeItems).toList
     }
@@ -222,7 +226,7 @@ object ProgramElab:
           case _ => true
         } ++ e.expandModule(parts.toList)
     e.finish()
-    diagnostics ++= reporter.diagnostics
+    diagnostics ++= reporter.diagnostics.drop(reported)
     val programItems = decls.items ++ objectItems
     (Elaborated(core, decls.base.items ++ programItems, programItems), diagnostics.toList, index)
 

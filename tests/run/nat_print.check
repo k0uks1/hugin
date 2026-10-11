@@ -1,0 +1,14 @@
+// warning[W0003]: unused definition `m`
+//  --> tests/run/nat_print.hgn:5:1
+//   |
+// 5 | m : nat = add2 n.
+//   | ^ never referenced
+//   |
+//   = note: `-W unused_definitions` is on by default
+// 
+// 1 warning found
+(* ---------------- after elaborate ---------------- *)
+n : nat = 123456789012345678901234567890.
+add2 : nat -> nat.
+  add2 N = N + 2.
+m : nat = add2 n.

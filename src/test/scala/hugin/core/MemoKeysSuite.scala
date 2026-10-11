@@ -8,7 +8,7 @@ import CoreTesting.*
 class MemoKeysSuite extends munit.FunSuite:
   /** The definition of closed keys before the cache (`Matching.closedKey`), as the reference. */
   private def closed(t: Tm): Boolean = t match
-    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
+    case Tm.Global(_) | Tm.Lit(_, _) | Tm.Nat(_, _) | Tm.Base(_, _) | Tm.U0 | Tm.U1(_) | Tm.RelT | Tm.PropT => true
     case Tm.App(f, a, _) => closed(f) && closed(a)
     case Tm.Rec(fs) => fs.forall(f => closed(f._2))
     case Tm.Quote(a) => closedObject(a)

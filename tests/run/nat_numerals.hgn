@@ -1,0 +1,22 @@
+(* #131: numerals are numbers: large literals, conversion, `suc ?m = 5` and `e + k`, in constant time
+   (reference: meta/families, numerals) *)
+n : nat = 50000.
+big : nat = 100000000000000000000.
+same : nat -> nat -> Type.
+refl : same N N.
+pred : nat -> nat.
+pred 0 = 0.
+pred (N + 1) = N.
+(* conversion of numerals, and of a numeral against `suc` of a stuck term *)
+p : same (pred 50001) n = refl.
+q : same (pred big + 1) big = refl.
+(* index unification solves `k + 1 = 5` by one view step *)
+w : (k : nat) -> same (k + 1) 5 -> nat.
+w K refl = K.
+(* `suc ?m = 5` solves `?m := 4` *)
+r : same (_ + 1) 5 = refl.
+toI : nat -> int.
+toI 0 = 0.
+toI (N + 1) = toI N + 1.
+out : int -> int -> rel.
+out (toI (w 4 refl)) (toI (pred 20)).

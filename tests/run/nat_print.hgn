@@ -1,0 +1,5 @@
+(* #131: numerals are printed as digits, an open successor as `e + k`, also large ones *)
+n : nat = 123456789012345678901234567890.
+add2 : nat -> nat.
+add2 N = N + 2.
+m : nat = add2 n.
