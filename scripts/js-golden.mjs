@@ -4,7 +4,7 @@
 //     from `hugin run` (X.flags translated to options);
 //   - every tests/json program: Hugin.check's diagnostics must equal the JSON lines of X.check;
 //   - the highlighting, the editor's analysis and completion (Hugin.highlight, Hugin.analyse,
-//     Hugin.complete) on small programs;
+//     Hugin.complete, Hugin.actions) on small programs;
 // and prints the bundle's size. Usage, from the repository root: node scripts/js-golden.mjs [web/target/bundle]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -131,6 +131,17 @@ if (comp.from !== cOff - 1 || !comp.ranked || !suc?.fits || suc.kind !== 'metaDe
   fail('complete', 'unexpected completions: ' + JSON.stringify(comp));
 worker.onmessage?.({ data: { id: 9, op: 'complete', source: cSource, offset: cOff } });
 if (posted.at(-1)?.result?.from !== cOff - 1) fail('worker', 'complete: ' + JSON.stringify(posted.at(-1)));
+
+// actions (Hugin.actions): a split at the cursor, in UTF-16 offsets
+const aSource = 'nat : Type.\nzero : nat.\nsuc : nat -> nat.\ndouble : nat -> nat.\ndouble N = suc (suc N).\n';
+const aOff = aSource.indexOf('N = suc');
+const acts = JSON.parse(Hugin.actions(aSource, aOff, aOff));
+const split = acts.actions?.find((a) => a.title === 'Split on `N`');
+const clause = aSource.indexOf('double N');
+if (split?.kind !== 'rewrite' || split.edits[0]?.from !== clause || split.edits[0]?.to !== aSource.length - 1 || !split.edits[0].insert.startsWith('double zero'))
+  fail('actions', 'unexpected actions: ' + JSON.stringify(acts));
+worker.onmessage?.({ data: { id: 10, op: 'actions', source: aSource, from: aOff, to: aOff } });
+if (!posted.at(-1)?.result?.actions?.length) fail('worker', 'actions: ' + JSON.stringify(posted.at(-1)));
 
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');

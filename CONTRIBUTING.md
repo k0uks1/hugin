@@ -247,8 +247,8 @@ the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `web/sr
   explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
   path arithmetic on strings, and cancellation by a deadline;
 - `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.analyse`,
-  `Hugin.complete`, `Hugin.phases`; results as JSON, documented in `Hugin.scala`), the persistent query
-  database all calls share (`Session.scala`, which also encodes the annotation table of
+  `Hugin.complete`, `Hugin.actions`, `Hugin.phases`; results as JSON, documented in `Hugin.scala`), the
+  persistent query database all calls share (`Session.scala`, which also encodes the annotation table of
   `hugin.ide.Annotations` for the playground) and the Web Worker entry (`WorkerMain.scala`).
 
 ```
@@ -748,6 +748,8 @@ site/
                           Ctrl/Cmd-click), the occurrences of the name at the cursor, references (Shift-F12)
   play/complete.js        completion (@codemirror/autocomplete): the worker's `complete` at the cursor,
                           filtered locally while typing; candidates that fit the expected type first
+  play/actions.js         the actions at the cursor (Ctrl-., the info bar's "Fix"): the worker's `actions`
+                          (split, missing clauses, a clause, refine a hole, the suggestions) as a menu
   play/hugin-lang.js      highlighting from editors/vscode/syntaxes/hugin.tmLanguage.json
   play/worker.js          the Web Worker that loads the compiler bundle hugin.js; `adapt` and
                           `normalise` hold the bundle's API (batch W4)

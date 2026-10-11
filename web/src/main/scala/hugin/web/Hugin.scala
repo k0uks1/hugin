@@ -53,6 +53,13 @@ object Hugin:
   @JSExport def complete(source: String, offset: Int, options: js.UndefOr[js.Any] = js.undefined): String =
     Playground.complete(source, offset, options)
 
+  /** The fixes and the actions of interactive development (split, add the missing clauses, add a clause,
+   *  refine a hole, and the diagnostics' suggestions) for the part `[from, to]` (UTF-16 code units) of the
+   *  program: `{ "version": 1, "actions": [{ "title", "kind", "preferred", "edits": [{ "from", "to",
+   *  "insert" }] }, …] }` (`docs/design/web-ide.md`, 5.2). */
+  @JSExport def actions(source: String, from: Int, to: Int, options: js.UndefOr[js.Any] = js.undefined): String =
+    Playground.actions(source, from, to, options)
+
   /** Makes the current Web Worker answer messages ([[WorkerMain]]); for a worker without a handler of
    *  its own: `importScripts("hugin.js"); Hugin.serveWorker()`. */
   @JSExport def serveWorker(): Unit = WorkerMain.serve()

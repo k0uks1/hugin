@@ -54,6 +54,17 @@ function request(op, source, printAfter, extra = {}) {
   });
 }
 
+// the actions at the cursor (Ctrl-., the info bar's "Fix"), with the same rules as completion
+async function actions(source, from, to) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("actions", source, "", { from, to });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // completion: the compiler's candidates at an offset, or nothing while a run or check is busy (completion
 // does not queue behind a long run) or when the text changed before the answer came
 async function complete(source, offset) {
@@ -190,7 +201,7 @@ function onEdit() {
   analyseSoon();
 }
 
-const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete });
+const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete, actions });
 startWorker();
 ready.then(onReady);
 

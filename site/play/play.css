@@ -49,7 +49,7 @@ pre.text { margin: 0; font-size: 0.82rem; line-height: 1.55; white-space: pre-wr
 .hg-infobar .fix { flex: none; min-height: 1.75rem; }
 .hg-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .hg-occurrence { background: var(--accent-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-.cm-tooltip.cm-tooltip-hover, .cm-tooltip:has(> .hg-hover) { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); }
+#editor .cm-tooltip.cm-tooltip-hover, #editor .cm-tooltip.hg-hover { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); }
 .hg-hover { max-width: min(36rem, calc(100vw - 2rem)); max-height: 50vh; overflow: auto; padding: 0.45rem 0.7rem; font: 0.8rem/1.5 var(--sans); }
 .hg-hover code, .hg-hover pre { font-family: var(--mono); font-size: 0.78rem; }
 .hg-signature { overflow-wrap: anywhere; }
@@ -76,3 +76,12 @@ pre.text { margin: 0; font-size: 0.82rem; line-height: 1.55; white-space: pre-wr
 .cm-completionDetail { margin-left: 0.8em; color: var(--muted); font-style: normal; }
 .cm-completionMatchedText { text-decoration: none; font-weight: 600; color: var(--accent); }
 @media (pointer: coarse) { #editor .cm-tooltip.cm-tooltip-autocomplete > ul > li { padding-top: 0.95rem; padding-bottom: 0.95rem; } #editor .cm-tooltip.cm-tooltip-autocomplete > ul { max-height: 16rem; } }
+/* the actions at the cursor (actions.js) */
+#editor .cm-tooltip.hg-actions { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-sm); }
+.hg-actions ul { list-style: none; margin: 0; padding: 0.25rem 0; max-width: min(28rem, calc(100vw - 2rem)); }
+.hg-actions button { display: block; width: 100%; min-height: 2rem; text-align: left; font: 0.8rem/1.4 var(--sans); color: var(--fg); background: none; border: 0; padding: 0.3rem 0.8rem; cursor: pointer; }
+.hg-actions button.preferred { font-weight: 600; }
+.hg-actions button:hover, .hg-actions button:focus-visible { background: var(--accent-soft); outline: none; }
+.hg-actions-none { padding: 0.3rem 0.8rem; font: 0.8rem/1.4 var(--sans); color: var(--muted); }
+@media (pointer: coarse) { .hg-actions button { min-height: 2.75rem; } }
+@media (pointer: coarse) { .hg-infobar .fix { min-height: 2.75rem; padding: 0 0.35rem; } }

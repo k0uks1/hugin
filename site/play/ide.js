@@ -11,6 +11,7 @@ import { StateField, StateEffect, RangeSet, RangeValue, ChangeSet, MapMode } fro
 import { EditorView, Decoration, hoverTooltip, showTooltip, showPanel, keymap } from "@codemirror/view";
 import { StringStream } from "@codemirror/language";
 import { parser } from "./hugin-lang.js";
+import { fixesField, hasFixes } from "./actions.js";
 
 // where a declaration of the bundled standard library is documented: its module's page in the reference
 const REFERENCE = "../reference/";
@@ -280,33 +281,41 @@ function closeReferences(view) {
 }
 
 // --- the info bar: what is at the cursor --------------------------------------------------------------
-function infoBar(view) {
+// (with "Definition" when the name has one, and "Fix" when the compiler offers actions at the cursor)
+const infoBar = (onFix) => (view) => {
   const dom = el("div", "hg-infobar");
   const text = el("span", "hg-infobar-text");
   const button = el("button", "fix", "Definition");
   button.type = "button";
   button.onclick = () => definitionAtCursor(view);
+  const fix = el("button", "fix", "Fix");
+  fix.type = "button";
+  fix.title = "Actions at the cursor (Ctrl-.)";
+  fix.onclick = () => onFix(view);
   const live = el("div", "hg-live");
   live.setAttribute("aria-live", "polite");
-  dom.append(text, button, live);
+  dom.append(text, fix, button, live);
   const render = (state) => {
     const n = nameAt(state, state.selection.main.head);
     const hover = n && n.value.data.hover;
     text.replaceChildren();
     if (hover) text.append(hover.signature ? code(hover.signature) : note(hover.notes[0].split("\n")[0]));
     button.hidden = !(n && declaration(state, n.value));
+    fix.hidden = !(onFix && hasFixes(state));
   };
   render(view.state);
   return {
     dom,
     update(u) {
-      if (u.selectionSet || u.docChanged || u.transactions.some((t) => t.effects.some((e) => e.is(setInfo)))) render(u.state);
+      const fixes = u.startState.field(fixesField, false) !== u.state.field(fixesField, false);
+      if (fixes || u.selectionSet || u.docChanged || u.transactions.some((t) => t.effects.some((e) => e.is(setInfo)))) render(u.state);
     },
   };
-}
+};
 
 // --- the extension and the page's entry points -------------------------------------------------------
-export function ideExtensions() {
+// `onFix(view)` opens the menu of actions at the cursor (actions.js)
+export function ideExtensions({ onFix } = {}) {
   return [
     tableField,
     mouseHover,
@@ -314,7 +323,7 @@ export function ideExtensions() {
     modClick,
     occurrenceMarks,
     referencesField,
-    showPanel.of(infoBar),
+    showPanel.of(infoBar(onFix)),
     keymap.of([
       { key: "F12", run: definitionAtCursor },
       { key: "Shift-F12", run: referencesAtCursor },
