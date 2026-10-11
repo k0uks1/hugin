@@ -23,6 +23,12 @@ object ModulePart:
     case r: Rewrite => r.copy(fn = f(r.fn))
     case s: Source => s
 
+  /** The terms of a part. */
+  def terms(p: ModulePart): List[Tm] = p match
+    case d: Data => List(d.data)
+    case r: Rewrite => List(r.fn)
+    case _: Source => Nil
+
 /** Module-wide directives (`module -> module`, reference: directives) rewrite the rules and queries of the file.
  *  The elaboration of each object item records what it contributes ([[ModulePart]]); if a module-wide
  *  directive is among them, [[expandModule]] replaces the rules and queries elaborated item by item with
