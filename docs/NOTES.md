@@ -503,7 +503,7 @@ dropped and elaboration continues with the next one.
   variables. A declaration with clauses declares a function; clauses are elaborated after all
   declarations, so functions may be (mutually) recursive and may use every declaration of the module.
   Patterns are uppercase variables (bound once), `_`, constructors applied to their explicit arguments,
-  and natural-number literals of a nat-like type. Implicit arguments are not written in patterns; the
+  natural-number literals and successor patterns `P + k` of a nat-like type (#127). Implicit arguments are not written in patterns; the
   names of the function's implicit binders (`A`, `N` in `head : vec A (suc N) -> A`) are in scope in the
   right-hand side unless a pattern variable shadows them. The arguments up to the last explicit pattern
   are matched; the right-hand side is checked against the rest of the type.

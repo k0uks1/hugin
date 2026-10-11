@@ -5,7 +5,8 @@ import hugin.syntax.{Literal, Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
-/** Patterns of clauses: uppercase variables, `_`, constructors applied to patterns, nat literals. */
+/** Patterns of clauses: uppercase variables, `_`, constructors applied to patterns, nat literals and
+ *  successor patterns `p + k`. */
 enum Pat:
   /** A pattern variable; `implicitBinder` for the name of an implicit binder of the function's type,
    *  which is in scope unless a pattern variable shadows it. */
@@ -13,6 +14,9 @@ enum Pat:
   case PWild(span: Span)
   case PCon(ctor: Int, args: List[Pat], span: Span)
   case PLit(n: Long, span: Span)
+
+  /** `p + k` (`k ≥ 1`) against a nat-like type: the successor applied `k` times to `p`. */
+  case PSucc(p: Pat, k: Long, span: Span)
 
   /** A value of a type without constructors (a reference to an object constant, a meta literal): `key` is
    *  its closed normal form, as [[hugin.core.Matching.atomKey]] computes it. Only quoted patterns produce
@@ -59,6 +63,7 @@ trait Patterns:
     case VarRef(n) => Pat.PVar(n, t.span)
     case Wildcard() => Pat.PWild(t.span)
     case Lit(Literal.IntL(n)) if n >= 0 => Pat.PLit(n, t.span)
+    case Infix("+", p, k) if successorCount(k).isDefined => Pat.PSucc(pattern(p, expected), successorCount(k).get, t.span)
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
@@ -75,6 +80,18 @@ trait Patterns:
           Pat.PCon(c, args.zip(types).map(pattern(_, _)), t.span)
         case _ =>
           fail(ClauseProblem.InvalidPattern(t.span))
+
+  /** A literal or successor pattern against the type `ty` (shown as `shown`), one constructor of the
+   *  nat-like family unfolded: `3` is `suc 2`, `P + 2` is `suc (P + 1)` (reference: meta/clauses). */
+  def natPattern(pat: Pat, ty: Val, shown: => String): Pat = (pat, natType(ty)) match
+    case (Pat.PLit(0, span), Some((z, _))) => Pat.PCon(z, Nil, span)
+    case (Pat.PLit(n, span), Some((_, s))) => Pat.PCon(s, List(Pat.PLit(n - 1, span)), span)
+    case (Pat.PSucc(q, k, span), Some((_, s))) =>
+      if k > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
+      Pat.PCon(s, List(if k == 1 then q else Pat.PSucc(q, k - 1, span)), span)
+    case (Pat.PLit(_, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))
+    case (Pat.PSucc(_, _, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))
+    case (other, _) => other
 
   /** `[p̄]` or `p :: ps`, with the element type if known. */
   def listPattern(t: Tree, elem: Option[Val]): Pat =

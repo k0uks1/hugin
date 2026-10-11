@@ -152,6 +152,9 @@ trait Bidirectional:
     case (Lit(l), Val.Base(b, s)) if b == BaseType.of(l) => Tm.Lit(l, s)
     case (Lit(l @ Literal.IntL(_)), other) if natType(other).isDefined => natLiteral(c, l, other, t.span).get
     case (Wildcard(), _) => if st == Stage.S0 then Tm.Wild else freshMeta(c, a, Stage.S1, t.span, "`_`")
+    case (Infix("+", l, r), ty) if st == Stage.S1 && natType(ty).isDefined && successorCount(r).isDefined =>
+      natSuccessor(natType(ty).get._2, check(c, l, a, st), successorCount(r).get, t.span)
+    case (Lit(Literal.IntL(_)), Val.Flex(_, _)) if st == Stage.S1 => postponeLiteral(c, t, a)
     case (Infix(op, l, r), ty) if arithOps.contains(op) && !ty.isInstanceOf[Val.Flex] => checkArith(c, op, l, r, ty, st, t.span)
     case (_, Val.Flex(_, _)) =>
       val (tm, ty) = inferS(c, t, st)

@@ -11,7 +11,8 @@ totality checks.
 ```text
 Function  ::= NAME ":" Type "." Clause+
 Clause    ::= NAME Pattern* "=" Expr Where? "."
-Pattern   ::= VAR | "_" | NAME | "(" NAME Pattern* ")" | INT | "(" Pattern ")" | QuotedPattern
+Pattern   ::= VAR | "_" | NAME | "(" NAME Pattern* ")" | INT | "(" Pattern "+" INT ")"
+            | "(" Pattern ")" | QuotedPattern
 ```
 
 A function defined by clauses is declared first, `f : A.`, with a meta type `A`. Every item `f p₁ … pₙ =
@@ -36,6 +37,9 @@ A *pattern* is one of:
   constructor without arguments is written as its name, `zero`;
 - an integer literal, if the argument's type is nat-like ([Inductive families](families.md#numerals));
   `3` is the pattern `suc (suc (suc zero))`;
+- a *successor pattern* `P + k`, where `P` is a pattern and `k` an integer literal of at least 1, if the
+  argument's type is nat-like: the successor constructor applied `k` times to `P`; `N + 2` is the
+  pattern `suc (suc N)`;
 - a [quoted pattern](../reflection.md#quoted-patterns), if the argument has a reflective type.
 
 Patterns are linear: it is an error ([E0915](../errors/E0915.md)) if a variable occurs twice in the
@@ -43,6 +47,20 @@ patterns of one clause. Implicit arguments are not written in patterns. The name
 of the function's declared type, such as `A` and `N` in `head : vec A (suc N) -> A`, are in scope in the
 right-hand side, unless a pattern variable has the same name. Literals of `int`, `float` and `string` are
 not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
+
+A literal pattern and a successor pattern are constructor patterns: [coverage](coverage.md) and
+[termination](termination.md) see `suc (suc N)` for `N + 2`, so `N` is a constructor subterm of the
+argument. It is an error ([E0915](../errors/E0915.md)) if the type of the argument is not nat-like, or if
+a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. It
+is an error ([E0901](../errors/E0901.md)) if `k` is larger than 100000.
+
+The following function is rejected: `N - 1` is not a pattern, since it is not built from constructors.
+
+```hugin,compile_fail,E0915
+pred : nat -> nat.
+pred 0 = 0.
+pred (N - 1) = N.
+```
 
 The patterns of a clause match the first arguments of the function, one per pattern. The right-hand side
 is checked against the rest of the function's type, so a clause with fewer patterns than arguments
@@ -59,17 +77,14 @@ Applications to closed arguments are memoised by their normal forms. Since meta 
 have no effects, this does not change their values; it makes the evaluation of a function such as `fib`
 below linear in its argument.
 
-The following program computes a Fibonacci number at compile time with a function by clauses over a
-meta type of natural numbers. The literal `90` is the numeral of `nat`.
+The following program computes a Fibonacci number at compile time with a function by clauses over the
+prelude's natural numbers. The literal `90` is the numeral of `nat`, and `N + 2` a successor pattern.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 fib : nat -> int.
-fib zero = 0.
-fib (suc zero) = 1.
-fib (suc (suc N)) = fib N + fib (suc N).
+fib 0 = 0.
+fib 1 = 1.
+fib (N + 2) = fib N + fib (N + 1).
 fib90 : int -> rel.
 fib90 (fib 90).
 ```
@@ -81,9 +96,6 @@ fib90 2880067194370816120.
 The following program defines addition by clauses with a variable pattern for the second argument.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 plus : nat -> nat -> nat.
 plus zero N = N.
 plus (suc M) N = suc (plus M N).
