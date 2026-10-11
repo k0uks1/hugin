@@ -45,13 +45,25 @@ function stopWorker(reason) {
 }
 
 // a request to the worker; one that takes longer than the budget stops (and restarts) the worker
-function request(op, source, printAfter) {
+function request(op, source, printAfter, extra = {}) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
     const timer = setTimeout(() => stopWorker(`stopped after ${BUDGET_MS / 1000} s`), BUDGET_MS);
     pending.set(id, { resolve, reject, timer });
-    worker.postMessage({ id, op, version, source, printAfter });
+    worker.postMessage({ id, op, version, source, printAfter, ...extra });
   });
+}
+
+// completion: the compiler's candidates at an offset, or nothing while a run or check is busy (completion
+// does not queue behind a long run) or when the text changed before the answer came
+async function complete(source, offset) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("complete", source, "", { offset });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // the version of the editor's text: incremented by every edit, echoed by the worker
@@ -178,7 +190,7 @@ function onEdit() {
   analyseSoon();
 }
 
-const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit });
+const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete });
 startWorker();
 ready.then(onReady);
 

@@ -48,6 +48,11 @@ object Hugin:
   @JSExport def analyse(source: String, options: js.UndefOr[js.Any] = js.undefined): String =
     Playground.analyse(source, options)
 
+  /** The completions at an offset (UTF-16 code units) of the program: `{ "version": 1, "from": …, "items":
+   *  [{ "label", "kind", "detail", "fits" }, …], "ranked": … }` (`docs/design/web-ide.md`, 5.2). */
+  @JSExport def complete(source: String, offset: Int, options: js.UndefOr[js.Any] = js.undefined): String =
+    Playground.complete(source, offset, options)
+
   /** Makes the current Web Worker answer messages ([[WorkerMain]]); for a worker without a handler of
    *  its own: `importScripts("hugin.js"); Hugin.serveWorker()`. */
   @JSExport def serveWorker(): Unit = WorkerMain.serve()
