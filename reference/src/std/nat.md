@@ -1,8 +1,9 @@
 # `std/nat`
 
-The module `std/nat` defines the natural numbers of the meta level and the arithmetic on them. The
-[prelude](../prelude.md) opens `nat`, `zero` and `suc` in every file; a program that uses the functions
-writes `%use "std/nat".`
+The module `std/nat` defines the natural numbers of the meta level and the arithmetic on them, and the
+family of the meta integers built on them, whose arithmetic is [`std/int`](int.md). The
+[prelude](../prelude.md) opens `nat`, `zero`, `suc`, `ofNat` and `negSucc` in every file; a program that
+uses the functions writes `%use "std/nat".`
 
 | declaration | meaning |
 |---|---|
@@ -16,7 +17,10 @@ writes `%use "std/nat".`
 | `modSucAux : nat -> nat -> nat -> nat -> nat.` | the remainder: `modSucAux 0 d n d` is the remainder of `n` divided by `d + 1` |
 | `equal : nat -> nat -> bool.` | whether two natural numbers are equal |
 | `less : nat -> nat -> bool.` | whether the first is less than the second |
-| `toInt : nat -> int.` | the meta integer of a natural number |
+| `int : Type.` | the integers of the meta level, a meta inductive family ([`std/int`](int.md)) |
+| `ofNat : nat -> int.` | the integer `n` |
+| `negSucc : nat -> int.` | the integer `-(n + 1)` |
+| `toInt : nat -> int.` | the meta integer of a natural number, `ofNat` |
 
 `nat` is nat-like, so integer literals and successor patterns `N + k` denote its values
 ([Inductive families](../meta/families.md#numerals)). `equal` and `less` return the shared `bool` of
@@ -43,8 +47,7 @@ equal (N + 1) (M + 1) = equal N M.
 less N 0 = false.
 less 0 (M + 1) = true.
 less (N + 1) (M + 1) = less N M.
-toInt 0 = 0.
-toInt (N + 1) = toInt N + 1.
+toInt N = ofNat N.
 ```
 
 `divSucAux` and `modSucAux` are Agda's `div-helper` and `mod-helper`: `divSucAux k m n j` counts in `k`
@@ -64,7 +67,7 @@ Since `plus` splits on its second argument, `plus N k` for a numeral `k` evaluat
 
 The clauses are the definition of the functions, but the compiler computes them directly on numbers
 when all their arguments are numerals, as Agda's built-in natural numbers and Lean 4's `Nat` do: `plus`,
-`minus`, `times`, `divSucAux`, `modSucAux`, `equal`, `less` and `toInt` take one step on any numerals,
+`minus`, `times`, `divSucAux`, `modSucAux`, `equal` and `less` take one step on any numerals,
 however large, instead of one step per successor. `times 123456789 987654321` is the numeral
 `121932631112635269` at once.
 
@@ -77,7 +80,6 @@ however large, instead of one step per successor. `times 123456789 987654321` is
 | `modSucAux` | modSucAux | `(n - j - 1) mod (m + 1)` if `n > j`, else `k + n` |
 | `equal` | eq | `true` if `a = b`, else `false` |
 | `less` | lt | `true` if `a < b`, else `false` |
-| `toInt` | toInt | the meta integer `a`, if `a ≤ 2⁶³ − 1`; stuck otherwise |
 
 The native operations give exactly the values of the clauses: when the compiler elaborates `std/nat`,
 it checks each function's clauses against the defining equations of its operation (`plus n 0 = n` and
@@ -97,13 +99,14 @@ longer than `plus N 1`. `plus N 3` evaluates to `N + 3`, `less (N + 3) 3` to
 `false`, and `times N 2` stays `plus (plus 0 N) N` while `N` is not known. Types that use the functions
 compute with them as before: a `vec A (plus N 1)` is a `vec A (N + 1)`.
 
-`toInt` of a numeral beyond the largest meta integer, 2⁶³ − 1, is stuck, as the overflow of the `+` in
-its clauses would be: object code that needs its value is an error
-([E0909](../errors/E0909.md)), never a wrapped number.
+`toInt` of a numeral is the integer in one step, also beyond 64 bits: `ofNat` applied to a numeral is an
+integer, which is represented as a number as well ([`std/int`](int.md#the-meta-int)). Meta integers are
+unbounded; one that does not fit into 64 bits is an error where object code uses it
+([E0927](../errors/E0927.md)), never a wrapped number.
 
 `nat` is a meta type: it has no lifting to object code, so a natural number in an object position is an
 error ([E0902](../errors/E0902.md)). `toInt` converts it to an `int`, which is persisted as an object
-integer ([Staging](../meta/staging.md#lifting)).
+integer if it fits ([Staging](../meta/staging.md#lifting)).
 
 [`std/list`](list.md#fuel) uses `nat` as fuel: `size` and `iterate`.
 

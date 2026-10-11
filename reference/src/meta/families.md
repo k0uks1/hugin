@@ -170,8 +170,9 @@ nat-like family has numerals, whatever the names of the family and its construct
 
 Arithmetic does not apply to nat-like families otherwise: `m + n` of two naturals, `n - 1` and `n * 2`
 are errors ([E0901](../errors/E0901.md)); a function by clauses computes them, such as `plus` of
-[`std/nat`](../std/nat.md). The meta type `int` has no conversion to a nat-like family; a function by
-clauses converts in the other direction, such as `toInt` of `std/nat`. The functions of `std/nat` compute
+[`std/nat`](../std/nat.md). The meta `int` is itself an inductive family over `nat`
+([`std/int`](../std/int.md)): `ofNat` converts a natural number to an integer, and `natAbs` of `std/int`
+an integer to its absolute value. The functions of `std/nat` compute
 directly on numerals, in one step ([native arithmetic](../std/nat.md#native-arithmetic)); a program's own
 functions compute by their clauses.
 

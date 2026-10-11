@@ -282,10 +282,13 @@ literal checked against a type `A` is:
 
 1. the numeral of `A`, if `A` is a nat-like family, such as `nat` with `zero` and `suc`
    ([Inductive families](families.md#numerals));
-2. a literal of `A` at the stage of its position, if `A` is a base type;
-3. if `A` is still an unknown, an unknown of type `A` that waits until the end of its item, or of the
+2. the integer, if `A` is the meta `int` ([`std/int`](../std/int.md#the-meta-int)): unbounded, so also a
+   literal beyond 64 bits;
+3. a literal of `A` at the stage of its position, if `A` is another base type, or `int` at the object
+   level, whose literals are 64-bit ([E0003](../errors/E0003.md));
+4. if `A` is still an unknown, an unknown of type `A` that waits until the end of its item, or of the
    member of a module body that contains it. The literal is then checked against `A` as the item has
-   determined it, by rule 1 or 2; if `A` is still unknown, it is `int` at stage 1. The waiting literals
+   determined it, by rule 1, 2 or 3; if `A` is still unknown, it is the meta `int`. The waiting literals
    of an item are checked earlier where the item needs a value whose type is not known yet: before
    such a value is used as object code (a value of unknown type is object code only if checking them
    does not determine its type), and before it is reflected as syntax.
@@ -320,14 +323,20 @@ shown 4.
 > object integers, and a default must not change the stage of a term: a nat-like type has no lifting to
 > object code.
 
-The arithmetic operators `+`, `-`, `*`, `/` and `^` apply to meta values of the base types as they do to
-object values ([Arithmetic and comparisons](../object/arithmetic.md)); they are computed at compile time.
-A literal operand takes the type and stage of the other operand. Comparisons are always object
-formulas; the meta level has no comparison operators.
+The arithmetic operators `+`, `-`, `*`, `/` and the negation `-x` apply to meta integers as the functions
+`iplus`, `iminus`, `itimes`, `idiv` and `ineg` of [`std/int`](../std/int.md#arithmetic), which are defined
+by clauses and computed natively on integers: unbounded, with division rounded toward zero and `x / 0`
+equal to `0`. On meta floats and strings, `+`, `-`, `*`, `/` and `^` are computed at compile time as they
+are on object values ([Arithmetic and comparisons](../object/arithmetic.md)); a result that is undefined
+(a division by zero) is stuck. A literal operand takes the type and stage of the other operand.
+Comparisons written with operators are always object formulas; meta integers are compared with the
+functions `iequal`, `iless` and `ileq` of the prelude ([`std/int`](../std/int.md)), and atoms with
+[`same`](../std/reflect.md#primitives).
 
 A meta value of a base type used as object code is *persisted* as a literal
 ([Staging](staging.md#lifting)). It is an error ([E0909](../errors/E0909.md)) if its computation is
-undefined (an overflow, a division by zero) or stuck.
+undefined or stuck, and ([E0927](../errors/E0927.md)) if it is a meta integer outside the object level's
+64-bit range.
 
 The following program computes a constant at compile time and uses it in object code.
 

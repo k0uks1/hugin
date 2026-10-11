@@ -48,6 +48,9 @@ A *pattern* is one of:
   constructor without arguments is written as its name, `zero`;
 - an integer literal, if the argument's type is nat-like ([Inductive families](families.md#numerals));
   `3` is the pattern `suc (suc (suc zero))`;
+- an integer literal, if the argument's type is the meta `int` ([`std/int`](../std/int.md#the-meta-int)):
+  `k ≥ 0` is the pattern `ofNat k` and a negative literal `-k`, written in parentheses `(-k)`, is
+  `negSucc (k - 1)`;
 - a *successor pattern* `P + k`, where `P` is a pattern and `k` an integer literal of at least 1, if the
   argument's type is nat-like: the successor constructor applied `k` times to `P`; `N + 2` is the
   pattern `suc (suc N)`;
@@ -59,8 +62,8 @@ Patterns are linear: it is an error ([E0915](../errors/E0915.md)) if a variable 
 patterns of one clause. An implicit argument is matched only by an [implicit
 pattern](#implicit-patterns). The names of the implicit binders of the function's declared type, such as
 `A` and `N` in `head : vec A (suc N) -> A`, are in scope in the right-hand side, unless a pattern
-variable has the same name or an implicit pattern matches the binder. Literals of `int`, `float` and
-`string` are not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
+variable has the same name or an implicit pattern matches the binder. Literals of `float` and `string`
+are not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
 
 A literal pattern and a successor pattern stand for constructor patterns: `3` for `suc (suc (suc
 zero))` and `N + 2` for `suc (suc N)`, so [coverage](coverage.md) and [termination](termination.md) see

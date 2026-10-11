@@ -9,7 +9,7 @@ import scala.jdk.CollectionConverters.*
  *  A ` ```hugin fail=<id> ` block must report `<id>` as its first error; a plain ` ```hugin ` block (the fix) must compile
  *  without errors and without that code. A ` ```facts ` block right after a `hugin` block is loaded as its
  *  input facts. Blocks tagged `elaborate` are only elaborated and staged, without the prelude; blocks
- *  tagged `safe` are compiled with `--safe`.
+ *  tagged `safe` are compiled with `--safe`, blocks tagged `no-prelude` with `--no-prelude`.
  *  Blocks of retired codes are tagged `ignore` and skipped. */
 class ExplanationsSuite extends munit.FunSuite:
   /** A code block of an explanation: the program, its expected code (for a failing example) and facts. */
@@ -19,7 +19,8 @@ class ExplanationsSuite extends munit.FunSuite:
       facts: Option[String],
       ignored: Boolean,
       newMeta: Boolean,
-      safe: Boolean = false
+      safe: Boolean = false,
+      noPrelude: Boolean = false
   )
 
   private val dir = Path.of("docs/errors")
@@ -32,7 +33,7 @@ class ExplanationsSuite extends munit.FunSuite:
         val facts = next.collect { case ("facts", _, f) => f }
         val fails = "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1))
         val words = attrs.split("\\s+").toSet
-        Example(body, fails, facts, words("ignore"), words("elaborate"), words("safe"))
+        Example(body, fails, facts, words("ignore"), words("elaborate"), words("safe"), words("no-prelude"))
     }
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */
@@ -41,7 +42,7 @@ class ExplanationsSuite extends munit.FunSuite:
     else compiled(e)
 
   private def compiled(e: Example): List[Diagnostic] =
-    val c = TestSupport.compile(e.program, hugin.compiler.Settings(safe = e.safe))
+    val c = TestSupport.compile(e.program, hugin.compiler.Settings(safe = e.safe, prelude = !e.noPrelude))
     val compiled = c.reporter.diagnostics
     e.facts match
       case Some(f) if !c.reporter.hasErrors =>

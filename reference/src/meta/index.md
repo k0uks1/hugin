@@ -206,8 +206,9 @@ The meta types are
 - function types `(x : A) -> B`, `A -> B` and `{x : A} -> B` ([Functions](functions.md));
 - record types `{ l₁ : A₁, …, lₙ : Aₙ }` ([Records](records.md));
 - inductive families ([Inductive families](families.md));
-- the base types `int`, `float` and `string` used as meta types: compile-time numbers and strings
-  ([Functions](functions.md#literals-and-primitive-operations));
+- the base types `float` and `string` used as meta types: compile-time numbers and strings
+  ([Functions](functions.md#literals-and-primitive-operations)); the base type `int` used as a meta type
+  is the inductive family of the meta integers, unbounded ([`std/int`](../std/int.md));
 - the *lifted* object types `⇑A`, whose values are object code of type `A`, and the types of object
   relations and formulas ([Staging](staging.md));
 - `sym` and the reflective types of `std/reflect` ([Reflection](../reflection.md)).

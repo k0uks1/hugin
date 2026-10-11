@@ -258,7 +258,7 @@ enum TypeProblem extends Problem:
         msg"a meta integer is checked against this range where it is used as object code"
       )
     case _: NoMetaInt =>
-      List(msg"the meta `int` is the family `int` of `std/nat`, which `--no-prelude` loads only if the program imports it")
+      List(msg"the meta `int` is the family `int` of `std/nat`, with its arithmetic in `std/int`, which the prelude imports")
     case _: IncompleteHead => List(msg"a rule head must apply a relation (or a constructor) to all of its columns")
     case _: InvalidHead => List(msg"a rule head is an atom of a relation or a constructor term")
     case UnsolvedGoal(_, g, st, ctx, _) =>
@@ -277,5 +277,5 @@ enum TypeProblem extends Problem:
     case NoField(_, _, _, Some(s), _) => List(msg"did you mean ${Src(s)}?")
     case UnsolvedGoal(_, g, _, _, _) => List(msg"replace the hole with an expression of type ${Src(g)}")
     case _: IntegerCrossing => List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
-    case _: NoMetaInt => List(msg"import `std/int` (`%use \"std/int\".`), which declares the arithmetic and imports `std/nat`, or use object integers")
+    case _: NoMetaInt => List(msg"compile the program with the prelude, or use object integers only")
     case _ => Nil

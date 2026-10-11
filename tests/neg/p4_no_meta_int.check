@@ -4,7 +4,7 @@ error[E0928]: meta integers are not part of this compilation
 7 | limit : int = 3. (*~ E0928 *)
   |               ^ a meta integer
   |
-  = note: the meta `int` is the family `int` of `std/nat`, which `--no-prelude` loads only if the program imports it
-  = help: import `std/int` (`%use "std/int".`), which declares the arithmetic and imports `std/nat`, or use object integers
+  = note: the meta `int` is the family `int` of `std/nat`, with its arithmetic in `std/int`, which the prelude imports
+  = help: compile the program with the prelude, or use object integers only
 
 1 error found

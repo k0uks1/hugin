@@ -106,7 +106,7 @@ swap (right Y) = left Y.
 
 ## Decidable equality of atomic values
 
-An *atomic value* is a literal of `int`, `float` or `string`, a numeral of a nat-like family, or a symbol
+An *atomic value* is a literal of `float` or `string`, a meta integer, a numeral of a nat-like family, or a symbol
 of `sym`: a value that [`same`](reflect.md#primitives) compares. `decEq a b` is `yes refl` if `a` and `b`
 are equal atomic values and `no` with a refutation if they are distinct ones; on anything else it is
 stuck, as `same` is. It is defined from `same` and two primitives, which state what `same` decides as
