@@ -1,0 +1,39 @@
+(* interval analysis: `min int` and `max int` columns keep each
+   variable's bounds per point; around the loop they become ∞ *)
+var : type.
+i, n : var.
+expr : type.
+lit : int -> expr.
+ref : var -> expr.
+add : expr -> expr -> expr.
+
+(* 1: i := 0   2: n := 10   3: loop   4: i := i + 1 (to 3)   5: exit *)
+set : (at : int) -> var -> expr -> rel.
+set 1 i (lit 0).
+set 2 n (lit 10).
+set 4 i (add (ref i) (lit 1)).
+next : int -> int -> rel.
+next 0 1. next 1 2. next 2 3. next 3 4. next 4 3. next 3 5.
+
+assigns : int -> var -> rel.
+assigns P V :- set P V _.
+
+(* the bounds after each point, and of each expression before it *)
+lo : (at : int) -> (v : var) -> (n : min int) -> rel.
+hi : (at : int) -> (v : var) -> (n : max int) -> rel.
+elo : (at : int) -> (e : expr) -> (n : min int) -> rel.
+ehi : (at : int) -> (e : expr) -> (n : max int) -> rel.
+
+elo P (lit K) K :- lit K, next _ P.
+ehi P (lit K) K :- lit K, next _ P.
+elo P (ref V) N :- ref V, next Q P, lo Q V N.
+ehi P (ref V) N :- ref V, next Q P, hi Q V N.
+elo P (add A B) (X + Y) :- add A B, elo P A X, elo P B Y.
+ehi P (add A B) (X + Y) :- add A B, ehi P A X, ehi P B Y.
+
+lo P V N :- set P V E, elo P E N.
+hi P V N :- set P V E, ehi P E N.
+lo P V N :- next Q P, lo Q V N, not assigns P V.
+hi P V N :- next Q P, hi Q V N, not assigns P V.
+
+?- lo 5 V L, hi 5 V H.
