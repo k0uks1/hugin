@@ -85,7 +85,7 @@ trait Machine:
 
   /** A term that evaluates without effects and without evaluating a subterm. */
   private def atomic(t: Tm): Boolean = t match
-    case _: Tm.Var | _: Tm.Global | _: Tm.Meta | _: Tm.Lam | _: Tm.Lit | _: Tm.Nat => true
+    case _: Tm.Var | _: Tm.Global | _: Tm.Meta | _: Tm.Lam | _: Tm.Lit | _: Tm.Nat | _: Tm.IntNum => true
     case _ => false
 
   /** Starts by evaluating `t0` in `env0` (`t0` not null), by applying `f0` to `a0` (`f0` not null), or by

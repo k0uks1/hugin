@@ -1,4 +1,5 @@
-(* A.2 (11): the same overflow at the meta level is a compile-time error *)
+(* A.2 (11): the same overflow at the meta level is a compile-time error: meta integers are unbounded,
+   and a value that does not fit into 64 bits is an error where it is used as object code (D8a, E0927) *)
 big : int = 9223372036854775807.
 next : int = big + 1.
 r : int -> rel.

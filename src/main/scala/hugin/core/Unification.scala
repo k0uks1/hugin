@@ -258,6 +258,10 @@ trait Unification:
     // (the view is decomposed here: forcing it would make it a numeral again)
     case (Nat(_, _), Rigid(Head.Glob(c), sp)) => unifyView(l, natView(t), c, sp, cs)
     case (Rigid(Head.Glob(c), sp), Nat(_, _)) => unifyView(l, natView(u), c, sp, cs)
+    // integers by value, and against `ofNat` or `negSucc` applied to something by one view step
+    case (IntNum(a), IntNum(b)) => if a != b then fail()
+    case (IntNum(n), Rigid(Head.Glob(c), sp)) => unifyView(l, intView(n), c, sp, cs)
+    case (Rigid(Head.Glob(c), sp), IntNum(n)) => unifyView(l, intView(n), c, sp, cs)
     case (Base(a, s), Base(b, s2)) if a == b && s == s2 =>
     case (RelT, RelT) | (PropT, PropT) =>
     case (Arith(op, a, b, s), Arith(op2, a2, b2, s2)) if op == op2 && s == s2 =>

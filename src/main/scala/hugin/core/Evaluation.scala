@@ -42,10 +42,11 @@ trait Evaluation:
     case Tm.Trace(frame, t) => traced(frame)(eval(env, t))
     case Tm.Rec(fs) => Rec(fs.map((l, t) => (l, eval(env, t))))
     case Tm.Proj(t, l) => proj(eval(env, t), l)
-    case Tm.Lit(l, st) => Lit(l, st)
+    case Tm.Lit(l, st) => if st == Stage.S1 then intForm(Lit(l, st)) else Lit(l, st)
     case Tm.Nat(f, n) => Nat(f, n)
+    case Tm.IntNum(n) => IntNum(n)
     case Tm.NatAdd(f, b, k) => natAdd(f, eval(env, b), k)
-    case Tm.Base(b, st) => Base(b, st)
+    case Tm.Base(b, st) => if st == Stage.S1 then intForm(Base(b, st)) else Base(b, st)
     case Tm.RelT => RelT
     case Tm.PropT => PropT
     case Tm.Arith(op, a, b, st) => arith(op, eval(env, a), eval(env, b), st)
@@ -141,21 +142,38 @@ trait Evaluation:
     case Top(_, _, u) => unfolded(u.value)
     case other => other
 
+  /** Compile-time arithmetic. On meta integers it is the object operation computed exactly, at compile
+   *  time: arithmetic in object code whose operands are meta values (reference: meta/staging, lifting).
+   *  The meta level's own arithmetic on `int` applies the functions of `std/int` instead. A division by
+   *  zero is undefined there (it stays stuck), as the object operation is; the result's range is checked
+   *  where it is persisted. */
   def arith(op: hugin.obj.ArithOp, a0: Val, b0: Val, st: Stage): Val =
     val (a, b) = if st == Stage.S1 then (unfolded(a0), unfolded(b0)) else (a0, b0)
     (a, b, st) match
       case (Lit(x, Stage.S1), Lit(y, Stage.S1), Stage.S1) =>
         Prims.arith(op, x, y).map(Lit(_, Stage.S1)).getOrElse(Arith(op, a, b, st))
+      case (IntNum(x), IntNum(y), Stage.S1) =>
+        op match
+          case hugin.obj.ArithOp.Add => IntNum(x + y)
+          case hugin.obj.ArithOp.Sub => IntNum(x - y)
+          case hugin.obj.ArithOp.Mul => IntNum(x * y)
+          // truncated, as the object level's division
+          case hugin.obj.ArithOp.Div if y != 0 => IntNum(x / y)
+          case _ => Arith(op, a, b, st)
       case _ => Arith(op, a, b, st)
 
   def negate(a0: Val, st: Stage): Val =
     val a = if st == Stage.S1 then unfolded(a0) else a0
     (a, st) match
       case (Lit(x, Stage.S1), Stage.S1) => Prims.neg(x).map(Lit(_, Stage.S1)).getOrElse(Negate(a, st))
+      case (IntNum(x), Stage.S1) => IntNum(-x)
       case _ => Negate(a, st)
 
+  /** A meta value persisted into object code: a literal, if it is one. A meta integer must be in the
+   *  object level's 64-bit range (D8a); one outside stays persisted, and staging reports it (E0927). */
   def persist(v: Val): Val = unfolded(v) match
     case Lit(l, Stage.S1) => Lit(l, Stage.S0)
+    case IntNum(n) if Integers.fits64(n) => Lit(Literal.IntL(n.toLong), Stage.S0)
     case t => Persist(t)
 
   def elim(v: Val, e: Elim): Val = e match
@@ -185,6 +203,8 @@ trait Evaluation:
     case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
     case Negate(a, Stage.S1) => negate(force(a), Stage.S1)
     case Persist(t) => persist(force(t))
+    // the meta primitive `int` and its literals, built before `std/nat` was elaborated
+    case Base(BaseType.IntT, Stage.S1) | Lit(Literal.IntL(_), Stage.S1) => intForm(v)
     // an offset whose base became a numeral or an offset
     case NatAdd(f, b, k) =>
       val fb = force(b)
@@ -204,6 +224,7 @@ trait Evaluation:
         case _ => reduceFunction(id, sp).map(forceMetas).getOrElse(v)
     case Rigid(Head.Module(b, env), sp) if closedEnv(env).isDefined => forceMetas(appSp(evalModule(b, env), sp))
     case Arith(_, _, _, Stage.S1) | Negate(_, Stage.S1) | Persist(_) => force(v)
+    case Base(BaseType.IntT, Stage.S1) | Lit(Literal.IntL(_), Stage.S1) => intForm(v)
     case other => other
 
   // ------------------------------------------------------------------ records
@@ -221,8 +242,10 @@ trait Evaluation:
   def fieldType(rt: RecTy, r: Val, lb: Name): Option[Val] =
     fieldTypes(rt, l => proj(r, l)).find(_._1 == lb).map(_._2)
 
+  /** The base type whose meta values `v` has: a meta primitive, or the meta `int`. */
   def isMetaPrim(v: Val): Option[BaseType] = force(v) match
     case Base(b, Stage.S1) => Some(b)
+    case f if isMetaInt(f) => Some(BaseType.IntT)
     case _ => None
 
   def literalOf(v: Val): Option[Literal] = force(v) match

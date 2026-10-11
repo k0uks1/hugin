@@ -182,7 +182,7 @@ trait Reflection:
         case Elim.EApp(_, Icit.Impl) => true
         case _ => false
       }
-    case Val.Lit(_, _) | Val.Nat(_, _) | Val.Quote(_) | Val.Base(_, _) => true
+    case Val.Lit(_, _) | Val.Nat(_, _) | Val.IntNum(_) | Val.Quote(_) | Val.Base(_, _) => true
     case _ => false
 
   private def notClosed(v: Val, s: Span, t: Target): Nothing =
@@ -316,6 +316,9 @@ trait Reflection:
 
   private def literal(v: Val, s: Span, t: Target): Literal = peel(v, s)._1 match
     case Val.Lit(l, _) => l
+    // a meta integer becomes an object literal: it must fit into 64 bits (D8a)
+    case Val.IntNum(n) if Integers.fits64(n) => Literal.IntL(n.toLong)
+    case Val.IntNum(n) => fail(TypeProblem.IntegerCrossing(n.toString, s))
     case other => notClosed(other, s, t)
 
   private def index(v: Val, s: Span, t: Target): Int = peel(v, s)._1 match

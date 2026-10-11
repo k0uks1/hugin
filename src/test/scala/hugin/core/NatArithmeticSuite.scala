@@ -21,6 +21,7 @@ class NatArithmeticSuite extends munit.FunSuite:
   private val unaryCopies: String =
     val body = natSource.linesIterator
       .dropWhile(l => !l.startsWith("plus :"))
+      .takeWhile(l => !l.startsWith("(* The integers"))
       .mkString("\n")
     names.foldLeft(body)((s, n) => s.replaceAll(s"\\b$n\\b", s"u$n"))
 
@@ -32,7 +33,7 @@ class NatArithmeticSuite extends munit.FunSuite:
     def find(n: String, path: String): Int =
       core.globals.indices.find(i => core.globals(i).name == n && core.globals(i).span.source.path == path).get
     val ids = names.flatMap(n => List(n -> find(n, NativeOperations.NatPath), s"u$n" -> find(s"u$n", "test.hgn"))).toMap
-    (core, ids + ("nat" -> find("nat", NativeOperations.NatPath)))
+    (core, ids + ("nat" -> find("nat", NativeOperations.NatPath)) + ("toInt" -> find("toInt", NativeOperations.NatPath)))
 
   private def native(core: Core, id: Int): Option[NativeNat] = core.globals(id).kind match
     case GlobalKind.Function(_, Some(b)) => b.native
@@ -72,13 +73,12 @@ class NatArithmeticSuite extends munit.FunSuite:
     // 10^20 divided by 7 and its remainder: `divSucAux 0 6 n 6`
     assertEquals(call("divSucAux", 0, 6, BigInt(10).pow(20), 6), Tm.Nat(fam, BigInt(10).pow(20) / 7))
     assertEquals(call("modSucAux", 0, 6, BigInt(10).pow(20), 6), Tm.Nat(fam, BigInt(10).pow(20) % 7))
-    assertEquals(call("toInt", BigInt(10).pow(12)), Tm.Lit(hugin.syntax.Literal.IntL(1000000000000L), Stage.S1))
+    assertEquals(call("toInt", BigInt(10).pow(12)), Tm.IntNum(BigInt(10).pow(12)))
   }
 
-  test("toInt beyond the 64-bit meta int is stuck") {
-    val (_, ids) = compiled
+  test("toInt is total: beyond 64 bits it is an unbounded meta integer (#186 P4)") {
     val n = BigInt(Long.MaxValue) + 1
-    assertEquals(call("toInt", n), Tm.App(Tm.Global(ids("toInt")), Tm.Nat(ids("nat"), n), Icit.Expl))
+    assertEquals(call("toInt", n), Tm.IntNum(n))
   }
 
   /** `std/nat`'s text elaborated as the library file, with `edit` applied (its own `bool`). */

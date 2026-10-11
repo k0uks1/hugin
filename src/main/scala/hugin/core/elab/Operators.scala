@@ -60,10 +60,10 @@ trait Operators:
           // an integer literal next to an operand of unknown type makes it an `int` at once: arithmetic
           // other than `e + k` is on base types (reference: meta/functions)
           if s == Stage.S1 && isIntLit(second) && force(fty).isInstanceOf[Val.Flex] then
-            unifyAt(c, second.span, Val.Base(BaseType.IntT, Stage.S1), fty)
+            unifyAt(c, second.span, metaIntType, fty)
           val st2 = check(c, second, fty, s)
           val (a, b) = if swapped then (st2, ft) else (ft, st2)
-          (Tm.Arith(op, a, b, s), fty, s)
+          (if s == Stage.S1 then metaArith(op, a, b, fty) else Tm.Arith(op, a, b, s), fty, s)
 
   /** Comparisons are object formulas. */
   private def inferComparison(c: Cxt, op: CmpOp, l: Tree, r: Tree): (Tm, Val, Stage) = (l, r) match
@@ -85,11 +85,25 @@ trait Operators:
     if st == Stage.S0 then objectArith(c, aop, l, r)._1
     else
       operandType(c, aop, ty, span)
-      Tm.Arith(aop, check(c, l, ty, st), check(c, r, ty, st), st)
+      metaArith(aop, check(c, l, ty, st), check(c, r, ty, st), ty)
+
+  /** Arithmetic at the meta level on operands of type `ty`: on the meta `int`, the function of `std/int`
+   *  (reference: std/int), whose clauses define it; on the other meta primitives (and on operands whose
+   *  type is still unknown) the primitive operation. */
+  private def metaArith(op: ArithOp, a: Tm, b: Tm, ty: Val): Tm =
+    intFunction(op.toString.toLowerCase, ty) match
+      case Some(f) => Tm.App(Tm.App(Tm.Global(f), a, Icit.Expl), b, Icit.Expl)
+      case None => Tm.Arith(op, a, b, Stage.S1)
+
+  /** The function of `std/int` for the operation `key` (`add`, …, `neg`), if `ty` is the meta `int`. */
+  private def intFunction(key: String, ty: Val): Option[Int] =
+    if metaInt != null && isMetaInt(force(ty)) then intOperator(key) else None
 
   /** Arithmetic in object code. If both operands are compile-time primitives (and not both literals),
    *  it is computed at compile time and the result persisted as a literal (`q (k + 1)` with `k = 42`
-   *  stages to `q 43`); otherwise it is object arithmetic, whose operand types object typing checks. */
+   *  stages to `q 43`); otherwise it is object arithmetic, whose operand types object typing checks. On
+   *  meta integers the object operation is computed exactly, so only the result must fit into 64 bits
+   *  (E0927); a division by zero is undefined, as at the object level (E0909). */
   private def objectArith(c: Cxt, op: ArithOp, l: Tree, r: Tree): (Tm, Val) =
     val (lt, lty, ls) = insert(c, l.span, infer(c, l))
     val (rt, rty, rs) = insert(c, r.span, infer(c, r))
@@ -110,7 +124,8 @@ trait Operators:
       case Neg(a) =>
         val (at, aty, s) = infer(c, a)
         if s == Stage.S1 then numeric(c, aty, a.span)
-        (Tm.Negate(at, s), aty, s)
+        val neg = if s == Stage.S1 then intFunction("neg", aty) else None
+        (neg.fold(Tm.Negate(at, s))(f => Tm.App(Tm.Global(f), at, Icit.Expl)), aty, s)
       case Not(a) =>
         val f = formula(a)
         atomsOf(f).foreach((atom, span) => requireComplete(c, atom, span, "negates"))
@@ -121,6 +136,7 @@ trait Operators:
 
   private def numeric(c: Cxt, ty: Val, span: Span): Unit = force(ty) match
     case Val.Base(BaseType.IntT | BaseType.FloatT, _) | Val.Flex(_, _) =>
+    case t if isMetaInt(t) =>
     case other => fail(TypeProblem.NotNumeric(show(c, other), span))
 
   private def operandType(c: Cxt, op: ArithOp, ty: Val, span: Span): Unit = op match

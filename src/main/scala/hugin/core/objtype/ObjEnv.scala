@@ -12,6 +12,8 @@ final class ObjEnv(val core: Core, locals: ObjEnv.Locals = ObjEnv.NoLocals):
   /** Object types from values (forced; positions and bound columns looked through). */
   def oty(v: Val): OTy = Val.unloc(force(v)) match
     case Val.Base(b, _) => OTy.Base(b)
+    // the meta `int`, the type of a persisted meta integer
+    case i if isMetaInt(i) => OTy.Base(hugin.obj.BaseType.IntT)
     case Val.Quote(t) => oty(t)
     case Val.RelT => OTy.RelTop
     case Val.FactTy(r) => head(r).map((h, as) => OTy.Fact(h, as)).getOrElse(OTy.Unknown)

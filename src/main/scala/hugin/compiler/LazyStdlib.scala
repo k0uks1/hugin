@@ -37,7 +37,7 @@ object LazyStdlib:
           (std.init.flatMap(importsOf) ++ others.flatMap((path, p) => Library.importsOf(path, p).map(_._2))).toSet
         val omitted = opens.collect {
           case (path, names)
-              if byPath.contains(path) && importsOf(prelude).count(_ == path) == 1 && !importedElsewhere(path) &&
+              if byPath.contains(path) && !alwaysElaborated(path) && importsOf(prelude).count(_ == path) == 1 && !importedElsewhere(path) &&
                 !names.exists(mayResolve(written, _)) &&
                 !StdlibCache.declaresObjects(std.takeWhile(_.source.path != path), byPath(path), builtinNames) =>
             path
@@ -51,6 +51,12 @@ object LazyStdlib:
           importsOf(prelude).filterNot(omitted).foreach(keep)
           std.filter(p => (p eq prelude) || kept(p.source.path))
       case _ => std
+
+  /** The files that every program with the prelude elaborates, whatever names it uses: `std/nat` and
+   *  `std/int` define the meta `int` and its arithmetic, which any literal or operator may use (reference:
+   *  std/int). */
+  private def alwaysElaborated(path: String): Boolean =
+    path == hugin.core.elab.NativeOperations.NatPath || path == hugin.core.elab.NativeOperations.IntPath
 
   /** The files of the prelude's chain `std` that [[chain]] left out (`kept` is its result) and that the
    *  program's files `others` import, directly or through each other, in the order of `std`. A file that

@@ -25,10 +25,11 @@ trait Matching:
   /** [[reduceFunction]] of a global that is not a function defined by clauses: a primitive or a family
    *  applied to its arity reduces, anything else does not. */
   def reduceOther(id: Int, sp: Spine): Option[Val] = globals(id).kind match
-    // the successor of a nat-like family applied to a numeral is the next numeral
+    // the successor of a nat-like family applied to a numeral is the next numeral, and a constructor of
+    // the meta `int` applied to one an integer
     case GlobalKind.Constructor(fam) =>
       sp match
-        case List(Elim.EApp(a, Icit.Expl)) => natSuccessorOf(fam, id, a)
+        case List(Elim.EApp(a, Icit.Expl)) => natSuccessorOf(fam, id, a).orElse(intOfConstructor(id, a))
         case _ => None
     case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
       val (later, first) = sp.splitAt(sp.length - op.arity)
@@ -152,6 +153,9 @@ trait Matching:
     case Lit(l, Stage.S1) => Some(Tm.Lit(l, Stage.S1))
     // a numeral is an atom too: `same 3 3` reduces
     case Nat(f, n) => Some(Tm.Nat(f, n))
+    // an integer as the literal it was before integers were inductive (the key of a quoted pattern's
+    // literal), or as a number beyond 64 bits
+    case IntNum(n) => Some(if Integers.fits64(n) then Tm.Lit(hugin.syntax.Literal.IntL(n.toLong), Stage.S1) else Tm.IntNum(n))
     case Quote(t) =>
       forceData(t) match
         case Rigid(Head.Glob(id), Nil) => Some(Tm.Quote(Tm.Global(id)))

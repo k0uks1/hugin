@@ -1,7 +1,6 @@
 package hugin.core
 package elab
 
-import hugin.obj.BaseType
 import hugin.syntax.Tree
 import scala.collection.mutable
 
@@ -43,7 +42,7 @@ trait Literals:
     due.foreach { p =>
       if p.meta < metas.length && metas(p.meta).what == p.what && metas(p.meta).span == p.lit.span then
         force(p.ty) match
-          case Val.Flex(_, _) => unifyAt(p.c, p.lit.span, Val.Base(BaseType.IntT, Stage.S1), p.ty)
+          case Val.Flex(_, _) => unifyAt(p.c, p.lit.span, metaIntType, p.ty)
           case _ =>
         val tm = check(p.c, p.lit, p.ty, Stage.S1)
         unifyAt(p.c, p.lit.span, ev(p.c, tm), ev(p.c, p.term))

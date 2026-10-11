@@ -167,6 +167,8 @@ trait QuoteTerms:
         case Literal.FloatL(_) => "tfloat"
         case Literal.StrL(_) => "tstr"
       Some(con(ctor, Tm.Lit(l, Stage.S1)))
+    // a meta integer: reflecting the data checks its range (E0927)
+    case Val.IntNum(n) => Some(con("tint", Tm.IntNum(n)))
     case Val.Persist(x) => termData(x)
     case Val.Quote(x) => termData(x)
     case Val.Obj(ObjForm.Loc(_), List(x)) => termData(x)

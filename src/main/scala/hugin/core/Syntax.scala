@@ -112,6 +112,10 @@ enum Tm:
    *  ([[Naturals]]): the open counterpart of [[Nat]], so that an offset takes no space of its own. */
   case NatAdd(fam: Int, base: Tm, k: BigInt)
 
+  /** The integer `n` of the meta `int` (reference: std/int): `ofNat n` for `n ≥ 0`, `negSucc (-n - 1)`
+   *  otherwise, represented as a number ([[Integers]]). */
+  case IntNum(n: BigInt)
+
   /** `rel` and `prop`, the object sorts of relations and formulas. */
   case RelT
   case PropT
@@ -175,7 +179,7 @@ object Tm:
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
     case NatAdd(_, b, _) => List(b)
-    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => Nil
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) | IntNum(_) => Nil
 
   /** `t` with `f` applied to its immediate subterms (those under binders included); a module body's own
    *  terms are not subterms (its environment is). */
@@ -201,7 +205,7 @@ object Tm:
     case Persist(a) => Persist(f(a))
     case FactTy(a) => FactTy(f(a))
     case NatAdd(fam, b, k) => NatAdd(fam, f(b), k)
-    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => t
+    case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) | IntNum(_) => t
 
   /** `t` with its globals and metas renamed by `g` and `m`. */
   def rename(t: Tm, g: Int => Int, m: Int => Int): Tm = t match

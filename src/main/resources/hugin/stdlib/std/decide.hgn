@@ -1,0 +1,95 @@
+(* std/decide: proof by evaluation (reference: std/decide). A boolean checker with a soundness lemma is a
+   decider; a closed instance of its proposition is then proved by `tt`, because the checker evaluates to
+   `true` and `so true` is `unit` (Rocq's ssreflect `reflect`, Lean's `decide`). Then the soundness lemmas
+   of the comparisons of `std/nat` and `std/int`, and basic lemmas about their arithmetic. *)
+%use "std/reflect" (bool, true, false).
+%use "std/eq" (eq, refl, sym, trans, cong, empty, unit, tt).
+%use "std/nat".
+%use "std/int".
+
+(* `so b`: the boolean `b` is `true`, as a proposition *)
+so : bool -> Type.
+so true = unit.
+so false = empty.
+
+(* A decider of the property `P` of values of `A`: a boolean check, and a proof that the check is sound *)
+decider : (A : Type) -> (A -> Type) -> Type = [a] [p] { check : a -> bool, sound : (x : a) -> so (check x) -> p x }.
+
+(* `decide d x tt` proves `P x` when `d.check x` evaluates to `true` *)
+decide : {A : Type} -> {P : A -> Type} -> (d : decider A P) -> (x : A) -> so (d.check x) -> P x =
+  [d] [x] [t] d.sound x t.
+
+(* `so` and equations with `true` *)
+soEq : (b : bool) -> so b -> eq b true.
+soEq true T = refl.
+soEq false ().
+
+eqSo : (b : bool) -> eq b true -> so b.
+eqSo true E = tt.
+eqSo false ().
+
+(* The comparisons of natural numbers are sound and reflexive *)
+equalSound : (m n : nat) -> so (equal m n) -> eq m n.
+equalSound 0 0 T = refl.
+equalSound 0 (N + 1) ().
+equalSound (M + 1) 0 ().
+equalSound (M + 1) (N + 1) T = cong suc (equalSound M N T).
+
+equalRefl : (n : nat) -> so (equal n n).
+equalRefl 0 = tt.
+equalRefl (N + 1) = equalRefl N.
+
+lessIrrefl : (n : nat) -> so (less n n) -> empty.
+lessIrrefl 0 ().
+lessIrrefl (N + 1) T = lessIrrefl N T.
+
+(* The sum of natural numbers: units, successors, commutativity and associativity *)
+plusZeroLeft : (n : nat) -> eq (plus 0 n) n.
+plusZeroLeft 0 = refl.
+plusZeroLeft (N + 1) = cong suc (plusZeroLeft N).
+
+plusSucLeft : (m n : nat) -> eq (plus (m + 1) n) (plus m n + 1).
+plusSucLeft M 0 = refl.
+plusSucLeft M (N + 1) = cong suc (plusSucLeft M N).
+
+plusComm : (m n : nat) -> eq (plus m n) (plus n m).
+plusComm M 0 = sym (plusZeroLeft M).
+plusComm M (N + 1) = trans (cong suc (plusComm M N)) (sym (plusSucLeft N M)).
+
+plusAssoc : (l m n : nat) -> eq (plus (plus l m) n) (plus l (plus m n)).
+plusAssoc L M 0 = refl.
+plusAssoc L M (N + 1) = cong suc (plusAssoc L M N).
+
+(* The comparisons of integers are sound and reflexive *)
+iequalSound : (a b : int) -> so (iequal a b) -> eq a b.
+iequalSound (ofNat M) (ofNat N) T = cong ofNat (equalSound M N T).
+iequalSound (ofNat M) (negSucc N) ().
+iequalSound (negSucc M) (ofNat N) ().
+iequalSound (negSucc M) (negSucc N) T = cong negSucc (equalSound M N T).
+
+iequalRefl : (a : int) -> so (iequal a a).
+iequalRefl (ofNat N) = equalRefl N.
+iequalRefl (negSucc N) = equalRefl N.
+
+(* The arithmetic of integers: unit, negation and commutativity *)
+iplusZero : (a : int) -> eq (a + 0) a.
+iplusZero (ofNat N) = refl.
+iplusZero (negSucc N) = refl.
+
+inegNeg : (a : int) -> eq (-(-a)) a.
+inegNeg (ofNat 0) = refl.
+inegNeg (ofNat (N + 1)) = refl.
+inegNeg (negSucc N) = refl.
+
+iplusComm : (a b : int) -> eq (a + b) (b + a).
+iplusComm (ofNat M) (ofNat N) = cong ofNat (plusComm M N).
+iplusComm (ofNat M) (negSucc N) = refl.
+iplusComm (negSucc M) (ofNat N) = refl.
+iplusComm (negSucc M) (negSucc N) = cong ([k] negSucc (k + 1)) (plusComm M N).
+
+(* Deciders of the equality of natural numbers and of integers *)
+natEqual : decider { fst : nat, snd : nat } ([p] eq p.fst p.snd) =
+  { check = [p] equal p.fst p.snd, sound = [p] equalSound p.fst p.snd }.
+
+intEqual : decider { fst : int, snd : int } ([p] eq p.fst p.snd) =
+  { check = [p] iequal p.fst p.snd, sound = [p] iequalSound p.fst p.snd }.

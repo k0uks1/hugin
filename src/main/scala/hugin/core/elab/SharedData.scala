@@ -117,6 +117,7 @@ trait SharedData:
       def go(a: Val): Unit = forceData(a) match
         case Val.Rigid(Head.Local(x), Nil) if params.contains(x) =>
         case Val.Base(_, Stage.S1) =>
+        case t if isMetaInt(t) =>
         case Val.Rigid(Head.Glob(g), sp) if sharedFamily(g).isDefined && sp.forall(_.isInstanceOf[Elim.EApp]) =>
           val args = sp.reverse.collect { case Elim.EApp(x, _) => x }
           if g == fam then
