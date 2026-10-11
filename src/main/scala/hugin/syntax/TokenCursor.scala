@@ -286,10 +286,10 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
       }
     }
 
-  /** Whether a directive token starts an item: every directive but `%import` and `%builtin` (expressions)
-   *  and `%complete` (a requirement in a signature). */
+  /** Whether a directive token starts an item: every directive but `%import`, `%builtin` and `%postulate`
+   *  (expressions) and `%complete` (a requirement in a signature). */
   protected def startsDirectiveItem(t: Token): Boolean =
-    t.kind == Tok.Directive && t.text != "%import" && t.text != "%builtin" && t.text != "%complete"
+    t.kind == Tok.Directive && !TokenCursor.expressionDirectives(t.text) && t.text != "%complete"
 
   /** Whether a token can start an item (in recovery: whether skipping can stop before it). */
   protected def startsItem(t: Tok): Boolean = t match
@@ -309,4 +309,8 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
 
   /** Whether the current token starts a primary expression (as an argument of a directive). */
   protected def startsPrimary: Boolean =
-    startsExpression(kind) && (tok.kind != Tok.Directive || tok.text == "%builtin" || tok.text == "%import")
+    startsExpression(kind) && (tok.kind != Tok.Directive || TokenCursor.expressionDirectives(tok.text))
+
+private[syntax] object TokenCursor:
+  /** The directives that are expressions, not items: `%import "f"`, `%builtin n` and `%postulate`. */
+  val expressionDirectives: Set[String] = Set("%import", "%builtin", "%postulate")

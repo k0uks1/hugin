@@ -46,6 +46,8 @@ function options(flags, file) {
     if (a === '--print-after') (o.printAfter ??= []).push(...args[++i].split(','));
     else if (a === '--all-relations') o.allRelations = true;
     else if (a === '--explain-termination') o.explainTermination = true;
+    else if (a === '--safe') o.safe = true;
+    else if (a === '--print-assumptions') (o.printAssumptions ??= []).push(args[++i]);
     else if (a === '-A' || a === '-W' || a === '-D') o.lints[args[++i]] = { '-A': 'allow', '-W': 'warn', '-D': 'deny' }[a];
     else throw new Error(`${file}: flag ${a} has no option in scripts/js-golden.mjs`);
   }

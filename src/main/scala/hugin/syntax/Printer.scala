@@ -35,6 +35,7 @@ object Printer:
     case Disj(l, r) => s"(${show(l)} ; ${show(r)})"
     case Parens(i) => s"(${show(i)})"
     case Builtin(n) => s"%builtin ${n.name}"
+    case Postulate() => "%postulate"
     case Import(path) => s"%import ${Literal.quote(path)}"
     case SpliceE(a) => s"$$${showArg(a)}"
     case LiftE(a) => s"⇑${showArg(a)}"
@@ -84,6 +85,7 @@ object Printer:
     case Directive(k, args) =>
       args match
         case DirArgs.Infix(a, p, n) => s"%$k $a $p ${n.name}."
+        case DirArgs.Assumptions(n) => s"%$k ${n.name}."
         case DirArgs.Apply(as, decl) => (s"%$k" :: as.map(showArg)).mkString(" ") + decl.fold(".")(_ => "") // the declaration follows
         case DirArgs.Use(Import(path), ns) => s"%use ${Literal.quote(path)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."
         case DirArgs.Use(m, ns) => s"%use ${showArg(m)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."

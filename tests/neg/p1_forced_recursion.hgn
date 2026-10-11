@@ -1,0 +1,8 @@
+(* Agda's issue 6654 in Hugin (issue #186, D2): the forced argument `f` of `b` is a parameter of `bad`,
+   so `bad` stays small, as in Lean; recursion through it is not structural: `F (bad F) b` is not a
+   subterm of `b`, so `noBad` is rejected and False is not derived. *)
+empty : Type.
+bad : ((P : Type) -> P -> P) -> Type.
+b : {f : (P : Type) -> P -> P} -> bad f.
+noBad : bad F -> empty. (*~ E0912 *)
+noBad b = noBad (F (bad F) b).

@@ -88,7 +88,8 @@ trait Clauses:
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
     def explicitPats(cl: SurfaceClause) = cl.pats.filterNot(_.isInstanceOf[NamedArg])
-    val n = explicitPats(clauses.head).length
+    // without clauses, the function's explicit arguments are all inspected ([[Items.checkClauseless]])
+    val n = clauses.headOption.fold(explicitPositions.length)(explicitPats(_).length)
     clauses.find(explicitPats(_).length != n).foreach { cl =>
       fail(ClauseProblem.PatternCount(g.name, n, cl.span))
     }
@@ -1388,7 +1389,7 @@ trait Clauses:
       index.meta.missing(
         MetaIndex.MissingClauses(declared, f.name, cover.toList.map(showMissing(f, _) + " = ?."), clauses.map(_.span).maxBy(_.end))
       )
-    fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0)))
+    fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0), clauses.isEmpty))
 
   // ---------------------------------------------------------------- inexact clauses (#67 batch 3)
 

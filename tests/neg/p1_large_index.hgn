@@ -1,0 +1,7 @@
+(* D2 of issue #186: only parameters, the leading arguments that every constructor keeps fixed, are
+   exempt from predicativity (Lean's index promotion). `deep` needs `rep` in the universe of the type
+   argument of `wrap`; then `unit` makes the argument of `rep` an index, so that type argument counts. *)
+rep : Type -> Type.
+wrap : A -> rep A.
+deep : rep (rep int) = wrap (wrap 1). (*~ W0003 *)
+unit : rep int. (*~ E0914 *)

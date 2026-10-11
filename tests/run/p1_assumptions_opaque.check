@@ -1,0 +1,7 @@
+note: assumptions of `decEq`:
+  same : {A : Type} -> A -> A -> bool  (trusted primitive %builtin same)
+  sameTrue : {A : Type} -> {a : A} -> {b : A} -> eq {bool} (same {A} a b) true -> eq {A} a b  (trusted primitive %builtin sameTrue)
+  apart : {A : Type} -> {a : A} -> {b : A} -> eq {bool} (same {A} a b) false -> eq {A} a b -> empty  (trusted primitive %builtin apart)
+note: assumptions of `uses`:
+  plusZero : (n : nat) -> eq {nat} (plus n 0) n  (postulate at tests/run/p1_assumptions_opaque.hgn:8:1)
+result 1.

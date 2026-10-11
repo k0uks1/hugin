@@ -20,7 +20,8 @@ object Request:
    *  - `printAfter` (string or array of strings): `--print-after`, phase names or `all`
    *  - `stopAfter` (string): `--stop-after`
    *  - `prelude` (boolean, default true): `false` is `--no-prelude`
-   *  - `explainTermination`, `allRelations`, `denyWarnings` (booleans): the flags of the same names
+   *  - `explainTermination`, `allRelations`, `denyWarnings`, `safe` (booleans): the flags of the same names
+   *  - `printAssumptions` (string or array of strings): `--print-assumptions`, names of meta constants
    *  - `lints` (object): lint name or code to `"allow"`, `"warn"` or `"deny"` (`-A`, `-W`, `-D`)
    *  - `budgetMs` (number): evaluation stops at its next round after this many milliseconds
    */
@@ -37,12 +38,15 @@ object Request:
           case Some(v) => pick.lift(v).map(Some(_)).toRight(s"invalid option `$name`")
       val str: PartialFunction[Any, String] = { case s: String => s }
       val bool: PartialFunction[Any, Boolean] = { case b: Boolean => b }
+      val strings: PartialFunction[Any, List[String]] = {
+        case s: String => List(s)
+        case a: js.Array[?] @unchecked if a.forall(_.isInstanceOf[String]) => a.toList.map(_.toString)
+      }
       for
         file <- field("file")(str)
-        printAfter <- field("printAfter") {
-          case s: String => List(s)
-          case a: js.Array[?] @unchecked if a.forall(_.isInstanceOf[String]) => a.toList.map(_.toString)
-        }
+        printAfter <- field("printAfter")(strings)
+        assumptions <- field("printAssumptions")(strings)
+        safe <- field("safe")(bool)
         stopAfter <- field("stopAfter")(str)
         prelude <- field("prelude")(bool)
         explain <- field("explainTermination")(bool)
@@ -62,7 +66,14 @@ object Request:
         }
       yield Request(
         file.getOrElse("main.hgn"),
-        Settings(printAfter.getOrElse(Nil).toSet, stopAfter, prelude.getOrElse(true), explain.getOrElse(false)),
+        Settings(
+          printAfter.getOrElse(Nil).toSet,
+          stopAfter,
+          prelude.getOrElse(true),
+          explain.getOrElse(false),
+          safe.getOrElse(false),
+          assumptions.getOrElse(Nil)
+        ),
         Display(lints = levels.copy(denyWarnings = deny.getOrElse(false))),
         all.getOrElse(false),
         budget

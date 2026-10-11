@@ -124,6 +124,25 @@
         },
         "severity": 1,
         "source": "hugin"
+      },
+      {
+        "code": "E0911",
+        "codeDescription": {
+          "href": "https://k0uks1.github.io/hugin/reference/errors/E0911.html"
+        },
+        "message": "the clauses of `size` do not cover all cases\nmissing: `size _`\nnote: meta functions are total: every argument must match a clause\nnote: `size` is declared without clauses: a meta declaration that is not a family or a constructor declares a function\nhelp: add a clause `size _ = ….`\nhelp: to assume the constant as an axiom, define it as `size : … = %postulate.`",
+        "range": {
+          "end": {
+            "character": 4,
+            "line": 7
+          },
+          "start": {
+            "character": 0,
+            "line": 7
+          }
+        },
+        "severity": 1,
+        "source": "hugin"
       }
     ],
     "uri": "untitled:h.hgn"

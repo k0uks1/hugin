@@ -143,6 +143,7 @@ enum Code(
   case E0922 extends Code(922, Phase.Elaboration, "subtyping edge into a shared type")
   case E0923 extends Code(923, Phase.Elaboration, "shared data declaration out of place")
   case E0924 extends Code(924, Phase.Elaboration, "unsolved goal")
+  case E0925 extends Code(925, Phase.Elaboration, "postulate not allowed with --safe")
   case E0926 extends Code(926, Phase.Elaboration, "no implicit argument of that name")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
