@@ -1,0 +1,27 @@
+(* bench: nat_index scaled down to sizes that the unary representation before #131 finishes on the
+   JVM's default 1 MiB thread stack: `fin`, `vec` and an equation at indices near 300. *)
+fin : nat -> Type.
+fz : fin (N + 1).
+fs : fin N -> fin (N + 1).
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+vhead : vec A (N + 1) -> A.
+vhead (vcons X _) = X.
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+x1 : fin 300 = fs (fs (fs fz)).
+x2 : fin 299 = fs (fs fz).
+x3 : fin 298 = fs fz.
+h1 : vec int 300 -> int.
+h1 V = vhead V.
+h2 : vec int 299 -> int.
+h2 V = vhead V.
+h3 : vec int 298 -> int.
+h3 V = vhead V.
+e1 : eqn 300 300 = refl.
+e2 : eqn 299 299 = refl.
+e3 : eqn 298 298 = refl.
+ok : int -> rel.
+ok 1.
+%output ok.

@@ -22,7 +22,9 @@ import java.nio.file.Files
  *  instead of wall time, which a shared machine disturbs; compilation runs on the calling thread, and the
  *  allocated bytes stand for the garbage collector's work. It runs `HUGIN_BENCH_ROUNDS` rounds (default
  *  4), alternating the order of the measurements between rounds; to compare two builds, run them in
- *  alternation as well.
+ *  alternation as well. A program that fails (also by a stack overflow or heap exhaustion) is reported as
+ *  failed and the other measurements go on; each line also gives the deterministic counts of one run
+ *  (case-tree runs of functions by clauses, and native operations).
  *
  *  `HUGIN_BENCH_RUNS` (default 15) sets the number of measured runs, `HUGIN_BENCH_WARMUP` (default 10)
  *  the warm-up runs. */
@@ -67,26 +69,38 @@ object Bench:
     val allocs = collection.mutable.Map[String, Vector[Long]]().withDefaultValue(Vector())
     // the case-tree runs and native operations of one run: deterministic, unlike the times
     val steps = collection.mutable.Map[String, (Long, Long)]()
+    // a program that fails (an error, or a stack overflow or heap exhaustion of this JVM) is reported as
+    // failed and left out of the later rounds, so that it does not hide the other measurements
+    val failed = collection.mutable.Map[String, String]()
+    def attempt(name: String)(body: => Unit): Unit =
+      try body
+      catch
+        case e: (StackOverflowError | OutOfMemoryError | Exception) =>
+          failed(name) = e.getClass.getSimpleName + Option(e.getMessage).fold("")(m => s": ${m.linesIterator.nextOption().getOrElse("")}")
     for r <- 0 until rounds do
-      for (name, f) <- if r % 2 == 0 then ms else ms.reverse do
-        if !steps.contains(name) then
-          val (c0, n0) = (hugin.core.Matching.clauseSteps, hugin.core.Matching.nativeSteps)
-          f()
-          steps(name) = (hugin.core.Matching.clauseSteps - c0, hugin.core.Matching.nativeSteps - n0)
-        for _ <- 0 until warmup do f()
-        for _ <- 0 until runs do
-          val c0 = mx.getCurrentThreadCpuTime
-          val a0 = mx.getCurrentThreadAllocatedBytes
-          f()
-          val c1 = mx.getCurrentThreadCpuTime
-          val a1 = mx.getCurrentThreadAllocatedBytes
-          cpuTimes(name) :+= c1 - c0
-          allocs(name) :+= a1 - a0
+      for (name, f) <- if r % 2 == 0 then ms else ms.reverse if !failed.contains(name) do
+        attempt(name):
+          if !steps.contains(name) then
+            val (c0, n0) = (hugin.core.Matching.clauseSteps, hugin.core.Matching.nativeSteps)
+            f()
+            steps(name) = (hugin.core.Matching.clauseSteps - c0, hugin.core.Matching.nativeSteps - n0)
+          for _ <- 0 until warmup do f()
+          for _ <- 0 until runs do
+            val c0 = mx.getCurrentThreadCpuTime
+            val a0 = mx.getCurrentThreadAllocatedBytes
+            f()
+            val c1 = mx.getCurrentThreadCpuTime
+            val a1 = mx.getCurrentThreadAllocatedBytes
+            cpuTimes(name) :+= c1 - c0
+            allocs(name) :+= a1 - a0
     for (name, _) <- ms do
       val ts = cpuTimes(name)
-      println(
-        f"$name%-50s cpu median ${median(ts) / 1e6}%9.2f ms  min ${ts.min / 1e6}%9.2f ms  alloc median ${median(allocs(name)) / 1e6}%9.2f MB  steps ${steps(name)._1}%d + native ${steps(name)._2}%d  (n=${ts.length})"
-      )
+      failed.get(name) match
+        case Some(why) => println(f"$name%-50s failed: $why")
+        case None =>
+          println(
+            f"$name%-50s cpu median ${median(ts) / 1e6}%9.2f ms  min ${ts.min / 1e6}%9.2f ms  alloc median ${median(allocs(name)) / 1e6}%9.2f MB  steps ${steps(name)._1}%d + native ${steps(name)._2}%d  (n=${ts.length})"
+          )
 
   /** The time of one call of `f`, in nanoseconds. */
   def time(f: => Unit): Long =
@@ -148,8 +162,12 @@ object BenchSet:
     BenchProgram("run meta_scaled", "bench/meta/meta_scaled.hgn"),
     BenchProgram("run nat_literals", "bench/meta/nat_literals.hgn"),
     BenchProgram("run nat_numerals", "bench/meta/nat_numerals.hgn"),
+    BenchProgram("run nat_index", "bench/meta/nat_index.hgn"),
     BenchProgram("run nat_patterns", "bench/meta/nat_patterns.hgn"),
     BenchProgram("run nat_arith", "bench/meta/nat_arith.hgn"),
+    BenchProgram("run nat_numerals_small", "bench/meta/nat_numerals_small.hgn"),
+    BenchProgram("run nat_index_small", "bench/meta/nat_index_small.hgn"),
+    BenchProgram("run nat_arith_small", "bench/meta/nat_arith_small.hgn"),
     BenchProgram("run nat_large", "bench/meta/nat_large.hgn")
   )
 
