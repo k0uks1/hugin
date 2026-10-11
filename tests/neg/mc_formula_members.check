@@ -1,0 +1,55 @@
+error[E0105]: formula function `m.loop` refers to itself
+ --> tests/neg/mc_formula_members.hgn:9:25
+  |
+8 |   loop : node -> node -> prop.
+  |   ---- declared here
+9 |   loop X Z :- edge X Y, loop Y Z. (*~ E0105 *)
+  |                         ^^^^ expands to a use of it again
+  |
+  = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+error[E0105]: formula function `m.ping` refers to itself
+  --> tests/neg/mc_formula_members.hgn:11:13
+   |
+10 |   ping : node -> prop.
+   |   ---- declared here
+11 |   ping X :- pong X. (*~ E0105 *)
+   |             ^^^^ expands to a use of it again
+   |
+   = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+error[E0105]: formula function `m.viaDef` refers to itself
+  --> tests/neg/mc_formula_members.hgn:15:15
+   |
+14 |   viaDef : node -> prop.
+   |   ------ declared here
+15 |   viaDef X :- d X. (*~ E0105 *)
+   |               ^ expands to a use of it again
+   |
+   = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+warning[W0005]: formula function `m.never` has no clauses
+  --> tests/neg/mc_formula_members.hgn:17:3
+   |
+17 |   never : node -> prop. (*~ W0005 *)
+   |   ^^^^^ always false
+   |
+   = note: `-W empty_formula_functions` is on by default
+
+error[E0207]: clause of `m.wrong` has 2 arguments, but the function takes 1
+  --> tests/neg/mc_formula_members.hgn:19:3
+   |
+19 |   wrong X Y :- edge X Y. (*~ E0207 *)
+   |   ^^^^^^^^^
+
+error[E0105]: formula function `f` refers to itself
+  --> tests/neg/mc_formula_members.hgn:27:8
+   |
+26 | f : node -> prop.
+   | - declared here
+27 | f X :- m2.g X. (*~ E0105 *)
+   |        ^^ expands to a use of it again
+   |
+   = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+5 errors, 1 warning found
