@@ -439,20 +439,20 @@ typed (they refer to each other by value, item 2).
   `AstIdMap` gives top-level items an id from their kind, name and a disambiguating index, "so these
   IDs stay as stable as possible", because an invalidated id invalidates everything that interned it
   (`crates/span/src/ast_id.rs` 1–21); `ItemLoc` (container and ast id) is interned into the ids the
-  rest of the IDE uses (`crates/hir-def/src/lib.rs` 123–150, `impl_intern!` 228, e.g. 260–261). The `ItemTree` is the firewall: typing in a body leaves
-  it unchanged (`crates/hir-def/src/item_tree.rs` 12–14). Library files get high durability
-  (`crates/base-db/src/change.rs` 93–99), section 4.1.
+  rest of the IDE uses (`crates/hir-def/src/lib.rs` 123–150, `impl_intern!` 228, e.g. 260–261). The
+  `ItemTree` is the firewall: typing in a body leaves it unchanged (`crates/hir-def/src/item_tree.rs`
+  12–14). Library files get high durability (`crates/base-db/src/change.rs` 93–99), section 4.1.
 - **salsa** (30b614d, section 4.1): tracked structs are identified by an identity hash of their id
   fields plus a disambiguator, so a re-executed query re-creates the "same" entities and their memos
   stay valid; early cut-off (backdating) makes a recomputed projection with an equal value invisible to
   its dependents.
 - **Lean 4** (`lean4` fe2da21). Constants are keyed by `Name` in the environment
   (`src/Lean/Environment.lean`, `ConstMap := SMap Name ConstantInfo`, 100; `find?` 296), so a later
-  command refers to an earlier one by name, never by position; metavariable ids are fresh names
-  from a `NameGenerator` (`src/Lean/MetavarContext.lean` 994–998, 1244–1250), not stable across runs. Lean never
-  moves elaborated terms between environments: it reuses whole snapshots whose syntax is unchanged and
-  re-elaborates everything after the first changed command (`src/Lean/Language/Lean.lean` 53, 84–140),
-  section 4.4.
+  command refers to an earlier one by name, never by position; metavariable ids are fresh names from
+  a `NameGenerator` (`src/Lean/MetavarContext.lean` 994–998, 1244–1250), not stable across runs. Lean
+  never moves elaborated terms between environments: it reuses whole snapshots whose syntax is
+  unchanged and re-elaborates everything after the first changed command (`src/Lean/Language/Lean.lean`
+  53, 84–140), section 4.4.
 
 Fit: Hugin's items are already reused individually (salsa's identity hash, `ItemKey`); what is missing
 is GHC's two ingredients, stable names for globals and fingerprints that hash references through the
