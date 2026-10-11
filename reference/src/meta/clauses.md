@@ -94,7 +94,7 @@ w N X = X.
 the second clause is checked with `N` a variable, so `X` has type `sel (isz N)`, not `bool`, and the
 clause is rejected ([E0901](../errors/E0901.md)), although every argument it is used for is `suc _`. If
 a right-hand side fails in its context but checks at every case of the [case tree](coverage.md#case-trees)
-that uses the clause, the error has a fix that writes these cases as clauses (`w (suc _) X = X.`); the
+that uses the clause, the error has a fix that writes these cases as clauses (`w (_ + 1) X = X.`); the
 same holds for a call that decreases only in those cases ([E0912](../errors/E0912.md)). A clause that is
 never used ([W0006](../errors/W0006.md)) is checked as well.
 

@@ -24,7 +24,7 @@ error[E0915]: an absurd pattern is only allowed in a clause's patterns
    |
    = note: `()` marks a pattern position of an empty type in an absurd clause `f p̄.`
 
-error[E0915]: the type `vec bool zero` is not empty here
+error[E0915]: the type `vec bool 0` is not empty here
   --> tests/neg/cov_absurd.hgn:20:12
    |
 20 | t (vcons X ()). (*~ E0915 *)

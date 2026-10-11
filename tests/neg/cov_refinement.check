@@ -5,7 +5,7 @@ error[E0901]: mismatched types
    |         ^ expected `bool`, found `sel (isz N)`
    |
    = note: the clause is checked in its own context, without the refinement made by the clauses before it
-   = help: write out the cases of this clause: `w (suc _) X = X.`
+   = help: write out the cases of this clause: `w (_ + 1) X = X.`
 
 error[E0912]: cannot show that `h` terminates
   --> tests/neg/cov_refinement.hgn:27:1
@@ -18,6 +18,6 @@ error[E0912]: cannot show that `h` terminates
    |
    = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
    = note: a clause is checked in its own context, without the refinement made by the clauses before it
-   = help: write out the cases of the clause: `h (suc N1) M = h (predf (suc N1)) M.`
+   = help: write out the cases of the clause: `h (N1 + 1) M = h (predf (N1 + 1)) M.`
 
 2 errors found
