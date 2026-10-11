@@ -77,12 +77,17 @@ trait IndexUnifier:
           case (Some(x), None) => solveVar(p, x, b).fold(r => result = Some(r), q => p = q)
           case (None, Some(y)) => solveVar(p, y, a).fold(r => result = Some(r), q => p = q)
           case (None, None) =>
+            // a numeral against a constructor application by one view step, two numerals by value
             (a, b) match
-              case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
-                if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
-                else eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
-              case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
-              case _ => result = Some(IndexUnification.Stuck(a, b))
+              case (Val.Nat(f, x), Val.Nat(g, y)) if f != g || x != y => result = Some(IndexUnification.Conflict(a, b))
+              case _ =>
+            if result.isEmpty then
+              (natView(a), natView(b)) match
+                case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
+                  if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
+                  else eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
+                case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
+                case _ => result = Some(IndexUnification.Stuck(a, b))
     result.getOrElse(IndexUnification.Solved(p))
 
   private def freeVar(p: SplitProblem, v: Val): Option[Int] = v match
@@ -97,4 +102,5 @@ trait IndexUnifier:
 
   private def constructorTerm(v: Val): Boolean = force(v) match
     case Val.Rigid(Head.Glob(c), _) => isConstructor(c)
+    case _: Val.Nat => true
     case _ => false

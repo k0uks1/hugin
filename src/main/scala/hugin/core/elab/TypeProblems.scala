@@ -33,7 +33,14 @@ enum TypeProblem extends Problem:
   case Mismatch(expected: String, found: String, at: Span, why: List[String])
   case NotAType(found: String, at: Span)
   case NegativeNat(tpe: String, at: Span)
-  case NatTooLarge(at: Span)
+
+  /** An integer literal beyond the 64-bit range, not checked against a nat-like family (whose numerals are
+   *  unbounded, reference: lexical-structure). */
+  case IntegerOutOfRange(at: Span)
+
+  /** A literal or successor pattern larger than [[maxNatPattern]]: patterns are still matched one
+   *  constructor at a time. */
+  case NatPatternTooLarge(at: Span)
   case NotNumeric(found: String, at: Span)
   case NotString(found: String, at: Span)
   case NotObjectConstantType(at: Span)
@@ -68,7 +75,8 @@ enum TypeProblem extends Problem:
 
   def code: Code = this match
     case _: ImplicitBinderAlone | _: UnknownOperator | _: NotAParameterName => Code.E0001
-    case _: Mismatch | _: NotAType | _: NegativeNat | _: NatTooLarge | _: NotNumeric | _: NotString | _: NotObjectConstantType =>
+    case _: IntegerOutOfRange => Code.E0003
+    case _: Mismatch | _: NotAType | _: NegativeNat | _: NatPatternTooLarge | _: NotNumeric | _: NotString | _: NotObjectConstantType =>
       Code.E0901
     case _: ObjectForMeta | _: MetaForObject | _: DependsOnObject | _: SpliceOfObjectCode => Code.E0902
     case _: CannotInferWildcard | _: CannotInfer => Code.E0903
@@ -88,7 +96,8 @@ enum TypeProblem extends Problem:
     case Mismatch(_, _, s, _) => s
     case NotAType(_, s) => s
     case NegativeNat(_, s) => s
-    case NatTooLarge(s) => s
+    case IntegerOutOfRange(s) => s
+    case NatPatternTooLarge(s) => s
     case NotNumeric(_, s) => s
     case NotString(_, s) => s
     case NotObjectConstantType(s) => s
@@ -117,7 +126,8 @@ enum TypeProblem extends Problem:
     case _: NotAParameterName => msg"expected a parameter name"
     case _: Mismatch | _: NegativeNat | _: NotNumeric | _: NotString => msg"mismatched types"
     case _: NotAType => msg"expected a type"
-    case _: NatTooLarge => msg"nat literal too large"
+    case _: IntegerOutOfRange => msg"integer literal out of range"
+    case _: NatPatternTooLarge => msg"nat pattern too large"
     case _: NotObjectConstantType => msg"not the type of an object constant"
     case _: ObjectForMeta => msg"object code used where a compile-time value is needed"
     case _: MetaForObject => msg"compile-time value used as object code"
@@ -149,7 +159,8 @@ enum TypeProblem extends Problem:
     case Mismatch(e, f, _, _) => msg"expected ${Src(e)}, found ${Src(f)}"
     case NotAType(f, _) => msg"this is a term of type ${Src(f)}"
     case NegativeNat(t, _) => msg"a negative number is not a ${Src(t)}"
-    case _: NatTooLarge => msg"at most 100000 (nats are unary)"
+    case _: IntegerOutOfRange => msg"does not fit into a 64-bit integer"
+    case _: NatPatternTooLarge => msg"a literal or successor pattern is at most 100000"
     case NotNumeric(f, _) => msg"expected a number, found ${Src(f)}"
     case NotString(f, _) => msg"expected a string, found ${Src(f)}"
     case ObjectForMeta(_, f, _) => msg"object code of type ${Src(f)}"

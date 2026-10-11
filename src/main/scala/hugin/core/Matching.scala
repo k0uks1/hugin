@@ -25,6 +25,11 @@ trait Matching:
   /** [[reduceFunction]] of a global that is not a function defined by clauses: a primitive or a family
    *  applied to its arity reduces, anything else does not. */
   def reduceOther(id: Int, sp: Spine): Option[Val] = globals(id).kind match
+    // the successor of a nat-like family applied to a numeral is the next numeral
+    case GlobalKind.Constructor(fam) =>
+      sp match
+        case List(Elim.EApp(a, Icit.Expl)) => natSuccessorOf(fam, id, a)
+        case _ => None
     case GlobalKind.Primitive(op, ctors) if sp.length >= op.arity =>
       val (later, first) = sp.splitAt(sp.length - op.arity)
       if !first.forall(_.isInstanceOf[Elim.EApp]) then None
@@ -66,7 +71,8 @@ trait Matching:
       case CaseTree.Leaf(body, size, subst, _) =>
         if env.length == size then Reduct(null, body, clauseEnv(subst, env), key, later) else Matching.Stuck
       case CaseTree.Split(level, branches) =>
-        forceData(env(level)) match
+        // a numeral matches `zero` or `suc` of its predecessor, in O(1) (Agda's `constructorForm`)
+        natView(forceData(env(level))) match
           case Rigid(Head.Glob(c), csp) =>
             branches.find(_.ctor == c) match
               case Some(b) =>
@@ -111,6 +117,8 @@ trait Matching:
    *  [[CaseTree.SplitAtom]]; `None` for a value that is not one (yet). */
   def atomKey(v: Val): Option[Tm] = forceData(v) match
     case Lit(l, Stage.S1) => Some(Tm.Lit(l, Stage.S1))
+    // a numeral is an atom too: `same 3 3` reduces
+    case Nat(f, n) => Some(Tm.Nat(f, n))
     case Quote(t) =>
       forceData(t) match
         case Rigid(Head.Glob(id), Nil) => Some(Tm.Quote(Tm.Global(id)))

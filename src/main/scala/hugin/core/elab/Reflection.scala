@@ -159,7 +159,7 @@ trait Reflection:
   /** A constructor application of reflective data: the constructor's name, explicit arguments, position. */
   private def ctorApp(v: Val, sp: Span, t: Target): (Name, List[Val], Span) =
     val (w, s) = peel(v, sp)
-    w match
+    natView(w) match
       case Val.Rigid(Head.Glob(id), spine) if ctorNames.contains(id) =>
         (ctorNames(id), spine.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }, s)
       case other @ Val.Rigid(Head.Glob(id), Elim.EApp(arg, Icit.Expl) :: _) if isQAtom(id) && closedData(arg) =>
@@ -182,7 +182,7 @@ trait Reflection:
         case Elim.EApp(_, Icit.Impl) => true
         case _ => false
       }
-    case Val.Lit(_, _) | Val.Quote(_) | Val.Base(_, _) => true
+    case Val.Lit(_, _) | Val.Nat(_, _) | Val.Quote(_) | Val.Base(_, _) => true
     case _ => false
 
   private def notClosed(v: Val, s: Span, t: Target): Nothing =
@@ -318,7 +318,12 @@ trait Reflection:
     case Val.Lit(l, _) => l
     case other => notClosed(other, s, t)
 
-  private def index(v: Val, s: Span, t: Target): Int = ctorApp(v, s, t) match
+  private def index(v: Val, s: Span, t: Target): Int = peel(v, s)._1 match
+    // a numeral of `index` (a nat-like family)
+    case Val.Nat(_, n) if n.isValidInt => n.toInt
+    case _ => indexCtor(v, s, t)
+
+  private def indexCtor(v: Val, s: Span, t: Target): Int = ctorApp(v, s, t) match
     case ("izero", Nil, _) => 0
     case ("isuc", List(i), s2) => index(i, s2, t) + 1
     case (_, _, s2) => malformed("not an index", s2)

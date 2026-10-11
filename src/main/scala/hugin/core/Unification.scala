@@ -243,6 +243,12 @@ trait Unification:
     case (Rec(fs), Rec(fs2)) if fs.map(_._1) == fs2.map(_._1) =>
       fs.zip(fs2).foreach((a, b) => unify(l, a._2, b._2, cs))
     case (Lit(a, s), Lit(b, s2)) if a == b && s == s2 =>
+    // numerals by value; a numeral against a constructor application by one view step (Agda's
+    // `constructorForm`): `suc ?m = 5` solves `?m := 4`
+    case (Nat(f, a), Nat(g, b)) => if f != g || a != b then fail()
+    // (the view is decomposed here: forcing it would make it a numeral again)
+    case (Nat(_, _), Rigid(Head.Glob(c), sp)) => unifyView(l, natView(t), c, sp, cs)
+    case (Rigid(Head.Glob(c), sp), Nat(_, _)) => unifyView(l, natView(u), c, sp, cs)
     case (Base(a, s), Base(b, s2)) if a == b && s == s2 =>
     case (RelT, RelT) | (PropT, PropT) =>
     case (Arith(op, a, b, s), Arith(op2, a2, b2, s2)) if op == op2 && s == s2 =>
@@ -273,6 +279,11 @@ trait Unification:
     case (t1 @ Rigid(_, _), Quote(b)) => unify(l, vSplice(t1), b, cs)
     case (Rec(fs), u1) => fs.foreach((lb, v) => unify(l, v, proj(u1, lb), cs))
     case (t1, Rec(fs)) => fs.foreach((lb, v) => unify(l, proj(t1, lb), v, cs))
+    case _ => fail()
+
+  /** A numeral's constructor view against the constructor application `c sp`. */
+  private def unifyView(l: Int, view: Val, c: Int, sp: Spine, cs: ConvState): Unit = view match
+    case Rigid(Head.Glob(c2), sp2) if c2 == c => unifySp(l, sp2, sp, cs)
     case _ => fail()
 
   /** Conversion checking of values without metavariables (definitional equality). */

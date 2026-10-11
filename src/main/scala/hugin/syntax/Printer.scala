@@ -10,6 +10,7 @@ object Printer:
     case Absent() => ""
     case RuleRef(n) => "@" + n
     case Lit(l) => l.show
+    case BigLit(v) => v.toString
     case Select(q, n) => s"${show(q)}.$n"
     case Apply(f, a) => s"${show(f)} ${showArg(a)}"
     case Infix(op, l, r) => s"(${show(l)} $op ${show(r)})"

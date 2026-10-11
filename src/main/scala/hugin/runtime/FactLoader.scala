@@ -85,4 +85,12 @@ final class FactLoader(engine: Engine, prog: CoreProgram, ops: TypeOps, reporter
 object FactLoader:
   /** The items of a facts file. A file in the common form is read by the fact reader, any other by the
    *  program parser, which reports its syntax errors (both give the same trees where the reader applies). */
-  def parse(src: SourceFile, reporter: Reporter): List[Item] = FactReader.read(src).getOrElse(Parser.parse(src, reporter).items)
+  def parse(src: SourceFile, reporter: Reporter): List[Item] =
+    FactReader.read(src).getOrElse {
+      // an integer beyond 64 bits is a numeral of a meta family in a program, never a fact's value
+      Parser.parse(src, reporter).items.filter { item =>
+        val big = TreeOps.nodes(item).collect { case b: BigLit => b }.toList
+        big.foreach(b => reporter.report(SyntaxError.IntegerOutOfRange(b.span).toDiagnostic))
+        big.isEmpty
+      }
+    }

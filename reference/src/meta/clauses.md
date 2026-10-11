@@ -57,8 +57,10 @@ not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
 A literal pattern and a successor pattern are constructor patterns: [coverage](coverage.md) and
 [termination](termination.md) see `suc (suc N)` for `N + 2`, so `N` is a constructor subterm of the
 argument. It is an error ([E0915](../errors/E0915.md)) if the type of the argument is not nat-like, or if
-a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. It
-is an error ([E0901](../errors/E0901.md)) if `k` is larger than 100000.
+a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. A
+pattern is matched one constructor at a time, so it is an error ([E0901](../errors/E0901.md)) if a
+literal pattern or the `k` of a successor pattern is larger than 100000; numerals as values have no
+such bound ([Inductive families](families.md#numerals)).
 
 The following function is rejected: `N - 1` is not a pattern, since it is not built from constructors.
 
@@ -144,8 +146,10 @@ total 2.
 
 An application of a function to as many arguments as its clauses have patterns, with the implicit
 arguments before them, evaluates its case tree. The first clause whose patterns match the arguments gives
-the value. If a split is on an argument that is not yet a constructor application (a variable of an
-enclosing function, a postulate), the application stays unevaluated until the argument is known.
+the value. A numeral matches the constant of its family if it is `0`, and the successor applied to its
+predecessor otherwise ([Inductive families](families.md#numerals)). If a split is on an argument that is
+not yet a constructor application (a variable of an enclosing function, a postulate), the application
+stays unevaluated until the argument is known.
 
 Applications to closed arguments are memoised by their normal forms. Since meta functions are total and
 have no effects, this does not change their values; it makes the evaluation of a function such as `fib`

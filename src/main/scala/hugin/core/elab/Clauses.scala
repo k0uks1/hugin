@@ -311,7 +311,7 @@ trait Clauses:
                 case Some(k) => if k != key then clash = Simplified.NoMatch(e.pat, other)
                 case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, other), span))
         case Pat.PCon(c, args, span) =>
-          force(e.term) match
+          forceView(e.term) match
             case term @ Val.Rigid(Head.Glob(c2), sp) if isConstructor(c2) =>
               if c2 != c then clash = Simplified.NoMatch(e.pat, term)
               else pending = constructorArgs(c, sp, args) ++ pending
@@ -556,8 +556,10 @@ trait Clauses:
     val sub = mutable.HashMap.empty[Int, Val]
     def go(a: Val, b: Val): Unit = force(a) match
       case Val.Rigid(Head.Local(x), Nil) if ctx.isFree(x) => if !sub.contains(x) then sub(x) = b
+      // a numeral is closed: no variable of the clause in it
+      case Val.Nat(_, _) =>
       case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
-        force(b) match
+        forceView(b) match
           case Val.Rigid(Head.Glob(c2), sp2) if c2 == c && sp.length == sp2.length =>
             sp.zip(sp2).foreach {
               case (Elim.EApp(x, _), Elim.EApp(y, _)) => go(x, y)
