@@ -15,6 +15,9 @@ enum Lint(val name: String):
   case HoleCapture extends Lint("hole_capture")
   case ConstantFormulas extends Lint("constant_formulas")
 
+  /** Off by default (opt-in), like Agda's `--exact-split`. */
+  case InexactClauses extends Lint("inexact_clauses")
+
   /** The warning code this lint reports. */
   def code: Code = Code.values.find(_.lint.contains(this)).getOrElse(sys.error(s"lint $name has no code"))
 

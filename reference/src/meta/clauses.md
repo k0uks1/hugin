@@ -93,7 +93,7 @@ w N X = X.
 
 the second clause is checked with `N` a variable, so `X` has type `sel (isz N)`, not `bool`, and the
 clause is rejected ([E0901](../errors/E0901.md)), although every argument it is used for is `suc _`. If
-a right-hand side fails in its context but checks at every case of the [case tree](coverage.md#case-trees)
+a right-hand side fails in its context but checks at every case of the [case tree](#evaluation)
 that uses the clause, the error has a fix that writes these cases as clauses (`w (_ + 1) X = X.`); the
 same holds for a call that decreases only in those cases ([E0912](../errors/E0912.md)). A clause that is
 never used ([W0006](../errors/W0006.md)) is checked as well.
@@ -143,9 +143,45 @@ total 2.
 ## Evaluation
 
 An application of a function to as many arguments as its clauses have patterns, with the implicit
-arguments before them, evaluates its case tree. The first clause whose patterns match the arguments gives
-the value. If a split is on an argument that is not yet a constructor application (a variable of an
-enclosing function, a postulate), the application stays unevaluated until the argument is known.
+arguments before them, evaluates its *case tree* (Cockx and Abel 2018), the same tree as for
+[coverage](coverage.md). The tree is defined by the clauses in their order: it keeps the clauses that may
+still apply, and while the first of them has a constructor, literal or quoted pattern against an argument
+that is not yet known, the tree *splits* on that argument. The argument split is the leftmost such
+position of the first clause that may still apply: the first argument with one, and within an argument,
+the outermost position first, then its constructor arguments from left to right (an absurd pattern `()`
+comes after the clause's other patterns); a position whose split is undecided is passed over for the
+clause's next one ([Undecided splits](coverage.md#undecided-splits)). A split has a branch per
+constructor that can occur ([Index unification](coverage.md#index-unification)), in which the clauses
+with another constructor there no longer apply. When the first clause that may still apply has no such
+pattern left, its right-hand side gives the value. On arguments that are all known (closed constructor
+applications), this is the first clause whose patterns match them.
+
+An application whose tree splits on an argument that is not a constructor application (a variable of an
+enclosing function or of a clause, a postulate, a stuck application) stays unevaluated until the argument
+is known, even if every clause that can match gives the same value. With
+
+```text
+gg : nat -> nat -> bool.
+gg zero zero = true.
+gg _ (suc _) = false.
+gg (suc _) zero = true.
+```
+
+the first clause makes the tree split on the first argument, so `gg X (suc zero)` does not evaluate for a
+variable `X`, and a type that mentions it is not `bool` ([E0901](../errors/E0901.md)). With the clause
+`gg _ (suc _)` first, the tree splits on the second argument first, and `gg X (suc zero)` evaluates to
+`false`. The split order is part of the language because it decides which applications evaluate, and so
+which programs type-check; other column choices ([Maranget 2008](../notation.md#references)) would give
+the same values on known arguments but not on unknown ones.
+
+A clause *holds definitionally* if the tree uses it for exactly one case and that case is the clause's
+own patterns (its [clause context](#checking-a-clause)): then every application that matches its
+patterns evaluates by it. In the example the second clause does not: the tree uses it for `gg zero (suc
+_)` and `gg (suc _) (suc _)`. A catch-all clause after a more specific one, such as `n2 _ _ = false.` after
+`n2 zero zero = true.`, does not hold definitionally either. The compiler warns about such clauses
+([W0009](../errors/W0009.md), lint `inexact_clauses`) only if the lint is turned on (`-W
+inexact_clauses`): it is off by default, as Agda's `--exact-split`. It does not apply to the clauses of
+the bundled library.
 
 Applications to closed arguments are memoised by their normal forms. Since meta functions are total and
 have no effects, this does not change their values; it makes the evaluation of a function such as `fib`

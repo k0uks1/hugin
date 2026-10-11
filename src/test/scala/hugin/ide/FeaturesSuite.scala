@@ -164,3 +164,12 @@ class FeaturesSuite extends munit.FunSuite:
     assertEquals(Outline.of(key), Nil)
     assertEquals(Fixes.at(key, "in.facts", 0, 5), Nil)
   }
+
+  test("diagnostics: editors have no lint flags, so the lints that are off by default are not shown") {
+    given Database = Database()
+    val text = nat + "bool : Type.\ntrue : bool.\nfalse : bool.\nn2 : nat -> nat -> bool.\nn2 zero zero = true.\nn2 _ _ = false.\n"
+    val key = program(text)
+    // the compiler reports the opt-in lint `inexact_clauses` (W0009); the editor features drop it
+    assert(hugin.query.FileDiagnostics.of(key).flatMap(_.diagnostics).exists(_.code.id == "W0009"))
+    assertEquals(Diagnostics.all(key).map(_.code.id), Nil)
+  }

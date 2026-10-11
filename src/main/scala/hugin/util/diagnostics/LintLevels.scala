@@ -39,5 +39,9 @@ object LintLevels:
     case Level.Warning => "-W"
     case Level.Allow => "-A"
 
+  /** Whether a diagnostic is shown when no lint flag is given: it is not of a lint that is off by default
+   *  (an opt-in lint such as `inexact_clauses`). Editors, which have no lint flags, show only these. */
+  def onByDefault(d: Diagnostic): Boolean = d.code.lint.forall(_.defaultLevel != Level.Allow)
+
   /** Whether diagnostics shown at some levels include an error. */
   def hasErrors(shown: List[Diagnostic]): Boolean = shown.exists(_.severity == Severity.Error)
