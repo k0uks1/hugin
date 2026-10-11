@@ -4,9 +4,11 @@
 // The bundle declares the facade as a top-level `let Hugin`: a global binding of the script scope, which
 // is not a property of `self`, so it is read by its name.
 //
-// Page -> worker: { id, op: "run" | "check" | "analyse" | "complete", version, source, printAfter, offset }
+// Page -> worker: { id, op: "run" | "check" | "analyse" | "complete" | "actions", version, source, printAfter,
+//                   offset, from, to }
 //                 (printAfter: a phase name or ""; version: the page's counter of the editor's text, echoed
-//                 in the result; offset: the cursor of a `complete` request, in UTF-16 units)
+//                 in the result; offset: the cursor of a `complete` request, from and to the selection of an
+//                 `actions` request, in UTF-16 units)
 // Worker -> page: { ready: true, phases: [..] } once loaded, or { ready: false, error } if the bundle is
 //                 missing; then { id, result } or { id, error } per request.
 //
@@ -21,7 +23,8 @@
 //     info: { names, hovers, hints } | undefined,          // the annotation table (docs/design/web-ide.md 5.2)
 //     version }
 // (an `analyse` request has only the tokens and the table; a `complete` request answers
-//   { from, items: [{ label, kind, detail, fits }], ranked, version }, the facade's JSON as it is). The compiler keeps one database for the
+//   { from, items: [{ label, kind, detail, fits }], ranked, version }, and an `actions` request
+//   { actions: [{ title, kind, preferred, edits: [{ from, to, insert }] }], version }: the facade's JSON). The compiler keeps one database for the
 // worker's lifetime, so a request on the text of the previous one costs no compilation.
 // Only `adapt` and `normalise` know the facade's names.
 "use strict";
@@ -76,13 +79,18 @@ function normalise(raw) {
 }
 
 onmessage = (e) => {
-  const { id, op, version, source, printAfter, offset } = e.data;
+  const { id, op, version, source, printAfter, offset, from, to } = e.data;
   if (!api) return postMessage({ id, error: "the compiler is not available" });
   try {
     if (op === "complete") {
       const r = JSON.parse(api.complete(source, offset, JSON.stringify({ file: "main.hgn" })));
       if (r.error) throw new Error(r.error);
       return postMessage({ id, result: { from: r.from, items: r.items || [], ranked: !!r.ranked, version } });
+    }
+    if (op === "actions") {
+      const r = JSON.parse(api.actions(source, from, to, JSON.stringify({ file: "main.hgn" })));
+      if (r.error) throw new Error(r.error);
+      return postMessage({ id, result: { actions: r.actions || [], version } });
     }
     postMessage({ id, result: { ...normalise(adapt(op, source, printAfter)), version } });
   } catch (err) {

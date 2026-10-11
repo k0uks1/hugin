@@ -1,7 +1,7 @@
 package hugin.web
 
 import hugin.compiler.Compiler
-import hugin.ide.{Annotations, Completion, Highlighting}
+import hugin.ide.{Annotations, Completion, FixKind, Fixes, Highlighting}
 import hugin.platform.Platform
 import hugin.query.*
 import hugin.runtime.Evaluation
@@ -78,6 +78,34 @@ object Playground:
             "items" -> Json.Arr(items),
             "ranked" -> Json.Bool(cs.ranked)
           ).render
+        }
+
+  /** The fixes and the actions of interactive development for the part `[from, to]` of the program
+   *  (UTF-16 code units), from `hugin.ide.Fixes`: `{ "version": 1, "actions": [{ "title", "kind",
+   *  "preferred", "edits": [{ "from", "to", "insert" }] }, …] }`. `kind` is `quickfix` or `rewrite`; only
+   *  actions whose edits all lie in the program are listed. */
+  def actions(source: String, from: Int, to: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val (a, b) = (from.max(0).min(source.length), to.max(0).min(source.length))
+          val fixes = Fixes.at(CompileKey(request.file, request.settings), request.file, a.min(b), a.max(b))
+          val actions =
+            fixes.filter(f => f.edits.nonEmpty && f.edits.forall(e => e.span.exists && e.span.source.path == request.file)).map {
+              f =>
+                Json.obj(
+                  "title" -> Json.str(f.title),
+                  "kind" -> Json.str(if f.kind == FixKind.QuickFix then "quickfix" else "rewrite"),
+                  "preferred" -> Json.Bool(f.preferred),
+                  "edits" -> Json.Arr(f.edits.map(e =>
+                    Json.obj("from" -> Json.num(e.span.start.toLong), "to" -> Json.num(e.span.end.toLong), "insert" -> Json.str(e.text))
+                  ))
+                )
+            }
+          Json.obj("version" -> Json.num(Version), "actions" -> Json.Arr(actions)).render
         }
 
   /** The annotation table of the program, as [[Session.info]] encodes it. */
