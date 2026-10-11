@@ -50,8 +50,7 @@ object Highlighting:
       Tok.KwMax,
       Tok.KwWhere,
       Tok.KwMatch,
-      Tok.KwRewrite,
-      Tok.KwIn
+      Tok.KwRewrite
     )
 
   /** The lexical classes of a source, from its tokens; comments are the text between tokens that is not

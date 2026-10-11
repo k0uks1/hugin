@@ -38,13 +38,15 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
   protected def parseNonType(minLevel: Int): Tree = withType(false)(parseExpr(minLevel))
 
   private def withType[A](t: Boolean)(a: => A): A =
-    val saved = (inType, barEnds)
+    val saved = (inType, barEnds, inEnds)
     inType = t
     barEnds = false
+    inEnds = false
     try a
     finally
       inType = saved._1
       barEnds = saved._2
+      inEnds = saved._3
 
   /** True while parsing the pattern or the expression of a branch of a `match`: `|` starts the next branch
    *  instead of a union type. A delimited construct (parentheses, braces, a list, an aggregate, a type)
@@ -58,8 +60,26 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
     try a
     finally barEnds = saved
 
-  /** The contents of a delimiter: `|` is an operator there again. */
-  protected def inside[A](a: => A): A = endingAtBar(false)(a)
+  /** True while parsing the equation of `rewrite h in e`: the name `in` ends it (a contextual keyword:
+   *  elsewhere `in` is an ordinary name, such as a relation `in X S`). A delimiter inside resets it. */
+  protected var inEnds = false
+
+  /** Runs `a` with the name `in` ending the expression. */
+  protected def endingAtIn[A](a: => A): A =
+    val saved = inEnds
+    inEnds = true
+    try a
+    finally inEnds = saved
+
+  /** Whether the current token is the name `in` that ends the equation of a `rewrite`. */
+  protected def atIn: Boolean = tok.kind == Tok.Name && tok.text == "in"
+
+  /** The contents of a delimiter: `|` is an operator there again, and `in` a name. */
+  protected def inside[A](a: => A): A =
+    val saved = inEnds
+    inEnds = false
+    try endingAtBar(false)(a)
+    finally inEnds = saved
 
   // ---------------------------------------------------------------- errors
 

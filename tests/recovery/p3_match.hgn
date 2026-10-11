@@ -7,7 +7,7 @@ f B = match B with
   | false => 0.
 g : bool -> int.
 g B = match B | true => 1. (*~ E0001 *)
-in : int -> rel. (*~ E0001 *)
+match : int -> rel. (*~ E0001 *)
 h : bool -> int.
 h B = match B with
   | true => 1

@@ -12,13 +12,13 @@ error[E0001]: expected `with`, found `|`
 9 | g B = match B | true => 1. (*~ E0001 *)
   |               ^ expected `with`
 
-error[E0001]: expected an item, found `in`
+error[E0001]: expected an item, found `match`
   --> tests/recovery/p3_match.hgn:10:1
    |
-10 | in : int -> rel. (*~ E0001 *)
-   | ^^ expected an item
+10 | match : int -> rel. (*~ E0001 *)
+   | ^^^^^ expected an item
    |
-   = help: `in` is a keyword (of `match H : e with | p => e` and `rewrite h in e`), so it cannot be a name
+   = help: `match` is a keyword (of `match H : e with | p => e` and `rewrite h in e`), so it cannot be a name
 
 error[E0001]: expected `in`, found `.`
   --> tests/recovery/p3_match.hgn:16:22

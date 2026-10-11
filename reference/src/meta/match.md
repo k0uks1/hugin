@@ -16,7 +16,9 @@ Branch ::= "|" Pattern ("=>" Expr)?
 Rewrite ::= "rewrite" Expr "in" Expr
 ```
 
-`match`, `rewrite` and `in` are [keywords](../lexical-structure.md#keywords), and `=>` is a token. The
+`match` and `rewrite` are [keywords](../lexical-structure.md#keywords), and `=>` is a token. `in` is a
+contextual keyword: it ends the equation of a `rewrite` (outside parentheses there) and is a name
+everywhere else, also in the expression after it. The
 patterns of a branch are those of [clauses](clauses.md#patterns), except that a branch has one pattern
 and that `::` needs no parentheses in it (`| X :: Xs => …`). A branch without `=> e` is an *absurd
 branch*: its pattern contains `()`.

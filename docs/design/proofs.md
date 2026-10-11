@@ -1896,9 +1896,13 @@ Decisions made during implementation are listed here with their PR.
 
 **P3 (`match` and `rewrite`).**
 
-- *Keywords.* `match`, `rewrite` and `in` are reserved keywords and `=>` a token, as in Agda, Idris 2
-  and Lean 4. No bundled file, test, example or reference block used them as names; using one as a name
-  gets a syntax error with a help that it is a keyword.
+- *Keywords.* `match` and `rewrite` are reserved keywords and `=>` a token, as in Agda, Idris 2 and Lean
+  4; they are rare as names, and using one gets a syntax error with a help that it is a keyword. `in`
+  is a *contextual* keyword (as C#'s `var` and `where`, Rust's `union`, Kotlin's soft keywords): the
+  lexer reads it as a name, and the parser takes it as the end of the equation of `rewrite h in e`
+  only there, outside delimiters. Everywhere else, also in the body after it, it is a name, since `in`
+  is a common relation name in Datalog (membership, `in X S`). `with` was a keyword before P3 (record
+  and fact updates `(e with { … })`) and stays one.
 - *Layout.* `|` ends a branch's pattern, its expression and the scrutinee (a union is parenthesised
   there); the last branch and the body of `rewrite` extend like a lambda's body. A branch pattern is
   parsed above `|`, so `| X :: Xs => …` needs no parentheses. An absurd branch `| ()` has no `=>`.

@@ -36,6 +36,10 @@ class ParserSuite extends munit.FunSuite:
     )
     assertEquals(item("t N = rewrite zeroPlus N in cong suc p."), "t N = (rewrite zeroPlus N in cong suc p).")
     assertEquals(item("t N = (rewrite h in x) + 1."), "t N = (((rewrite h in x)) + 1).")
+    // `in` ends the equation of a `rewrite` only: elsewhere, also in the body and in parentheses, a name
+    assertEquals(item("p X :- in X s."), "p X :- in X s.")
+    assertEquals(item("t X = rewrite f (in X) in in X s."), "t X = (rewrite f (in X) in in X s).")
+    assertEquals(item("in X S = X."), "in X S = X.")
     // missing `with`, `=>`, `in`: one error each
     for bad <- List("f X = match X | a => b.", "f X = match X with | a -> b.", "t = rewrite h x.") do
       assertEquals(parse(bad)._2.diagnostics.length, 1, bad)

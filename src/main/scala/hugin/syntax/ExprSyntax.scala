@@ -1,6 +1,5 @@
 package hugin.syntax
 
-import hugin.util.Span
 import scala.collection.mutable
 
 /** Expressions (reference: lexical-structure, operators and precedence), mixed into [[Parser]]: a
@@ -29,6 +28,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
     case Tok.Caret => Some(("^", LvlAdd, Assoc.Left))
     case Tok.Star => Some(("*", LvlMul, Assoc.Left))
     case Tok.Slash => Some(("/", LvlMul, Assoc.Left))
+    case Tok.Name if inEnds && t.text == "in" => None
     case Tok.Name => infixOps.get(t.text).map((a, l) => (t.text, l, a))
     case _ => None
 
@@ -155,9 +155,15 @@ private[syntax] trait ExprSyntax extends ParserBase:
   private def parseRewrite(minLevel: Int): Tree =
     val kw = advance()
     val start = kw.span.start
-    val eqn = if atColumn0(position) || at(Tok.KwIn) then missing(Expect.expression) else inside(parseExpr(LvlSemi))
+    val eqn = if atColumn0(position) || atIn then missing(Expect.expression) else inside(endingAtIn(parseExpr(LvlSemi)))
     val head = spanFrom(start)
-    val ok = keyword(Tok.KwIn, "rewrite")
+    val ok =
+      if atIn then
+        advance()
+        true
+      else
+        expected(List(Expect.Thing("`in`")), None, Some(SyntaxHelp.Keyword("rewrite")))
+        false
     val body = if !ok then ErrorTree(Nil)(insertionPoint)
     else if atColumn0(position) then missing(Expect.expression) else parseExpr(minLevel.max(LvlSemi))
     checked(Rewrite(eqn, body)(spanFrom(start), head), ok)
@@ -166,7 +172,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
     case Tok.Var | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace => true
     case Tok.Dollar | Tok.Up | Tok.Quote | Tok.Hole => true
     case Tok.LBrack => listAhead
-    case Tok.Name => !infixOps.contains(t.text)
+    case Tok.Name => !infixOps.contains(t.text) && !(inEnds && t.text == "in")
     case _ => false
   )
 
@@ -257,16 +263,6 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val arg = if atColumn0(position) then missing(Expect.expression) else parseExpr(LvlHead)
         val ok = close(open, Tok.Gt)
         checked(CodeQuote(arg)(spanFrom(start)), ok)
-      // a keyword where a name was meant (`p X :- in X S.`)
-      case Tok.KwIn if !quiet =>
-        error(SyntaxError.Expected(
-          List(if inType then Expect.tpe else Expect.expression),
-          found,
-          t.span,
-          None,
-          Some(SyntaxHelp.Keyword(t.text))
-        ))
-        ErrorTree(Nil)(Span(src, t.span.start, t.span.start))
       case _ => missing(if inType then Expect.tpe else Expect.expression)
 
   /** `count { t | b }`, `sum`, `min`, `max`, at the keyword. */

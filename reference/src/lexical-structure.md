@@ -48,8 +48,12 @@ The following names are *keywords*. They cannot be used as names of constants.
 
 ```text
 type   rel   prop   not   as   with   count   sum   min   max   where
-match   rewrite   in
+match   rewrite
 ```
+
+`in` is a *contextual keyword*: it ends the equation of [`rewrite h in e`](meta/match.md#rewrite) and is
+an ordinary name everywhere else, so a relation `in X S` or a meta function `in` may be declared. In the
+equation of a `rewrite`, a name `in` is written in parentheses: `rewrite f (in X) in e`.
 
 `min` and `max` are keywords in two roles: before `{` they start an aggregate, otherwise they start a
 [bound column](object/bound-columns.md) type `min τ`.

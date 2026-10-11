@@ -20,8 +20,9 @@ enum Tok:
   // `?` or `?name`: a typed hole of the meta level (reference: meta/functions)
   case Hole
   // the meta level's case expression `match [H :] e with | p => e` and `rewrite H in e` (reference:
-  // meta/match); `=>` separates a branch's pattern from its expression
-  case KwMatch, KwRewrite, KwIn, FatArrow
+  // meta/match); `=>` separates a branch's pattern from its expression. `in` is a name, which the parser
+  // takes as the end of `rewrite H` only there (a contextual keyword)
+  case KwMatch, KwRewrite, FatArrow
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -42,8 +43,7 @@ object Lexer:
     "min" -> Tok.KwMin,
     "max" -> Tok.KwMax,
     "match" -> Tok.KwMatch,
-    "rewrite" -> Tok.KwRewrite,
-    "in" -> Tok.KwIn
+    "rewrite" -> Tok.KwRewrite
   )
 
   def describe(t: Tok): String = t match
@@ -105,7 +105,6 @@ object Lexer:
     Tok.KwMax -> "max",
     Tok.KwMatch -> "match",
     Tok.KwRewrite -> "rewrite",
-    Tok.KwIn -> "in",
     Tok.FatArrow -> "=>"
   )
 
