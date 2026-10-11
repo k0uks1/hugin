@@ -1997,13 +1997,27 @@ definition the formula uses, as `Lifting.letBound` does for leaves). Choices the
   a `Tm.Module` keeps its members out of `Tm.children`, so a cycle between a file's formula function and
   a body's member through a path (`f X :- m.g X.` with `g X :- f X.` in `m`) was not reported and staging
   overflowed the stack; this was already so for a body's definitions (`g : node -> prop = [X] f X.`).
-  It follows the definitions of all members of a module the formula function mentions, not only of the
-  member selected: coarse, but a module that a formula function uses and that uses it back is in its
-  cycle of items anyway. E0105 is reported at the path (`neg/mc_formula_members`).
+  E0105 is reported at the path (`neg/mc_formula_members`). Batch 2 followed every member of a module the
+  formula function mentions; #151 made it precise (below).
 
 Diagnostics: no new codes; E0907 lost the subject "formula functions defined by rules in module
 bodies". Goldens: `run/mc_formula_members`, `neg/mc_formula_members`; `neg/mc_body_unsupported` no
 longer rejects its formula function.
+
+**Precise paths (#151).** The cycle check follows a path `p.l` only into the member `l` it selects, and
+the members before `l` that its definition uses (in member `i`'s definition, member `j < i` is the
+variable `i - 1 - j`; `occurs`, transitively), when `p` resolves statically to a module body: a module
+value, a definition or a member whose value is one (nested paths), or a functor application (the head's
+lambdas, then the body; the arguments and let definitions around it are followed in full). Resolution
+unfolds each global at most once per path and gives up past a depth of 32; a path that does not resolve,
+and a module value used as a whole (an argument of a functor), are followed in all their members as
+before, which is safe and stricter than the reference's rule only there (stated in
+`reference/src/meta/staging.md`). Goldens: `run/mc_formula_paths` (the issue's example, also through a
+nested path and a functor instance), `neg/mc_formula_members` (cycles through a nested path and an
+instance; a module passed whole to a functor still reports). Observed and not changed: in
+`run/mc_formula_paths`, the instance `inst` whose member uses a formula function that uses `inst.a` is
+named `_m1` (its object constants are `_m1.more`; cause not investigated, the program was rejected
+before); the golden prints its relation through a top-level one.
 
 ## Standard library: lists and directives (#61, batch B4)
 

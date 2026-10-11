@@ -113,7 +113,13 @@ trait FormulaFunctions:
 
   /** Whether `t` refers to the global `target`, through the definitions and functions it refers to and the
    *  members of the module values among them; with `self = false`, `t` being `target` itself does not
-   *  count (only its definition does). */
+   *  count (only its definition does).
+   *
+   *  A path `p.l` follows only the member `l` it selects (issue #151), with the members before it that its
+   *  definition uses, when `p` is known to be a module body: a module value, a definition or a member
+   *  whose value is one, or an application of a functor whose body is one (whose arguments are followed
+   *  in full). A module value used otherwise (an argument, a path that does not resolve to a body), is
+   *  followed in all its members, as is safe. */
   private def refersTo(target: Int, t: Tm, self: Boolean): Boolean =
     val seen = scala.collection.mutable.Set.empty[Int]
     val seenBodies = scala.collection.mutable.Set.empty[Int]
@@ -121,20 +127,85 @@ trait FormulaFunctions:
       case GlobalKind.Definition(tm, _) => inTm(tm)
       case GlobalKind.Function(_, Some(fb)) => fb.clauses.exists(_.body.exists(inTm))
       case _ => false
-    def inTm(t: Tm): Boolean = Tm.exists(t) {
+    def inTm(t: Tm): Boolean = t match
       case Tm.Global(g) => g == target || seen.add(g) && inGlobal(g)
-      // a module value: the definitions of its members, whichever is selected (its member functions
-      // and formula functions are globals applied to the body's context)
-      case Tm.Module(b, _) =>
-        seenBodies.add(b.id) && b.members.exists {
+      case Tm.Proj(inner, label) =>
+        selected(inner, label) match
+          case Some(terms) => terms.exists(inTm)
+          case None => inTm(inner)
+      // a module value as a whole: the definitions of all its members (its member functions and formula
+      // functions are globals applied to the body's context)
+      case Tm.Module(b, env) =>
+        env.exists(inTm) || seenBodies.add(b.id) && b.members.exists {
           case Member(_, MemberKind.Defined(tm), _, _, _) => inTm(tm)
           case _ => false
         }
-      case _ => false
-    }
+      case _ => Tm.children(t).exists(inTm)
     t match
       case Tm.Global(g) if !self => seen.add(g) && inGlobal(g)
       case _ => inTm(t)
+
+  /** The terms that the path `t.label` depends on, if `t` is known to be a module body: the definition of
+   *  the member `label` and of the members before it that it uses, and the terms around the body (its
+   *  environment, the arguments of a functor, the definitions of lets); `None` if `t` does not resolve to
+   *  a body. */
+  private def selected(t: Tm, label: Name): Option[List[Tm]] =
+    moduleOf(t, 0, Set.empty).map((b, around) => around ++ memberClosure(b, label))
+
+  /** The module body that `t` evaluates to, with the terms around it (see [[selected]]). A global met
+   *  again (`visited`: the definitions unfolded on the way) or a chain deeper than [[MaxPathDepth]] gives
+   *  up: the path is then followed coarsely. */
+  private def moduleOf(t: Tm, depth: Int, visited: Set[Int]): Option[(hugin.core.ModuleBody, List[Tm])] =
+    if depth > MaxPathDepth then None
+    else
+      def go(t: Tm) = moduleOf(t, depth + 1, visited)
+      t match
+        case Tm.Module(b, env) => Some((b, env))
+        case Tm.Obj(ObjForm.Loc(_), List(x)) => go(x)
+        case Tm.Trace(_, x) => go(x)
+        case Tm.Require(_, _, x) => go(x)
+        case Tm.Lam(_, _, body) => go(body)
+        case Tm.Let(_, ty, d, body) => go(body).map((b, around) => (b, ty :: d :: around))
+        case Tm.App(f, a, _) => go(f).map((b, around) => (b, a :: around))
+        case Tm.Global(g) if !visited(g) =>
+          kindOf(g) match
+            case GlobalKind.Definition(tm, _) => moduleOf(tm, depth + 1, visited + g)
+            case _ => None
+        case Tm.Proj(inner, l) =>
+          go(inner).flatMap { (b, around) =>
+            b.members.indexWhere(_.name == l) match
+              case -1 => None
+              case k =>
+                b.members(k).kind match
+                  case MemberKind.Defined(v) =>
+                    go(v).map((nb, nAround) => (nb, around ++ memberClosure(b, k).filterNot(_ eq v) ++ nAround))
+                  case _ => None
+          }
+        case _ => None
+
+  private val MaxPathDepth = 32
+
+  /** The definitions of the member `label` of `b` and of the members before it that they use. */
+  private def memberClosure(b: hugin.core.ModuleBody, label: Name): List[Tm] =
+    b.members.indexWhere(_.name == label) match
+      case -1 => Nil
+      case k => memberClosure(b, k)
+
+  /** The definitions of the member `k` of `b` and of the members before it that they use: in the
+   *  definition of member `i`, the member `j < i` is the variable with index `i - 1 - j`. */
+  private def memberClosure(b: hugin.core.ModuleBody, k: Int): List[Tm] =
+    val used = scala.collection.mutable.LinkedHashSet.empty[Int]
+    def visit(i: Int): Unit =
+      if used.add(i) then
+        b.members(i).kind match
+          case MemberKind.Defined(v) => for j <- 0 until i if occurs(i - 1 - j, v) do visit(j)
+          case _ =>
+    visit(k)
+    used.toList.flatMap(i =>
+      b.members(i).kind match
+        case MemberKind.Defined(v) => List(v)
+        case _ => Nil
+    )
 
   private def reporting[A](a: => A): Option[A] =
     try Some(a)
