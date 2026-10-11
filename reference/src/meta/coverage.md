@@ -14,6 +14,8 @@ gets one branch per constructor of the argument's type. In each branch, the clau
 is another constructor no longer apply. When the first clause that may apply has no constructor patterns
 left, it is the leaf of the branch: its right-hand side, checked once in its [clause
 context](clauses.md#checking-a-clause), at the arguments of the branch.
+The same tree evaluates applications of the function; [Evaluation](clauses.md#evaluation) defines the
+order of its splits and when an application is stuck.
 
 ## Index unification
 

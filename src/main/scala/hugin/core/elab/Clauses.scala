@@ -107,6 +107,7 @@ trait Clauses:
     checkTermination()
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) && !states(i).absurd do
       reporter.report(ClauseProblem.UnreachableClause(g.name, cl.span).toDiagnostic)
+    reportInexact(info, checked)
 
   /** The problem with the first `arity` arguments of the function as variables. */
   private def initialProblem(ty: Val, arity: Int): (SplitProblem, Val) =
@@ -770,6 +771,31 @@ trait Clauses:
     if f.name.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'') && clauses.nonEmpty && !index.muted then
       index.meta.missing(MetaIndex.MissingClauses(declared, f.name, f.missing.toList.map(_ + " = ?."), clauses.map(_.span).maxBy(_.end)))
     fail(ClauseProblem.NotCovering(f.name, f.missing.head, declared))
+
+  // ---------------------------------------------------------------- inexact clauses (#67 batch 3)
+
+  /** The opt-in lint `inexact_clauses` (W0009), Agda's `--exact-split`: a clause *holds definitionally*
+   *  iff it is the leaf of exactly one case of the tree and that case is its clause context (the matching
+   *  substitution renames). Otherwise an application that matches the clause's patterns may not evaluate
+   *  by it (reference: meta/clauses, "Evaluation"). The diagnostic is always computed, as every lint; its
+   *  level, off by default, applies when it is shown. Absurd and unreachable clauses have no leaf; clauses
+   *  without a position (generated ones) and those of the bundled library (whose catch-all clauses are
+   *  deliberate, and which users cannot change) are not reported. */
+  private def reportInexact(f: FunctionInfo, checked: Vector[Checked]): Unit =
+    def linted(sp: Span) = sp.exists && !hugin.compiler.StdlibCache.isStdlib(sp.source.path)
+    for ch <- checked if !ch.state.absurd && linted(ch.state.source.span) do
+      f.leaves.get(ch.state.index).map(_.toList).getOrElse(Nil) match
+        case Nil =>
+        case List((p, _)) if isRenaming(instantiation(f.arity, ch.ctx, p), ch.order, p) =>
+        case leaves =>
+          val cases = leaves.map((p, _) => caseText(f, p))
+          reporter.report(ClauseProblem.InexactClause(f.name, cases, ch.state.source.span).toDiagnostic)
+
+  /** A case of the tree as a left-hand side of `f`, with `_` for its variables. */
+  private def caseText(f: FunctionInfo, p: SplitProblem): String =
+    val names = p.names.indices.map(l => if p.isFree(l) then "_" else p.names(l)).toList.reverse
+    val pats = f.explicit.drop(globals(f.id).hidden).map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
+    (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
 
 object Clauses:
   /** For tests: `canApply` also unifies where it decided without unifying; `decidedWithoutUnifying` counts those
