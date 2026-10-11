@@ -50,12 +50,28 @@ trait WeakHead:
                     case r: Reduct => whnf(appSpWeak(if r.hit != null then r.hit.nn else evalWeak(r.env, r.body), r.later))
                     case Matching.Stuck => v
         case _: GlobalKind.Function | _: GlobalKind.Opaque | GlobalKind.Postulate => v
-        // constructors (numerals), primitives and families reduce as evaluation reduces them
+        // a constructor is a head: a successor or `ofNat`/`negSucc` applied to a numeral is a numeral or an
+        // integer in one step, without evaluating its arguments (#186 P4)
+        case GlobalKind.Constructor(_) =>
+          reduceOther(id, sp) match
+            case Some(r) => whnf(r)
+            case None => v
+        // a primitive (`same`) normalises its arguments: strictly if that is cheap, otherwise it is stuck
+        // here (a head that index unification does not decide)
+        case _: GlobalKind.Primitive => withinPolls(StrictPolls)(force(v)).getOrElse(v)
+        // families reduce as evaluation reduces them
         case _ => force(v)
     // a successor is a head; an offset whose base is (already) a numeral or an offset is added up
     case NatAdd(_, _, _) => numeral(v)
-    case _: Rigid | _: Obj | _: Arith | _: Negate | _: Persist => force(v)
+    // compile-time arithmetic on the weak-head forms of its operands: on integers it computes in one step
+    case Arith(op, a, b, Stage.S1) => arith(op, whnfOperand(a), whnfOperand(b), Stage.S1)
+    case Negate(a, Stage.S1) => negate(whnfOperand(a), Stage.S1)
+    case Persist(t) => persist(whnfOperand(t))
+    case _: Rigid | _: Obj | _: Arith | _: Negate => force(v)
     case other => other
+
+  /** [[whnf]] of an operand of compile-time arithmetic (not a tail call: bounded by the term's depth). */
+  private def whnfOperand(v: Val): Val = whnf(v)
 
   /** Steps of evaluation (in polls of [[Machine.cancellation]]) that [[whnf]] spends on evaluating a
    *  delayed application strictly before it evaluates it one step at a time. */
@@ -150,7 +166,7 @@ trait WeakHead:
       case Obj(form, as) => if as.isEmpty then v else Obj(form, as.map(go))
       case Persist(t) => persist(go(t))
       case FactTy(r) => FactTy(go(r))
-      case U0 | _: U1 | _: Lit | _: Base | _: Nat | RelT | PropT => v
+      case U0 | _: U1 | _: Lit | _: Base | _: Nat | _: IntNum | RelT | PropT => v
     def goSp(sp: Spine): Spine = sp.map {
       case Elim.EApp(a, i) => Elim.EApp(go(a), i)
       case e => e
@@ -183,7 +199,7 @@ trait WeakHead:
       case Obj(_, as) => as.exists(go)
       case Persist(t) => go(t)
       case FactTy(r) => go(r)
-      case U0 | _: U1 | _: Lit | _: Base | _: Nat | RelT | PropT => false
+      case U0 | _: U1 | _: Lit | _: Base | _: Nat | _: IntNum | RelT | PropT => false
     go(v)
 
   /** Whether `a` and `b` (values at level `l`) have the same normal form, `quote(l, a) == quote(l, b)`,
@@ -196,6 +212,10 @@ trait WeakHead:
       val y = whnf(b)
       (x, y) match
         case _ if isNumeral(x) || isNumeral(y) => sameNat(l, x, y)
+        // an integer against an integer by value, and against `ofNat` or `negSucc` by its view
+        case (IntNum(m), IntNum(n)) => m == n
+        case (IntNum(m), _: Rigid) => sameWeak(l, intView(m), y)
+        case (_: Rigid, IntNum(n)) => sameWeak(l, x, intView(n))
         case (Rigid(h1 @ (_: Head.Local | _: Head.Glob), sp1), Rigid(h2 @ (_: Head.Local | _: Head.Glob), sp2)) =>
           h1 == h2 && sameSpine(l, sp1, sp2)
         case (_: Rigid, _: Rigid) => quote(l, x) == quote(l, y)
@@ -301,6 +321,7 @@ trait WeakHead:
       case Rec(fs) => Tm.Rec(fs.map((n, x) => (n, go(l, x))))
       case Lit(x, st) => Tm.Lit(x, st)
       case Nat(f, n) => Tm.Nat(f, n)
+      case IntNum(n) => Tm.IntNum(n)
       case NatAdd(f, b, k) =>
         numeral(v) match
           case NatAdd(_, b1, k1) => Tm.NatAdd(f, go(l, b1), k1)

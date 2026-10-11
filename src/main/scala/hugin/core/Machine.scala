@@ -136,7 +136,11 @@ trait Machine:
   /** A native operation of `std/nat` or `std/int` on numerals: `id` applied to `sp` and then `a`, if that
    *  computes in one step ([[NatArithmetic.nativeApplication]]); null otherwise. */
   private def nativeFast(id: Int, a: Val, sp: Spine): Val | Null = globals(id).kind match
-    case GlobalKind.Function(_, Some(body)) if body.native.isDefined => nativeApplication(body, a, sp)
+    case GlobalKind.Function(_, Some(body)) if body.native.isDefined =>
+      val r = nativeApplication(body, a, sp)
+      // a native operation is a step of evaluation as a case-tree run is (cancellation, budgets)
+      if r != null then step()
+      r
     case _ => null
 
   /** A term that evaluates without effects and without evaluating a subterm. */

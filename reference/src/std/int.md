@@ -123,6 +123,11 @@ one step on any integers, however large.
 | `fits64` | fits64 | `true` if −2⁶³ ≤ `a` ≤ 2⁶³ − 1, else `false` |
 | `natAbs` | natAbs | the numeral `|a|` |
 
+The compiler's numbers have a size limit of 2²⁴ bits, about five million decimal digits: a native sum,
+difference or product whose result would be larger is not computed, and its application stays stuck,
+as Lean's and Agda's numbers end where memory does. Object code that needs such a value is an error
+([E0909](../errors/E0909.md)); diagnostics show an integer of more than 4096 bits by its size.
+
 The native operations give exactly the values of the clauses: when the compiler elaborates `std/int`, it
 checks each function's clauses against the defining equations of its operation, one per pair of
 constructors (`iplus (ofNat m) (ofNat n) = ofNat (plus m n)`, and so on, over the checked native

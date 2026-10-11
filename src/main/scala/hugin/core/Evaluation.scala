@@ -152,6 +152,8 @@ trait Evaluation:
     (a, b, st) match
       case (Lit(x, Stage.S1), Lit(y, Stage.S1), Stage.S1) =>
         Prims.arith(op, x, y).map(Lit(_, Stage.S1)).getOrElse(Arith(op, a, b, st))
+      // beyond the size limit of numbers ([[NatArithmetic.MaxBits]]) it stays stuck
+      case (IntNum(x), IntNum(y), Stage.S1) if x.bitLength + y.bitLength > NatArithmetic.MaxBits => Arith(op, a, b, st)
       case (IntNum(x), IntNum(y), Stage.S1) =>
         op match
           case hugin.obj.ArithOp.Add => IntNum(x + y)

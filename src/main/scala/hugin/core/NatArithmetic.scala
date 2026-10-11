@@ -80,7 +80,8 @@ trait NatArithmetic:
       case (NatOp.DivSucAux, List(k, m, x, j)) => Some(Val.Nat(n.fam, k + (x + m - j).max(0) / (m + 1)))
       case (NatOp.ModSucAux, List(k, m, x, j)) => Some(Val.Nat(n.fam, if x > j then (x - j - 1) % (m + 1) else k + x))
       case (_, List(a)) if n.op.arity == 1 => Some(native1(n, a))
-      case (_, List(a, b)) if n.op.arity == 2 => Some(native2(n, a, b))
+      // a result beyond the size limit is not computed: the application is stuck
+      case (_, List(a, b)) if n.op.arity == 2 => Option(native2(n, a, b))
       case _ => throw Impossible(s"native ${n.op.key} on ${xs.length} arguments")
 
   private def bool(n: NativeNat, b: Boolean): Val = Val.Rigid(Head.Glob(if b then n.ctors(0) else n.ctors(1)), Nil)
@@ -92,8 +93,11 @@ trait NatArithmetic:
     case NatOp.NatAbs => Val.Nat(n.fam, a.abs)
     case op => throw Impossible(s"native ${op.key} on 1 argument")
 
-  /** An operation of two arguments on numbers. */
-  private def native2(n: NativeNat, a: BigInt, b: BigInt): Val = n.op match
+  /** An operation of two arguments on numbers; null if its result would have more than
+   *  [[NatArithmetic.MaxBits]] bits (the size limit of the compiler's numbers). */
+  private def native2(n: NativeNat, a: BigInt, b: BigInt): Val | Null = n.op match
+    case NatOp.Add | NatOp.IntAdd | NatOp.SubNatNat | NatOp.IntSub if a.bitLength.max(b.bitLength) >= NatArithmetic.MaxBits => null
+    case NatOp.Mul | NatOp.IntMul if a.bitLength + b.bitLength > NatArithmetic.MaxBits => null
     case NatOp.Add => Val.Nat(n.fam, a + b)
     case NatOp.Monus => Val.Nat(n.fam, (a - b).max(0))
     case NatOp.Mul => Val.Nat(n.fam, a * b)
@@ -138,7 +142,15 @@ trait NatArithmetic:
             val y = numberOf(a, n.fam)
             if y == null then null
             else
-              Matching.nativeSteps += 1
-              native2(n, x.nn, y.nn)
+              val r = native2(n, x.nn, y.nn)
+              if r != null then Matching.nativeSteps += 1
+              r
         case _ => null
     else null
+
+object NatArithmetic:
+  /** The size limit of the numbers that native operations compute, in bits (2^24 bits, about five million
+   *  decimal digits): a sum or product beyond it is not computed, and its application stays stuck, as
+   *  Lean's and Agda's numbers end where memory does. A larger `BigInt` would overflow the JVM's
+   *  `BigInteger` (2^31 bits) after a few more squarings. */
+  inline val MaxBits = 1 << 24

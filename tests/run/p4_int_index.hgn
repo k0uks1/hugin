@@ -1,0 +1,22 @@
+(* #186 P4 with #195: a family indexed by meta integers. Coverage refutes a constructor by index
+   unification on an integer that native arithmetic computes in one step, also from integers beyond
+   64 bits, and integer patterns split as constructor patterns. *)
+tag : int -> Type.
+zeroT : tag 0.
+oneT : tag 1.
+minusT : tag (-1).
+
+(* the index is 1: `zeroT` and `minusT` cannot occur, so one clause covers *)
+onlyOne : tag (100000000000000000000 * 100000000000000000000 - 9999999999999999999999999999999999999999) -> int.
+onlyOne oneT = 1.
+
+(* an integer pattern determines the index *)
+pick : (n : int) -> tag n -> int.
+pick 0 zeroT = 10.
+pick 1 oneT = 11.
+pick (-1) minusT = 12.
+
+shown : int -> rel.
+shown (onlyOne oneT).
+shown (pick 1 oneT).
+shown (pick (-1) minusT).

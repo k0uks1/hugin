@@ -63,6 +63,7 @@ trait Matching:
           native match
             case Some(Some(v)) =>
               Matching.nativeSteps += 1
+              step()
               Reduct(v, null, Nil, null, later)
             case Some(None) => Matching.Stuck
             case None => runClauses(id, tree, args, later)
@@ -99,6 +100,7 @@ trait Matching:
     native match
       case Some(Some(v)) =>
         Matching.nativeSteps += 1
+        step()
         Reduct(v, null, Nil, null, later)
       case Some(None) => Matching.Stuck
       case None =>
