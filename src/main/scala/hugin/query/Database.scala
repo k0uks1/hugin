@@ -212,6 +212,12 @@ final class Database(val retainEpochs: Int = 2, val collectAbove: Int = 1024):
     if stack.isEmpty then demanded((query, key))
     fresh((query, key)).value.asInstanceOf[V]
 
+  /** The value of the memo of `query` at `key` if there is one, up to date or not, without recording a
+   *  dependency. For a query being computed, it is its previous value. Only for reusing work: the running
+   *  query's result must not depend on it (e.g. an evaluation that copies the relations an earlier one
+   *  computed for equal rules, `Fixpoint`), so that it equals a computation from scratch. */
+  def previous[K, V](query: Query[K, V], key: K): Option[V] = memos.get((query, key)).map(_.value.asInstanceOf[V])
+
   /** Records a demand from outside any query; the first one in a revision starts an epoch, which may
    *  collect first (see [[collect]]). */
   private def demanded(slot: Slot): Unit =

@@ -9,6 +9,7 @@ file.
 | module | contents |
 |---|---|
 | [`std/reflect`](reflect.md) | lists, options and booleans; object syntax as data; declarations as data and the primitive directives; the primitive operations on symbols |
+| [`std/nat`](nat.md) | the natural numbers of the meta level, `plus` and `toInt` |
 | [`std/list`](list.md) | functions over meta lists, natural numbers as fuel, relations over the lists that are facts |
 | [`std/directives`](directives.md) | the parts of rules and modules, the calls of a relation, the binding analysis, fresh names and errors, for directive authors |
 | [`std/graph`](graph.md) | the signatures of graphs; transformers, closures, reachability, components, degrees and distances as functors |

@@ -101,12 +101,32 @@ object DepGraph:
    *  terms of its arguments that the body does not match. */
   def assertedHeadConstructors(r: Rule): List[Term.App] = newHeadConstructors(r)
 
-  def edges(p: ObjProgram)(using ProgramFacts): List[DepEdge] =
+  def edges(p: ObjProgram)(using ProgramFacts): List[DepEdge] = p.rules.toList.flatMap(ruleEdges)
+
+  /** The edges of the unit's program: those of [[edges]], each rule's computed once per compilation and
+   *  facts (issue #126, PR 6). Stratification, completeness and termination read the same graph; between
+   *  them only rules are added (the split rules of stratification), so each later phase computes the
+   *  edges of the new rules only. */
+  def edgesOf(unit: hugin.compiler.CompilationUnit): List[DepEdge] =
+    val p = unit.prog
+    if p == null then return Nil
+    given facts: ProgramFacts = unit.facts
+    if unit.edgeFacts ne facts then
+      unit.edgeCache.clear()
+      unit.edgeFacts = facts
     p.rules.toList.flatMap { r =>
-      val heads = r.heads.collect { case Term.App(RelRef.Sym(c), _) => c }
-      val occ = occurrences(r.body)
-      val ctors = assertedHeadConstructors(r).map(_.rel.sym).distinct
-      val fromHead = for h <- heads; (o, neg, sp) <- occ yield DepEdge(h, o, neg, sp, r)
-      val fromCtors = for c <- ctors; (o, neg, sp) <- occ yield DepEdge(c, o, neg, sp, r)
-      fromHead ++ fromCtors
+      val cached = unit.edgeCache.get(r)
+      if cached != null then cached
+      else
+        val es = ruleEdges(r)
+        unit.edgeCache.put(r, es)
+        es
     }
+
+  private def ruleEdges(r: Rule)(using ProgramFacts): List[DepEdge] =
+    val heads = r.heads.collect { case Term.App(RelRef.Sym(c), _) => c }
+    val occ = occurrences(r.body)
+    val ctors = assertedHeadConstructors(r).map(_.rel.sym).distinct
+    val fromHead = for h <- heads; (o, neg, sp) <- occ yield DepEdge(h, o, neg, sp, r)
+    val fromCtors = for c <- ctors; (o, neg, sp) <- occ yield DepEdge(c, o, neg, sp, r)
+    fromHead ++ fromCtors

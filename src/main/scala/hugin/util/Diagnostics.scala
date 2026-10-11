@@ -81,6 +81,19 @@ final class Reporter(val maxErrors: Int = 200):
 
   def report(p: Problem): Unit = report(p.toDiagnostic)
 
+  /** The position in the reported diagnostics, for [[discardSince]]. */
+  def mark: Int = buf.length
+
+  /** Drops the diagnostics reported since `mark` (those of a speculative attempt). */
+  def discardSince(mark: Int): Unit =
+    while buf.length > mark do
+      val d = buf.remove(buf.length - 1)
+      seen -= ((d.code, d.message, d.primarySpan.start, d.primarySpan.end, d.primarySpan.source.path))
+      d.severity match
+        case Severity.Error => errors -= 1
+        case Severity.Warning => warnings -= 1
+        case _ =>
+
   def errorCount: Int = errors
   def warningCount: Int = warnings
   def hasErrors: Boolean = errors > 0
