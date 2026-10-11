@@ -83,8 +83,6 @@ class RebaseSuite extends munit.FunSuite:
       val (_, newDeclItems, _, _) = parts(text.replace(name, to))
       val newDecls = ProgramElab.declarations(decls.base, path, List(path), newDeclItems)
       val old = objects.map(ProgramElab.item(decls, _))
-      val (moved, scratch) = (rendered(newDecls, old), rendered(newDecls, objects.map(ProgramElab.item(newDecls, _))))
-      // the diagnostics as a set: assembly reports a moved item's at once and the items it elaborates
-      // again after all others (an order of assembly, not of the move)
-      assertEquals((moved._1, moved._2.sorted), (scratch._1, scratch._2.sorted), name)
+      // the diagnostics as a sequence: assembly reports every item's in item order, moved or not
+      assertEquals(rendered(newDecls, old), rendered(newDecls, objects.map(ProgramElab.item(newDecls, _))), name)
   }

@@ -67,7 +67,12 @@ final class DeclarationsSummary(decls: ElaboratedDeclarations):
 
   /** The whole table `channel`, comparable (`None` for a table an item may not depend on as a whole:
    *  the globals, metas and levels, which make an item depend on all of the declarations). */
-  def table(channel: String): Option[Any] =
+  def table(channel: String): Option[Any] = tables.getOrElseUpdate(channel, computeTable(channel))
+
+  // the tables canonicalized once per declarations (every item that reads one whole compares it)
+  private val tables = mutable.HashMap.empty[String, Option[Any]]
+
+  private def computeTable(channel: String): Option[Any] =
     val state = decls.elaborator.state
     val canon = Canonical(key)
     lazy val (bodyIds, anonymous, prefixes, fileRanks, memo) = core.moduleTables

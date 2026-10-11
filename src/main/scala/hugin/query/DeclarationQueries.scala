@@ -2,29 +2,29 @@ package hugin.query
 
 import hugin.core.{ElaboratedDeclarations, Fingerprint, Footprint, GlobalKey, Opaque}
 
-final case class FingerprintKey(program: ProgramKey, key: GlobalKey)
-final case class DeclNameKey(program: ProgramKey, channel: String, name: String)
-final case class DeclTableKey(program: ProgramKey, channel: String)
+/** What one object item read of its program's declarations (its footprint, with globals by their
+ *  stable keys): the globals, the names in each per-name table, and the tables read as a whole. Its hash
+ *  is computed once (the key is looked up whenever the item is revalidated). */
+final case class DeclViewKey(program: ProgramKey, globals: Vector[GlobalKey], names: Vector[(String, String)], tables: Vector[String]):
+  override val hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
 
-/** The fingerprint of one global of a program's declarations, by key (issue #126, PR 7 step 3;
- *  [[hugin.core.DeclarationsSummary]]): a projection of [[Signatures]], cut off unless the global or
- *  something it refers to changed. `None` if the declarations have no such global. */
-object DeclFingerprint extends Query[FingerprintKey, Option[Fingerprint]]("declFingerprint"):
-  def compute(key: FingerprintKey)(using db: Database): Option[Fingerprint] = db(Signatures, key.program).summary.fingerprint(key.key)
-
-/** The outcome of one name in one per-name table of the declarations' state (the scope, the erroneous,
- *  unelaborated, function and declared names). */
-object DeclName extends Query[DeclNameKey, Any]("declName"):
-  def compute(key: DeclNameKey)(using db: Database): Any = db(Signatures, key.program).summary.name(key.channel, key.name)
-
-/** One whole table of the declarations' state, comparable. */
-object DeclTable extends Query[DeclTableKey, Option[Any]]("declTable"):
-  def compute(key: DeclTableKey)(using db: Database): Option[Any] = db(Signatures, key.program).summary.table(key.channel)
-
-/** The libraries the declarations were elaborated on, by identity: the libraries' globals are named by
- *  their ids, which another chain of libraries numbers differently. */
-object DeclBase extends Query[ProgramKey, Opaque]("declBase"):
-  def compute(key: ProgramKey)(using db: Database): Opaque = Opaque(db(Signatures, key).base)
+/** The projections of a program's declarations that one object item read (issue #126, PR 7 step 3;
+ *  [[hugin.core.DeclarationsSummary]]): the libraries they were elaborated on (by identity: another chain
+ *  of libraries numbers the libraries' globals differently), the fingerprint of each global it read (`None`
+ *  if the declarations have no global with that key), the outcome of each name it looked up, and each
+ *  table it read as a whole. Cut off unless one of them changed. One query per item rather than one per
+ *  projection: a cold compilation of a large program records a few dependencies per item instead of one
+ *  per read (gen_large: 3 691 instead of about 25 000, measured as most of step 3's cost). */
+object DeclView extends Query[DeclViewKey, (Opaque, Vector[Option[Fingerprint]], Vector[Any], Vector[Option[Any]])]("declView"):
+  def compute(key: DeclViewKey)(using db: Database): (Opaque, Vector[Option[Fingerprint]], Vector[Any], Vector[Option[Any]]) =
+    val decls = db(Signatures, key.program)
+    val summary = decls.summary
+    (
+      Opaque(decls.base),
+      key.globals.map(summary.fingerprint),
+      key.names.map((channel, n) => summary.name(channel, n)),
+      key.tables.map(summary.table)
+    )
 
 /** The dependencies of an object item on its program's declarations, from its footprint (section 9.4 of
  *  `docs/design/incrementality-2.md`): the fingerprint of every global it read, the outcome of every name
@@ -38,8 +38,11 @@ object DeclarationDependencies:
     if footprint.metas.nonEmpty || footprint.levels.nonEmpty || whole.exists(summary.table(_).isEmpty) then
       db(Signatures, program)
     else
-      db(DeclBase, program)
-      for id <- footprint.globals do db(DeclFingerprint, FingerprintKey(program, summary.keys(id)))
-      for (channel, names) <- footprint.names.toList.sortBy(_._1) if !footprint.whole(channel); n <- names.toList.sorted do
-        db(DeclName, DeclNameKey(program, channel, n))
-      for channel <- whole do db(DeclTable, DeclTableKey(program, channel))
+      val globals = footprint.globals.iterator.map(summary.keys(_)).toVector // in id order
+      // in the footprint's order: a different order of the same names only makes a new key (a view
+      // computed again), never a wrong cut-off
+      val names = footprint.names.iterator
+        .filter((channel, _) => !footprint.whole(channel))
+        .flatMap((channel, ns) => ns.iterator.map((channel, _)))
+        .toVector
+      db(DeclView, DeclViewKey(program, globals, names, whole.toVector))
