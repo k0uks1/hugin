@@ -130,7 +130,7 @@ The following program writes the quotes of two definitions. Stage inference woul
 types without the quotes: `trip = road oslo rome.` is also a value of type `⇑rel`.
 
 ```hugin,run
-city : type. oslo : city. rome : city.
+city : type. oslo, rome : city.
 road : city -> city -> rel.
 road oslo rome.
 trip = <road oslo rome>.
@@ -265,7 +265,7 @@ The following program defines grandparenthood as a formula function. Its variabl
 the variable `Y` of the rule that uses it.
 
 ```hugin,run
-person : type. ann : person. bob : person. cy : person. dan : person.
+person : type. ann, bob, cy, dan : person.
 parent : person -> person -> rel.
 parent dan ann. parent ann bob. parent bob cy.
 grand : person -> person -> prop.

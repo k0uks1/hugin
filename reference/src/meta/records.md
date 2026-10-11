@@ -71,7 +71,7 @@ the same graph with another edge relation.
 
 ```hugin,run
 %use "std/graph".
-city : type.  a : city.  b : city.  c : city.
+city : type.  a, b, c : city.
 road : city -> city -> rel.
 road a b.  road b c.
 rail : city -> city -> rel.
