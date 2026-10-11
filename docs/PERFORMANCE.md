@@ -817,6 +817,28 @@ bundle (`web/bundle`) passes it with `node --stack-size=200`; the merge base ove
 from ~590 items cold (400 with `-Xint`) and the bundle from ~1 500 items on node's default stack (400
 with `--stack-size=200`).
 
+### Frames for every compound term (#167)
+
+#167 gave the machine frames for every compound term (an operand of arithmetic, object code, a record,
+…) and made the native depth count every compound term, not only applications. Measured as above (`Bench
+cpu`, four alternating JVMs each, two rounds of 10 after 5 warm-up runs) on the merge before #167
+(57ef6c6) against the merge of #167 (15bec02); the median is the median of the four JVMs' medians:
+
+| measurement (main thread) | CPU median before | after | change | CPU min before | after | alloc before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| prelude elaboration (uncached) | 107.2 ms | 103.2 ms | −4 % | 51.6 ms | 53.2 ms | 30.2 MB | 30.1 MB |
+| run a04_typechecker | 30.3 ms | 27.6 ms | −9 % | 13.7 ms | 14.9 ms | 9.8 MB | 9.8 MB |
+| run a10_meta_applicative | 15.2 ms | 14.5 ms | −5 % | 7.5 ms | 6.9 ms | 2.7 MB | 2.7 MB |
+| run f_modules | 21.2 ms | 20.2 ms | −5 % | 11.6 ms | 11.3 ms | 4.7 MB | 4.7 MB |
+| run c1_roundtrip | 12.1 ms | 13.4 ms | +11 % | 6.9 ms | 6.0 ms | 2.5 MB | 2.5 MB |
+| run c2_module_wide | 16.6 ms | 16.7 ms | +1 % | 9.9 ms | 9.3 ms | 4.5 MB | 4.5 MB |
+| run meta_scaled | 660 ms | 679 ms | +3 % | 544 ms | 543 ms | 346.7 MB | 350.5 MB |
+
+Within noise: the JVMs' medians overlap for every measurement (c1_roundtrip 11.7–14.4 ms before,
+11.7–14.5 ms after, with a lower minimum after; meta_scaled 639–685 ms before, 649–695 ms after, the
+same minimum). Allocation is unchanged except meta_scaled, +1 %: the frames of operands evaluated past
+the native depth.
+
 ## `std/nat` in the prelude (#127)
 
 The prelude opens `nat`, `zero` and `suc` of `std/nat`, and `std/list` (#61) opens the same `nat`

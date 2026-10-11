@@ -1,0 +1,9 @@
+(* #67: the most general missing patterns, the first shown with the number of the others
+   (reference: meta/coverage, "Missing cases") *)
+f : nat -> nat -> nat. (*~ E0911 *)
+f 0 0 = 0.
+f5 : nat -> nat -> nat. (*~ E0911 *)
+f5 _ 0 = 0.
+f5 0 0 = 0.
+big : nat -> nat. (*~ E0911 *)
+big 3 = 0.

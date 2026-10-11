@@ -1,7 +1,7 @@
 # Coverage and unreachable clauses, independent of the split order
 
 Design note for [issue #67](https://github.com/k0uks1/hugin/issues/67), option (b). Status: approved by
-the designer; batch 1 implemented.
+the designer; batches 1 and 2 implemented.
 
 ## 1. Recommendations
 
@@ -383,6 +383,8 @@ Each batch is one pull request with its reference changes.
    comparing both trees on every golden. Reference: `meta/clauses.md` "Evaluation" (the canonical split
    order, stuck applications, the lint), Maranget 2008 in `notation.md`, `docs/errors/` for the new W
    code. Goldens: `run/cov_open_reduction` (o1 stuck, o2), `run/cov_inexact`.
+   Implemented without the `qba` tree: #60 measured the run time of case trees as negligible
+   (`docs/PERFORMANCE.md`, "Coverage and case trees"). o1 is stuck in `neg/cov_open_reduction` (E0901).
 
 Batch 2 needs 1, batch 3 both. Batch 1 reports how many goldens and stdlib clauses need its fix.
 

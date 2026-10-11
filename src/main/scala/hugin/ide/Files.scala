@@ -3,7 +3,7 @@ package hugin.ide
 import hugin.compiler.SourceLoader
 import hugin.query.{CompileKey, Database, FileDiagnostics, Parse}
 import hugin.util.{Diagnostic, Severity, SourceFile}
-import hugin.util.diagnostics.Code
+import hugin.util.diagnostics.{Code, LintLevels}
 import scala.util.control.NonFatal
 
 /** The editor features of Hugin, independent of a protocol (issues #147 and #132, `docs/design/web-ide.md`):
@@ -36,7 +36,9 @@ object Diagnostics:
     val path = key.path
     try
       if Files.isFacts(path) then List(FileDiagnostics(path, db(Parse, path).diagnostics)).filter(_.diagnostics.nonEmpty)
-      else FileDiagnostics.of(key)
+      // editors have no lint flags: the lints that are off by default are not shown
+      else
+        FileDiagnostics.of(key).map(f => f.copy(diagnostics = f.diagnostics.filter(LintLevels.onByDefault))).filter(_.diagnostics.nonEmpty)
     catch
       case NonFatal(e) =>
         val crash = Diagnostic(Severity.Error, Code.E1102, s"internal compiler error: $e", notes = List("please report this as a bug"))

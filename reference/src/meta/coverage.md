@@ -1,8 +1,10 @@
 # Coverage
 
 Meta functions are total. A function defined by clauses must have a clause for every combination of
-arguments of its declared type. This chapter defines how the compiler checks this, taking the indices of
-inductive families into account, and the warning for clauses that are never used.
+arguments of its declared type. This chapter defines when the clauses cover these arguments and when a
+clause is never used, taking the indices of inductive families into account. Both are defined on the
+values the arguments can have (*probes*), as in [Maranget 2007](../notation.md#references), and do not
+depend on the order in which the compiler inspects the arguments.
 
 ## Case trees
 
@@ -14,6 +16,63 @@ gets one branch per constructor of the argument's type. In each branch, the clau
 is another constructor no longer apply. When the first clause that may apply has no constructor patterns
 left, it is the leaf of the branch: its right-hand side, checked once in its [clause
 context](clauses.md#checking-a-clause), at the arguments of the branch.
+
+The tree splits in the *canonical order*: on the leftmost constructor position (by argument, then depth
+first) of the first clause that may apply whose split is decided (see [Undecided
+splits](#undecided-splits)). This is the order of Agda and Lean 4. The same tree evaluates applications
+of the function: [Evaluation](clauses.md#evaluation) says when an application is stuck.
+
+## Cases and probes
+
+A *position* is a path to a subterm of the arguments: an argument, then the explicit arguments of the
+constructors on the way. *Π* is the set of positions at which some clause has a constructor, a literal,
+an atom of a quoted pattern or an absurd pattern `()`.
+
+A *case* is a list of patterns for the arguments, with a variable for each wildcard. *Splitting* a case at
+a variable of an inductive family gives one case per constructor of the type whose indices unify with the
+variable's type ([Index unification](#index-unification)); the variable is *empty* if no constructor
+can occur. A *probe* is a case obtained from the arguments as variables by splitting at positions of Π
+until no variable at a position of Π can be split: each such variable is empty, or its split is
+undecided. A probe is *refuted* if one of its variables is empty: no value matches it.
+
+A clause *matches* a probe if the probe is an instance of the clause's patterns. A clause with a
+constructor at a position where the probe has an empty variable does not match it; an absurd clause
+matches no probe.
+
+- A clause is *reachable* if some probe is matched by it and by no clause before it. Otherwise it is
+  *unreachable* ([Unreachable clauses](#unreachable-clauses)).
+- A probe is *missing* if no clause matches it and it is not refuted. The clauses *cover* the function if
+  no probe is missing ([Missing cases](#missing-cases)).
+
+These definitions do not depend on the order of the splits, nor on the case tree. The compiler reads
+them off its tree, which splits at positions of Π: a clause is reachable exactly if it is a leaf of the
+tree, where the analysis goes on below an empty variable with the clauses that have no constructor
+there, and the missing probes are those below the branches without clauses.
+
+Emptiness is decided one level deep: a variable is empty if every constructor of its type conflicts with
+its indices. A refuted probe needs no clause, but a clause that matches only refuted probes is
+reachable. In the following program, `none` is a legitimate function on `fin 0`, the empty type of
+numbers below zero, although no argument can reach its clause; `pick` needs no clause for `no`, since
+its second argument would have the empty type `fin 0`.
+
+```hugin,run
+fin : nat -> Type.
+fzero : fin (N + 1).
+fsuc : fin N -> fin (N + 1).
+two : Type.
+yes : two.
+no : two.
+none : fin 0 -> int.
+none X = 0.
+pick : two -> fin 0 -> int.
+pick yes X = 1.
+answer : int -> rel.
+answer 42.
+```
+
+```output
+answer 42.
+```
 
 ## Index unification
 
@@ -39,8 +98,45 @@ first (head (vcons 7 (vcons 8 vnil))).
 first 7.
 ```
 
-It is an error ([E0915](../errors/E0915.md)) if unification meets a problem that it can neither solve nor
-refute, such as an index `plus N M` that is a stuck function application against `zero`.
+An equation that unification can neither solve nor refute yet, such as an index `double N` (a stuck
+function application) against `0`, is *postponed* until the other equations make no more progress, as
+in Agda's unifier: a later equation may solve `N`, after which `double N` reduces. Unification is
+*stuck* if a whole round of the postponed equations solves nothing.
+
+## Undecided splits
+
+A split whose index unification is stuck for some constructor is *undecided*. The tree then tries the
+next constructor position of the same clause (Agda's `altM1`), in the canonical order. It is an error
+([E0915](../errors/E0915.md)) if every constructor position of the first clause that may apply is
+undecided, or if a constructor pattern meets an argument that unification determined to be neither a
+constructor application nor a variable. A clause's own context ([Checking a
+clause](clauses.md#checking-a-clause)) is split in the same order.
+
+In the following function, the type of the vector depends on the implicit `n` through `double n`, which
+is stuck. The tree splits on the equality proof first, which solves `n`; then `vnil` is decided.
+
+```hugin,run
+double : nat -> nat.
+double 0 = 0.
+double (N + 1) = double N + 2.
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+same : nat -> nat -> Type.
+refl : same N N.
+empty : {n : nat} -> vec int (double n) -> same n 0 -> int.
+empty vnil refl = 0.
+ok : int -> rel.
+ok 1.
+```
+
+```output
+ok 1.
+```
+
+With the clause `d N vnil = …` for `d : (n : nat) -> vec int (double n) -> int`, the only constructor
+position of the clause is undecided (`0 = double n`): the clause is rejected, as in Agda, although
+splitting `n` first would decide it.
 
 A clause whose own constructors cannot occur, such as a `vnil` clause for `head`, is an error
 ([E0915](../errors/E0915.md), [Checking a clause](clauses.md#checking-a-clause)).
@@ -54,12 +150,21 @@ no branches. An absurd clause is never a leaf, and never unreachable.
 
 ## Missing cases
 
-It is an error ([E0911](../errors/E0911.md)) if a branch of the case tree has no clause and some
-constructor could occur in it. The diagnostic shows the missing pattern, as the clauses are written: a
-local function of a [`where`](where.md) block or a member function of a
+It is an error ([E0911](../errors/E0911.md)) if the clauses do not cover the function. The diagnostic
+shows the *most general missing patterns* `M`: the patterns `q` such that no clause matches a probe below
+`q`, some probe below `q` is missing, and no generalization of `q` (a subpattern replaced by `_`) has
+both properties. Whether a clause matches a probe below `q` is decided pairwise: the clause's patterns
+and `q` clash at a constructor, or their common instance has a conflict in its indices. `M` is sorted
+argument by argument, with `_` first and constructors in declaration order. The diagnostic shows the
+first pattern of `M` and the number of the others; the editor's "add missing clauses" adds a clause for
+each pattern of `M` in this order, leaving out a pattern whose missing probes the patterns before it
+cover, and at most 20.
+
+For `f 0 0 = 0.`, `M` is `f _ (_ + 1)` and `f (_ + 1) _`: the diagnostic shows `f _ (_ + 1)` and "1
+more". For `big 3 = 0.`, it is `big 0`, `big 1`, `big 2` and `big (_ + 4)`. The patterns are shown as the
+clauses are written: a local function of a [`where`](where.md) block or a member function of a
 [module body](../modules.md#module-bodies) is shown without the variables of its context that it uses
-(`f.g (_ + 1)` for a local function `g` of `f`). A branch without clauses is accepted if some argument in
-it has a type without possible constructors.
+(`f.g (_ + 1)` for a local function `g` of `f`). Implicit arguments are not shown.
 
 Literal and successor patterns of a nat-like type are constructor patterns
 ([Clauses](clauses.md#patterns)): `0` is `zero` and `N + 1` is `suc N`, so the clauses `f 0 = …` and
@@ -90,10 +195,12 @@ shown "odd".
 
 ## Unreachable clauses
 
-A clause that is not the leaf of any branch is *unreachable*: the clauses before it match everything it
-matches. The compiler warns about it ([W0006](../errors/W0006.md), lint `unreachable_clauses`).
+A clause that is not reachable is *unreachable*: the clauses before it match every probe it matches. The
+compiler warns about it ([W0006](../errors/W0006.md), lint `unreachable_clauses`). An absurd clause is
+never unreachable, and a clause whose own constructors cannot occur is an error instead
+([E0915](../errors/E0915.md)).
 
 > **Note.** A clause is unreachable only if the clauses before it together match everything it matches.
-> In `isZero zero = 1. isZero N = 0. isZero (suc N) = 0.` the third clause is unreachable, since the
+> In `isZero 0 = 1. isZero N = 0. isZero (N + 1) = 0.` the third clause is unreachable, since the
 > second matches every argument. The second clause is reachable, although the first matches one of its
 > arguments.

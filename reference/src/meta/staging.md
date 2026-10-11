@@ -249,8 +249,10 @@ variables (*hygiene*). A formula function without clauses is always false; the c
 
 A use of a formula function is replaced by its formula, so a formula function cannot refer to itself:
 it is an error ([E0105](../errors/E0105.md)) if its clauses use it, directly or through other formula
-functions, definitions or functions whose expansion uses it. Recursion is written with a relation. The
-error is reported once for each such cycle; the formula functions of the cycle are then left out, and so
+functions, definitions or functions whose expansion uses it. Through a path `m.a`, this counts the
+member `a` and the members of the same body that its definition uses, not the other members of `m`; a
+module used as a whole, for example passed to a functor, counts with all its members. Recursion is
+written with a relation. The error is reported once for each such cycle; the formula functions of the cycle are then left out, and so
 are their uses, without a further diagnostic.
 
 ```hugin,compile_fail,E0105
