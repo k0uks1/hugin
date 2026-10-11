@@ -42,7 +42,7 @@ class ClosureCrossCheckSuite extends munit.FunSuite:
     val corpus = Corpus.entries.iterator.map(e => e.path -> (() => Fuzz.compile(e.program)))
     val files =
       // bench/meta/nat_literals.hgn has no recursive component and only stresses the elaboration of
-      // large numerals (issue #131), which needs the launcher's stack; it is measured by the bench harness
+      // large numerals (issue #131): its 50 000 numerals are slow to elaborate; it is measured by the bench harness
       (hgn("docs/design/examples") ++ hgn("bench").filterNot(_.endsWith("nat_literals.hgn"))).iterator
         .map(p => p.toString -> (() => TestSupport.compile(Files.readString(p))))
     val reference =
