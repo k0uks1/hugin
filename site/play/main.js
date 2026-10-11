@@ -1,11 +1,14 @@
 // The playground (issue #58, docs/design/website.md 4.6-4.10). The compiler runs in a Web Worker
 // (worker.js, which loads the Scala.js bundle hugin.js); this page holds the editor, the toolbar and the
-// results. Run and Check are explicit; Ctrl-Enter runs. After a pause in typing the worker computes the
-// compiler's semantic highlighting. A request that takes longer than the budget
+// results. Run and Check are explicit; Ctrl-Enter runs. After a pause in typing the worker analyses the
+// program: the compiler's semantic highlighting and the annotation table, from which ide.js answers
+// hover, definition, occurrences and references. Every request carries the version of the editor's text,
+// and an answer for an older version is dropped. A request that takes longer than the budget
 // terminates the worker, which is then restarted (a cold start). Nothing leaves the page.
 import { createEditor, showDiagnostics, showTokens, clear, setProgram, offset, applySuggestion } from "./editor.js";
 import { views, counts, h } from "./results.js";
 import { encodeProgram, readFragment } from "./share.js";
+import { showInfo } from "./ide.js";
 import { EditorView } from "@codemirror/view";
 
 const BUDGET_MS = 10_000;
@@ -47,25 +50,31 @@ function request(op, source, printAfter) {
     const id = nextId++;
     const timer = setTimeout(() => stopWorker(`stopped after ${BUDGET_MS / 1000} s`), BUDGET_MS);
     pending.set(id, { resolve, reject, timer });
-    worker.postMessage({ id, op, source, printAfter });
+    worker.postMessage({ id, op, version, source, printAfter });
   });
 }
 
-// the compiler's semantic highlighting while the reader types: a `highlight` request when the editor
-// has been idle for IDLE_MS (not while a run or check is busy); stale answers are dropped
+// the version of the editor's text: incremented by every edit, echoed by the worker
+let version = 0;
+
+// the compiler's analysis while the reader types: an `analyse` request when the editor has been idle for
+// IDLE_MS (not while a run or check is busy); answers for an older version are dropped
 const IDLE_MS = 400;
 let idleTimer = null;
 
-function highlightSoon() {
+function analyseSoon() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(async () => {
     if (busy || !available) return;
     const source = editor.state.doc.toString();
     try {
-      const result = await request("highlight", source, "");
-      if (editor.state.doc.toString() === source) showTokens(editor, result.tokens);
+      const result = await request("analyse", source, "");
+      if (result.version === version) {
+        showTokens(editor, result.tokens);
+        showInfo(editor, result.info);
+      }
     } catch (_) {
-      // a failed or stopped highlight keeps the current colours
+      // a failed or stopped analysis keeps the current colours and table
     }
   }, IDLE_MS);
 }
@@ -82,7 +91,7 @@ function onReady(info) {
   available = info.ready;
   ui.run.disabled = ui.check.disabled = !available;
   if (!available) return status("The compiler is not available in this build.", "error");
-  highlightSoon();
+  analyseSoon();
   if (ui.phase.options.length === 1)
     for (const p of info.phases || []) ui.phase.append(h("option", { value: p }, `Show after: ${p}`));
   ui.phase.disabled = !(info.phases || []).length;
@@ -127,9 +136,10 @@ async function compile(op) {
     else if (errors) tab = "diagnostics";
     else if (result.printed !== undefined) tab = "printed";
     else if (tab === "diagnostics" || tab === "printed") tab = "answers";
-    if (editor.state.doc.toString() === source) {
+    if (result.version === version) {
       showDiagnostics(editor, result.diagnostics);
       showTokens(editor, result.tokens);
+      showInfo(editor, result.info);
     }
     ui.summary.textContent = counts(result.diagnostics);
     status(`${op === "run" ? "ran" : "checked"} in ${ms} ms`, errors ? "error" : "");
@@ -162,9 +172,10 @@ async function share() {
 }
 
 function onEdit() {
+  version++;
   ui.summary.textContent = "";
   if (ui.example.value) ui.example.value = "";
-  highlightSoon();
+  analyseSoon();
 }
 
 const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit });

@@ -7,7 +7,7 @@ import scala.util.control.NonFatal
  *  classic worker (or the same with `hugin.mjs` in a module worker) the worker answers messages
  *
  *  {{{
- *  { id, op: "check" | "run", source: "…", options: { … } }   →   { id, result: { …the JSON of Hugin… } }
+ *  { id, op: "check" | "run" | "analyse", source: "…", options: { … } }   →   { id, result: { …the JSON of Hugin… } }
  *  { id, op: "phases" }                                       →   { id, result: [ … ] }
  *  }}}
  *
@@ -32,7 +32,8 @@ object WorkerMain:
       val json = op match
         case "check" => Hugin.check(source, options)
         case "run" => Hugin.run(source, options)
+        case "analyse" => Hugin.analyse(source, options)
         case "phases" => Hugin.phases()
-        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run or phases")
+        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run, analyse or phases")
       js.Dynamic.literal(id = id, result = js.JSON.parse(json))
     catch case NonFatal(e) => js.Dynamic.literal(id = id, result = js.Dynamic.literal(version = Playground.Version, error = e.getMessage))
