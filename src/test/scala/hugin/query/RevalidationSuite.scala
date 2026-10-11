@@ -1,8 +1,8 @@
 package hugin.query
 
 /** After an edit of one item, every object item is revalidated (`ItemOf` executed and cut off, the item
- *  itself elaborated again): in time linear in the number of items (issue #126, PR 2), because
- *  `ObjectItems` is indexed by key and `ItemKey` caches its hash. */
+ *  itself elaborated again) with work linear in the number of items (issue #126, PR 2), because
+ *  `ObjectItems` is indexed by key and `ItemKey` caches its hash. The work is counted, not timed. */
 class RevalidationSuite extends munit.FunSuite:
   private val path = "many.hgn"
 
@@ -10,19 +10,13 @@ class RevalidationSuite extends munit.FunSuite:
   private def program(n: Int): String =
     "p : int -> rel.\nq : int -> int -> rel.\np 0.\n" + (1 to n).map(i => s"q $i X :- p X, X < $i.\n").mkString
 
-  private val mx = java.lang.management.ManagementFactory.getThreadMXBean
-
-  /** Edits one rule of a program of `n` rules: the CPU time (ns) of the compilation after the edit, and
-   *  the executions of the item queries. */
-  private def edit(n: Int, k: Int)(using db: Database): (Long, Int, Int) =
+  /** Edits one rule of a program of `n` rules and elaborates it again: the executions of the item queries. */
+  private def edit(n: Int, k: Int)(using db: Database): (Int, Int) =
     val text = program(n)
     db.set(SourceText, path, text.replace(s"q ${n / 2} X :-", s"q ${n / 2} X :- X > $k,"))
     db.stats.reset()
-    val c0 = mx.getCurrentThreadCpuTime
-    db(ObjectItemsOf, ProgramKey(path, true))
     db(ElabProgram, ProgramKey(path, true))
-    val t = mx.getCurrentThreadCpuTime - c0
-    (t, db.stats.computedBy("itemOf"), db.stats.computedBy("elabItem"))
+    (db.stats.computedBy("itemOf"), db.stats.computedBy("elabItem"))
 
   private def setup(n: Int): Database =
     val db = Database()
@@ -32,19 +26,22 @@ class RevalidationSuite extends munit.FunSuite:
 
   test("an edit of one rule revalidates every item once and elaborates one") {
     given db: Database = setup(400)
-    val (_, itemOf, elabItem) = edit(400, 1)
+    val (itemOf, elabItem) = edit(400, 1)
     assertEquals(itemOf, 401) // the rules and the fact `p 0`, each cut off
     assertEquals(elabItem, 1)
   }
 
-  test("revalidating after an edit is linear in the number of items") {
-    def median(n: Int): Long =
+  test("revalidating after an edit compares a bounded number of keys per item") {
+    // the work counted, not timed: the comparisons of two keys' trees made while every item is
+    // revalidated (a scan of the items per `ItemOf` made a number growing with the square of them)
+    def comparisons(n: Int): Long =
       given db: Database = setup(n)
-      val ts = (1 to 7).map(k => edit(n, k)._1).sorted
-      ts(ts.length / 2)
-    median(1000) // warm-up
-    val small = median(1500)
-    val large = median(6000)
-    // four times the items: about four times the time when linear, sixteen times when quadratic
-    assert(large < 9 * small, s"1500 items: ${small / 1e6} ms, 6000 items: ${large / 1e6} ms")
+      val before = ItemKey.treeComparisons.get
+      edit(n, 1)
+      ItemKey.treeComparisons.get - before
+    val (small, large) = (comparisons(1500), comparisons(6000))
+    val counts = s"1500 items: $small comparisons, 6000 items: $large"
+    assert(large <= 8L * 6000, counts)
+    // four times the items, about four times the comparisons (a quadratic count would grow sixteenfold)
+    assert(large <= 5 * small, counts)
   }

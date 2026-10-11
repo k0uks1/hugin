@@ -35,12 +35,19 @@ object ItemFingerprint:
  *  computed once (salsa's identity hash, without an intern table), and keys with different hashes are
  *  unequal without comparing their trees. */
 final case class ItemKey(path: String, tree: Item, occurrence: Int):
-  override val hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
+  override val hashCode: Int = (31 * (31 * path.hashCode + tree.hashCode)) + occurrence
   override def equals(that: Any): Boolean = that match
-    case k: ItemKey => (this eq k) || (hashCode == k.hashCode && occurrence == k.occurrence && path == k.path && tree == k.tree)
+    case k: ItemKey =>
+      (this eq k) || (hashCode == k.hashCode && occurrence == k.occurrence && path == k.path && {
+        ItemKey.treeComparisons.incrementAndGet()
+        tree == k.tree
+      })
     case _ => false
 
 object ItemKey:
+  /** The number of comparisons of two keys' trees (for tests: the work of revalidating a program). */
+  val treeComparisons: java.util.concurrent.atomic.AtomicLong = java.util.concurrent.atomic.AtomicLong()
+
   def assign(items: List[Item]): List[ItemKey] =
     val seen = scala.collection.mutable.HashMap.empty[(String, Item), Int]
     items.map { item =>
