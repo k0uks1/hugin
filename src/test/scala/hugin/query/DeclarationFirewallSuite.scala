@@ -43,9 +43,9 @@ class DeclarationFirewallSuite extends munit.FunSuite:
 
   /** Applies the edits in turn: each compilation equals one from scratch (and the compiler's without the
    *  database); returns the number of items elaborated by each. */
-  private def edits(steps: List[String => String]): List[Int] =
+  private def edits(steps: List[String => String], start: String = program): List[Int] =
     val db = Database()
-    var text = program
+    var text = start
     compile(text, db)
     steps.map { f =>
       text = f(text)
@@ -87,6 +87,33 @@ class DeclarationFirewallSuite extends munit.FunSuite:
       edits(List(_ + "missing : int = 10.\n", "first : type.\nother : first.\n" + _, _.replace("q : int -> rel.", "q : float -> rel.")))
     assertEquals(counts.head, 1) // `u`, which looked `missing` up
     assertEquals(counts(1), 0) // nothing reads `first` or `other`
+  }
+
+  test("numerals of a declared nat-like family: shifted, unfolded and no longer nat-like") {
+    // a numeral names its family (`Tm.Nat`, `Tm.NatAdd`): the fingerprints and the moves map it by key
+    val nats =
+      """num : Type.
+        |nz : num.
+        |ns : num -> num.
+        |size : num -> int.
+        |size 0 = 0.
+        |size (N + 1) = size N + 1.
+        |p : int -> rel.
+        |p (size 3).
+        |q : int -> rel.
+        |q 1.
+        |?- p X.
+        |""".stripMargin
+    val counts = edits(
+      List(
+        "first : type.\nother : first.\n" + _,
+        _.replace("size (N + 1) = size N + 1.", "size (N + 1) = size N + 2."),
+        _.replace("ns : num -> num.", "ns : int -> num."),
+        _.replace("ns : int -> num.", "ns : num -> num.")
+      ),
+      nats
+    )
+    assertEquals(counts.take(2), List(0, 1)) // nothing reads `first`; `p` unfolds `size`
   }
 
   test("long random edit sequences equal compilations from scratch") {

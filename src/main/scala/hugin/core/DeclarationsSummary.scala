@@ -135,16 +135,20 @@ private final class Canonical(ref: Int => Any):
     case CaseTree.Leaf(body, size, subst, clause) => ("leaf", tm(body), size, subst.map(tm), clause)
     case CaseTree.Split(level, branches) => ("split", level, branches.map(b => (ref(b.ctor), b.arity, tree(b.tree))))
     case CaseTree.SplitAtom(level, branches, default) => ("atom", level, branches.map((v, t) => (tm(v), tree(t))), tree(default))
+    case CaseTree.SplitNat(level, fam, values, offset, above, below) =>
+      ("nat", level, ref(fam), values.map((n, t) => (n, tree(t))), offset, tree(above), tree(below))
 
   def tm(t: Tm): Any = t match
     case Tm.Global(id) => ("global", ref(id))
+    case Tm.Nat(fam, n) => ("nat", ref(fam), n)
+    case Tm.NatAdd(fam, b, k) => ("natAdd", ref(fam), tm(b), k)
     case Tm.Meta(m) => ("meta", m)
     case _: Tm.Module | _: Tm.Trace => Opaque(t)
     case p => (p.getClass, p.productIterator.map(value).toVector)
 
   def value(x: Any): Any = x match
     case t: Tm => tm(t)
-    case _: (String | Int | Long | Boolean | Double | Span | Level) => x
+    case _: (String | Int | Long | Boolean | Double | BigInt | Span | Level) => x
     case o: Option[?] => o.map(value)
     case s: Set[?] => s.map(value)
     case l: Iterable[?] => l.map(value).toVector
@@ -169,6 +173,7 @@ private object Hashing:
       case l: Long => mix(3); mix(l)
       case z: Boolean => mix(4); mix(if z then 1 else 0)
       case d: Double => mix(5); mix(java.lang.Double.doubleToLongBits(d))
+      case n: BigInt => mix(16); go(n.toString(16))
       case f: Fingerprint => mix(6); mix(f.hash._1); mix(f.hash._2); exact ++= f.exact
       case c: Class[?] => mix(7); go(c.getName)
       case v: Vector[?] => mix(8); mix(v.length.toLong); v.foreach(go)

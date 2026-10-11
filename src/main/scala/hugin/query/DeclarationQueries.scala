@@ -6,7 +6,7 @@ import hugin.core.{ElaboratedDeclarations, Fingerprint, Footprint, GlobalKey, Op
  *  stable keys): the globals, the names in each per-name table, and the tables read as a whole. Its hash
  *  is computed once (the key is looked up whenever the item is revalidated). */
 final case class DeclViewKey(program: ProgramKey, globals: Vector[GlobalKey], names: Vector[(String, String)], tables: Vector[String]):
-  override val hashCode: Int = scala.util.hashing.MurmurHash3.productHash(this)
+  override val hashCode: Int = (program, globals, names, tables).hashCode
 
 /** The projections of a program's declarations that one object item read (issue #126, PR 7 step 3;
  *  [[hugin.core.DeclarationsSummary]]): the libraries they were elaborated on (by identity: another chain
