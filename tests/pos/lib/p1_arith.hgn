@@ -1,0 +1,9 @@
+(* a library with an export signature (its interface): `twice` is a field of the signature, a parameter
+   of every importer, defined here by clauses; `helper` is hidden *)
+%export { twice : nat -> nat, unit : nat }.
+twice : nat -> nat.
+twice 0 = 0.
+twice (N + 1) = helper (twice N).
+helper : nat -> nat.
+helper N = N + 2.
+unit : nat = 1.

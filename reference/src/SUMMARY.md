@@ -26,6 +26,7 @@
     - [`where`](meta/where.md)
     - [`match` and `rewrite`](meta/match.md)
     - [Staging](meta/staging.md)
+    - [Consistency](meta/consistency.md)
 - [Reflection and quoted patterns](reflection.md)
 - [Directives](directives.md)
 - [Modules, functors and libraries](modules.md)

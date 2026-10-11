@@ -1,7 +1,7 @@
 (* A postulate applied at compile time is stuck (issue #108): `grow` builds stuck code in which each
    level refers to the level below twice and splits on it. The value has linear size but an exponential
    tree; compilation reports it at once and shows it in part. *)
-pick : bool -> A -> A -> A.
+pick : bool -> A -> A -> A = %postulate.
 first : list int -> int.
 first [] = 0.
 first (X :: Xs) = X.

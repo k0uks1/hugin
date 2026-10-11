@@ -9,7 +9,7 @@ totality checks.
 ## Syntax
 
 ```text
-Function  ::= NAME ":" Type "." Clause+
+Function  ::= NAME ":" Type "." Clause*
 Clause    ::= NAME (Pattern | ImplicitPattern)* ("=" Expr Where?)? "."
 Pattern   ::= VAR | "_" | NAME | "(" NAME (Pattern | ImplicitPattern)* ")" | INT
             | "(" Pattern "+" INT ")" | "(" Pattern ")" | "(" ")" | QuotedPattern
@@ -17,7 +17,12 @@ ImplicitPattern ::= "{" (VAR | NAME) ":=" Pattern "}"
 ```
 
 A function defined by clauses is declared first, `f : A.`, with a meta type `A`. Every item `f p₁ … pₙ =
-e.` of the same file is then a clause of `f`, also when all its patterns are variables. The clauses may
+e.` of the same file is then a clause of `f`, also when all its patterns are variables. A declaration
+without clauses and without a value whose type does not make it an inductive family or a constructor
+([Inductive families](families.md#syntax)) declares a function too, with no clauses. They must cover its
+arguments as any clauses ([Coverage](coverage.md#missing-cases)): that holds only if one of its explicit
+arguments has an empty type, so `boom : (A : Type) -> A.` is an error ([E0911](../errors/E0911.md)). A
+constant without a value is declared as a [postulate](functions.md#postulates). The clauses may
 be anywhere after or before the declaration; they are taken in the order in which they appear. A clause
 may end with a [`where`](where.md) block. A case split on the right-hand side is a
 [`match`](match.md), whose branches are the clauses of a local function. A [module body](../modules.md#module-bodies) is a scope for

@@ -208,7 +208,7 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
         case Tok.Period if depth == 0 =>
           advance()
           done = bodies > 0 || at(Tok.EOF) || !startsLine(i) || atColumn0(i)
-        // a directive (other than the expressions `%import` and `%builtin`, and `%complete` of a signature)
+        // a directive (other than the expressions `%import`, `%builtin` and `%postulate`, and `%complete` of a signature)
         case Tok.Directive if directives && depth == 0 && startsDirectiveItem(tok) => done = true
         case _ => advance()
 

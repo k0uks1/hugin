@@ -1,0 +1,31 @@
+error[E0911]: the clauses of `boom` do not cover all cases
+ --> tests/neg/p1_boom.hgn:5:1
+  |
+5 | boom : (A : Type) -> A. (*~ E0911 *)
+  | ^^^^ missing: `boom _`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = note: `boom` is declared without clauses: a meta declaration that is not a family or a constructor declares a function
+  = help: add a clause `boom _ = ….`
+  = help: to assume the constant as an axiom, define it as `boom : … = %postulate.`
+
+warning[W0003]: unused definition `absurd`
+ --> tests/neg/p1_boom.hgn:6:1
+  |
+6 | absurd : empty = boom empty. (*~ W0003 *)
+  | ^^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0911]: the clauses of `x` do not cover all cases
+ --> tests/neg/p1_boom.hgn:9:1
+  |
+9 | x : formula. (*~ E0911 *)
+  | ^ missing: `x`
+  |
+  = note: meta functions are total: every argument must match a clause
+  = note: `x` is declared without clauses: a meta declaration that is not a family or a constructor declares a function
+  = help: add a clause `x = ….`
+  = help: to assume the constant as an axiom, define it as `x : … = %postulate.`
+
+2 errors, 1 warning found

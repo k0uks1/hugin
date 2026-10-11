@@ -14,8 +14,9 @@ import hugin.util.*
  *    parameters `list A : type.` are explicit binders over object types.
  *  - `x : A = e.`, `x = e.` and `f params = e.` are meta-level definitions (with an inferred type in the
  *    last two forms); after `f : A.`, `f params = e.` is a clause of the function `f` ([[Clauses]]).
- *  - a meta declaration without definition is an inductive family, a constructor, a function (if it has
- *    clauses) or a postulate ([[Inductives.classifyMetaConstant]]).
+ *  - a meta declaration without definition is an inductive family, a constructor or a function defined by
+ *    its clauses, possibly none ([[Inductives.classifyMetaConstant]]); `x : A = %postulate.` declares an
+ *    axiom, a constant without a value.
  */
 trait Declarations:
   self: Elaborator =>
@@ -173,6 +174,10 @@ trait Declarations:
         val ty = zonk(Nil, 0, pis(imps, Icit.Impl, checkType(c2, d.tpe, Stage.S1)))
         val op = PrimOp.byKey(k).get
         declare(d.name, ty, Stage.S1, GlobalKind.Primitive(op, primitiveCtors(op, eval(Nil, ty), b.span)), d.span)
+      case Some(_: Postulate) =>
+        val (c2, imps, ps) = declContext(d, Cxt.empty, definitionParam(d))
+        val ty = zonk(Nil, 0, pis(imps, Icit.Impl, pis(ps, Icit.Expl, checkType(c2, d.tpe, Stage.S1))))
+        globals(declare(d.name, ty, Stage.S1, GlobalKind.Postulate, d.span)).axiom = true
       case Some(e) =>
         val (ty, tm) = declDefinition(Cxt.empty, d, e)
         define(d.name, ty, tm, d.span)

@@ -2,7 +2,7 @@
    content is not of the category the expected type needs (E0917). *) %use "std/reflect".
 p : int -> rel.
 q : int -> int -> rel.
-f : int -> int.
+f : int -> int = %postulate.
 
 asRule : rule = '( p X :- (q X Y as F) ). (*~ E0917 *)
 ascription : rule = '( p X :- p (X : int) ). (*~ E0917 *)

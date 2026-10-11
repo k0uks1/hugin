@@ -1,0 +1,11 @@
+note: assumptions of `lemma`:
+  plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at tests/run/p1_assumptions.hgn:8:1)
+note: assumptions of `both`:
+  zeroPlus : (n : nat) -> eqn (plus 0 n) n  (postulate at tests/run/p1_assumptions.hgn:9:1)
+note: assumptions of `needs`:
+  hidden : nat  (postulate at tests/run/p1_assumptions.hgn:20:1)
+note: assumptions of `proved`: none
+note: assumptions of `plusZero`:
+  plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at tests/run/p1_assumptions.hgn:8:1)
+note: assumptions of `missing`: no constant of that name
+result 1.

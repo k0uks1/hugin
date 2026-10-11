@@ -5,8 +5,9 @@ import scala.collection.mutable
 
 /** What a global is. */
 enum GlobalKind:
-  /** A meta-level declaration without definition that is not an inductive type, a constructor or a
-   *  function: stuck at compile time. */
+  /** A meta-level constant without a value: stuck at compile time. After elaboration, it is a deliberate
+   *  axiom `x : A = %postulate.` ([[GlobalEntry.axiom]]); during elaboration it is also the state of a
+   *  formula function before its rules, and of a definition whose body is withheld. */
   case Postulate
 
   /** An object constant (stage 0): an object type, a relation, a constructor or a struct. */
@@ -102,6 +103,15 @@ final class GlobalEntry(
    *  postulate or a function without a case tree, [[elab.DependencyOrder.withheld]]), so evaluation
    *  needs no test. */
   var inCycle: Boolean = false
+
+  /** A deliberate axiom `x : A = %postulate.` (a [[GlobalKind.Postulate]]): rejected by `--safe` and
+   *  listed by `--print-assumptions` (reference: meta/functions, "Postulates"). */
+  var axiom: Boolean = false
+
+  /** For an inductive family: the number of its leading arguments that every constructor keeps fixed, its
+   *  parameters (reference: meta/families, "Parameters"); -1 while it has no constructors (then all its
+   *  arguments are). */
+  var parameters: Int = -1
 
 /** The link between the two constants a shared data declaration declares under one name (reference:
  *  meta/families, shared data): the meta inductive family (or meta constructor) at `side` S1, the

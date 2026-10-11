@@ -1,0 +1,9 @@
+note: assumptions of `lemma`:
+  plus : nat -> nat -> nat  (trusted native operation add)
+  plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at tests/run/p1_assumptions_directive.hgn:7:1)
+note: assumptions of `three`:
+  plus : nat -> nat -> nat  (trusted native operation add)
+note: assumptions of `check`:
+  same : {A : Type} -> A -> A -> bool  (trusted primitive %builtin same)
+note: assumptions of `plain`: none
+result 3.

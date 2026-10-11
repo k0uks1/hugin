@@ -46,7 +46,7 @@ class ImplicitsSuite extends munit.FunSuite:
   test("implicits through a type family") {
     val e = ok("""vec : Type -> Type.
                  |nil : vec A.
-                 |len : vec A -> int.
+                 |len : vec A -> int = %postulate.
                  |n = len (nil : vec int).
                  |""".stripMargin)
     assertEquals(e.typeOf("nil"), "{A : Type} -> vec A")

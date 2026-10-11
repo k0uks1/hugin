@@ -1,0 +1,17 @@
+(* A postulate `x : A = %postulate.` is a deliberate axiom (issue #186, P1): accepted without `--safe`,
+   and usable in proofs; meta code that applies it is stuck, so only types mention it here. *)
+eqn : nat -> nat -> Type.
+same : eqn N N.
+plus : nat -> nat -> nat.
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
+plusZero : (n : nat) -> eqn (plus n 0) n = %postulate.
+cast : eqn M N -> nat -> nat.
+cast _ K = K.
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+result : int -> rel.
+result (toInt (cast (plusZero 3) (plus 3 0))).
+(* a postulate with parameters *)
+choice (A : Type) : A -> A -> A = %postulate.

@@ -1,0 +1,28 @@
+(* Abstract declarations are parameters, not postulates (issue #186, P1), so `--safe` accepts them:
+   the fields of a functor's signature, the fields of an import's signature (its interface), and a
+   function whose argument has an empty type, which needs no clauses. *)
+arith : Type = { twice : nat -> nat, unit : nat }.
+lib : arith = %import "lib/p1_arith".
+graph : Type = { node : type, edge : node -> node -> rel, weight : node -> nat }.
+heavy (g : graph) (a : arith) = {
+  big : g.node -> rel.
+  big X :- g.edge X _.
+  score : g.node -> nat.
+  score X = a.twice (g.weight X).
+}.
+city : type.
+paris : city.
+rome : city.
+road : city -> city -> rel.
+road paris rome.
+weigh : city -> nat.
+weigh _ = 2.
+roads = heavy { node = city, edge = road, weight = weigh } lib.
+size : int -> rel.
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+size (toInt (roads.score paris)).
+(* a function out of an empty type needs no clauses *)
+empty : Type.
+absurd : empty -> nat.

@@ -36,7 +36,7 @@ class MemoKeysSuite extends munit.FunSuite:
       |up zero = vnil.
       |up (suc N) = vcons N (up N).
       |p : int -> rel.
-      |r : { a : nat, b : vlist }.
+      |r : { a : nat, b : vlist } = %postulate.
       |l3 = up (suc (suc (suc zero))).
       |l2 = up (suc (suc zero)).
       |again = up (suc (suc (suc zero))).

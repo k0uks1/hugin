@@ -101,6 +101,11 @@ final class ElabState(val scope: NameScope = NameScope()):
   /** The names defined by clauses in the module: their declarations declare functions. */
   val functionNames: Names = Names("functionNames")
 
+  /** The names of the file's declarations without a definition, clauses or rules: one that declares a meta
+   *  function (not a family or a constructor) declares a function defined by no clauses, which must cover
+   *  its arguments as any other ([[Items.checkClauseless]]; reference: meta/clauses). */
+  var clauseless: Set[Name] = Set.empty
+
   /** The names opened by `%use` (reference: modules), with the globals they denote and the `%use` items
    *  that opened them: between the file's declarations and the enclosing scope. A name opened for two
    *  different globals is ambiguous ([[Uses]]). */

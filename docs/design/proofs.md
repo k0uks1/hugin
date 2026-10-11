@@ -1864,6 +1864,36 @@ rev. 2); D14 is decided as recorded in chapter 10.
 
 Decisions made during implementation are listed here with their PR.
 
+**P1 (honest logic).**
+
+- *Clause-less functions.* A meta declaration that is not a family or a constructor is a function, also
+  without clauses; its coverage is checked after the file's other declarations, when every constructor
+  is known, so a family's constructors may follow the function. The check is skipped for the
+  signatures of an imported file, which its own elaboration checks. `x : formula.` in a program is
+  therefore E0911 (it cannot add a constructor to a library family).
+- *`%postulate`.* Only the definition of a top-level declaration, with optional parameters
+  (`f p̄ : A = %postulate.`); elsewhere E0103, in a module body E0907 (as other declarations without a
+  value there). `--safe` reports E0925 for each postulate of the program and its imports, as chapter
+  1 proposed; the language server has the setting `hugin.safe`, the web worker the option `safe`.
+- *Assumptions.* They are the postulates and the *trusted primitives*: the `%builtin` operations of
+  the library and the natively computing functions of `std/nat`, as Lean lists `Lean.ofReduceBool`.
+  The arithmetic of the meta `int` and the evaluator are part of the language and are not listed.
+  `%assumptions f.` is a directive with its own syntax, like `%use` and `%export`: it resolves `f` in
+  the file's scope (E0101 otherwise; it counts as a use for W0003) and prints, with
+  `--print-assumptions`, on the compiler's explanation output (the lines of `--explain-termination`),
+  in source order, before the flags' lines. Hugin's diagnostics have no informational severity with a
+  code, so the editor does not show these lines.
+- *D2, promotion.* A family's parameters are its longest prefix of arguments that every constructor
+  returns as distinct variables, with the same variable at that position in every occurrence of the
+  family in its argument types (Lean's `fixedIndicesToParams`). It is recomputed as constructors are
+  declared; a constructor that shortens it re-checks the constructors before it, and an error then
+  names the earlier constructor's argument (E0914, with a note that it is at an index).
+- *D2, forced binders.* Only implicit binders at parameter positions are exempt from predicativity:
+  the exemption kept its condition of being implicit, and lost the forced binders at indices (Agda's
+  default `--no-large-indices`). For termination, every binder of a constructor at a parameter position
+  is not a subterm of the constructor's application, as parameters are not constructor arguments in
+  Lean and Agda. Index unification and coverage are unchanged.
+
 **P3 (`match` and `rewrite`).**
 
 - *Keywords.* `match`, `rewrite` and `in` are reserved keywords and `=>` a token, as in Agda, Idris 2
