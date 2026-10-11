@@ -25,15 +25,15 @@ import hugin.obj.typing.Moding
  *  equivalent to the idempotent one on the full closure; the argument is in [[check]]. */
 object SizeChange:
   // arc labels: equal; non-strict / strict decrease; non-strict / strict increase
-  private inline val Eq = 0
-  private inline val DownWeak = 1
-  private inline val DownStrict = 2
-  private inline val UpWeak = 3
-  private inline val UpStrict = 4
+  private[check] inline val Eq = 0
+  private[check] inline val DownWeak = 1
+  private[check] inline val DownStrict = 2
+  private[check] inline val UpWeak = 3
+  private[check] inline val UpStrict = 4
 
-  private def isDown(l: Int) = l == DownWeak || l == DownStrict
-  private def isUp(l: Int) = l == UpWeak || l == UpStrict
-  private def strict(l: Int) = l == DownStrict || l == UpStrict
+  private[check] def isDown(l: Int) = l == DownWeak || l == DownStrict
+  private[check] def isUp(l: Int) = l == UpWeak || l == UpStrict
+  private[check] def strict(l: Int) = l == DownStrict || l == UpStrict
 
   /** Whether label `a` implies label `b` (the same facts or more). */
   private def implies(a: Int, b: Int): Boolean =
@@ -80,18 +80,26 @@ object SizeChange:
      *  lies on a cycle of arcs of its own direction (`=` belongs to both), or every argument lies on a
      *  cycle of `=` arcs. For an idempotent graph this is [[descends]]; in general it holds iff it holds
      *  for the idempotent power of the graph. */
-    def descendsLocally(arity: Int): Boolean =
-      def onCycle(a: Arc, along: Int => Boolean): Boolean =
-        val next = arcs.iterator.filter(b => along(b.label)).toList.groupMap(_.from)(_.to)
-        val seen = mutable.Set(a.to)
-        val todo = mutable.Stack(a.to)
-        while todo.nonEmpty && !seen(a.from) do
-          for k <- next.getOrElse(todo.pop(), Nil) if seen.add(k) do todo.push(k)
-        seen(a.from)
+    def descendsLocally(arity: Int): Boolean = descendsOn(0 until arity)
+
+    /** [[descendsLocally]] with the second alternative over the arguments `args` only. */
+    def descendsOn(args: Iterable[Int]): Boolean =
+      descendsStrictly || args.forall(i => arcs.exists(a => a.from == i && a.label == Eq && onCycle(a, _ == Eq)))
+
+    /** The first alternative of [[descendsLocally]] alone: a strict arc lies on a cycle of arcs of its own
+     *  direction. Upward closed in [[weakerThan]], like [[descendsLocally]]. */
+    def descendsStrictly: Boolean =
       def down(l: Int) = l == Eq || isDown(l)
       def up(l: Int) = l == Eq || isUp(l)
-      arcs.exists(a => strict(a.label) && onCycle(a, if isDown(a.label) then down else up)) ||
-      (0 until arity).forall(i => arcs.exists(a => a.from == i && a.label == Eq && onCycle(a, _ == Eq)))
+      arcs.exists(a => strict(a.label) && onCycle(a, if isDown(a.label) then down else up))
+
+    private def onCycle(a: Arc, along: Int => Boolean): Boolean =
+      val next = arcs.iterator.filter(b => along(b.label)).toList.groupMap(_.from)(_.to)
+      val seen = mutable.Set(a.to)
+      val todo = mutable.Stack(a.to)
+      while todo.nonEmpty && !seen(a.from) do
+        for k <- next.getOrElse(todo.pop(), Nil) if seen.add(k) do todo.push(k)
+      seen(a.from)
 
   object Graph:
     def of(arcs: IterableOnce[Arc]): Graph =
@@ -231,7 +239,12 @@ object SizeChange:
    *  only the idempotent matrices of its favourites, with a relaxed idempotency; this check does not.) */
   def check(comp: List[RelSym], rules: Vector[Rule]): Either[Failure, List[String]] =
     val base = steps(comp, rules)
-    closure(base, stop = true)._2 match
+    // the closure of the arguments that can carry a descent decides a pass ([[SizeChangeProjection]]); a
+    // failure there, or nothing to leave out, is decided, and reported, by the closure of all arguments
+    val projection = SizeChangeProjection(base)
+    val passes = projection.steps != base && closure(projection.steps, stop = true, projection.passes)._2.isEmpty
+    val failing: Option[Chain] = if passes then None else closure(base, stop = true)._2
+    failing match
       case Some(c) => Left(Failure(c.from, c))
       case None =>
         val lines = base.toList.map { s =>
@@ -243,9 +256,14 @@ object SizeChange:
         )
 
   /** The weakest chains of the composition closure of `base`, per pair of relations (see [[check]]), in a
-   *  deterministic order, and a shortest inserted self-chain that fails the local criterion. With `stop`,
-   *  the search ends after the first length at which one fails. */
-  def closure(base: Vector[Step], stop: Boolean = false): (Vector[Chain], Option[Chain]) =
+   *  deterministic order, and a shortest inserted self-chain that fails the local criterion (or
+   *  `passes`, an upward closed criterion for self-graphs). With `stop`, the search ends after the first
+   *  length at which one fails. */
+  def closure(
+      base: Vector[Step],
+      stop: Boolean = false,
+      passes: (RelSym, Graph) => Boolean = (r, g) => g.descendsLocally(r.arity)
+  ): (Vector[Chain], Option[Chain]) =
     val byFrom = base.groupBy(_.from)
     // insertion-ordered: the reported cycle must not depend on identity hash codes
     val kept = mutable.LinkedHashMap.empty[(RelSym, RelSym), mutable.ArrayBuffer[Chain]]
@@ -258,6 +276,6 @@ object SizeChange:
       if !here.exists(_.graph.weakerThan(c.graph)) then
         here.filterInPlace(k => !c.graph.weakerThan(k.graph))
         here += c
-        if c.from == c.to && !c.graph.descendsLocally(c.from.arity) then failing += c
+        if c.from == c.to && !passes(c.from, c.graph) then failing += c
         for s <- byFrom.getOrElse(c.to, Vector.empty) do work.enqueue(Chain(c.from, s.to, c.graph.andThen(s.graph), c.steps :+ s))
     (kept.valuesIterator.flatten.toVector, failing.find(_.graph.idempotent).orElse(failing.headOption))
