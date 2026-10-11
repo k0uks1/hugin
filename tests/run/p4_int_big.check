@@ -1,0 +1,19 @@
+compare "equal" true.
+compare "leq" true.
+compare "less" true.
+compare "same" true.
+result "-1" 1.
+result "20! / 18!" 380.
+result "20! fits" 1.
+result "2^128 / 2^70" 288230376151711744.
+result "30! fits" 0.
+result "abs" 42.
+result "by zero" 5.
+result "googol / 10^90" 10000000.
+result "max" 9223372036854775807.
+result "min" (-9223372036854775808).
+result "minus / big" 0.
+result "natAbs" 10.
+result "sign 0" 0.
+result "sign" (-1).
+result "truncated" (-3).

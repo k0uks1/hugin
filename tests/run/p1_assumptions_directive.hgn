@@ -1,5 +1,5 @@
 (* `%assumptions f.` prints what `--print-assumptions f` prints (issue #186, P1): the postulates `f`
-   depends on, and the trusted primitives, here the native `plus` and `toInt` of `std/nat` and the
+   depends on, and the trusted primitives, here the native `plus` of `std/nat` and the
    primitive `same`; a constant built from constructors alone rests on nothing. *)
 %use "std/nat" (plus, toInt).
 eqn : nat -> nat -> Type.

@@ -1,0 +1,47 @@
+error[E0927]: integer out of the range of the object level's `int`
+ --> tests/neg/p4_int_crossing.hgn:6:1
+  |
+6 | r (big + 1). (*~ E0927 *)
+  | ^^^^^^^^^^^^ `9223372036854775808` does not fit into 64 bits
+  |
+  = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807
+  = note: a meta integer is checked against this range where it is used as object code
+  = help: test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does
+
+error[E0927]: integer out of the range of the object level's `int`
+ --> tests/neg/p4_int_crossing.hgn:8:1
+  |
+8 | r (-big - 2). (*~ E0927 *)
+  | ^^^^^^^^^^^^^ `-9223372036854775809` does not fit into 64 bits
+  |
+  = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807
+  = note: a meta integer is checked against this range where it is used as object code
+  = help: test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does
+
+error[E0003]: integer literal out of range
+ --> tests/neg/p4_int_crossing.hgn:9:3
+  |
+9 | r 100000000000000000000. (*~ E0003 *)
+  |   ^^^^^^^^^^^^^^^^^^^^^ does not fit into a 64-bit integer
+
+error[E0927]: integer out of the range of the object level's `int`
+  --> tests/neg/p4_int_crossing.hgn:11:1
+   |
+11 | listed [1, big * big]. (*~ E0927 *)
+   | ^^^^^^^^^^^^^^^^^^^^^^ `85070591730234615847396907784232501249` does not fit into 64 bits
+   |
+   = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807
+   = note: a meta integer is checked against this range where it is used as object code
+   = help: test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does
+
+error[E0927]: integer out of the range of the object level's `int`
+  --> tests/neg/p4_int_crossing.hgn:14:1
+   |
+14 | $again. (*~ E0927 *)
+   | ^^^^^^^ `9223372036854775808` does not fit into 64 bits
+   |
+   = note: meta integers are unbounded; object integers are 64-bit, from -9223372036854775808 to 9223372036854775807
+   = note: a meta integer is checked against this range where it is used as object code
+   = help: test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does
+
+5 errors found

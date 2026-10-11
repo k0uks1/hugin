@@ -1,0 +1,8 @@
+(* #186 P4: the native operations of `std/int` are trusted primitives, as those of `std/nat` are
+   (reference: meta/consistency): meta arithmetic on integers rests on them, and `fits64` too. *)
+total : int = 2 * 3 + 4.
+wide : bool = fits64 (total - 1).
+%assumptions total.
+%assumptions wide.
+result : int -> rel.
+result total.

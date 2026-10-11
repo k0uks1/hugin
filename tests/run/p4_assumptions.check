@@ -1,0 +1,19 @@
+note: assumptions of `total`:
+  plus : nat -> nat -> nat  (trusted native operation add)
+  times : nat -> nat -> nat  (trusted native operation mul)
+  negOfNat : nat -> int  (trusted native operation negOfNat)
+  subNatNat : nat -> nat -> int  (trusted native operation subNatNat)
+  iplus : int -> int -> int  (trusted native operation int add)
+  itimes : int -> int -> int  (trusted native operation int mul)
+note: assumptions of `wide`:
+  plus : nat -> nat -> nat  (trusted native operation add)
+  times : nat -> nat -> nat  (trusted native operation mul)
+  less : nat -> nat -> bool  (trusted native operation lt)
+  negOfNat : nat -> int  (trusted native operation negOfNat)
+  subNatNat : nat -> nat -> int  (trusted native operation subNatNat)
+  ineg : int -> int  (trusted native operation int neg)
+  iplus : int -> int -> int  (trusted native operation int add)
+  iminus : int -> int -> int  (trusted native operation int sub)
+  itimes : int -> int -> int  (trusted native operation int mul)
+  fits64 : int -> bool  (trusted native operation fits64)
+result 10.

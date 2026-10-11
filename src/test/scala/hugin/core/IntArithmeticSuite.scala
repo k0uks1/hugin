@@ -87,10 +87,13 @@ class IntArithmeticSuite extends munit.FunSuite:
   }
 
   test("a closed integer is a number; its constructors are a view of it") {
-    val e = CoreTesting.ok("a : int = ofNat 5.\nb : int = negSucc 2.\nc : int = -3 + 0.\n")
-    assertEquals(e.eval("a"), "5")
-    assertEquals(e.eval("b"), "-3")
-    assertEquals(e.eval("c"), "-3")
+    val (core, ids) = compiled
+    val m = core.metaInt.nn
+    def ctor(c: Int, n: Int): Tm = core.quote(0, core.force(core.app(Val.Rigid(Head.Glob(c), Nil), Val.Nat(ids("nat"), BigInt(n)), Icit.Expl)))
+    assertEquals(ctor(m.ofNat, 5), Tm.IntNum(5))
+    assertEquals(ctor(m.negSucc, 2), Tm.IntNum(-3))
+    assertEquals(core.natView(Val.IntNum(-3)), Val.Rigid(Head.Glob(m.negSucc), List(Elim.EApp(Val.Nat(ids("nat"), BigInt(2)), Icit.Expl))))
+    assertEquals(core.natView(Val.IntNum(0)), Val.Rigid(Head.Glob(m.ofNat), List(Elim.EApp(Val.Nat(ids("nat"), BigInt(0)), Icit.Expl))))
   }
 
   /** `std/nat` and `std/int` elaborated as the library files, with `edit` applied to `std/int`. */

@@ -1,0 +1,10 @@
+error[E0928]: meta integers are not part of this compilation
+ --> tests/neg/p4_no_meta_int.hgn:7:15
+  |
+7 | limit : int = 3. (*~ E0928 *)
+  |               ^ a meta integer
+  |
+  = note: the meta `int` is the family `int` of `std/nat`, which `--no-prelude` loads only if the program imports it
+  = help: import `std/int` (`%use "std/int".`), which declares the arithmetic and imports `std/nat`, or use object integers
+
+1 error found

@@ -17,7 +17,8 @@ class LazyStdlibSuite extends munit.FunSuite:
 
   /** The chain with `std/demand` and the files it imports. */
   private val Nat = SourceLoader.StdlibPrefix + "std/nat.hgn"
-  private val Full = List(Reflect, Nat, Lists, Directives, Demand, SourceLoader.PreludePath)
+  private val Int = SourceLoader.StdlibPrefix + "std/int.hgn"
+  private val Full = List(Reflect, Nat, Int, Lists, Directives, Demand, SourceLoader.PreludePath)
 
   private def program(text: String, path: String = "p.hgn"): (String, Program) =
     path -> Parsed(hugin.util.SourceFile.virtual(path, text)).program
@@ -26,8 +27,8 @@ class LazyStdlibSuite extends munit.FunSuite:
     val others = texts.toList.zipWithIndex.map((t, i) => program(t, s"f$i.hgn"))
     LazyStdlib.chain(StdlibCache.bundledChain(), others, builtinNames = true).map(_.source.path)
 
-  test("a program that does not use `demand` leaves out `std/demand`") {
-    assertEquals(chain("edge : int -> int -> rel.\nedge 1 2."), List(Reflect, Nat, SourceLoader.PreludePath))
+  test("a program that does not use `demand` leaves out `std/demand`, but never `std/nat` and `std/int`") {
+    assertEquals(chain("edge : int -> int -> rel.\nedge 1 2."), List(Reflect, Nat, Int, SourceLoader.PreludePath))
   }
 
   test("a program that may use `demand` elaborates `std/demand`") {
@@ -47,7 +48,7 @@ class LazyStdlibSuite extends munit.FunSuite:
       val others = texts.toList.zipWithIndex.map((t, i) => program(t, s"f$i.hgn"))
       val std = StdlibCache.bundledChain()
       LazyStdlib.outside(std, LazyStdlib.chain(std, others, builtinNames = true), others).map(_.source.path)
-    assertEquals(chain("%use \"std/list\"."), List(Reflect, Nat, SourceLoader.PreludePath))
+    assertEquals(chain("%use \"std/list\"."), List(Reflect, Nat, Int, SourceLoader.PreludePath))
     assertEquals(outside("%use \"std/list\"."), List(Lists))
     assertEquals(outside("%use \"std/directives\"."), List(Lists, Directives))
     assertEquals(outside("p : int -> rel.", "l = %import \"std/list\"."), List(Lists))
@@ -57,7 +58,7 @@ class LazyStdlibSuite extends munit.FunSuite:
   }
 
   test("a name that is not similar enough does not count") {
-    assertEquals(chain("dem : int -> rel.\nDemand : int -> rel."), List(Reflect, Nat, SourceLoader.PreludePath))
+    assertEquals(chain("dem : int -> rel.\nDemand : int -> rel."), List(Reflect, Nat, Int, SourceLoader.PreludePath))
   }
 
   test("a file is lazy only if the prelude opens it selectively, and nothing else imports it") {
@@ -66,12 +67,13 @@ class LazyStdlibSuite extends munit.FunSuite:
     assertEquals(LazyStdlib.chain(std, List(program("p : int -> rel.")), builtinNames = true), std)
   }
 
-  test("`std/demand` and `std/nat` declare no object constants; `std/reflect` (shared data) and `std/list` do") {
+  test("`std/demand`, `std/nat` and `std/int` declare no object constants; `std/reflect` (shared data) and `std/list` do") {
     val std = StdlibCache.bundledChain()
     assertEquals(std.map(_.source.path), Full)
-    assert(!StdlibCache.declaresObjects(std.take(4), std(4), builtinNames = true))
+    assert(!StdlibCache.declaresObjects(std.take(5), std(5), builtinNames = true))
     assert(!StdlibCache.declaresObjects(std.take(1), std(1), builtinNames = true))
-    assert(StdlibCache.declaresObjects(std.take(2), std(2), builtinNames = true))
+    assert(!StdlibCache.declaresObjects(std.take(2), std(2), builtinNames = true))
+    assert(StdlibCache.declaresObjects(std.take(3), std(3), builtinNames = true))
     assert(StdlibCache.declaresObjects(Nil, std.head, builtinNames = true))
   }
 
@@ -93,7 +95,7 @@ class LazyStdlibSuite extends munit.FunSuite:
     given db: Database = Database()
     val key = ProgramKey("p.hgn", prelude = true)
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n")
-    assertEquals(db(StdChain, key), List(Reflect, Nat, SourceLoader.PreludePath))
+    assertEquals(db(StdChain, key), List(Reflect, Nat, Int, SourceLoader.PreludePath))
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n%demand p +.\n")
     assertEquals(db(StdChain, key), Full)
     db.set(SourceText, "p.hgn", "p : int -> rel.\np 1.\n")

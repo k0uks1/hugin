@@ -277,5 +277,5 @@ enum TypeProblem extends Problem:
     case NoField(_, _, _, Some(s), _) => List(msg"did you mean ${Src(s)}?")
     case UnsolvedGoal(_, g, _, _, _) => List(msg"replace the hole with an expression of type ${Src(g)}")
     case _: IntegerCrossing => List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
-    case _: NoMetaInt => List(msg"import `std/nat` (`%use \"std/nat\".`), or use object integers")
+    case _: NoMetaInt => List(msg"import `std/int` (`%use \"std/int\".`), which declares the arithmetic and imports `std/nat`, or use object integers")
     case _ => Nil

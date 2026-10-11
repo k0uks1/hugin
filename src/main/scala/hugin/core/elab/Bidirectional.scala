@@ -24,6 +24,7 @@ trait Bidirectional:
     case b @ Builtin(n) => inferBuiltin(n, b.span)
     case p: Postulate => fail(ElabProblem.MisplacedPostulate(p.span))
     case Lit(Literal.IntL(k)) if metaInt != null => (Tm.IntNum(BigInt(k)), metaIntType, Stage.S1)
+    case Lit(Literal.IntL(_)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     case s: Select => inferSelect(c, s)
@@ -93,6 +94,7 @@ trait Bidirectional:
   private def inferAt(c: Cxt, t: Tree, st: Stage): (Tm, Val) = t match
     case Parens(i) => inferS(c, i, st)
     case Lit(Literal.IntL(k)) if st == Stage.S1 && metaInt != null => (Tm.IntNum(BigInt(k)), metaIntType)
+    case Lit(Literal.IntL(_)) if st == Stage.S1 && noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, st), Val.Base(BaseType.of(l), st))
     case BigLit(n) if st == Stage.S1 && metaInt != null => (Tm.IntNum(n), metaIntType)
     case BigLit(_) => fail(TypeProblem.IntegerOutOfRange(t.span))
@@ -109,6 +111,11 @@ trait Bidirectional:
       // implicit arguments first: a constructor of a family (`nil`) is object code once applied
       val (tm, ty, s) = if st == Stage.S0 then insert(c, t.span, infer(c, t)) else infer(c, t)
       adjust(c, t.span, tm, ty, s, st)
+
+  /** Whether this compilation has no meta integers: it has no `std/nat`, whose family `int` the meta
+   *  `int` is, and was compiled without the prelude (the elaborator's own tests elaborate bare files, in
+   *  which the meta `int` is the primitive). */
+  def noMetaInt: Boolean = metaInt == null && !file.builtinNames
 
   /** Checks a term against a type at a stage. */
   def check(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
@@ -163,6 +170,7 @@ trait Bidirectional:
     case (ImplicitPi(ns, d, cod), Val.U1(l)) => checkImplicitPi(c, ns, d, cod, l)
     case (RecordType(entries), Val.U1(l)) => checkRecordType(c, entries, l)
     case (RecordLit(fields, false), rt: Val.RecTy) => checkRecord(c, t, fields, rt)
+    case (Lit(Literal.IntL(_)), Val.Base(BaseType.IntT, Stage.S1)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case (Lit(l), Val.Base(b, s)) if b == BaseType.of(l) => Tm.Lit(l, s)
     // an integer literal of the meta `int`, also beyond 64 bits and negative (reference: std/int)
     case (Lit(Literal.IntL(k)), ty) if isMetaInt(ty) => Tm.IntNum(BigInt(k))

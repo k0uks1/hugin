@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+ --> tests/neg/p4_decide_false.hgn:5:65
+  |
+5 | wrong : eq (2 + 2) 5 = decide intEqual { fst = 2 + 2, snd = 5 } tt. (*~ E0901 *)
+  |                                                                 ^^ expected `empty`, found `unit`
+
+1 error found
