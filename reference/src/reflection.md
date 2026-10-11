@@ -324,7 +324,7 @@ The following function swaps the arguments of every binary atom; `$R` matches th
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node.
+node : type. a, b : node.
 edge : node -> node -> rel.
 flip : formula -> formula.
 flip '( $R $X $Y ) = '( $R $Y $X ).
@@ -342,7 +342,7 @@ matches the body of the aggregate, which mentions the variable `V` bound by the 
 
 ```hugin,run
 %use "std/reflect".
-item : type. pen : item. ink : item. cap : item.
+item : type. pen, ink, cap : item.
 stock : item -> rel.
 excluded : item -> rel.
 count_ok : int -> rel.
@@ -466,7 +466,7 @@ are defined, and uses them as facts, in a head, in a body and under `not`.
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node. c : node.
+node : type. a, b, c : node.
 edge : node -> node -> rel.
 path : node -> node -> rel.
 closed : node -> rel.
@@ -512,7 +512,7 @@ variables. The values `x` and `x2` are made from the same hint, so they are one 
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node. c : node.
+node : type. a, b, c : node.
 edge : node -> node -> rel.
 path : node -> node -> rel.
 loop : node -> rel.
@@ -586,7 +586,7 @@ The following program reflects a rule with the variables `X#0` and `X`, which ar
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node.
+node : type. a, b : node.
 edge : node -> node -> rel.
 linked : node -> node -> rel.
 edge a b.
@@ -658,7 +658,7 @@ for it.
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node.
+node : type. a, b : node.
 edge : (src : node) -> (dst : node) -> rel.
 edge a b.
 reversed : sym -> module.

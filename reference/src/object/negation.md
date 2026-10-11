@@ -21,7 +21,7 @@ the negation.
 
 ```hugin,run
 person : type.
-alice : person. bob : person. carol : person.
+alice, bob, carol : person.
 parent : person -> person -> rel.
 parent alice bob.
 parent alice carol.
