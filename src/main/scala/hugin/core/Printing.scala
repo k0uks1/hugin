@@ -110,6 +110,11 @@ trait Printing:
       node(ns, t, p)
 
   private def node(ns: List[Name], t: Tm, p: Int): String = t match
+    case Tm.App(_, _, Icit.Expl) | Tm.Global(_) if numeralView(t).isDefined =>
+      // a numeral of a nat-like family as its digits, `e + k` for an open one (reference: meta/families)
+      numeralView(t).get match
+        case (None, k) => k.toString
+        case (Some(e), k) => par(p, 3, s"${go(ns, e, 3)} + $k")
     case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
     case Tm.Meta(m) => showMeta(m)
