@@ -132,6 +132,20 @@ object Trees:
   /** `{A B : T} -> B`: an implicit Π type. */
   final case class ImplicitPi(names: List[Tree], dom: Tree, cod: Tree)(val span: Span) extends Tree
 
+  /** `match [H :] e with | p₁ => e₁ | … | pₙ => eₙ`: a case expression of the meta level (reference:
+   *  meta/match). `eqn` names the equation `eq e pᵢ` in each branch; `kwSpan` is the span of `match` to
+   *  the end of the scrutinee (where coverage reports a missing branch). */
+  final case class Match(eqn: Option[VarRef], scrutinee: Tree, branches: List[MatchBranch])(val span: Span, val kwSpan: Span)
+      extends Tree
+
+  /** `| p => e` of a [[Match]], from its `|`; an absurd branch `| p` (with `()` in `p`) has the right-hand
+   *  side [[Absent]]. */
+  final case class MatchBranch(pat: Tree, rhs: Tree)(val span: Span)
+
+  /** `rewrite h in e`: `e` checked against the expected type with the left side of the equation `h`
+   *  replaced by its right side (reference: meta/match). `kwSpan` is the span of `rewrite h`. */
+  final case class Rewrite(eqn: Tree, body: Tree)(val span: Span, val kwSpan: Span) extends Tree
+
   // ---- reflection (reference: reflection)
 
   /** `[e₁, …, eₙ]`: a meta list (`[]` is the empty one). */

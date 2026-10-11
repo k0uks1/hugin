@@ -26,6 +26,21 @@ class ParserSuite extends munit.FunSuite:
     assertEquals(item("f : {x : A} -> A."), "f : {x : A} -> A.")
   }
 
+  test("#186 P3: `match` and `rewrite` extend like a lambda's body; `|` ends a branch") {
+    assertEquals(item("f X = match X with | 0 => a | N + 1 => g N."), "f X = (match X with | 0 => a | (N + 1) => g N).")
+    assertEquals(item("f X = match H : X with | Y :: _ => Y | ()."), "f X = (match H : X with | (Y :: _) => Y | ()).")
+    // a union in parentheses; a nested `match` in a branch other than the last in parentheses
+    assertEquals(
+      item("f X = match X with | a => (b | c) | d => (match X with | e => e) | g => h."),
+      "f X = (match X with | a => ((b | c)) | d => ((match X with | e => e)) | g => h)."
+    )
+    assertEquals(item("t N = rewrite zeroPlus N in cong suc p."), "t N = (rewrite zeroPlus N in cong suc p).")
+    assertEquals(item("t N = (rewrite h in x) + 1."), "t N = (((rewrite h in x)) + 1).")
+    // missing `with`, `=>`, `in`: one error each
+    for bad <- List("f X = match X | a => b.", "f X = match X with | a -> b.", "t = rewrite h x.") do
+      assertEquals(parse(bad)._2.diagnostics.length, 1, bad)
+  }
+
   test("arrows are right associative and labels attach to the domain") {
     assertEquals(item("c : (n : string) -> int -> rel."), "c : (n : string) -> (int -> rel).")
   }

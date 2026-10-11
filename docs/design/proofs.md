@@ -1863,3 +1863,32 @@ rev. 2); D14 is decided as recorded in chapter 10.
 ## 15. Implementation decisions
 
 Decisions made during implementation are listed here with their PR.
+
+**P3 (`match` and `rewrite`).**
+
+- *Keywords.* `match`, `rewrite` and `in` are reserved keywords and `=>` a token, as in Agda, Idris 2
+  and Lean 4. No bundled file, test, example or reference block used them as names; using one as a name
+  gets a syntax error with a help that it is a keyword.
+- *Layout.* `|` ends a branch's pattern, its expression and the scrutinee (a union is parenthesised
+  there); the last branch and the body of `rewrite` extend like a lambda's body. A branch pattern is
+  parsed above `|`, so `| X :: Xs => …` needs no parentheses. An absurd branch `| ()` has no `=>`.
+- *The equation is implicit and optional in the function.* `match e with` (no `H`) elaborates to
+  `m : (y : A) -> G'`, `match H : e with` to `m : (y : A) -> {H : eq e y} -> G'` with clauses
+  `m pᵢ {H := H} = eᵢ`: Lean's `match e` versus `match h : e`, Agda's `with e` versus `with e in eq`.
+  The implicit binder keeps the equation out of missing-branch messages and case splits.
+- *Which `eq`.* The equality of `std/eq`, found through its module value when the program loads it
+  (Agda's `BUILTIN EQUALITY`, bound by loading instead of a pragma); E0929 otherwise. `rewrite` uses its
+  `subst` and `sym` and adds the universe constraints such an application written by hand would.
+- *Abstraction.* Syntactic on normal forms (§4.2), up to bound-variable names; numerals are atoms (as
+  Agda's literals), and an offset `N + k` contains `N + j`, `j < k`. Without occurrences the goal is
+  kept as written (folded). The abstracted goal is checked again by a small checker of normal forms
+  (application arguments against their domains, universes skipped since abstraction cannot change
+  levels); an ill-typed one is E0927, naming the term, the goal before and after, the argument that no
+  longer fits and whether its type mentions the term (Agda's `w != e of type A` and Lean's `motive is not
+  type correct` give none of this).
+- *Diagnostics of the function.* Missing branches are E0911 at `match e` ("missing: `blue`", help `| blue
+  => …`, and a quick fix inserting the branches); unreachable ones W0006; the function is named
+  `f.match` and printed as `match e with …`. Termination errors now show a call on the cycle (before, the
+  first call of the clause, which for a `match` was its scrutinee's).
+- *Codes.* E0927 (ill-typed abstraction), E0928 (cannot rewrite: not an equation, no occurrence, no
+  expected type), E0929 (equality library not loaded).

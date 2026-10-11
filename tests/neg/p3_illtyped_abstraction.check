@@ -1,0 +1,23 @@
+error[E0927]: abstracting `plus 0 N` in the goal makes it ill-typed
+ --> tests/neg/p3_illtyped_abstraction.hgn:8:17
+  |
+8 | bad N H = match plus 0 N with (*~ E0927 *)
+  |                 ^^^^^^^^ `plus 0 N` is abstracted here
+  |
+  = note: the goal is `q (plus 0 N) H`; with `plus 0 N` replaced by `y` it becomes `q y H`
+  = note: in `q y H`, the argument `H` has type `p (plus 0 N)`, but `p y` is expected
+  = note: the type of `H` mentions `plus 0 N`, which is not replaced there: only the occurrences in the goal are abstracted, not those in the types of the terms in it
+  = help: match in a `where`-local function whose type you write, abstracting `plus 0 N` together with what `H` depends on
+
+error[E0927]: rewriting `plus 0 N` in the goal makes it ill-typed
+  --> tests/neg/p3_illtyped_abstraction.hgn:15:26
+   |
+15 | badRewrite N H = rewrite zeroPlus N in ?. (*~ E0927 *)
+   |                          ^^^^^^^^^^ the equation used
+   |
+   = note: the goal is `q (plus 0 N) H`; with `plus 0 N` replaced by `y` it becomes `q y H`
+   = note: in `q y H`, the argument `H` has type `p (plus 0 N)`, but `p y` is expected
+   = note: the type of `H` mentions `plus 0 N`, which is not replaced there: only the occurrences in the goal are abstracted, not those in the types of the terms in it
+   = help: rewrite `H` as well (a `rewrite` for an equation of what it depends on), or prove the goal with a `where`-local function whose type you write
+
+2 errors found

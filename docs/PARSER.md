@@ -199,6 +199,7 @@ Recovery happens at the innermost construct that can continue:
 | `( … )`, `[ … ]`, `{ … }`, `'( … )`, aggregate `{ t \| b }` (`close`) | closing delimiter | see 4.3 |
 | record type / value, list, higher-order hole | `,` | an entry without a label ends the entries, and the closing brace recovers |
 | declaration | `:` type `<:` `=` | each part is parsed on its own; a broken definition leaves the name and the type in the tree |
+| `match e with \| p => e …`, `rewrite h in e` (#186 P3) | `\|` (each branch a region) | a missing `with`, `in` or `=>` is reported and the `match` or `rewrite` is an `ErrorTree` (`ExprSyntax.parseMatch`); `\|` ends a branch's pattern and expression and the scrutinee (`ParserBase.barEnds`, reset inside delimiters), so the branches after a broken one are still parsed |
 
 At most one error is reported per *region*: after an error, further errors are suppressed until the
 parser has resynchronised (`ParserBase.resync`): it starts a new item, consumes a separator of a rule body
@@ -343,6 +344,8 @@ label on the opener. Specific messages replace the generic one for common mistak
 | a token before the name of a declaration (`X sel : τ.`) | malformed declaration head (E0004); the declaration keeps the name after it, damaged | — |
 | `{` before a `,` or `.`, `[` before a `,` (no braces or list start with one; a selection `{.l` is skipped too) | ``expected a label, an item or `}` `` (for `{`) or ``expected an expression`` (for `[`), ``found `,` ``; the opener is skipped, the rest belongs to the enclosing construct | — |
 | `]` in a list over several lines that goes on after it | ``stray `]` `` + "the construct goes on after this `]`" | — |
+| `->` or `=` after a branch's pattern (`\| true -> 1`) | ``expected `=>`, found `->` `` + how a branch is written | `=>` (maybe incorrect) |
+| a new keyword `in`, `match` or `rewrite` used as a name (`in : int -> rel.`, `p X :- in X.`, `match X Y`) | the expected set, with the help that the word is a keyword (#186 P3) | — |
 | `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
 
 Holes outside quotes are a matter of elaboration (E0917), not of syntax: `$x` is also an explicit

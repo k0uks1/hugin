@@ -1,0 +1,11 @@
+(* #186 P3: a `match` is total: a missing branch is E0911, an unreachable one W0006 *)
+color : Type.
+red : color. green : color. blue : color.
+name : color -> string.
+name C = match C with (*~ E0911 *)
+  | red => "red"
+  | green => "green".
+name2 : color -> string.
+name2 C = match C with
+  | _ => "any"
+  | blue => "blue". (*~ W0006 *)

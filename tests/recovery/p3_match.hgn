@@ -1,0 +1,16 @@
+(* #186 P3: syntax errors in `match` and `rewrite`: each is reported once, the clause with the error is
+   dropped, and the items after it are checked *)
+%use "std/eq".
+f : bool -> int.
+f B = match B with
+  | true -> 1 (*~ E0001 *)
+  | false => 0.
+g : bool -> int.
+g B = match B | true => 1. (*~ E0001 *)
+in : int -> rel. (*~ E0001 *)
+h : bool -> int.
+h B = match B with
+  | true => 1
+  | false => 0.
+k : eq 1 1.
+k = rewrite refl refl. (*~ E0001 *)

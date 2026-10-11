@@ -38,10 +38,28 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
   protected def parseNonType(minLevel: Int): Tree = withType(false)(parseExpr(minLevel))
 
   private def withType[A](t: Boolean)(a: => A): A =
-    val saved = inType
+    val saved = (inType, barEnds)
     inType = t
+    barEnds = false
     try a
-    finally inType = saved
+    finally
+      inType = saved._1
+      barEnds = saved._2
+
+  /** True while parsing the pattern or the expression of a branch of a `match`: `|` starts the next branch
+   *  instead of a union type. A delimited construct (parentheses, braces, a list, an aggregate, a type)
+   *  inside the branch resets it ([[withType]], [[inside]]), so `(A | B)` is a union there. */
+  protected var barEnds = false
+
+  /** Runs `a` with `|` ending branches (`ends`) or not. */
+  protected def endingAtBar[A](ends: Boolean)(a: => A): A =
+    val saved = barEnds
+    barEnds = ends
+    try a
+    finally barEnds = saved
+
+  /** The contents of a delimiter: `|` is an operator there again. */
+  protected def inside[A](a: => A): A = endingAtBar(false)(a)
 
   // ---------------------------------------------------------------- errors
 

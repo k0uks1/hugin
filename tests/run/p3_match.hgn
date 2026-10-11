@@ -1,0 +1,36 @@
+(* #186 P3: `match` as a case expression of ordinary meta code (reference: meta/match) *)
+%use "std/list".
+%use "std/nat".
+describe : nat -> string.
+describe N = match N with
+  | 0 => "zero"
+  | 1 => "one"
+  | _ + 2 => "many".
+(* recursion on a branch's pattern variable, which is smaller than the scrutinee variable *)
+len : list A -> int.
+len Xs = match Xs with
+  | nil => 0
+  | cons _ T => len T + 1.
+(* in a lambda, without a clause; the last branch extends to the period *)
+pick : bool -> int = [b] match b with | true => 1 | false => 2.
+(* without an expected type: the branches determine it; nested in parentheses *)
+inferred : int = (match less 2 3 with | true => (match false with | true => 0 | false => 3) | false => 4) + 1.
+(* object code as the result: the branches are checked against `⇑int` *)
+code : bool -> ⇑int.
+code B = match B with
+  | true => 10
+  | false => 20.
+(* `|` inside parentheses is a union again; `::` in a branch's pattern needs none *)
+firstOr : int -> list int -> int.
+firstOr D Xs = match Xs with
+  | X :: _ => X
+  | [] => D.
+out : string -> int -> rel.
+out (describe 0) 0.
+out (describe 1) 1.
+out (describe 5) (pick false).
+out "len" (len [1, 2, 3]).
+out "inferred" inferred.
+out "code" (code true).
+out "first" (firstOr 0 [7, 8]).
+out "empty" (firstOr 9 []).

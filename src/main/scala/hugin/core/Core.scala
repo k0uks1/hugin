@@ -88,7 +88,9 @@ final class GlobalEntry(
     /** For a lambda-lifted function (of a `where` block or a module body, [[elab.Lifting]]): the number
      *  of its leading arguments that are the variables of the context it was lifted from. Users do not
      *  write them, so diagnostics and printing leave them out. */
-    val hidden: Int = 0
+    val hidden: Int = 0,
+    /** For the function a `match` elaborates to ([[elab.Matches]]): printed as the `match` it stands for. */
+    val matchFunction: Boolean = false
 ):
   /** For a constant of a shared data declaration (`list A : data.`): its side and the constant of the
    *  same name at the other stage ([[SharedLink]]). */

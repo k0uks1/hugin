@@ -19,6 +19,9 @@ enum Tok:
   case Quote
   // `?` or `?name`: a typed hole of the meta level (reference: meta/functions)
   case Hole
+  // the meta level's case expression `match [H :] e with | p => e` and `rewrite H in e` (reference:
+  // meta/match); `=>` separates a branch's pattern from its expression
+  case KwMatch, KwRewrite, KwIn, FatArrow
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -37,7 +40,10 @@ object Lexer:
     "count" -> Tok.KwCount,
     "sum" -> Tok.KwSum,
     "min" -> Tok.KwMin,
-    "max" -> Tok.KwMax
+    "max" -> Tok.KwMax,
+    "match" -> Tok.KwMatch,
+    "rewrite" -> Tok.KwRewrite,
+    "in" -> Tok.KwIn
   )
 
   def describe(t: Tok): String = t match
@@ -96,7 +102,11 @@ object Lexer:
     Tok.KwCount -> "count",
     Tok.KwSum -> "sum",
     Tok.KwMin -> "min",
-    Tok.KwMax -> "max"
+    Tok.KwMax -> "max",
+    Tok.KwMatch -> "match",
+    Tok.KwRewrite -> "rewrite",
+    Tok.KwIn -> "in",
+    Tok.FatArrow -> "=>"
   )
 
 /** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. */
@@ -223,6 +233,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case ',' => sym(Tok.Comma, 1)
         case ';' => sym(Tok.Semi, 1)
         case '|' => sym(Tok.Bar, 1)
+        case '=' if peek(1) == '>' => sym(Tok.FatArrow, 2)
         case '=' => sym(Tok.Eq, 1)
         case '+' => sym(Tok.Plus, 1)
         case '*' => sym(Tok.Star, 1)

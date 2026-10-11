@@ -17,7 +17,10 @@ private[syntax] trait ItemSyntax extends ParserBase:
 
   private def unexpectedAtTop(t: Token): SyntaxError =
     if t.kind == Tok.RBrace then SyntaxError.UnmatchedBrace(t.span)
-    else SyntaxError.Expected(List(Expect.item), found, t.span, None)
+    else
+      // a declaration of a name that is a keyword (`in : int -> rel.`)
+      val keyword = Option.when(t.kind == Tok.KwIn || t.kind == Tok.KwMatch || t.kind == Tok.KwRewrite)(SyntaxHelp.Keyword(t.text))
+      SyntaxError.Expected(List(Expect.item), found, t.span, None, keyword)
 
   protected def parseItem(): List[Item] =
     val first = tok

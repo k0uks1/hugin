@@ -297,13 +297,15 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
     // `<t>` and `^A` are operands, never an item's head; nor is a brace (a record, a module body or implicit
     // binders), so a stray `{` is skipped instead of opening a body that swallows the next items
     case Tok.Lt | Tok.Caret | Tok.LBrace => false
+    // `match` and `rewrite` are expressions of a right-hand side, never an item's head
+    case Tok.KwMatch | Tok.KwRewrite => false
     case other => startsExpression(other)
 
   protected def startsExpression(t: Tok): Boolean = t match
     case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok
           .Quote | Tok.Hole |
         Tok.KwNot | Tok.Minus | Tok.Lt | Tok.Caret | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
-        Tok.Directive | Tok.RuleName | Tok.Error =>
+        Tok.Directive | Tok.RuleName | Tok.Error | Tok.KwMatch | Tok.KwRewrite =>
       true
     case _ => false
 

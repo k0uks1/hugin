@@ -24,6 +24,7 @@
     - [Coverage](meta/coverage.md)
     - [Termination of meta functions](meta/termination.md)
     - [`where`](meta/where.md)
+    - [`match` and `rewrite`](meta/match.md)
     - [Staging](meta/staging.md)
 - [Reflection and quoted patterns](reflection.md)
 - [Directives](directives.md)

@@ -239,6 +239,7 @@ class Elaborator(
     with SizeChange
     with Lifting
     with Where
+    with Matches
     with ObjectDecls
     with ObjectCode
     with ObjectTyping

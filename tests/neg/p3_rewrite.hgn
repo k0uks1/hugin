@@ -1,0 +1,15 @@
+(* #186 P3: a `rewrite` needs an equation whose left side occurs in a known goal (E0928) *)
+%use "std/eq".
+%use "std/nat".
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+notEquation : (n : nat) -> eq n n.
+notEquation N = rewrite N in refl. (*~ E0928 *)
+nowhere : (n : nat) -> eq n n.
+nowhere N = rewrite zeroPlus N in refl. (*~ E0928 *)
+wrongType : nat -> nat.
+wrongType N = rewrite zeroPlus N in N. (*~ E0928 *)
+noGoal : nat -> nat.
+noGoal N = x
+  where x = rewrite zeroPlus N in N. (*~ E0928 *)
