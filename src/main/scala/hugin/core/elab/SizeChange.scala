@@ -446,7 +446,9 @@ trait SizeChange:
     val bad = nonTerminating(cyclic)
     for f <- bad if rejected.add(f) do
       globals(f).kind = GlobalKind.Function(arity(f), None)
-      val call = calls.find(c => c.caller == f && c.callee == f).orElse(calls.find(_.caller == f))
+      // a call of `f` on a cycle (through the function of a `match`, `f → f.match → f`, the call of the
+      // `match`, not one of the calls before it)
+      val call = calls.find(c => c.caller == f && c.callee == f).orElse(cyclic.find(_.caller == f)).orElse(calls.find(_.caller == f))
       val d = ClauseProblem.NotTerminating(globals(f).name, globals(f).span, call.map(c => (c.span, c.shown()))).toDiagnostic
       reporter.report(refinementFix(f, cyclic, components).fold(d)(s =>
         d.copy(

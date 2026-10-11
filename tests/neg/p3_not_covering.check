@@ -1,0 +1,19 @@
+error[E0911]: the branches of this `match` do not cover all cases
+ --> tests/neg/p3_not_covering.hgn:5:10
+  |
+5 | name C = match C with (*~ E0911 *)
+  |          ^^^^^^^ missing: `blue`
+  |
+  = note: a `match` is total: every value of the scrutinee must match a branch
+  = help: add a branch `| blue => …`
+
+warning[W0006]: unreachable branch of a `match`
+  --> tests/neg/p3_not_covering.hgn:11:3
+   |
+11 |   | blue => "blue". (*~ W0006 *)
+   |   ^^^^^^^^^^^^^^^^ this branch is never used
+   |
+   = note: the branches before it cover all the cases it matches
+   = note: `-W unreachable_clauses` is on by default
+
+1 error, 1 warning found

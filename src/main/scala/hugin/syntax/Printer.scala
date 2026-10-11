@@ -44,6 +44,10 @@ object Printer:
     case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
     case NamedArg(n, v) => s"{$n := ${show(v)}}"
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
+    case Match(h, e, bs) =>
+      val branches = bs.map(b => s" | ${show(b.pat)}" + (if b.rhs.isInstanceOf[Absent] then "" else s" => ${show(b.rhs)}"))
+      s"(match ${h.map(v => v.name + " : ").getOrElse("")}${show(e)} with${branches.mkString})"
+    case Rewrite(h, e) => s"(rewrite ${show(h)} in ${show(e)})"
     case ListLit(es) => es.map(show).mkString("[", ", ", "]")
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
     case Quote(es, terminated) =>

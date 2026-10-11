@@ -1,0 +1,8 @@
+out "code" 10.
+out "empty" 9.
+out "first" 7.
+out "inferred" 4.
+out "len" 3.
+out "many" 2.
+out "one" 1.
+out "zero" 0.

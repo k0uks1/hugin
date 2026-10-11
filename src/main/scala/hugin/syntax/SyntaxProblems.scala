@@ -62,6 +62,12 @@ enum SyntaxHelp:
   /** `:-` in parentheses or a list: a rule as data, which is written in a quote `'( h :- b )`. */
   case RuleOutsideQuote(at: Span)
 
+  /** `->` or `=` after the pattern of a branch of a `match`, which is followed by `=>`. */
+  case BranchArrow(at: Span)
+
+  /** A keyword (`in`, `match`, `rewrite`) where a name may have been meant. */
+  case Keyword(text: String)
+
 /** The problems of the lexer and the parser (E0001–E0005): the inventory of the syntax phase. */
 enum SyntaxError extends Problem:
   // ---------------------------------------------------------------------------------------- lexer
@@ -222,6 +228,9 @@ enum SyntaxError extends Problem:
         case SyntaxHelp.LowercaseVariable(_, _) => List(msg"variables start with an uppercase letter or `_`")
         case SyntaxHelp.DollarWithoutExpression => List(msg"a hole or splice is written `$$x`, `$$(f x)`, `$$..xs` or `$$f[V]`")
         case _: SyntaxHelp.RuleOutsideQuote => List(msg"a rule as data is written in a quote: `'( h :- b )`")
+        case _: SyntaxHelp.BranchArrow => List(msg"a branch of a `match` is written `| pattern => expression`")
+        case SyntaxHelp.Keyword(k) =>
+          List(msg"${Src(k)} is a keyword (of `match H : e with | p => e` and `rewrite h in e`), so it cannot be a name")
     case _: MissingPeriod => List(msg"every item ends with a period")
     case _: RuleNameOnDeclaration => List(msg"rule names are written `@name head :- body.`; declarations have no `@`")
     case _: NonAssociativeChain => List(msg"add parentheses")
@@ -248,5 +257,6 @@ enum SyntaxError extends Problem:
         case SyntaxHelp.LowercaseVariable(name, at) =>
           val v = name.capitalize
           List(Suggestion.replace(at, v, msg"write the variable ${Src(v)}", Applicability.MaybeIncorrect))
-        case SyntaxHelp.DollarWithoutExpression | _: SyntaxHelp.RuleOutsideQuote => Nil
+        case SyntaxHelp.BranchArrow(at) => List(Suggestion.replace(at, "=>", msg"write `=>`", Applicability.MaybeIncorrect))
+        case SyntaxHelp.DollarWithoutExpression | _: SyntaxHelp.RuleOutsideQuote | _: SyntaxHelp.Keyword => Nil
     case _ => Nil

@@ -17,7 +17,8 @@ of the value, so it is never smaller (Lean and Agda do not count parameters eith
 terms they stand for, compared by value: the numeral `m` is smaller than the literal pattern `k` if
 `m < k`, so `f 5 = f 3` decreases. These relations form a *size-change
 graph* from the arguments of `f` to those of `g`. The *call graph* of the program has these graphs as its
-edges; calls through the local functions of a [`where`](where.md) block are calls of those functions.
+edges; calls through the local functions of a [`where`](where.md) block, and through the function a
+[`match`](match.md#elaboration-coverage-and-termination) elaborates to, are calls of those functions.
 A call through a definition, a field of a record, a member of a module or a functor application is the
 call that evaluation reaches: with `g : nat -> nat = [x] f x.`, the term `g (suc N)` in a clause of `f`
 is the call `f (suc N)`. The calls in the solution of an implicit argument count as well. A function

@@ -1,0 +1,36 @@
+error[E0928]: cannot rewrite with a proof of `nat`
+ --> tests/neg/p3_rewrite.hgn:8:25
+  |
+8 | notEquation N = rewrite N in refl. (*~ E0928 *)
+  |                         ^ not an equation `eq a b`
+  |
+  = note: `rewrite h in e` needs `h : eq a b`, an equation of `std/eq`; it rewrites `a` to `b` in the goal
+
+error[E0928]: the goal does not contain `plus 0 N`, so there is nothing to rewrite
+  --> tests/neg/p3_rewrite.hgn:10:21
+   |
+10 | nowhere N = rewrite zeroPlus N in refl. (*~ E0928 *)
+   |                     ^^^^^^^^^^ nothing to rewrite
+   |
+   = note: the goal, normalised, is `eq {nat} N N`
+   = help: to rewrite from right to left, write `rewrite sym h in e`
+
+error[E0928]: the goal does not contain `plus 0 N`, so there is nothing to rewrite
+  --> tests/neg/p3_rewrite.hgn:12:23
+   |
+12 | wrongType N = rewrite zeroPlus N in N. (*~ E0928 *)
+   |                       ^^^^^^^^^^ nothing to rewrite
+   |
+   = note: the goal, normalised, is `nat`
+   = help: to rewrite from right to left, write `rewrite sym h in e`
+
+error[E0928]: the type that `rewrite` should change is not known here
+  --> tests/neg/p3_rewrite.hgn:15:13
+   |
+15 |   where x = rewrite zeroPlus N in N. (*~ E0928 *)
+   |             ^^^^^^^^^^^^^^^^^^ no expected type
+   |
+   = note: `rewrite h in e` changes the expected type of the expression; without one there is nothing to change
+   = help: use it where its type is known, or give the type: `(rewrite h in e : A)`
+
+4 errors found

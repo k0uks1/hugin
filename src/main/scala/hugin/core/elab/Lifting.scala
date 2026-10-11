@@ -35,11 +35,13 @@ trait Lifting:
       a: Tm,
       span: Span,
       declSpan: Span = Span.NoSpan,
-      kind: GlobalKind = GlobalKind.Function(-1, None)
+      kind: GlobalKind = GlobalKind.Function(-1, None),
+      matchFunction: Boolean = false
   ): (Int, Val) =
     val closed = closeOver(c, a)
     val bound = boundVars(c)
-    val entry = GlobalEntry(name, eval(Nil, closed), closed, Stage.S1, kind, span, declSpan, hidden = bound.length)
+    val entry =
+      GlobalEntry(name, eval(Nil, closed), closed, Stage.S1, kind, span, declSpan, hidden = bound.length, matchFunction = matchFunction)
     val id = addGlobal(entry)
     (id, bound.foldLeft(globalValue(id))((f, v) => app(f, v, Icit.Expl)))
 

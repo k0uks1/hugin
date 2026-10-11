@@ -1,0 +1,23 @@
+(* #186 P3: `in` is a contextual keyword: it ends the equation of `rewrite h in e` and is a name
+   everywhere else; here an object relation (membership), and a meta name next to a `rewrite` *)
+%use "std/eq".
+%use "std/nat".
+set : type.
+small : set.  large : set.
+in : int -> set -> rel.
+in 1 small.
+in 2 small.
+in X large :- in X small.
+in 3 large.
+size : int -> rel.
+size C :- C = count { X | in X large }.
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+(* a local definition `in` and a lambda's parameter `in`, in the equation (in parentheses, where `in` is
+   a name) and in the body *)
+twice : (n : nat) -> eq (plus 0 (plus 0 n)) n.
+twice N = rewrite zeroPlus (in) in zeroPlus in
+  where in = N.
+again : (n : nat) -> eq (plus 0 (plus 0 n)) n = [in] rewrite zeroPlus (in) in zeroPlus in.
+%opaque again.

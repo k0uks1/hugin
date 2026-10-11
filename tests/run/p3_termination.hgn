@@ -1,0 +1,14 @@
+(* #186 P3: termination through a `match`: its function's calls are calls (reference: meta/termination) *)
+%use "std/nat".
+countdown : nat -> int.
+countdown 0 = 0.
+countdown (N + 1) = match less N 3 with
+  | true => countdown N + 1
+  | false => countdown N.
+sumTo : nat -> int.
+sumTo M = match M with
+  | 0 => 0
+  | K + 1 => sumTo K + 1.
+out : string -> int -> rel.
+out "count" (countdown 6).
+out "sum" (sumTo 4).

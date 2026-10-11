@@ -37,6 +37,11 @@ class LexerSuite extends munit.FunSuite:
     assertEquals(kinds("type not count"), List(Tok.KwType, Tok.KwNot, Tok.KwCount))
     assertEquals(kinds("%mode @r1"), List(Tok.Directive, Tok.RuleName))
     assertEquals(kinds(":- ?- -> <: <> <= >="), List(Tok.Turnstile, Tok.Query, Tok.Arrow, Tok.SubT, Tok.Neq, Tok.Le, Tok.Ge))
+    // #186 P3: `match … with | p => e` and `rewrite h in e`; `in` is a name (a contextual keyword)
+    assertEquals(
+      kinds("match with rewrite in => = >"),
+      List(Tok.KwMatch, Tok.KwWith, Tok.KwRewrite, Tok.Name, Tok.FatArrow, Tok.Eq, Tok.Gt)
+    )
   }
 
   test("string escapes are decoded") {

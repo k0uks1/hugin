@@ -1,0 +1,7 @@
+(* #186 P3: a call through a `match` that does not decrease (E0912, for the function and for the
+   function its `match` elaborates to, which are on one cycle of calls) *)
+%use "std/nat".
+loop : nat -> int. (*~ E0912 *)
+loop N = match less N 3 with (*~ E0912 *)
+  | true => loop (N + 1)
+  | false => 0.

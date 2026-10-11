@@ -1,0 +1,15 @@
+(* #186 P3: abstracting the scrutinee makes the goal ill-typed: `H`'s type mentions `plus 0 N`, which
+   is not abstracted there (E0927 says what was abstracted and which argument no longer fits) *)
+%use "std/eq".
+%use "std/nat".
+p : nat -> Type.
+q : (n : nat) -> p n -> Type.
+bad : (n : nat) -> (h : p (plus 0 n)) -> q (plus 0 n) h.
+bad N H = match plus 0 N with (*~ E0927 *)
+  | 0 => ?
+  | K + 1 => ?.
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+badRewrite : (n : nat) -> (h : p (plus 0 n)) -> q (plus 0 n) h.
+badRewrite N H = rewrite zeroPlus N in ?. (*~ E0927 *)

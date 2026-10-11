@@ -24,7 +24,8 @@ arguments as any clauses ([Coverage](coverage.md#missing-cases)): that holds onl
 arguments has an empty type, so `boom : (A : Type) -> A.` is an error ([E0911](../errors/E0911.md)). A
 constant without a value is declared as a [postulate](functions.md#postulates). The clauses may
 be anywhere after or before the declaration; they are taken in the order in which they appear. A clause
-may end with a [`where`](where.md) block. A [module body](../modules.md#module-bodies) is a scope for
+may end with a [`where`](where.md) block. A case split on the right-hand side is a
+[`match`](match.md), whose branches are the clauses of a local function. A [module body](../modules.md#module-bodies) is a scope for
 clauses as a file is: the clauses of a function declared in a body are the items `f p̄ = e.` of that
 body, and a clause in a body belongs to a function that the body declares.
 
