@@ -482,7 +482,9 @@ library) and its occurrence group. Each snippet's element is then an object
 [[signature, note, …], …]}`: a run that is exactly a name carries the name's index, a name's `hover`
 indexes the deduplicated `hovers` (null where hover shows nothing), and a hover is its signature (or
 null) followed by its notes. Without `--info` the output stays as above. `tests/annotations` holds the
-golden tables of a few programs.
+golden tables of a few programs. `reference/highlight.py` uses `--info` for the hovers and definition
+links of the reference's code blocks, shown by `reference/hugin-info.js` (`reference/README.md`, "Hovers
+and definitions"); the build fails if they add more than 8 KB gzip to a page.
 
 **Hover** notes come from the semantic index (`compiler/SemanticIndex`), which records them by span:
 

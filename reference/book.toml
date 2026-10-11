@@ -23,6 +23,8 @@ after = ["error-index"]
 # the path of the published site (site-url.txt holds the full URL); used for the 404 page
 site-url = "/hugin/reference/"
 additional-css = ["hugin.css"]
+# the hovers and definitions of the Hugin code blocks (issue #132; highlight.py, docs/design/web-ide.md 7.3)
+additional-js = ["hugin-info.js"]
 default-theme = "light"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/k0uks1/hugin"
