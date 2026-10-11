@@ -11,8 +11,11 @@ reference/
   src/**/*.md      the chapters
   src/errors/index.md  the error index (its code pages are generated, see below)
   error-index.py   mdBook preprocessor that generates the error index
-  highlight.py     mdBook preprocessor that highlights the Hugin code blocks with the compiler
-  hugin.css        small adjustments to the default theme, and the colours of the highlighting
+  highlight.py     mdBook preprocessor that highlights the Hugin code blocks with the compiler, with
+                   hovers and definition links
+  hugin-info.js    the popups of the hovers (mdBook `additional-js`)
+  hugin-info-smoke.cjs  the Playwright smoke test of the hovers (mouse, keyboard, touch)
+  hugin.css        small adjustments to the default theme, the colours of the highlighting and the popups
   site-url.txt     the URL of the published book
 ```
 
@@ -89,12 +92,41 @@ and a `<span class="hg-<class> ...">` per run; mdBook passes the HTML through, h
 copy button copies the text. `hugin.css` colours the classes for each mdBook theme from the palette of
 its highlight.js theme; declarations are bold, meta parameters italic.
 
-`hugin highlight --info` also returns each block's annotation table (`hugin.ide.Annotations`): the
-names of the block with their hover texts, their declarations (an offset in the block, or a module and a
-name of the bundled standard library) and their occurrence groups; a run that is exactly a name carries
-the name's index. The format is in `CONTRIBUTING.md` ("Editor support"); it is the input of the hovers and
-links of the reference's code blocks (`docs/design/web-ide.md`, section 7). Without `--info` the output
-is the runs alone, which is what `highlight.py` and the landing page's build use today.
+## Hovers and definitions
+
+The names in the code blocks show what the language server's hover shows, and link to their declarations
+(issue #132, `docs/design/web-ide.md`, section 7). `highlight.py` runs `hugin highlight --info`, which
+also returns each block's annotation table (`hugin.ide.Annotations`): the names of the block with their
+hover texts, their declarations (an offset in the block, or a module and a name of the bundled standard
+library) and their occurrence groups; a run that is exactly a name carries the name's index (the format
+is in `CONTRIBUTING.md`, "Editor support"). The landing page's build uses `hugin highlight` without
+`--info`, and has no hovers. For each page, the preprocessor writes:
+
+- each name as `<span data-i="n">`, or, if it has a declaration, as `<a data-i="n" href="…"
+  tabindex="-1">`: a use links to its declaration in the same block (`id="hg<block>-<name>"`; each block
+  is a program of its own), a name of the bundled library to its module's page (`std/graph.html`,
+  `prelude.html`) at the row of the page's declaration table that lists it first (`#hg-<name>`, an anchor
+  the preprocessor adds to the first cell). The links work without JavaScript;
+- the page's hover texts, deduplicated over its blocks, once, as JSON after the text:
+  `<script type="application/json" id="hg-hovers">[[signature, note, …], …]</script>`; `data-i`
+  indexes it, and a block with names gets `data-hg`, `tabindex="0"` and an `aria-label`.
+
+`hugin-info.js` shows the hover text of a name in one popup (`role="tooltip"`): after 300 ms under the
+mouse; on the keyboard, a block is one tab stop, ArrowRight and ArrowLeft (Home, End) move between its
+names and show their popup, Enter follows the link, Escape returns to the block and Tab leaves it; on a
+touch screen, the first tap on a name shows its popup, with a "Definition" link, and a second tap or a tap
+outside closes it. The occurrences of the name in its block are marked. The texts are read with
+`JSON.parse` and inserted as text.
+
+The budget: the hovers, links and anchors may add at most 8 KB gzip to a page. `highlight.py` prints the
+largest and the median page's figure on every build and fails the build above the budget
+(`HUGIN_INFO_BUDGET=<bytes>` sets another, to try the check). `hugin-info-smoke.cjs` checks the mouse,
+keyboard and touch behaviour in Chromium (CI runs it after building the book):
+
+```
+npm install --no-save --prefix /tmp/pw playwright@1.56.1 && /tmp/pw/node_modules/.bin/playwright install chromium
+NODE_PATH=/tmp/pw/node_modules node reference/hugin-info-smoke.cjs reference/book [<screenshot dir>]
+```
 
 The Markdown sources keep their fences and attributes: the tests read the sources, not the HTML.
 Editors highlight with the TextMate grammar of the VS Code extension
