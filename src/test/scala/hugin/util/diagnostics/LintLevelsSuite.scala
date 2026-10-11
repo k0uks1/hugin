@@ -10,7 +10,7 @@ class LintLevelsSuite extends munit.FunSuite:
 
   test("every lint has exactly one code, and every warning code one lint") {
     for l <- Lint.values do assertEquals(Code.values.count(_.lint.contains(l)), 1, l.name)
-    assertEquals(Lint.values.map(_.code).toSet, Code.values.filter(_.level == Level.Warning).toSet)
+    assertEquals(Lint.values.map(_.code).toSet, Code.values.filter(_.level != Level.Error).toSet)
   }
 
   test("lints parse by name or code") {
@@ -47,4 +47,16 @@ class LintLevelsSuite extends munit.FunSuite:
     assertEquals(l.level(Lint.SingletonVariables), Level.Error)
     assertEquals(l.level(Lint.UnusedDefinitions), Level.Warning)
     assertEquals(l(List(singleton)).head.notes, List("`-D singleton_variables` is implied by `--deny-warnings`"))
+  }
+
+  test("an opt-in lint is dropped by default, also with --deny-warnings, and shown when set") {
+    val inexact = warning(Code.W0009)
+    assertEquals(Lint.InexactClauses.defaultLevel, Level.Allow)
+    assertEquals(LintLevels()(List(inexact, error)), List(error))
+    assertEquals(LintLevels(denyWarnings = true)(List(inexact)), Nil)
+    assert(!LintLevels.onByDefault(inexact))
+    assert(LintLevels.onByDefault(singleton))
+    val List(d) = LintLevels().set(Lint.InexactClauses, Level.Warning)(List(inexact)): @unchecked
+    assertEquals(d.severity, Severity.Warning)
+    assertEquals(d.notes, List("`-W inexact_clauses` is set on the command line"))
   }

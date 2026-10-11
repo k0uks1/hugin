@@ -17,6 +17,9 @@ enum ClauseConflict:
   case Family(tpe: String)
 import scala.language.implicitConversions
 
+/** The cases of an inexact clause (W0009) listed in its note. */
+private val MaxInexactCases = 5
+
 /** The problems of meta functions and inductive families: coverage (E0911), termination (E0912),
  *  positivity (E0913), the shape of inductive declarations and clauses (E0914), patterns and local
  *  definitions (E0915), and unreachable clauses (W0006). Names and terms are given as shown to users. */
@@ -54,6 +57,10 @@ enum ClauseProblem extends Problem:
   case DependentBinding(at: Span)
   case UnreachableClause(fn: String, at: Span)
 
+  /** A clause that does not hold definitionally (opt-in lint, W0009): `cases` are the cases of the case
+   *  tree that use it, as left-hand sides. */
+  case InexactClause(fn: String, cases: List[String], at: Span)
+
   /** A constructor pattern that cannot occur in its clause's own context: the clause matches nothing.
    *  `removal` removes the clause; `absurd` (the clause is the function's only one, and no constructor
    *  can occur at the pattern) is the pattern to replace by `()` and the right-hand side to remove. */
@@ -72,6 +79,7 @@ enum ClauseProblem extends Problem:
     case _: NonPositive => Code.E0913
     case _: PartialFamilyResult | _: ArgumentTooLarge | _: NotDefinableByClauses => Code.E0914
     case _: UnreachableClause => Code.W0006
+    case _: InexactClause => Code.W0009
     case _ => Code.E0915
 
   def primary: Span = this match
@@ -100,6 +108,7 @@ enum ClauseProblem extends Problem:
     case BindingArity(_, _, _, s) => s
     case DependentBinding(s) => s
     case UnreachableClause(_, s) => s
+    case InexactClause(_, _, s) => s
     case ImpossibleClause(_, _, s, _, _) => s
     case AbsurdNotEmpty(_, _, s) => s
     case AbsurdWithRhs(_, s) => s
@@ -131,6 +140,7 @@ enum ClauseProblem extends Problem:
     case BindingArity(c, n, _, _) => msg"${Src(c)} has $n explicit argument(s)"
     case _: DependentBinding => msg"pattern bindings of dependent fields are not supported"
     case UnreachableClause(f, _) => msg"unreachable clause of ${Src(f)}"
+    case InexactClause(f, _, _) => msg"this clause of ${Src(f)} does not hold definitionally"
     case ImpossibleClause(c, _, _, _, _) => msg"the case for ${Src(c)} is impossible here"
     case AbsurdNotEmpty(t, _, _) => msg"the type ${Src(t)} is not empty here"
     case _: AbsurdWithRhs => msg"an absurd clause has no right-hand side"
@@ -161,6 +171,8 @@ enum ClauseProblem extends Problem:
     case BindingArity(_, _, f, _) => msg"found $f"
     case _: DependentBinding => msg"dependent field"
     case _: UnreachableClause => msg"this clause is never used"
+    case InexactClause(_, List(c), _) => msg"the case tree uses it only for ${Src(c)}"
+    case InexactClause(_, cs, _) => msg"the case tree uses it for ${cs.length} separate cases"
     case ImpossibleClause(_, ClauseConflict.Index(a, b), _, _, _) => msg"its index ${Src(a)} conflicts with ${Src(b)}"
     case ImpossibleClause(_, ClauseConflict.Argument(found), _, _, _) => msg"the argument is ${Src(found)} here"
     case ImpossibleClause(_, ClauseConflict.Family(t), _, _, _) => msg"not a constructor of ${Src(t)}"
@@ -200,6 +212,11 @@ enum ClauseProblem extends Problem:
         msg"a `where` block contains definitions `x = e.`, local functions (`f : A.` and clauses `f p̄ = e.`) and pattern bindings `c x̄ = e.`"
       )
     case _: UnreachableClause => List(msg"the clauses before it cover all the cases it matches")
+    case InexactClause(_, cs, _) =>
+      val shown = cs.take(MaxInexactCases).map(c => s"`$c`").mkString(", ") +
+        (if cs.length > MaxInexactCases then s" and ${cs.length - MaxInexactCases} more" else "")
+      (if cs.length > 1 then List(Msg.text(s"the cases are $shown")) else Nil) :+
+        msg"evaluation follows the case tree, which first inspects arguments that this clause does not match on: an application that matches the clause evaluates by it only once those arguments are constructor applications"
     case _: ImpossibleClause =>
       List(msg"a clause is checked in its own context: no argument can match its patterns, so the clause can never apply")
     case _: AbsurdNotEmpty => List(msg"an absurd pattern `()` stands for a position none of whose constructors can occur")
@@ -228,6 +245,7 @@ enum ClauseProblem extends Problem:
     case AbsurdNotEmpty(_, ps, _) => List(msg"replace `()` by a pattern, and give the clause a right-hand side")
     case _: AbsurdWithRhs => List(msg"remove the right-hand side")
     case NotCovering(_, m, _, _) => List(msg"add a clause ${Src(s"$m = ….")}")
+    case _: InexactClause => List(msg"to make the clause hold definitionally, write its cases as separate clauses")
     case ClausesWithoutDeclaration(f, _, inBody) =>
       List(msg"declare its type first${Lit(if inBody then " in the body" else "")}: ${Src(s"$f : A -> B.")}")
     case _ => Nil
