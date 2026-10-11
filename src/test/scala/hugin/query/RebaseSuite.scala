@@ -74,3 +74,17 @@ class RebaseSuite extends munit.FunSuite:
     val (lines, diagnostics) = rendered(renamed, usesLimit.map(ProgramElab.item(decls, _)))
     assertEquals((lines, diagnostics), rendered(renamed, usesLimit.map(ProgramElab.item(renamed, _))))
   }
+
+  test("renamed declarations of every kind: the items are moved or elaborated again, as from scratch") {
+    // with an item that creates a family instance over a declaration (`list city`, in no declaration)
+    val text = program + "via : rel.\nvia :- road X Y, Z = cons X (cons Y nil).\n"
+    val (decls, _, objects, _) = parts(text)
+    for (name, to) <- List("city" -> "town", "road" -> "street", "limit" -> "bound", "graph" -> "net") do
+      val (_, newDeclItems, _, _) = parts(text.replace(name, to))
+      val newDecls = ProgramElab.declarations(decls.base, path, List(path), newDeclItems)
+      val old = objects.map(ProgramElab.item(decls, _))
+      val (moved, scratch) = (rendered(newDecls, old), rendered(newDecls, objects.map(ProgramElab.item(newDecls, _))))
+      // the diagnostics as a set: assembly reports a moved item's at once and the items it elaborates
+      // again after all others (an order of assembly, not of the move)
+      assertEquals((moved._1, moved._2.sorted), (scratch._1, scratch._2.sorted), name)
+  }

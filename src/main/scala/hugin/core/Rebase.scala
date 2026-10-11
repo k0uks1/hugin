@@ -46,31 +46,60 @@ final class GlobalKeys(core: Core, from: Int):
  *  a key in the new ones, or to a meta or a universe level that the old declarations created (the
  *  designer's choice: such items are not reused). */
 object Rebase:
-  /** The globals of `oldDecls` as globals of `newDecls`, if every one that `terms` and `used` refer to has
-   *  a counterpart and they refer to no meta or level the old declarations created. */
+  /** The globals of `oldDecls` as globals of `newDecls`, if every global of the old declarations that
+   *  the move of an item reaches has a counterpart and it reaches no meta or level the old declarations
+   *  created. The move reaches the item's terms (`terms`, and the globals it used, `used`), the types and
+   *  solutions of the metas its fork `from` created (they are created again), and the families and
+   *  arguments of the instances it created (they are instantiated again): all are checked before
+   *  anything is moved, so a move never fails half-way. */
   def declarations(
       oldDecls: ElaboratedDeclarations,
       newDecls: ElaboratedDeclarations,
+      from: Core,
       terms: List[Tm],
       used: Set[Int]
   ): Option[Int => Int] =
     if oldDecls.base ne newDecls.base then return None
     val lib = oldDecls.base.core
     val (libGlobals, libMetas, libLevels) = (lib.globals.length, lib.metas.length, lib.levels.count)
-    val (oldCore, newCore) = (oldDecls.core, newDecls.core)
-    val (oldKeys, newKeys) = (GlobalKeys(oldCore, libGlobals), GlobalKeys(newCore, libGlobals))
+    val oldCore = oldDecls.core
+    val (oldKeys, newKeys) = (GlobalKeys(oldCore, libGlobals), GlobalKeys(newDecls.core, libGlobals))
     val map = mutable.HashMap.empty[Int, Int]
+    val seenMetas = mutable.HashSet.empty[Int]
+    val seenGlobals = mutable.HashSet.empty[Int]
+    val todo = mutable.Stack.from(terms)
     def global(id: Int): Boolean =
-      id < libGlobals || id >= oldCore.globals.length || map.contains(id) || newKeys.find(oldKeys(id)).exists { n =>
-        map(id) = n
+      if id < libGlobals || map.contains(id) then true
+      else if id >= oldCore.globals.length then
+        // an instance the item created: its family and arguments are moved too
+        if seenGlobals.add(id) then
+          from.globals(id).instanceOf match
+            case Some((fam, args)) =>
+              todo.pushAll(args)
+              global(fam)
+            case None => false
+        else true
+      else
+        newKeys.find(oldKeys(id)) match
+          case Some(n) =>
+            map(id) = n
+            true
+          case None => false
+    def meta(m: Int): Boolean =
+      if m < libMetas then true
+      else if m < oldCore.metas.length then false
+      else
+        if seenMetas.add(m) then
+          val e = from.metas(m)
+          todo.push(from.quote(0, e.ty))
+          e.solution.foreach(v => todo.push(from.quote(0, v)))
         true
-      }
-    val ok = used.forall(global) && terms.forall(t =>
-      !Tm.exists(t) {
+    var ok = used.forall(global)
+    while ok && todo.nonEmpty do
+      ok = !Tm.exists(todo.pop()) {
         case Tm.Global(id) => !global(id)
-        case Tm.Meta(m) => m >= libMetas && m < oldCore.metas.length
+        case Tm.Meta(m) => !meta(m)
         case Tm.U1(l) => !l.isConst && l.v >= libLevels && l.v < oldCore.levels.count
         case _ => false
       }
-    )
     Option.when(ok)(id => if id < libGlobals then id else map(id))

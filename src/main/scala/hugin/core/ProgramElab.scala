@@ -218,7 +218,7 @@ object ProgramElab:
     else
       val old = r.declarations.nn
       val terms = r.items.flatMap(CoreItem.terms) ++ r.parts.flatMap(elab.ModulePart.terms)
-      Rebase.declarations(old, decls, terms, r.used).flatMap { declaration =>
+      Rebase.declarations(old, decls, r.fork, terms, r.used).flatMap { declaration =>
         val moved = Moved(old.core, r.fork, to, declaration, refuseFrom = (old.base.core.metas.length, old.base.core.levels.count))
         try
           moved.check(r.items, r.parts)
