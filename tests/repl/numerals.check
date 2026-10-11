@@ -14,7 +14,7 @@ error[E0911]: the clauses of `pred` do not cover all cases
  --> <input 5>:1:1
   |
 1 | pred : nat -> nat.
-  | ^^^^ missing: `pred 0`
+  | ^^^^ missing: `pred 0` and 1 more
   |
   = note: meta functions are total: every argument must match a clause
   = help: add a clause `pred 0 = ….`

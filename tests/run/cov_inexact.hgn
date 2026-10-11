@@ -1,0 +1,43 @@
+(* #67: the opt-in lint `inexact_clauses` (W0009) reports the clauses that do not hold definitionally
+   (reference: meta/clauses, "Evaluation") *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+(* the tree splits the first argument first: `gg _ (suc _)` is used for two cases *)
+gg : nat -> nat -> bool.
+gg zero zero = true.
+gg _ (suc _) = false.
+gg (suc _) zero = true.
+(* the catch-all clause is used for two cases *)
+n2 : nat -> nat -> bool.
+n2 zero zero = true.
+n2 _ _ = false.
+(* `f _ zero` is used only for `f (suc _) zero`, a case more specific than its patterns *)
+f : nat -> nat -> bool.
+f zero zero = true.
+f _ zero = false.
+f _ (suc _) = true.
+(* exact: every clause is its own case of the tree *)
+plus : nat -> nat -> nat.
+plus zero N = N.
+plus (suc M) N = suc (plus M N).
+both : bool -> bool -> bool.
+both true B = B.
+both false _ = false.
+(* exact: the clause `gg2 _ (suc _)` comes first, so the tree splits the second argument first *)
+gg2 : nat -> nat -> bool.
+gg2 _ (suc _) = false.
+gg2 zero zero = true.
+gg2 (suc _) zero = true.
+bit : bool -> int.
+bit true = 1.
+bit false = 0.
+toInt : nat -> int.
+toInt zero = 0.
+toInt (suc N) = toInt N + 1.
+(* on closed arguments every clause gives the first match *)
+out : int -> int -> int -> int -> int -> rel.
+out (bit (gg 1 2)) (bit (n2 0 1)) (bit (f 1 0)) (toInt (plus 2 3)) (bit (both (gg2 0 0) (gg2 1 0))).

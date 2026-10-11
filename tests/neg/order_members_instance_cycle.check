@@ -1,0 +1,11 @@
+error[E0105]: formula function `net.h` refers to itself
+  --> tests/neg/order_members_instance_cycle.hgn:18:10
+   |
+17 |   h : int -> prop.
+   |   - declared here
+18 |   h X :- inst.a X. (*~ E0105 *)
+   |          ^^^^ expands to a use of it again
+   |
+   = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+1 error found

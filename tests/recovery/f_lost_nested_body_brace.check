@@ -1,0 +1,38 @@
+error[E0001]: expected `.` or `where`, found `:`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:33:10
+   |
+32 |   inner =
+   |   ----- this definition starts here
+33 |     step : g.node -> g.node -> prop. (*~ E0001 *)
+   |          ^ expected `.` or `where`
+
+error[E0001]: stray `}`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:37:3
+   |
+37 |   }. (*~ E0001 *)
+   |   ^ the construct goes on after this `}`, and is closed later
+
+2 errors found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+city : type.
+berlin : city.
+paris : city.
+rome : city.
+oslo : city.
+bergen : city.
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+road rome oslo.
+road oslo bergen.
+paths : Type = { near : ⇑city -> ⇑city -> ⇑prop, within : nat -> ⇑city -> ⇑city -> ⇑prop }.
+lib : paths = { near = { near, link, within, hidden }.near, within = { near, link, within, hidden }.within }.
+close : city -> city -> rel.
+close X Y :- X = X#10, Y = Y#9, (X#10 = X#12, Y#9 = Y#11, road X#12 Y#11 ; Y#9 = X#14, X#10 = Y#13, road X#14 Y#13) ; X = X#2, Y = Y#1, (X#2 = X#4, Y#1 = Y#3, road X#4 Y#3 ; Y#1 = X#6, X#2 = Y#5, road X#6 Y#5).
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+viaPath : city -> city -> rel.
+%output close.
+%output viaPath.
