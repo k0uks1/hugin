@@ -1,18 +1,22 @@
 // The playground (issue #58, docs/design/website.md 4.6-4.10). The compiler runs in a Web Worker
 // (worker.js, which loads the Scala.js bundle hugin.js); this page holds the editor, the toolbar and the
-// results. Run and Check are explicit; Ctrl-Enter runs. After a pause in typing the worker computes the
-// compiler's semantic highlighting. A request that takes longer than the budget
+// results. Run and Check are explicit; Ctrl-Enter runs. After a pause in typing the worker analyses the
+// program: the compiler's semantic highlighting and the annotation table, from which ide.js answers
+// hover, definition, occurrences and references. Every request carries the version of the editor's text,
+// and an answer for an older version is dropped. A request that takes longer than the budget
 // terminates the worker, which is then restarted (a cold start). Nothing leaves the page.
 import { createEditor, showDiagnostics, showTokens, clear, setProgram, offset, applySuggestion } from "./editor.js";
 import { views, counts, h } from "./results.js";
 import { encodeProgram, readFragment } from "./share.js";
+import { showInfo, code } from "./ide.js";
+import { showHints, setHintsShown, savedChoice } from "./hints.js";
 import { EditorView } from "@codemirror/view";
 
 const BUDGET_MS = 10_000;
 const $ = (id) => document.getElementById(id);
 const ui = {
   run: $("run"), check: $("check"), example: $("example"), phase: $("phase"), status: $("status"),
-  share: $("share"), editor: $("editor"), summary: $("summary"), tabs: $("tabs"), body: $("body"),
+  share: $("share"), hints: $("hints"), editor: $("editor"), summary: $("summary"), tabs: $("tabs"), body: $("body"),
 };
 
 // --- the compiler worker -------------------------------------------------------------------------
@@ -42,30 +46,79 @@ function stopWorker(reason) {
 }
 
 // a request to the worker; one that takes longer than the budget stops (and restarts) the worker
-function request(op, source, printAfter) {
+function request(op, source, printAfter, extra = {}) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
     const timer = setTimeout(() => stopWorker(`stopped after ${BUDGET_MS / 1000} s`), BUDGET_MS);
     pending.set(id, { resolve, reject, timer });
-    worker.postMessage({ id, op, source, printAfter });
+    worker.postMessage({ id, op, version, source, printAfter, ...extra });
   });
 }
 
-// the compiler's semantic highlighting while the reader types: a `highlight` request when the editor
-// has been idle for IDLE_MS (not while a run or check is busy); stale answers are dropped
+// the actions at the cursor (Ctrl-., the info bar's "Fix"), with the same rules as completion
+async function actions(source, from, to) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("actions", source, "", { from, to });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// the expansion of the meta code at an offset (the Ctrl-. menu's "Show expansion"), as completion
+async function expansion(source, offset) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("expansion", source, "", { offset });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// an expansion, in the results' Expansion tab
+let expanded = null;
+function onExpansion(text) {
+  expanded = text;
+  tab = "expansion";
+  renderResult();
+}
+
+// completion: the compiler's candidates at an offset, or nothing while a run or check is busy (completion
+// does not queue behind a long run) or when the text changed before the answer came
+async function complete(source, offset) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("complete", source, "", { offset });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// the version of the editor's text: incremented by every edit, echoed by the worker
+let version = 0;
+
+// the compiler's analysis while the reader types: an `analyse` request when the editor has been idle for
+// IDLE_MS (not while a run or check is busy); answers for an older version are dropped
 const IDLE_MS = 400;
 let idleTimer = null;
 
-function highlightSoon() {
+function analyseSoon() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(async () => {
     if (busy || !available) return;
     const source = editor.state.doc.toString();
     try {
-      const result = await request("highlight", source, "");
-      if (editor.state.doc.toString() === source) showTokens(editor, result.tokens);
+      const result = await request("analyse", source, "");
+      if (result.version === version) {
+        showTokens(editor, result.tokens);
+        showInfo(editor, result.info);
+        showHints(editor, result.info && result.info.hints);
+      }
     } catch (_) {
-      // a failed or stopped highlight keeps the current colours
+      // a failed or stopped analysis keeps the current colours and table
     }
   }, IDLE_MS);
 }
@@ -82,7 +135,7 @@ function onReady(info) {
   available = info.ready;
   ui.run.disabled = ui.check.disabled = !available;
   if (!available) return status("The compiler is not available in this build.", "error");
-  highlightSoon();
+  analyseSoon();
   if (ui.phase.options.length === 1)
     for (const p of info.phases || []) ui.phase.append(h("option", { value: p }, `Show after: ${p}`));
   ui.phase.disabled = !(info.phases || []).length;
@@ -91,8 +144,8 @@ function onReady(info) {
 
 function renderResult() {
   ui.tabs.replaceChildren(); ui.body.replaceChildren();
-  if (!current) return ui.body.append(h("p", { class: "empty" }, "Run (Ctrl-Enter) shows the answers here."));
-  const all = views(current, {
+  if (!current && expanded == null) return ui.body.append(h("p", { class: "empty" }, "Run (Ctrl-Enter) shows the answers here."));
+  const all = !current ? [] : views(current, {
     phase: ui.phase.value,
     onFix: (s) => applySuggestion(editor, s),
     onGoto: (span) => {
@@ -101,7 +154,12 @@ function renderResult() {
       editor.focus();
     },
   });
-  if (!all.some(([key]) => key === tab)) tab = "answers";
+  if (expanded != null) all.push(["expansion", "Expansion", () => {
+    const pre = code(expanded.replace(/\n$/, ""), true);
+    pre.className = "text hugin";
+    return pre;
+  }]);
+  if (!all.some(([key]) => key === tab)) tab = all[0][0];
   for (const [key, label, render] of all) {
     const selected = key === tab;
     ui.tabs.append(h("button", { type: "button", role: "tab", "aria-selected": String(selected),
@@ -127,9 +185,11 @@ async function compile(op) {
     else if (errors) tab = "diagnostics";
     else if (result.printed !== undefined) tab = "printed";
     else if (tab === "diagnostics" || tab === "printed") tab = "answers";
-    if (editor.state.doc.toString() === source) {
+    if (result.version === version) {
       showDiagnostics(editor, result.diagnostics);
       showTokens(editor, result.tokens);
+      showInfo(editor, result.info);
+      showHints(editor, result.info && result.info.hints);
     }
     ui.summary.textContent = counts(result.diagnostics);
     status(`${op === "run" ? "ran" : "checked"} in ${ms} ms`, errors ? "error" : "");
@@ -162,15 +222,18 @@ async function share() {
 }
 
 function onEdit() {
+  version++;
   ui.summary.textContent = "";
   if (ui.example.value) ui.example.value = "";
-  highlightSoon();
+  analyseSoon();
 }
 
-const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit });
+const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete, actions, expansion, onExpansion });
 startWorker();
 ready.then(onReady);
 
+ui.hints.checked = savedChoice();
+ui.hints.onchange = () => setHintsShown(editor, ui.hints.checked);
 ui.run.onclick = () => compile("run");
 ui.check.onclick = () => compile("check");
 ui.share.onclick = share;
@@ -178,7 +241,7 @@ ui.example.onchange = () => {
   if (!ui.example.value) return;
   loadExample(ui.example.value);
   history.replaceState(null, "", "#example=" + encodeURIComponent(ui.example.value));
-  current = null; renderResult(); ui.summary.textContent = "";
+  current = null; expanded = null; renderResult(); ui.summary.textContent = "";
 };
 
 async function init() {

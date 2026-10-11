@@ -190,4 +190,6 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | Kaminski et al. 2017 | M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data Analysis Using Limit Datalog Programs.* IJCAI 2017. [arXiv:1705.06927](https://arxiv.org/abs/1705.06927). Limit Datalog, the source of bound columns. |
 | Kovács 2022 | A. Kovács. *Staged Compilation with Two-Level Type Theory.* ICFP 2022. [doi:10.1145/3547641](https://doi.org/10.1145/3547641). Stage inference and the two-level type theory of the meta level. |
 | Lee et al. 2001 | C. S. Lee, N. D. Jones, A. M. Ben-Amram. *The Size-Change Principle for Program Termination.* POPL 2001. The termination checks of both levels. |
+| Maranget 2007 | L. Maranget. *Warnings for Pattern Matching.* Journal of Functional Programming 17(3), 2007. Usefulness of clauses and exhaustiveness, defined on values (Definitions 4–6). |
+| Maranget 2008 | L. Maranget. *Compiling Pattern Matching to Good Decision Trees.* ML Workshop 2008. Column heuristics for case trees, which the fixed split order of clauses does not use. |
 | Stucki et al. 2018 | N. Stucki, A. Biboudis, M. Odersky. *A Practical Unification of Multi-stage Programming and Macros.* GPCE 2018. Quoted patterns with holes. |

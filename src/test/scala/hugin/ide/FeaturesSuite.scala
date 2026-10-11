@@ -113,7 +113,7 @@ class FeaturesSuite extends munit.FunSuite:
     val d = Diagnostics.all(key2).find(_.code.id == "E0911").get
     val add = Fixes.at(key2, key2.path, d.primarySpan.start, d.primarySpan.start).find(_.title.startsWith("Add the")).get
     assert(add.preferred)
-    assertEquals(add.edits.map(e => (e.span.start, e.text)), List((at(missing, "M.", 2), "\nboth 0 _ = ?.\nboth (_ + 1) 0 = ?.")))
+    assertEquals(add.edits.map(e => (e.span.start, e.text)), List((at(missing, "M.", 2), "\nboth _ 0 = ?.\nboth 0 _ = ?.")))
     val decl = nat + "size : nat -> int.\n"
     val key3 = program(decl, "p3.hgn")
     assertEquals(Fixes.at(key3, key3.path, at(decl, "size"), at(decl, "size")).map(_.title), List("Add a clause for `size`"))
@@ -163,4 +163,13 @@ class FeaturesSuite extends munit.FunSuite:
     assertEquals(Completion.at(key, 1).items, Nil)
     assertEquals(Outline.of(key), Nil)
     assertEquals(Fixes.at(key, "in.facts", 0, 5), Nil)
+  }
+
+  test("diagnostics: editors have no lint flags, so the lints that are off by default are not shown") {
+    given Database = Database()
+    val text = nat + "bool : Type.\ntrue : bool.\nfalse : bool.\nn2 : nat -> nat -> bool.\nn2 zero zero = true.\nn2 _ _ = false.\n"
+    val key = program(text)
+    // the compiler reports the opt-in lint `inexact_clauses` (W0009); the editor features drop it
+    assert(hugin.query.FileDiagnostics.of(key).flatMap(_.diagnostics).exists(_.code.id == "W0009"))
+    assertEquals(Diagnostics.all(key).map(_.code.id), Nil)
   }

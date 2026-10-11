@@ -32,6 +32,7 @@
       <button class="button" type="button" id="check" disabled>Check</button>
       <select id="example" aria-label="Example"><option value="">Example: loading…</option></select>
       <select id="phase" aria-label="Show program after phase" disabled><option value="">Show after: none</option></select>
+      <label class="toggle" title="Show what the compiler inserted and inferred: quotes, splices, implicit arguments, levels"><input type="checkbox" id="hints"> Hints</label>
       <span class="sep"></span>
       <span class="status busy" id="status" role="status">loading the compiler…</span>
       <button class="button" type="button" id="share">Share</button>
@@ -48,6 +49,9 @@
         <div class="body" id="body"><p class="empty">Run (Ctrl-Enter) shows the answers here.</p></div>
       </div>
     </div>
+    <p class="keys" id="keys">Keys: <kbd>Ctrl</kbd>-<kbd>Enter</kbd> run · <kbd>F12</kbd> or <kbd>Ctrl</kbd>-click go to
+      definition · <kbd>Shift</kbd>-<kbd>F12</kbd> references · <kbd>Ctrl</kbd>-<kbd>K</kbd> <kbd>Ctrl</kbd>-<kbd>I</kbd>
+      what is at the cursor · <kbd>Ctrl</kbd>-<kbd>Space</kbd> completions · <kbd>Ctrl</kbd>-<kbd>.</kbd> actions and the expansion at the cursor · <kbd>Escape</kbd> closes. The bar under the program shows the name at the cursor.</p>
   </div>
 </main>
 

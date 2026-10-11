@@ -1997,13 +1997,29 @@ definition the formula uses, as `Lifting.letBound` does for leaves). Choices the
   a `Tm.Module` keeps its members out of `Tm.children`, so a cycle between a file's formula function and
   a body's member through a path (`f X :- m.g X.` with `g X :- f X.` in `m`) was not reported and staging
   overflowed the stack; this was already so for a body's definitions (`g : node -> prop = [X] f X.`).
-  It follows the definitions of all members of a module the formula function mentions, not only of the
-  member selected: coarse, but a module that a formula function uses and that uses it back is in its
-  cycle of items anyway. E0105 is reported at the path (`neg/mc_formula_members`).
+  E0105 is reported at the path (`neg/mc_formula_members`). Batch 2 followed every member of a module the
+  formula function mentions; #151 made it precise (below).
 
 Diagnostics: no new codes; E0907 lost the subject "formula functions defined by rules in module
 bodies". Goldens: `run/mc_formula_members`, `neg/mc_formula_members`; `neg/mc_body_unsupported` no
 longer rejects its formula function.
+
+**Precise paths (#151).** The cycle check follows a path `p.l` only into the member `l` it selects, and
+the members before `l` that its definition uses (in member `i`'s definition, member `j < i` is the
+variable `i - 1 - j`; `occurs`, transitively), when `p` resolves statically to a module body: a module
+value, a definition or a member whose value is one (nested paths), or a functor application (the head's
+lambdas, then the body; the arguments and let definitions around it are followed in full). Resolution
+unfolds each global at most once per path and gives up past a depth of 32; a path that does not resolve,
+and a module value used as a whole (an argument of a functor), are followed in all their members as
+before, which is safe and stricter than the reference's rule only there (stated in
+`reference/src/meta/staging.md`). Goldens: `run/mc_formula_paths` (the issue's example, also through a
+nested path and a functor instance), `neg/mc_formula_members` (cycles through a nested path and an
+instance; a module passed whole to a functor still reports). Programs newly accepted put
+functors and their instances in a cycle of items (`inst = mk edge.` with a member of `mk` using `h`,
+and `h X :- inst.a X.`): while the component is sealed, `inst` evaluates to a stuck application of
+`mk`, which created its instance lazily at each later use, anonymously (`_m1.more`) and in that use's
+item. The definitions of a component are now evaluated again when it is done, each in its own item
+(`DependencyOrder.reevaluateDefinitions`), so the instance is created once and named `inst`.
 
 ## Standard library: lists and directives (#61, batch B4)
 
@@ -2265,3 +2281,13 @@ Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thre
 child JVM run with `-Xint` (the largest frames); the 100 000-element list of #88 now goes through the
 machine (the argument chain is deeper than 96). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
 the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).
+
+*Operands (#160).* After #160's reference samples (`fib (N + 2) = fib N + fib (N + 1)`) the corpus test
+overflowed on JDK 17: a recursive call that is an operand of arithmetic (or sits in object code, a
+quote, a record, …) was evaluated by a step of `evalNode`, whose `eval` of the operand entered a new
+machine, so every level nested `evalNode` and `Machine.run`. The machine now has frames for every
+compound term (`KArith`, `KArithWith`, `KMap` for one subterm, `KList` for object code, records and
+module environments, `KOrigin` for a trace frame), in `evalNode`'s order of evaluation; only leaves, and
+object code and quotes while an observer records staging, stay `evalNode` steps. The native depth counts
+every compound term, not only applications. `LongListsSuite` evaluates `steps (N + 1) = steps N + 1`
+5 000 levels deep on a 1 MiB thread (computed numbers: a large literal is a deep term, walked elsewhere).

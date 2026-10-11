@@ -1,7 +1,7 @@
 package hugin.web
 
 import hugin.compiler.Compiler
-import hugin.ide.Highlighting
+import hugin.ide.{Annotations, Completion, Expansions, FixKind, Fixes, Highlighting}
 import hugin.platform.Platform
 import hugin.query.*
 import hugin.runtime.Evaluation
@@ -11,8 +11,9 @@ import scala.scalajs.js
 import scala.util.control.NonFatal
 
 /** What `hugin check` and `hugin run` do, on one program held in memory, with the results as JSON (see
- *  [[Hugin]] for the format). Each call compiles in a new query database; the parsed standard library is
- *  shared between calls ([[hugin.compiler.StdlibCache]]). */
+ *  [[Hugin]] for the format), and the editor's analysis of the program (`analyse`: the highlighting and the
+ *  annotation table, `docs/design/web-ide.md`). Every call works in the persistent database of [[Session]],
+ *  so a call on the text of the previous one reuses its compilation. */
 object Playground:
   val Version = 1
 
@@ -20,10 +21,7 @@ object Playground:
     Request.read(options) match
       case Left(problem) => failure(problem)
       case Right(request) =>
-        try result(source, request, evaluate).render
-        catch
-          case NonFatal(e) => failure(s"internal error: $e")
-          case e: StackOverflowError => failure(s"internal error: $e")
+        guarded(result(source, request, evaluate).render)
 
   /** The highlighting of the program alone (no diagnostics, no evaluation), for the editor while the
    *  reader types: `{ "version": 1, "tokens": [[text, [class, …]], …] }`. */
@@ -31,16 +29,114 @@ object Playground:
     Request.read(options) match
       case Left(problem) => failure(problem)
       case Right(request) =>
-        try
-          given db: Database = Database()
+        guarded {
+          given db: Database = Session.db
           db.set(SourceText, request.file, source)
           Json.obj(
             "version" -> Json.num(Version),
             "tokens" -> tokens(request, db(Compile, CompileKey(request.file, request.settings)).index)
           ).render
-        catch
-          case NonFatal(e) => failure(s"internal error: $e")
-          case e: StackOverflowError => failure(s"internal error: $e")
+        }
+
+  /** The editor's analysis of the program after a pause in typing (no diagnostics, no evaluation): the
+   *  highlighting and the annotation table, `{ "version": 1, "tokens": …, "info": … }` ([[Session.info]]). */
+  def analyse(source: String, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val key = CompileKey(request.file, request.settings)
+          Json.obj("version" -> Json.num(Version), "tokens" -> tokens(request, db(Compile, key).index), "info" -> info(request, key)).render
+        }
+
+  /** The completions at an offset of the program (UTF-16 code units), from `hugin.ide.Completion`:
+   *  `{ "version": 1, "from": n, "items": [{ "label", "kind", "detail", "fits" }, …], "ranked": bool }`.
+   *  The items replace the text from `from` to the offset; `kind` is `hugin.ide.CandidateKind`'s name
+   *  with a lowercase initial (`relation`, `metaDefinition`, …); if `ranked`, the type expected there is
+   *  known and `fits` marks the candidates whose result type fits it. */
+  def complete(source: String, offset: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val cs = Completion.at(CompileKey(request.file, request.settings), offset.max(0).min(source.length))
+          val items = cs.items.map { c =>
+            Json.obj(
+              "label" -> Json.str(c.label),
+              "kind" -> Json.str(c.kind.toString.head.toLower.toString + c.kind.toString.tail),
+              "detail" -> Json.str(c.detail),
+              "fits" -> Json.Bool(c.fits)
+            )
+          }
+          Json.obj(
+            "version" -> Json.num(Version),
+            "from" -> Json.num(cs.from.toLong),
+            "items" -> Json.Arr(items),
+            "ranked" -> Json.Bool(cs.ranked)
+          ).render
+        }
+
+  /** The fixes and the actions of interactive development for the part `[from, to]` of the program
+   *  (UTF-16 code units), from `hugin.ide.Fixes`: `{ "version": 1, "actions": [{ "title", "kind",
+   *  "preferred", "edits": [{ "from", "to", "insert" }] }, …] }`. `kind` is `quickfix` or `rewrite`; only
+   *  actions whose edits all lie in the program are listed. */
+  def actions(source: String, from: Int, to: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val (a, b) = (from.max(0).min(source.length), to.max(0).min(source.length))
+          val fixes = Fixes.at(CompileKey(request.file, request.settings), request.file, a.min(b), a.max(b))
+          val actions =
+            fixes.filter(f => f.edits.nonEmpty && f.edits.forall(e => e.span.exists && e.span.source.path == request.file)).map {
+              f =>
+                Json.obj(
+                  "title" -> Json.str(f.title),
+                  "kind" -> Json.str(if f.kind == FixKind.QuickFix then "quickfix" else "rewrite"),
+                  "preferred" -> Json.Bool(f.preferred),
+                  "edits" -> Json.Arr(f.edits.map(e =>
+                    Json.obj("from" -> Json.num(e.span.start.toLong), "to" -> Json.num(e.span.end.toLong), "insert" -> Json.str(e.text))
+                  ))
+                )
+            }
+          Json.obj("version" -> Json.num(Version), "actions" -> Json.Arr(actions)).render
+        }
+
+  /** What the meta code at an offset (UTF-16 code units) of the program expanded to, from
+   *  `hugin.ide.Expansions`: the object rules and queries of the innermost directive or functor
+   *  application around it (or of the item there), as Hugin text: `{ "version": 1, "text": "…" }`, with
+   *  `text` null if there is none. */
+  def expansion(source: String, offset: Int, options: js.UndefOr[js.Any]): String =
+    Request.read(options) match
+      case Left(problem) => failure(problem)
+      case Right(request) =>
+        guarded {
+          given db: Database = Session.db
+          db.set(SourceText, request.file, source)
+          val text = Expansions.at(CompileKey(request.file, request.settings), offset.max(0).min(source.length))
+          Json.obj("version" -> Json.num(Version), "text" -> text.fold(Json.Null)(Json.str)).render
+        }
+
+  /** The annotation table of the program, as [[Session.info]] encodes it. */
+  private def info(request: Request, key: CompileKey)(using Database): Json =
+    Session.info(Annotations.of(key, request.file), request.file)
+
+  /** The JSON of `body`, or an internal error, after which the session starts a new database. */
+  private def guarded(body: => String): String =
+    try body
+    catch
+      case NonFatal(e) =>
+        Session.reset()
+        failure(s"internal error: $e")
+      case e: StackOverflowError =>
+        Session.reset()
+        failure(s"internal error: $e")
 
   /** The runs of the program's text and their classes, as `hugin highlight` computes them. */
   private def tokens(request: Request, index: => hugin.compiler.SemanticIndex)(using db: Database): Json =
@@ -55,7 +151,7 @@ object Playground:
 
   private def result(source: String, request: Request, evaluate: Boolean): Json =
     val start = js.Date.now()
-    given db: Database = Database()
+    given db: Database = Session.db
     db.set(SourceText, request.file, source)
     val key = CompileKey(request.file, request.settings)
     val compiled = db(Compile, key)
@@ -95,6 +191,7 @@ object Playground:
       }),
       "output" -> strings(compiled.printed ++ evaluation.fold(Nil)(_.output)),
       "tokens" -> tokens(request, compiled.index),
+      "info" -> info(request, key),
       "timeMs" -> Json.num((js.Date.now() - start).round)
     )
 

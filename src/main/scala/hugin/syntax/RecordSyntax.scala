@@ -58,7 +58,7 @@ private[syntax] trait RecordSyntax extends ParserBase:
     val column0Members = atColumn0(position)
     val (items, clean) =
       inBody(Tok.RBrace, Some(open))(parseItems(
-        !at(Tok.RBrace) && !at(Tok.EOF) && (column0Members || !atColumn0(position)),
+        !(at(Tok.RBrace) && !strayIndentedBodyCloser) && !at(Tok.EOF) && (column0Members || !atColumn0(position)),
         unexpectedInBody
       ))
     // `close`: the `}` may be stray (`{ }`⏎`a : t`⏎`}`)

@@ -9,9 +9,11 @@ package hugin.core
  *  elements, at a depth that varied with the JIT. Here the steps that recur per element are a loop, and
  *  what remains to be done after a value (apply it, evaluate the argument, memoise it) is a [[Frame]] on
  *  the heap: application (`Tm.App`), `let`, the body of a λ applied, a function defined by clauses run by
- *  its case tree ([[Matching.matchFunction]]), and a folded definition applied ([[Val.Top]]). Every other
- *  term is a step of [[Evaluation.evalNode]], whose recursion is bounded by the size of the term, not by
- *  the depth of a computation.
+ *  its case tree ([[Matching.matchFunction]]), and a folded definition applied ([[Val.Top]]). The other
+ *  compound terms (arithmetic, quotes and splices, object code, records, projections, …) are frames too:
+ *  a recursive call can be an operand (`fib (N + 2) = fib N + fib (N + 1)`, #160), and a step of
+ *  [[Evaluation.evalNode]] that entered the machine again for its operand nested a machine per level.
+ *  Only leaves, and object code and quotes while an observer records staging, are its steps.
  *
  *  The first [[Machine.NativeDepth]] levels of nesting are evaluated by native recursion (`evalNative`,
  *  `appNative`: the evaluator of before #129), which allocates no frames and is faster for the shallow
@@ -19,21 +21,24 @@ package hugin.core
  *  past a depth of 200, #88), so the native stack used is bounded whatever the depth of the computation.
  *
  *  The order of evaluation, and so the order of effects (fresh object variables, observed staging), is
- *  that of the recursive evaluator: the function, then the argument, then the application; the result of
- *  a function is memoised before the arguments beyond its arity are applied. */
+ *  that of the recursive evaluator: the function, then the argument, then the application; operands and
+ *  fields left to right; the result of a function is memoised before the arguments beyond its arity are
+ *  applied. */
 trait Machine:
   self: Core =>
   import Val.*
   import Machine.*
 
-  /** How deeply evaluation is nested on the native stack: applications evaluated by [[evalNative]] and the
+  /** How deeply evaluation is nested on the native stack: compound terms evaluated by [[evalNative]] and the
    *  bodies of functions defined by clauses applied by [[appNative]]. */
   private var depth = 0
 
   /** The value of `t` in `env`. */
   def eval(env: List[Val], t: Tm): Val = t match
-    case _: Tm.App | _: Tm.Let => if depth < NativeDepth then evalNative(env, t) else run(env, t, null, null, null, null)
-    case _ => evalNode(env, t)
+    case _: Tm.Var | _: Tm.Global | _: Tm.Meta | _: Tm.Lam | _: Tm.Lit | _: Tm.Base | _: Tm.RecTy | Tm.U0 | _: Tm.U1 | Tm.RelT |
+        Tm.PropT =>
+      evalNode(env, t)
+    case _ => if depth < NativeDepth then evalNative(env, t) else run(env, t, null, null, null, null)
 
   /** `f` applied to `a`. */
   def app(f: Val, a: Val, i: Icit): Val = if depth < NativeDepth then appNative(f, a, i) else run(Nil, null, f, a, i, null)
@@ -100,7 +105,7 @@ trait Machine:
       env = r0.env
       t = r0.body
       mode = Eval
-    val hint0 = hint
+    val (hint0, origin0) = (hint, origin)
     try
       while mode != Done do
         mode match
@@ -125,6 +130,44 @@ trait Machine:
               case Tm.Let(_, _, d, b) =>
                 k = KLet(env, b, k)
                 t = d
+              // the compound terms of [[Evaluation.evalNode]], in its order of evaluation (a recursive call
+              // can be an operand, `fib N + fib (N + 1)`, #160); object code at a position and quotes stay
+              // its steps while an observer records staging
+              case Tm.Arith(op, x, y, st) =>
+                k = KArith(env, op, y, st, k)
+                t = x
+              case Tm.Negate(x, st) => k = KMap(negate(_, st), k); t = x
+              case Tm.Lift(x) => k = KMap(Lift(_), k); t = x
+              case Tm.Quote(x) if observer == null => k = KMap(vQuote, k); t = x
+              case Tm.Splice(x) => k = KMap(vSplice, k); t = x
+              case Tm.Persist(x) => k = KMap(persist, k); t = x
+              case Tm.Proj(x, l) => k = KMap(proj(_, l), k); t = x
+              case Tm.FactTy(x) => k = KMap(FactTy(_), k); t = x
+              case Tm.Require(rs, use, x) => k = KMap(required(rs, use, _), k); t = x
+              case Tm.Pi(x, ic, d, b) =>
+                val e = env
+                k = KMap(Pi(x, ic, _, Closure(e, b)), k)
+                t = d
+              case Tm.AppPruning(x, pr) =>
+                val e = env
+                k = KMap(appPruning(e, _, pr), k)
+                t = x
+              case Tm.Fresh(ns, b) =>
+                env = ns.reverse.map(freshObjectVariable) ++ env
+                t = b
+              case Tm.Trace(frame, x) =>
+                k = KOrigin(origin, k)
+                origin = origin.push(frame)
+                t = x
+              case Tm.Obj(form, as) if as.nonEmpty && (observer == null || !form.isInstanceOf[ObjForm.Loc]) =>
+                k = KList(env, as.tail, Nil, Obj(form, _), k)
+                t = as.head
+              case Tm.Rec(fs) if fs.nonEmpty =>
+                k = KList(env, fs.tail.map(_._2), Nil, vs => Rec(fs.map(_._1).zip(vs)), k)
+                t = fs.head._2
+              case Tm.Module(b, menv) if menv.nonEmpty =>
+                k = KList(env, menv.tail, Nil, evalModule(b, _), k)
+                t = menv.head
               case _ =>
                 v = evalNode(env, t)
                 mode = Return
@@ -199,10 +242,26 @@ trait Machine:
                   mode = Apply
                 case KElim(e, _) => v = elim(v, e)
                 case KTop(id, sp, _) => v = Top(id, sp, Unfold(v))
+                case KArith(e, op, y, st, _) =>
+                  k = KArithWith(v, op, st, k)
+                  env = e
+                  t = y
+                  mode = Eval
+                case KArithWith(x, op, st, _) => v = arith(op, x, v, st)
+                case KMap(fn, _) => v = fn(v)
+                case KOrigin(saved, _) => origin = saved
+                case KList(e, rest, done, make, _) =>
+                  if rest.isEmpty then v = make((v :: done).reverse)
+                  else
+                    k = KList(e, rest.tail, v :: done, make, k)
+                    env = e
+                    t = rest.head
+                    mode = Eval
     catch
       case e: Throwable =>
-        // as the `finally` of [[Modules.named]] around each argument would have
+        // as the `finally` of [[Modules.named]] around each argument, and of [[Modules.traced]], would have
         hint = hint0
+        origin = origin0
         throw e
     v
 
@@ -237,6 +296,24 @@ object Machine:
 
   /** Fold the value as the unfolding of the definition `id` applied to `sp`. */
   final case class KTop(id: Int, sp: Spine, override val next: Frame | Null) extends Frame(next)
+
+  /** Evaluate `y` in `env`, then combine the value (the first operand) with it by `op`. */
+  final case class KArith(env: List[Val], op: hugin.obj.ArithOp, y: Tm, st: Stage, override val next: Frame | Null)
+      extends Frame(next)
+
+  /** Combine `x` with the value (the second operand) by `op`. */
+  final case class KArithWith(x: Val, op: hugin.obj.ArithOp, st: Stage, override val next: Frame | Null) extends Frame(next)
+
+  /** Apply `fn` to the value (a term with one subterm, [[Evaluation.evalNode]]). */
+  final case class KMap(fn: Val => Val, override val next: Frame | Null) extends Frame(next)
+
+  /** Restore the trace origin to `saved` ([[Modules.traced]]). */
+  final case class KOrigin(saved: hugin.util.Origin, override val next: Frame | Null) extends Frame(next)
+
+  /** Evaluate the terms `rest` in `env` after the value, then `make` the values (`done` reversed, the value,
+   *  those of `rest`). */
+  final case class KList(env: List[Val], rest: List[Tm], done: List[Val], make: List[Val] => Val, override val next: Frame | Null)
+      extends Frame(next)
 
   /** `later` (a spine, innermost first) as frames on `k`: the outermost elimination is applied first. */
   private[core] def elimFrames(later: Spine, k: Frame | Null): Frame | Null =

@@ -1,0 +1,18 @@
+(* #67: evaluation follows the canonical case tree (reference: meta/clauses, "Evaluation"). The first
+   clause splits the first argument first, so `gg X (suc zero)` is stuck on the variable `X`, although
+   every clause that can match it gives `false`; tests/run/cov_open_reduction has the other order. *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+gg : nat -> nat -> bool.
+gg zero zero = true.
+gg _ (suc _) = false.
+gg (suc _) zero = true.
+sel : bool -> Type.
+sel true = nat.
+sel false = bool.
+u : (X : nat) -> sel (gg X (suc zero)) -> bool.
+u X B = B. (*~ E0901 *)
