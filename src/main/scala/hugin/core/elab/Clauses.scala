@@ -844,7 +844,7 @@ trait Clauses:
   /** The positions of `v` (an argument's value, at `path`), each with the value there: a constructor
    *  application's explicit arguments are its children (paths are lists, the last step first). */
   private def walk(v: Val, path: List[Int], visit: (List[Int], Val) => Unit): Unit =
-    val f = force(v)
+    val f = forceView(v)
     visit(path, f)
     f match
       case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
@@ -950,7 +950,7 @@ trait Clauses:
     case Con(c: Int, args: List[MPat])
     case Atom(key: Tm)
 
-  private def toMPat(v: Val): MPat = force(v) match
+  private def toMPat(v: Val): MPat = forceView(v) match
     case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) => MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
     case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
 
