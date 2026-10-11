@@ -245,8 +245,10 @@ the JVM-only packages `cli`, `repl`, `lsp` and `platform`, together with `web/sr
 - `hugin.platform.Platform` for JS: no file system, the bundled resources (the standard library, the error
   explanations and the reference's URL, generated as a Scala object by `project/BundledResources.scala`),
   path arithmetic on strings, and cancellation by a deadline;
-- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.phases`; results as JSON, documented in
-  `Hugin.scala`) and the Web Worker entry (`WorkerMain.scala`).
+- `hugin.web`: the browser API (`Hugin.check`, `Hugin.run`, `Hugin.highlight`, `Hugin.analyse`, `Hugin.phases`;
+  results as JSON, documented in `Hugin.scala`), the persistent query database all calls share (`Session.scala`,
+  which also encodes the annotation table of `hugin.ide.Annotations` for the playground) and the Web Worker
+  entry (`WorkerMain.scala`).
 
 ```
 sbt web/bundle                          # web/target/bundle/hugin.js (classic script) and hugin.mjs (ES module)
@@ -734,9 +736,13 @@ site/
   theme.js                the light/dark switch, inlined into every page's <head> (the only script of
                           the landing and install pages)
   play/index.html         the playground; play.css, its additional styles
-  play/main.js            the page: toolbar, compiler worker with the 10 s budget, results (results.js),
-                          sharing in the URL fragment (share.js)
+  play/main.js            the page: toolbar, compiler worker with the 10 s budget, the `analyse` request
+                          after a pause in typing (answers for an older version of the text are dropped),
+                          results (results.js), sharing in the URL fragment (share.js)
   play/editor.js          CodeMirror 6 (minimal setup), inline diagnostics with the fixes as buttons
+  play/ide.js             the editor features of the annotation table (docs/design/web-ide.md 6): hover,
+                          the info bar under the program, Ctrl-K Ctrl-I, go to definition (F12,
+                          Ctrl/Cmd-click), the occurrences of the name at the cursor, references (Shift-F12)
   play/hugin-lang.js      highlighting from editors/vscode/syntaxes/hugin.tmLanguage.json
   play/worker.js          the Web Worker that loads the compiler bundle hugin.js; `adapt` and
                           `normalise` hold the bundle's API (batch W4)
