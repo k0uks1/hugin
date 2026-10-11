@@ -23,6 +23,9 @@ import scala.jdk.CollectionConverters.*
  *  - `tests/json/X.hgn`: checked with `--error-format=json`; the JSON lines on stderr must equal `X.check`.
  *  - `tests/fix/X.hgn`: a copy is fixed by `hugin fix` (rustfix); the result must equal `X.fixed`, compile
  *    without errors, and be a fixed point (fixing it again changes nothing).
+ *  - `tests/annotations/X.hgn`: the annotation table of the program (`hugin.ide.Annotations`: every name
+ *    with its hover, declaration and occurrence group, the hovers, the inlay hints), rendered as text, must
+ *    equal `X.check`.
  *  - `tests/repl/X.in`: a REPL session, run by `hugin repl --batch --echo`; the transcript (inputs after
  *    their prompts, output and diagnostics) must equal `X.check`. `X.flags` holds extra options (e.g.
  *    files to load).
@@ -120,6 +123,35 @@ class GoldenTests extends munit.FunSuite:
       val (code, _, err) = runMain(List("check", p.toString) ++ flags(p))
       assertEquals(code, 0, s"unexpected errors:\n$err")
     }
+
+  for p <- files("annotations") do
+    test(s"annotations/${p.getFileName}") {
+      given db: hugin.query.Database = hugin.query.Database()
+      val path = p.toString
+      db.set(hugin.query.SourceText, path, Files.readString(p))
+      compare(p, renderAnnotations(hugin.ide.Annotations.of(hugin.query.CompileKey(path), path)))
+    }
+
+  /** An annotation table as text: positions are `line:column`, 1-based, columns in UTF-16 code units. */
+  private def renderAnnotations(a: hugin.ide.Annotations): String =
+    def at(sp: hugin.util.Span, offset: Int) =
+      val line = sp.source.lineOf(offset)
+      s"${line + 1}:${offset - sp.source.lineStart(line) + 1}"
+    def range(sp: hugin.util.Span) = s"${at(sp, sp.start)}-${at(sp, sp.end)}"
+    def indent(text: String) = text.linesIterator.map(_.stripTrailing).mkString("\n      ")
+    val names = a.names.map { n =>
+      val target = n.target.fold("") {
+        case hugin.ide.Target.InFile(sp) => s"  -> ${at(sp, sp.start)}"
+        case hugin.ide.Target.Library(module, name) => s"  -> $module.$name"
+      }
+      val hover = if n.hover < 0 then "" else s"  hover ${n.hover}"
+      s"  ${range(n.span)} `${n.span.text}`  group ${n.group}${if n.declaration then "  declaration" else ""}$hover$target"
+    }
+    val hovers = a.hovers.toList.zipWithIndex.map { (h, i) =>
+      (s"  $i   ${h.signature.fold("(no signature)")(indent)}" :: h.notes.map(nt => s"      ${indent(nt)}")).mkString("\n")
+    }
+    val hints = a.hints.map(h => s"  ${at(h.at, h.at.start)} `${h.label}` (${h.kind})")
+    (List("names:") ++ names ++ List("hovers:") ++ hovers ++ List("hints:") ++ hints).mkString("", "\n", "\n")
 
   for p <- files("repl", ".in") do
     test(s"repl/${p.getFileName}") {
