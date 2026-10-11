@@ -3,13 +3,15 @@
 // code with the fix suggestions as buttons, and the lint tooltip and keyboard actions), and, after a
 // check, a run or a pause in typing, the compiler's semantic highlighting (main.js asks for it). An edit
 // clears the diagnostics. Lines do not wrap, as in the landing page's code card: long lines scroll
-// horizontally, and the inline diagnostics are as wide as the visible editor (play.css).
+// horizontally, and the inline diagnostics are as wide as the visible editor (play.css). The editor
+// features of the annotation table (hover, the info bar, definition, occurrences, references) are ide.js.
 import { EditorView, keymap, lineNumbers, drawSelection, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState, StateField, StateEffect, Compartment } from "@codemirror/state";
 import { history, defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { setDiagnostics, lintKeymap } from "@codemirror/lint";
 import { huginLanguage, huginHighlight } from "./hugin-lang.js";
+import { ideExtensions, showInfo } from "./ide.js";
 
 const SEVERITY = { error: "error", warning: "warning" };
 
@@ -92,6 +94,7 @@ export function createEditor(parent, doc, { onRun, onEdit }) {
         lexical.of(huginHighlight),
         inlineField,
         tokenField,
+        ideExtensions(),
         EditorView.contentAttributes.of({ class: "hugin", "aria-label": "Program", spellcheck: "false" }),
         keymap.of([
           { key: "Mod-Enter", run: () => (onRun(), true) },
@@ -157,6 +160,7 @@ function clearDiagnostics(view) {
 
 export function clear(view) {
   view.compilerSaid = false;
+  showInfo(view, null);
   view.dispatch(setDiagnostics(view.state, []));
   view.dispatch({
     effects: [setInline.of(Decoration.none), setTokens.of(Decoration.none), lexical.reconfigure(huginHighlight)],

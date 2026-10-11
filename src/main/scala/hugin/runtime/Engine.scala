@@ -12,7 +12,12 @@ final case class ComponentStats(rels: Vector[String], rounds: Int)
 /** Semi-naive evaluator over an interning store (Sections 9.1–9.7). */
 final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platform.Platform.cancellation):
   val store: Vector[Relation] = prog.rels.zipWithIndex.map((r, i) => Relation(i, r, r.arity, prog.indexes.getOrElse(i, Set.empty)))
-  val stats: mutable.ArrayBuffer[ComponentStats] = mutable.ArrayBuffer.empty
+
+  /** The statistics of each evaluated (or copied, [[Reuse]]) component, by index; in order by [[stats]]. */
+  private val statsByComp = new Array[ComponentStats | Null](prog.components.length)
+  def stats: List[ComponentStats] = statsByComp.toList.flatMap(Option(_))
+  def statsOf(ci: Int): Option[ComponentStats] = Option(statsByComp(ci))
+  def setStats(ci: Int, s: ComponentStats): Unit = statsByComp(ci) = s
 
   // visibility windows per relation for the current round: old = [0, oldEnd), delta = [oldEnd, deltaEnd)
   private val oldEnd = Array.fill(store.length)(Int.MaxValue)
@@ -306,12 +311,14 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
       deltaRels.put(r, rels)
     rels
 
-  /** Evaluates all components. Cancellable: `cancellation` (on the JVM, an interrupt of the evaluating
+  /** Evaluates the components of `order` (indexes into the program's components, in an order that respects
+   *  their dependencies; all by default), calling `step` after each. Cancellable: `cancellation` (on the JVM, an interrupt of the evaluating
    *  thread) ends evaluation with an `InterruptedException` at the next round (an editor that no longer
    *  needs the result). */
-  def run(): Unit =
+  def run(order: Seq[Int] = prog.components.indices, step: Int => Unit = _ => ()): Unit =
     val rulesByComp = prog.rules.groupBy(r => prog.components.indexWhere(_.contains(r.headRel)))
-    for (comp, ci) <- prog.components.zipWithIndex do
+    for ci <- order do
+      val comp = prog.components(ci)
       val rules = rulesByComp.getOrElse(ci, Vector.empty)
       // Init: every rule once, all atoms read the full relations
       comp.foreach { t =>
@@ -345,7 +352,8 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
         oldEnd(t) = Int.MaxValue; deltaEnd(t) = Int.MaxValue
       }
       deltaAt = -1
-      stats += ComponentStats(comp.map(prog.rels(_).name), rounds)
+      statsByComp(ci) = ComponentStats(comp.map(prog.rels(_).name), rounds)
+      step(ci)
 
   /** Answers of a query: distinct tuples of the user's variables. */
   def answers(q: CompiledQuery): List[Array[Any]] =
