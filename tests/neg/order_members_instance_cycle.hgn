@@ -1,0 +1,19 @@
+(* A functor member and its instance in one cycle with a formula function of the body (issue #91,
+   batch 2): accepted at the top level (tests/run/mc_formula_paths), but in a body the lifted formula
+   function `h` closes over the member `inst` it uses, whose instance mentions `h` again, so `h` is
+   checked with all of `inst`'s members and the cycle is E0105 (reference: modules, "Module bodies"). *)
+edge : int -> int -> rel.
+edge 1 2. edge 2 3.
+net = {
+  mk (r : int -> int -> rel) = {
+    a : int -> prop.
+    a X :- r X _.
+    b : int -> prop.
+    b X :- r _ X, h X.
+    more : int -> rel.
+    more X :- a X.
+  }.
+  inst = mk edge.
+  h : int -> prop.
+  h X :- inst.a X. (*~ E0105 *)
+}.
