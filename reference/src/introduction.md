@@ -17,7 +17,7 @@ can be reached from Berlin.
 ```hugin,run
 %use "std/graph".
 city : type.
-berlin : city. paris : city. rome : city.
+berlin, paris, rome : city.
 road : city -> city -> rel.
 road berlin paris.
 road paris rome.

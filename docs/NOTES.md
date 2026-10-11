@@ -221,6 +221,14 @@ and it is preserved by strengthening, so the verdict is the full closure's (the 
 generated programs). The idempotent test itself would be unsound with subsumption: the weaker graph that
 replaces a bad idempotent one need not be idempotent. `tests/run/t_termination_large_closure.hgn` has a
 full closure of 10 085 graphs (formerly rejected) and an antichain of 3.
+Without its reset rule (a fuzzer mutant, #150; also #67) the antichain is the whole closure: 10 082
+permutations of the seven carried arguments, pairwise incomparable, ~20 s. So the check first runs the
+closure of the arguments that can carry a descent (`SizeChangeProjection`: those on a cycle through a
+strict arc, in its direction, of the graph of all arcs) and accepts if that passes; otherwise the closure
+of all arguments decides and reports, unchanged. The first alternative of the criterion is the same on
+the projected graphs; the second (every argument on an `=` cycle) is used there only when the left-out
+arguments are permuted one to one by `=` arcs at every step and joined to no kept argument, since they
+then lie on `=` cycles in every graph. The two mutants decide with at most 8 graphs.
 
 *Soundness.* Let C be the component, evaluated after the components it depends on, which are finite by
 induction over the evaluation order (Definition 8.7; their check is this argument or the finiteness of

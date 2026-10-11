@@ -24,8 +24,8 @@ variables it shares with its rule ([Aggregates](../object/aggregates.md)), here 
 
 ```hugin,run
 %use "std/order".
-team : type. red : team. blue : team.
-person : type. ann : person. bob : person. cid : person. dan : person.
+team : type. red, blue : team.
+person : type. ann, bob, cid, dan : person.
 points : team -> person -> int -> rel.
 points red ann 7. points red bob 9. points red cid 9. points blue dan 3.
 b = best { key = team, item = person, score = points }.
@@ -45,7 +45,7 @@ b.argmin red ann.
 ```hugin,run
 %use "std/order".
 team : type. red : team.
-person : type. ann : person. bob : person. cid : person.
+person : type. ann, bob, cid : person.
 points : team -> person -> int -> rel.
 points red ann 7. points red bob 9. points red cid 9.
 r = ranking { key = team, item = person, score = points }.
@@ -62,8 +62,8 @@ r.rank red cid 1.
 
 ```hugin,run
 %use "std/order".
-team : type. red : team. blue : team.
-person : type. ann : person. bob : person. cid : person. dan : person.
+team : type. red, blue : team.
+person : type. ann, bob, cid, dan : person.
 points : team -> person -> int -> rel.
 points red ann 7. points red bob 9. points red cid 8. points blue dan 3.
 t = top { key = team, item = person, score = points } 2.

@@ -118,7 +118,7 @@ it.
 ```hugin,run
 %use "std/reflect".
 node : type.
-a : node. b : node. c : node. d : node.
+a, b, c, d : node.
 edge : node -> node -> rel.
 edge a b.
 mirror : module -> module.
@@ -164,7 +164,7 @@ The following program defines a local directive `%io` from two primitive ones an
 
 ```hugin,run
 %use "std/reflect".
-node : type. a : node. b : node.
+node : type. a, b : node.
 io : decl -> decl.
 io D = input (output D).
 %io marked : node -> rel.
@@ -188,7 +188,7 @@ A directive is any meta function whose application has a directive type. The fol
 
 ```hugin,run
 %use "std/reflect".
-person : type. ann : person. bob : person. cid : person.
+person : type. ann, bob, cid : person.
 symmetric : (r : ⇑(A -> A -> rel)) -> list item.
 symmetric R = '( R Y X :- R X Y. ).
 friend : person -> person -> rel.
@@ -289,7 +289,7 @@ column. The guard binds the wildcard as `_a#0`, which is not the program's `_a`,
 `reach b a` for the demanded input `b`.
 
 ```hugin,run
-node : type. a : node. b : node. c : node.
+node : type. a, b, c : node.
 edge : node -> node -> rel.
 start : node -> rel.
 reach : (from : node) -> (to : node) -> rel.

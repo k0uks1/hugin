@@ -21,7 +21,7 @@ its reference implementation, written in Scala 3.
 %use "std/graph".
 
 person : type.
-ann : person. bob : person. cid : person. dan : person.
+ann, bob, cid, dan : person.
 
 knows : person -> person -> rel.
 knows ann bob.

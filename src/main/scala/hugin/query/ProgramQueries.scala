@@ -74,7 +74,10 @@ object ElabLibrary extends Query[ChainKey, ElabBase]("elabLibrary"):
 
 /** The declarations of a program ([[ProgramElab.split]]) with their fingerprints: cut off unless one of
  *  them changed (with its position), so that editing an object item does not elaborate the declarations
- *  again. */
+ *  again. A rule or query with a syntax error, which is filed with the declarations, is represented by its
+ *  stand-in ([[hugin.core.elab.BrokenItems]]: what the declarations read of it, compared with its start
+ *  but not its text), so that typing inside a rule does not change the declarations while it does not
+ *  parse. */
 final class ProgramDeclarations(val items: List[Item], val fingerprints: List[ItemFingerprint], val files: List[String]):
   override def equals(that: Any): Boolean = that match
     case d: ProgramDeclarations => fingerprints == d.fingerprints && files == d.files
@@ -85,7 +88,13 @@ object DeclarationsOf extends Query[ProgramKey, ProgramDeclarations]("declaratio
   def compute(key: ProgramKey)(using db: Database): ProgramDeclarations =
     val items = db(ParseProgram, key.path).program.items
     val decls = ProgramElab.split(items)._1
-    ProgramDeclarations(decls, decls.map(ItemFingerprint.of), ProgramElab.files(key.path, decls))
+    val summarised = hugin.core.elab.BrokenItems.standIns(decls)
+    // a stand-in by its tree and its start (the order of the declarations), not its text
+    val fingerprints = summarised.map { i =>
+      if !hugin.core.elab.BrokenItems.summarised(i) || !i.span.exists then ItemFingerprint.of(i)
+      else ItemFingerprint(i, i.span.source.path, i.span.start, 0, 0, "", None)
+    }
+    ProgramDeclarations(summarised, fingerprints, ProgramElab.files(key.path, decls))
 
 /** The object items of a program with their keys, in order (recomputed after every edit; cheap). Equal
  *  only if the items are, with their positions ([[ItemFingerprint]]): the items are what [[ItemOf]] reads. */
