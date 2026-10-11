@@ -1,9 +1,11 @@
 (* The Hugin prelude (reference: prelude). It is included in every program unless `--no-prelude` is
    given; the names it opens are in scope in every file and can be shadowed. `int`, `float` and `string`
    are built in. Everything else is in the modules of the standard library, `std/…`, which a program
-   imports: `std/reflect` (object syntax as data, declarations as data), `std/list`, `std/graph`. *)
+   imports: `std/reflect` (object syntax as data, declarations as data), `std/nat`, `std/list`,
+   `std/graph`. *)
 %use "std/reflect" (
   bool, true, false, if, same, list, nil, cons, append, option, none, some,
   input, output, open, derivations, terminates
 ).
+%use "std/nat" (nat, zero, suc).
 %use "std/demand" (demand).

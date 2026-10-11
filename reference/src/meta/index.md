@@ -17,19 +17,16 @@ universe of its type ([Universes](universes.md)). The compiler infers where meta
 into object code and back ([Staging](staging.md)). A program does not write these quotes, and it writes
 a splice only where it chooses to.
 
-The following program defines a meta function by clauses over a meta type of natural numbers, and uses
+The following program defines a meta function by clauses over the prelude's natural numbers, and uses
 its value in an object fact. The fact is computed at compile time.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 double : nat -> nat.
-double zero = zero.
-double (suc N) = suc (suc (double N)).
+double 0 = 0.
+double (N + 1) = double N + 2.
 toInt : nat -> int.
-toInt zero = 0.
-toInt (suc N) = toInt N + 1.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
 result : int -> rel.
 result (toInt (double 3)).
 ```
@@ -55,7 +52,7 @@ The meta level has the following items. Each is defined in the chapter given.
 
 The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
 body does not support ([E0907](../errors/E0907.md)); in particular, a body may declare meta functions
-defined by clauses.
+defined by clauses and formula functions defined by rules.
 
 A declaration is classified by its type ([Declarations](../object/declarations.md#classification)): an
 object type, relation or constructor type gives an object constant; any other type is checked as a meta
@@ -84,9 +81,6 @@ So a type may compute with a function that is defined anywhere in the file. Here
 and then its clauses, is elaborated before `vec3`, and `vec3` before `v`:
 
 ```hugin
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 one : nat = suc zero.
 vec3 : Type = vec int (plus one (suc one)).
 v : vec3 = vcons 1 (vcons 2 (vcons 3 vnil)).
@@ -106,9 +100,6 @@ the error names the cycle in a note. In the following file, the type of `d` need
 the clauses of `k` need `d`; `d` is rejected, also when the clauses of `k` are written before it:
 
 ```hugin,compile_fail,E0901
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 vec : Type -> nat -> Type.
 vnil : vec A zero.
 vcons : A -> vec A N -> vec A (suc N).
@@ -140,9 +131,10 @@ The unknowns that the compiler creates while it elaborates an item (implicit arg
 holes) belong to that item. The clauses of one function, and of one formula function, count as one item.
 An item solves its own unknowns; the unknowns of earlier items are fixed while it is elaborated, so a
 later item never changes what an earlier one means. Unknowns are numbered from `?0` within each item in
-diagnostics. In a module body, the clauses of each member function count as one item inside the item
-that contains the body: the unknowns of the body's declarations and definitions are fixed while the
-clauses are elaborated, and the declaration of a member function must solve its own unknowns
+diagnostics. In a module body, the clauses of each member function, and the rules of each formula
+function, count as one item inside the item that contains the body: the unknowns of the body's
+declarations and definitions are fixed while the clauses are elaborated, and the declaration of a member
+function or formula function must solve its own unknowns
 ([E0903](../errors/E0903.md)), as a declaration of a file does.
 
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted

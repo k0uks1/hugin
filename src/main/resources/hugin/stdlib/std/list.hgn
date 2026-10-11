@@ -1,7 +1,8 @@
-(* std/list: functions over meta lists, the fuel type `nat`, and relations over the lists that are facts
+(* std/list: functions over meta lists, fuel of type `nat`, and relations over the lists that are facts
    (reference: std/list). The meta functions are structurally recursive; `elem`, `diff` and `lookup`
    compare by `same`, so they apply to lists of atoms (numbers, strings, symbols). *)
 %use "std/reflect".
+%use "std/nat" (nat, zero, suc).
 
 (* `map F Xs` applies `F` to every element *)
 map : (A -> B) -> list A -> list B.
@@ -63,10 +64,7 @@ lookup K [] = none.
 lookup K (E :: Es) = if (same K E.key) (some E.value) (lookup K Es).
 
 (* Natural numbers as fuel: a meta function must be structurally recursive, so a fixed point at compile
-   time iterates a step a bounded number of times *)
-nat : Type.
-zero : nat.
-suc : nat -> nat.
+   time iterates a step a bounded number of times. `nat` is the one of `std/nat`, which the prelude opens. *)
 
 size : list A -> nat.
 size [] = zero.

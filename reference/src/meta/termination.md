@@ -7,7 +7,8 @@ evaluates it.
 
 ## The criterion
 
-A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argument `aⱼ` to the patterns:
+A recursive call `g ā` in a clause of `f` with patterns `p̄` relates each argument `aⱼ` to the patterns,
+in the [clause context](clauses.md#checking-a-clause) (the clauses before it do not refine them):
 `aⱼ` is *smaller* than `pᵢ` if it is a variable bound inside the constructor pattern `pᵢ`, such as `N` in
 `suc N`; it is *equal* to `pᵢ` if it is the variable `pᵢ` itself. These relations form a *size-change
 graph* from the arguments of `f` to those of `g`. The *call graph* of the program has these graphs as its
@@ -31,16 +32,13 @@ The following function is lexicographic: the first argument decreases, or it sta
 one decreases.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 ack : nat -> nat -> nat.
-ack zero N = suc N.
-ack (suc M) zero = ack M (suc zero).
-ack (suc M) (suc N) = ack M (ack (suc M) N).
+ack 0 N = N + 1.
+ack (M + 1) 0 = ack M 1.
+ack (M + 1) (N + 1) = ack M (ack (M + 1) N).
 toInt : nat -> int.
-toInt zero = 0.
-toInt (suc N) = toInt N + 1.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
 value : int -> rel.
 value (toInt (ack 2 3)).
 ```
@@ -52,9 +50,6 @@ value 9.
 The following function is rejected: its recursive call is on a larger argument.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 grow : nat -> nat.
 grow zero = zero.
 grow (suc N) = grow (suc (suc N)).
@@ -64,9 +59,6 @@ The following function is rejected: `step (suc N)` is the call `walk (suc N)` th
 `step`, on an argument that is not smaller.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 walk : nat -> nat.
 step : nat -> nat = [x] walk x.
 walk zero = zero.
@@ -77,9 +69,6 @@ The following function is rejected, although it applies itself only to a smaller
 itself as a value to `apply`, which is a call with unknown arguments.
 
 ```hugin,compile_fail,E0912
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 apply : (nat -> nat) -> nat -> nat = [k] [x] k x.
 down : nat -> nat.
 down zero = zero.

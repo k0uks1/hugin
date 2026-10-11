@@ -7,7 +7,8 @@ name: Site
 # publishes _site/ on GitHub Pages. The Hugin examples of the book and the landing page's examples are
 # compiled by `sbt test` (ReferenceExamplesSuite, GoldenTests) in ci.yml; site/build.mjs checks their
 # outputs again. The highlighting is computed by the compiler (reference/highlight.py and
-# site/build.mjs run `hugin highlight`), so the compiler is staged first.
+# site/build.mjs run `hugin highlight`), so the compiler is staged first. The hovers and definition links of
+# the book's code blocks (issue #132) are checked in Chromium (reference/hugin-info-smoke.cjs).
 
 # Runs only when an input of the site changes: the book, the site, the error explanations, the compiler
 # (it highlights the examples and is the playground's bundle), its build, the grammar the playground
@@ -71,8 +72,15 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: mdbook@0.5.4,lychee@0.24.2
-      - name: Build the book (the error index is generated from docs/errors, the highlighting by the compiler)
+      # highlight.py also adds the hovers and definition links of the code blocks (issue #132) and fails
+      # the build if they add more than 8 KB gzip to a page (docs/design/web-ide.md, 7.4)
+      - name: Build the book (the error index is generated from docs/errors, the highlighting and hovers by the compiler)
         run: mdbook build reference
+      - name: Smoke-test the hovers of the code blocks (mouse, keyboard, touch, definition links) in Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node reference/hugin-info-smoke.cjs reference/book
       - name: Build the site (landing page, playground, reference and redirects into _site/)
         run: |
           npm ci --prefix site --no-audit --no-fund

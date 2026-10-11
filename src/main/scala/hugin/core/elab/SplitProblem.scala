@@ -48,8 +48,9 @@ final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: V
 enum IndexUnification:
   case Solved(p: SplitProblem)
 
-  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct literals). */
-  case Conflict
+  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct literals): the
+   *  equation `a = b` that conflicts (`a` from the constructor's type, `b` from the scrutinee's). */
+  case Conflict(a: Val, b: Val)
 
   /** Neither: an equation between terms that are not constructor applications or variables. */
   case Stuck(a: Val, b: Val)
@@ -61,27 +62,57 @@ trait IndexUnifier:
   self: Elaborator =>
   import core.*
 
+  /** Unifies the equations `eqs0`. An equation that is neither solvable nor refutable yet is postponed
+   *  until the others make no more progress (a worklist, as Agda's unifier tries every equation): a later
+   *  equation may solve a variable it mentions, or end in a conflict. It is stuck only if a whole round
+   *  of the postponed equations solves nothing. */
   def unifyIndices(p0: SplitProblem, eqs0: List[(Val, Val)]): IndexUnification =
     var p = p0
     var eqs = eqs0
+    var postponed = List.empty[(Val, Val)]
+    var stuck: Option[IndexUnification.Stuck] = None
+    var progress = false
     var result: Option[IndexUnification] = None
-    while result.isEmpty && eqs.nonEmpty do
-      val (a0, b0) = eqs.head
-      eqs = eqs.tail
-      val a = force(p.norm(core, a0))
-      val b = force(p.norm(core, b0))
-      if quote(p.size, a) != quote(p.size, b) then
-        (freeVar(p, a), freeVar(p, b)) match
-          case (Some(x), Some(y)) => p = p.solve(core, x.max(y), Val.local(x.min(y)))
-          case (Some(x), None) => solveVar(p, x, b).fold(r => result = Some(r), q => p = q)
-          case (None, Some(y)) => solveVar(p, y, a).fold(r => result = Some(r), q => p = q)
-          case (None, None) =>
-            (a, b) match
-              case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
-                if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict)
-                else eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
-              case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict)
-              case _ => result = Some(IndexUnification.Stuck(a, b))
+    while result.isEmpty && (eqs.nonEmpty || postponed.nonEmpty) do
+      if eqs.isEmpty then
+        // a round of the postponed equations, if the last one solved something
+        if progress then
+          eqs = postponed.reverse
+          postponed = Nil
+          progress = false
+        else result = stuck
+      else
+        val (a0, b0) = eqs.head
+        eqs = eqs.tail
+        val a = force(p.norm(core, a0))
+        val b = force(p.norm(core, b0))
+        def postpone(s: IndexUnification.Stuck): Unit =
+          if postponed.isEmpty then stuck = Some(s)
+          postponed = (a, b) :: postponed
+        if quote(p.size, a) != quote(p.size, b) then
+          (freeVar(p, a), freeVar(p, b)) match
+            case (Some(x), Some(y)) =>
+              p = p.solve(core, x.max(y), Val.local(x.min(y)))
+              progress = true
+            case (Some(x), None) =>
+              solveVar(p, x, b) match
+                case Right(q) => p = q; progress = true
+                case Left(s: IndexUnification.Stuck) => postpone(s)
+                case Left(r) => result = Some(r)
+            case (None, Some(y)) =>
+              solveVar(p, y, a) match
+                case Right(q) => p = q; progress = true
+                case Left(s: IndexUnification.Stuck) => postpone(s)
+                case Left(r) => result = Some(r)
+            case (None, None) =>
+              (a, b) match
+                case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
+                  if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
+                  else
+                    eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
+                    progress = true
+                case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
+                case _ => postpone(IndexUnification.Stuck(a, b))
     result.getOrElse(IndexUnification.Solved(p))
 
   private def freeVar(p: SplitProblem, v: Val): Option[Int] = v match
@@ -91,7 +122,7 @@ trait IndexUnifier:
   /** `x = t`: solve, unless `x` occurs in `t` (a cycle under constructors is a conflict). */
   private def solveVar(p: SplitProblem, x: Int, t: Val): Either[IndexUnification, SplitProblem] =
     if !occurs(p.size - x - 1, quote(p.size, t)) then Right(p.solve(core, x, t))
-    else if constructorTerm(t) then Left(IndexUnification.Conflict)
+    else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), t))
     else Left(IndexUnification.Stuck(Val.local(x), t))
 
   private def constructorTerm(v: Val): Boolean = force(v) match

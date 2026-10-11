@@ -1,0 +1,34 @@
+(* #67: each clause is checked once, in its own context (reference: meta/clauses, "Checking a clause") *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+(* the implicit binder `N` is in scope; `vnil` cannot occur, so no clause for it *)
+len : vec A (suc N) -> nat.
+len (vcons _ _) = suc N.
+(* the catch-all clause is checked once, with `N` and `M` variables (not at each of its three leaves) *)
+both : nat -> nat -> bool.
+both zero zero = true.
+both N M = false.
+(* a `where` block is elaborated once per clause *)
+twice : nat -> nat.
+twice zero = zero.
+twice (suc K) = suc (suc r)
+  where
+    r = twice K.
+toInt : nat -> int.
+toInt zero = 0.
+toInt (suc N) = toInt N + 1.
+bit : bool -> int.
+bit true = 1.
+bit false = 0.
+out : int -> int -> int -> int -> rel.
+out (toInt (len (vcons true (vcons false vnil)))) (toInt (twice 3)) (bit (both 1 0)) (bit (both 0 0)).

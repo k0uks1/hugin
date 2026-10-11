@@ -816,3 +816,23 @@ Depth: `mirror` over 5 000 items passes on a 1 MiB thread (also interpreted, `-X
 bundle (`web/bundle`) passes it with `node --stack-size=200`; the merge base overflows the 1 MiB thread
 from ~590 items cold (400 with `-Xint`) and the bundle from ~1 500 items on node's default stack (400
 with `--stack-size=200`).
+
+## `std/nat` in the prelude (#127)
+
+The prelude opens `nat`, `zero` and `suc` of `std/nat`, and `std/list` (#61) opens the same `nat`
+instead of declaring its own. `std/nat` declares no object constants, but since `std/list` is in the
+prelude's chain (`std/demand` imports it), the lazy re-export (docs/LIBRARIES.md) keeps `std/nat` in
+every chain. Measured with `Bench cpu` (4 rounds of 15 after 10 warm-up, thread CPU and allocation)
+against the same tree with the base's prelude and `std/list` (no `std/nat` in the chain), on a machine
+shared with other builds:
+
+| measurement | base form | with `std/nat` | change |
+|---|---:|---:|---:|
+| prelude chain elaboration, uncached, eager | 56.4 ms, 23.25 MB | 50.2 ms, 23.82 MB | CPU within noise, +2.5 % allocation |
+| compile one-line program (check, new database; chain cached) | 3.82 ms, 0.75 MB | 3.87 ms, 0.79 MB | within noise |
+| check one-line | 3.88 ms, 0.75 MB | 4.39 ms, 0.79 MB | within noise |
+
+The cost is the elaboration of three declarations and two functions by clauses, once per process (the
+chain is cached by `StdlibCache`); no measurable CPU time. Making `std/nat` lazy again would need the
+lazy re-export to leave out a file that only left-out files import; not done, since it changes the
+chains that programs share (`LibraryQueriesSuite`).

@@ -1,0 +1,14 @@
+(* #67: absurd clauses in recovery: a missing period and an unclosed `(` are reported once each, and the
+   items after them are checked *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+r : fin zero -> nat.
+r () (*~ E0001 *)
+s : fin zero -> nat.
+s (. (*~ E0001 *)
+t : fin zero -> nat.
+t ().

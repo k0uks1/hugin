@@ -17,7 +17,7 @@ import hugin.obj.typing.TypeOps
  *  equal, which costs an evaluation but cannot give a wrong answer. Spans and the source trees of rules
  *  are left out (evaluation does not read them), and so are the indexes of the core program (they speed
  *  up evaluation without changing its result; a missing one is built on demand, [[Relation.index]]). */
-final class LoweredRules(val prog: CoreProgram, val ops: TypeOps, val shape: Vector[Any]):
+final class LoweredRules(val prog: CoreProgram, val obj: ObjProgram, val ops: TypeOps, val shape: Vector[Any]):
   override def equals(that: Any): Boolean = that match
     case l: LoweredRules => shape == l.shape
     case _ => false
@@ -33,7 +33,7 @@ object LoweredRules:
     val types = obj.types.map(t => Vector(t.name, t.displayName, canon(t.kind)))
     val edges = obj.edges.map(e => (canon(e.sub), canon(e.sup)))
     val rules = prog.rules.map(rule(canon, _))
-    LoweredRules(prog, TypeOps(obj), Vector(rels, types, edges, prog.components, rules))
+    LoweredRules(prog, obj, TypeOps(obj), Vector(rels, types, edges, prog.components, rules))
 
   private def rule(canon: Canonical, r: CompiledRule): Vector[Any] =
     Vector(r.nregs, canon(r.body), r.headRel, canon(r.headArgs), r.recursiveAtoms, canon(r.limitRegs))

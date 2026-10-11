@@ -1,0 +1,29 @@
+(* #67: a clause is checked in its own context, without the refinement made by the clauses before it;
+   the errors have a fix that writes out the clause's cases *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+isz : nat -> bool.
+isz zero = true.
+isz (suc _) = false.
+sel : bool -> Type.
+sel true = nat.
+sel false = bool.
+w : (n : nat) -> sel (isz n) -> bool.
+w zero X = true.
+w N X = X. (*~ E0901 *)
+predf : nat -> nat.
+predf zero = zero.
+predf (suc K) = K.
+h : nat -> nat -> nat. (*~ E0912 *)
+h zero _ = zero.
+h N M = h (predf N) M.
