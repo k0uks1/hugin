@@ -77,8 +77,7 @@ ESCAPE    ::= '\"' | '\\' | '\n' | '\t' | '\u{' HEXDIGIT+ '}'
 An *integer literal* denotes a 64-bit signed integer, or a numeral of a nat-like meta family. It is an
 error ([E0003](errors/E0003.md)) if its value is larger than 2⁶³ − 1, unless it is checked against a
 nat-like family, whose numerals are unbounded ([Inductive families](meta/families.md#numerals)); the
-literal `9223372036854775808` is also valid after a unary minus. A literal pattern is at most 100000
-([Clauses](meta/clauses.md#patterns)).
+literal `9223372036854775808` is also valid after a unary minus.
 
 A *float literal* denotes a 64-bit IEEE 754 number. It has digits on both sides of the point: `1.0`,
 `2.5e-3`. The text `1.` is the integer `1` followed by a period.

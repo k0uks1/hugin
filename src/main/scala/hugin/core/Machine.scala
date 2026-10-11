@@ -143,6 +143,8 @@ trait Machine:
               case Tm.Persist(x) => k = KMap(persist, k); t = x
               case Tm.Proj(x, l) => k = KMap(proj(_, l), k); t = x
               case Tm.FactTy(x) => k = KMap(FactTy(_), k); t = x
+              // an offset over a deep term (successors over a call, `f N + 1` of a recursion)
+              case Tm.NatAdd(fam, x, n) => k = KMap(natAdd(fam, _, n), k); t = x
               case Tm.Require(rs, use, x) => k = KMap(required(rs, use, _), k); t = x
               case Tm.Pi(x, ic, d, b) =>
                 val e = env

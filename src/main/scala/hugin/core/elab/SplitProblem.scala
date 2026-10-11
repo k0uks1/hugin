@@ -7,7 +7,16 @@ package elab
  *  Old values (of clauses, the target type) are brought up to date by [[norm]], which re-evaluates them
  *  in the current values; since values refer to variables by level, solutions may mention variables of
  *  any level. */
-final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: Vector[Val]):
+final case class SplitProblem(
+    names: Vector[Name],
+    types: Vector[Val],
+    values: Vector[Val],
+    /** The values a free variable of a nat-like type cannot have, in the branches of a split by value
+     *  that are not the values' own ([[CaseTree.SplitNat]]). */
+    ranges: Map[Int, NatRange] = Map.empty,
+    /** No value is in this case: a range left no value. */
+    dead: Boolean = false
+):
   def size: Int = names.length
 
   /** The values as an environment (innermost first), computed once per problem. */
@@ -15,7 +24,15 @@ final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: V
   def isFree(l: Int): Boolean = values(l) == Val.local(l)
 
   def extend(name: Name, ty: Val): SplitProblem =
-    SplitProblem(names :+ name, types :+ ty, values :+ Val.local(size))
+    copy(names = names :+ name, types = types :+ ty, values = values :+ Val.local(size))
+
+  /** The range of the free variable `x` (every numeral if none). */
+  def range(x: Int): NatRange = ranges.getOrElse(x, NatRange.all)
+
+  /** The problem with the free variable `x` restricted to the range `r` as well. */
+  def restrict(x: Int, r: NatRange): SplitProblem =
+    val merged = range(x).meet(r)
+    copy(ranges = ranges.updated(x, merged), dead = dead || merged.isEmpty)
 
   /** Brings a value up to date with the current solutions. */
   def norm(core: Core, v: Val): Val = core.eval(env, core.quote(size, v))
@@ -39,10 +56,35 @@ final case class SplitProblem(names: Vector[Name], types: Vector[Val], values: V
     val env = (0 until size).map(l => position.get(l).map(Val.local).getOrElse(Val.Wild)).reverse.toList
     v => core.eval(env, core.quote(size, v))
 
-  /** Solves the free variable `x` by `t` (which must not mention `x`). */
+  /** Solves the free variable `x` by `t` (which must not mention `x`); a range of `x` moves to the
+   *  variable under the successors of `t`, or decides whether the case is dead. */
   def solve(core: Core, x: Int, t: Val): SplitProblem =
     val p = copy(values = values.updated(x, t))
-    p.copy(values = p.values.map(p.norm(core, _)), types = p.types.map(p.norm(core, _)))
+    val solved = p.copy(values = p.values.map(p.norm(core, _)), types = p.types.map(p.norm(core, _)))
+    ranges.get(x) match
+      case None => solved
+      case Some(r) =>
+        val q = solved.copy(ranges = ranges - x)
+        core.natChain(solved.values(x)) match
+          case Left(m) => if r.allows(m) then q else q.copy(dead = true)
+          case Right((i, Val.Rigid(Head.Local(y), Nil))) if q.isFree(y) => q.restrict(y, r.shift(i))
+          case Right(_) => q
+
+/** The numerals a variable of a nat-like type can still be: not one of `excluded`, and below `below` if
+ *  given. */
+final case class NatRange(excluded: Set[BigInt], below: Option[BigInt]):
+  def allows(v: BigInt): Boolean = v >= 0 && !excluded(v) && below.forall(v < _)
+  def meet(r: NatRange): NatRange =
+    NatRange(excluded ++ r.excluded, (below.toList ++ r.below.toList).minOption)
+
+  /** The range of `y` where the variable is `y + i`. */
+  def shift(i: BigInt): NatRange = NatRange(excluded.collect { case v if v >= i => v - i }, below.map(_ - i))
+
+  /** No numeral is in the range. */
+  def isEmpty: Boolean = below.exists(b => b <= 0 || (b <= excluded.size && (BigInt(0) until b).forall(excluded)))
+
+object NatRange:
+  val all: NatRange = NatRange(Set.empty, None)
 
 /** The outcome of unifying constructor indices during a split. */
 enum IndexUnification:
@@ -104,8 +146,26 @@ trait IndexUnifier:
                 case Right(q) => p = q; progress = true
                 case Left(s: IndexUnification.Stuck) => postpone(s)
                 case Left(r) => result = Some(r)
+            case (None, None) if isNumeralForm(a) && isNumeralForm(b) =>
+              // numerals and offsets by value: the smaller number of successors is taken off both sides
+              (natChain(a), natChain(b)) match
+                case (Left(m), Left(n)) => result = Some(IndexUnification.Conflict(a, b))
+                case (Left(m), Right((i, base))) =>
+                  if m >= i then
+                    eqs = (Val.Nat(natFamilyOf(b), m - i), base) :: eqs
+                    progress = true
+                  else result = Some(IndexUnification.Conflict(a, b))
+                case (Right((i, base)), Left(n)) =>
+                  if n >= i then
+                    eqs = (base, Val.Nat(natFamilyOf(a), n - i)) :: eqs
+                    progress = true
+                  else result = Some(IndexUnification.Conflict(a, b))
+                case (Right((i, b1)), Right((j, b2))) =>
+                  val m = i.min(j)
+                  eqs = (natAdd(natFamilyOf(a), b1, i - m), natAdd(natFamilyOf(b), b2, j - m)) :: eqs
+                  progress = true
             case (None, None) =>
-              // two numerals by value, a numeral against a constructor application by one view step
+              // a numeral against a constructor application by one view step
               (natView(a), natView(b)) match
                 case _ if a.isInstanceOf[Val.Nat] && b.isInstanceOf[Val.Nat] => result = Some(IndexUnification.Conflict(a, b))
                 case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
@@ -127,7 +187,23 @@ trait IndexUnifier:
     else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), t))
     else Left(IndexUnification.Stuck(Val.local(x), t))
 
+  /** A numeral, an offset, or a successor application. */
+  private def isNumeralForm(v: Val): Boolean = v match
+    case _: Val.Nat | _: Val.NatAdd => true
+    case Val.Rigid(Head.Glob(c), _) => isSuccessor(c)
+    case _ => false
+
+  /** The nat-like family of a numeral form. */
+  private def natFamilyOf(v: Val): Int = v match
+    case Val.Nat(f, _) => f
+    case Val.NatAdd(f, _, _) => f
+    case Val.Rigid(Head.Glob(c), _) =>
+      globals(c).kind match
+        case GlobalKind.Constructor(f) => f
+        case _ => -1
+    case _ => -1
+
   private def constructorTerm(v: Val): Boolean = force(v) match
     case Val.Rigid(Head.Glob(c), _) => isConstructor(c)
-    case _: Val.Nat => true
+    case _: Val.Nat | _: Val.NatAdd => true
     case _ => false

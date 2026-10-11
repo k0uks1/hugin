@@ -21,6 +21,12 @@ enum CaseTree:
    *  (`value` is closed and normal), and `default` for every other value. */
   case SplitAtom(level: Int, branches: List[(Tm, CaseTree)], default: CaseTree)
 
+  /** A split on a variable of the nat-like family `fam` by value (Agda's literal branches, Lean's
+   *  `caseValues`): a branch per numeral `values` names; then, if `offset > 0`, `above` for a value of at
+   *  least `offset` (with the value minus `offset` as a new variable) and `below` for a smaller one;
+   *  without an offset, `below` for every other value. */
+  case SplitNat(level: Int, fam: Int, values: List[(BigInt, CaseTree)], offset: BigInt, above: CaseTree, below: CaseTree)
+
 final case class CaseBranch(ctor: Int, arity: Int, tree: CaseTree)
 
 /** A clause of a function as elaborated, in its own context: the context's variables (in telescope order)

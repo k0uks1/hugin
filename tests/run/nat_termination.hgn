@@ -1,0 +1,9 @@
+(* #131: a numeral is smaller than a literal pattern by value: `f 5 = f 3` decreases
+   (reference: meta/termination) *)
+f : nat -> int.
+f 0 = 0.
+f 5 = f 3.
+f 3 = f 0 + 3.
+f (N + 1) = f N.
+out : int -> int -> rel.
+out (f 5) (f 9).

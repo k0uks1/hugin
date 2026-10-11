@@ -108,6 +108,10 @@ enum Tm:
    *  `sucⁿ zero`, represented as a number ([[Naturals]]). */
   case Nat(fam: Int, n: BigInt)
 
+  /** The successor of the nat-like family `fam` applied `k ≥ 1` times to the open term `base`, `base + k`
+   *  ([[Naturals]]): the open counterpart of [[Nat]], so that an offset takes no space of its own. */
+  case NatAdd(fam: Int, base: Tm, k: BigInt)
+
   /** `rel` and `prop`, the object sorts of relations and formulas. */
   case RelT
   case PropT
@@ -170,6 +174,7 @@ object Tm:
     case Module(_, env) => env
     case Persist(a) => List(a)
     case FactTy(a) => List(a)
+    case NatAdd(_, b, _) => List(b)
     case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => Nil
 
   /** `t` with `f` applied to its immediate subterms (those under binders included); a module body's own
@@ -195,11 +200,15 @@ object Tm:
     case Module(b, env) => Module(b, env.map(f))
     case Persist(a) => Persist(f(a))
     case FactTy(a) => FactTy(f(a))
+    case NatAdd(fam, b, k) => NatAdd(fam, f(b), k)
     case Var(_) | Global(_) | Meta(_) | U0 | U1(_) | Lit(_, _) | Base(_, _) | RelT | PropT | Nat(_, _) => t
 
   /** `t` with its globals and metas renamed by `g` and `m`. */
   def rename(t: Tm, g: Int => Int, m: Int => Int): Tm = t match
     case Global(id) => Global(g(id))
+    // a numeral or an offset names its family
+    case Nat(fam, n) => Nat(g(fam), n)
+    case NatAdd(fam, b, k) => NatAdd(g(fam), rename(b, g, m), k)
     case Meta(x) => Meta(m(x))
     case other => mapChildren(other)(rename(_, g, m))
 
@@ -232,6 +241,7 @@ object Tm:
       case Module(b, env) => Module(b, env.map(go(_, k)))
       case Persist(a) => Persist(go(a, k))
       case FactTy(a) => FactTy(go(a, k))
+      case NatAdd(fam, b, j) => NatAdd(fam, go(b, k), j)
       case other => other
     go(t, cutoff)
 

@@ -91,7 +91,9 @@ nat-like family of its own, computes by its clauses (its numerals are still numb
 [Inductive families](../meta/families.md#numerals)).
 
 On arguments that are not all numerals, such as a variable of a clause, the clauses run as for any
-function ([Clauses](../meta/clauses.md#evaluation)): `plus N 3` evaluates to `N + 3`, `less (N + 3) 3` to
+function ([Clauses](../meta/clauses.md#evaluation)), with one shortcut: `plus N k` of a numeral `k` is
+the offset `N + k` in one step, which its clauses give after `k` steps, so `plus N 100001` takes no
+longer than `plus N 1`. `plus N 3` evaluates to `N + 3`, `less (N + 3) 3` to
 `false`, and `times N 2` stays `plus (plus 0 N) N` while `N` is not known. Types that use the functions
 compute with them as before: a `vec A (plus N 1)` is a `vec A (N + 1)`.
 

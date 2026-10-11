@@ -86,6 +86,24 @@ class LongListsSuite extends munit.FunSuite:
     assertEquals(out.toSet, Set("value 5000.", "value 4000."))
   }
 
+  test("a meta function whose recursive call is under an offset, 5000 levels deep on a 1 MiB stack") {
+    // `plus N M + 1` is an offset over the recursive call (#131): the offset is a frame of the machine, as
+    // every compound term is, not a native step that enters the machine again per level (a JDK 17
+    // overflow of `plus 300 400` before)
+    val code =
+      """plus : nat -> nat -> nat.
+        |plus N 0 = N.
+        |plus N (M + 1) = plus N M + 1.
+        |toI : nat -> int.
+        |toI 0 = 0.
+        |toI (N + 1) = toI N + 1.
+        |value : int -> rel.
+        |value (toI (plus 300 5000)).
+        |""".stripMargin
+    val out = onDefaultStack(hugin.TestSupport.run(code)).fold(e => fail(s"errors: $e"), identity)
+    assertEquals(out, List("value 5300."))
+  }
+
   test("memo keys and evaluation of a list of 100 000 elements") {
     val e = ok(
       """nat : Type.

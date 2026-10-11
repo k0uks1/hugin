@@ -49,6 +49,15 @@ them off its tree, which splits at positions of Π: a clause is reachable exactl
 tree, where the analysis goes on below an empty variable with the clauses that have no constructor
 there, and the missing probes are those below the branches without clauses.
 
+At a position of a nat-like family, where the patterns are numeral patterns
+([Clauses](clauses.md#patterns)), the probes are *value classes* instead of unary terms: the literals `k`
+and offsets `P + j` of the clauses at the position cut the numerals into the singletons `{k}` and the
+intervals between the cuts `k`, `k + 1` and `j`, the last one unbounded, and no clause tells the numerals
+of a class apart. A singleton or a bounded interval gives a probe per numeral in it, and the unbounded
+interval from `a` the probe `Q + a` (`Q` if `a` is 0). These are the verdicts of the unary probes `sucⁿ
+zero`, at the cost of the number of literals and offsets, not of their values: `f 3 = 0. f (N + 5) = 1.`
+misses `f 0`, `f 1`, `f 2` and `f 4`.
+
 Emptiness is decided one level deep: a variable is empty if every constructor of its type conflicts with
 its indices. A refuted probe needs no clause, but a clause that matches only refuted probes is
 reachable. In the following program, `none` is a legitimate function on `fin 0`, the empty type of

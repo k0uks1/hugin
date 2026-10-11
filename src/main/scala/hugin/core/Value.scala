@@ -66,6 +66,10 @@ enum Val:
    *  of constructor applications ([[Naturals]]); consumers that inspect constructors see it through
    *  [[Naturals.natView]], one constructor at a time. */
   case Nat(fam: Int, n: BigInt)
+
+  /** The successor of `fam` applied `k ≥ 1` times to `base`, a value that is neither a numeral nor an
+   *  offset itself ([[Naturals.natAdd]]); seen through [[Naturals.natView]] like a numeral. */
+  case NatAdd(fam: Int, base: Val, k: BigInt)
   case RelT
   case PropT
 

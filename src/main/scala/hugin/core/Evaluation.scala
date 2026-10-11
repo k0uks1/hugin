@@ -44,6 +44,7 @@ trait Evaluation:
     case Tm.Proj(t, l) => proj(eval(env, t), l)
     case Tm.Lit(l, st) => Lit(l, st)
     case Tm.Nat(f, n) => Nat(f, n)
+    case Tm.NatAdd(f, b, k) => natAdd(f, eval(env, b), k)
     case Tm.Base(b, st) => Base(b, st)
     case Tm.RelT => RelT
     case Tm.PropT => PropT
@@ -181,6 +182,10 @@ trait Evaluation:
     case Arith(op, a, b, Stage.S1) => arith(op, force(a), force(b), Stage.S1)
     case Negate(a, Stage.S1) => negate(force(a), Stage.S1)
     case Persist(t) => persist(force(t))
+    // an offset whose base became a numeral or an offset
+    case NatAdd(f, b, k) =>
+      val fb = force(b)
+      if fb eq b then v else natAdd(f, fb, k)
     case other => other
 
   /** [[force]] without unfolding definitions: solved metas at the head are unfolded and stuck function

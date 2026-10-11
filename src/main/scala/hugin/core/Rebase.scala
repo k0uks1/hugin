@@ -35,6 +35,8 @@ final class GlobalKeys(core: Core, from: Int):
   /** A term with its globals replaced by their references, comparable across cores. */
   private def canon(x: Any, ref: Int => Any): Any = x match
     case Tm.Global(id) => ("global", ref(id))
+    case Tm.Nat(fam, n) => ("nat", ref(fam), n)
+    case Tm.NatAdd(fam, b, k) => ("natAdd", ref(fam), canon(b, ref), k)
     case s: Iterable[?] => s.map(canon(_, ref)).toVector
     case p: Product if p.productArity > 0 => (p.getClass, p.productIterator.map(canon(_, ref)).toVector)
     case other => other
@@ -98,6 +100,8 @@ object Rebase:
     while ok && todo.nonEmpty do
       ok = !Tm.exists(todo.pop()) {
         case Tm.Global(id) => !global(id)
+        case Tm.Nat(fam, _) => !global(fam)
+        case Tm.NatAdd(fam, _, _) => !global(fam)
         case Tm.Meta(m) => !meta(m)
         case Tm.U1(l) => !l.isConst && l.v >= libLevels && l.v < oldCore.levels.count
         case _ => false
