@@ -6,7 +6,7 @@ approved by the designer; order 1, 2, 3, 5, then 4, 6; 7 after #91; 8 deferred.
 
 Contents: 1 recommendations, 2 what we have, 3 measurements, 4 prior art and fit, 5 alternatives
 rejected, 6 ranked pull requests, 7 interactions with #91 and #100, 8 sources; 9 addendum: PR 7 in
-detail (proposed, for approval).
+detail (approved).
 
 ## 1. Recommendations
 
@@ -376,11 +376,13 @@ language server usable on large files whatever the compile costs; 6 before 7 bec
 
 ## 9. Addendum: PR 7 in detail
 
-Status: proposed, for approval by the designer; no code before approval. Built on `e9d8f99` (after #91
-batch 1 and #100 batch 2). PR 7 makes an object item depend on what it uses of the declarations instead
-of on the whole `Signatures` value, so that editing or adding a declaration elaborates only the items
-that use it (section 3.1: `large` 869 and 927 ms per declaration edit or addition, of which 448 ms are
-the 3 691 `ElabItem`s, section 3.2). It has two parts: (a) items elaborated on an earlier declarations'
+Status: approved by the designer, as recommended: an item that touches an unsolved meta or a universe
+level created by the declarations is not reused, and an item with an unresolved name depends on every
+addition to scope (section 9.7). Implemented in the steps of section 9.6, one pull request each.
+Built on `e9d8f99` (after #91 batch 1 and #100 batch 2). PR 7 makes an object item depend on what it
+uses of the declarations instead of on the whole `Signatures` value, so that editing or adding a
+declaration elaborates only the items that use it (section 3.1: `large` 869 and 927 ms per declaration
+edit or addition, of which 448 ms are the 3 691 `ElabItem`s, section 3.2). It has two parts: (a) items elaborated on an earlier declarations'
 core are moved onto the current one by stable keys; (b) an item's memo is valid while what it read of
 the declarations is unchanged, compared by fingerprints.
 
