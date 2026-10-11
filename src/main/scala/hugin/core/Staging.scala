@@ -82,7 +82,10 @@ final class Staging(core: Core, reporter: Reporter):
       val ty = showTm(Nil, zonk(Nil, 0, g.tyTm))
       g.kind match
         case GlobalKind.Definition(tm, _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.")
-        case GlobalKind.Function(_, Some(tree)) => s"${g.name} : $ty." :: clauses(g.name, tree)
+        case GlobalKind.Function(_, Some(tree)) =>
+          // an operation of `std/nat` computes on numerals (reference: std/nat, native arithmetic)
+          val native = tree.native.map(n => s"  (* native: ${n.op.key} *)").toList
+          s"${g.name} : $ty." :: native ++ clauses(g.name, tree)
         case _ => List(s"${g.name} : $ty.")
     case CoreItem.RuleItem(name, vars, heads, body, span, generic, _) =>
       val env = vars.indices.reverse.map(Val.local).toList

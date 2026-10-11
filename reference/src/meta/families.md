@@ -98,7 +98,9 @@ nat-like family has numerals, whatever the names of the family and its construct
 Arithmetic does not apply to nat-like families otherwise: `m + n` of two naturals, `n - 1` and `n * 2`
 are errors ([E0901](../errors/E0901.md)); a function by clauses computes them, such as `plus` of
 [`std/nat`](../std/nat.md). The meta type `int` has no conversion to a nat-like family; a function by
-clauses converts in the other direction, such as `toInt` of `std/nat`.
+clauses converts in the other direction, such as `toInt` of `std/nat`. The functions of `std/nat` compute
+directly on numerals, in one step ([native arithmetic](../std/nat.md#native-arithmetic)); a program's own
+functions compute by their clauses.
 
 Numerals are terms of the two constructors, and every rule of the language treats them so: matching,
 unification, index unification and the termination check see the numeral `n + 1` as the successor

@@ -56,7 +56,7 @@ trait Naturals:
   /** `v` with folded definitions and solved metas at its head unfolded, without reducing applications:
    *  forcing the argument of every successor would make a chain over a neutral quadratic. */
   @scala.annotation.tailrec
-  private def numeral(v: Val): Val = v match
+  final def numeral(v: Val): Val = v match
     case Val.Top(_, _, u) => numeral(u.value)
     case Val.Flex(m, Nil) =>
       metas(m).solution match

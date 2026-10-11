@@ -1,0 +1,9 @@
+error[E0909]: cannot compute a primitive value at compile time
+ --> tests/neg/nat_toint.hgn:5:1
+  |
+5 | r (toInt (times 4294967296 2147483648)). (*~ E0909 *)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `toInt 9223372036854775808` does not evaluate to a literal
+  |
+  = note: a meta value used in object code must evaluate to a literal (overflow and division by zero are undefined)
+
+1 error found

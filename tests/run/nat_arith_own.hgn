@@ -1,0 +1,13 @@
+(* #131: a program's own arithmetic, even with the clauses of `std/nat`'s `plus`, is an ordinary
+   function: its numerals are numbers, and it computes by its clauses (reference: std/nat, native
+   arithmetic) *)
+plus : nat -> nat -> nat.
+plus N 0 = N.
+plus N (M + 1) = plus N M + 1.
+
+toI : nat -> int.
+toI 0 = 0.
+toI (N + 1) = toI N + 1.
+
+r : (n : int) -> rel.
+r (toI (plus 300 400)).

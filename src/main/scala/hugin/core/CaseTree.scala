@@ -28,5 +28,6 @@ final case class CaseBranch(ctor: Int, arity: Int, tree: CaseTree)
  *  is the right-hand side; an absurd clause (`f ().`) has none. */
 final case class ClauseBody(body: Option[Tm], names: Vector[Name], patterns: List[Tm])
 
-/** The case tree of a function and its clauses, as written (for display: `--print-after`, hover). */
-final case class FunctionBody(tree: CaseTree, clauses: Vector[ClauseBody])
+/** The case tree of a function and its clauses, as written (for display: `--print-after`, hover); for an
+ *  operation of `std/nat`, its native computation on numerals ([[NatArithmetic]]). */
+final case class FunctionBody(tree: CaseTree, clauses: Vector[ClauseBody], native: Option[NativeNat] = None)

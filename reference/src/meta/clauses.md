@@ -158,7 +158,9 @@ with another constructor there no longer apply. When the first clause that may s
 pattern left, its right-hand side gives the value. A numeral matches the constant of its family if it is
 `0`, and the successor applied to its predecessor otherwise ([Inductive families](families.md#numerals)).
 On arguments that are all known (closed constructor
-applications), this is the first clause whose patterns match them.
+applications), this is the first clause whose patterns match them. The arithmetic of
+[`std/nat`](../std/nat.md#native-arithmetic) computes on numerals directly, with the value its clauses give,
+and by its case tree on other arguments.
 
 An application whose tree splits on an argument that is not a constructor application (a variable of an
 enclosing function or of a clause, a postulate, a stuck application) stays unevaluated until the argument
