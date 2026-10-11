@@ -1,0 +1,45 @@
+// warning[W0009]: this clause of `gg` does not hold definitionally
+//   --> tests/run/cov_inexact.hgn:12:1
+//    |
+// 12 | gg _ (suc _) = false.
+//    | ^^^^^^^^^^^^^^^^^^^^^ the case tree uses it for 2 separate cases
+//    |
+//    = note: the cases are `gg 0 (_ + 1)`, `gg (_ + 1) (_ + 1)`
+//    = note: evaluation follows the case tree, which first inspects arguments that this clause does not match on: an application that matches the clause evaluates by it only once those arguments are constructor applications
+//    = note: `-W inexact_clauses` is set on the command line
+//    = help: to make the clause hold definitionally, write its cases as separate clauses
+// 
+// warning[W0009]: this clause of `n2` does not hold definitionally
+//   --> tests/run/cov_inexact.hgn:17:1
+//    |
+// 17 | n2 _ _ = false.
+//    | ^^^^^^^^^^^^^^^ the case tree uses it for 2 separate cases
+//    |
+//    = note: the cases are `n2 0 (_ + 1)`, `n2 (_ + 1) _`
+//    = note: evaluation follows the case tree, which first inspects arguments that this clause does not match on: an application that matches the clause evaluates by it only once those arguments are constructor applications
+//    = note: `-W inexact_clauses` is set on the command line
+//    = help: to make the clause hold definitionally, write its cases as separate clauses
+// 
+// warning[W0009]: this clause of `f` does not hold definitionally
+//   --> tests/run/cov_inexact.hgn:21:1
+//    |
+// 21 | f _ zero = false.
+//    | ^^^^^^^^^^^^^^^^^ the case tree uses it only for `f (_ + 1) 0`
+//    |
+//    = note: evaluation follows the case tree, which first inspects arguments that this clause does not match on: an application that matches the clause evaluates by it only once those arguments are constructor applications
+//    = note: `-W inexact_clauses` is set on the command line
+//    = help: to make the clause hold definitionally, write its cases as separate clauses
+// 
+// warning[W0009]: this clause of `f` does not hold definitionally
+//   --> tests/run/cov_inexact.hgn:22:1
+//    |
+// 22 | f _ (suc _) = true.
+//    | ^^^^^^^^^^^^^^^^^^^ the case tree uses it for 2 separate cases
+//    |
+//    = note: the cases are `f 0 (_ + 1)`, `f (_ + 1) (_ + 1)`
+//    = note: evaluation follows the case tree, which first inspects arguments that this clause does not match on: an application that matches the clause evaluates by it only once those arguments are constructor applications
+//    = note: `-W inexact_clauses` is set on the command line
+//    = help: to make the clause hold definitionally, write its cases as separate clauses
+// 
+// 4 warnings found
+out 0 0 0 5 1.

@@ -19,7 +19,8 @@ context](clauses.md#checking-a-clause), at the arguments of the branch.
 
 The tree splits in the *canonical order*: on the leftmost constructor position (by argument, then depth
 first) of the first clause that may apply whose split is decided (see [Undecided
-splits](#undecided-splits)). This is the order of Agda and Lean 4.
+splits](#undecided-splits)). This is the order of Agda and Lean 4. The same tree evaluates applications
+of the function: [Evaluation](clauses.md#evaluation) says when an application is stuck.
 
 ## Cases and probes
 

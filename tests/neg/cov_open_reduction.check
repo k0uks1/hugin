@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+  --> tests/neg/cov_open_reduction.hgn:18:9
+   |
+18 | u X B = B. (*~ E0901 *)
+   |         ^ expected `bool`, found `sel (gg X 1)`
+
+1 error found

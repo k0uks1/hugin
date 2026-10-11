@@ -265,6 +265,27 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
       }
     }
 
+  /** At a `}` that starts a line of a module body laid out over several lines: whether it is stray, being
+   *  indented deeper than the line of the body's `{` while the next `}` at depth 0 starts a line at that
+   *  line's indentation (the layout rule of `docs/PARSER.md`, §4.3: a construct over several lines is
+   *  closed at the indentation of the line of its opener). This is the `}` of a nested body whose `{` was
+   *  lost (`inner =`⏎`    a : t.`⏎`  }.` in a body opened in column 0): it does not close the enclosing
+   *  body early, as the `}` of a top-level body whose `{` was lost closes nothing. */
+  protected def strayIndentedBodyCloser: Boolean =
+    bodyOpeners.headOption.flatten.exists { open =>
+      at(Tok.RBrace) && startsLine(i) && tok.span.startCol > indentation(open) && openerEndsLine(open) && {
+        var k = i + 1
+        var depth = 0
+        while toks(k).kind != Tok.EOF && !(depth == 0 && toks(k).kind == Tok.RBrace) && !(atColumn0(k) && toks(k).kind != Tok.RBrace) do
+          toks(k).kind match
+            case Tok.LParen | Tok.LBrack | Tok.LBrace => depth += 1
+            case Tok.RParen | Tok.RBrack | Tok.RBrace => depth -= 1
+            case _ =>
+          k += 1
+        toks(k).kind == Tok.RBrace && startsLine(k) && toks(k).span.startCol == indentation(open)
+      }
+    }
+
   /** Whether a directive token starts an item: every directive but `%import` and `%builtin` (expressions)
    *  and `%complete` (a requirement in a signature). */
   protected def startsDirectiveItem(t: Token): Boolean =
