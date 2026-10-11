@@ -171,11 +171,11 @@ The following program defines addition by clauses with a variable pattern for th
 
 ```hugin,run
 plus : nat -> nat -> nat.
-plus zero N = N.
-plus (suc M) N = suc (plus M N).
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
 toInt : nat -> int.
-toInt zero = 0.
-toInt (suc N) = toInt N + 1.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
 total : int -> rel.
 total (toInt (plus 2 3)).
 ```

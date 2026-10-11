@@ -3,6 +3,7 @@
 //     diagnostics, as `// ` comments, and Hugin.run's `output` must equal X.check, as GoldenTests builds it
 //     from `hugin run` (X.flags translated to options);
 //   - every tests/json program: Hugin.check's diagnostics must equal the JSON lines of X.check;
+//   - the highlighting and the editor's analysis (Hugin.highlight, Hugin.analyse) on small programs;
 // and prints the bundle's size. Usage, from the repository root: node scripts/js-golden.mjs [web/target/bundle]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -105,6 +106,20 @@ const cls = (text) => hl.tokens?.find((r) => r[0] === text)?.[1] ?? [];
 if (hl.tokens?.map((r) => r[0]).join('') !== hlSource) fail('highlight', 'the runs do not cover the program: ' + JSON.stringify(hl));
 else if (!cls('path').includes('function') || !cls('X').includes('variable') || !cls('int').includes('type')) fail('highlight', 'unexpected classes: ' + JSON.stringify(hl.tokens));
 if (JSON.stringify(JSON.parse(Hugin.run(hlSource)).tokens) !== JSON.stringify(hl.tokens)) fail('highlight', 'run and highlight disagree');
+
+// the editor's analysis (Hugin.analyse, and `info` in run's answer): the highlighting and the annotation
+// table, in UTF-16 offsets; the session's database makes a repeated call free
+const an = JSON.parse(Hugin.analyse(hlSource));
+const at = (needle, n = 0) => { let i = -1; for (let k = 0; k <= n; k++) i = hlSource.indexOf(needle, i + 1); return i; };
+const nameAt = (off) => an.info?.names?.find((n) => n[0] === off);
+const use = nameAt(at('edge X'));
+if (JSON.stringify(an.tokens) !== JSON.stringify(hl.tokens)) fail('analyse', 'analyse and highlight disagree');
+else if (!use || use[5] !== at('edge :') || nameAt(at('edge :'))?.[4] !== 1 || nameAt(at('edge :'))?.[3] !== use[3])
+  fail('analyse', 'unexpected names: ' + JSON.stringify(an.info));
+else if (an.info.hovers[use[2]]?.[0] !== 'relation edge : int -> int -> rel') fail('analyse', 'unexpected hover: ' + JSON.stringify(an.info.hovers));
+if (JSON.stringify(JSON.parse(Hugin.run(hlSource)).info) !== JSON.stringify(an.info)) fail('analyse', 'run and analyse disagree');
+const lib = JSON.parse(Hugin.analyse('%use "std/graph".\nc : type.\nr : c -> c -> rel.\n%input r.\nt = tc { node = c, edge = r }.\n'));
+if (!lib.info?.names?.some((n) => JSON.stringify(n[5]) === '["std/graph","tc"]')) fail('analyse', 'no library target: ' + JSON.stringify(lib.info));
 
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');

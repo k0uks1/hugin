@@ -30,10 +30,15 @@ final case class FixpointKey(compile: CompileKey, facts: List[String])
  *  for the bindings a query asks with. The fixpoint is keyed on the transformed program, as compiled,
  *  so a query that changes the transformed rules evaluates again, and one that leaves them equal reuses
  *  the fixpoint. (Reusing the fixpoint of the rules the transformation leaves unchanged and evaluating
- *  only what it adds is per-component reuse, issue #126, PR 4.) */
+ *  only what it adds is per-component reuse, issue #126, PR 4.) When the rules change, the evaluation
+ *  copies from the earlier fixpoint of the key the components before the first that changed
+ *  ([[hugin.runtime.Reuse]]). */
 object Fixpoint extends Query[FixpointKey, Option[Evaluation.Fixpoint]]("fixpoint"):
   def compute(key: FixpointKey)(using db: Database): Option[Evaluation.Fixpoint] =
-    db(Lowered, key.compile).map(l => Evaluation.fixpoint(l.prog, l.ops, key.facts.map(db(FactsFile, _))))
+    // the earlier fixpoint of this key, if any, only to copy what does not change (the result is the
+    // evaluation from scratch, [[hugin.runtime.Reuse]])
+    val previous = db.previous(Fixpoint, key).flatten
+    db(Lowered, key.compile).map(l => Evaluation.fixpoint(l.prog, l.obj, l.ops, key.facts.map(db(FactsFile, _)), previous))
 
 final case class EvaluateKey(compile: CompileKey, facts: List[String] = Nil, allRelations: Boolean = false)
 

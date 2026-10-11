@@ -17,12 +17,14 @@ import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
  *    "relations": [ { "name": "path", "vars": [], "rows": [["a", "b"], …] } ],   // the shown relations
  *    "output": [ … ],         // what `hugin run` prints on stdout: printed, facts, then queries and answers
  *    "tokens": [ ["text", ["class", …]], … ],   // the highlighting, as `hugin highlight` (runs covering the program)
+ *    "info": { "names": …, "hovers": …, "hints": … },   // the annotation table (Session.info)
  *    "timeMs": 42 }
  *  }}}
  *
  *  or `{ "version": 1, "error": "…" }` for an invalid option or an internal error. The program may import
  *  the `std/` modules; any other import is reported as missing (E0108). The options are those of
- *  [[Request.read]], as an object or its JSON text. */
+ *  [[Request.read]], as an object or its JSON text. All calls share one query database ([[Session]]): a
+ *  call on the same text as the previous one reuses its compilation. */
 @JSExportTopLevel("Hugin")
 object Hugin:
   /** The version of the result format. */
@@ -39,6 +41,12 @@ object Hugin:
   /** The highlighting of the program only (no diagnostics, no evaluation): `{ "version": 1, "tokens": … }`. */
   @JSExport def highlight(source: String, options: js.UndefOr[js.Any] = js.undefined): String =
     Playground.highlight(source, options)
+
+  /** The editor's analysis of the program (no diagnostics, no evaluation): `{ "version": 1, "tokens": …,
+   *  "info": … }`, the highlighting and the annotation table from which the playground answers hover,
+   *  go to definition, occurrences and references (`docs/design/web-ide.md`, 5.2). */
+  @JSExport def analyse(source: String, options: js.UndefOr[js.Any] = js.undefined): String =
+    Playground.analyse(source, options)
 
   /** Makes the current Web Worker answer messages ([[WorkerMain]]); for a worker without a handler of
    *  its own: `importScripts("hugin.js"); Hugin.serveWorker()`. */

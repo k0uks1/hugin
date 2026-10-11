@@ -4,7 +4,8 @@
 // The bundle declares the facade as a top-level `let Hugin`: a global binding of the script scope, which
 // is not a property of `self`, so it is read by its name.
 //
-// Page -> worker: { id, op: "run" | "check" | "highlight", source, printAfter }   (printAfter: a phase name or "")
+// Page -> worker: { id, op: "run" | "check" | "analyse", version, source, printAfter }   (printAfter: a phase
+//                 name or ""; version: the page's counter of the editor's text, echoed in the result)
 // Worker -> page: { ready: true, phases: [..] } once loaded, or { ready: false, error } if the bundle is
 //                 missing; then { id, result } or { id, error } per request.
 //
@@ -15,8 +16,11 @@
 //     answers: [{ query, vars: [..], rows: [[..]] }],      // one per `?-` query
 //     relations: [{ name, vars: [..], rows: [[..]] }],     // the `%output` relations
 //     printed: "<program after printAfter>" | undefined,
-//     tokens: [[text, [classes]]] | undefined }            // as `hugin highlight` returns them
-// (a `highlight` request has only the tokens)
+//     tokens: [[text, [classes]]] | undefined,             // as `hugin highlight` returns them
+//     info: { names, hovers, hints } | undefined,          // the annotation table (docs/design/web-ide.md 5.2)
+//     version }
+// (an `analyse` request has only the tokens and the table). The compiler keeps one database for the
+// worker's lifetime, so a request on the text of the previous one costs no compilation.
 // Only `adapt` and `normalise` know the facade's names.
 "use strict";
 
@@ -43,7 +47,7 @@ function phases() {
 
 function adapt(op, source, printAfter) {
   const options = JSON.stringify({ printAfter: printAfter || null, file: "main.hgn" });
-  const fn = op === "highlight" ? api.highlight : op === "check" ? api.check : api.run;
+  const fn = op === "analyse" ? api.analyse || api.highlight : op === "check" ? api.check : api.run;
   return fn.call(api, source, options);
 }
 
@@ -65,14 +69,15 @@ function normalise(raw) {
     relations: list(r.relations).map(table),
     printed: r.printed == null ? undefined : String(r.printed),
     tokens: r.tokens ? list(r.tokens) : undefined,
+    info: r.info || undefined,
   };
 }
 
 onmessage = (e) => {
-  const { id, op, source, printAfter } = e.data;
+  const { id, op, version, source, printAfter } = e.data;
   if (!api) return postMessage({ id, error: "the compiler is not available" });
   try {
-    postMessage({ id, result: normalise(adapt(op, source, printAfter)) });
+    postMessage({ id, result: { ...normalise(adapt(op, source, printAfter)), version } });
   } catch (err) {
     postMessage({ id, error: String(err && err.message ? err.message : err) });
   }
