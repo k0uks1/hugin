@@ -2,11 +2,9 @@
 
 Design note for [issue #186](https://github.com/k0uks1/hugin/issues/186): the meta level should state and
 prove properties of object-level Datalog programs, such as "this derived relation is transitive" and
-"this rewrite derives the same facts". Status: approved by the designer (first version, #190); this
-revision (r2) rewrites the user-facing design so that proofs are about programs written normally, and
-adds chapter 10 (relations as propositions, decided as D14). Nothing is implemented yet; P1 is next. Written against
-`ccr-48027e29-daam41`. No program in this note was compiled; the task allowed no builds. Statements
-about today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
+"this rewrite derives the same facts". Status: approved by the designer (rev. 2); implementation in
+progress, P1 first. Written against `ccr-48027e29-daam41`. No program in this note was compiled; the
+task allowed no builds. Statements about today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
 
 Revision history. The first review added chapter 1. The second review accepted these revisions: an
 inductive meta `int` (D8), base types reused in values (D4), right-hand-side `match` and `rewrite`
@@ -28,7 +26,7 @@ Contents: 1 the end state (a tour and two complete proofs), 2 recommendations, 3
 analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs,
 8 alternatives to `%semantics`, 9 is a (layered) modal foundation worth it?, 10 relations as
 propositions (levels 3.5 and 4), 11 worked examples against hand-written families, 12 batches,
-13 decisions, 14 sources.
+13 decisions, 14 sources, 15 implementation decisions.
 
 > **Syntax versus semantics, and why Lean doesn't need this.** Reflection gives a program as *data*:
 > its rules, as the meta level can take them apart. `derives` gives its *meaning*: which facts the
@@ -1756,26 +1754,26 @@ a lemma generator), it adds the code bridge (P7a) and rule patterns with one ade
 
 ## 13. Decisions
 
-All decisions are approved by the designer as recommended; D1 in the revised form below; D3, D4 and
-D11 as refined in r2; D14 decided in r2.
+Every decision is approved by the designer (D1 in the revised form, and D3, D4 and D11 as refined in
+rev. 2); D14 is decided as recorded in chapter 10.
 
-| | decision | approved |
-|---|---|---|
-| D1 | postulates | A meta function declared without clauses is a coverage error, E0911, exactly as if clauses were missing; only an empty argument type needs none. Abstract declarations in functor signatures and interface files are parameters and stay unchanged. `x : A = %postulate.` for deliberate axioms; `--safe` rejects postulates; assumptions are listed. No warning period: an error directly. A postulate is a definition-side choice, like `= %builtin`, not a sort like `: data`, so it belongs after `=` |
-| D2 | forced large indices | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
-| D3 | form of the semantics | library `derives` (chapter 8), written in the notation `P ⊢ r t̄` with automatic rule names (7.3, r2): no core former, no per-relation declarations, one adequacy statement |
-| D4 | carrier of values | no copies of base types; refined in r2: values are closed object code, `v : {τ : ⇑type} -> ⇑τ -> value`, so statements range over typed nodes (7.2) |
-| D5 | engine | trusted by default, certificate mode (P8); no verified engine |
-| D6 | `Prop`, irrelevance | none for now; revisit if quotients or subset types with proof fields are needed |
-| D7 | automation and kernel | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
-| D8 | integers | the meta `int` is inductive (`ofNat`, `negSucc`), unbounded, native-accelerated with an equation check (#184); the object `int` stays 64-bit; semantics via `add64 : int -> int -> option int` (4.3) |
-| D8a | the meta→object crossing of `int` | implicit check with an error, which matches today's rule for persisted values, plus `fits64 : int -> bool` for proofs and for code that wants to branch |
-| D9 | K | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
-| D10 | generativity | theorems about programs (`programOf` of functors), applied to instances through their recorded origin; audit whether memoised closed applications can share a module instance across items |
-| D11 | syntax of the proof features | as proposed in chapter 1, details fixed per batch: `= %postulate`, `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e`, `P ⊢[e] r t̄` (ASCII `\|-`), rule names `r.k`, `given`, labels `@n`, `programOf`, `here`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
-| D12 | the converse round trip `quote (unquote q) = q` | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
-| D13 | a layered or contextual modal foundation (chapter 9) | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
-| D14 | relations as propositions (chapter 10) | decided: levels 1–3 approved; level 3.5 gets a detailed design after 1–3 are implemented, and its implementation is approved subject to that design (P9, design first); level 4 recorded as an option with the conditions of 10.3, not planned |
+| | decision | status | outcome |
+|---|---|---|---|
+| D1 | postulates | approved | A meta function declared without clauses is a coverage error, E0911, exactly as if clauses were missing; only an empty argument type needs none. Abstract declarations in functor signatures and interface files are parameters and stay unchanged. `x : A = %postulate.` for deliberate axioms; `--safe` rejects postulates; assumptions are listed. No warning period: an error directly. A postulate is a definition-side choice, like `= %builtin`, not a sort like `: data`, so it belongs after `=` |
+| D2 | forced large indices | approved | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
+| D3 | form of the semantics | approved | library `derives` (chapter 8), written in the notation `P ⊢ r t̄` with automatic rule names (7.3, r2): no core former, no per-relation declarations, one adequacy statement |
+| D4 | carrier of values | approved | no copies of base types; refined in rev. 2 and approved: values are closed object code, `v : {τ : ⇑type} -> ⇑τ -> value`, so statements range over typed nodes (7.2) |
+| D5 | engine | approved | trusted by default, certificate mode (P8); no verified engine |
+| D6 | `Prop`, irrelevance | approved | none for now; revisit if quotients or subset types with proof fields are needed |
+| D7 | automation and kernel | approved | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
+| D8 | integers | approved | the meta `int` is inductive (`ofNat`, `negSucc`), unbounded, native-accelerated with an equation check (#184); the object `int` stays 64-bit; semantics via `add64 : int -> int -> option int` (4.3) |
+| D8a | the meta→object crossing of `int` | approved | implicit check with an error, which matches today's rule for persisted values, plus `fits64 : int -> bool` for proofs and for code that wants to branch |
+| D9 | K | approved | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
+| D10 | generativity | approved | theorems about programs (`programOf` of functors), applied to instances through their recorded origin; audit whether memoised closed applications can share a module instance across items |
+| D11 | syntax of the proof features | approved | as proposed in chapter 1, details fixed per batch: `= %postulate`, `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e`, `P ⊢[e] r t̄` (ASCII `\|-`), rule names `r.k`, `given`, labels `@n`, `programOf`, `here`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
+| D12 | the converse round trip `quote (unquote q) = q` | approved | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
+| D13 | a layered or contextual modal foundation (chapter 9) | approved | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
+| D14 | relations as propositions (chapter 10) | decided | levels 1–3 approved; level 3.5 gets a detailed design after 1–3 are implemented, and its implementation is approved subject to that design (P9, design first); level 4 recorded as an option with the conditions of 10.3, not planned |
 
 ## 14. Sources
 
@@ -1861,3 +1859,7 @@ D11 as refined in r2; D14 decided in r2.
   `src/main/resources/hugin/stdlib/{prelude.hgn,std/reflect.hgn,std/graph.hgn,std/directives.hgn,std/nat.hgn}`;
   `docs/NOTES.md` (Architecture, Decisions B1/B2, Typed object code, Glued evaluation, Approximate
   conversion); `docs/REDESIGN.md` §3.3, §6.3, §6.5.
+
+## 15. Implementation decisions
+
+Decisions made during implementation are listed here with their PR.
