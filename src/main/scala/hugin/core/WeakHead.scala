@@ -214,8 +214,8 @@ trait WeakHead:
         case _ if isNumeral(x) || isNumeral(y) => sameNat(l, x, y)
         // an integer against an integer by value, and against `ofNat` or `negSucc` by its view
         case (IntNum(m), IntNum(n)) => m == n
-        case (IntNum(m), _: Rigid) => sameWeak(l, intView(m), y)
-        case (_: Rigid, IntNum(n)) => sameWeak(l, x, intView(n))
+        case (IntNum(m), r: Rigid) => sameInt(l, m, r)
+        case (r: Rigid, IntNum(n)) => sameInt(l, n, r)
         case (Rigid(h1 @ (_: Head.Local | _: Head.Glob), sp1), Rigid(h2 @ (_: Head.Local | _: Head.Glob), sp2)) =>
           h1 == h2 && sameSpine(l, sp1, sp2)
         case (_: Rigid, _: Rigid) => quote(l, x) == quote(l, y)
@@ -225,6 +225,18 @@ trait WeakHead:
         case _ => quote(l, x) == quote(l, y)
 
   private def isNumeral(v: Val): Boolean = v.isInstanceOf[Nat] || v.isInstanceOf[NatAdd]
+
+  /** [[sameWeak]] of the integer `n` and a weak-head form `r` that is not an integer: the same only if `r`
+   *  is the constructor of `n`'s view applied to the same natural number. The view itself is not evaluated
+   *  (its weak-head form is `n` again). */
+  private def sameInt(l: Int, n: BigInt, r: Rigid): Boolean =
+    val m = metaInt
+    m != null && (r match
+      case Rigid(Head.Glob(c), List(Elim.EApp(a, Icit.Expl))) =>
+        if n >= 0 then c == m.ofNat && sameWeak(l, Nat(m.natFam, n), a)
+        else c == m.negSucc && sameWeak(l, Nat(m.natFam, -n - 1), a)
+      case _ => false
+    )
 
   private def sameSpine(l: Int, sp1: Spine, sp2: Spine): Boolean =
     sp1.length == sp2.length && sp1.zip(sp2).forall {

@@ -97,6 +97,24 @@ class IntArithmeticSuite extends munit.FunSuite:
     assertEquals(core.natView(Val.IntNum(0)), Val.Rigid(Head.Glob(m.ofNat), List(Elim.EApp(Val.Nat(ids("nat"), BigInt(0)), Icit.Expl))))
   }
 
+  test("weak-head comparison of an integer with `ofNat n` and `negSucc n` is by constructor and argument") {
+    val (core, ids) = compiled
+    val m = core.metaInt.nn
+    val nat = ids("nat")
+    def con(c: Int, arg: Val): Val = Val.Rigid(Head.Glob(c), List(Elim.EApp(arg, Icit.Expl)))
+    val plus =
+      core.globals.indices.find(i => core.globals(i).name == "plus" && core.globals(i).span.source.path == NativeOperations.NatPath).get
+    // `plus 2 3`, delayed: its weak-head form is the numeral 5
+    val delayed = core.appWeak(core.appWeak(Val.Rigid(Head.Glob(plus), Nil), Val.Nat(nat, 2), Icit.Expl), Val.Nat(nat, 3), Icit.Expl)
+    def same(a: Val, b: Val) = core.withinPolls(5)(core.sameWeak(0, a, b))
+    assertEquals(same(Val.IntNum(5), con(m.ofNat, Val.Nat(nat, 5))), Some(true))
+    assertEquals(same(con(m.ofNat, delayed), Val.IntNum(5)), Some(true))
+    assertEquals(same(Val.IntNum(-3), con(m.negSucc, Val.Nat(nat, 2))), Some(true))
+    assertEquals(same(Val.IntNum(-3), con(m.negSucc, Val.Nat(nat, 3))), Some(false))
+    assertEquals(same(Val.IntNum(5), con(m.negSucc, delayed)), Some(false))
+    assertEquals(same(Val.IntNum(-6), con(m.negSucc, delayed)), Some(true))
+  }
+
   /** `std/nat` and `std/int` elaborated as the library files, with `edit` applied to `std/int`. */
   private def asLibraries(edit: String => String): Core =
     val reporter = Reporter()
