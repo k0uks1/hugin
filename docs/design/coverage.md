@@ -1,7 +1,7 @@
 # Coverage and unreachable clauses, independent of the split order
 
 Design note for [issue #67](https://github.com/k0uks1/hugin/issues/67), option (b). Status: approved by
-the designer; batch 1 implemented.
+the designer; batches 1 and 2 implemented.
 
 ## 1. Recommendations
 

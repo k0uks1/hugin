@@ -47,11 +47,15 @@ trait Clauses:
       explicit: List[Int],
       used: mutable.Set[Int],
       prelude: Vector[Val] => List[(Name, Val, Val)],
-      /** The missing cases found so far (as the clauses' left-hand sides): coverage reports the first,
-       *  tooling offers to add them all ([[MissingClauses]]). */
-      missing: mutable.ListBuffer[String] = mutable.ListBuffer.empty,
+      /** The missing probes found so far (at most [[MaxMissing]]), and the cases of the tree they are below. */
+      missingProbes: mutable.ListBuffer[SplitProblem] = mutable.ListBuffer.empty,
+      missingNodes: mutable.ListBuffer[SplitProblem] = mutable.ListBuffer.empty,
       /** The leaves found so far, per clause: its case and its state there. */
-      leaves: mutable.HashMap[Int, mutable.ListBuffer[(SplitProblem, ClauseState)]] = mutable.HashMap.empty
+      leaves: mutable.HashMap[Int, mutable.ListBuffer[(SplitProblem, ClauseState)]] = mutable.HashMap.empty,
+      /** Π: the positions at which some clause has a constructor, an atom or `()` (paths, last step first). */
+      pi: mutable.Set[List[Int]] = mutable.Set.empty,
+      /** The clause contexts, by clause. */
+      contexts: mutable.ArrayBuffer[(SplitProblem, ClauseState)] = mutable.ArrayBuffer.empty
   )
 
   /** A clause checked in its clause context `ctx` (whose free variables, in the telescope order `order`,
@@ -89,14 +93,17 @@ trait Clauses:
     val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i))
     // each clause in its own context: its left-hand side, then its right-hand side
     val contexts = states.map(cl => clauseContext(problem, target, cl, states.length == 1))
+    for (p, _, cl) <- contexts do
+      info.contexts += ((p, cl))
+      inspected(info, p, cl)
     val checked = contexts.map { (p, t, cl) =>
       try checkClause(info, p, t, cl, speculative = false)
       catch case e: ElabError if !e.silent => throw withRefinementFix(e, info, problem, target, states, cl)
     }.toVector
     val tree =
       try buildTree(info, problem, target, states, leaf(info, checked))
-      catch case _: ElabError if info.missing.nonEmpty => notCovering(info, clauses)
-    if info.missing.nonEmpty then notCovering(info, clauses)
+      catch case _: ElabError if info.missingProbes.nonEmpty => notCovering(info, problem, target, clauses)
+    if info.missingProbes.nonEmpty then notCovering(info, problem, target, clauses)
     val body = FunctionBody(tree, checked.map(_.display))
     // a function of the cycle being elaborated gets its case tree when the cycle is done ([[DependencyOrder]])
     if g.inCycle then
@@ -142,45 +149,80 @@ trait Clauses:
 
   private def isAbsurd(p: Pat): Boolean = p.isInstanceOf[Pat.PAbsurd]
 
-  /** The clause context of `cl`: the problem split by `cl` alone, with `cl`'s state at its single leaf
-   *  (its equations left are its absurd patterns, each against a variable of an empty type). E0915 if a
-   *  constructor of the clause cannot occur (`only`: the clause is the function's only one). */
+  /** The outcome of splitting a problem by one clause alone ([[lhsSplit]]). */
+  private enum Lhs:
+    /** The clause context, its target type and the clause's state there. */
+    case Context(p: SplitProblem, target: Val, cl: ClauseState)
+
+    /** A pattern of the clause cannot occur: `pat` with the clause's state and the problem where it fails. */
+    case Clash(p: SplitProblem, cl: ClauseState, pat: Pat, why: ClauseConflict)
+
+    /** `()` where `found` (a constructor) is determined. */
+    case NotEmpty(p: SplitProblem, cl: ClauseState, span: Span, found: Val)
+
+    /** Every split of the clause is undecided: the first one's problem, constructor and equation. */
+    case Undecided(p: SplitProblem, ctor: Int, a: Val, b: Val, span: Span)
+
+  /** The problem split by `cl` alone, in the canonical order: the leftmost constructor position (by
+   *  argument, then depth first) of the clause whose split is decided; a split whose index unification is
+   *  stuck falls back to the next position (Agda's `altM1`). */
   @scala.annotation.tailrec
-  private def clauseContext(p: SplitProblem, target: Val, cl: ClauseState, only: Boolean): (SplitProblem, Val, ClauseState) =
+  private def lhsSplit(p: SplitProblem, target: Val, cl: ClauseState): Lhs =
     simplify(p, cl) match
-      case Simplified.NoMatch(Pat.PAbsurd(span), term) =>
-        fail(ClauseProblem.AbsurdNotEmpty(wild(p, p.norm(core, typeAt(p, cl, span))), List(headName(term)), span))
-      case Simplified.NoMatch(pat, term) =>
-        fail(impossible(p, cl, pat, ClauseConflict.Argument(wild(p, term)), only))
+      case Simplified.NoMatch(Pat.PAbsurd(span), term) => Lhs.NotEmpty(p, cl, span, term)
+      case Simplified.NoMatch(pat, term) => Lhs.Clash(p, cl, pat, ClauseConflict.Argument(wild(p, term)))
       case Simplified.Ready(c) =>
-        c.eqns.find(e => !isAbsurd(e.pat)) match
-          case None =>
-            c.eqns.foreach(checkAbsurd(p, _))
-            (p, target, c)
-          case Some(e) =>
+        val candidates = c.eqns.filter(e => !isAbsurd(e.pat))
+        if candidates.isEmpty then Lhs.Context(p, target, c)
+        else
+          // the first decided split, with the problem it gives
+          var undecided: Option[Lhs.Undecided] = None
+          var next: Option[Either[Lhs, (SplitProblem, Val)]] = None
+          val it = candidates.iterator
+          while next.isEmpty && it.hasNext do
+            val e = it.next()
             val x = force(e.term) match
               case Val.Rigid(Head.Local(x), Nil) => x
               case _ => throw Impossible("split on a non-variable")
             e.pat match
               case Pat.PAtom(k, _) =>
                 val p2 = p.solve(core, x, eval(Nil, k))
-                clauseContext(p2, p2.norm(core, target), c, only)
+                next = Some(Right((p2, p2.norm(core, target))))
               case pat @ Pat.PCon(ctor, _, span) =>
                 force(p.types(x)) match
                   case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
                     if !constructors(fam).contains(ctor) then
-                      fail(impossible(p, c, pat, ClauseConflict.Family(wild(p, p.types(x))), only))
-                    val (p1, args, unified) = unifyConstructor(p, famSp, ctor)
-                    unified match
-                      case IndexUnification.Conflict(a, b) =>
-                        fail(impossible(p, c, pat, ClauseConflict.Index(wild(p1, a), wild(p1, b)), only))
-                      case IndexUnification.Stuck(a, b) =>
-                        fail(undecidable(p1, ctor, a, b, span))
-                      case IndexUnification.Solved(p2) =>
-                        val p3 = p2.solve(core, x, p2.norm(core, constructorApp(p2, ctor, args)))
-                        clauseContext(p3, p3.norm(core, target), c, only)
+                      next = Some(Left(Lhs.Clash(p, c, pat, ClauseConflict.Family(wild(p, p.types(x))))))
+                    else
+                      val (p1, args, unified) = unifyConstructor(p, famSp, ctor)
+                      unified match
+                        case IndexUnification.Conflict(a, b) =>
+                          next = Some(Left(Lhs.Clash(p, c, pat, ClauseConflict.Index(wild(p1, a), wild(p1, b)))))
+                        case IndexUnification.Stuck(a, b) =>
+                          if undecided.isEmpty then undecided = Some(Lhs.Undecided(p1, ctor, a, b, span))
+                        case IndexUnification.Solved(p2) =>
+                          val p3 = p2.solve(core, x, p2.norm(core, constructorApp(p2, ctor, args)))
+                          next = Some(Right((p3, p3.norm(core, target))))
                   case other => fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
               case _ => throw Impossible("a stuck equation that is not a constructor pattern")
+          next match
+            case Some(Right((p2, t2))) => lhsSplit(p2, t2, c)
+            case Some(Left(r)) => r
+            case None => undecided.get
+
+  /** The clause context of `cl`: the problem split by `cl` alone ([[lhsSplit]]), with `cl`'s state at its
+   *  single leaf (its equations left are its absurd patterns, each against a variable of an empty type).
+   *  E0915 if a constructor of the clause cannot occur (`only`: the clause is the function's only one), or
+   *  if every split of the clause is undecided. */
+  private def clauseContext(p: SplitProblem, target: Val, cl: ClauseState, only: Boolean): (SplitProblem, Val, ClauseState) =
+    lhsSplit(p, target, cl) match
+      case Lhs.Context(p1, t1, c) =>
+        c.eqns.foreach(checkAbsurd(p1, _))
+        (p1, t1, c)
+      case Lhs.NotEmpty(p1, c, span, term) =>
+        fail(ClauseProblem.AbsurdNotEmpty(wild(p1, p1.norm(core, typeAt(p1, c, span))), List(headName(term)), span))
+      case Lhs.Clash(p1, c, pat, why) => fail(impossible(p1, c, pat, why, only))
+      case Lhs.Undecided(p1, ctor, a, b, span) => fail(undecidable(p1, ctor, a, b, span))
 
   /** `c` applied to its arguments, values of `p`. */
   private def constructorApp(p: SplitProblem, c: Int, args: List[(Val, Icit)]): Val =
@@ -349,62 +391,99 @@ trait Clauses:
   /** Builds the leaf of a clause in a case of the tree. */
   private type LeafBuilder = (SplitProblem, ClauseState) => CaseTree
 
-  private def buildTree(f: FunctionInfo, p: SplitProblem, target: Val, clauses: List[ClauseState], leaf: LeafBuilder): CaseTree =
+  /** The tree of the cases below `p` for the clauses that may still apply. Below a variable none of whose
+   *  constructors can occur (`refuted`), the analysis goes on with the clauses that have no constructor
+   *  there, for W0006 (a clause matching only refuted probes is reachable), and emits nothing. */
+  private def buildTree(
+      f: FunctionInfo,
+      p: SplitProblem,
+      target: Val,
+      clauses: List[ClauseState],
+      leaf: LeafBuilder,
+      refuted: Boolean = false
+  ): CaseTree =
     clauses.iterator.map(simplify(p, _)).collect { case Simplified.Ready(cl) => cl }.toList match
-      case Nil => absurdSplit(p).getOrElse(missingCase(f, p))
+      case Nil => if refuted then Discarded else absurdSplit(p).getOrElse(missingNode(f, p))
       case first :: _ if first.eqns.isEmpty =>
         f.used += first.index
-        f.leaves.getOrElseUpdate(first.index, mutable.ListBuffer.empty) += ((p, first))
-        leaf(p, first)
+        if refuted then Discarded
+        else
+          f.leaves.getOrElseUpdate(first.index, mutable.ListBuffer.empty) += ((p, first))
+          leaf(p, first)
       case all @ (first :: _) =>
-        // an absurd pattern splits only when the clause has no other constructor pattern left
-        val e = first.eqns.find(e => !isAbsurd(e.pat)).getOrElse(first.eqns.head)
-        force(e.term) match
-          case Val.Rigid(Head.Local(x), Nil) =>
-            e.pat match
-              case _: Pat.PAtom => splitAtom(f, p, x, target, all, leaf)
-              case pat => split(f, p, x, target, all, pat, leaf)
-          case _ => throw Impossible("split on a non-variable")
+        // the canonical order: the leftmost position of the first clause whose split is decided; an
+        // absurd pattern splits only when the clause has no other constructor pattern left
+        val nonAbsurd = first.eqns.filter(e => !isAbsurd(e.pat))
+        val candidates = if nonAbsurd.isEmpty then List(first.eqns.head) else nonAbsurd
+        var undecided: Option[ClauseProblem] = None
+        var result: Option[CaseTree] = None
+        val it = candidates.iterator
+        while result.isEmpty && it.hasNext do
+          val e = it.next()
+          val x = force(e.term) match
+            case Val.Rigid(Head.Local(x), Nil) => x
+            case _ => throw Impossible("split on a non-variable")
+          e.pat match
+            case _: Pat.PAtom => result = Some(splitAtom(f, p, x, target, all, leaf, refuted))
+            case pat =>
+              val span = pat match
+                case Pat.PCon(_, _, s) => s
+                case Pat.PAbsurd(s) => s
+                case _ => first.source.span
+              force(p.types(x)) match
+                case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
+                  val unified = constructors(fam).map(c => (c, unifyConstructor(p, famSp, c)))
+                  unified.collectFirst { case (c, (p1, _, IndexUnification.Stuck(a, b))) => undecidable(p1, c, a, b, span) } match
+                    case Some(problem) => if undecided.isEmpty then undecided = Some(problem)
+                    case None => result = Some(split(f, p, x, target, all, unified, leaf, refuted))
+                case other =>
+                  if refuted then result = Some(Discarded)
+                  else fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
+        result.getOrElse(if refuted then Discarded else fail(undecided.get))
 
-  /** Splits on variable `x`: a branch per constructor whose indices unify. */
+  /** The tree of a case that no evaluation reaches (the analysis below an empty variable). */
+  private val Discarded: CaseTree = CaseTree.Split(-1, Nil)
+
+  /** Splits on variable `x`: a branch per constructor whose indices unify (`unified`: each constructor of
+   *  its type with its index unification, none stuck). If none can occur, the analysis goes on below the
+   *  empty variable with the clauses that have no constructor at it. */
   private def split(
       f: FunctionInfo,
       p: SplitProblem,
       x: Int,
       target: Val,
       clauses: List[ClauseState],
-      at: Pat,
-      leaf: LeafBuilder
+      unified: List[(Int, (SplitProblem, List[(Val, Icit)], IndexUnification))],
+      leaf: LeafBuilder,
+      refuted: Boolean
   ): CaseTree =
-    val span = at match
-      case Pat.PCon(_, _, s) => s
-      case Pat.PAbsurd(s) => s
-      case _ => clauses.head.source.span
-    force(p.types(x)) match
-      case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
-        val branches = constructors(fam).flatMap { c =>
-          val (p1, args, unified) = unifyConstructor(p, famSp, c)
-          unified match
-            case _: IndexUnification.Conflict => None
-            case IndexUnification.Stuck(a, b) => fail(undecidable(p1, c, a, b, span))
-            case IndexUnification.Solved(p2) =>
-              val p3 = p2.solve(core, x, p2.norm(core, constructorApp(p2, c, args)))
-              Some(CaseBranch(c, args.length, buildTree(f, p3, p3.norm(core, target), clauses, leaf)))
-        }
-        CaseTree.Split(x, branches)
-      case other =>
-        fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
+    val branches = unified.collect { case (c, (_, args, IndexUnification.Solved(p2))) =>
+      val p3 = p2.solve(core, x, p2.norm(core, constructorApp(p2, c, args)))
+      CaseBranch(c, args.length, buildTree(f, p3, p3.norm(core, target), clauses, leaf, refuted))
+    }
+    if branches.isEmpty then
+      val rest = clauses.filterNot(_.eqns.exists(e => force(e.term) == Val.local(x)))
+      buildTree(f, p, target, rest, leaf, refuted = true)
+    CaseTree.Split(x, branches)
 
   /** Splits on variable `x` of a type without constructors but with decidable equality: a branch per value
    *  that a clause matches it against, and a default branch for the clauses that do not. */
-  private def splitAtom(f: FunctionInfo, p: SplitProblem, x: Int, target: Val, clauses: List[ClauseState], leaf: LeafBuilder): CaseTree =
+  private def splitAtom(
+      f: FunctionInfo,
+      p: SplitProblem,
+      x: Int,
+      target: Val,
+      clauses: List[ClauseState],
+      leaf: LeafBuilder,
+      refuted: Boolean
+  ): CaseTree =
     def atomOn(e: Eqn) = e.pat.isInstanceOf[Pat.PAtom] && force(e.term) == Val.local(x)
     val keys = clauses.flatMap(_.eqns.filter(atomOn)).collect { case Eqn(_, Pat.PAtom(k, _), _) => k }.distinct
     val branches = keys.map { k =>
       val p2 = p.solve(core, x, eval(Nil, k))
-      (k, buildTree(f, p2, p2.norm(core, target), clauses, leaf))
+      (k, buildTree(f, p2, p2.norm(core, target), clauses, leaf, refuted))
     }
-    CaseTree.SplitAtom(x, branches, buildTree(f, p, target, clauses.filterNot(_.eqns.exists(atomOn)), leaf))
+    CaseTree.SplitAtom(x, branches, buildTree(f, p, target, clauses.filterNot(_.eqns.exists(atomOn)), leaf, refuted))
 
   /** Extends the problem with the arguments of constructor `c` and unifies the indices of its type with
    *  those of the scrutinee's type `famSp`. */
@@ -631,7 +710,12 @@ trait Clauses:
   ): ElabError =
     if cl.source.where.nonEmpty || cl.absurd then e
     else
-      val probe = f.copy(used = mutable.Set.empty, missing = mutable.ListBuffer.empty, leaves = mutable.HashMap.empty)
+      val probe = f.copy(
+        used = mutable.Set.empty,
+        missingProbes = mutable.ListBuffer.empty,
+        missingNodes = mutable.ListBuffer.empty,
+        leaves = mutable.HashMap.empty
+      )
       val built =
         try
           buildTree(probe, problem, target, states, (_, _) => CaseTree.Split(-1, Nil))
@@ -752,24 +836,241 @@ trait Clauses:
             case _ =>
         case _ =>
 
-  /** A case no clause covers: collected (up to a bound), so that tooling can add them all; the tree
-   *  returned in its place is never used, since coverage then fails ([[notCovering]]). */
-  private def missingCase(f: FunctionInfo, p: SplitProblem): CaseTree =
-    val names = p.names.indices.map(l => if p.isFree(l) then "_" else p.names(l)).toList.reverse
-    // the hidden arguments of a lifted function are not written by users ([[Lifting]])
-    val pats = f.explicit.drop(globals(f.id).hidden).map(l => showTm(names, explicitOnly(quote(p.size, p.values(l)))))
-    f.missing += (f.name :: pats.map(s => if s.contains(' ') then s"($s)" else s)).mkString(" ")
-    if f.missing.length >= MaxMissing then fail(ClauseProblem.NotCovering(f.name, f.missing.head, globals(f.id).span))
-    CaseTree.Split(-1, Nil)
+  // ---------------------------------------------------------------- probes and missing cases
+
+  /** The positions of `v` (an argument's value, at `path`), each with the value there: a constructor
+   *  application's explicit arguments are its children (paths are lists, the last step first). */
+  private def walk(v: Val, path: List[Int], visit: (List[Int], Val) => Unit): Unit =
+    val f = force(v)
+    visit(path, f)
+    f match
+      case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
+        sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }.zipWithIndex.foreach((a, k) => walk(a, k :: path, visit))
+      case _ =>
+
+  /** Adds the positions that clause `cl` inspects in its context `p` to Π: its constructors and atoms, and
+   *  its absurd patterns. */
+  private def inspected(f: FunctionInfo, p: SplitProblem, cl: ClauseState): Unit =
+    val absurdVars =
+      cl.eqns.collect { case Eqn(t, Pat.PAbsurd(_), _) => force(t) }.collect { case Val.Rigid(Head.Local(x), Nil) => x }.toSet
+    for l <- 0 until f.arity do
+      walk(
+        p.values(l),
+        List(l),
+        (path, v) =>
+          v match
+            case Val.Rigid(Head.Glob(c), _) if isConstructor(c) => f.pi += path
+            case Val.Rigid(Head.Local(x), Nil) if absurdVars(x) => f.pi += path
+            case other => if atomKey(other).isDefined then f.pi += path
+      )
+
+  /** The leftmost free variable of `p` at a position of Π whose type is an inductive family (by argument,
+   *  then depth first), other than those in `skip`. */
+  private def splittable(f: FunctionInfo, p: SplitProblem, skip: Set[Int]): Option[Int] =
+    var found: Option[Int] = None
+    for l <- 0 until f.arity if found.isEmpty do
+      walk(
+        p.values(l),
+        List(l),
+        (path, v) =>
+          v match
+            case Val.Rigid(Head.Local(x), Nil) if found.isEmpty && p.isFree(x) && !skip(x) && f.pi(path) =>
+              force(p.types(x)) match
+                case Val.Rigid(Head.Glob(fam), _) if isFamily(fam) => found = Some(x)
+                case _ =>
+            case _ =>
+      )
+    found
+
+  /** The probes below the case `p` (reference: meta/coverage, "Cases and probes"), in the canonical order:
+   *  `p` split at its variables at positions of Π until none can be split. A variable none of whose
+   *  constructors can occur is *empty*, and its probes are *refuted*; an undecided split is skipped (its
+   *  case is not refuted). `visit` gets each probe and whether it is refuted, and returns whether to go on;
+   *  the enumeration stops after [[MaxProbeSteps]] splits (`false`). */
+  private def probes(f: FunctionInfo, p: SplitProblem)(visit: (SplitProblem, Boolean) => Boolean): Boolean =
+    var stack = List((p, Set.empty[Int], false))
+    var steps = 0
+    var go = true
+    while go && stack.nonEmpty do
+      val (q, skip, refuted) = stack.head
+      stack = stack.tail
+      splittable(f, q, skip) match
+        case None => go = visit(q, refuted)
+        case Some(x) =>
+          steps += 1
+          if steps > MaxProbeSteps then go = false
+          else
+            force(q.types(x)) match
+              case Val.Rigid(Head.Glob(fam), famSp) =>
+                val unified = constructors(fam).map(c => (c, unifyConstructor(q, famSp, c)))
+                if unified.exists(_._2._3.isInstanceOf[IndexUnification.Stuck]) then stack = (q, skip + x, refuted) :: stack
+                else
+                  val cases = unified.collect { case (c, (_, args, IndexUnification.Solved(q2))) =>
+                    q2.solve(core, x, q2.norm(core, constructorApp(q2, c, args)))
+                  }
+                  if cases.isEmpty then stack = (q, skip + x, true) :: stack
+                  else stack = cases.map(c => (c, skip, refuted)) ++ stack
+              case _ => stack = (q, skip + x, refuted) :: stack
+    go && steps <= MaxProbeSteps
+
+  /** A case of the tree that no clause applies to: its probes that are not refuted are missing (at most
+   *  [[MaxMissing]] in all). If every probe is refuted, the case needs no clause, and the tree has an
+   *  empty split there. */
+  private def missingNode(f: FunctionInfo, p: SplitProblem): CaseTree =
+    var missing = false
+    var emptyVar: Option[Int] = None
+    val complete = probes(f, p) { (q, refuted) =>
+      if refuted then
+        if emptyVar.isEmpty then emptyVar = (0 until p.size).find(p.isFree)
+      else
+        missing = true
+        f.missingProbes += q
+      f.missingProbes.length < MaxMissing
+    }
+    // too many splits: the case itself counts as missing
+    if !complete && !missing then
+      missing = true
+      f.missingProbes += p
+    if missing then
+      f.missingNodes += p
+      if f.missingProbes.length >= MaxMissing then fail(ClauseProblem.NotCovering(f.name, "", globals(f.id).span, 0))
+      Discarded
+    else CaseTree.Split(emptyVar.getOrElse(0), Nil)
 
   private val MaxMissing = 20
+  private val MaxProbeSteps = 2000
 
-  /** E0911 for the first missing case; all of them are recorded for tooling (clauses with holes). */
-  private def notCovering(f: FunctionInfo, clauses: List[SurfaceClause]): Nothing =
+  /** A pattern of a missing case, over the explicit arguments: a wildcard, a constructor applied to the
+   *  patterns of its explicit arguments, or an atom (its key). */
+  private enum MPat:
+    case Wild
+    case Con(c: Int, args: List[MPat])
+    case Atom(key: Tm)
+
+  private def toMPat(v: Val): MPat = force(v) match
+    case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) => MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
+    case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
+
+  /** The explicit arguments of a case as patterns. */
+  private def patternsOf(f: FunctionInfo, p: SplitProblem): List[MPat] = f.explicit.map(l => toMPat(p.values(l)))
+
+  private def toPat(m: MPat): Pat = m match
+    case MPat.Wild => Pat.PWild(Span.NoSpan)
+    case MPat.Con(c, as) => Pat.PCon(c, as.map(toPat), Span.NoSpan)
+    case MPat.Atom(k) => Pat.PAtom(k, Span.NoSpan)
+
+  /** The common instance of two patterns, if they do not clash. */
+  private def merge(a: MPat, b: MPat): Option[MPat] = (a, b) match
+    case (MPat.Wild, _) => Some(b)
+    case (_, MPat.Wild) => Some(a)
+    case (MPat.Con(c, as), MPat.Con(d, bs)) if c == d && as.length == bs.length =>
+      val ms = as.zip(bs).map(merge)
+      Option.when(ms.forall(_.isDefined))(MPat.Con(c, ms.flatten))
+    case (MPat.Atom(k), MPat.Atom(j)) if k == j => Some(a)
+    case _ => None
+
+  /** `a` is an instance of `b`. */
+  private def instanceOf(a: MPat, b: MPat): Boolean = (a, b) match
+    case (_, MPat.Wild) => true
+    case (MPat.Con(c, as), MPat.Con(d, bs)) => c == d && as.length == bs.length && as.zip(bs).forall(instanceOf)
+    case (MPat.Atom(k), MPat.Atom(j)) => k == j
+    case _ => false
+
+  /** The ordering of missing patterns: argument by argument, `_` first, constructors in declaration order. */
+  private def compareM(a: MPat, b: MPat): Int = (a, b) match
+    case (MPat.Wild, MPat.Wild) => 0
+    case (MPat.Wild, _) => -1
+    case (_, MPat.Wild) => 1
+    case (MPat.Con(c, as), MPat.Con(d, bs)) =>
+      if c != d then c.compare(d) else compareAll(as, bs)
+    case (MPat.Con(_, _), _) => -1
+    case (_, MPat.Con(_, _)) => 1
+    case (MPat.Atom(k), MPat.Atom(j)) => showTm(Nil, k).compare(showTm(Nil, j))
+
+  private def compareAll(as: List[MPat], bs: List[MPat]): Int =
+    as.zip(bs).iterator.map(compareM).find(_ != 0).getOrElse(as.length.compare(bs.length))
+
+  /** The most general missing patterns `M` (reference: meta/coverage, "Missing cases"): the
+   *  generalizations of the missing cases of the tree (a subpattern replaced by `_`, as long as no clause
+   *  matches a probe below), maximal, in the order of [[compareM]]. Whether a clause matches a probe below a
+   *  pattern is decided pairwise: their common instance, if they do not clash, is split by index
+   *  unification ([[lhsSplit]]); a common instance whose splits are undecided counts as matched. */
+  private def mostGeneralMissing(f: FunctionInfo, problem: SplitProblem, target: Val): List[List[MPat]] =
+    val clausePatterns = f.contexts.toList.collect { case (p, cl) if !cl.absurd => patternsOf(f, p) }
+    val feasible = mutable.HashMap.empty[List[MPat], Boolean]
+    def possible(m: List[MPat]): Boolean = feasible.getOrElseUpdate(
+      m, {
+        val pats = m.iterator
+        val eqns = (0 until f.arity).toList.map { l =>
+          val pat = if f.explicit.contains(l) then toPat(pats.next()) else Pat.PWild(Span.NoSpan)
+          Eqn(Val.local(l), pat, problem.types(l))
+        }
+        val st = ClauseState(-1, eqns, Nil, f.contexts.head._2.source)
+        try
+          lhsSplit(problem, target, st) match
+            case _: Lhs.Clash => false
+            case _ => true
+        catch case _: ElabError => true
+      }
+    )
+    def uncovered(q: List[MPat]): Boolean = clausePatterns.forall { cp =>
+      val ms = q.zip(cp).map(merge)
+      !ms.forall(_.isDefined) || !possible(ms.flatten)
+    }
+
+    /** The patterns with one constructor or atom replaced by `_`, in preorder. */
+    def steps(q: List[MPat]): List[List[MPat]] =
+      def one(m: MPat): List[MPat] = m match
+        case MPat.Wild => Nil
+        case MPat.Atom(_) => List(MPat.Wild)
+        case MPat.Con(c, as) => MPat.Wild :: as.indices.toList.flatMap(i => one(as(i)).map(a => MPat.Con(c, as.updated(i, a))))
+      q.indices.toList.flatMap(i => one(q(i)).map(a => q.updated(i, a)))
+    var budget = 5000
+    val maximal = mutable.LinkedHashSet.empty[List[MPat]]
+    val visited = mutable.HashSet.empty[List[MPat]]
+    def generalize(q: List[MPat]): Unit =
+      val next = if budget <= 0 then Nil
+      else
+        steps(q).filter { n =>
+          budget -= 1; uncovered(n)
+        }
+      if next.isEmpty then maximal += q
+      else for n <- next if visited.add(n) do generalize(n)
+    for node <- f.missingNodes do
+      val q = patternsOf(f, node)
+      if visited.add(q) then generalize(q)
+    val all = maximal.toList
+    all.filterNot(q => all.exists(r => r != q && q.zip(r).forall(instanceOf))).sortWith(compareAll(_, _) < 0)
+
+  /** A missing pattern as the left-hand side of a clause: the hidden arguments of a lifted function are
+   *  not written by users ([[Lifting]]). */
+  private def showMissing(f: FunctionInfo, q: List[MPat]): String =
+    def term(m: MPat): Tm = m match
+      case MPat.Wild => Tm.Var(0)
+      case MPat.Con(c, as) => as.foldLeft(Tm.Global(c): Tm)((acc, a) => Tm.App(acc, term(a), Icit.Expl))
+      case MPat.Atom(k) => k
+    val args = q.drop(globals(f.id).hidden).map { m =>
+      val s = showTm(List("_"), term(m))
+      if s.contains(' ') then s"($s)" else s
+    }
+    (f.name :: args).mkString(" ")
+
+  /** E0911 with the first of the most general missing patterns and their number; tooling gets a cover of
+   *  the missing probes by them, without redundant patterns, in their order (at most [[MaxMissing]]). */
+  private def notCovering(f: FunctionInfo, problem: SplitProblem, target: Val, clauses: List[SurfaceClause]): Nothing =
     val declared = globals(f.id).span
+    val general = mostGeneralMissing(f, problem, target)
+    val probes = f.missingProbes.toList.map(patternsOf(f, _))
+    val cover = mutable.ListBuffer.empty[List[MPat]]
+    for q <- general if cover.length < MaxMissing do
+      def below(r: List[MPat])(pr: List[MPat]) = pr.zip(r).forall(instanceOf)
+      if probes.exists(pr => below(q)(pr) && !cover.exists(c => below(c)(pr))) then cover += q
+    val shown = general.map(showMissing(f, _))
     if f.name.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '\'') && clauses.nonEmpty && !index.muted then
-      index.meta.missing(MetaIndex.MissingClauses(declared, f.name, f.missing.toList.map(_ + " = ?."), clauses.map(_.span).maxBy(_.end)))
-    fail(ClauseProblem.NotCovering(f.name, f.missing.head, declared))
+      index.meta.missing(
+        MetaIndex.MissingClauses(declared, f.name, cover.toList.map(showMissing(f, _) + " = ?."), clauses.map(_.span).maxBy(_.end))
+      )
+    fail(ClauseProblem.NotCovering(f.name, shown.headOption.getOrElse(f.name), declared, (shown.length - 1).max(0)))
 
 object Clauses:
   /** For tests: `canApply` also unifies where it decided without unifying; `decidedWithoutUnifying` counts those
