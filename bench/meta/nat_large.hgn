@@ -1,0 +1,39 @@
+(* bench: the sizes of the #131 design (section 9), which the representation before #131 does not
+   finish: a numeral of 10⁶, `std/nat`'s native operations near 10⁶, a conversion of 10⁶, a literal
+   pattern of 50000, an offset of 100001, `plus N 100001` on an open N, the length of a vector of
+   50000 built by recursion on a numeral. *)
+%use "std/nat".
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+n : nat = 1000000.
+w : nat -> eqn 1000000 (plus 500000 500000) -> nat.
+w _ refl = 0.
+o : (m : nat) -> eqn (plus m 100001) (m + 100001) -> nat.
+o _ refl = 0.
+f : nat -> int.
+f 50000 = 1.
+f (N + 100001) = 2.
+f _ = 0.
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+rep : (k : nat) -> vec int k.
+rep 0 = vnil.
+rep (K + 1) = vcons 0 (rep K).
+vlen : vec A K -> nat.
+vlen vnil = 0.
+vlen (vcons _ V) = vlen V + 1.
+b : bool -> int.
+b true = 1.
+b false = 0.
+out : int -> rel.
+out (toInt n).
+out (toInt (times 999 1001)).
+out (toInt (minus 1000000 1)).
+out (b (less 999999 1000000)).
+out (b (equal 1000000 (plus 500000 500000))).
+out (f 50000).
+out (f 100001).
+out (toInt (w 0 refl)).
+out (toInt (vlen (rep 50000))).
+%output out.

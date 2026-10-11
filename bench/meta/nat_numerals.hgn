@@ -1,0 +1,15 @@
+(* bench: numerals in elaboration (issue #131). Numeral definitions, `toInt` of numerals and a
+   conversion that computes `plus 10000 10000` in a clause's type; sizes that the unary representation
+   before #131 finishes. *)
+%use "std/nat".
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+n1 : nat = 10000.
+n2 : nat = 20000.
+w : nat -> eqn 20000 (plus 10000 10000) -> nat.
+w _ refl = 0.
+size : int -> rel.
+size (toInt n1).
+size (toInt n2).
+size (toInt (w 0 refl)).
+%output size.

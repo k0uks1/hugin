@@ -379,6 +379,10 @@ Each batch is one pull request and updates the reference with the code.
    2⁶³ is the golden `neg/nat_toint` (E0909), since a run golden cannot fail.
 4. **Benchmarks** (9). `bench/meta/nat_large.hgn` in `BenchSet` and `bench/cold.sh`; numbers in
    `docs/PERFORMANCE.md`.
+   As implemented: one program per section next to `nat_large` (`nat_numerals`, `nat_index`,
+   `nat_patterns`, `nat_arith`), since `hugin` has no `--only`; `_small` variants at sizes the base before
+   #131 finishes on the JVM's default stack, which it overflows on numerals of a few hundred; numbers in
+   docs/PERFORMANCE.md, "Meta naturals as numbers (#131)".
 
 Batches 0 and 1 do not depend on #67.
 

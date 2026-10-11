@@ -58,7 +58,9 @@ trait Matching:
             case Some(n) => nativeResult(n, args)
             case None => None
           native match
-            case Some(Some(v)) => Reduct(v, null, Nil, null, later)
+            case Some(Some(v)) =>
+              Matching.nativeSteps += 1
+              Reduct(v, null, Nil, null, later)
             case Some(None) => Matching.Stuck
             case None => runClauses(id, tree, args, later)
       case _ => Matching.NotClauses
@@ -70,7 +72,9 @@ trait Matching:
       case None => null
     val hit = if key == null then null else memo.getOrElse(key, null)
     if hit != null then Reduct(hit, null, Nil, null, later)
-    else runTree(tree.tree, args.toVector, key, later)
+    else
+      Matching.clauseSteps += 1
+      runTree(tree.tree, args.toVector, key, later)
 
   protected def memoise(key: (Int, List[Int]), v: Val): Unit = memo(key) = v
 
@@ -153,6 +157,12 @@ trait Matching:
     case _ => None
 
 object Matching:
+  /** Counters for the benchmarks (docs/PERFORMANCE.md, not synchronised): the applications of functions
+   *  defined by clauses that ran a case tree (memoised results not counted), and those computed by a
+   *  native operation ([[NatArithmetic]]). Deterministic for a program, unlike times. */
+  var clauseSteps: Long = 0
+  var nativeSteps: Long = 0
+
   /** A split met a neutral, or a value that matches no branch: the application stays neutral. */
   case object Stuck
 

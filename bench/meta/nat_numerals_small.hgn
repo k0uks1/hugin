@@ -1,0 +1,15 @@
+(* bench: nat_numerals scaled down to sizes that the unary representation before #131 finishes on the
+   JVM's default 1 MiB thread stack (it overflows from numerals of a few hundred): numerals, `toInt` of
+   numerals and a conversion that computes `plus 100 100` in a clause's type. *)
+%use "std/nat".
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+n1 : nat = 160.
+n2 : nat = 200.
+w : nat -> eqn 200 (plus 100 100) -> nat.
+w _ refl = 0.
+size : int -> rel.
+size (toInt n1).
+size (toInt n2).
+size (toInt (w 0 refl)).
+%output size.
