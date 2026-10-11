@@ -2225,6 +2225,51 @@ for `%export`; the issue and the other six kinds, and a typed definition and a s
 other), `neg/order_cycle` (row 10 in both orders, with the note), `neg/order_stuck_notes` (the second
 rejected class, the E0912 note), `neg/order_unsolved` (row 11).
 
+## Module bodies in dependency order (#91, batch 2)
+
+Design: `docs/design/elab-order.md`, 5.5 and 8.2. `ModuleBodies.elabMembers` elaborates first the object
+constants with the definitions their types mention (syntactically, transitively; by the retry loop, as
+before), so that the context member functions are lifted over is fixed; an object constant that waits for
+a member function through a definition is still left out with its error. The other members (definitions
+and the signatures of member functions and formula functions), the clause groups and the formula
+functions' rules are then nodes of `ElabOrder.plan` (names not declared in the body are outside: no
+edges), elaborated by components (`elabMemberComponent`): the plain nodes by the retry loop, then the
+clause groups, then the rules, each a block. In a component of several nodes the member functions are
+sealed (`inCycle`, their case trees `withheld`) and the component's names are the note's cycle
+(`cycleNames`); at its end termination is checked, the withheld case trees of its functions are
+installed, and the formula functions' definitions are installed and their cycles checked
+(`finishMemberFormulas`, per component instead of once per body).
+
+Choices and restrictions:
+
+- *Definitions are not sealed.* A body's definitions are local lets of the context, not globals; making
+  one opaque would bind it as a variable, which member functions would then be lifted over. Inside a
+  component they are elaborated before its clause groups, which see their values (no function of the
+  component computes there, so the written order still decides nothing).
+- *No re-evaluation of members.* A file's component re-evaluates its definitions when it is done (#151,
+  `DependencyOrder.reevaluateDefinitions`); a body's does not need to: a member value can only be stuck
+  at a sealed function `f` of its own component if `f` mentions it, and (a) a mention in `f`'s clauses
+  makes the call `f (suc N)` → `d` → `f c` fail the termination check (E0912), while (b) a mention in
+  `f`'s signature needs the typed definition's type before the signature and its value after it, which
+  bodies reject (next point).
+- *Typed definition and signature in one cycle* (`x : nat = pick zero.`, `pick : nat -> sel x.`): a file
+  declares the definition's type first (`provisionalSignatures`); a body cannot, for the same reason as
+  above, so both are left out with their errors, as before this batch. Stated in `modules.md`.
+- *Cycles through a member that a lifted function uses.* A member function or formula function closes
+  over the members it uses as lets (`Lifting.closeTerm`), which are evaluated eagerly; the formula cycle
+  check follows such a let's whole value. So in a body, `inst = mk edge.` with `mk` a member whose body
+  mentions the formula function `h`, and `h X :- inst.a X.`, is E0105, although the same program is
+  accepted at the top level (`run/mc_formula_paths`): following only `inst.a` there would accept a program
+  whose evaluation does not end (tried: `h`'s let of `inst` instantiates `mk`, whose member `b` applies
+  the lifted `b`, which lets `h` again). Lazy lets in `closeTerm` would lift this. Stated in `modules.md`;
+  golden `neg/order_members_instance_cycle`.
+
+Reference: `modules.md` "Module bodies" (the order, the example, the two restrictions). Goldens:
+`run/order_members` (the issue's example in a body; a definition and a member function in one cycle, done
+before a later member's type uses them), `neg/order_members_instance_cycle`;
+`recovery/f_lost_nested_body_brace` numbers its fresh variables differently (the formula functions of
+`lib` are elaborated in dependency order, `link` before `near`).
+
 ## A meta function's recursion on the heap (#129)
 
 `LongListsSuite`'s `mirror` over 400 items on a 1 MiB thread failed about one run in five with a

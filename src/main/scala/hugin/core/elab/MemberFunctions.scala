@@ -14,9 +14,9 @@ import hugin.syntax.Trees.*
  *  constants of the enclosing bodies and of this one). The member is that global applied to the context,
  *  so the function is elaborated once per body, not per instance, and every instance's field is the
  *  shared function applied to the instance's arguments and object constants. The clauses are elaborated
- *  after all members, in the context of the whole body (forward references, mutual recursion), each
- *  function a block of its own ([[Core.inBlock]]); coverage and termination are those of the written
- *  clauses. */
+ *  in the function's component of the body's dependency order ([[ModuleBodies]]), after the members it
+ *  needs (forward references, mutual recursion), each function a block of its own ([[Core.inBlock]]);
+ *  coverage and termination are those of the written clauses. */
 trait MemberFunctions:
   self: Elaborator =>
   import core.*
@@ -61,25 +61,49 @@ trait MemberFunctions:
       val (cx, m) = defined(c, d.name, zty, quote(c.lvl, value), d.span)
       (cx, m, Some(MemberFunction(d.name.name, id, c)))
 
-  /** The clauses of the body, by function in order of appearance, each group a block of its own; then the
-   *  rules of the formula functions, each function a block of its own, as at the top level. */
-  def elabMemberClauses(cb: Cxt, parts: BodyItems, members: List[Member], functions: Map[Name, MemberFunction]): Unit =
+  /** The clauses of the body by function, in order of appearance; a clause that is not a name applied to
+   *  patterns is reported (E0915). The functions with a clause with a syntax error are left out. */
+  def memberClauseGroups(parts: BodyItems): scala.collection.mutable.LinkedHashMap[Name, List[Item]] =
     val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
     for item <- parts.clauses do
       clauseHead(item) match
         case Some(n) => groups(n) = groups.getOrElse(n, Nil) :+ item
         case None => reportingErrors(surfaceClause(item)) // E0915: not a name applied to patterns
-    for (n, group) <- groups if !parts.broken(n) do
-      functions.get(n) match
-        case Some(f) => clauseGroup(cb, f, group)
-        case None => reportingErrors(notAFunction(n, group, members, parts))
-    val formulas =
-      for n <- parts.members.flatMap(memberName).distinct if parts.formulas(n) && !parts.broken(n); f <- functions.get(n)
-      yield
-        val rules = parts.rules.filter(clauseOf(Set(n))(_).isDefined)
+    groups.filterInPlace((n, _) => !parts.broken(n))
+
+  /** The clause group of `n`, a block of its own, in the context `cb` of the members elaborated so far. */
+  def memberClauseGroup(
+      cb: Cxt,
+      n: Name,
+      group: List[Item],
+      members: List[Member],
+      parts: BodyItems,
+      functions: Map[Name, MemberFunction]
+  ): Unit =
+    functions.get(n) match
+      case Some(f) => clauseGroup(cb, f, group)
+      case None => reportingErrors(notAFunction(n, group, members, parts))
+
+  /** The rules of the formula function `n` of the body, a block of its own; the function, its global and
+   *  its rules (none if it is not one, or was left out). */
+  def memberFormula(
+      cb: Cxt,
+      n: Name,
+      rules: List[Rule],
+      parts: BodyItems,
+      functions: Map[Name, MemberFunction]
+  ): Option[(Name, Int, List[Rule])] =
+    if parts.broken(n) then None
+    else
+      functions.get(n).map { f =>
         if boundVars(cb).length != boundVars(f.cx).length then throw Impossible("an object constant after a member function")
         inBlock(elabMemberFormula(cb, n, f.id, rules))
         (n, f.id, rules)
+      }
+
+  /** The formula functions of a component, elaborated: their definitions unfold now, and their cycles are
+   *  checked (E0105); the functions of a cycle are false and their uses left out. */
+  def finishMemberFormulas(cb: Cxt, formulas: List[(Name, Int, List[Rule])]): Unit =
     for (_, id, _) <- formulas; kind <- withheld.remove(id) do globals(id).kind = kind
     val cyclic = checkMemberFormulaCycles(cb, formulas)
     state.leftOutMembers ++= formulas.collect { case (n, id, _) if cyclic(id) => (n, cb.scope(n)) }

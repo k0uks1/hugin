@@ -39,15 +39,38 @@ the field of an instance is that function for the instance's arguments and objec
 instances of a functor have fields that compute the same results, and object code that a field returns
 mentions the object constants of its own instance.
 
-The items of a body are elaborated in phases, not in the dependency order of a file's items ([Order of
-elaboration](meta/index.md#order-of-elaboration)): first the declarations and definitions, each after the
-members it refers to, then the clauses of the member functions, each function one item, then the rules of
-the formula functions, each function one item, then the object items. The rules of a formula function do
-not expand the other formula functions of the body while they are elaborated (as in a cycle of a file's
-items); they are expanded where the body's object items and the program use them. A member function's
-clauses are therefore not available while the declarations and definitions are
-elaborated: a definition that applies a member function evaluates to that application, which is computed
-when it is used.
+The members of a body are elaborated in dependency order, as a file's items are ([Order of
+elaboration](meta/index.md#order-of-elaboration)), with one difference: the object constants come first,
+with the definitions their types mention, so that every member function is a function of the same object
+constants. Then the other members, the clauses of the member functions and the rules of the formula
+functions are elaborated by the cycles of their dependency graph, each cycle after the members it refers
+to; inside a cycle, the signatures and definitions come first, then the clauses and rules, each function
+one item, and no function of the cycle computes in it. At the end of each cycle, termination and the
+cycles of its formula functions are checked. The object items come last. A member's type or value may
+therefore compute with a member function written anywhere in the body:
+
+```hugin
+nat : Type. zero : nat. suc : nat -> nat.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+lib = {
+  vec3 : Type = vec int (plus one (suc one)).
+  v : vec3 = vcons 1 (vcons 2 (vcons 3 vnil)).
+  one : nat = suc zero.
+  plus : nat -> nat -> nat.
+  plus zero N = N.
+  plus (suc M) N = suc (plus M N).
+}.
+```
+
+Two programs that a file accepts are rejected in a body. A typed definition and a signature that need
+each other (`x : nat = pick zero.` with `pick : nat -> sel x.`) are an error, since a member's value
+cannot follow its type there. And a formula function or member function is checked for cycles with the
+whole value of each member it uses, not only with the member a path selects: in a body that applies a
+functor `mk` of the body to make a member `inst`, a formula function `h` that uses `inst.a` refers to
+itself ([E0105](errors/E0105.md)) if any member of `mk`'s body uses `h`, although at the top level the
+same program is accepted ([Formula functions](meta/staging.md#formula-functions)).
 
 It is an error ([E0907](errors/E0907.md)) to use in a module body: refinements, families of object
 constants, meta inductive families, meta declarations without a definition or clauses (postulates),
