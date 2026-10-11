@@ -55,7 +55,8 @@ trait Items:
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
     state.clauseless = prog.collect {
-      case d: Decl if d.defn.isEmpty && d.sup.isEmpty && !isDataDecl(d) && !isStructDecl(d) && !state.functionNames(d.name.name) &&
+      case d: Decl
+          if d.defn.isEmpty && d.sup.isEmpty && !isDataDecl(d) && !isStructDecl(d) && !state.functionNames(d.name.name) &&
             !formulaFunctions(d.name.name) =>
         d.name.name
     }.toSet

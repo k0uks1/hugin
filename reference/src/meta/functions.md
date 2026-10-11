@@ -142,8 +142,8 @@ A *postulate* `x : A = %postulate.` declares a constant of the meta type `A` wit
 Meta code that applies it is stuck, and it is an error ([E0909](../errors/E0909.md)) if object code
 depends on a stuck value. A postulate can assume any statement, also a false one, so it is never
 implicit: a declaration without a value or clauses that is not an inductive family or a constructor
-declares a function, which is an error ([E0911](../errors/E0911.md)) unless no clauses cover it
-([Clauses](clauses.md#syntax)). `%postulate` is only the definition of a declaration at the top level of
+declares a function without clauses, an error ([E0911](../errors/E0911.md)) unless one of its explicit
+arguments has an empty type ([Clauses](clauses.md#syntax)). `%postulate` is only the definition of a declaration at the top level of
 a file: elsewhere it is an error ([E0103](../errors/E0103.md)), and in a
 [module body](../modules.md#module-bodies) [E0907](../errors/E0907.md). The parameters of a functor and
 the fields of a signature are not postulates: they are bound to values where the functor is applied
@@ -173,20 +173,9 @@ checked 2.
 ```
 
 The option `--safe` of `hugin check` and `hugin run` rejects every postulate of the program and of the
-files it imports ([E0925](../errors/E0925.md)); the standard library has none. The option
-`--print-assumptions f` prints the postulates that the meta constant `f` depends on: those its type, its
-value or its clauses mention, and, transitively, those of every constant they mention (Lean's
-`#print axioms`). The primitive operations of the prelude and the native arithmetic of `std/nat` are
-trusted code of the compiler, not assumptions. For the program above, saved as `unit.hgn`:
-
-```text
-$ hugin check unit.hgn --print-assumptions step --print-assumptions two
-note: assumptions of `step`: none
-note: assumptions of `two`:
-  plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at unit.hgn:6:1)
-$ hugin check --safe unit.hgn
-error[E0925]: postulate `plusZero` is not allowed with --safe
-```
+files it imports ([E0925](../errors/E0925.md)); the standard library has none. The directive
+`%assumptions f.` and the option `--print-assumptions f` print the postulates and trusted primitives
+that `f` depends on ([Consistency](consistency.md#assumptions)).
 
 ## Typed holes
 

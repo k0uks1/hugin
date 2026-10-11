@@ -1,0 +1,11 @@
+error[E0912]: cannot show that `noBad` terminates
+ --> tests/neg/p1_forced_recursion.hgn:7:1
+  |
+7 | noBad : bad F -> empty. (*~ E0912 *)
+  | ^^^^^ possibly non-terminating
+8 | noBad b = noBad (F (bad F) b).
+  | ------------------------------ in this clause: `noBad {F} (F (bad F) (b {F}))`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+1 error found

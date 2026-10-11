@@ -31,7 +31,10 @@ enum ClauseProblem extends Problem:
   case NotTerminating(fn: String, at: Span, call: Option[(Span, String)])
   case NonPositive(family: String, argument: Int, argumentType: String, at: Span)
   case PartialFamilyResult(family: String, at: Span)
-  case ArgumentTooLarge(argument: String, family: String, universe: String, at: Span)
+
+  /** `of`: the constructor of the argument if it is not the one declared at `at` (which made the
+   *  argument's position an index); `index`: the argument is a forced implicit binder at an index. */
+  case ArgumentTooLarge(argument: String, family: String, universe: String, at: Span, of: Option[String] = None, index: Boolean = false)
   case NotDefinableByClauses(fn: String, at: Span, declared: Span, kind: String)
 
   /** `inBody`: the clauses are in a module body, which does not declare the function. */
@@ -87,7 +90,7 @@ enum ClauseProblem extends Problem:
     case NotTerminating(_, s, _) => s
     case NonPositive(_, _, _, s) => s
     case PartialFamilyResult(_, s) => s
-    case ArgumentTooLarge(_, _, _, s) => s
+    case ArgumentTooLarge(_, _, _, s, _, _) => s
     case NotDefinableByClauses(_, s, _, _) => s
     case ClausesWithoutDeclaration(_, s, _) => s
     case PatternCount(_, _, s) => s
@@ -119,7 +122,8 @@ enum ClauseProblem extends Problem:
     case NotTerminating(f, _, _) => msg"cannot show that ${Src(f)} terminates"
     case NonPositive(fam, _, _, _) => msg"${Src(fam)} occurs in a non-positive position"
     case PartialFamilyResult(fam, _) => msg"a constructor of ${Src(fam)} must return it applied to all its arguments"
-    case ArgumentTooLarge(x, fam, _, _) => msg"the argument ${Src(x)} is too large for ${Src(fam)}"
+    case ArgumentTooLarge(x, fam, _, _, None, _) => msg"the argument ${Src(x)} is too large for ${Src(fam)}"
+    case ArgumentTooLarge(x, fam, _, _, Some(c), _) => msg"the argument ${Src(x)} of ${Src(c)} is too large for ${Src(fam)}"
     case NotDefinableByClauses(f, _, _, _) => msg"${Src(f)} cannot be defined by clauses"
     case ClausesWithoutDeclaration(f, _, _) => msg"clauses of ${Src(f)} without a declaration"
     case PatternCount(f, _, _) => msg"all clauses of ${Src(f)} must have the same number of patterns"
@@ -201,8 +205,15 @@ enum ClauseProblem extends Problem:
         msg"the argument has type ${Src(t)}",
         msg"a family may only occur strictly positively in the arguments of its constructors: not to the left of an arrow, nor inside the arguments of another type"
       )
-    case ArgumentTooLarge(_, fam, u, _) =>
-      List(msg"${Src(fam)} lives in ${Src(u)}; its constructors may only take arguments of types in that universe (predicativity)")
+    case ArgumentTooLarge(x, fam, u, _, of, index) =>
+      msg"${Src(fam)} lives in ${Src(u)}; its constructors may only take arguments of types in that universe (predicativity)" ::
+        (if !index then Nil
+         else
+           List(
+             msg"${Src(x)} is at an index of ${Src(fam)}, not a parameter: only the leading arguments that every constructor returns as the same variable are parameters, exempt from this rule" ++
+               Msg.text(if of.isDefined then "; this constructor does not keep it fixed" else "")
+           )
+        )
     case _: NotDefinableByClauses => List(msg"clauses define meta functions; object relations are defined by rules (`:-`)")
     case _: InvalidPattern => List(
         msg"patterns are uppercase variables, `_`, constructors applied to patterns, natural-number literals and successor patterns `p + k`"

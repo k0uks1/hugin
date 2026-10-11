@@ -84,6 +84,7 @@ object Printer:
     case Directive(k, args) =>
       args match
         case DirArgs.Infix(a, p, n) => s"%$k $a $p ${n.name}."
+        case DirArgs.Assumptions(n) => s"%$k ${n.name}."
         case DirArgs.Apply(as, decl) => (s"%$k" :: as.map(showArg)).mkString(" ") + decl.fold(".")(_ => "") // the declaration follows
         case DirArgs.Use(Import(path), ns) => s"%use ${Literal.quote(path)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."
         case DirArgs.Use(m, ns) => s"%use ${showArg(m)}${ns.fold("")(_.map(_.name).mkString(" (", ", ", ")"))}."

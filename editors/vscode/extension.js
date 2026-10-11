@@ -2,8 +2,8 @@
 // the TextMate grammar alone, so it works without the server.
 //
 // The meta level (issue #54): inlay hints are configured by `hugin.inlayHints.*` (sent as initialization
-// options and on every change), `hugin.safe` compiles as `--safe` does (rejecting postulates), and `Hugin: Show Expansion` (also the code lenses on directive and
-// functor applications) opens the staged result of the meta code at the cursor in a read-only document
+// options and on every change), `hugin.safe` compiles as `--safe` does (rejecting postulates), and
+// `Hugin: Show Expansion` (also the code lenses on directive and functor applications) opens the staged result of the meta code at the cursor in a read-only document
 // `hugin-expansion:`, asking the server with its command `hugin.expansion`.
 const vscode = require("vscode");
 const { LanguageClient } = require("vscode-languageclient/node");

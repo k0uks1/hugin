@@ -57,8 +57,8 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   --explain-termination   print the termination argument of every recursive component
   --safe                  reject postulates (`x : A = %postulate.`), also those of imported files (E0925)
   --print-assumptions <name>
-                          print the postulates the meta constant <name> depends on, transitively
-                          (repeatable; Lean's `#print axioms`)
+                          print the postulates and trusted primitives the constant <name> depends on,
+                          transitively (repeatable; Lean's `#print axioms`, as `%assumptions name.`)
   --no-prelude            do not include the standard prelude
 ```
 

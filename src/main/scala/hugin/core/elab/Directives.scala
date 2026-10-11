@@ -45,6 +45,12 @@ trait Directives:
     // at the top level they are scope items ([[Uses]]); only a module body gets here
     case DirArgs.Use(_, _) => unsupportedAt(d.span, "`%use` in module bodies")
     case DirArgs.Export(_) => fail(ElabProblem.MisplacedExport(d.span, None))
+    // `%assumptions f.` adds no items: the name is resolved here, the assumptions are printed after
+    // elaboration ([[hugin.core.Assumptions]])
+    case DirArgs.Assumptions(n) =>
+      if inBody then unsupportedAt(d.span, "`%assumptions` in module bodies")
+      resolve(c, n.name, n.span): Unit
+      Nil
     case DirArgs.Apply(args, decl) =>
       val (tm, footprint, attached) = application(c, d, args, decl)
       val frame = TraceFrame(s"in expansion of `${shown(d)}`", d.span)

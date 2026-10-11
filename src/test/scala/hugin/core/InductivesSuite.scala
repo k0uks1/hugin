@@ -28,9 +28,42 @@ class InductivesSuite extends munit.FunSuite:
     assert(e.global("absurd").kind.isInstanceOf[GlobalKind.Function], e.global("absurd").kind.toString)
     // otherwise they do not cover it: the declaration is not a postulate
     assertEquals(errors("boom : (A : Type) -> A.\n"), List("E0911"))
-    assertEquals(errors("nat : Type.\nzero : nat.\nk : nat -> nat.\n"), List("E0911"))
+    assertEquals(errors("nat : Type.\nzero : nat.\nk : nat -> int.\n"), List("E0911"))
     // nor when the constructors of the argument's family come after the function
-    assertEquals(errors("nat : Type.\nk : nat -> nat.\nzero : nat.\n"), List("E0911"))
+    assertEquals(errors("nat : Type.\nk : nat -> int.\nzero : nat.\n"), List("E0911"))
+  }
+
+  test("D2: the leading arguments that every constructor keeps fixed are parameters (#186)") {
+    def params(src: String, fam: String) =
+      val e = ok(src)
+      e.elab.parameters(e.elab.scope(fam))
+    assertEquals(params("rep : Type -> Type.\nwrap : A -> rep A.\n", "rep"), 1)
+    assertEquals(
+      params(
+        "nat : Type.\nzero : nat.\nsuc : nat -> nat.\nvec : Type -> nat -> Type.\nvnil : vec A zero.\nvcons : A -> vec A N -> vec A (suc N).\n",
+        "vec"
+      ),
+      1
+    )
+    // the type and the first argument of an equality; the repeated variable is an index
+    assertEquals(params("eqn : (A : Type) -> A -> A -> Type.\nrefl : eqn A X X.\n", "eqn"), 2)
+    // a family without constructors: all its arguments
+    assertEquals(params("t : int -> int -> Type.\n", "t"), 2)
+    // a recursive occurrence with another variable makes the position an index
+    assertEquals(params("path : int -> int -> Type.\nstop : path X X.\nstep : path X Y -> path Y Z.\n", "path"), 0)
+    // a parameter's implicit argument does not count for predicativity; an index's does
+    ok("rep : Type -> Type.\nwrap : A -> rep A.\ndeep : rep (rep int) = wrap (wrap 1).\n")
+    assertEquals(errors("rep : Type -> Type.\nwrap : A -> rep A.\nunit : rep int.\ndeep : rep (rep int) = wrap (wrap 1).\n"), List("E0904"))
+    assertEquals(errors("rep : Type -> Type.\nunit : rep int.\nwrap : A -> rep A.\ndeep : rep (rep int) = wrap (wrap 1).\n"), List("E0904"))
+  }
+
+  test("D2: the arguments of a constructor at parameter positions are not its subterms (#186)") {
+    val e = ok(
+      "nat : Type.\nzero : nat.\nsuc : nat -> nat.\nvec : Type -> nat -> Type.\nvnil : vec A zero.\nvcons : A -> vec A N -> vec A (suc N).\n"
+    )
+    // `vcons : {A} -> {N} -> A -> vec A N -> vec A (N + 1)`: `A` (binder 0) is a parameter, `N` is not
+    assertEquals(e.elab.parameterArguments(e.elab.scope("vcons")), Set(0))
+    assertEquals(e.elab.parameterArguments(e.elab.scope("vnil")), Set(0))
   }
 
   test("constructors may be declared before their family is (any order)") {

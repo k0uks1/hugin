@@ -100,6 +100,11 @@ final class GlobalEntry(
    *  listed by `--print-assumptions` (reference: meta/functions, "Postulates"). */
   var axiom: Boolean = false
 
+  /** For an inductive family: the number of its leading arguments that every constructor keeps fixed, its
+   *  parameters (reference: meta/families, "Parameters"); -1 while it has no constructors (then all its
+   *  arguments are). */
+  var parameters: Int = -1
+
 /** The link between the two constants a shared data declaration declares under one name (reference:
  *  meta/families, shared data): the meta inductive family (or meta constructor) at `side` S1, the
  *  object family, type or constructor at `side` S0. On the meta family, `lift` and `reify` are the

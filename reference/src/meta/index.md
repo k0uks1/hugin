@@ -8,7 +8,8 @@ object program is evaluated.
 
 Every meta function terminates, and every meta function defined by clauses covers all its arguments.
 Therefore the elaboration of every program terminates, and every application of a meta function to
-closed arguments has a value.
+closed arguments has a value. The meta level is consistent as a logic unless a program assumes
+something with a postulate ([Consistency](consistency.md)).
 
 ## Stages
 
@@ -50,6 +51,7 @@ The meta level has the following items. Each is defined in the chapter given.
 | `f params : A = e.` | a definition with parameters and a declared result type | [Functions](functions.md#definitions) |
 | `f : … -> prop.` followed by rules `f t̄ :- φ.` | a formula function | [Staging](staging.md#formula-functions) |
 | `x : A = %postulate.` | a *postulate*: a constant without a value | [Functions](functions.md#postulates) |
+| `%assumptions f.` | prints the postulates and trusted primitives `f` depends on | [Consistency](consistency.md#assumptions) |
 
 The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
 body does not support ([E0907](../errors/E0907.md)); in particular, a body may declare meta functions

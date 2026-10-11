@@ -235,6 +235,10 @@ object Trees:
     /** `%export S.` (reference: modules): the file's module value is ascribed the signature `S`. */
     case Export(signature: Tree)
 
+    /** `%assumptions f.` (reference: meta/consistency): prints the postulates and trusted primitives that
+     *  the constant `f` depends on, as `--print-assumptions f` does. */
+    case Assumptions(name: Ident)
+
   final case class Program(items: List[Item], span: Span):
     /** All `%import` expressions of the program, in source order. Computed once per program (trees are
      *  immutable): the standard library's parsed files are shared by every compilation of a process, and

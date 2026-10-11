@@ -25,6 +25,7 @@
     - [Termination of meta functions](meta/termination.md)
     - [`where`](meta/where.md)
     - [Staging](meta/staging.md)
+    - [Consistency](meta/consistency.md)
 - [Reflection and quoted patterns](reflection.md)
 - [Directives](directives.md)
 - [Modules, functors and libraries](modules.md)

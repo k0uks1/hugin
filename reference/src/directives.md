@@ -13,6 +13,7 @@ library and `%demand` in detail.
 Directive  ::= DIRECTIVE DirArg* "."                   (standalone)
              | DIRECTIVE DirArg* Declaration           (prefix form)
              | "%infix" ("left" | "right" | "none") INT NAME "."
+             | "%assumptions" NAME "."
 DirArg     ::= Atom-like expression | ModeItem+
 ModeItem   ::= ("+" | "-") NAME?
 ```
@@ -29,7 +30,9 @@ and makes it an output relation.
 structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
 not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%use` and
 `%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)).
-`%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
+`%assumptions f.` prints the assumptions of a constant and has a syntax of its own
+([Consistency](meta/consistency.md#assumptions)). `%postulate` is an expression, the definition of a
+[postulate](meta/functions.md#postulates). `%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
 ([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it
 is an error ([E0001](errors/E0001.md)).
 

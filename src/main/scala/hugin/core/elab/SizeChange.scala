@@ -359,7 +359,10 @@ trait SizeChange:
       else
         val (h, args) = spine(a)
         h match
-          case Tm.Global(c) if isConstructor(c) => args.exists(x => x == b || properSubterm(b, x))
+          // the parameters of a constructor's family are not its subterms (D2; Lean, Agda)
+          case Tm.Global(c) if isConstructor(c) =>
+            val params = parameterArguments(c)
+            args.zipWithIndex.exists((x, k) => !params(k) && (x == b || properSubterm(b, x)))
           case _ => false
 
   /** The number of successors of a nat-like family applied to `t`, and the term under them. */

@@ -7,5 +7,5 @@ note: assumptions of `needs`:
 note: assumptions of `proved`: none
 note: assumptions of `plusZero`:
   plusZero : (n : nat) -> eqn (plus n 0) n  (postulate at tests/run/p1_assumptions.hgn:8:1)
-note: assumptions of `missing`: no meta constant of that name
+note: assumptions of `missing`: no constant of that name
 result 1.

@@ -213,7 +213,7 @@ object CommandLine:
       opt[String]("print-assumptions")
         .valueName("<name>")
         .unbounded()
-        .text("print the postulates that the meta constant <name> depends on, transitively (repeatable)")
+        .text("print the postulates and trusted primitives that the constant <name> depends on, transitively (repeatable)")
         .action((n, o) => o.copy(settings = o.settings.copy(printAssumptions = o.settings.printAssumptions :+ n))),
       checkConfig(o =>
         o.command match
