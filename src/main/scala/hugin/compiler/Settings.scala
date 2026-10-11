@@ -13,7 +13,9 @@ final case class Settings(
     /** Auto-include the standard prelude (`<stdlib>/prelude.hgn`). */
     prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */
-    explainTermination: Boolean = false
+    explainTermination: Boolean = false,
+    /** Record the instances of the rules for a proof export (`--export-proofs`, `hugin.runtime.ProofExport`). */
+    exportProofs: Boolean = false
 )
 
 /** How diagnostics are shown. Compilation always produces all diagnostics; clients filter and render

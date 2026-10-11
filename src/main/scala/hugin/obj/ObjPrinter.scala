@@ -56,6 +56,7 @@ object ObjPrinter:
       case RelKind.Struct => "  (* struct *)"
       case RelKind.Derivation(rn) => s"  (* derivations of @$rn *)"
       case RelKind.Auxiliary(purpose) => s"  (* $purpose *)"
+      case RelKind.Proof => "  (* proof relation of --export-proofs *)"
       case _ => ""
     s"${r.name} : ${(r.cols.map(column) :+ res).mkString(" -> ")}.$kind"
 

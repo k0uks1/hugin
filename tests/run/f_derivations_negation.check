@@ -1,0 +1,4 @@
+@free (free a) (weight a 1) (not blocked a 2).
+@free (free b) (weight b 2) (not blocked b 3).
+@sink (sink c) (weight c 3) (not edge c _).
+@source (source a) (weight a 1) (not edge _Y a).

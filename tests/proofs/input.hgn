@@ -1,0 +1,8 @@
+(* --export-proofs (reference: object/io): the facts of an input relation, read from a facts file, are
+   rules without body of the exported program *)
+edge : int -> int -> rel.
+%input edge.
+reach : int -> rel.
+reach 1.
+reach Y :- reach X, edge X Y.
+%output reach.

@@ -1,0 +1,65 @@
+{
+  "graph": {
+    "edges": [
+      {
+        "label": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]},
+        "predecessors": []
+      },
+      {
+        "label": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]},
+        "predecessors": []
+      },
+      {
+        "label": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]},
+        "predecessors": []
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "b"}]},
+        "predecessors": [0]
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "c"}]},
+        "predecessors": [1]
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "c"}]},
+        "predecessors": [3, 4]
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "c"}, {"constant": "d"}]},
+        "predecessors": [2]
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "a"}, {"constant": "d"}]},
+        "predecessors": [5, 6]
+      },
+      {
+        "label": {"symbol": "path", "terms": [{"constant": "b"}, {"constant": "d"}]},
+        "predecessors": [4, 6]
+      }
+    ]
+  },
+  "program": [
+    {"head": {"symbol": "edge", "terms": [{"constant": "a"}, {"constant": "b"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "b"}, {"constant": "c"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "c"}, {"constant": "d"}]}, "body": []},
+    {
+      "head": {"symbol": "path", "terms": [{"variable": "X"}, {"variable": "Y"}]},
+      "body": [{"symbol": "edge", "terms": [{"variable": "X"}, {"variable": "Y"}]}]
+    },
+    {
+      "head": {"symbol": "path", "terms": [{"variable": "X"}, {"variable": "Z"}]},
+      "body": [
+        {"symbol": "path", "terms": [{"variable": "X"}, {"variable": "Y"}]},
+        {"symbol": "path", "terms": [{"variable": "Y"}, {"variable": "Z"}]}
+      ]
+    }
+  ],
+  "hugin": {
+    "version": 1,
+    "format": "ordered-graph",
+    "assumptionSymbols": [],
+    "assumedFacts": [],
+    "omittedRules": []
+  }
+}

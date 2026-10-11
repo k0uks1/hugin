@@ -1,0 +1,9 @@
+edge a b.
+edge b c.
+edge c d.
+path a b.
+path a c.
+path a d.
+path b c.
+path b d.
+path c d.
