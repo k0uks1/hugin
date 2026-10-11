@@ -2,38 +2,55 @@
 
 Design note for [issue #186](https://github.com/k0uks1/hugin/issues/186): the meta level should state and
 prove properties of object-level Datalog programs, such as "this derived relation is transitive" and
-"this rewrite derives the same facts". Status: approved by the designer; P1 next. Nothing is
-implemented yet. Written against `ccr-48027e29-daam41` at 28dbcb1. No program in this note was compiled: the
-task allowed no builds, and the only launcher on the machine predates the redesign. Statements about
-today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
+"this rewrite derives the same facts". Status: approved by the designer (first version, #190); this
+revision (r2) rewrites the user-facing design so that proofs are about programs written normally, and
+adds chapter 10 (relations as propositions, decided as D14). Nothing is implemented yet; P1 is next. Written against
+`ccr-48027e29-daam41`. No program in this note was compiled; the task allowed no builds. Statements
+about today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
 
-Revision history. The first review added chapter 1. The second review accepted these revisions: the
-meta `int` becomes an inductive type, unbounded and native-accelerated (D8); `value` reuses the base
-types (D4); `match` and `rewrite` move to right-hand sides (P3); and a comparison of with, match and
-rewrite was added (4.2). The second review also asked whether a more principled design than a
-per-relation `%semantics` directive exists. Chapter 8 surveys the alternatives. It recommends one
-semantic judgment, `derives`, as an ordinary library family, with rule-name patterns as the only sugar.
-Chapter 1, the plan and the decisions now follow that recommendation. The third review accepted it,
-added the code bridge between `⇑A` and the reflective syntax (7.7, P7a), and asked whether a layered
-modal foundation would fit better (chapter 9: not now, with the conditions under which it would).
-The designer then approved the plan and every decision as recommended (chapter 12), with D1 and P1 in
-the form given there: a meta function without clauses is a coverage error, and postulates need
-`= %postulate`.
+Revision history. The first review added chapter 1. The second review accepted these revisions: an
+inductive meta `int` (D8), base types reused in values (D4), right-hand-side `match` and `rewrite`
+(P3). It also asked for alternatives to a per-relation `%semantics` directive, and chapter 8 recommends
+one library judgment instead. The third review accepted that, added the code bridge (7.7), and asked
+about a modal foundation (chapter 9: not now). The designer then approved the plan and every decision
+(#190). In r2, the designer found chapter 1's examples too low-level: programs written as quotes, a
+label on every rule, the run program spliced, and a confusing `compile`. The approved changes:
+
+- programs and specifications are ordinary functors, modules and rules;
+- `programOf` replaces `compile`;
+- a judgment notation `P ⊢ r x y` with typed arguments;
+- automatic rule names `path.1`, `path.2`;
+- `decide` works with the notation;
+- a new chapter on relations as propositions (levels 3.5 and 4), decided as D14: levels 1–3
+  approved, level 3.5 designed after them (P9, design first), level 4 recorded, not planned.
 
 Contents: 1 the end state (a tour and two complete proofs), 2 recommendations, 3 Hugin today, 4 gap
-analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs
-(with the code bridge, 7.7), 8 alternatives to `%semantics`, 9 is a (layered) modal foundation worth
-it?, 10 worked examples against hand-written families, 11 batches, 12 decisions (approved),
-13 sources.
+analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs,
+8 alternatives to `%semantics`, 9 is a (layered) modal foundation worth it?, 10 relations as
+propositions (levels 3.5 and 4), 11 worked examples against hand-written families, 12 batches,
+13 decisions, 14 sources.
+
+> **Syntax versus semantics, and why Lean doesn't need this.** Reflection gives a program as *data*:
+> its rules, as the meta level can take them apart. `derives` gives its *meaning*: which facts the
+> rules derive from which inputs. Lean proves things about Lean programs directly, because program and
+> logic are one language: a Lean function *is* a term of the logic, and its equations are theorems.
+> For a program in *another* language, a semantics is defined once inside the logic and the program is
+> related to it: C in CompCert (Leroy, CACM 2009), Datalog in Tantow et al.'s Lean checker (ITP 2025).
+> Hugin has both situations. Its meta functions are like Lean, since a meta function is a term of the
+> meta logic and proofs about it need nothing new (P2, P3). Its Datalog is "the other language", run by
+> a different engine with a least-fixpoint semantics. So Datalog needs a semantics in the meta logic,
+> and it is defined once, in `std/semantics` (P5–P6). Users never write semantics. They write
+> ordinary rules, and state theorems in the notation `tc ⊢ path x y`, which elaborates to that one
+> judgment.
 
 ## 1. The end state: proving with Hugin
 
-This chapter shows the language once batches P1–P8 (chapter 11) are in, and proves two properties end
-to end, as a user would write them. Everything here is hypothetical syntax built on today's syntax from
-`reference/src`: clauses, implicit binders `{x : A}`, records, `where` blocks, directives `%name …` and
-reflection quotes `'( … )`. Places marked **(proposal)** follow D11, approved as proposed; their details are fixed in
-each batch. Nothing in this chapter has been compiled; the programs were checked by hand against the rules
-of chapters 3–9 and of the reference.
+This chapter shows the language once batches P1–P8 (chapter 12) are in, and proves two properties end
+to end, as a user would write them. Programs and specifications are ordinary functors and rules: no
+quotes, no splices, no required labels. Everything is hypothetical syntax built on today's syntax from
+`reference/src`. Places marked **(proposal)** follow D11, whose details are fixed in each batch.
+Nothing in this chapter has been compiled; the programs were checked by hand against the rules of
+chapters 3–9 and of the reference.
 
 ### 1.1 A tour of the additions
 
@@ -194,188 +211,196 @@ big : lt 3 100000 = decide ltDec { fst = 3, snd = 100000 } tt.
 `lessSound M 0 ()` is an absurd clause: `less M 0` evaluates to `false` by the first clause of `less`,
 and `so false` is the empty type. → **P4**.
 
-**The semantic judgment.** `std/semantics` defines one judgment for all programs: `derives p d a`, read
-"program `p` derives the ground atom `a` from the input database `d`". It is an ordinary inductive
-family over compiled programs (7.2); no per-relation declaration exists.
+**The judgment notation.** `P ⊢ r t̄` (ASCII `|-`) states that the program `P` derives the fact
+`r t̄`. `P` is a functor, a module, or a functor applied to arguments. The atom is written in object
+syntax. Its arguments are checked against the relation's declared column types, so statements range
+over typed nodes.
 
 ```hugin
+%use "std/graph".            (* tc: path X Y :- g.edge X Y.   path X Z :- g.edge X Y, path Y Z. *)
 %use "std/semantics".
-value : Type.
-vint : int -> value.  vfloat : float -> value.  vstr : string -> value.
-vfact : sym -> list value -> value.          (* a fact's identity: its constant and its arguments *)
-gatom : Type.
-atom : sym -> list value -> gatom.
-db : Type = gatom -> Type.
-program : Type.                              (* compiled rules, input relations, strata *)
-compile : module -> program.
-derives : program -> db -> gatom -> Type.
-monotone : {p : program} -> {d e : db} -> so (positive p) -> ((a : gatom) -> d a -> e a) ->
-           {a : gatom} -> derives p d a -> derives p e a.
+oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.      (* (proposal) syntax *)
+oneStep E = path.1 E.
 ```
 
-`value` reuses the base types and symbols (D4). `monotone` is proved in the library: a negation-free
-program derives more facts from more input facts. → **P5** (positive Datalog∃!), **P6** (negation,
-aggregates).
-
-**Rule patterns.** For a *closed* program, a derivation is matched by the program's rule names. The
-pattern `@step E P` stands for "rule `@step` fired, with premises `E` and `P`". The rule's variables
-are bound by name with implicit patterns, and the same names build derivations.
+The statement says: in the transitive closure of any graph `g`, from any input, an edge from `x` to `y`
+gives a path. It elaborates to
 
 ```hugin
-%use "std/semantics".
-node : type.
-edge : node -> node -> rel.
-path : node -> node -> rel.
-lin : module = '(
-  @base path X Y :- edge X Y.
-  @step path X Z :- edge X Y, path Y Z.
-).
-linP : program = compile lin.
-pathAt : value -> value -> gatom = [x] [y] atom '(path) [x, y].
-edgeAt : value -> value -> gatom = [x] [y] atom '(edge) [x, y].
-firstHop : {d : db} -> {x z : value} -> derives linP d (pathAt x z) -> value.
-firstHop (@base E) = z.
-firstHop (@step {Y := W} E P) = W.
+oneStep : {d : db} -> {g : graph} -> {x y : ⇑g.node} ->
+          derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]) ->
+          derives (programOf (tc g)) d (atom (own 0) [v x, v y]).
 ```
 
-A rule pattern is resolved against the program in the scrutinee's type, which must evaluate to a
-closed `program`. It elaborates to the general constructor `fire`, the rule's position in the program,
-an instantiation vector of the rule's variables, the premises in body order and the head equation
-(7.3). Branches whose head cannot unify with the goal atom are impossible: in `firstHop`, an `edge`
-rule could not occur. `@input I` matches an input fact; it exists only for relations without rules in
-the program (here `edge`), so `firstHop` needs no `@input` clause for `path`. The editor prints
-`derives linP d (atom '(path) [x, z])` as `linP ⊢ path x z` **(proposal)**. → **P7b**.
+- The functor `tc`'s parameter `g` and the input database `d` are *generalised*: they become implicit
+  binders of the declaration. This is how free uppercase variables already become implicit binders
+  (reference `meta/functions.md`), and how Agda's `variable` and Lean's auto-bound implicits work. The
+  binders are shared by all judgments of the declaration, and `⊢[e]` gives a database explicitly.
+- `x y : g.node` is object code of type `g.node`, so `x` and `y` are typed nodes, abstract in `g`.
+- `v` injects object code into the semantics' values (7.2).
+- `arg "edge"` and `own 0` are program-relative references to relations (7.2).
 
-**Programs of functors.** `body f` is the reified body of a functor, whose parameter relations are
-input relations of the program.
+→ **P7b** (notation), **P5** (`derives`).
+
+**`programOf`.** The explicit form reifies a functor, a module or the current file's rules as written.
 
 ```hugin
-%use "std/graph".
-tcP : program = compile (body tc).        (* (proposal) primitive; `g.edge` is an input relation *)
+tcP : program = programOf tc.
+fileP : program = programOf here.              (* (proposal) `here`: this file's object rules *)
 ```
 
-So a theorem about `tcP` holds for every graph a program passes to `tc`: the graph's edges are part of
-the input database. → **P7a** (the code bridge, 7.7).
+`programOf` is a meta function that produces `std/semantics`'s `program` value: names resolved to
+relation references, rules numbered, variables typed, inputs and strata computed. It generates no code.
+The notation inserts it wherever a functor or module stands before `⊢`. It is built on the code bridge
+between `⇑A` and the reflective syntax (7.7). → **P7a**.
 
-**One adequacy statement.** The link between the judgment and what a run prints is a single statement
-about the compiler and the engine, the same for every program: for a program whose rules are the module
-`m`, a run on the input facts `d` prints the fact `a` exactly when `derives (compile m) d a` holds. It
-is trusted, written in the reference, and checked per run by `--certify`. → **P7b** (statement),
-**P8b** (check).
+**Automatic rule names and case analysis.** The rules of a relation `r` are `r.1`, `r.2`, … in the
+order they are written, like Isabelle's `tc.intros(1)`. The name `given` is for facts of the input
+database. A rule name is both a pattern on derivations and a way to build them. Its premises are the
+rule's body atoms in order, and the rule's variables can be bound by name. An optional label
+(`@step path X Z :- …`) adds a second name; labels are never required.
+
+```hugin
+firstHop : {x z : g.node} -> tc ⊢ path x z -> g.node.
+firstHop (path.1 E) = z.
+firstHop (path.2 {Y := w} E P) = w.            (* w : ⇑g.node, typed by the rule *)
+```
+
+In the editor, splitting a hypothesis `P : tc ⊢ path x z` offers exactly the rules whose head can match:
+`path.1` and `path.2`, but not `given`, since `path` has rules, and no rule of another relation. This
+is Abella's `case`, with the rule's variables bound. Hovers show goals in `⊢` notation. → **P7b**.
+
+**`decide` with the notation.** For a finite program whose inputs are facts in the file, a judgment
+is proved by evaluation.
+
+```hugin
+city : type. berlin, paris, rome : city.
+demo : city -> city -> rel.
+demo berlin paris. demo paris rome.
+tiny = tc { node = city, edge = demo }.
+viaParis : here ⊢ tiny.path berlin rome = decide 3 tt.
+```
+
+`decide n` is `std/semantics`'s lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when
+`p` has no input relations, and `holds n` is `n` rounds of naive evaluation. Here three rounds derive
+`tiny.path berlin rome`, `holds` evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
+`decide`), **P5** (`holds` and its soundness), **P7b** (the notation).
+
+**One adequacy statement.** For every module `m` of a program and every run on the input facts `d`,
+the run prints `m.r t̄` exactly when `m ⊢[d] r t̄`. This is one statement for all programs and
+relations, trusted, written in the reference, and checked per run by `--certify`. A theorem about a
+functor applies to each of its instances: `programOf (tc2 roads)` is the program of the instance
+`tc2 roads`, found through the origin that a functor application records (NOTES, "Modules are
+generative records"). → **P7b** (statement), **P8b** (check).
 
 **Derivations and certified runs.** `%derivations` exists today. P8 adds negative premises, an export
 in a verified checker's format, and a run mode that checks the output against `derives`.
 
-```hugin
-%derivations areached.
-```
-
 ```text
 $ hugin run --export-proofs proofs.json europe.hgn        (proposal: flag; Tantow et al.'s JSON)
 $ hugin run --certify --facts roads.facts europe.hgn       (proposal: flag and report)
-areached de.
-areached fr.
+eu.areached de.
+eu.areached fr.
 certified: 41 facts; 41 derivations checked by std/semantics.check (check.sound);
 model check passed; 1 query, no answers
 ```
 
-`--certify` replaces trust in the engine, for that run, by a check whose soundness is proven in
-Hugin against `derives`. → **P8a** (export), **P8b** (`--certify`).
+→ **P8a** (export), **P8b** (`--certify`).
 
 ### 1.2 Proof A: an optimising rewrite derives exactly the same facts
 
-**The program.** The linear closure is the specification. An optimiser replaces it by the non-linear
-*doubling* rule, which needs logarithmically many rounds. The program runs the optimised rules, and the
-specification is kept as data:
+**The program.** The specification is the standard library's transitive closure `tc`, unchanged. The
+program runs an optimised variant, `tc2`, with the non-linear *doubling* rule, which needs
+logarithmically many rounds. Both are ordinary functors:
 
 ```hugin
+%use "std/graph".
 %use "std/eq".
 %use "std/semantics".
 
-node : type.
-edge : node -> node -> rel.
-path : node -> node -> rel.
-%input edge.
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+}.
 
-lin : module = '(                       (* the specification, not run *)
-  @base path X Y :- edge X Y.
-  @step path X Z :- edge X Y, path Y Z.
-).
-dbl : module = '(                       (* the optimised rules, run *)
-  @base path X Y :- edge X Y.
-  @join path X Z :- path X Y, path Y Z.
-).
-$dbl.
-%output path.
-
-linP : program = compile lin.
-dblP : program = compile dbl.
-pathAt : value -> value -> gatom = [x] [y] atom '(path) [x, y].
-edgeAt : value -> value -> gatom = [x] [y] atom '(edge) [x, y].
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+%output fast.path.
 ```
 
-Both quotes are typed where they are written (reference `reflection.md`, "Quotes"); only `dbl` is
-reflected into the program.
+`tc`'s rules are `path.1` (`path X Y :- g.edge X Y`) and `path.2` (`path X Z :- g.edge X Y, path Y Z`).
+`tc2`'s are `path.1` (the same base rule) and `path.2` (`path X Z :- path X Y, path Y Z`).
 
-**The statement.** For every input database, both programs derive the same `path` facts:
+**The statement.** For every graph and every input, `tc` and `tc2` derive the same paths:
 
 ```hugin
-sameFacts : {d : db} -> {x y : value} -> iff (derives linP d (pathAt x y)) (derives dblP d (pathAt x y)).
+sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y).
 ```
+
+Both functors name their parameter `g`, of signature `graph`, so generalisation gives one `{g : graph}`
+(and one `{d : db}`). Their parameter relation `g.edge` is the same reference, `arg "edge"`, in both
+programs, so both read the same input edges.
 
 **The proof**, with every lemma:
 
 ```hugin
-(* input edges are input edges in either program: `edge` has no rules in either *)
-edgeIn : {d : db} -> {x y : value} -> derives linP d (edgeAt x y) -> derives dblP d (edgeAt x y).
-edgeIn (@input I) = @input I.
-edgeOut : {d : db} -> {x y : value} -> derives dblP d (edgeAt x y) -> derives linP d (edgeAt x y).
-edgeOut (@input I) = @input I.
+(* an input edge is an input edge in either program *)
+edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn (given I) = given I.
+edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut (given I) = given I.
 
-(* the linear closure is transitive *)
-linTrans : {d : db} -> {x y z : value} ->
-           derives linP d (pathAt x y) -> derives linP d (pathAt y z) -> derives linP d (pathAt x z).
-linTrans (@base E) Q = @step E Q.
-linTrans (@step E P) Q = @step E (linTrans P Q).
+(* tc's paths are transitive *)
+tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
-(* every linear derivation is a doubling one *)
-toDbl : {d : db} -> {x y : value} -> derives linP d (pathAt x y) -> derives dblP d (pathAt x y).
-toDbl (@base E) = @base (edgeIn E).
-toDbl (@step E P) = @join (@base (edgeIn E)) (toDbl P).
+(* every derivation in tc is one in tc2 *)
+toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 (path.1 E) = path.1 (edgeIn E).
+toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
 
-(* every doubling derivation is a linear one *)
-toLin : {d : db} -> {x y : value} -> derives dblP d (pathAt x y) -> derives linP d (pathAt x y).
-toLin (@base E) = @base (edgeOut E).
-toLin (@join P Q) = linTrans (toLin P) (toLin Q).
+(* every derivation in tc2 is one in tc *)
+toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc (path.1 E) = path.1 (edgeOut E).
+toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
 
-sameFacts : {d : db} -> {x y : value} -> iff (derives linP d (pathAt x y)) (derives dblP d (pathAt x y)) =
-  { to = toDbl, from = toLin }.
+sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
 %opaque sameFacts.
 ```
 
-Each case, checked by hand:
+Each case, checked by hand. Rule variables are bound by unifying the rule's head with the goal atom.
 
-- `edgeIn (@input I)`: `I : d (edgeAt x y)`. `edge` has no rule in `dblP`, so `@input I` builds the
-  derivation; its hidden argument `so (edb dblP '(edge))` evaluates to `unit` and is filled by `tt`. No
-  rule pattern applies to `edgeAt`, since every head of `linP` is `path`, whose symbol conflicts with
-  `edge` in index unification (P2's symbol conflict rule).
-- `linTrans (@base E) Q`: `@base` binds `X := x`, `Y := y`, and `E : derives linP d (edgeAt x y)`. Then
-  `@step E Q` with `X := x`, `Y := y`, `Z := z` has type `derives linP d (pathAt x z)`.
-- `linTrans (@step E P) Q`: `X := x`, `Z := y`, `E : … (edgeAt x Y)`, `P : … (pathAt Y y)`. The call
-  `linTrans P Q : … (pathAt Y z)`, and `@step E (…) : … (pathAt x z)`.
-- `toDbl (@step E P)`: `@base (edgeIn E) : derives dblP d (pathAt x Y)` and
-  `toDbl P : derives dblP d (pathAt Y y)`, joined by `@join`.
-- `toLin (@join P Q)`: `P : … (pathAt x Y)` and `Q : … (pathAt Y y)` in `dblP`, so `linTrans` joins
+- `edgeIn (given I)`: `I : d (atom (arg "edge") [v x, v y])`. `g.edge` has no rules in either program,
+  so `given` is its only case, and `given I` builds the derivation in `tc2`. Its hidden argument says
+  that `arg "edge"` is an input of `programOf (tc2 g)`; that evaluates to `unit` and is filled by `tt`.
+- `tcTrans (path.1 E) Q`: `path.1` binds `X := x` and `Y := y`, so `E : tc ⊢ g.edge x y`.
+  `path.2 E Q`, with `X := x`, `Y := y`, `Z := z`, derives `path x z`.
+- `tcTrans (path.2 E P) Q`: `X := x`, `Z := y`, and `Y` is a fresh node `Y : g.node`.
+  `E : tc ⊢ g.edge x Y` and `P : tc ⊢ path Y y`. The call `tcTrans P Q : tc ⊢ path Y z`, and
+  `path.2 E (…)` derives `path x z`.
+- `toTc2 (path.2 E P)`: `path.1 (edgeIn E) : tc2 ⊢ path x Y` and `toTc2 P : tc2 ⊢ path Y y`, joined by
+  `tc2`'s `path.2`.
+- `toTc (path.2 P Q)`: in `tc2`, `P : tc2 ⊢ path x Y` and `Q : tc2 ⊢ path Y y`, so `tcTrans` joins
   their translations.
-- No clause handles `@input` for `pathAt`: `path` has rules, so the hidden argument
-  `so (edb linP '(path))` is `so false`, which is `empty`, and coverage refutes the case (reference
-  `meta/coverage.md`, "Cases and probes").
+- No clause handles `given` for `path`: `path` has rules, so the hidden argument "`own 0` is an input"
+  evaluates to `so false`, which is `empty`. Coverage refutes the case (reference `meta/coverage.md`,
+  "Cases and probes").
 
-**What the compiler checks.** Coverage over the cases that rule patterns produce: one per rule whose
-head unifies with the goal atom, plus `@input` where the relation is an input. Termination: `P` and `Q`
-are variables below the matched `fire` constructor (inside its premises), so they are subterms
-(reference `meta/termination.md`). The types of every clause, which requires evaluating `compile lin`
-to a closed program. And `--safe`: no postulates. A correct file prints nothing:
+**What the compiler checks.**
+
+- `programOf tc` and `programOf tc2` evaluate to closed programs (7.2).
+- Coverage, over the cases that rule names produce: one per rule whose head unifies with the goal atom,
+  and `given` where the relation is an input.
+- Termination: `P` and `Q` are premises below the matched rule, so they are subterms (reference
+  `meta/termination.md`).
+- The type of every clause, with the rule variables typed as the rules type them.
+- `--safe`: no postulates.
+
+A correct file prints nothing:
 
 ```text
 $ hugin check --safe closure.hgn
@@ -383,149 +408,151 @@ $ hugin check closure.hgn --print-assumptions sameFacts
 note: assumptions of `sameFacts`: none
 ```
 
-**What the editor shows.** The user writes the statement and a hole, and asks the language server to
-split `P`, as it does today for holes (reference `meta/functions.md`, "Typed holes"); for a derivation
-over a closed program the split offers the rule patterns:
+**What the editor shows.** The user writes the statement and a hole, and splits `P`:
 
 ```hugin
-toLin : {d : db} -> {x y : value} -> derives dblP d (pathAt x y) -> derives linP d (pathAt x y).
-toLin P = ?.
+toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc P = ?.
 ```
 
-The split produces `toLin (@base E) = ?.` and `toLin (@join P Q) = ?.`. Hovering over the second hole
-shows the goal in E0924's format (`tests/neg/e0924_holes.check`), with the rule's unnamed variable `Y`
-shown by its name in the rule:
+The split produces `toTc (path.1 E) = ?.` and `toTc (path.2 P Q) = ?.`. Hovering over the second hole
+shows the goal in E0924's format (`tests/neg/e0924_holes.check`), in `⊢` notation, with the rule's
+unnamed variable shown under its name in the rule:
 
 ```text
 error[E0924]: unsolved goal `?`
-  --> closure.hgn:46:20
+  --> closure.hgn:38:20
    |
-46 | toLin (@join P Q) = ?.
-   |                     ^ goal: `linP ⊢ path x y`
+38 | toTc (path.2 P Q) = ?.
+   |                     ^ goal: `tc g ⊢ path x y`
    |
-   = note: the hole stands for a meta value of type `linP ⊢ path x y`
-   = note: in scope: `d : db`, `x : value`, `y : value`, `P : dblP ⊢ path x Y`, `Q : dblP ⊢ path Y y`
-   = help: replace the hole with an expression of type `linP ⊢ path x y`
+   = note: the hole stands for a meta value of type `tc g ⊢ path x y`
+   = note: in scope: `g : graph`, `x : g.node`, `y : g.node`, `Y : g.node`,
+           `P : tc2 g ⊢ path x Y`, `Q : tc2 g ⊢ path Y y`
+   = help: replace the hole with an expression of type `tc g ⊢ path x y`
 ```
 
-A mistake gives an ordinary type error. `toDbl (@step E P) = @join (toDbl P) (@base (edgeIn E)).` is
-E0901: `@base (edgeIn E)` derives `path x Y` where `path y ?Z` is expected, and `x` is not `y`. A
-recursive call that does not decrease, such as `toLin (@join P Q) = toLin (@join P Q)`, is E0912.
+A mistake gives an ordinary type error. `toTc2 (path.2 E P) = path.2 (toTc2 P) (path.1 (edgeIn E)).` is
+E0901: `path.1 (edgeIn E)` derives `path x Y` where `path y ?Z` is expected, and `x` is not `y`. A
+recursive call that does not decrease, such as `toTc (path.2 P Q) = toTc (path.2 P Q)`, is E0912.
 
-**The guarantee.** For every input of `edge`, the program prints exactly the `path` facts that the
-linear specification derives.
+**The guarantee.** For every input of `road`, `fast.path` prints exactly the pairs that the standard
+transitive closure of `road` contains: instantiate `sameFacts` at `g := { node = city, edge = road }`,
+and apply the adequacy statement to the instance `fast`.
 
 | link | status |
 |---|---|
-| `sameFacts`: the two programs derive the same `path` facts from every input | checked by the meta level |
-| `compile lin`, `compile dbl` are the rules of the quotes | checked: `compile` is meta code, evaluated |
-| what the program runs is `dbl`, reflected by `$dbl.` | trusted: reflection and staging (compiler) |
-| the run prints exactly what `derives dblP d` derives (one adequacy statement for all programs) | trusted, or checked for each run by `--certify` (P8b) |
+| `sameFacts`: `tc` and `tc2` derive the same paths, for every graph and input | checked by the meta level |
+| `programOf tc`, `programOf tc2` are the rules as written | checked: `programOf` is meta code over the bridge (7.7) |
+| `programOf fast` is `programOf (tc2 { node = city, edge = road })` | by the recorded origin of the functor application (compiler) |
+| `fast` prints exactly what `fast ⊢ path …` derives (one statement for all programs) | trusted, or checked for each run by `--certify` (P8b) |
 
-**Bridges.** `iff`, `%opaque` and `--print-assumptions` → P1, P2. `derives`, `compile` → P5. Rule
-patterns and `linP ⊢ …` display → P7b. `--certify` → P8b. The same proof against hand-written families
-needs only today's language (chapter 10). Chapter 8 compares this formulation with `%semantics` and the
-other alternatives.
+**Bridges.** `iff`, `%opaque`, `--print-assumptions` → P1, P2. `derives` → P5. `programOf` → P7a. `⊢`,
+rule names, generalisation and the editor → P7b. `--certify` → P8b. The same proof against
+hand-written families is in chapter 11; chapter 8 compares the alternatives, and chapter 10 asks
+whether `(tc2 g).path x y` could be the proposition itself.
 
 ### 1.3 Proof B: a program analysis over-approximates
 
 **The program.** This is a classic of abstract interpretation: reachability on a *coarsened* graph.
-Concrete nodes (cities) map to abstract nodes (countries) through the input relation `located`, and the
-analysis computes the reachable countries. The property: every country of a reached city is reached
-by the analysis. So a country the analysis reports as unreached contains no reached city, which is what
-a user relies on when pruning by the analysis.
+Concrete nodes map to abstract nodes through `alpha`, and the analysis computes the reachable abstract
+nodes. The property: every abstraction of a reached node is reached by the analysis. So an abstract
+node the analysis reports unreached contains no reached node, which is what a user relies on when
+pruning by the analysis.
 
 ```hugin
 %use "std/eq".
 %use "std/semantics".
 
+abstraction : Type = {
+  node : type, edge : node -> node -> rel, seed : node -> rel,
+  anode : type, alpha : node -> anode -> rel }.
+
+coarse (a : abstraction) = {
+  reached : a.node -> rel.
+  reached X :- a.seed X.
+  reached Y :- reached X, a.edge X Y.
+  aedge : a.anode -> a.anode -> rel.
+  aedge A B :- a.edge X Y, a.alpha X A, a.alpha Y B.
+  areached : a.anode -> rel.
+  areached A :- a.seed X, a.alpha X A.
+  areached B :- areached A, aedge A B.
+}.
+
 city : type. country : type.
-berlin, paris, rome : city. de, fr, it : country.
-road : city -> city -> rel.
-start : city -> rel.
-located : city -> country -> rel.
-reached : city -> rel.
-aedge : country -> country -> rel.
-areached : country -> rel.
+road : city -> city -> rel. start : city -> rel. located : city -> country -> rel.
 %input road. %input start. %input located.
-
-coarse : module = '(
-  @seed reached X :- start X.
-  @step reached Y :- reached X, road X Y.
-  @lift aedge A B :- road X Y, located X A, located Y B.
-  @aseed areached A :- start X, located X A.
-  @astep areached B :- areached A, aedge A B.
-).
-$coarse.
-%output areached.
-?- reached X, not located X _.         (* the hypothesis `placed` below: must have no answers *)
-
-cP : program = compile coarse.
-at1 : sym -> value -> gatom = [r] [x] atom r [x].
-at2 : sym -> value -> value -> gatom = [r] [x] [y] atom r [x, y].
+eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = located }.
+%output eu.areached.
+?- eu.reached X, not located X _.      (* the hypothesis `placed` below: must have no answers *)
 ```
 
-**The hypothesis.** Every reached city has a country. It is a property of the *input*, so it is a
-hypothesis of the theorem:
+The rule names are `reached.1`, `reached.2`, `aedge.1`, `areached.1` and `areached.2`.
+
+**The hypothesis.** Every reached node has an abstraction. It is a property of the *input*, so it is a
+hypothesis of the theorem, stated with an explicit database and parameter, since it is a definition:
 
 ```hugin
-placed (d : db) : Type =
-  (x : value) -> derives cP d (at1 '(reached) x) -> { a : value, ok : derives cP d (at2 '(located) x a) }.
+placed (d : db) (a : abstraction) : Type =
+  (x : a.node) -> coarse a ⊢[d] reached x -> { b : a.anode, ok : coarse a ⊢[d] a.alpha x b }.
 ```
 
 **The statement and the proof**, complete:
 
 ```hugin
-(* every country of a reached city is reached by the analysis *)
-sound : {d : db} -> placed d -> {x a : value} ->
-        derives cP d (at1 '(reached) x) -> derives cP d (at2 '(located) x a) -> derives cP d (at1 '(areached) a).
-sound T (@seed S) H = @aseed S H.
-sound T (@step {X := w} R E) H = @astep (sound T R (T w R).ok) (@lift E (T w R).ok H).
+(* every abstraction of a reached node is reached by the analysis *)
+sound : placed d a -> {x : a.node} -> {b : a.anode} ->
+        coarse ⊢ reached x -> coarse ⊢ a.alpha x b -> coarse ⊢ areached b.
+sound T (reached.1 S) H = areached.1 S H.
+sound T (reached.2 {X := w} R E) H = areached.2 (sound T R (T w R).ok) (aedge.1 E (T w R).ok H).
 
-(* so a country reported unreached contains no reached city *)
-safe : {d : db} -> placed d -> {x a : value} ->
-       (derives cP d (at1 '(areached) a) -> empty) -> derives cP d (at2 '(located) x a) ->
-       derives cP d (at1 '(reached) x) -> empty.
+(* so an abstract node reported unreached contains no reached node *)
+safe : placed d a -> {x : a.node} -> {b : a.anode} ->
+       (coarse ⊢ areached b -> empty) -> coarse ⊢ a.alpha x b -> coarse ⊢ reached x -> empty.
 safe T N H R = N (sound T R H).
 %opaque sound. %opaque safe.
 ```
 
-Checked by hand, with the rule variables as the patterns bind them:
+Generalisation inserts `{d : db} -> {a : abstraction} ->` in front, so `placed d a` refers to the same
+`d` and `a` as the judgments. Checked by hand:
 
-- `sound T (@seed S) H`: `@seed` binds `X := x`, so `S : cP ⊢ start x` and `H : cP ⊢ located x a`.
-  `@aseed S H` with `A := a`, `X := x` derives `areached a`.
-- `sound T (@step {X := w} R E) H`: `@step` binds `Y := x` and `X := w`, so `R : cP ⊢ reached w` and
-  `E : cP ⊢ road w x`. `T w R : { a : value, ok : cP ⊢ located w a }`, so the recursive call
-  `sound T R (T w R).ok : cP ⊢ areached (T w R).a`. Then `@lift E (T w R).ok H` (with `A := (T w R).a`,
-  `B := a`, `X := w`, `Y := x`) derives `aedge (T w R).a a`, and `@astep` derives `areached a`.
-- `safe T N H R`: `sound T R H : cP ⊢ areached a`, and `N` maps it to `empty`.
+- `sound T (reached.1 S) H`: `reached.1` binds `X := x`, so `S : coarse ⊢ a.seed x` and
+  `H : coarse ⊢ a.alpha x b`. `areached.1 S H`, with `A := b` and `X := x`, derives `areached b`.
+- `sound T (reached.2 {X := w} R E) H`: `reached.2` binds `Y := x` and `X := w : a.node`, so
+  `R : coarse ⊢ reached w` and `E : coarse ⊢ a.edge w x`. `T w R : { b : a.anode, ok : … a.alpha w b }`.
+  The recursive call `sound T R (T w R).ok : coarse ⊢ areached (T w R).b`. Then `aedge.1 E (T w R).ok H`
+  (with `X := w`, `Y := x`, `A := (T w R).b`, `B := b`) derives `aedge (T w R).b b`, and `areached.2`
+  derives `areached b`.
+- `safe T N H R`: `sound T R H : coarse ⊢ areached b`, and `N` maps it to `empty`.
 
-The implicit pattern `{X := w}` (P2) names the predecessor, which `T` needs. The converse of `sound`
-is false (an abstract edge may combine two unrelated concrete edges), so the analysis is sound but not
-complete, and no proof of the converse is attempted.
+The converse of `sound` is false (an abstract edge may combine two unrelated concrete edges), so the
+analysis is sound but not complete, and no proof of it is attempted.
 
-**What the compiler checks.** Coverage of `sound`: the rules with head `reached` (`@seed`, `@step`);
-`reached` has rules, so there is no `@input` case. Termination: `R` is a premise below the matched rule.
-The dependent record `{ a : value, ok : … }` (reference `meta/records.md`). `cP` evaluates to a closed
-program.
+**What the compiler checks.**
 
-**What the editor shows.** At `sound T (@step {X := w} R E) H = ?`, the goal is `cP ⊢ areached a`, with
-`T : placed d`, `w : value`, `R : cP ⊢ reached w`, `E : cP ⊢ road w x` and `H : cP ⊢ located x a` in
-scope. Writing `@astep ? ?` yields two goals, `cP ⊢ areached ?A` and `cP ⊢ aedge ?A a`; `?A` is solved
-when the first is filled with `sound T R (T w R).ok`.
+- Coverage of `sound`: the rules with head `reached`. `reached` has rules, so there is no `given` case.
+- Termination: `R` is a premise below the matched rule.
+- The dependent record `{ b : a.anode, ok : … }` (reference `meta/records.md`).
+- The types: `w : a.node` because `X`'s column type in `reached.2` is `a.node`.
 
-**The guarantee.** If the query has no answers in a run, every country of a reached city is printed
-by `areached`, and a country that is not printed contains no reached city.
+**What the editor shows.** Splitting `R : coarse ⊢ reached x` in `sound T R H = ?` produces
+`sound T (reached.1 S) H = ?.` and `sound T (reached.2 {X := X} R E) H = ?.`. At the second hole, the
+goal is `coarse a ⊢ areached b`, with `T : placed d a`, `X : a.node`, `R : coarse a ⊢ reached X`,
+`E : coarse a ⊢ a.edge X x` and `H : coarse a ⊢ a.alpha x b` in scope. Writing `areached.2 ? ?` yields
+two goals, `coarse a ⊢ areached ?A` and `coarse a ⊢ aedge ?A b`.
+
+**The guarantee.** If the query has no answers in a run, every country of a reached city is printed by
+`eu.areached`, and a country that is not printed contains no reached city.
 
 | link | status |
 |---|---|
-| `sound`, `safe` for every input database | checked by the meta level |
-| `placed` holds for the run's input | the query has no answers; tied to `placed` by the adequacy statement (trusted) and the query semantics; `--certify` checks the empty answer with the certificate |
-| `$coarse.` stages the rules of `coarse` | trusted (compiler) |
-| the run prints exactly what `derives cP d` derives | trusted, or checked by `--certify` |
+| `sound`, `safe` for every abstraction and input | checked by the meta level |
+| `placed` holds for `eu`'s run | the query has no answers; tied to `placed` by the adequacy statement (trusted) and the query semantics; `--certify` checks the empty answer with the certificate |
+| `programOf eu` is `programOf (coarse { … })` | by the recorded origin of the functor application (compiler) |
+| `eu` prints exactly what `eu ⊢ …` derives | trusted, or checked by `--certify` |
 
-**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. `derives` → P5. Rule patterns → P7b. `--certify`
-and checked queries → P8b.
+**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. `derives` → P5. `programOf` → P7a. `⊢`, rule names,
+`given`, generalisation → P7b. `--certify` and checked queries → P8b.
 
 ### 1.4 Where each piece comes from
 
@@ -534,13 +561,14 @@ and checked queries → P8b.
 | E0911 for functions without clauses, `= %postulate`, `--safe`, `%assumptions`, parameter promotion | P1 | yes |
 | `std/eq`, `empty`/`unit`/`either`/`iff`, `{x := e}`, implicit patterns, `%opaque`, `decEq` | P2 | yes |
 | `match … with`, `match H : … with`, `rewrite … in` | P3 | yes |
-| inductive meta `int` with native arithmetic and comparisons; `std/decide` | P4 | yes |
-| `std/semantics` (positive): `value`, `program`, `compile`, `derives`, `monotone` | P5 | partly |
+| inductive meta `int`; `std/decide` (`so`, `decider`, `decide`) | P4 | yes |
+| `std/semantics` (positive): typed values, relation references, `program`, `derives`, `holds`, `monotone` | P5 | partly |
 | negation and aggregates in `derives` | P6 | no |
-| `quote`/`unquote`, `quoteF`/`unquoteF`, `symOf`, `body f`, the missing syntax forms | P7a | yes |
-| rule patterns `@r`, `@input`, `p ⊢ a` display, the adequacy statement in the reference | P7b | no |
+| the code bridge and `programOf` (functors, modules, `here`) | P7a | yes |
+| `P ⊢ r t̄`, automatic rule names, `given`, generalisation, case splits and hovers, the adequacy statement | P7b | no |
 | `--export-proofs` | P8a | yes |
 | `--certify` | P8b | no |
+| `(tc2 g).path x y` as an abbreviation, with rule pattern synonyms (level 3.5, chapter 10) | P9, design first (D14) | no |
 
 ## 2. Recommendations
 
@@ -551,10 +579,9 @@ and checked queries → P8b.
    needs none. Abstract declarations in functor signatures and interface files stay parameters. A
    deliberate axiom is written `x : A = %postulate.`, like `= %builtin`, and `--safe` rejects it. A
    command lists the assumptions a definition depends on (Lean's `#print axioms`, Rocq's
-   `Print Assumptions`). Apart from
-   postulates, this note found no way to derive False (chapter 5). One combination should still be
-   closed before proofs matter: forced large indices together with recursion on forced arguments, which
-   Agda forbids under `--safe` (Agda issue #6654).
+   `Print Assumptions`). Apart from postulates, this note found no way to derive False (chapter 5). One
+   combination should still be closed before proofs matter: forced large indices together with
+   recursion on forced arguments, which Agda forbids under `--safe` (Agda issue #6654).
 2. **A small proof library and proof ergonomics (P2, P3).** This means a closed `std/eq` (`refl`, `sym`,
    `trans`, `cong`, `subst`, J by clauses, plus `empty`, `unit`, `either`, `iff`, `dec`). Also explicit
    implicit arguments `f {n := e}` and implicit patterns; *opaque theorems*, never unfolded or eagerly
@@ -563,28 +590,27 @@ and checked queries → P8b.
    without the Datalog goal.
 3. **An inductive meta `int` (P4).** It is defined the Lean way (`ofNat`, `negSucc`), unbounded, with
    native arithmetic checked against its clauses as #184 did for `nat`, plus comparison functions. The
-   object level keeps 64 bits; the crossing checks the range (D8a). Object arithmetic in the semantics
-   is `add64 : int -> int -> option int` and so on. P4 also adds `std/decide`.
-4. **One semantic judgment (P5, P6).** `std/semantics` defines `derives : program -> db -> gatom ->
-   Type` as an ordinary inductive family over compiled programs (rule variables as de Bruijn indices, an
-   instantiation vector, head equations as arguments), closed under subfacts. Stratified negation and
-   aggregates (P6) work stratum by stratum, as in Benzaken, Contejean and Dumbrava (ITP 2017). This is
-   the specification, and generic theorems (monotonicity, correctness of module-wide directives) are
-   stated over it.
-5. **Rule patterns instead of `%semantics` (P7b), over a code bridge (P7a).** For a closed program, a derivation is matched and
-   built by the program's rule names (`@step E P`), elaborated to the general constructor. This is
-   Abella's `case` on a specification judgment (chapter 8), obtained with ordinary dependent matching.
-   No per-relation families are generated, so there are no per-relation adequacy lemmas: one adequacy
-   statement covers every program. P7a first makes `⇑A` and the reflective syntax interconvert
-   (`quote`, `unquote`, with `unquote (quote c) ≡ c`; 7.7), and `body f` reifies a functor body. Chapter
-   9 explains why this suffices, so that no modal foundation is needed. Example 1.2 proves an optimising
-   rewrite correct, and 1.3 an analysis sound, in this style.
-6. **The engine stays trusted, with a certificate mode (P8).** Verifying the Scala engine is out of
-   reach. Hugin already emits derivation facts (`%derivations`). P8a exports them as Datalog proof
-   trees in the JSON format of Tantow, Gerlach, Mennicke and Krötzsch (ITP 2025), whose Lean checker is
-   verified. P8b adds `--certify`, which runs a meta-level checker, proven sound against `derives`, on
-   the reified output: proof trees give soundness, and a one-round model check gives completeness.
-7. **Not now:** a `Prop` universe or definitional proof irrelevance, tactics or meta-level elaborator
+   object level keeps 64 bits, and the crossing checks the range (D8a). P4 also adds `std/decide`.
+4. **One semantic judgment, defined once (P5, P6).** `std/semantics` defines `derives : program -> db ->
+   gatom -> Type` as an ordinary inductive family. Its values are typed object code, its relations
+   program-relative references, and it is closed under subfacts. Stratified negation and aggregates
+   (P6) work stratum by stratum, as in Benzaken, Contejean and Dumbrava (ITP 2017). Users never write
+   semantics.
+5. **Ordinary programs, a judgment notation, automatic rule names (P7a, P7b).** P7a's `programOf`
+   reifies a functor, a module or the current file as written, over the code bridge (7.7). P7b adds
+   `P ⊢ r t̄`, with typed arguments and the database and functor parameters generalised. It adds the
+   rule names `r.1`, `r.2` and `given` as patterns and constructors, which is Abella's `case`. It adds
+   case splits and hovers in `⊢` notation, and one adequacy statement for all programs. Example 1.2
+   proves the doubling closure equal to the standard library's `tc`, and 1.3 an analysis sound, with
+   ordinary functors.
+6. **The engine stays trusted, with a certificate mode (P8).** P8a exports derivations as Tantow et al.'s
+   JSON proof trees, whose Lean checker is verified. P8b adds `--certify`, which checks the reified
+   output against `derives` with a checker proven in Hugin.
+7. **Relations as propositions (chapter 10, D14 decided).** Levels 1–3 now. Level 3.5,
+   per-relation abbreviations `(tc2 g).path x y` with rule pattern synonyms, defined through
+   `derives`, gets a detailed design after levels 1–3 are implemented (P9, design first). Level 4,
+   every relation *is* a meta inductive predicate, is recorded with its conditions, not planned.
+8. **Not now:** a `Prop` universe or definitional proof irrelevance, tactics or meta-level elaborator
    reflection, a separate kernel, univalence, a layered modal foundation (chapter 9), and a core
    judgment former. Erasure comes for free: meta code never reaches the object program.
 
@@ -658,7 +684,7 @@ Sources: Agda a3f41e8 (manual `doc/user-manual/language/*.lagda.rst`, `src/full/
 | Prop universe | `--prop` (`prop.lagda.rst`), matching only by `()` into `Set` | impredicative `Prop`; large elimination only for subsingletons (`src/kernel/inductive.cpp`, `elim_only_at_universe_zero`, :510) | `Prop`, `SProp` (`language/core/sorts.rst`; empty/singleton elimination, `language/core/inductive.rst`:1306) | none | no (D6) |
 | proof irrelevance, erasure | `irrelevance.lagda.rst`; `@0` (`runtime-irrelevance.lagda.rst`) | `Prop` erased by the compiler; `lcProof` (`Prelude.lean`:242) | extraction erases `Prop` (`addendum/extraction.rst`) | the whole meta level is erased by staging | free; opaque theorems for compile time (P2) |
 | induction principles | by matching; `TermCheck.hs` (`src/full/Agda/Termination/`) | generated recursors; structural or well-founded (`src/Lean/Elab/PreDefinition/{Structural,WF}`) | `Fixpoint`, generated `_rect`/`_ind` | by matching, size-change | enough; no infinitary (applied-subterm) recursion |
-| inductive families as evidence | yes | yes | yes | yes (examples 1.2, 10.1) | already there |
+| inductive families as evidence | yes | yes | yes | yes (examples 1.2, 11.1) | already there |
 | params vs indices | declared parameters; `--large-indices` off by default since 2.6.4 | declared, plus `inductive.autoPromoteIndices` (`src/Lean/Elab/MutualInductive.lean`:52, `fixedIndicesToParams`) | declared parameters | no parameters; forced implicit binders exempt from predicativity | P1 (D2) |
 | `with` / `match` / rewrite | `with-abstraction.lagda.rst` (with, `with … in eq`, rewrite) | `match h : e with`, `rw`, `▸` | `destruct e eqn:H`, `rewrite` | `where`-local functions only; `subst` after P2 | P3 (4.2) |
 | explicit implicits, implicit patterns | `{x = e}`, `{n}` | `(x := e)`, `@f` | `(x:=e)`, `@f` | no | P2 |
@@ -831,7 +857,7 @@ third parties. A core re-checker is the long-term answer (D7).
 - Bégay, Crégut and Monin, *Developing and Certifying Datalog Optimizations in Coq/MathComp*, CPP 2021.
   A static analysis and two program transformations are certified on top of the Coq/MathComp
   formalisation, with a new trace semantics. Their transformations are what Hugin's module-wide
-  directives are; a "rewrite preserves the facts" theorem (1.2, 10.3) is the same kind of result.
+  directives are; a "rewrite preserves the facts" theorem (1.2, 11.3) is the same kind of result.
 - Schlichtkrull, Hansen and Nielson, AFP entry *Stratified Datalog* (2025; SAC 2024 paper
   *Isabelle-verified correctness of Datalog programs for program analysis*). It proves that every
   stratified program has a least solution, and proves five bit-vector analyses correct. These are
@@ -891,140 +917,176 @@ IC_R(db) = db ∪ ⋃ { subfact(Head(R)[v/x]) | db ⊨ Body(R)[v/x] }
 
 ### 7.2 The judgment `derives` (`std/semantics`, P5–P6)
 
-The semantics is a library over the reflective types, so that the reflected or reified program *is*
-the object of proof.
+The semantics is a library, defined once. It is stated over the program as reified data (by
+`programOf`, 7.7), so that the program as written *is* the object of proof.
 
 ```hugin
 %use "std/reflect". %use "std/eq". %use "std/list".
-value : Type.                          (* DL∃!'s values, over the existing base types (D4) *)
-vint : int -> value.  vfloat : float -> value.  vstr : string -> value.
-vfact : sym -> list value -> value.    (* the fact c v̄: identity = constant and arguments *)
+
+(* values: closed object code of any object type (D4 as refined in r2) *)
+value : Type.
+v : {τ : ⇑type} -> ⇑τ -> value.
+
+(* relations, relative to a program *)
+rref : Type.
+own : nat -> rref.                     (* the program's own relation number i *)
+arg : string -> rref.                  (* a functor parameter's relation, by signature field *)
+ext : sym -> rref.                     (* a relation outside the program, e.g. of the file *)
+
 gatom : Type.
-atom : sym -> list value -> gatom.     (* an inductive, so index unification decomposes it *)
+atom : rref -> list value -> gatom.
 db : Type = gatom -> Type.             (* a set of facts, as a predicate *)
 
-fin : nat -> Type.  fz : fin (N + 1).  fs : fin N -> fin (N + 1).
-vec : Type -> nat -> Type.  vnil : vec A 0.  vcons : A -> vec A N -> vec A (N + 1).
+env : list ⇑type -> Type.              (* typed values of a rule's variables *)
+enil : env [].
+econs : {τ : ⇑type} -> {ts : list ⇑type} -> ⇑τ -> env ts -> env (τ :: ts).
 
-cterm : nat -> Type.                   (* a term over n rule variables, de Bruijn *)
-cvar : fin N -> cterm N.
-cval : value -> cterm N.
-capp : sym -> list (cterm N) -> cterm N.
-carith : arith_op -> cterm N -> cterm N -> cterm N.
-catom : nat -> Type.
-cat : sym -> list (cterm N) -> catom N.
-cbody : nat -> Type.
-cpos : catom N -> cbody N.
-cneg : catom N -> cbody N.             (* P6 *)
-ccmp : cmp_op -> cterm N -> cterm N -> cbody N.
-crule : Type = { name : string, arity : nat, head : catom arity, body : list (cbody arity) }.
-program : Type = { rules : list crule, edb : sym -> bool, strata : list (list sym) }.
-compile : module -> program.           (* names to indices; `edb r` iff no rule has head r *)
-instAtom : {n : nat} -> vec value n -> catom n -> option gatom.   (* none: undefined arithmetic *)
+crule : Type = { head : nat, index : nat, label : option string, vars : list ⇑type,
+                 heads : list (catom vars), body : list (cbody vars) }.
+program : Type = { relations : list string, rules : list crule, input : rref -> bool,
+                   strata : list (list nat) }.
+programOf …                            (* the special form of 7.7 *)
+instAtom : {ts : list ⇑type} -> env ts -> catom ts -> option gatom.  (* none: undefined arithmetic *)
 ```
 
-The derivations of a positive program form two mutually inductive families:
+`catom ts` and `cbody ts` are atoms, comparisons and negations over the rule's variables, as de Bruijn
+indices into `ts`.
+
+**Values are object code.** A base-type value is an object literal (`⟨3⟩ : ⇑int`), and a fact's
+identity is the object term of its constructor and arguments. This reuses the base types even more
+than D4 asked: there are no copies at all. Index unification needs object constructors to be injective
+and disjoint, and object literals to be disjoint. Chapter 9 shows that object code equality is
+syntactic, which justifies both. Arithmetic in the semantics goes through the bridge and the
+inductive meta `int`: `add64 : ⇑int -> ⇑int -> option ⇑int` computes on the literals' meta values
+and is `none` outside 64 bits (reference `object/arithmetic.md`). Floats stay uninterpreted.
+
+**Relations are program-relative.** `own i` is the program's own relation `i`. `arg "edge"` is the
+parameter relation named by the signature field `edge`, so two functors over the same signature (`tc`
+and `tc2` over `graph`) read the same input atoms. `ext s` is a relation outside the program. Nothing
+depends on the symbol of an abstract parameter, and the input test `p.input (own i)` is decided by
+closed data.
+
+**Derivations.** For a positive program, derivations form two mutually inductive families:
 
 ```hugin
 derives : program -> db -> gatom -> Type.
-premises : program -> db -> {n : nat} -> vec value n -> list (cbody n) -> Type.
-input : {p : program} -> {d : db} -> {r : sym} -> {vs : list value} ->
-        so (p.edb r) -> d (atom r vs) -> derives p d (atom r vs).
-fire  : {p : program} -> {d : db} -> {a : gatom} -> {c : crule} -> {xs : vec value c.arity} ->
-        member c p.rules -> premises p d xs c.body -> eq (instAtom xs c.head) (some a) -> derives p d a.
-sub   : {p : program} -> {d : db} -> {a : gatom} -> {s : sym} -> {vs : list value} ->
-        derives p d a -> subfactOf (vfact s vs) a -> derives p d (atom s vs).
-pnil  : {p : program} -> {d : db} -> {n : nat} -> {xs : vec value n} -> premises p d xs [].
-ppos  : {p : program} -> {d : db} -> {n : nat} -> {xs : vec value n} -> {b : catom n} -> {g : gatom} ->
-        {bs : list (cbody n)} -> eq (instAtom xs b) (some g) -> derives p d g -> premises p d xs bs ->
-        premises p d xs (cpos b :: bs).
+premises : program -> db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+given : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} ->
+        so (p.input r) -> d (atom r vs) -> derives p d (atom r vs).
+fire  : {p : program} -> {d : db} -> {a : gatom} -> {c : crule} -> {xs : env c.vars} ->
+        member c p.rules -> premises p d xs c.body -> memberSome a (map (instAtom xs) c.heads) ->
+        derives p d a.
+sub   : {p : program} -> {d : db} -> {a : gatom} -> {r : rref} -> {vs : list value} ->
+        derives p d a -> subfactOf (atom r vs) a -> derives p d (atom r vs).
+pnil  : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> premises p d xs [].
+ppos  : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} ->
+        {g : gatom} -> {bs : list (cbody ts)} -> eq (instAtom xs b) (some g) -> derives p d g ->
+        premises p d xs bs -> premises p d xs (cpos b :: bs).
 pcmp  : … -> holdsCmp o (inst xs t) (inst xs u) -> premises p d xs bs -> premises p d xs (ccmp o t u :: bs).
 ```
 
-Three choices in this representation make rule patterns (7.3) work with ordinary dependent matching:
+Three choices make rule names (7.3) work with ordinary dependent matching:
 
-- **The goal atom is a variable index of `fire`, and the head is an equation argument.** An index
-  `instAtom xs c.head` would be a stuck function application, which index unification postpones and
-  then reports (reference `meta/coverage.md`, "Undecided splits"). This is the "green slime" problem.
-  With the equation, matching `fire` always succeeds, and the head is unified only after `c` and `xs`
-  are known.
-- **Rule variables are de Bruijn indices into a vector `xs`.** Once `c` is a known rule, `c.arity` is a
-  numeral, `xs` splits into named variables, and `instAtom xs c.head` evaluates to
-  `some (atom '(path) [X, Z])`. Then `refl` unifies it with the goal atom.
-- **`atom` is a constructor, and symbols get a conflict rule (P2).** A head with another relation is
-  then refuted, not stuck.
+- **The goal atom is a variable index, and the head is a membership argument.** An index
+  `instAtom xs c.head` would be stuck, which index unification postpones and then reports (reference
+  `meta/coverage.md`, "Undecided splits"). This is the "green slime" problem.
+- **Variables are typed values in an `env`.** Once `c` is a known rule, `c.vars` is a known list, `xs`
+  splits into typed variables (`w : ⇑a.node`), and `instAtom` evaluates.
+- **`atom`, `own`, `arg` and `v` are constructors, and so are object constructors.** A head with
+  another relation, or a different literal, is then refuted, not stuck.
 
-`premises` with `derives` is a mutual pair of families; that Hugin's positivity check accepts mutual
-families is a P5 prerequisite to confirm. The alternative, nesting through a list family, needs the
-positivity check to accept a partially applied family as an argument. This is the proof-theoretic
-least model (Tantow et al.'s proof trees). The model-theoretic one, "the least `db` closed under the
-rules", follows as a theorem, as in their `modelAndProofTreeSemanticsEquivalent`.
+That Hugin's positivity check accepts the mutual pair `derives`/`premises` is a P5 prerequisite to
+confirm. The model-theoretic reading, "the least `db` closed under the rules", follows as a theorem, as
+in Tantow et al.'s `modelAndProofTreeSemanticsEquivalent`. P5 also proves `holds n p a = true ->
+derives p d a` for programs without inputs, where `holds n` is `n` rounds of naive evaluation;
+`decide` is that lemma.
 
 - **Strata (P6).** For a stratified program, `derives p d` is defined by recursion over `p.strata`, a
   Type-valued recursion that Hugin allows (`sel : bool -> Type` in reference `meta/clauses.md`). Each
-  stratum is a positive family as above, whose `cneg` premises read the model of the strata below. This
-  is Benzaken et al.'s stratified engine. The stratification is the compiler's; the library states, but
-  need not recompute, the side condition that `not` reads only lower strata.
-- **Arithmetic.** It uses the inductive meta `int` (D8): `add64 : int -> int -> option int`, and `sub64`,
-  `mul64`, `div64` likewise. `none` is the undefined case, matching "a formula that contains an
-  undefined operation does not hold" (reference `object/arithmetic.md`). Floats stay uninterpreted:
-  values compared for equality only.
-- **Aggregates (P6).** `count`, `sum`, `min` and `max` need finite sets: the semantics takes a list of
-  valuations, a proof that it has no duplicates, and a proof that it is complete for the body over the
-  lower strata. That is heavy but standard. Bound columns (Limit Datalog with ±∞) come last and may
-  stay out of scope.
+  stratum is a positive family as above, whose negated premises read the model of the strata below, as
+  in Benzaken et al.'s stratified engine.
+- **Aggregates (P6).** `count`, `sum`, `min` and `max` need finite sets: a list of valuations, a proof
+  that it has no duplicates, and a proof that it is complete for the body over the lower strata. Bound
+  columns come last and may stay out of scope.
 
-Theorems this enables: monotonicity of negation-free programs in the input; correctness of
-module-wide directives (`(m : module) -> iff (derives (compile m) d a) (derives (compile (dir m)) d a)`,
-chapter 10.3); and "at most N facts" for programs with finite carriers, which needs a finite enumeration
-of the model and is the most expensive.
+Generic theorems over arbitrary programs use `fire` and `given` directly (11.3). Theorems about a
+particular program use the notation and the rule names.
 
-### 7.3 Rule patterns (P7b)
+### 7.3 The notation `P ⊢ r t̄` and automatic rule names (P7b)
 
-For a closed program, the rule pattern `@r p₁ … pₖ` against `derives p d a` stands for
+**Syntax (proposal).**
 
-```
-fire {c := cᵢ} {xs := [X₁, …, Xₙ]} (there^(i-1) here) (ppos refl p₁ (ppos refl p₂ … pnil)) refl
+```text
+Judgment ::= Expr ("⊢" | "|-") ("[" Expr "]")? Atom
 ```
 
-Here `cᵢ` is the rule named `@r` of `p` (and `i` its position), `X₁ … Xₙ` are the rule's variables,
-bound as implicit patterns under the names they have in the rule, and `p₁ … pₖ` are the premises in
-body order. A comparison in the body becomes a `pcmp` premise that is not written. As an expression,
-`@r e₁ … eₖ` builds the same term: the variables are inferred, or given by `{X := e}`, and the
-equations are `refl`. `@input I` stands for `input t I`, where `t` is the proof of `so (p.edb r)`;
-it is `tt` when that evaluates to `unit`. The elaboration needs:
+**Elaboration of `P ⊢[e] r t₁ … tₙ`.**
 
-1. `p` in the scrutinee's type evaluates to a closed `program`: a quote, `compile` of a quote, or
-   `compile (body f)`.
-2. Rule names are unique in `p`. Unnamed rules cannot be matched by name (D11).
-3. Coverage is the ordinary one over the generated patterns. The split on `member` enumerates the rules
-   of the closed list. A rule whose head symbol differs from the goal atom's is refuted by the symbol
-   conflict rule, and `@input` is refuted for a relation with rules, because `so false` is empty.
-4. The editor and diagnostics print `derives p d (atom '(r) [v̄])` as `p ⊢ r v̄`, offer the rule
-   patterns in case splits, and name hidden variables after the rule's variables.
+1. *The program.* If `P` is the name of a functor `f`, its parameters are generalised (step 3) and `P`
+   becomes `f g`. If `P` is a module, an instance, or a functor application `f a` (where `a` may be a
+   variable), `programOf P` is inserted. If `P` already has type `program`, it is used as it is.
+   `programOf (f a)` is the program of `f`'s body, with `a`'s relations as the parameter references.
+2. *The atom.* `r` is resolved in the scope of `P`'s body: its own relations (`path`), and its
+   parameters' relations under the paths the body uses (`g.edge`). Each `tᵢ` is checked as object code
+   against `r`'s declared column type `τᵢ`, with object typing (#56) and `⇑` covariance, and becomes
+   `v tᵢ`. So a statement's variables are typed nodes (`x : g.node`), abstract in the functor's
+   parameter.
+3. *Generalisation.* In the type of a declaration, the database is the name `d`, and a functor's
+   parameters keep the names of its declaration (`g`). They become the declaration's first implicit
+   binders, `{d : db}` and `{g : graph}`, shared by all its judgments. Parameters with the same name
+   and type are merged, which is how `tc ⊢` and `tc2 ⊢` share `g`. Any other judgment writes `f a` or
+   `⊢[e]`. This is the existing rule for free uppercase variables (reference `meta/functions.md`),
+   extended to judgments, like Agda's generalisation of declared variables
+   (`doc/user-manual/language/generalization-of-declared-variables.lagda.rst`) and Lean's auto-bound
+   implicits. Inside a body or clause, `⊢` uses the `d` in scope.
+4. *Result:* `derives (programOf P) d (atom ρ [v t₁, …, v tₙ])`, with `ρ` the reference of `r`.
 
-Termination needs no change: a premise is a variable below the `fire` constructor in the matched
-pattern, so it is a subterm. Rule patterns are pattern synonyms (Agda,
-`doc/user-manual/language/pattern-synonyms.lagda.rst`) computed from a program value, not declared.
-No family, constructor or lemma is generated.
+The editor and diagnostics print `derives (programOf P) d (atom ρ vs)` back as `P ⊢ r t̄`, omitting `d`
+when it is the generalised one.
+
+**Automatic rule names.** A rule with head relation `r` is `r.k`, where `k` is its position among the
+rules of `r` in the program as written (a rule with several heads gets a name for each). This is the
+convention of Isabelle's `tc.intros(k)` (the `inductive` package). An optional label `@n` adds the
+name `n`. `given` is the input case. As a pattern against `P ⊢ a`, with `P` closed after evaluation,
+`r.k p₁ … pₘ` stands for
+
+```
+fire {c := c_rk} {xs := econs X₁ (… enil)} (member proof of c_rk) (ppos refl p₁ (… pnil)) (head proof)
+```
+
+The rule's variables `X₁ …` are bound as implicit patterns under their names in the rule, with the
+types the rule gives them. `p₁ … pₘ` are the premises in body order; comparison premises are not
+written. As an expression, `r.k e₁ … eₘ` builds the same term, with the variables inferred or given by
+`{X := e}`. `given I` stands for `given t I`, where `t` proves `so (p.input r)` and is `tt` when that
+evaluates to `unit`.
+
+Coverage is the ordinary one over these patterns. The split on `member` enumerates the program's rules.
+A rule whose head relation or literals conflict with the goal atom is refuted, and `given` is refuted
+for a relation with rules, since `so false` is empty. Termination needs no change: premises are below
+`fire`. No family, constructor or lemma is generated; rule names are pattern synonyms computed from a
+program value (Agda, `doc/user-manual/language/pattern-synonyms.lagda.rst`).
+
+**Prior art for the notation.** Abella writes the specification judgment as `{P |- A}` and reasons by
+`case` on it (`src/metaterm.ml`, `Obj`). Iris writes entailment `P ⊢ Q` as surface notation in its
+proof mode. Lean formalisations of programming languages define judgment notation (`Γ ⊢ e : τ`) with
+`notation` and `macro`. Hugin's `⊢` is the same kind of notation for one library judgment.
 
 ### 7.4 Connecting reflection, semantics and the engine
 
 The chain from a theorem to the facts that a run prints has three links.
 
-1. **Theorem → `derives`.** This link is checked by the meta level, including `compile`, which is meta
-   code.
-2. **`derives` → staged program.** A program written as data (`m : module = '( … ). $m.`) is the
-   shortest path, since theorems about `compile m` are about what is reflected. For hand-written rules,
-   the module a module-wide directive receives is the same reification (reference `directives.md`), and
-   `body f` reifies a functor body. The trusted steps are re-elaboration of reflected data, hygiene
-   renaming, formula-function inlining and the Scala transforms (`obj/transform/{Disjunctions,Records}.scala`).
-   The semantics models the source forms (`fdisj`, records as facts), so these transforms stay inside
-   the trusted base.
+1. **Theorem → `derives`.** This link is checked by the meta level, including `programOf`, which is meta
+   code over the bridge (7.7).
+2. **`derives` → staged program.** `programOf` reifies the rules as written. The trusted steps are
+   reification itself, re-elaboration, hygiene renaming, formula-function inlining and the Scala
+   transforms (`obj/transform/{Disjunctions,Records}.scala`). The semantics models the source forms
+   (`fdisj`, records as facts), so these transforms stay inside the trusted base. That an instance's
+   program is its functor's program at its argument relies on the origin that a functor application
+   records (NOTES, "Modules are generative records").
 3. **Staged program → output.** This is the engine: semi-naive evaluation in
-   `runtime/{Engine,Evaluation}.scala`. The adequacy statement says that a run of the module `m` on the
-   input facts `d` prints `a` iff `derives (compile m) d a`. It is one statement for all programs,
-   written in the reference (P7b) and checked per run by `--certify` (P8b).
+   `runtime/{Engine,Evaluation}.scala`. The adequacy statement says that a run of module `m` on the
+   input facts `d` prints `m.r t̄` iff `m ⊢[d] r t̄`. It is one statement for all programs, written in
+   the reference (P7b) and checked per run by `--certify` (P8b).
 
 ### 7.5 Trusted, verified or certified engine
 
@@ -1046,8 +1108,8 @@ phase (`--certify`): the driver reifies the input, the output and the derivation
 evaluator runs `check : program -> facts -> derivs -> bool`, proven in Hugin against `derives`:
 `check … = true -> ∀ a ∈ out, derives … a`. A model check (`closed : program -> facts -> bool`, one
 naive round) adds completeness, and negation then rests on checked lower strata. The meta evaluator is
-slow on large outputs, so this is a CI and audit mode, not the default. Rule patterns change nothing
-here: the certificate is about `derives`, the one judgment.
+slow on large outputs, so this is a CI and audit mode, not the default. The notation and rule names
+change nothing here: the certificate is about `derives`, the one judgment.
 
 ### 7.7 The code bridge: `quote` and `unquote` (P7a)
 
@@ -1078,12 +1140,16 @@ unquote  : {A : ⇑type} -> quoted A -> ⇑A.
 quoteF   : ⇑prop -> formula.                       (* formulas, e.g. a formula function's result *)
 unquoteF : formula -> ⇑prop.
 symOf    : {R : Type} -> ⇑R -> sym.                (* relation code; R a relation type (proposal) *)
-body f   : module                                  (* special form: f names a functor with a body *)
+programOf P : program                             (* special form: P a functor, module or `here` *)
 ```
 
-All of them are primitives in P7a. `body f` is a special form, not a function, since a functor is a meta
-function and cannot be inspected. It reifies the body's rules, with the parameter relations as fresh
-input symbols (one per parameter field), and is what `compile (body tc)` in chapter 1 uses.
+All of them are primitives in P7a. `programOf` is a special form, not a function, since a functor is
+a meta function and cannot be inspected. `programOf f` reifies `f`'s body as written; `programOf (f a)`
+uses `a`'s relations for the parameters; `programOf m` reifies a module or an instance (through its
+recorded origin); `programOf here` reifies the current file's object rules, so an item that uses it is
+elaborated after the file's object items. The result is the semantics' `program`: relations resolved
+to references (7.2), rules numbered as `r.1`, `r.2`, …, variables typed by object typing, inputs and
+strata computed. No code is generated.
 
 **Equations.**
 
@@ -1115,11 +1181,11 @@ E0901. A hole `$c` with `c : ⇑A` inside a reflection quote stops being E0901 a
 object types to constants (reference `meta/staging.md`, "Instances"). `quote` of code that uses
 `len` at `list int` yields the symbol of the instance `len[int]`, created on demand as staging would
 create it. Code inside a functor body sees its parameter relations as neutral, so `quote` is stuck on
-them, except under `body f`, which binds them to input symbols. Instances of generative modules quote to
+them, except under `programOf f`, which turns them into parameter references (`arg "edge"`). Instances of generative modules quote to
 their own symbols: two items that apply the same functor quote to two programs, as they stage to two.
 
 **What proofs gain.** Programs no longer have to be written as quotes to be proved about. A functor
-written as ordinary rules is `compile (body tc)`. A formula function's result is
+written as ordinary rules is `programOf tc`, and `tc ⊢ path x y` states facts about it. A formula function's result is
 `quoteF (cheap X)`, which a theorem can analyse, for example "reads only input relations". A meta
 function that generates code (`gen : nat -> ⇑prop`) can be verified through `quoteF (gen n)`. And the
 untyped `qterm` escape matters less, since typed code converts to typed data.
@@ -1158,7 +1224,7 @@ turn Horn clauses into an inductive predicate: one constructor per clause. That 
 (Harper, Honsell and Plotkin, JACM 1993; Pfenning and Schürmann, *System description: Twelf*, CADE
 1999). Twelf checks meta-theorems as total relations; see the `%total` declarations in
 `examples/tapl-ch13/theorems.elf` (twelf/twelf 4224d07). Shahin's Lean embedding of Datalog (2026) is
-exactly this, and so are the hand-written families of chapter 10:
+exactly this, and so are the hand-written families of chapter 11:
 
 ```hugin
 lin : (m : graph.model) -> m.node -> m.node -> Type.
@@ -1202,16 +1268,17 @@ so Abella's dynamic context `L` serves only as the input facts, and nominal ∇ 
 needs a primitive judgment because G is a first-order logic without inductive families or dependent
 matching. Hugin has both. So `{L ⊢ A}` is definable as an ordinary family, `derives p d a` (7.2), and
 Abella's backchaining `case` is ordinary dependent matching on `fire`, once the program is closed and
-the representation avoids stuck indices. Rule patterns (7.3) are the syntax for that case split.
+the representation avoids stuck indices. The notation `tc ⊢ path x y` and the automatic rule names
+(7.3) are the syntax for that judgment and that case split.
 
 Proof A, transitivity, written as a core primitive (an Abella-style judgment `derives` built into the
 type theory, with `case` computed by unification against clause heads) looks the same as with the
 library family:
 
 ```hugin
-linTrans : {d : db} -> {x y z : value} -> derives linP d (pathAt x y) -> derives linP d (pathAt y z) -> derives linP d (pathAt x z).
-linTrans (@base E) Q = @step E Q.
-linTrans (@step E P) Q = @step E (linTrans P Q).
+tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 ```
 
 - **Core change, as a primitive:** a judgment former, its intro and elim rules, case trees over computed
@@ -1307,8 +1374,8 @@ system supplies a semantics modality for Horn clauses.
 | approach | per-relation declarations | core change | adequacy | Proof A text | cost |
 |---|---|---|---|---|---|
 | `%semantics` (8.2, automated) | generated families | none | one lemma per relation | `lin1`/`lin2` | 1200–1800 |
-| Abella-style primitive (8.3) | none | judgment former and elimination | one statement | `@base`/`@step` | 2000–3000 and a consistency argument |
-| **library `derives` + rule patterns** (8.3, 7.2–7.3) | none | none (sugar only) | one statement | `@base`/`@step` | P5 + P7b, about 2300–3400 |
+| Abella-style primitive (8.3) | none | judgment former and elimination | one statement | `path.1`/`path.2` | 2000–3000 and a consistency argument |
+| **library `derives` + rule patterns** (8.3, 7.2–7.3) | none | none (sugar only) | one statement | `path.1`/`path.2` | P5 + P7b, about 2300–3400 |
 | Beluga / CMTT (8.4) | LF families | contextual types | per family | as 8.2 | 5000+ |
 | layered modal (8.5) | none | layers, staging redesign | narrows link 2 | needs `derives` anyway | redesign |
 | 2LTT / MTT (8.6) | — | none / redesign | — | — | — |
@@ -1321,17 +1388,18 @@ Replace `%semantics` with a primitive judgment that the language does not need t
    approach's specification judgment, defined in the reasoning logic. Hugin's inductive families and
    index unification make it definable, so it needs no core former, and its consistency is that of
    families.
-2. **Abella's `case` as rule patterns.** For a closed program, `@r p̄` matches and builds derivations by
+2. **Abella's `case` as rule names.** For a closed program, `r.k p̄` matches and builds derivations by
    rule name (P7b). This is sugar, elaborated to `fire`, and needs no generated declarations.
 3. **One adequacy statement** for every program (7.4), checked per run by `--certify`.
-4. **Optional naming** comes from the rule names `@r` that Hugin already has, not from a directive.
+4. **Naming** is automatic (`path.1`, `path.2`); optional labels `@r` add names. No directive is needed.
 
 Two things are lost, and the note accepts both. First, typed abstract carriers: a functor's
 `g.node` disappears, since nodes are `value`s and "for every graph" becomes "for every input database".
 Second, matching on derivations of an abstract program (generic theorems use `fire` and `input` directly,
-as in 10.3). The plan changes accordingly: P7 becomes the code bridge (P7a, 7.7) and rule patterns with
+as in 11.3). The plan changes accordingly: P7 becomes the code bridge (P7a, 7.7) and rule patterns with
 the `⊢` display and the adequacy statement (P7b), instead of derived families and per-relation lemmas
-(chapter 11).
+(chapter 12). Revision r2 adds the notation `P ⊢ r t̄` (7.3) and asks, in chapter 10, whether a relation
+could itself be the proposition.
 
 ## 9. Is a (layered) modal foundation worth it?
 
@@ -1458,14 +1526,117 @@ The recommendation flips if any of these happens:
 5. **A mature implementation appears** that combines dependent types, inferred staging and modal pattern
    matching.
 
-## 10. Worked examples against hand-written families
+## 10. Relations as propositions (levels 3.5 and 4)
 
-This chapter is the baseline of 8.2: proofs over families written by hand, in today's syntax. 10.1 and
-10.2 use only features that exist today. They show that inductive families as evidence already work;
-chapter 1 states the same theorems over `derives`, which ties them to the program. 10.3 is a generic
+**Decided (D14).** Levels 1–3 are approved. Level 3.5 gets a detailed design after levels 1–3 are
+implemented; its implementation is approved subject to that design's approval (batch P9, "design
+first"). Level 4 is recorded as an option with the conditions below; it is not planned.
+
+The levels, for reference:
+
+| level | what the user writes about `tc2`'s `path` |
+|---|---|
+| 1 | `derives (programOf tc2) d (atom (own 0) [v x, v y])` (the library judgment) |
+| 2 | `programOf` from ordinary functors, modules and the file, instead of quotes |
+| 3 | `tc2 ⊢ path x y`, with typed arguments, rule names `path.1`, generalised `d` and `g` |
+| 3.5 | `(tc2 g).path x y`, an abbreviation for `tc2 g ⊢ path x y`, with pattern synonyms `base`/`join` or `path.1` |
+| 4 | `(tc2 g).path x y` *is* a meta inductive predicate, whose constructors are the rules, executed by the engine |
+
+### 10.1 Level 3.5: derived abbreviations
+
+Per relation of a functor or module, the compiler derives a type abbreviation and the rule names as
+pattern synonyms, all *defined through* `derives`:
+
+```hugin
+(* derived for tc2 (design first, P9) *)
+(tc2 g).path : g.node -> g.node -> Type = [x] [y] tc2 g ⊢ path x y.
+pattern (tc2 g).path.base E = path.1 E.          (* only if the user labelled the rule @base *)
+```
+
+Proof A's statement becomes `iff ((tc g).path x y) ((tc2 g).path x y)`, and its clauses are unchanged.
+There is no per-relation adequacy: an abbreviation unfolds to the judgment, and the one adequacy
+statement covers it. It fits positive relations of functors and modules, where `(f g).r` reads as a
+proposition about the instance. For relations under negation or aggregates, the judgment stays the
+honest form. Open questions for its design: name resolution of `(f g).r` at the meta level, where
+today it denotes object code; display; and interaction with generativity, where an abbreviation over
+the functor, not an instance, avoids it.
+
+### 10.2 Level 4: every relation is an inductive predicate
+
+At level 4, an object relation *is* a meta inductive predicate: its rules are its constructors, and
+the engine executes it. This is the mirror image of two known designs:
+
+- Isabelle's predicate compiler `code_pred` turns inductive predicates into executable functions
+  (Berghofer, Bulwahn and Haftmann, *Turning inductive into equational specifications*, TPHOLs 2009);
+- Rocq's extraction of inductive relations produces certified functional code from inductive
+  specifications (Tollitte, Delahaye and Dubois, CPP 2012).
+
+Hugin would go the other way: from rules that run to the predicate they define.
+
+**Before and after, on Proof A.**
+
+```hugin
+(* levels 1–3 (approved) *)
+tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+
+(* level 4 (option) *)
+tcTrans : {x y z : g.node} -> (tc g).path x y -> (tc g).path y z -> (tc g).path x z.
+tcTrans (path.1 E) Q = path.2 E Q.               (* constructors of the predicate (tc g).path *)
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+```
+
+The proofs are the same text; the difference is what `(tc g).path` *is*. At level 3 it is notation for
+one judgment. At level 4 it is a family of its own, with its own constructors, and `E : g.edge x y`
+is the parameter relation as a predicate.
+
+**What level 4 enables.**
+
+- *Relations as types in ordinary meta code:* `route : (x y : node) -> reachable x y -> list node` walks
+  a derivation, which connects meta code to first-class facts.
+- *Typed abstract carriers* everywhere, not only through a functor's parameter.
+- *No visible database:* an input relation is an abstract predicate.
+- *Uniformity* with inductive predicates in Lean, Rocq and Agda, and with Isabelle's `inductive`.
+
+**Costs.**
+
+- *Per-relation adequacy:* each relation's predicate must agree with what the engine computes, either
+  generated as a proof per relation or certified per run. This is what chapter 8 removed.
+- *Negation:* strata must be known to the type checker. `not r x` becomes `r x -> empty` for a relation
+  of a lower stratum, and positivity is checked relative to strata.
+- *Aggregates and bound columns* do not fit an inductive predicate: `count` needs the whole extension,
+  and a bound column is a lattice value, not a derivation.
+- *Run-time `%input` relations become abstract predicates,* so every theorem is implicitly over all
+  inputs, and a theorem cannot mention the database.
+- *A crack in 2LTT's separation:* one name would denote an object relation (stage 0, `⇑(A -> rel)`) and a
+  meta type (stage 1). Stage inference (reference `meta/staging.md`) and name resolution (reference
+  `meta/families.md`, "Names and stages") would need a new rule, much as shared data types have, but
+  for relations, which are not data.
+- *Object types as meta carriers:* `%open` types are extensible across files; subfacts, and heads that
+  create facts (`∃!`), make a relation's predicate depend on the constructors' predicates.
+- *Compile time and incrementality:* every relation would become a family to check, and an edit to a
+  rule would change a type (docs/INCREMENTALITY.md).
+
+### 10.3 Recommendation, as decided
+
+Levels 1–3 now (P5, P7a, P7b). Level 3.5 as a design-first follow-up (P9): it removes the notation's
+last indirection for the common case, at no cost in adequacy. Level 4 is recorded, not planned. It
+would become attractive if:
+
+1. relations-as-types in ordinary meta code (`route`-style functions over derivations) become a
+   frequent need that the judgment serves badly;
+2. per-relation adequacy can be certified cheaply, for instance by P8b's checker run per relation;
+3. stratification can be made part of typing without restricting programs.
+
+## 11. Worked examples against hand-written families
+
+This chapter is the baseline of 8.2: proofs over families written by hand, in today's syntax. 11.1 and
+11.2 use only features that exist today. They show that inductive families as evidence already work;
+chapter 1 states the same theorems over `derives`, which ties them to the program. 11.3 is a generic
 theorem over `derives` and needs P2 and P5.
 
-### 10.1 Reachability is transitive
+### 11.1 Reachability is transitive
 
 The rules of `tc` (`std/graph`: `path X Y :- g.edge X Y.` and `path X Z :- g.edge X Y, path Y Z.`) as a
 family written by hand:
@@ -1488,10 +1659,9 @@ forced implicit binders, which is today's exemption. Under D2, `m` is a fixed fi
 parameter, so `path` still lives in `Type₀`.
 
 The family is a copy of the rules. Nothing ties it to the relation that `tc g` computes, which is the
-gap that `derives` (7.2) and rule patterns (7.3) close: in 1.2, `linTrans` is this proof, over the
-program itself.
+gap that `derives` (7.2) and the notation (7.3) close: in 1.2, `tcTrans` is this proof, over `tc` itself.
 
-### 10.2 Two closure programs derive the same facts
+### 11.2 Two closure programs derive the same facts
 
 The left-linear rule `path X Z :- path X Y, g.edge Y Z.` in place of the right-linear one:
 
@@ -1516,13 +1686,13 @@ iff : Type -> Type -> Type = [a] [b] { to : a -> b, from : b -> a }.
 sameFacts : {m : model} -> {x y : m.node} -> iff (path m x y) (lpath m x y) = { to = toL, from = toR }.
 ```
 
-The same proof over `derives`, with `@`-patterns in place of the constructors, states that the two
+The same proof in the notation, with rule names in place of the constructors, states that the two
 programs derive the same facts from every input; 1.2 does this for the doubling rule.
 
-### 10.3 A module-wide rewrite preserves the derived facts (generic)
+### 11.3 A module-wide rewrite preserves the derived facts (generic)
 
 A rewrite that reverses the body of every rule, of the kind a join-order optimiser would apply. On
-compiled programs:
+reified programs:
 
 ```hugin
 %use "std/list". %use "std/eq". %use "std/semantics".
@@ -1534,13 +1704,13 @@ memberMap here = here.
 memberMap (there M) = there (memberMap M).
 
 (* premises are order-independent; by induction on bs, with premSnoc *)
-premRev : {q : program} -> {d : db} -> {n : nat} -> {xs : vec value n} -> {bs : list (cbody n)} ->
+premRev : {q : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs : list (cbody ts)} ->
           premises q d xs bs -> premises q d xs (reverse bs).
 
 sound : {p : program} -> {d : db} -> {a : gatom} -> derives p d a -> derives (revP p) d a.
-premMap : {p : program} -> {d : db} -> {n : nat} -> {xs : vec value n} -> {bs : list (cbody n)} ->
+premMap : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs : list (cbody ts)} ->
           premises p d xs bs -> premises (revP p) d xs bs.
-sound (input T I) = input T I.
+sound (given T I) = given T I.
 sound (fire M Ps H) = fire (memberMap M) (premRev (premMap Ps)) H.
 sound (sub D S) = sub (sound D) S.
 premMap pnil = pnil.
@@ -1548,20 +1718,20 @@ premMap (ppos E D Ps) = ppos E (sound D) (premMap Ps).
 premMap (pcmp C Ps) = pcmp C (premMap Ps).
 ```
 
-A generic theorem cannot use rule patterns, since the program is abstract, so it matches `fire` and
-`input` directly. Record updates make the cases go through without splitting the rule:
+A generic theorem cannot use rule names, since the program is abstract, so it matches `fire` and
+`given` directly. Record updates make the cases go through without splitting the rule:
 
-- `(revP p).edb` evaluates to `p.edb`, so `T` serves for both programs.
-- `(revC c).arity` evaluates to `c.arity` and `(revC c).head` to `c.head`, so `xs` and the head
-  equation `H` carry over.
+- `(revP p).input` evaluates to `p.input`, so `T` serves for both programs.
+- `(revC c).vars` evaluates to `c.vars` and `(revC c).heads` to `c.heads`, so `xs` and the head
+  proof `H` carry over.
 
 `sound` and `premMap` are mutually recursive, and each call is on a subterm. `complete`, the converse,
-is the same proof plus `reverse (reverse bs) = bs`, a `std/eq` lemma used with `rewrite … in`. The lemma
-`compile (revBodies m) = revP (compile m)` connects the theorem to a module-wide directive
-`revBodies : module -> module`; it is a statement about `compile`, proved by induction on the module.
-Together, they make `%reorder` a *verified* directive: using it changes no fact.
+is the same proof plus `reverse (reverse bs) = bs`, a `std/eq` lemma used with `rewrite … in`. A second
+lemma says that `programOf` of a file transformed by a module-wide directive `revBodies : module ->
+module` is `revP` of the file's `programOf`; it connects the theorem to the directive and is proved by
+induction on the module. Together, they make `%reorder` a *verified* directive: using it changes no fact.
 
-## 11. Batches
+## 12. Batches
 
 Each batch is one PR. Line counts are rough (Scala plus Hugin library plus reference and tests).
 "Standalone" marks batches that are useful even if the full goal is never reached.
@@ -1572,39 +1742,42 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 | **P2** proof basics | `std/eq` (J, `subst`, `cong`, `sym`, `trans`), `empty`, `unit`, `either`, `dec`, `iff`; explicit implicits `f {n := e}` and implicit patterns; `%opaque` theorems (no unfolding, no eager evaluation, W0003 exempt); `decEq` for atoms and the symbol conflict rule; polymorphic families confirmed | 900–1400 | all of chapter 1's lemmas | the spelling `{n := e}` (`{n = e}` clashes with a record value argument; reference `meta/records.md`, "Syntax") | **yes** |
 | **P3** `match` and `rewrite` | right-hand-side `match e with \| p => e'`, `match H : e with` (abstraction in the goal after normalising with definitions unfolded; desugared to a `where`-local function); `rewrite H in e` via `subst` | 700–1000 | shorter proofs; case expressions in all meta code | which occurrences are abstracted (4.2); error messages for ill-typed abstractions (Agda's experience) | **yes**: Hugin has no case expression today |
 | **P4** numbers and decision | inductive meta `int` (`ofNat`, `negSucc`), unbounded, native arithmetic checked against its clauses (#184's method), comparison functions, literals; the range check at the meta→object crossing (D8a); `std/decide` (`so`, `decider`, `decide`), `nat`/`int` lemmas | 1000–1500 | arithmetic in proofs; `add64` in the semantics; meta comparisons | migration of meta `int` code (overflow becomes a crossing error instead of a stuck value); performance of the native path | **yes** |
-| **P5** `derives`, positive | `std/semantics`: `value`, `gatom`, `program`, `compile`, `derives`/`premises` with `fire`, `input`, `sub`; `add64` and friends; monotonicity; the model-theoretic equivalence | 1500–2200, mostly Hugin | generic theorems (9.3); the target of P7b and P8b | positivity of the mutual families; meta evaluation speed of `compile` | partly: a reference semantics in the language |
+| **P5** `derives`, positive | `std/semantics`: typed values (`v : ⇑τ -> value`), relation references (`own`, `arg`, `ext`), `program`, `derives`/`premises` with `fire`, `given`, `sub`; index unification on object code (injective constructors, disjoint literals); `add64` and friends; `holds` and its soundness (`decide`); monotonicity; the model-theoretic equivalence | 1600–2300, mostly Hugin | generic theorems (11.3); the target of P7b and P8b | positivity of the mutual families; meta evaluation speed | partly: a reference semantics in the language |
 | **P6** negation and aggregates | strata, `cneg`, `count`/`sum`/`min`/`max` with finite witnesses; bound columns maybe later | 1000–1500 | full stratified Datalog∃! | aggregate proofs are heavy | no |
-| **P7a** code bridge | `quote : ⇑A -> quoted A`, `unquote`, `quoteF`/`unquoteF`, `symOf`, `body f`; `unquote (quote c) ≡ c` as a conversion rule; canonical names; the missing syntax forms (`as`, ascription, projection, update); holes of type `⇑A` in quotes (7.7) | 900–1400 | programs written as ordinary object code (functors, formula functions, generators) as objects of proof | the converse round trip (D12); quote of open code under functor parameters | **yes**: typed code analysis for directives |
-| **P7b** rule patterns | `@r p̄` and `@input` patterns and expressions over closed programs, elaborated to `fire`/`input` (7.3); case splits and `p ⊢ a` display in the editor; the adequacy statement in the reference | 800–1200 | chapter 1's proofs tied to the program | evaluation of `compile` during elaboration; name resolution of `@r` by the scrutinee's type | no |
+| **P7a** code bridge and `programOf` | `quote : ⇑A -> quoted A`, `unquote`, `quoteF`/`unquoteF`, `symOf`; `programOf` of functors, functor applications, modules, instances and `here`; `unquote (quote c) ≡ c` as a conversion rule; canonical names; the missing syntax forms (`as`, ascription, projection, update) (7.7) | 1000–1500 | ordinary programs as objects of proof | the converse round trip (D12); `here` needs a later elaboration phase | **yes**: typed code analysis for directives |
+| **P7b** notation and rule names | `P ⊢[e] r t̄` with typed arguments, generalised `d` and functor parameters (7.3); automatic rule names `r.k`, optional labels, `given`, as patterns and expressions; `decide` with the notation; case splits and hovers in `⊢` notation; the adequacy statement in the reference | 1000–1500 | chapter 1's proofs, over ordinary code | name resolution of atoms in a program's scope; merging generalised parameters | no |
 | **P8a** proof-tree export | negative premises in `%derivations`; Tantow et al. JSON export | 300–500 | external verified checking of runs | format drift | **yes** |
 | **P8b** certified runs | `--certify`: reified output checked by a meta checker proven against `derives` | 800–1200 | per-run guarantees without a verified engine | meta evaluator speed on large outputs | no |
+| **P9** level 3.5, *design first* | after P7b: a detailed design of derived abbreviations `(f g).r x y := f g ⊢ r x y` and rule pattern synonyms (chapter 10); implementation approved subject to that design's approval | design, then 500–900 | relations read as propositions | name resolution of `(f g).r` at the meta level | no |
 
-Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b. P8a can go at any time. Compared with the previous
+Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b → P9 (design first). P8a can go at any time. Compared with the previous
 version, P7 changes: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
 a lemma generator), it adds the code bridge (P7a) and rule patterns with one adequacy statement (P7b; chapters 8, 9).
 
-## 12. Decisions (approved)
+## 13. Decisions
 
-All decisions are approved by the designer as recommended; D1 in the revised form below.
+All decisions are approved by the designer as recommended; D1 in the revised form below; D3, D4 and
+D11 as refined in r2; D14 decided in r2.
 
 | | decision | approved |
 |---|---|---|
 | D1 | postulates | A meta function declared without clauses is a coverage error, E0911, exactly as if clauses were missing; only an empty argument type needs none. Abstract declarations in functor signatures and interface files are parameters and stay unchanged. `x : A = %postulate.` for deliberate axioms; `--safe` rejects postulates; assumptions are listed. No warning period: an error directly. A postulate is a definition-side choice, like `= %builtin`, not a sort like `: data`, so it belongs after `=` |
 | D2 | forced large indices | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
-| D3 | form of the semantics | library `derives` with rule patterns (chapter 8): no core former, no per-relation declarations, one adequacy statement |
-| D4 | carrier of values | one universal `value` over the existing base types and symbols: `vint`, `vfloat`, `vstr`, `vfact` |
+| D3 | form of the semantics | library `derives` (chapter 8), written in the notation `P ⊢ r t̄` with automatic rule names (7.3, r2): no core former, no per-relation declarations, one adequacy statement |
+| D4 | carrier of values | no copies of base types; refined in r2: values are closed object code, `v : {τ : ⇑type} -> ⇑τ -> value`, so statements range over typed nodes (7.2) |
 | D5 | engine | trusted by default, certificate mode (P8); no verified engine |
 | D6 | `Prop`, irrelevance | none for now; revisit if quotients or subset types with proof fields are needed |
 | D7 | automation and kernel | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
 | D8 | integers | the meta `int` is inductive (`ofNat`, `negSucc`), unbounded, native-accelerated with an equation check (#184); the object `int` stays 64-bit; semantics via `add64 : int -> int -> option int` (4.3) |
 | D8a | the meta→object crossing of `int` | implicit check with an error, which matches today's rule for persisted values, plus `fits64 : int -> bool` for proofs and for code that wants to branch |
 | D9 | K | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
-| D10 | generativity | theorems about programs (`compile`, `body f`), never about instances; audit whether memoised closed applications can share a module instance across items |
-| D11 | syntax of the proof features | as proposed in chapter 1, details fixed per batch: `= %postulate`, `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e` on right-hand sides, `@r p̄` and `@input`, `p ⊢ r v̄` in display, `body f`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
+| D10 | generativity | theorems about programs (`programOf` of functors), applied to instances through their recorded origin; audit whether memoised closed applications can share a module instance across items |
+| D11 | syntax of the proof features | as proposed in chapter 1, details fixed per batch: `= %postulate`, `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e`, `P ⊢[e] r t̄` (ASCII `\|-`), rule names `r.k`, `given`, labels `@n`, `programOf`, `here`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
 | D12 | the converse round trip `quote (unquote q) = q` | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
 | D13 | a layered or contextual modal foundation (chapter 9) | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
+| D14 | relations as propositions (chapter 10) | decided: levels 1–3 approved; level 3.5 gets a detailed design after 1–3 are implemented, and its implementation is approved subject to that design (P9, design first); level 4 recorded as an option with the conditions of 10.3, not planned |
 
-## 13. Sources
+## 14. Sources
 
 - agda/agda a3f41e8: `doc/user-manual/language/{safe-agda,postulates,prop,irrelevance,runtime-irrelevance,with-abstraction,reflection,without-k,two-level,termination-checking,opaque-definitions}.lagda.rst`,
   `doc/user-manual/tools/command-line-options.rst` (`--large-indices`, `--forced-argument-recursion`),
@@ -1667,6 +1840,12 @@ All decisions are approved by the designer as recommended; D1 in the revised for
   2011. P. Stassen, D. Gratzer, L. Birkedal: mitten: a flexible multimodal proof assistant, TYPES 2022
   (LIPIcs 269, 2023). Agda `doc/user-manual/language/flat.lagda.rst`. Hugin `core/ObjForm.scala`,
   `docs/design/stage-polymorphism.md`.
+- S. Berghofer, L. Bulwahn, F. Haftmann: Turning inductive into equational specifications, TPHOLs 2009
+  (Isabelle's predicate compiler `code_pred`). P.-N. Tollitte, D. Delahaye, C. Dubois: Producing
+  certified functional code from inductive specifications, CPP 2012.
+- X. Leroy: Formal verification of a realistic compiler, CACM 52(7), 2009. Iris proof mode notation
+  `P ⊢ Q`; Agda `doc/user-manual/language/generalization-of-declared-variables.lagda.rst`; Isabelle's
+  `inductive` package (rule names `r.intros`).
 - R. Harper, F. Honsell, G. Plotkin: A framework for defining logics, JACM 40(1), 1993. F. Pfenning,
   C. Schürmann: System description: Twelf, CADE 1999.
 - R. F. Stärk: The theoretical foundations of LPTP (a logic program theorem prover), JLP 36(3), 1998.
