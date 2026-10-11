@@ -29,6 +29,9 @@ final class ElaboratedDeclarations(
 ):
   def core: Core = elaborator.core
 
+  /** What object items can read of these declarations, comparable across their elaborations. */
+  lazy val summary: DeclarationsSummary = DeclarationsSummary(this)
+
 /** One object item of a program (a rule, query or directive) elaborated on its own against the program's
  *  declarations, in a fork of their core: its items, diagnostics, index and the globals it used. It is
  *  *portable* if its items can be moved into another fork of the declarations' core: the only globals
@@ -140,6 +143,8 @@ object ProgramElab:
     val core = decls.core.fork()
     val reporter = Reporter()
     val e = decls.elaborator.fork(core, reporter, SemanticIndex())
+    // the item records its own uses (the declarations' are theirs: an item may be reused with later ones)
+    e.state.used = Set.empty
     val footprint = Footprint(DeclarationRanges.of(decls.base.core, decls.core))
     val observer = reads.getOrElse(footprint)
     core.observe(observer)

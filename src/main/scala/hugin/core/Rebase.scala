@@ -65,7 +65,8 @@ object Rebase:
     val lib = oldDecls.base.core
     val (libGlobals, libMetas, libLevels) = (lib.globals.length, lib.metas.length, lib.levels.count)
     val oldCore = oldDecls.core
-    val (oldKeys, newKeys) = (GlobalKeys(oldCore, libGlobals), GlobalKeys(newDecls.core, libGlobals))
+    // the keys of each declarations' globals are computed once (and shared by all their items)
+    val (oldKeys, newKeys) = (oldDecls.summary.keys, newDecls.summary.keys)
     val map = mutable.HashMap.empty[Int, Int]
     val seenMetas = mutable.HashSet.empty[Int]
     val seenGlobals = mutable.HashSet.empty[Int]

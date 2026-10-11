@@ -508,6 +508,13 @@ returns refer to the core they were elaborated on, and assembly rebases them (pa
 mechanism for a program over a library's exported names (zinc's name hashing within a process,
 section 4.6) is a later step.
 
+*As implemented (step 3):* the projections an item read are grouped into one query per item,
+`DeclView(program, globals by key, names, whole tables)`, whose value is the libraries (by identity), the
+fingerprint of each global, the outcome of each name and each whole table. What is compared is the same
+as with one query per projection; a cold compilation records one dependency per item instead of one
+per read (gen_large: 3 691 instead of about 25 000, which per-read queries cost about 70 ms of CPU, 6 %
+of the compilation, measured with async-profiler).
+
 ### 9.5 Soundness argument and tests
 
 An item's elaboration is a function of the item and of what it reads of the declarations' core and

@@ -188,6 +188,7 @@ final class Core private (val levels: Levels) extends Evaluation with Machine wi
     readAll("objEdges")
     edges
   def objEdges_=(es: List[(Val, Int)]): Unit = edges = es
+  private[core] def edgesTable: List[(Val, Int)] = edges
 
   /** The columns of object constants as object typing sees them ([[objtype.ObjEnv.relInfo]]). */
   val relInfoCache: mutable.HashMap[Int, Option[AnyRef]] = mutable.HashMap.empty

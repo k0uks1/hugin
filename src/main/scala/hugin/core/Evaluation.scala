@@ -81,6 +81,9 @@ trait Evaluation:
 
   protected def copyEvaluation(from: Evaluation): Unit = hygiene = from.hygiene
 
+  /** The number of fresh object variables made so far, without reporting a read ([[DeclarationsSummary]]). */
+  private[core] def hygieneCount: Int = hygiene
+
   /** A fresh object variable named after `x` (`X#k`). */
   def freshObjectVariable(x: Name): Val =
     readAll("hygiene")
