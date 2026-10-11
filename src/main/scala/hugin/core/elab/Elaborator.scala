@@ -52,6 +52,10 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  whole body, also before their declarations ([[ModuleBodies]]). */
   var bodyDeclared: Set[Name] = Set.empty
 
+  /** The members (name, level) of the module bodies being elaborated that are left out although bound: the
+   *  formula functions of a cycle (E0105). Their uses drop the items using them without further errors. */
+  var leftOutMembers: Set[(Name, Int)] = Set.empty
+
   /** The names defined by clauses in the module: their declarations declare functions. */
   var functionNames: Set[Name] = Set.empty
 
