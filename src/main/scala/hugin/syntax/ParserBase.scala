@@ -206,6 +206,11 @@ private[syntax] abstract class ParserBase(src: SourceFile, reporter: Reporter) e
     while more do
       resync()
       if startsItem(kind) then items ++= parseItem()
+      else if strayIndentedBodyCloser then
+        // the `}` of a nested body whose `{` was lost: skipped with its period; no member is lost
+        error(SyntaxError.StrayCloser(tok.text, tok.span))
+        val t = advance()
+        if at(Tok.Period) && tok.span.startLine == t.span.startLine then advance()
       else
         if items.nonEmpty && !startsLine(i) && !at(Tok.Period) && items.last.span.source.lineOf(
             (items.last.span.end - 1).max(items.last.span.start)

@@ -1,42 +1,18 @@
 error[E0001]: expected `.` or `where`, found `:`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:32:10
+  --> tests/recovery/f_lost_nested_body_brace.hgn:33:10
    |
-31 |   inner =
+32 |   inner =
    |   ----- this definition starts here
-32 |     step : g.node -> g.node -> prop. (*~ E0001 *)
+33 |     step : g.node -> g.node -> prop. (*~ E0001 *)
    |          ^ expected `.` or `where`
 
-error[E0101]: unresolved name `g`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:38:22
+error[E0001]: stray `}`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:37:3
    |
-38 |   tagged : string -> g.node -> prop. (*~ E0101 *)
-   |                      ^ not found in this scope
+37 |   }. (*~ E0001 *)
+   |   ^ the construct goes on after this `}`, and is closed later
 
-error[E0101]: unresolved name `g`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:42:10
-   |
-42 |   ends : g.node -> rel. (*~ E0101 *)
-   |          ^ not found in this scope
-
-error[E0101]: unresolved name `g`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:45:9
-   |
-45 |   two : g.node -> g.node -> prop. (*~ E0101 *)
-   |         ^ not found in this scope
-
-error[E0101]: unresolved name `g`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:47:10
-   |
-47 |   four : g.node -> g.node -> rel. (*~ E0101 *)
-   |          ^ not found in this scope
-
-error[E0001]: unmatched `}`
-  --> tests/recovery/f_lost_nested_body_brace.hgn:49:1
-   |
-49 | }. (*~ E0001 *)
-   | ^ no module body to close
-
-6 errors found
+2 errors found
 (* ---------------- after elaborate ---------------- *)
 nat : Type.
 zero : nat.

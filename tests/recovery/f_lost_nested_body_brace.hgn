@@ -1,7 +1,8 @@
 (* The nested module body `inner` of tests/run/mc_formula_members.hgn with its `{` deleted (a mutant of
-   RecoveryFuzzSuite). The `}` of `inner` then closes the enclosing body of `hops`, so the later members
-   of `hops` become top-level items, where the parameter `g` is out of scope, and the `}` of `hops` is
-   unmatched. This pins today's recovery. *)
+   RecoveryFuzzSuite): one error where its first member does not fit the definition, and one for its
+   `}`, which is indented deeper than the line that opened the body of `hops` and so does not close it
+   (docs/PARSER.md, §4.3), as the `}` of a top-level body whose `{` was lost closes nothing
+   (f_lost_module_brace). The rest of the body of `hops` stays in it, where `g` is in scope. *)
 nat : Type. zero : nat. suc : nat -> nat.
 city : type. berlin : city. paris : city. rome : city. oslo : city. bergen : city.
 road : city -> city -> rel.
@@ -33,20 +34,20 @@ hops (g : graph) = {
     step X Y :- g.edge X Y.
     from : g.node -> rel.
     from X :- step X _.
-  }.
+  }. (*~ E0001 *)
   (* a meta parameter, a clause per tag *)
-  tagged : string -> g.node -> prop. (*~ E0101 *)
+  tagged : string -> g.node -> prop.
   tagged "src" X :- inner.step X _.
   tagged "dst" Y :- inner.step _ Y.
   (* a formula function next to a negated relation of the body *)
-  ends : g.node -> rel. (*~ E0101 *)
+  ends : g.node -> rel.
   ends X :- tagged "dst" X, not inner.from X.
   (* variables other than the arguments are fresh at each use: `Y` is not shared by the two uses *)
-  two : g.node -> g.node -> prop. (*~ E0101 *)
+  two : g.node -> g.node -> prop.
   two X Z :- inner.step X Y, inner.step Y Z.
-  four : g.node -> g.node -> rel. (*~ E0101 *)
+  four : g.node -> g.node -> rel.
   four X Z :- two X Y, two Y Z.
-}. (*~ E0001 *)
+}.
 h1 = hops { node = city, edge = road }.
 h2 = hops { node = city, edge = road }.
 viaPath : city -> city -> rel.

@@ -19,10 +19,6 @@ import scala.collection.concurrent.TrieMap
  *    (recovery does not swallow the following items), unless the mutation opened a comment or a module
  *    body that is never closed (they extend to the end of the file by design).
  *
- *  A deleted `{` of a nested module body is excluded from the last two: the body's `}` then closes the
- *  enclosing body, so the enclosing body's later members are top-level items, where its parameters are
- *  out of scope (nothing can tell which `{` was meant).
- *
  *  A damaged `%infix` directive is excluded: its operator is unknown, which changes how the whole file
  *  is parsed. Errors of the object-level phases about items that use a dropped item (a rule that is not
  *  range-restricted without the `%demand` that was dropped) are not covered: an item dropped for any
@@ -47,11 +43,10 @@ class RecoveryFuzzSuite extends FuzzSuite:
       case Right(ds) =>
         val errors = ds.filter(_.code.phase == Phase.Syntax)
         val tooMany = Option.when(errors.length > k)(s"${errors.length} syntax errors (at most $k expected):\n${show(errors)}")
-        val unnested = m.deleted.contains("{")
         val cascading = ds.filter(d => d.code == Code.E0101 && !declarationLost(m, d) && d.primarySpan.startLine != m.mutantLine)
-        val cascade = Option.when(cascading.nonEmpty && !unnested)(s"unresolved names outside the damaged line:\n${show(cascading)}")
+        val cascade = Option.when(cascading.nonEmpty)(s"unresolved names outside the damaged line:\n${show(cascading)}")
         val extending = ds.exists(d => d.code == Code.E0002 || (d.code == Code.E0005 && d.message.contains("`{`")))
-        val swallowed = if extending || unnested then None else following(m)
+        val swallowed = if extending then None else following(m)
         tooMany.toList ++ cascade ++ swallowed
 
   /** An unresolved name that the damaged line declared: when the mutation deletes the name of a
@@ -87,8 +82,8 @@ object RecoveryFuzzSuite:
   val k = 2
 
   /** A corpus program with one token deleted or inserted; `line` is the (0-based) line of the mutation in
-   *  the original, `mutantLine` in the mutant; `deleted` is the text of the deleted token, if any. */
-  final case class OneToken(origin: String, original: String, program: Program, line: Int, mutantLine: Int, deleted: Option[String]):
+   *  the original, `mutantLine` in the mutant. */
+  final case class OneToken(origin: String, original: String, program: Program, line: Int, mutantLine: Int):
     override def toString: String = s"mutant of $origin (line ${line + 1}):$program"
 
   /** The corpus programs that compile without errors (decided once per program, in-process). */
@@ -122,4 +117,4 @@ object RecoveryFuzzSuite:
       // the line of the inserted token, or of the deleted one; in the mutant, the line where it is or was
       val before = pieces.take(i).map(_.code).mkString.count(_ == '\n')
       val line = before + (if insert then 0 else pieces(i).gap.count(_ == '\n'))
-      OneToken(e.path, e.program.code, e.program.copy(code = code), line, before, Option.when(!insert)(pieces(i).text))
+      OneToken(e.path, e.program.code, e.program.copy(code = code), line, before)
