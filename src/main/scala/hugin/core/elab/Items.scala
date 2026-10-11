@@ -49,8 +49,8 @@ trait Items:
   /** Elaborates a program's declarations ([[splitItems]]). */
   def elabDeclarations(prog: List[Item]): Unit =
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
-    state.functionNames = prog.flatMap(clauseName(_, declared)).toSet
-    state.declaredHere = prog.flatMap(declares).toSet
+    state.functionNames.set(prog.flatMap(clauseName(_, declared)).toSet)
+    state.declaredHere.set(prog.flatMap(declares).toSet)
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
@@ -63,12 +63,14 @@ trait Items:
     // item declares them); the items are dropped silently by `elabItem`
     state.erroneous ++= prog.filter(hasSyntaxErrors).flatMap(mightDeclare)
     // a function with a clause with a syntax error is not defined, and its uses are not elaborated
-    state.unelaborated = clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)).toSet ++
-      formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
+    state.unelaborated.set(
+      clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)).toSet ++
+        formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions)).toSet
+    )
     val firstGlobal = globals.length
     predeclare(meta)
     val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
-    for item <- clauses; n <- clauseName(item, state.functionNames) do groups(n) = groups.getOrElse(n, Nil) :+ item
+    for item <- clauses; n <- clauseName(item, state.functionNames.toSet) do groups(n) = groups.getOrElse(n, Nil) :+ item
     def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
     val rules = meta.collect { case d: Decl if formulaFunctions(d.name.name) => (d.name.name, clausesOf(d.name.name), d.span.start) }
     elabByComponents(meta, groups.toList, rules.distinctBy(_._1))

@@ -43,7 +43,9 @@ final class ElaboratedItem(
     val used: Set[Int],
     val portable: Boolean,
     /** What the item contributes to the module that module-wide directives rewrite. */
-    val parts: List[elab.ModulePart] = Nil
+    val parts: List[elab.ModulePart] = Nil,
+    /** What it read of the declarations ([[Footprint]]). */
+    val footprint: Footprint | Null = null
 )
 
 /** The elaboration of a program in parts, each a function of the parts before it, so that a query
@@ -128,14 +130,35 @@ object ProgramElab:
     ElaboratedDeclarations(base, e, e.items.toList, reporter.diagnostics, e.index)
 
   /** One object item of a program, elaborated against its declarations in a fork of their core. */
-  def item(decls: ElaboratedDeclarations, item: Item): ElaboratedItem =
+  def item(decls: ElaboratedDeclarations, item: Item): ElaboratedItem = observed(decls, item, None)
+
+  /** [[item]], with the reads of the declarations reported to `reads` instead of recorded in the item's
+   *  footprint (for the test that the footprint covers every read, [[Unrecorded]]). */
+  def observed(decls: ElaboratedDeclarations, item: Item, reads: Option[DeclarationReads]): ElaboratedItem =
     val core = decls.core.fork()
     val reporter = Reporter()
     val e = decls.elaborator.fork(core, reporter, SemanticIndex())
-    e.elabItemReporting(item)
+    val footprint = Footprint(DeclarationRanges.of(decls.base.core, decls.core))
+    val observer = reads.getOrElse(footprint)
+    core.observe(observer)
+    e.state.observe(observer)
+    try e.elabItemReporting(item)
+    finally
+      core.observe(null)
+      e.state.observe(null)
     val items = e.items.toList
     val parts = e.state.parts.toList
-    ElaboratedItem(item, core, items, reporter.diagnostics, e.index, e.state.used.toSet, portable(decls.core, core, items, parts), parts)
+    ElaboratedItem(
+      item,
+      core,
+      items,
+      reporter.diagnostics,
+      e.index,
+      e.state.used.toSet,
+      portable(decls.core, core, items, parts),
+      parts,
+      footprint
+    )
 
   /** Whether the items elaborated in `fork` (of `base`) can be moved into another fork of `base`. */
   private def portable(base: Core, fork: Core, items: List[CoreItem], parts: List[elab.ModulePart]): Boolean =

@@ -47,7 +47,9 @@ trait Primitives:
   protected def copyPrimitives(from: Primitives): Unit = derived ++= from.derived
 
   /** The global a derived constant was derived from, and its label. */
-  def derivedFrom(id: Int): Option[(Int, String)] = derived.collectFirst { case (k, `id`) => k }
+  def derivedFrom(id: Int): Option[(Int, String)] =
+    readAll("derived")
+    derived.collectFirst { case (k, `id`) => k }
 
   /** The application of primitive `op` (building `ctors`) to `args`, if they are canonical. */
   def reducePrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
@@ -113,6 +115,7 @@ trait Primitives:
 
   /** The derived constant `r.l`, created (pending) on first use. */
   private def derive(id: Int, label: String): Int =
+    readAll("derived")
     derived.getOrElseUpdate(
       (id, label), {
         val g = globals(id)

@@ -44,9 +44,35 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  [[Declarations.declType]]). */
   var unknownTypesAre: Stage = Stage.S1
 
+  /** The reads of the declarations made in this state (the fork in which one item is elaborated), if
+   *  they are observed ([[hugin.core.DeclarationReads]]). */
+  private var reads: hugin.core.DeclarationReads | Null = null
+
+  def observe(r: hugin.core.DeclarationReads | Null): Unit =
+    reads = r
+    scope.reads = r
+
+  private def readAll(channel: String): Unit = { val r = reads; if r != null then r.all(channel) }
+
+  /** A set of names of the state whose membership tests are reads of the declarations, name by name. */
+  final class Names(channel: String):
+    private[ElabState] var names: Set[Name] = Set.empty
+    def apply(n: Name): Boolean =
+      val r = reads
+      if r != null then r.name(channel, n)
+      names(n)
+    def +=(n: Name): Unit = names += n
+    def ++=(ns: IterableOnce[Name]): Unit = names ++= ns
+    def set(ns: Set[Name]): Unit = names = ns
+    def toSet: Set[Name] =
+      readAll(channel)
+      names
+    def foreach[U](f: Name => U): Unit = toSet.foreach(f)
+    private[ElabState] def copyFrom(other: ElabState#Names): Unit = names = other.names
+
   /** The names the file's declarations and definitions declare (they shadow the prelude's in the whole
    *  file, also before their declarations). */
-  var declaredHere: Set[Name] = Set.empty
+  val declaredHere: Names = Names("declaredHere")
 
   /** The names the members of the module bodies being elaborated declare: they shadow the file's in the
    *  whole body, also before their declarations ([[ModuleBodies]]). */
@@ -57,31 +83,47 @@ final class ElabState(val scope: NameScope = NameScope()):
   var leftOutMembers: Set[(Name, Int)] = Set.empty
 
   /** The names defined by clauses in the module: their declarations declare functions. */
-  var functionNames: Set[Name] = Set.empty
+  val functionNames: Names = Names("functionNames")
 
   /** The names opened by `%use` (reference: modules), with the globals they denote and the `%use` items
    *  that opened them: between the file's declarations and the enclosing scope. A name opened for two
    *  different globals is ambiguous ([[Uses]]). */
-  var opened: Map[Name, List[(Int, hugin.util.Span)]] = Map.empty
+  def opened: Map[Name, List[(Int, hugin.util.Span)]] =
+    readAll("opened")
+    opened0
+  def opened_=(o: Map[Name, List[(Int, hugin.util.Span)]]): Unit = opened0 = o
+  private var opened0: Map[Name, List[(Int, hugin.util.Span)]] = Map.empty
 
   /** The file's `%export` (reference: modules): its span, and the module value and type it exports. */
-  var exported: Option[(hugin.util.Span, ImportedModule)] = None
+  def exported: Option[(hugin.util.Span, ImportedModule)] =
+    readAll("exported")
+    exported0
+  def exported_=(e: Option[(hugin.util.Span, ImportedModule)]): Unit = exported0 = e
+  private var exported0: Option[(hugin.util.Span, ImportedModule)] = None
 
   /** The signatures declared in the file as written (`g : Type = { … }.`), for suggestions. */
-  var signatures: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
+  def signatures: Map[Name, hugin.syntax.Trees.RecordType] =
+    readAll("signatures")
+    signatures0
+  def signatures_=(s: Map[Name, hugin.syntax.Trees.RecordType]): Unit = signatures0 = s
+  private var signatures0: Map[Name, hugin.syntax.Trees.RecordType] = Map.empty
 
   /** Names whose declarations were dropped for an error (reported, or an erroneous import): their uses
    *  drop the items using them without further errors. */
-  var erroneous: Set[Name] = Set.empty
+  val erroneous: Names = Names("erroneous")
 
   /** Functions of the file whose clauses failed (a syntax error, or an error reported for them), and what
    *  expands to them: their uses drop the items using them without further errors. */
-  var unelaborated: Set[Name] = Set.empty
+  val unelaborated: Names = Names("unelaborated")
 
   /** What the `%use` items that were dropped for an error might have opened: `None` if none was dropped,
    *  `Some(None)` for any name (a `%use m.`), `Some(Some(ns))` for the names `ns` (`%use m (x, y).`). A
    *  name they might have opened is not reported as unresolved: the error is the `%use`'s. */
-  var droppedUses: Option[Option[Set[Name]]] = None
+  def droppedUses: Option[Option[Set[Name]]] =
+    readAll("droppedUses")
+    droppedUses0
+  def droppedUses_=(d: Option[Option[Set[Name]]]): Unit = droppedUses0 = d
+  private var droppedUses0: Option[Option[Set[Name]]] = None
 
   /** Whether an unresolved name `n` might have been opened by a dropped `%use`. */
   def mightBeOpened(n: Name): Boolean = droppedUses.exists(_.forall(_(n)))
@@ -119,14 +161,14 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  start empty). The names and sets are persistent, so a copy is cheap (issue #60). */
   def fork(): ElabState =
     val s = ElabState(scope.copy())
-    s.functionNames = functionNames
-    s.declaredHere = declaredHere
-    s.opened = opened
-    s.exported = exported
-    s.signatures = signatures
-    s.erroneous = erroneous
-    s.unelaborated = unelaborated
-    s.droppedUses = droppedUses
+    s.functionNames.copyFrom(functionNames)
+    s.declaredHere.copyFrom(declaredHere)
+    s.opened0 = opened0
+    s.exported0 = exported0
+    s.signatures0 = signatures0
+    s.erroneous.copyFrom(erroneous)
+    s.unelaborated.copyFrom(unelaborated)
+    s.droppedUses0 = droppedUses0
     s.used = used
     s
 

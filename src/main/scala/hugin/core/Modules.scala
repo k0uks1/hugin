@@ -40,6 +40,7 @@ trait Modules:
 
   private var bodyIds = 0
   def nextBodyId(): Int =
+    readAll("modules")
     bodyIds += 1
     bodyIds
 
@@ -61,7 +62,9 @@ trait Modules:
 
   def evalModule(body: ModuleBody, env: List[Val]): Val = closedEnv(env) match
     case None => Val.Rigid(Head.Module(body, env), Nil)
-    case Some(key) => memo.getOrElseUpdate((body.id, site, key.map(stripPositions)), instantiate(body, env))
+    case Some(key) =>
+      readAll("modules")
+      memo.getOrElseUpdate((body.id, site, key.map(stripPositions)), instantiate(body, env))
 
   /** The normal forms of an environment's values if they have no free variables and no unknowns
    *  (functions, such as formula functions passed to a functor, are fine). */
@@ -103,6 +106,7 @@ trait Modules:
     Val.Quote(Val.Rigid(Head.Glob(id), Nil))
 
   private def freshPrefix(): String =
+    readAll("modules")
     val base =
       if hint.nonEmpty then hint
       else
@@ -143,11 +147,14 @@ trait Modules:
   private val fileRanks = mutable.LinkedHashMap.empty[String, Int]
 
   /** Ranks a file after the files ranked before (the prelude, the imported files, the program's files). */
-  def rankFile(path: String): Unit = fileRanks.getOrElseUpdate(path, fileRanks.size)
+  def rankFile(path: String): Unit =
+    readAll("modules")
+    fileRanks.getOrElseUpdate(path, fileRanks.size)
 
   /** The position of a span in the program: the files in the order they are ranked (as elaborated: the
    *  prelude, the imported files, the program), then the offset. */
   def positionOf(span: Span): Int =
+    readAll("modules")
     val rank = fileRanks.getOrElseUpdate(span.source.path, fileRanks.size)
     rank * 10_000_000 + span.start
 
