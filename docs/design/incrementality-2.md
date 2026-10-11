@@ -5,7 +5,8 @@ compilers do that Hugin does not, measured against Hugin's own latency on realis
 approved by the designer; order 1, 2, 3, 5, then 4, 6; 7 after #91; 8 deferred.
 
 Contents: 1 recommendations, 2 what we have, 3 measurements, 4 prior art and fit, 5 alternatives
-rejected, 6 ranked pull requests, 7 interactions with #91 and #100, 8 sources.
+rejected, 6 ranked pull requests, 7 interactions with #91 and #100, 8 sources; 9 addendum: PR 7 in
+detail (proposed, for approval).
 
 ## 1. Recommendations
 
@@ -372,3 +373,177 @@ language server usable on large files whatever the compile costs; 6 before 7 bec
   `core/ProgramElab.scala`, `core/elab/Items.scala` (35–67, 107–114), `compiler/Compiler.scala`,
   `lsp/HuginLanguageServer.scala`, `repl/Session.scala`, `runtime/Evaluation.scala`,
   `docs/INCREMENTALITY.md`, `docs/PERFORMANCE.md`; `docs/design/elab-order.md` on `design/elab-order-91`.
+
+## 9. Addendum: PR 7 in detail
+
+Status: proposed, for approval by the designer; no code before approval. Built on `e9d8f99` (after #91
+batch 1 and #100 batch 2). PR 7 makes an object item depend on what it uses of the declarations instead
+of on the whole `Signatures` value, so that editing or adding a declaration elaborates only the items
+that use it (section 3.1: `large` 869 and 927 ms per declaration edit or addition, of which 448 ms are
+the 3 691 `ElabItem`s, section 3.2). It has two parts: (a) items elaborated on an earlier declarations'
+core are moved onto the current one by stable keys; (b) an item's memo is valid while what it read of
+the declarations is unchanged, compared by fingerprints.
+
+### 9.1 What an item reads of the declarations today
+
+`ElabItem` calls `ProgramElab.item(db(Signatures, key.program), item)` (`query/ProgramQueries.scala`):
+the item is elaborated in a fork of the declarations' core with a fork of their elaborator state
+(`core/ProgramElab.scala` `item`; `Core.fork`, `ElabState.fork`). Its result refers to the core by
+position, and its elaboration reads, besides the item:
+
+1. **Globals by id.** Terms (`Tm.Global`, `CoreItem`s) hold indexes into `Core.globals`. A declaration
+   added or removed before others shifts the ids of all later globals, so an item elaborated on an
+   earlier core cannot be moved onto a later one by id (`Moved` in `ProgramElab.scala` maps only the
+   globals the item's own fork created: family instances, recreated with `instanceAt`).
+2. **What it unfolds.** Unification, evaluation and matching unfold definitions and functions with case
+   trees (`GlobalKind.Definition`, `GlobalKind.Function`), transitively, and the termination verdict of
+   a component decides whether a function unfolds at all (`rejectedByTermination`, `withheld` and
+   sealing in `DependencyOrder.scala`). So an item depends on the bodies of everything it can unfold
+   from what it names, not only on the types of what it names.
+3. **Name resolution.** The scope (`NameScope`), the names opened by `%use` (`ElabState.opened`), the
+   names it looked up and did not find (reported as unresolved, or silent when they are
+   `state.erroneous`, `state.unelaborated` or may have been opened by a dropped `%use`,
+   `state.droppedUses`, `Names.scala`), and the similar names offered in a suggestion (which lists all
+   names in scope).
+4. **Elaborator state set by the declarations**, copied by `ElabState.fork`: `functionNames`,
+   `declaredHere`, `signatures`, `opened`, `exported`, `erroneous`, `unelaborated`, `droppedUses`,
+   `used` (for the unused-definition lint), `unknownTypesAre`.
+5. **Metas and universe levels of the declarations' core.** `Core.fork` shares the metas below
+   `sharedBelow` and copies the level graph (`Levels`, a constraint graph with a trail); an item may
+   refer to an unsolved meta of a declaration or add constraints between existing levels. Items that
+   create levels or module instances are not portable already (`ProgramElab.portable`).
+6. **Family instances and module instances** existing in the declarations' core (`Families.familyMemo`,
+   `Modules.moduleInstances`): an item reuses an existing instance or creates one in its fork.
+7. **What its diagnostics and tooling print**: names and types of the globals it mentions (hover
+   details in the `SemanticIndex`, messages). The index refers to symbols by name, kind and span
+   (`SemanticIndex.Sym`), not by global id.
+
+Step 10 of `docs/INCREMENTALITY.md` recorded (3) as `ScopeName` and `DeclAfter` dependencies for the
+old meta level; they were not ported when the redesigned meta level made declarations dependently
+typed (they refer to each other by value, item 2).
+
+### 9.2 Prior art: identities that shift
+
+- **GHC recompilation avoidance** (`ghc` e7cacf5, `compiler/GHC/Iface/Recomp.hs`). Uniques are not
+  stable across compilations; interfaces name things by `Name` (module and `OccName`), a stable key.
+  Each declaration gets a fingerprint computed in dependency order by serializing its interface with
+  every *non-binding* name replaced by that name's fingerprint, so a fingerprint changes when anything
+  in its transitive closure changes (Note [Fingerprinting IfaceDecls], 1109–1128); a recursive group
+  is fingerprinted as a group (Note [Fingerprinting recursive groups], 1130 on, the subtlety of #18733).
+  An interface exposes unfoldings with optimisation, and they are part of what is fingerprinted, which
+  is exactly item 2. A module records what it used as `usg_entities :: [(OccName, Fingerprint)]` per
+  imported module (`compiler/GHC/Unit/Module/Deps.hs`, `UsageHomeModule`, 334–351) and recompiles when
+  one of those fingerprints changed; changes of export lists and orphan instances are tracked
+  separately (Notes [When to recompile when export lists change?] and [Orphan-like hash], 950–1040).
+- **rust-analyzer** (`rust-analyzer` be9f942). Item identities are interned locations, not positions:
+  `AstIdMap` gives top-level items an id from their kind, name and a disambiguating index, "so these
+  IDs stay as stable as possible", because an invalidated id invalidates everything that interned it
+  (`crates/span/src/ast_id.rs` 1–21); `ItemLoc` (container and ast id) is interned into the ids the
+  rest of the IDE uses (`crates/hir-def/src/lib.rs` 123–150, `impl_intern!` 228, e.g. 260–261). The
+  `ItemTree` is the firewall: typing in a body leaves it unchanged (`crates/hir-def/src/item_tree.rs`
+  12–14). Library files get high durability (`crates/base-db/src/change.rs` 93–99), section 4.1.
+- **salsa** (30b614d, section 4.1): tracked structs are identified by an identity hash of their id
+  fields plus a disambiguator, so a re-executed query re-creates the "same" entities and their memos
+  stay valid; early cut-off (backdating) makes a recomputed projection with an equal value invisible to
+  its dependents.
+- **Lean 4** (`lean4` fe2da21). Constants are keyed by `Name` in the environment
+  (`src/Lean/Environment.lean`, `ConstMap := SMap Name ConstantInfo`, 100; `find?` 296), so a later
+  command refers to an earlier one by name, never by position; metavariable ids are fresh names from
+  a `NameGenerator` (`src/Lean/MetavarContext.lean` 994–998, 1244–1250), not stable across runs. Lean
+  never moves elaborated terms between environments: it reuses whole snapshots whose syntax is
+  unchanged and re-elaborates everything after the first changed command (`src/Lean/Language/Lean.lean`
+  53, 84–140), section 4.4.
+
+Fit: Hugin's items are already reused individually (salsa's identity hash, `ItemKey`); what is missing
+is GHC's two ingredients, stable names for globals and fingerprints that hash references through the
+fingerprints of what they refer to, including unfoldings, plus a record of what each item used.
+
+### 9.3 Part (a): stable keys and rebasing
+
+- **`GlobalKey`**: a stable name for each global of a program's declarations core: for a declared
+  global, the file and the name (with a disambiguating index for a repeated name, which is an error
+  anyway); for a hidden lifted global of a module body (#100), the owner's key and the member name
+  (`owner.name`); for a derived function (`T.lift`, `T.reify`), the type's key and the suffix; for a
+  family instance, the family's key and its arguments with globals replaced by keys; for a global of a
+  library or the prelude, the id itself (their cores are forks shared by all programs and unchanged by
+  the program's edits, `ElabLibrary`).
+- **`Rebased(oldDecls, newDecls)`**, generalizing `Moved`: moves an item elaborated in a fork of the
+  old declarations' core into a fork of the new one, mapping globals by key (instances recreated as
+  now), metas of the item's own fork recreated as now, and refusing (the item is elaborated again)
+  when the item refers to a global without a key in the new core, to a meta of the old declarations'
+  core, or to a universe level created by the declarations. Its index and diagnostics need no
+  mapping (item 7).
+- `ElabProgram.assemble` moves each item from whatever declarations' core it was elaborated on.
+  Part (a) alone changes nothing observable; it is tested by elaborating items on one compilation's
+  declarations and rebasing them onto an equal one built again (results equal to elaborating there).
+
+### 9.4 Part (b): what an item's memo depends on
+
+During `ProgramElab.item`, an observer records the item's *footprint*:
+
+- **Lookups**: every name the item resolved, with the outcome: a global (by key), a local, not found,
+  or silenced (erroneous, unelaborated, possibly opened by a dropped `%use`); and whether it listed
+  all names (a suggestion). A lookup becomes a dependency on a projection
+  `ScopeLookup(program, name)`, cut off unless that outcome changes; listing all names becomes a
+  dependency on the set of names in scope.
+- **Globals used**: every global the item's elaboration touched (named, unfolded, instantiated), with
+  its key. The dependency is on `DeclFingerprint(program, key)`.
+- **State**: a `DeclarationsState(program)` projection holding the elaborator state of item 4 that is
+  not per name (`functionNames`, `signatures`, `exported`, `unknownTypesAre`, the shape of the metas and
+  levels of the declarations' core), compared as a whole: when it changes, every item is elaborated
+  again, as today.
+
+The **fingerprint of a global** is GHC's: computed in the declarations' dependency order (#91's
+components), it hashes the global's type, stage and kind, and its body when the body can unfold (a
+definition's value, a function's case tree, a formula function's clauses, once its component is
+installed and not rejected by termination), with every reference to another global replaced by that
+global's fingerprint, so that a change propagates along uses (item 2; a component is fingerprinted as
+a group). A global the item only names as a type contributes its type; one it can unfold, its body.
+
+`ElabItem` then reads `Signatures` untracked (`Database.untracked`), records the footprint's
+dependencies, and its memo stays valid while every recorded projection is unchanged; the items it
+returns refer to the core they were elaborated on, and assembly rebases them (part a). The same
+mechanism for a program over a library's exported names (zinc's name hashing within a process,
+section 4.6) is a later step.
+
+### 9.5 Soundness argument and tests
+
+An item's elaboration is a function of the item and of what it reads of the declarations' core and
+state. The footprint covers every read (items 1–6 above): names through lookups, globals and what can
+unfold through fingerprints that include bodies transitively, and the rest through the state
+projection; where a read cannot be described by a key (an unsolved meta or a level of the
+declarations, a module instance), the item is not reused. Equal footprints therefore give an
+elaboration equal up to the renaming of globals, which rebasing undoes. Risk: a read the observer
+misses. Tests: `IncrementalSuite` and `ItemQueriesSuite` (incremental equals from scratch, also under
+random edits) extended with edits that rename, retype and add declarations, change a definition's body
+that an item unfolds, add a shadowing name, and break a declaration; counts for "editing a declaration
+elaborates only the items that use it"; and a debug mode that elaborates every reused item again and
+compares (as rustc's `-Z incremental-verify-ich`).
+
+### 9.6 Steps
+
+1. `GlobalKey` and `Rebased`, with assembly moving items across declarations' cores (no observable
+   change; tests of rebasing onto an equal core).
+2. The observer and the footprint (recorded, not yet used); a test that every read of the
+   declarations during an item's elaboration is recorded (an instrumented core that fails on an
+   unrecorded read).
+3. Fingerprints, the projections and `ElabItem`'s dependencies on them. Expected: `large` declaration
+   edit 869 → ~450 ms, add a declaration 927 → ~450 ms (section 6, PR 7).
+4. Later: the same for a library's exported names (`split`, a library edit 623 → ~430 ms).
+
+### 9.7 Open questions for the designer
+
+- Unsolved metas and level variables created by declarations: refuse reuse for items that touch them
+  (proposed), or give them keys (declaration key and ordinal)?
+- Suggestions of similar names list every name in scope; an item with an unresolved name would then
+  depend on every addition. Proposed: accept (such items are rare and cheap).
+- The unused-definition lint (`state.used`) is computed across items at assembly; unchanged by this.
+
+Sources of this addendum: `ghc` e7cacf5 (`compiler/GHC/Iface/Recomp.hs` 950–1040, 1109–1150;
+`compiler/GHC/Unit/Module/Deps.hs` 323–363); `rust-analyzer` be9f942 (`crates/span/src/ast_id.rs`
+1–21, `crates/hir-def/src/lib.rs` 123–150, 228–261, `crates/hir-def/src/item_tree.rs` 1–30,
+`crates/base-db/src/change.rs` 93–99); `lean4` fe2da21 (`src/Lean/Environment.lean` 100, 296;
+`src/Lean/MetavarContext.lean` 994–998, 1244–1250; `src/Lean/Language/Lean.lean` 53–140); salsa
+30b614d as in section 8; Hugin e9d8f99 (`core/ProgramElab.scala`, `core/Core.scala` 68–90, 140–154,
+`core/elab/Elaborator.scala` 39–130, 210, `core/elab/DependencyOrder.scala`, `core/Families.scala`,
+`core/Levels.scala`, `compiler/SemanticIndex.scala` 48, `query/ProgramQueries.scala`).
