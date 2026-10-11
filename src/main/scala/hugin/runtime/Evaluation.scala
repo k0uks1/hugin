@@ -3,8 +3,9 @@ package hugin.runtime
 import hugin.util.*
 import hugin.compiler.*
 import hugin.ir.*
-import hugin.obj.RelKind
+import hugin.obj.{ObjProgram, RelKind}
 import hugin.obj.typing.TypeOps
+import scala.collection.mutable
 
 /** Evaluates a compiled program: loads input facts, runs the engine, renders output relations and query
  *  answers (Section 9.6). The compilation result is not modified; input diagnostics are returned. */
@@ -40,36 +41,83 @@ object Evaluation:
   /** `result` is empty if the program could not be evaluated (compile errors or invalid input facts). */
   final case class Outcome(result: Option[Result], diagnostics: List[Diagnostic])
 
-  /** The items of a facts file with the syntax errors found while parsing it ([[FactLoader.parse]]). */
-  final class ParsedFacts(val items: List[hugin.syntax.Trees.Item], val diagnostics: List[Diagnostic])
+  /** The items of a facts file (with its text) with the syntax errors found while parsing it
+   *  ([[FactLoader.parse]]). */
+  final class ParsedFacts(val items: List[hugin.syntax.Trees.Item], val diagnostics: List[Diagnostic], val text: String):
+    /** The names the facts mention (identifiers and paths; [[ComponentKeys.facts]]), computed when an
+     *  evaluation is reused. */
+    lazy val names: Set[String] =
+      val out = mutable.HashSet.empty[String]
+      def visit(t: hugin.syntax.Tree): Unit = t match
+        case hugin.syntax.Trees.Ident(n) => out += n
+        case hugin.syntax.Trees.Apply(f, a) => visit(f); visit(a)
+        case hugin.syntax.Trees.Parens(i) => visit(i)
+        case _: hugin.syntax.Trees.Lit | _: hugin.syntax.Trees.VarRef | _: hugin.syntax.Trees.Wildcard =>
+        case other => out ++= hugin.core.elab.ElabOrder.mentions(hugin.syntax.Trees.Query(other)(other.span))
+      items.foreach {
+        case hugin.syntax.Trees.Rule(None, heads, None) => heads.foreach(visit)
+        case other => out ++= hugin.core.elab.ElabOrder.mentions(other)
+      }
+      out.toSet
 
   def parseFacts(src: SourceFile): ParsedFacts =
     val reporter = Reporter()
-    ParsedFacts(FactLoader.parse(src, reporter), reporter.diagnostics)
+    ParsedFacts(FactLoader.parse(src, reporter), reporter.diagnostics, src.content)
 
   /** An evaluated program: the engine after loading the facts files and running the rules of `prog` to
    *  their fixpoint (`evaluated`), or, if the facts were invalid, after loading them (not `evaluated`).
-   *  Answering queries and printing relations ([[render]]) only read it. */
-  final class Fixpoint(val prog: CoreProgram, val engine: Engine, val evaluated: Boolean, val diagnostics: List[Diagnostic])
+   *  Answering queries and printing relations ([[render]]) only read it; a later evaluation may copy
+   *  relations from it (`trace`, [[Reuse]]). */
+  final class Fixpoint(
+      val prog: CoreProgram,
+      val obj: ObjProgram,
+      val engine: Engine,
+      val evaluated: Boolean,
+      val diagnostics: List[Diagnostic],
+      val trace: Option[Reuse.Trace] = None
+  )
 
-  /** Loads `facts` (with `ops`, the subtyping of the object program, for their types) and evaluates `prog`. */
-  def fixpoint(prog: CoreProgram, ops: TypeOps, facts: List[ParsedFacts]): Fixpoint =
-    val engine = Engine(prog)
-    val reporter = Reporter()
-    val loader = FactLoader(engine, prog, ops, reporter)
-    for f <- facts do
-      f.diagnostics.foreach(reporter.report)
-      loader.load(f.items)
-    if reporter.hasErrors then Fixpoint(prog, engine, false, reporter.sorted)
-    else
-      engine.run()
-      Fixpoint(prog, engine, true, reporter.sorted)
+  /** Loads `facts` (with `ops`, the subtyping of the object program `obj`, for their types) and evaluates
+   *  `prog`, copying from `previous`, an earlier evaluation, what it would compute again ([[Reuse]]). */
+  def fixpoint(prog: CoreProgram, obj: ObjProgram, ops: TypeOps, facts: List[ParsedFacts], previous: Option[Fixpoint] = None): Fixpoint =
+    val keys = ComponentKeys(prog, obj)
+    val earlier = previous.filter(_.evaluated).flatMap(p => p.trace.map(Reuse.Earlier(p.prog, p.obj, p.engine, _)))
+    lazy val reused = Engine(prog)
+    earlier.flatMap(e => Reuse.restore(reused, prog, keys, facts, e)) match
+      case Some((steps, sizes)) => evaluate(prog, reused, keys, facts, steps, sizes, previous.get.diagnostics, obj)
+      case None =>
+        val engine = Engine(prog)
+        val reporter = Reporter()
+        val loader = FactLoader(engine, prog, ops, reporter)
+        for f <- facts do
+          f.diagnostics.foreach(reporter.report)
+          loader.load(f.items)
+        if reporter.hasErrors then Fixpoint(prog, obj, engine, false, reporter.sorted)
+        else
+          val loaded = prog.rels.indices.filter(engine.store(_).size > 0).map(t => t -> engine.store(t).size).toMap
+          evaluate(prog, engine, keys, facts, 0, Vector(loaded), reporter.sorted, obj)
+
+  /** Evaluates the components of `prog` from the `steps`-th on, recording the sizes after each. */
+  private def evaluate(
+      prog: CoreProgram,
+      engine: Engine,
+      keys: ComponentKeys,
+      facts: List[ParsedFacts],
+      steps: Int,
+      sizes: Vector[Map[Int, Int]],
+      diagnostics: List[Diagnostic],
+      obj: ObjProgram
+  ): Fixpoint =
+    val trace = mutable.ArrayBuffer.from(sizes)
+    def writes(ci: Int) = Reuse.writes(prog, ci, keys.rules(ci))
+    engine.run(steps until prog.components.length, step = ci => trace += writes(ci).map(t => t -> engine.store(t).size).toMap)
+    Fixpoint(prog, obj, engine, true, diagnostics, Some(Reuse.Trace(facts, trace.toVector)))
 
   def run(c: Context, factFiles: List[SourceFile], allRelations: Boolean = false): Outcome =
     val core = c.unit.core
     if core == null || c.reporter.hasErrors then return Outcome(None, Nil)
     val prog = core.nn
-    render(prog, fixpoint(prog, TypeOps(c.unit.prog.nn), factFiles.map(parseFacts)), allRelations)
+    render(prog, fixpoint(prog, c.unit.prog.nn, TypeOps(c.unit.prog.nn), factFiles.map(parseFacts)), allRelations)
 
   /** The output relations and query answers of `prog` over a fixpoint of its rules. The fixpoint may have
    *  been computed for another program whose relations and lowered rules are equal ([[LoweredRules]],

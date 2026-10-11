@@ -2265,3 +2265,13 @@ Tests (`LongListsSuite`): `mirror` over 400 and over 5 000 items on a 1 MiB thre
 child JVM run with `-Xint` (the largest frames); the 100 000-element list of #88 now goes through the
 machine (the argument chain is deeper than 96). Outside the suite: `-Xint` with 5 000 items on 1 MiB, and
 the Scala.js build with the machine passes 5 000 items with `node --stack-size=200` (200 KiB).
+
+*Operands (#160).* After #160's reference samples (`fib (N + 2) = fib N + fib (N + 1)`) the corpus test
+overflowed on JDK 17: a recursive call that is an operand of arithmetic (or sits in object code, a
+quote, a record, …) was evaluated by a step of `evalNode`, whose `eval` of the operand entered a new
+machine, so every level nested `evalNode` and `Machine.run`. The machine now has frames for every
+compound term (`KArith`, `KArithWith`, `KMap` for one subterm, `KList` for object code, records and
+module environments, `KOrigin` for a trace frame), in `evalNode`'s order of evaluation; only leaves, and
+object code and quotes while an observer records staging, stay `evalNode` steps. The native depth counts
+every compound term, not only applications. `LongListsSuite` evaluates `steps (N + 1) = steps N + 1`
+5 000 levels deep on a 1 MiB thread (computed numbers: a large literal is a deep term, walked elsewhere).
