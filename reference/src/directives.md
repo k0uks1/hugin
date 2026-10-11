@@ -28,10 +28,11 @@ and makes it an output relation.
 `%infix` has a syntax of its own and is handled by the parser ([Lexical
 structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
 not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%use` and
-`%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)).
-`%complete` is a requirement in a signature ([Modules](modules.md#signatures)); it is an error
-([E0004](errors/E0004.md)) elsewhere. The directive `%partial` of earlier versions has been removed; it
-is an error ([E0001](errors/E0001.md)).
+`%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)). `%opaque`
+is an item about the file's definitions, not a directive ([Opaque
+definitions](meta/index.md#opaque-definitions)). `%complete` is a requirement in a signature
+([Modules](modules.md#signatures)); it is an error ([E0004](errors/E0004.md)) elsewhere. The directive
+`%partial` of earlier versions has been removed; it is an error ([E0001](errors/E0001.md)).
 
 ## Resolution and arguments
 

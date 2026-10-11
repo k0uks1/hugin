@@ -16,6 +16,16 @@ class ParserSuite extends munit.FunSuite:
     assertEquals(item("p X :- X = 1 + 2 * 3 - 4."), "p X :- (X = ((1 + (2 * 3)) - 4)).")
   }
 
+  test("`{x := e}` is an implicit argument by name; `{x y : A}` implicit binders, also lowercase (#186)") {
+    assertEquals(item("v = trans {y := plus 0 3} p q."), "v = trans {y := plus 0 3} p q.")
+    assertEquals(item("t (vcons {N := K} X XS) = K."), "t (vcons {N := K} X XS) = K.")
+    // with a space, `: =` is a record type's field without a type (an error), not `:=`
+    assertEquals(parse("v = f {y : = 3}.")._2.hasErrors, true)
+    assertEquals(item("sym : {A : Type} -> {x y : A} -> eq x y -> eq y x."), "sym : {A : Type} -> {x y : A} -> (eq x y -> eq y x).")
+    // a single lowercase binder is a record type, read as a binder before `->`
+    assertEquals(item("f : {x : A} -> A."), "f : {x : A} -> A.")
+  }
+
   test("arrows are right associative and labels attach to the domain") {
     assertEquals(item("c : (n : string) -> int -> rel."), "c : (n : string) -> (int -> rel).")
   }

@@ -18,7 +18,11 @@ import scala.collection.mutable
  *    an undeclared derived constant is a reflection error;
  *  - `derived : sym -> bool`: whether a symbol is a derived constant;
  *  - `qatom : quoted A -> formula`: a term of a type of facts as an atom (reference: reflection): the data
- *    `qterm (tapp s ts)` gives `fatom s ts`; stuck on any other term, which reflection rejects.
+ *    `qterm (tapp s ts)` gives `fatom s ts`; stuck on any other term, which reflection rejects;
+ *  - `sameTrue : {A : Type} -> {a b : A} -> eq (same a b) true -> eq a b` and `apart : {A : Type} -> {a b :
+ *    A} -> eq (same a b) false -> eq a b -> empty` of `std/eq`: what `same` means, as evidence (reference:
+ *    std/eq, decidable equality of atoms). `sameTrue` is `refl` on two equal atoms; `apart` never
+ *    reduces (its result type is empty).
  *
  *  They reduce on closed arguments only (a symbol is closed when it is a quoted object constant); on
  *  anything else they are stuck, like a function on a neutral. */
@@ -28,12 +32,21 @@ enum PrimOp(val key: String):
   case Derive extends PrimOp("derive")
   case Derived extends PrimOp("derived")
   case QAtom extends PrimOp("qatom")
+  case SameTrue extends PrimOp("sameTrue")
+  case Apart extends PrimOp("apart")
 
   /** The arguments, implicit ones included. */
   def arity: Int = this match
     case Labels | Derived => 1
     case Derive | QAtom => 2
     case Same => 3
+    case SameTrue => 4
+    case Apart => 5
+
+  /** Whether the reduction reads the implicit arguments as well (otherwise only the explicit ones). */
+  def readsImplicit: Boolean = this match
+    case SameTrue | Apart => true
+    case _ => false
 
 object PrimOp:
   def byKey(k: String): Option[PrimOp] = values.find(_.key == k)
@@ -66,6 +79,10 @@ trait Primitives:
         symbolId(a).map(id => stringList(columnLabels(id), ctors))
       case (PrimOp.Derive, List(a, Lit(Literal.StrL(l), Stage.S1))) =>
         symbolId(a).map(id => Quote(Rigid(Head.Glob(derive(id, l)), Nil)))
+      // `sameTrue {A} {a} {b} e` on two equal atoms: `refl {A} {a}` (`ctors` are `eq` and `refl`)
+      case (PrimOp.SameTrue, List(ty, a, b, _)) =>
+        for x <- atomKey(a); y <- atomKey(b) if stripPositions(x) == stripPositions(y)
+        yield Rigid(Head.Glob(ctors(1)), List(Elim.EApp(a, Icit.Impl), Elim.EApp(ty, Icit.Impl)))
       case (PrimOp.QAtom, List(Rigid(Head.Glob(q), Elim.EApp(t, Icit.Expl) :: _))) if q == ctors(2) =>
         // `fatom` has the arguments of `tapp`; the positions of the quoted syntax are kept
         def atom(v: Val): Option[Val] = force(v) match

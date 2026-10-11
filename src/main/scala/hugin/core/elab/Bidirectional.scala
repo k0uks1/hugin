@@ -32,6 +32,8 @@ trait Bidirectional:
       (checkImplicitPi(c, names, dom, cod, l), Val.U1(l), Stage.S1)
     case ImplicitBinder(_, _) =>
       fail(TypeProblem.ImplicitBinderAlone(t.span))
+    case NamedArg(_, _) =>
+      fail(TypeProblem.NamedArgumentAlone(t.span))
     case LiftE(a) => inferLift(c, a)
     case CodeQuote(a) =>
       // `<t>`: `t` is object code of type `A`, and the quote a meta value of type `⇑A`

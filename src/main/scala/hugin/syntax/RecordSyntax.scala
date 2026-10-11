@@ -3,8 +3,8 @@ package hugin.syntax
 import scala.collection.mutable
 
 /** Braces (Section 2.2), mixed into [[Parser]]: record types (signatures, with the requirement
- *  `%complete l`), record values and named patterns `{ l = e, .. }`, implicit binders `{A B : T}` and
- *  module bodies `{ items }`. */
+ *  `%complete l`), record values and named patterns `{ l = e, .. }`, implicit binders `{A B : T}`,
+ *  implicit arguments by name `{x := e}` and module bodies `{ items }`. */
 private[syntax] trait RecordSyntax extends ParserBase:
   /** `{ … }`, at `{`: disambiguated by its first tokens. A `,` that ends the line of the `{` is stray (a
    *  body over several lines follows, `lib = { ,`): reported and skipped, and the braces are damaged. */
@@ -23,8 +23,16 @@ private[syntax] trait RecordSyntax extends ParserBase:
     if k0 == Tok.DotDot then
       advance()
       checked(RecordLit(Nil, rest = true)(spanFrom(start)), close(open, Tok.RBrace))
-    // a period first makes it a module body (`{ X`⏎`f : t.`, a stray `X`): a binder's type has none
-    else if k0 == Tok.Var && implicitBinderAhead && !periodFirst then
+    // `{x := e}`: an implicit argument by name (`:=` is `:` directly followed by `=`)
+    else if (k0 == Tok.Var || k0 == Tok.Name) && k1 == Tok.Colon && peekTok(2).kind == Tok.Eq && !peekTok(2).spaceBefore then
+      val n = advance()
+      advance()
+      advance()
+      val value = parseNonType(Parser.LvlArrow)
+      checked(NamedArg(n.text, value)(spanFrom(start), n.span), close(open, Tok.RBrace))
+    // a period first makes it a module body (`{ X`⏎`f : t.`, a stray `X`): a binder's type has none; a
+    // lowercase name starts binders only if more names follow (`{x y : A}`; `{x : A}` is a record type)
+    else if (k0 == Tok.Var || k0 == Tok.Name && k1 == Tok.Name) && implicitBinderAhead && !periodFirst then
       val names = mutable.ListBuffer.empty[Tree]
       while at(Tok.Var) || at(Tok.Name) do
         val n = advance()

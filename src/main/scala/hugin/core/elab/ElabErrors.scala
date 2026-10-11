@@ -76,11 +76,13 @@ trait ElabErrors:
 
   /** Notes on the applications in `vs` stuck at a function or definition of the file that does not
    *  reduce: one of the cycle being elaborated, whose bodies do not unfold in it (reference: meta/index,
-   *  "Order of elaboration"), or one rejected by the termination check. (The uses of a function whose
-   *  clauses were rejected are left out without a diagnostic.) */
+   *  "Order of elaboration"), one rejected by the termination check, or an opaque one (reference:
+   *  directives). (The uses of a function whose clauses were rejected are left out without a
+   *  diagnostic.) */
   private def stuckNotes(c: Cxt, vs: List[Val]): List[String] =
     val found = scala.collection.mutable.LinkedHashMap.empty[Int, Val]
-    def stuck(g: Int) = globals(g).inCycle || rejectedByTermination(g)
+    def opaque(g: Int) = globals(g).kind.isInstanceOf[GlobalKind.Opaque]
+    def stuck(g: Int) = globals(g).inCycle || rejectedByTermination(g) || opaque(g)
     def visit(v: Val, depth: Int): Unit = if depth < 32 && found.size < 3 then
       def args(sp: Spine) = sp.foreach {
         case Elim.EApp(a, _) => visit(a, depth + 1)
@@ -108,7 +110,8 @@ trait ElabErrors:
       val t = show(c, v)
       val f = globals(g).name
       val verb = if globals(g).kind.isInstanceOf[GlobalKind.Function] then "reduce" else "unfold"
-      if globals(g).inCycle then s"`$t` does not $verb here: ${names(cycleNames)}, and inside such a cycle no body unfolds"
+      if opaque(g) then s"`$t` does not unfold: `$f` is opaque (`%opaque $f.`)"
+      else if globals(g).inCycle then s"`$t` does not $verb here: ${names(cycleNames)}, and inside such a cycle no body unfolds"
       else s"`$t` does not reduce: `$f` was rejected by the termination check (E0912)"
     }
 

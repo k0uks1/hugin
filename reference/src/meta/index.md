@@ -49,6 +49,7 @@ The meta level has the following items. Each is defined in the chapter given.
 | `f params : A = e.` | a definition with parameters and a declared result type | [Functions](functions.md#definitions) |
 | `f : … -> prop.` followed by rules `f t̄ :- φ.` | a formula function | [Staging](staging.md#formula-functions) |
 | `x : A.` of any other meta type | a *postulate*: a constant without a value | below |
+| `%opaque x₁ … xₙ.` | the definitions and functions `xᵢ` do not unfold | [below](#opaque-definitions) |
 
 The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
 body does not support ([E0907](../errors/E0907.md)); in particular, a body may declare meta functions
@@ -142,6 +143,56 @@ quotes `⟨…⟩`, splices `$…` and implicit arguments, the compiled clauses 
 items after staging. Types and implicit arguments are printed with definitions by their names, as in
 diagnostics ([Definitions](functions.md#definitions)).
 
+## Opaque definitions
+
+```text
+Opaque ::= "%opaque" NAME+ "."
+```
+
+The item `%opaque x₁ … xₙ.` makes the definitions and functions defined by clauses `x₁ … xₙ` of the file
+*opaque*. An opaque definition or function is elaborated and checked as any other: its type, its value or
+clauses, their coverage and termination. After that it is a constant without a value, like a postulate: a
+definition is never replaced by its value, and an application of a function never reduces, in the rest of
+the program. The value of an opaque definition is not computed at all. The item may stand before or after
+the declarations it names, and it applies to their names at the level of the file, not to the members of
+a module body.
+
+It is an error ([E0701](../errors/E0701.md)) if a name is not a meta definition or a function defined by
+clauses of the file: an object constant, an inductive family, a constructor or a name of another file. It
+is an error ([E0907](../errors/E0907.md)) to write `%opaque` in a module body. A type that needs the
+value of an opaque definition or function does not match ([E0901](../errors/E0901.md)), and the error
+names the opaque constant in a note. Object code that depends on an opaque value is stuck
+([E0909](../errors/E0909.md)). The termination check follows the calls in the value of an opaque
+definition, as in that of any other, so an opaque definition cannot hide a cycle of calls.
+
+Opaque definitions are meant for proofs: a theorem is a definition whose type is the statement and whose
+value is the proof, and the rest of the program needs the statement, not the proof. In the following
+program, `again` uses the statement of `sixteen`.
+
+```hugin
+%use "std/eq".
+%use "std/nat".
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+sixteen : eq (plus 0 16) 16 = zeroPlus 16.
+again : eq 16 (plus 0 16) = sym sixteen.
+%opaque zeroPlus sixteen again.
+```
+
+The following definition is rejected: `four` is opaque, so its type `eq four 4` is not `eq 4 4`.
+
+```hugin,compile_fail,E0901
+%use "std/eq".
+four : nat = 4.
+%opaque four.
+byValue : eq four 4 = refl.
+```
+
+> **Rationale.** Since a definition is otherwise evaluated where it is declared, an opaque proof costs
+> the time to check it once, whatever its size, and no item after it can depend on how it was proved.
+> Agda's `opaque` blocks, Lean's `theorem` and Rocq's `Qed` make the same choice.
+
 ## Meta types
 
 The meta types are
@@ -159,5 +210,5 @@ The meta types are
 ## Unused definitions
 
 A meta definition or formula function of the program that nothing refers to is reported
-([W0003](../errors/W0003.md), lint `unused_definitions`). Module values, signatures and type definitions
-are exempt.
+([W0003](../errors/W0003.md), lint `unused_definitions`). Module values, signatures, type definitions and
+[opaque definitions](#opaque-definitions) are exempt: a theorem need not be used.

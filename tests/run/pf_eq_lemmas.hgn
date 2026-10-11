@@ -1,0 +1,50 @@
+(* #186 P2: the basic lemmas of std/eq (reference: std/eq) and chapter 1's first proofs: symmetry,
+   transitivity, congruence and transport, J, K, and the propositional connectives *)
+%use "std/eq".
+%use "std/nat".
+
+(* `plus` recurses on its second argument, so `plus 0 n` needs a proof by induction *)
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+
+plusZero : (n : nat) -> eq (plus n 0) n = [n] refl.
+
+(* symmetry and transitivity *)
+twice : (n : nat) -> eq (plus 0 (plus 0 n)) n.
+twice N = trans (zeroPlus (plus 0 N)) (zeroPlus N).
+back : (n : nat) -> eq n (plus 0 n).
+back N = sym (zeroPlus N).
+
+(* transport: a vector of length `plus 0 n` is one of length `n`; `subst` computes on `refl` *)
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+cast : {n : nat} -> vec int (plus 0 n) -> vec int n.
+cast {n := N} V = subst (vec int) (zeroPlus N) V.
+total : vec int N -> int.
+total vnil = 0.
+total (vcons X Xs) = X + total Xs.
+
+(* J proves transport, and K makes any two proofs of an equation equal *)
+transport : {A : Type} -> {x y : A} -> (P : A -> Type) -> eq x y -> P x -> P y.
+transport P E H = eqElim ([y] [e] P y) H E.
+proofsEqual : eq (uip (zeroPlus 2) (zeroPlus 2)) refl = refl.
+
+(* the connectives *)
+swap : {A B : Type} -> either A B -> either B A.
+swap (left X) = right X.
+swap (right Y) = left Y.
+symIff : {A : Type} -> {x y : A} -> iff (eq x y) (eq y x) = { to = sym, from = sym }.
+noProof : empty -> eq 0 1.
+noProof E = emptyElim E.
+falseTrue : eq false true -> empty.
+falseTrue E = absurdBool E.
+trivial : unit = tt.
+
+(* theorems are checked and never unfolded; nothing needs to use them *)
+%opaque plusZero proofsEqual symIff trivial.
+
+shown : int -> rel.
+shown (total (cast {n := 2} (vcons 40 (vcons 2 vnil)))).
+shown (total (transport (vec int) (back 1) (vcons 7 vnil))).

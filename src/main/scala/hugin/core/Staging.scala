@@ -86,6 +86,9 @@ final class Staging(core: Core, reporter: Reporter):
           // an operation of `std/nat` computes on numerals (reference: std/nat, native arithmetic)
           val native = tree.native.map(n => s"  (* native: ${n.op.key} *)").toList
           s"${g.name} : $ty." :: native ++ clauses(g.name, tree)
+        // opaque: as written, followed by its directive
+        case GlobalKind.Opaque(Some(tm), _) => List(s"${g.name} : $ty = ${showTm(Nil, zonk(Nil, 0, tm))}.", s"%opaque ${g.name}.")
+        case GlobalKind.Opaque(_, Some((_, tree))) => (s"${g.name} : $ty." :: clauses(g.name, tree)) :+ s"%opaque ${g.name}."
         case _ => List(s"${g.name} : $ty.")
     case CoreItem.RuleItem(name, vars, heads, body, span, generic, _) =>
       val env = vars.indices.reverse.map(Val.local).toList

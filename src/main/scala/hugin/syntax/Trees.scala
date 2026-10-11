@@ -123,6 +123,12 @@ object Trees:
   /** `{A B : T}` in front of `->`: implicit binders (only as the domain of an [[ImplicitPi]]). */
   final case class ImplicitBinder(names: List[Tree], tpe: Tree)(val span: Span) extends Tree
 
+  /** `{x := e}`: an implicit argument given by the name of its binder, as an argument of an application
+   *  (reference: meta/functions), or `{X := p}`, an implicit pattern of a constructor or of the function
+   *  in a clause (reference: meta/clauses). `name` is the binder's name, at `nameSpan` (a string, not a
+   *  tree: it is not a variable of the item). */
+  final case class NamedArg(name: String, value: Tree)(val span: Span, val nameSpan: Span) extends Tree
+
   /** `{A B : T} -> B`: an implicit Π type. */
   final case class ImplicitPi(names: List[Tree], dom: Tree, cod: Tree)(val span: Span) extends Tree
 

@@ -1,0 +1,46 @@
+(* #186 P2: implicit arguments given by name, `f {x := e}` (reference: meta/functions), and implicit
+   patterns, `{X := p}` (reference: meta/clauses) *)
+%use "std/eq".
+%use "std/nat".
+
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+
+(* the middle point of `trans` is given by name: nothing else determines it *)
+three : eq (plus 0 3) 3 = zeroPlus 3.
+viaTrans : eq (plus 0 (plus 0 3)) 3 = trans {y := plus 0 3} (zeroPlus (plus 0 3)) three.
+
+(* the type argument of a polymorphic family, also a universe *)
+types : eq {A := Type} nat nat = refl.
+
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+
+(* the function's own implicit argument, bound in a clause *)
+lengthOf : {A : Type} -> {n : nat} -> vec A n -> nat.
+lengthOf {n := N} V = N.
+
+(* a constructor's implicit argument, bound in a pattern *)
+tailLength : {A : Type} -> {n : nat} -> vec A n -> nat.
+tailLength vnil = 0.
+tailLength (vcons {N := K} X XS) = K.
+
+(* an implicit pattern can be split on *)
+isEmpty : {n : nat} -> vec int n -> bool.
+isEmpty {n := 0} V = true.
+isEmpty {n := N + 1} V = false.
+
+(* an implicit argument without explicit ones after it *)
+size : {n : nat} -> nat.
+size {n := N} = N.
+
+two : eq (lengthOf (vcons 1 (vcons 2 vnil))) 2 = refl.
+%opaque viaTrans types two.
+
+shown : string -> int -> rel.
+shown "lengthOf" (toInt (lengthOf (vcons "a" (vcons "b" vnil)))).
+shown "tailLength" (toInt (tailLength (vcons 1 (vcons 2 (vcons 3 vnil))))).
+shown "isEmpty" (if (isEmpty (vnil : vec int 0)) 1 0).
+shown "size" (toInt (size {n := 5})).

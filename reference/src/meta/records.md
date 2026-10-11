@@ -15,11 +15,13 @@ Projection  ::= Expr "." NAME
 Update      ::= "(" Expr "with" "{" NAME "=" Expr ("," NAME "=" Expr)* "}" ")"
 ```
 
-Braces also enclose module bodies, implicit binders and named patterns. The parser tells them apart by
-their first tokens: `{` followed by a name and `:` starts a record type, a name and `=` a record value,
-uppercase variables and `:` an implicit binder. A period at nesting depth 0 before the first `,` or `}`
-makes the braces a module body ([Modules](../modules.md)). The requirement `%complete l` is described
-with [signatures](../modules.md#signatures).
+Braces also enclose module bodies, implicit binders, implicit arguments by name and named patterns. The
+parser tells them apart by their first tokens: `{` followed by a name or variable and `:=` is an
+[implicit argument by name](functions.md#implicit-arguments-by-name), a name and `:` starts a record
+type, a name and `=` a record value, uppercase variables and `:`, or two or more names and `:`, an
+implicit binder. A period at nesting depth 0 before the first `,` or `}` makes the braces a module body
+([Modules](../modules.md)). The requirement `%complete l` is described with
+[signatures](../modules.md#signatures).
 
 ## Record types
 

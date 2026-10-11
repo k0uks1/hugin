@@ -1,0 +1,6 @@
+(* #186 P2: the trusted lemmas on `same` must have exactly their type (E0103): another one would assert
+   something false *)
+%use "std/eq".
+same2 : A -> A -> bool = %builtin same.
+wrong : {A : Type} -> {a b : A} -> eq (same2 a b) true -> eq b b -> empty = %builtin apart. (*~ E0103 *)
+wronger : {A : Type} -> {a b : A} -> eq (same2 a b) false -> eq a b = %builtin sameTrue. (*~ E0103 *)

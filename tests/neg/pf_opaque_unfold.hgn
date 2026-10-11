@@ -1,0 +1,10 @@
+(* #186 P2: an opaque definition or function does not unfold: a type that needs its value does not
+   match (E0901), and the note says why *)
+%use "std/eq".
+double : nat -> nat.
+double 0 = 0.
+double (N + 1) = double N + 2.
+four : nat = double 2.
+%opaque double four.
+byValue : eq four 4 = refl. (*~ E0901 *)
+byClauses : eq (double 1) 2 = refl. (*~ E0901 *)

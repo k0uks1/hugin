@@ -33,13 +33,19 @@ enum DirectiveProblem extends Problem:
   /** `%terminates l r t̄`: a measure of labels with a call pattern. */
   case LabelsWithPattern(at: Span)
 
+  /** `%opaque x.` for a constant `x` that is not a definition or function of the file (`what` it is). */
+  case NotOpaqueable(name: String, what: String, at: Span)
+
+  /** `%opaque` without names, with something else than a name, or before a declaration. */
+  case OpaqueArgument(at: Span)
+
   def code: Code = this match
     case _: UnknownDirective => Code.E0101
     case _: NotADirective => Code.E1001
     case _: NotAttachable => Code.E1002
     case _: ChangedDeclaration => Code.E1003
     case _: Rejected => Code.E1000
-    case _: NotARelation | _: NotForRules | _: LabelsWithPattern => Code.E0701
+    case _: NotARelation | _: NotForRules | _: LabelsWithPattern | _: NotOpaqueable | _: OpaqueArgument => Code.E0701
 
   def primary: Span = this match
     case UnknownDirective(_, s, _) => s
@@ -50,6 +56,8 @@ enum DirectiveProblem extends Problem:
     case NotARelation(_, s) => s
     case NotForRules(_, _, s) => s
     case LabelsWithPattern(s) => s
+    case NotOpaqueable(_, _, s) => s
+    case OpaqueArgument(s) => s
 
   def message: Msg = this match
     case UnknownDirective(n, _, _) => msg"unknown directive ${Src("%" + n)}"
@@ -60,6 +68,8 @@ enum DirectiveProblem extends Problem:
     case NotARelation(d, _) => msg"${Src(d)} expects a relation"
     case NotForRules(d, r, _) => msg"${Src(d)} does not apply to the rule ${Src("@" + r)}"
     case _: LabelsWithPattern => msg"a measure of labels names the relation without arguments"
+    case NotOpaqueable(n, _, _) => msg"${Src(n)} cannot be made opaque"
+    case _: OpaqueArgument => msg"`%opaque` expects the names of definitions or functions"
 
   override def primaryLabel: Msg = this match
     case _: UnknownDirective => msg"not found in this scope"
@@ -68,6 +78,8 @@ enum DirectiveProblem extends Problem:
     case _: ChangedDeclaration => msg"attached here"
     case _: Rejected => msg"reported by this directive"
     case _: NotARelation => msg"not a relation"
+    case NotOpaqueable(_, w, _) => Msg.text(w)
+    case _: OpaqueArgument => msg"expected names"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -84,6 +96,10 @@ enum DirectiveProblem extends Problem:
     case _: ChangedDeclaration => List(msg"a directive attached to a declaration may change only that declaration")
     case _: LabelsWithPattern =>
       List(msg"`%terminates n r` names the column `n` of `r`; `%terminates N (r N _)` names a variable of a call pattern")
+    case _: NotOpaqueable | _: OpaqueArgument =>
+      List(
+        msg"`%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded"
+      )
     case _ => Nil
 
   override def helps: List[Msg] = this match
