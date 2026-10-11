@@ -78,3 +78,55 @@ class ClosureCrossCheckSuite extends munit.FunSuite:
     assert(SizeChange.closure(base)._1.length <= 3)
     assertEquals(FullClosure.check(base, cap = 20000).map(_._1), Some(true))
   }
+
+  /** `t_termination_large_closure` without the reset rule: only the two permutation steps remain, whose
+   *  closure holds 5040 permutations of the carried arguments per fuel parity, all incomparable. */
+  private val permutations =
+    """p : int -> int -> int -> int -> int -> int -> int -> int -> int -> rel.
+      |p 2 2 1 0 0 0 0 0 0.
+      |p G F A2 A1 A3 A4 A5 A6 A7 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H - 1.
+      |p G F A2 A3 A4 A5 A6 A7 A1 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H - 1.
+      |""".stripMargin
+
+  /** The recovery fuzzer's mutant (#150): the reset rule's premise misses an argument (E0207), so it is no
+   *  step of the component; the closure of all arguments kept 10 082 graphs (~20 s). */
+  private val missingArgument = Files
+    .readString(Path.of("tests/run/t_termination_large_closure.hgn"))
+    .replace("p F H _ _ _ _ _ _ _, H > 0", "p F _ _ _ _ _ _ _, H > 0")
+
+  /** The mutation fuzzer's program (#67), periods missing: the first step keeps the fuel (`G = H`), so its
+   *  chains pass only by the second alternative (every argument on an `=` cycle), which needs the
+   *  permutations; the closure of all arguments did not finish in 60 s. */
+  private val keptFuel =
+    """p : int -> int -> int -> int -> int -> int -> int -> int -> int -> rel
+      |p G F A2 A1 A3 A4 A5 A6 A7 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H
+      |p G F A2 A3 A4 A5 A6 A7 A1 :- p F H A1 A2 A3 A4 A5 A6 A7, H > 0, G = H - 1
+      |""".stripMargin
+
+  test("carried arguments permuted by every step: the closure of the descending arguments decides") {
+    for (name, code) <- List("permutations" -> permutations, "missing argument" -> missingArgument, "kept fuel" -> keptFuel) do
+      val c = TestSupport.compile(code)
+      val List(rc) = Termination.recursive(c.unit): @unchecked
+      val base = SizeChange.steps(rc.comp, rc.rules)
+      assertEquals(base.length, 2, name)
+      val projection = SizeChangeProjection(base)
+      assertEquals((projection.kept.map(_._2), projection.separable), (Set(0, 1), true), name)
+      // the fuel arguments' closure: a handful of graphs instead of 10 082 (8 with the kept fuel)
+      val (kept, failing) = SizeChange.closure(projection.steps, passes = projection.passes)
+      assert(kept.length <= 8 && failing.isEmpty, s"$name: ${kept.length} graphs, failing $failing")
+      assert(SizeChange.check(rc.comp, rc.rules).isRight, name)
+  }
+
+  test("without a descent the projection proves nothing, and the closure of all arguments reports the cycle") {
+    val c = TestSupport.compile("""q : int -> int -> int -> int -> rel.
+      |q 0 0 0 1.
+      |q X Z A B :- q X Y B A, Z = Y + 1.
+      |""".stripMargin)
+    val List(rc) = Termination.recursive(c.unit): @unchecked
+    val base = SizeChange.steps(rc.comp, rc.rules)
+    val projection = SizeChangeProjection(base)
+    assert(SizeChange.closure(projection.steps, stop = true, projection.passes)._2.isDefined)
+    assertEquals(FullClosure.check(base).map(_._1), Some(false))
+    val failure = SizeChange.check(rc.comp, rc.rules).left.toOption
+    assertEquals(failure.map(_.chain.steps.length), SizeChange.closure(base, stop = true)._2.map(_.steps.length))
+  }
