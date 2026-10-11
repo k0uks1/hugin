@@ -215,8 +215,8 @@ so a fixed point at compile time iterates a step a bounded number of times. The 
 ```hugin,run
 %use "std/list".
 twice : nat -> nat.
-twice zero = zero.
-twice (suc N) = suc (suc (twice N)).
+twice 0 = 0.
+twice (N + 1) = twice N + 2.
 number : int -> rel.
 number (length (iterate (twice (size ["a", "b"])) ([l] 0 :: l) [])).
 %output number.

@@ -57,19 +57,19 @@ stepping (g : graph) = {
   parity : nat -> string.
   parity N = label (even N).
   even : nat -> bool.
-  even zero = true.
-  even (suc N) = odd N.
+  even 0 = true.
+  even (N + 1) = odd N.
   odd : nat -> bool.
-  odd zero = false.
-  odd (suc N) = even N.
+  odd 0 = false.
+  odd (N + 1) = even N.
   label : bool -> string.
   label true = "even".
   label false = "odd".
   weight : nat -> int.
-  weight zero = 0.
-  weight (suc N) = 10 + weight N.
+  weight 0 = 0.
+  weight (N + 1) = 10 + weight N.
   cost : g.node -> g.node -> int -> rel.
-  cost X Y (weight (suc (suc zero))) :- g.edge X Y.
+  cost X Y (weight 2) :- g.edge X Y.
 }.
 city : type. berlin, paris : city.
 road : city -> city -> rel.
@@ -77,7 +77,7 @@ road berlin paris.
 s1 = stepping { node = city, edge = road }.
 s2 = stepping { node = city, edge = road }.
 answer : string -> rel.
-answer (s1.parity (suc (suc (suc zero)))).
+answer (s1.parity 3).
 %output answer. %output s1.cost. %output s2.cost.
 ```
 
