@@ -81,6 +81,37 @@ class HighlightSuite extends munit.FunSuite:
     assertEquals(Main.run(List("highlight"), _ => (), _ => (), bad), ExitCode.Usage)
   }
 
+  test("--info: each snippet's runs with their names, the names' hovers, groups and definitions") {
+    val code = "%use \"std/graph\".\ncity : type.\nroad : city -> city -> rel.\n%input road.\nroads = tc { node = city, edge = road }.\n"
+    val snippets = s"""[{"code": ${com.google.gson.JsonPrimitive(code)}}, {"code": "p X :- q X, not r X."}]"""
+    val out = StringBuilder()
+    assertEquals(Main.run(List("highlight", "--info"), out ++= _, _ => (), ByteArrayInputStream(snippets.getBytes(UTF_8))), ExitCode.Ok)
+    val all = com.google.gson.JsonParser.parseString(out.toString).getAsJsonArray
+    assertEquals(all.size, 2)
+    val first = all.get(0).getAsJsonObject
+    val runs = first.getAsJsonArray("runs").asList.toArray.toList.map(_.asInstanceOf[com.google.gson.JsonArray])
+    assertEquals(runs.map(_.get(0).getAsString).mkString, code)
+    val names = first.getAsJsonArray("names")
+    val hovers = first.getAsJsonArray("hovers")
+    def name(text: String, n: Int = 0) =
+      names.get(runs.filter(r => r.get(0).getAsString == text && r.size == 3)(n).get(2).getAsInt).getAsJsonObject
+    // a use of `road`: the declaration's offset, the declaration's group, a hover with the signature
+    val decl = name("road")
+    val use = name("road", 2)
+    assert(decl.get("decl").getAsBoolean)
+    assert(!use.get("decl").getAsBoolean)
+    assertEquals(use.get("group"), decl.get("group"))
+    assertEquals(use.get("target").getAsInt, code.indexOf("road :"))
+    assertEquals(hovers.get(use.get("hover").getAsInt).getAsJsonArray.get(0).getAsString, "relation road : city -> city -> rel")
+    // a library name: module and name
+    assertEquals(name("tc").get("target").toString, "[\"std/graph\",\"tc\"]")
+    // a fragment that does not compile: its runs, no names
+    val fragment = all.get(1).getAsJsonObject
+    assertEquals(fragment.getAsJsonArray("names").size, 0)
+    assert(fragment.getAsJsonArray("runs").size > 0)
+  }
+
   test("highlight is not listed in the usage") {
     assert(!CommandLine.usage.contains("highlight"), CommandLine.usage)
+    assert(!CommandLine.usage.contains("--info"), CommandLine.usage)
   }

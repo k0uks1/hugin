@@ -89,6 +89,13 @@ and a `<span class="hg-<class> ...">` per run; mdBook passes the HTML through, h
 copy button copies the text. `hugin.css` colours the classes for each mdBook theme from the palette of
 its highlight.js theme; declarations are bold, meta parameters italic.
 
+`hugin highlight --info` also returns each block's annotation table (`hugin.ide.Annotations`): the
+names of the block with their hover texts, their declarations (an offset in the block, or a module and a
+name of the bundled standard library) and their occurrence groups; a run that is exactly a name carries
+the name's index. The format is in `CONTRIBUTING.md` ("Editor support"); it is the input of the hovers and
+links of the reference's code blocks (`docs/design/web-ide.md`, section 7). Without `--info` the output
+is the runs alone, which is what `highlight.py` and the landing page's build use today.
+
 The Markdown sources keep their fences and attributes: the tests read the sources, not the HTML.
 Editors highlight with the TextMate grammar of the VS Code extension
 (`editors/vscode/syntaxes/hugin.tmLanguage.json`) under the language server's semantic tokens.

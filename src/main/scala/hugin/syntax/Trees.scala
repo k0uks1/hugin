@@ -55,6 +55,13 @@ object Trees:
   final case class Ident(name: String)(val span: Span) extends Tree // lowercase name
   final case class VarRef(name: String)(val span: Span) extends Tree // uppercase variable
   final case class Wildcard()(val span: Span) extends Tree
+
+  /** `()`: Agda's absurd pattern, for a position none of whose constructors can occur (reference:
+   *  meta/clauses). It is allowed only in the patterns of a clause. */
+  final case class Absurd()(val span: Span) extends Tree
+
+  /** The right-hand side of an absurd clause `f p̄.`, which has none (`span` is empty, at the period). */
+  final case class Absent()(val span: Span) extends Tree
   final case class RuleRef(name: String)(val span: Span) extends Tree // @r (in directives)
   final case class Lit(value: Literal)(val span: Span) extends Tree
   final case class Select(qual: Tree, name: String)(val span: Span, val nameSpan: Span) extends Tree
@@ -193,7 +200,8 @@ object Trees:
   final case class Def(name: Ident, params: List[Param], rhs: Tree)(val span: Span) extends Item
 
   /** `f p̄ = e.` with patterns that are not all variables, or with a `where` block of local definitions:
-   *  an equational clause of a meta function (reference: meta/clauses). */
+   *  an equational clause of a meta function (reference: meta/clauses). An absurd clause `f p̄.`, whose
+   *  patterns contain `()`, has the right-hand side [[Absent]]. */
   final case class Clause(lhs: Tree, rhs: Tree, where: List[Item] = Nil)(val span: Span) extends Item
 
   /** `type <: type.` */

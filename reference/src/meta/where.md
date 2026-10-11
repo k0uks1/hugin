@@ -28,7 +28,8 @@ to their own column.
 
 ## Local definitions
 
-The items of a `where` block are elaborated in order, at each leaf of the clause's case tree.
+The items of a `where` block are elaborated in order, once per clause, in its [clause
+context](clauses.md#checking-a-clause).
 
 - A *definition* `x = e.` or `x : A = e.` binds `x` to the value of `e`.
 - A *local function* `f : A.` followed by its clauses is a function by clauses like a top-level one. It

@@ -28,8 +28,9 @@ enum Command:
   case Lsp
 
   /** Internal: the highlighting of code snippets read from stdin, for the build of the language reference
-   *  (see [[Highlight]]). Not listed in the usage. */
-  case Highlight
+   *  (see [[Highlight]]); with `info`, also their annotation tables (hover, definition, occurrences). Not
+   *  listed in the usage. */
+  case Highlight(info: Boolean = false)
   case Help
 
 /** Options of `hugin run` that do not influence compilation. */
@@ -153,7 +154,13 @@ object CommandLine:
       cmd("highlight")
         .hidden()
         .text("internal: highlight the JSON array of snippets on stdin (for the language reference)")
-        .action((_, o) => o.copy(command = Command.Highlight)),
+        .action((_, o) => o.copy(command = Command.Highlight()))
+        .children(
+          opt[Unit]("info")
+            .hidden()
+            .text("also write each snippet's names with their hovers, definitions and occurrence groups")
+            .action((_, o) => o.copy(command = Command.Highlight(info = true)))
+        ),
       note(""),
       opt[String]("facts")
         .valueName("<file>")

@@ -1,0 +1,10 @@
+// #67: splitting a pattern variable offers the constructors possible in the clause's own context: `V` of the second clause is split with `N` a variable (both `vnil` and `vcons`), not at the clause's leaves
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"processId": null, "rootUri": null, "capabilities": {}}}
+{"jsonrpc": "2.0", "method": "initialized", "params": {}}
+{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {"textDocument": {"uri": "untitled:s.hgn", "languageId": "hugin", "version": 1, "text": "nat : Type.\nzero : nat.\nsuc : nat -> nat.\nbool : Type.\ntrue : bool.\nvec : Type -> nat -> Type.\nvnil : vec A zero.\nvcons : A -> vec A N -> vec A (suc N).\nk : (n : nat) -> vec bool n -> nat.\nk zero V = zero.\nk N V = zero.\n"}}}
+// split `V` of the first clause: only `vnil` can occur
+{"jsonrpc": "2.0", "id": 2, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:s.hgn"}, "range": {"start": {"line": 9, "character": 7}, "end": {"line": 9, "character": 7}}, "context": {"diagnostics": []}}}
+// split `V` of the second clause, in its own context
+{"jsonrpc": "2.0", "id": 3, "method": "textDocument/codeAction", "params": {"textDocument": {"uri": "untitled:s.hgn"}, "range": {"start": {"line": 10, "character": 4}, "end": {"line": 10, "character": 4}}, "context": {"diagnostics": []}}}
+{"jsonrpc": "2.0", "id": 4, "method": "shutdown"}
+{"jsonrpc": "2.0", "method": "exit"}
