@@ -45,7 +45,9 @@ final class ElaboratedItem(
     /** What the item contributes to the module that module-wide directives rewrite. */
     val parts: List[elab.ModulePart] = Nil,
     /** What it read of the declarations ([[Footprint]]). */
-    val footprint: Footprint | Null = null
+    val footprint: Footprint | Null = null,
+    /** The declarations it was elaborated against (assembly may move it onto later ones, [[Rebase]]). */
+    val declarations: ElaboratedDeclarations | Null = null
 )
 
 /** The elaboration of a program in parts, each a function of the parts before it, so that a query
@@ -157,7 +159,8 @@ object ProgramElab:
       e.state.used.toSet,
       portable(decls.core, core, items, parts),
       parts,
-      footprint
+      footprint,
+      decls
     )
 
   /** Whether the items elaborated in `fork` (of `base`) can be moved into another fork of `base`. */
@@ -193,18 +196,18 @@ object ProgramElab:
     val diagnostics = mutable.ListBuffer.from(decls.base.diagnostics ++ decls.diagnostics)
     val parts = mutable.ListBuffer.empty[elab.ModulePart]
     val elaborated = results.flatMap { r =>
-      if r.portable then
-        diagnostics ++= r.diagnostics
-        index.include(r.index)
-        e.state.used ++= r.used
-        val moved = Moved(decls.core, r.fork, core)
-        parts ++= r.parts.map(moved.part)
-        moved.items(r.items)
-      else
-        val (beforeItems, beforeParts) = (e.items.length, e.state.parts.length)
-        e.elabItemReporting(r.item)
-        parts ++= e.state.parts.drop(beforeParts)
-        e.items.drop(beforeItems).toList
+      movable(decls, r, core) match
+        case Some(moved) =>
+          diagnostics ++= r.diagnostics
+          index.include(r.index)
+          e.state.used ++= r.used.map(moved.declaration)
+          parts ++= r.parts.map(moved.part)
+          moved.items(r.items)
+        case None =>
+          val (beforeItems, beforeParts) = (e.items.length, e.state.parts.length)
+          e.elabItemReporting(r.item)
+          parts ++= e.state.parts.drop(beforeParts)
+          e.items.drop(beforeItems).toList
     }
     val objectItems =
       if !e.rewrites(parts) then elaborated
@@ -218,11 +221,38 @@ object ProgramElab:
     val programItems = decls.items ++ objectItems
     (Elaborated(core, decls.base.items ++ programItems, programItems), diagnostics.toList, index)
 
-/** Moves the items elaborated in `from` (a fork of `base`) into `to` (another fork of `base`): the
- *  globals and metas of `base` are the same in both; the family instances `from` created are the
- *  instances at the same arguments in `to`, and its metas (the unsolved types of object variables) are
- *  created in `to` again. */
-private final class Moved(base: Core, from: Core, to: Core):
+  /** How to move a portable item into `to`, a fork of `decls`' core: as it is if it was elaborated
+   *  against `decls`, else by the keys of the declarations' globals ([[Rebase]]); `None` if it is not
+   *  portable or cannot be moved (it is then elaborated again). The move is done eagerly, so that a meta
+   *  or level of the old declarations met in it is found before anything is added to `to`. */
+  private def movable(decls: ElaboratedDeclarations, r: ElaboratedItem, to: Core): Option[Moved] =
+    if !r.portable then None
+    else if r.declarations == null || (r.declarations.nn eq decls) || (r.declarations.nn.core eq decls.core) then
+      Some(Moved(decls.core, r.fork, to))
+    else
+      val old = r.declarations.nn
+      val terms = r.items.flatMap(CoreItem.terms) ++ r.parts.flatMap(elab.ModulePart.terms)
+      Rebase.declarations(old, decls, terms, r.used).flatMap { declaration =>
+        val moved = Moved(old.core, r.fork, to, declaration, refuseFrom = (old.base.core.metas.length, old.base.core.levels.count))
+        try
+          moved.check(r.items, r.parts)
+          Some(moved)
+        catch case _: Moved.Refused => None
+      }
+
+/** Moves the items elaborated in `from` (a fork of `base`) into `to`: if `to` forks `base` too, the
+ *  globals and metas of `base` are the same in both; otherwise ([[Rebase]]) `to` forks another
+ *  declarations' core over the same libraries, `declaration` maps `base`'s globals into it, and a meta
+ *  or universe level of `base` from `refuseFrom` on (one the old declarations created) cannot be moved
+ *  ([[Moved.Refused]]). The family instances `from` created are the instances at the same arguments in
+ *  `to`, and its metas (the unsolved types of object variables) are created in `to` again. */
+private final class Moved(
+    base: Core,
+    from: Core,
+    to: Core,
+    val declaration: Int => Int = identity,
+    refuseFrom: (Int, Int) = (Int.MaxValue, Int.MaxValue)
+):
   private val globals = mutable.HashMap.empty[Int, Int]
   private val metas = mutable.HashMap.empty[Int, Int]
 
@@ -230,10 +260,29 @@ private final class Moved(base: Core, from: Core, to: Core):
 
   def part(p: elab.ModulePart): elab.ModulePart = elab.ModulePart.map(p, term)
 
-  private def term(t: Tm): Tm = Tm.rename(t, global, meta)
+  private def term(t: Tm): Tm =
+    if refuseFrom._2 != Int.MaxValue && Tm.exists(t) {
+        case Tm.U1(l) => !l.isConst && l.v >= refuseFrom._2 && l.v < base.levels.count
+        case _ => false
+      }
+    then throw Moved.Refused()
+    Tm.rename(t, global, meta)
+
+  /** Moves everything once (instances and metas are created in `to`); throws [[Moved.Refused]] first if
+   *  something cannot be moved. Later calls of [[items]] and [[part]] reuse what was created. */
+  def check(items: List[CoreItem], parts: List[elab.ModulePart]): Unit =
+    val all = items.flatMap(CoreItem.terms) ++ parts.flatMap(elab.ModulePart.terms)
+    all.foreach(t =>
+      if Tm.exists(t) {
+          case Tm.Meta(m) => m >= refuseFrom._1 && m < base.metas.length
+          case _ => false
+        }
+      then throw Moved.Refused()
+    )
+    all.foreach(term)
 
   private def global(id: Int): Int =
-    if id < base.globals.length then id
+    if id < base.globals.length then declaration(id)
     else
       globals.get(id) match
         case Some(g) => g
@@ -244,7 +293,9 @@ private final class Moved(base: Core, from: Core, to: Core):
           g
 
   private def meta(m: Int): Int =
-    if m < base.metas.length then m
+    if m < base.metas.length then
+      if m >= refuseFrom._1 then throw Moved.Refused()
+      m
     else
       metas.get(m) match
         case Some(n) => n
@@ -254,3 +305,7 @@ private final class Moved(base: Core, from: Core, to: Core):
           metas(m) = n
           e.solution.foreach(v => to.solveMeta(n, to.eval(Nil, term(from.quote(0, v)))))
           n
+
+private object Moved:
+  /** An item that refers to a meta or universe level of the declarations it was elaborated against. */
+  final class Refused extends Exception(null, null, false, false)
