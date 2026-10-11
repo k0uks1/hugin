@@ -1,0 +1,24 @@
+(* #186 P2: an implicit argument by name must name an implicit binder before the next explicit argument
+   (E0926); an implicit pattern matches each binder once (E0915) *)
+%use "std/eq".
+%use "std/nat".
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+(* no binder `m` *)
+lengthOf : {A : Type} -> {n : nat} -> vec A n -> nat.
+lengthOf {m := N} V = N. (*~ E0926 *)
+(* `vcons` names its implicit arguments `A` and `N` *)
+tailLength : {A : Type} -> {n : nat} -> vec A n -> nat.
+tailLength vnil = 0.
+tailLength (vcons {M := K} X XS) = K. (*~ E0926 *)
+(* the binder after the explicit argument is not before the next one *)
+pick : nat -> nat -> {n : nat} -> nat.
+pick X {n := N} = N. (*~ E0926 *)
+(* the same binder twice *)
+firstOf : {A : Type} -> {n : nat} -> vec A n -> nat.
+firstOf {n := N} {n := M} V = N. (*~ E0915 *)
+(* applications *)
+viaTrans : eq (plus 0 3) 3 = trans {w := 3} refl refl. (*~ E0926 *)
+plusThree : nat = plus {m := 3} 4. (*~ E0926 *)
+alone = {y := 3}. (*~ E0926 *)

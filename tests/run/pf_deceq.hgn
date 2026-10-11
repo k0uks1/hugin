@@ -1,0 +1,36 @@
+(* #186 P2: decidable equality of atoms (reference: std/eq) and the conflict rule of index unification
+   for distinct atoms (reference: meta/coverage) *)
+(* `sym` is symmetry in std/eq and the type of symbols in std/reflect: each is opened selectively *)
+%use "std/eq" (eq, refl, empty, dec, yes, no, decEq).
+%use "std/reflect" (sym).
+
+city : type.
+berlin, paris : city.
+
+answer : dec A -> string.
+answer (yes _) = "yes".
+answer (no _) = "no".
+
+(* on equal atoms `decEq` is `yes refl` *)
+sameCity : eq (decEq {A := sym} '( berlin ) '( berlin )) (yes refl) = refl.
+sameNumber : eq (decEq {A := int} 7 7) (yes refl) = refl.
+%opaque sameCity sameNumber.
+
+(* distinct atoms conflict: each function has the single absurd clause *)
+distinctCities : eq {A := sym} '( berlin ) '( paris ) -> empty.
+distinctCities ().
+distinctNumbers : eq {A := int} 1 2 -> empty.
+distinctNumbers ().
+distinctStrings : eq "berlin" "paris" -> empty.
+distinctStrings ().
+
+(* a refutation from `decEq`, applied to a hypothetical proof *)
+refute : dec (eq {A := sym} '( berlin ) '( paris )) -> eq {A := sym} '( berlin ) '( paris ) -> empty.
+refute (yes E) H = distinctCities E.
+refute (no F) H = F H.
+
+decided : string -> string -> rel.
+decided "cities" (answer (decEq {A := sym} '( berlin ) '( paris ))).
+decided "numbers" (answer (decEq {A := int} 7 7)).
+decided "strings" (answer (decEq "berlin" "berlin")).
+decided "naturals" (answer (decEq {A := nat} 3 4)).

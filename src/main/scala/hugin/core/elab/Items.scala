@@ -42,6 +42,8 @@ trait Items:
       case r: Rule => clauseName(r, declared).isDefined || clauseOf(formulaFunctions)(r).isDefined
       // `%use` and `%export` belong to the file's scope ([[Uses]])
       case Directive(_, _: DirArgs.Use | _: DirArgs.Export) => true
+      // `%opaque x.` says how the declarations are elaborated ([[elabDeclarations]])
+      case Directive("opaque", _) => true
       case _: Query | _: Directive => false
       case _ => true
     }
@@ -56,7 +58,10 @@ trait Items:
     val formulaFunctions = formulaFunctionNames(rest)
     val (formulaClauses, meta0) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
     // `%use` first (the names it opens are retried for), `%export` after all declarations ([[Uses]])
-    val (exports, nonExports) = meta0.partition(isExport)
+    // `%opaque x.` (reference: meta/index): the definitions and functions it names are opaque
+    val (opaques, meta1) = meta0.partition(isOpaque)
+    state.opaque = opaques.flatMap(opaqueNames).toSet
+    val (exports, nonExports) = meta1.partition(isExport)
     val (uses, others) = nonExports.partition(isUse)
     val meta = uses ++ others
     // the names that items with syntax errors might declare: their uses are not reported (if no other
@@ -79,6 +84,7 @@ trait Items:
     dropPending()
     checkObjectDeclarations(firstGlobal)
     if !file.signaturesOnly then exports.foreach(elabItemReporting)
+    opaques.foreach(elabItemReporting)
     flushTooling(success = true)
 
   /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
@@ -94,6 +100,39 @@ trait Items:
   private[elab] def isUse(item: Item): Boolean = item match
     case Directive(_, _: DirArgs.Use) => true
     case _ => false
+
+  /** `%opaque x₁ … xₙ.` (reference: meta/index), once the declarations are elaborated: every `xᵢ` must
+   *  be a definition or a function by clauses of the file, which is now opaque. A name whose declaration
+   *  failed is not reported again. */
+  private def elabOpaque(d: Directive): Unit = d.args match
+    case DirArgs.Apply(args, None) if args.nonEmpty =>
+      for a <- args do
+        a match
+          case n @ Ident(name) =>
+            scope.get(name) match
+              case Some(id) =>
+                recordUse(n.span, id)
+                kindOf(id) match
+                  case GlobalKind.Opaque(_, _) =>
+                  // a function whose clauses failed (reported there)
+                  case GlobalKind.Function(_, _) =>
+                  case _ => fail(DirectiveProblem.NotOpaqueable(name, describeKind(id), n.span))
+              case None if state.declaredHere(name) || state.erroneous(name) => // its declaration failed (reported there)
+              case None =>
+                // a name of another file (opened by `%use`, or of the prelude)
+                resolve(Cxt.empty, name, n.span)
+                fail(DirectiveProblem.NotOpaqueable(name, "not declared in this file", n.span))
+          case other => fail(DirectiveProblem.OpaqueArgument(other.span))
+    case _ => fail(DirectiveProblem.OpaqueArgument(d.span))
+
+  private def isOpaque(item: Item): Boolean = item match
+    case Directive("opaque", _) => true
+    case _ => false
+
+  /** The names a directive `%opaque x₁ … xₙ.` names. */
+  private def opaqueNames(item: Item): List[Name] = item match
+    case Directive(_, DirArgs.Apply(args, None)) => args.collect { case Ident(n) => n }
+    case _ => Nil
 
   private def isExport(item: Item): Boolean = item match
     case Directive(_, _: DirArgs.Export) => true
@@ -261,6 +300,7 @@ trait Items:
               withheld -= fn
               globals(fn).kind match
                 case GlobalKind.Function(arity, Some(_)) => globals(fn).kind = GlobalKind.Function(arity, None)
+                case GlobalKind.Opaque(_, Some((arity, _))) => globals(fn).kind = GlobalKind.Function(arity, None)
                 case _ =>
             // the function failed: its uses, and those of what expands to it (definitions and functions
             // elaborated before it), are left out without a further diagnostic, as those of a dropped item;
@@ -283,6 +323,7 @@ trait Items:
     case GlobalKind.Inductive(_) => "an inductive family"
     case GlobalKind.Constructor(_) => "a constructor"
     case GlobalKind.Definition(_, _) => "a definition"
+    case GlobalKind.Opaque(Some(_), _) => "an opaque definition"
     case _ => "a constant"
 
   /** Elaborates an item; module bodies it evaluates are instances of this item's site, named after the
@@ -309,6 +350,7 @@ trait Items:
     case q: Query => elabQuery(q)
     case d @ Directive(_, DirArgs.Use(m, ns)) => elabUse(d, m, ns)
     case d @ Directive(_, DirArgs.Export(s)) => elabExport(d, s)
+    case d @ Directive("opaque", _) => elabOpaque(d)
     case d: Directive => items ++= directiveItems(Cxt.empty, d, inBody = false)
     case e: SubEdge => elabEdge(e)
     case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))

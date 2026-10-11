@@ -3,7 +3,7 @@ package elab
 
 import hugin.compiler.MetaIndex
 import hugin.syntax.{Tree, TreeOps}
-import hugin.syntax.Trees.{Absent, Parens}
+import hugin.syntax.Trees.{Absent, NamedArg, Parens}
 import hugin.util.*
 import hugin.util.diagnostics.{Applicability, Edit, Suggestion}
 import scala.collection.mutable
@@ -57,8 +57,12 @@ trait Clauses:
       /** The clause contexts, by clause. */
       contexts: mutable.ArrayBuffer[(SplitProblem, ClauseState)] = mutable.ArrayBuffer.empty,
       /** At the positions of Π with a numeral pattern: the literals and the offsets of the clauses there. */
-      natPoints: mutable.HashMap[List[Int], (Set[BigInt], Set[BigInt])] = mutable.HashMap.empty
-  )
+      natPoints: mutable.HashMap[List[Int], (Set[BigInt], Set[BigInt])] = mutable.HashMap.empty,
+      /** The implicit arguments that some clause matches by name (`{x := p}`), by position. */
+      named: Map[Int, Name] = Map.empty
+  ):
+    /** The arguments a missing case shows: the explicit ones and the implicit ones matched by name. */
+    def shown: List[Int] = (explicit ++ named.keys).distinct.sorted
 
   /** A clause checked in its clause context `ctx` (whose free variables, in the telescope order `order`,
    *  are the variables of the right-hand side): its body and display, and what the termination check needs
@@ -83,16 +87,22 @@ trait Clauses:
     for cl <- clauses if cl.name.span.text == g.name do recordUse(cl.name.span, id)
     val (binders, _) = telescope(g.ty)
     val explicitPositions = binders.zipWithIndex.collect { case ((_, Icit.Expl, _), l) => l }
-    val n = clauses.head.pats.length
-    clauses.find(_.pats.length != n).foreach { cl =>
+    def explicitPats(cl: SurfaceClause) = cl.pats.filterNot(_.isInstanceOf[NamedArg])
+    val n = explicitPats(clauses.head).length
+    clauses.find(explicitPats(_).length != n).foreach { cl =>
       fail(ClauseProblem.PatternCount(g.name, n, cl.span))
     }
     if n > explicitPositions.length then
       fail(ClauseProblem.TooManyPatterns(g.name, explicitPositions.length, clauses.head.span))
-    val arity = if n == 0 then 0 else explicitPositions(n - 1) + 1
+    val explicitArity = if n == 0 then 0 else explicitPositions(n - 1) + 1
+    // `{x := p}` in a clause matches the function's implicit argument `x` (reference: meta/clauses): one of
+    // those before the argument after the last pattern
+    val namedPositions = clauses.map(implicitPatternPositions(g.name, binders, explicitArity, _))
+    val arity = (explicitArity :: namedPositions.flatMap(_.keys.map(_ + 1))).max
     val (problem, target) = initialProblem(g.ty, arity)
-    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude)
-    val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i))
+    val named = namedPositions.flatMap(_.keys).distinct.map(l => l -> binders(l)._1).toMap
+    val info = FunctionInfo(id, g.name, arity, explicitPositions.take(n), mutable.Set.empty, prelude, named = named)
+    val states = clauses.zipWithIndex.map((cl, i) => initialClause(problem, binders.take(arity), cl, i, namedPositions(i)))
     // each clause in its own context: its left-hand side, then its right-hand side
     val contexts = states.map(cl => clauseContext(problem, target, cl, states.length == 1))
     for (p, _, cl) <- contexts do
@@ -117,6 +127,11 @@ trait Clauses:
     for (cl, i) <- clauses.zipWithIndex if !info.used(i) && !states(i).absurd do
       reporter.report(ClauseProblem.UnreachableClause(g.name, cl.span).toDiagnostic)
     reportInexact(info, checked)
+    // `%opaque f.`: checked, and from now on neutral (after the termination check, which records the
+    // function's calls of itself as calls of a function)
+    if opaqueHere(g.name, id) then
+      withheld.get(id).orElse(Some(g.kind)).collect { case GlobalKind.Function(a, Some(b)) => GlobalKind.Opaque(None, Some((a, b))) }
+        .foreach { k => if withheld.contains(id) then withheld(id) = k else g.kind = k }
 
   /** The problem with the first `arity` arguments of the function as variables. */
   private def initialProblem(ty: Val, arity: Int): (SplitProblem, Val) =
@@ -130,15 +145,42 @@ trait Clauses:
         case _ => throw Impossible("arity exceeds the function type")
     (p, t)
 
-  private def initialClause(p: SplitProblem, binders: List[(Name, Icit, Val)], cl: SurfaceClause, index: Int): ClauseState =
+  /** The implicit patterns `{x := p}` of a clause, by the position of the binder `x` in the function's
+   *  type. A binder must be implicit and come before the first explicit binder after the clause's
+   *  explicit patterns (E0926), and only one pattern may match it (E0915). */
+  private def implicitPatternPositions(
+      fn: Name,
+      binders: List[(Name, Icit, Val)],
+      explicitArity: Int,
+      cl: SurfaceClause
+  ): Map[Int, NamedArg] =
+    val reachable = binders.zipWithIndex.takeWhile((b, l) => l < explicitArity || b._2 == Icit.Impl)
+    cl.pats.collect { case na: NamedArg => na }.foldLeft(Map.empty[Int, NamedArg]) { (acc, na) =>
+      val x = na.name
+      reachable.collectFirst { case ((`x`, Icit.Impl, _), l) => l } match
+        case Some(l) if acc.contains(l) => fail(ClauseProblem.ImplicitPatternTwice(x, na.nameSpan))
+        case Some(l) => acc + (l -> na)
+        case None => fail(TypeProblem.NoImplicitNamed(x, fn, reachable.collect { case ((y, Icit.Impl, _), _) => y }, na.nameSpan))
+    }
+
+  private def initialClause(
+      p: SplitProblem,
+      binders: List[(Name, Icit, Val)],
+      cl: SurfaceClause,
+      index: Int,
+      named: Map[Int, NamedArg]
+  ): ClauseState =
     // `()` only in an absurd clause, which has no right-hand side
     if !cl.rhs.isInstanceOf[Absent] && cl.pats.exists(TreeOps.hasAbsurd) then
       fail(ClauseProblem.AbsurdWithRhs(Span(cl.rhs.span.origin, cl.pats.last.span.until, cl.rhs.span.until), cl.rhs.span))
-    var pats = cl.pats
+    var pats = cl.pats.filterNot(_.isInstanceOf[NamedArg])
     val (eqns, derived) = withDerivedBindings {
       binders.zipWithIndex.map { case ((x, i, a), l) =>
         val pat =
-          if i == Icit.Impl then Pat.PVar(x, cl.name.span, implicitBinder = true)
+          if i == Icit.Impl then
+            named.get(l) match
+              case Some(na) => pattern(na.value, closedType(a, l))
+              case None => Pat.PVar(x, cl.name.span, implicitBinder = true)
           else
             val q = pattern(pats.head, closedType(a, l))
             pats = pats.tail
@@ -198,7 +240,7 @@ trait Clauses:
                 val p1 = p.extend(p.names(x), p.types(x))
                 val p2 = p1.solve(core, x, natSuccs(natType(e.ty).get._2, Val.local(p.size), j))
                 next = Some(Right((p2, p2.norm(core, target))))
-              case pat @ Pat.PCon(ctor, _, span) =>
+              case pat @ Pat.PCon(ctor, _, span, _) =>
                 force(p.types(x)) match
                   case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
                     if !constructors(fam).contains(ctor) then
@@ -287,7 +329,7 @@ trait Clauses:
    *  there. */
   private def impossible(p: SplitProblem, cl: ClauseState, pat: Pat, why: ClauseConflict, only: Boolean): ClauseProblem =
     val (ctor, span) = pat match
-      case Pat.PCon(c, _, s) => (globals(c).name, s)
+      case Pat.PCon(c, _, s, _) => (globals(c).name, s)
       case Pat.PAtom(k, s) => (showTm(Nil, k), s)
       case other => ("", Span.NoSpan)
     val source = cl.source
@@ -356,7 +398,7 @@ trait Clauses:
         case pat @ (_: Pat.PLit | _: Pat.PSucc | _: Pat.PCon)
             if natType(e.ty).exists((z, s) =>
               pat match
-                case Pat.PCon(c, _, _) => c == z || c == s
+                case Pat.PCon(c, _, _, _) => c == z || c == s
                 case _ => true
             ) =>
           // against a nat-like family: as a numeral, matched by value (reference: meta/clauses)
@@ -378,11 +420,11 @@ trait Clauses:
                 case None => fail(ClauseProblem.CannotMatchArgument(showVal(p.names.toList.reverse, other), span))
         case Pat.PLit(_, span) => fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
         case Pat.PSucc(_, _, span) => fail(ClauseProblem.LiteralPattern(showVal(p.names.toList.reverse, e.ty), span))
-        case Pat.PCon(c, args, span) =>
+        case Pat.PCon(c, args, span, implicits) =>
           forceView(e.term) match
             case term @ Val.Rigid(Head.Glob(c2), sp) if isConstructor(c2) =>
               if c2 != c then clash = Simplified.NoMatch(e.pat, term)
-              else pending = constructorArgs(c, sp, args) ++ pending
+              else pending = constructorArgs(c, sp, args, implicits) ++ pending
             case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => stuck += e
             case other =>
               fail(
@@ -449,20 +491,21 @@ trait Clauses:
     case _: Pat.PLit | _: Pat.PSucc => true
     case _ => false
 
-  /** The equations for the explicit arguments of a matched constructor. */
-  private def constructorArgs(c: Int, sp: Spine, pats: List[Pat]): List[Eqn] =
+  /** The equations for the explicit arguments of a matched constructor, and for its implicit arguments
+   *  that the pattern binds by name (`{N := p}`). */
+  private def constructorArgs(c: Int, sp: Spine, pats: List[Pat], implicits: List[(Name, Pat)]): List[Eqn] =
     val args = sp.reverse.collect { case Elim.EApp(a, i) => (a, i) }
     var ty = globals(c).ty
     var remaining = pats
     args.flatMap { (a, i) =>
       force(ty) match
-        case Val.Pi(_, _, dom, cl) =>
+        case Val.Pi(x, _, dom, cl) =>
           ty = inst(cl, a)
           if i == Icit.Expl then
             val q = remaining.head
             remaining = remaining.tail
             Some(Eqn(a, q, dom))
-          else None
+          else implicits.find(_._1 == x).map(n => Eqn(a, n._2, dom))
         case _ => None
     }
 
@@ -510,7 +553,7 @@ trait Clauses:
               case _: Pat.PLit | _: Pat.PSucc => result = Some(splitNat(f, p, x, e.ty, target, all, leaf, refuted))
               case pat =>
                 val span = pat match
-                  case Pat.PCon(_, _, s) => s
+                  case Pat.PCon(_, _, s, _) => s
                   case Pat.PAbsurd(s) => s
                   case _ => first.source.span
                 force(p.types(x)) match
@@ -888,7 +931,10 @@ trait Clauses:
     val source = cl.source
     val hidden = globals(f.id).hidden
     val written = source.pats.drop(hidden)
-    if !source.span.exists || written.exists(t => !t.span.exists || TreeOps.nodes(t).exists(_.isInstanceOf[hugin.syntax.Trees.Quote])) then
+    if !source.span.exists || written.exists(t =>
+        !t.span.exists || TreeOps.nodes(t).exists(n => n.isInstanceOf[hugin.syntax.Trees.Quote] || n.isInstanceOf[NamedArg])
+      )
+    then
       None
     else
       val origin = source.span.origin
@@ -1150,8 +1196,8 @@ trait Clauses:
   private val MaxMissing = 20
   private val MaxProbeSteps = 2000
 
-  /** A pattern of a missing case, over the explicit arguments: a wildcard, a constructor applied to the
-   *  patterns of its explicit arguments, or an atom (its key). */
+  /** A pattern of a missing case, over the arguments shown ([[FunctionInfo.shown]]): a wildcard, a
+   *  constructor applied to the patterns of its explicit arguments, or an atom (its key). */
   private enum MPat:
     case Wild
     case Con(c: Int, args: List[MPat])
@@ -1183,8 +1229,8 @@ trait Clauses:
           MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
         case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
 
-  /** The explicit arguments of a case as patterns. */
-  private def patternsOf(f: FunctionInfo, p: SplitProblem): List[MPat] = f.explicit.map(l => toMPat(p.values(l)))
+  /** The arguments of a case that a missing case shows ([[FunctionInfo.shown]]), as patterns. */
+  private def patternsOf(f: FunctionInfo, p: SplitProblem): List[MPat] = f.shown.map(l => toMPat(p.values(l)))
 
   private def toPat(m: MPat): Pat = m match
     case MPat.Wild => Pat.PWild(Span.NoSpan)
@@ -1250,7 +1296,7 @@ trait Clauses:
       m, {
         val pats = m.iterator
         val eqns = (0 until f.arity).toList.map { l =>
-          val pat = if f.explicit.contains(l) then toPat(pats.next()) else Pat.PWild(Span.NoSpan)
+          val pat = if f.shown.contains(l) then toPat(pats.next()) else Pat.PWild(Span.NoSpan)
           Eqn(Val.local(l), pat, problem.types(l))
         }
         val st = ClauseState(-1, eqns, Nil, f.contexts.head._2.source)
@@ -1318,9 +1364,12 @@ trait Clauses:
       case MPat.Lit(fam, k) => Tm.Nat(fam, k)
       // `_ + j` printed as the sum it is
       case MPat.Succ(_, j) => Tm.Arith(hugin.obj.ArithOp.Add, Tm.Var(0), Tm.Nat(-1, j), Stage.S1)
-    val args = q.drop(globals(f.id).hidden).map { m =>
+    val args = q.zip(f.shown).drop(globals(f.id).hidden).flatMap { (m, l) =>
       val s = showTm(List("_"), term(m))
-      if s.contains(' ') then s"($s)" else s
+      f.named.get(l) match
+        // an implicit argument matched by name is shown where a clause constrains it
+        case Some(x) => Option.when(m != MPat.Wild)(s"{$x := $s}")
+        case None => Some(if s.contains(' ') then s"($s)" else s)
     }
     (f.name :: args).mkString(" ")
 

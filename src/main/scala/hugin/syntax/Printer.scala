@@ -41,6 +41,7 @@ object Printer:
     case CodeQuote(a) => s"<${show(a)}>"
     case Hole(n) => "?" + n.getOrElse("")
     case ImplicitBinder(ns, t) => s"{${ns.map(show).mkString(" ")} : ${show(t)}}"
+    case NamedArg(n, v) => s"{$n := ${show(v)}}"
     case ImplicitPi(ns, d, c) => s"{${ns.map(show).mkString(" ")} : ${show(d)}} -> ${show(c)}"
     case ListLit(es) => es.map(show).mkString("[", ", ", "]")
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"

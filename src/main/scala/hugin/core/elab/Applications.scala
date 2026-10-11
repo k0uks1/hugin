@@ -2,7 +2,7 @@ package hugin.core
 package elab
 
 import hugin.syntax.{Tree, TreeOps}
-import hugin.syntax.Trees.{Apply, RecordLit}
+import hugin.syntax.Trees.{Apply, NamedArg, RecordLit}
 import hugin.util.*
 
 /** Lambdas, applications and the insertion of implicit applications (elaboration-zoo `04-implicit-args`):
@@ -57,7 +57,41 @@ trait Applications:
     recordLocalDeclaration(cb, c.lvl)
     Tm.Lam(name, Icit.Expl, check(cb, body, inst(pi.cl, Val.local(c.lvl)), st))
 
-  def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
+  def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) = a match
+    case n: NamedArg => inferNamedApp(c, f, n, span)
+    case _ => inferPlainApp(c, f, a, span)
+
+  /** `f {x := e}` (reference: meta/functions): the leading implicit arguments of `f` up to the one named
+   *  `x` are inserted, and `e` is checked as that one. The implicit arguments after it stay: the next
+   *  explicit argument (or the expected type) inserts them, and a further `{y := e'}` may give one. */
+  private def inferNamedApp(c: Cxt, f: Tree, n: NamedArg, span: Span): (Tm, Val, Stage) =
+    val name = n.name
+    var (t, ty, st) = infer(c, f)
+    f match
+      case _: hugin.syntax.Trees.Ident | _: hugin.syntax.Trees.VarRef | _: hugin.syntax.Trees.Select =>
+        recordTyped(c, f.span, t, ty, st, checked = false)
+      case _ =>
+    val available = List.newBuilder[Name]
+    var done = false
+    while !done do
+      force(ty) match
+        case Val.Pi(x, Icit.Impl, a, cl) if x == name =>
+          val at = core.anonymously(check(c, n.value, a, Stage.S1))
+          t = Tm.App(t, at, Icit.Impl)
+          ty = inst(cl, ev(c, at))
+          done = true
+        case Val.Pi(x, Icit.Impl, a, cl) =>
+          available += x
+          val m = freshMeta(c, a, Stage.S1, f.span, s"the implicit argument `$x`")
+          insertedImplicit(c, f.span, x, m)
+          t = Tm.App(t, m, Icit.Impl)
+          ty = inst(cl, ev(c, m))
+        case _ =>
+          val fn = TreeOps.headName(f).map(_.name).getOrElse(hugin.syntax.Printer.show(f))
+          fail(TypeProblem.NoImplicitNamed(name, fn, available.result(), n.nameSpan))
+    (t, ty, st)
+
+  private def inferPlainApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) =
     val head = insertAll(c, f.span, infer(c, f))
     // the head of an application is inferred, not checked: its type is recorded here (for tooling)
     f match

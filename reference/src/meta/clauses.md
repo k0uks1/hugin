@@ -10,9 +10,10 @@ totality checks.
 
 ```text
 Function  ::= NAME ":" Type "." Clause+
-Clause    ::= NAME Pattern* ("=" Expr Where?)? "."
-Pattern   ::= VAR | "_" | NAME | "(" NAME Pattern* ")" | INT | "(" Pattern "+" INT ")"
-            | "(" Pattern ")" | "(" ")" | QuotedPattern
+Clause    ::= NAME (Pattern | ImplicitPattern)* ("=" Expr Where?)? "."
+Pattern   ::= VAR | "_" | NAME | "(" NAME (Pattern | ImplicitPattern)* ")" | INT
+            | "(" Pattern "+" INT ")" | "(" Pattern ")" | "(" ")" | QuotedPattern
+ImplicitPattern ::= "{" (VAR | NAME) ":=" Pattern "}"
 ```
 
 A function defined by clauses is declared first, `f : A.`, with a meta type `A`. Every item `f p₁ … pₙ =
@@ -28,7 +29,8 @@ or an atom, as before. `()` is the two tokens `(` and `)`, with only whitespace 
 
 It is an error ([E0915](../errors/E0915.md)) if a function has clauses but no declaration (in a module
 body: no declaration in that body), or if its clauses have different numbers of patterns or more patterns
-than the function has explicit arguments. It is an error ([E0914](../errors/E0914.md)) to give clauses to
+than the function has explicit arguments. The [implicit patterns](#implicit-patterns) of a clause do not
+count. It is an error ([E0914](../errors/E0914.md)) to give clauses to
 a constant that is not a meta function, such as a relation or a constructor.
 
 ## Patterns
@@ -49,10 +51,11 @@ A *pattern* is one of:
   absurd clause.
 
 Patterns are linear: it is an error ([E0915](../errors/E0915.md)) if a variable occurs twice in the
-patterns of one clause. Implicit arguments are not written in patterns. The names of the implicit binders
-of the function's declared type, such as `A` and `N` in `head : vec A (suc N) -> A`, are in scope in the
-right-hand side, unless a pattern variable has the same name. Literals of `int`, `float` and `string` are
-not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
+patterns of one clause. An implicit argument is matched only by an [implicit
+pattern](#implicit-patterns). The names of the implicit binders of the function's declared type, such as
+`A` and `N` in `head : vec A (suc N) -> A`, are in scope in the right-hand side, unless a pattern
+variable has the same name or an implicit pattern matches the binder. Literals of `int`, `float` and
+`string` are not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
 
 A literal pattern and a successor pattern stand for constructor patterns: `3` for `suc (suc (suc
 zero))` and `N + 2` for `suc (suc N)`, so [coverage](coverage.md) and [termination](termination.md) see
@@ -74,6 +77,50 @@ pred (N - 1) = N.
 The patterns of a clause match the first arguments of the function, one per pattern. The right-hand side
 is checked against the rest of the function's type, so a clause with fewer patterns than arguments
 defines a function.
+
+## Implicit patterns
+
+An *implicit pattern* `{x := p}` matches the implicit argument whose binder is named `x` with the pattern
+`p`; `:=` is written as in an [implicit argument by name](functions.md#implicit-arguments-by-name). It is
+one of the following:
+
+- among the patterns of a clause, a pattern for an implicit argument of the function: one of the implicit
+  binders of its type before the first explicit binder after the clause's explicit patterns, so
+  `size {n := N} = N.` matches the only argument of `size : {n : nat} -> nat`;
+- in a constructor pattern, a pattern for an implicit argument of the constructor: `vcons {N := K} X Xs`
+  binds the length `K` of `Xs`, which `vcons : A -> vec A N -> vec A (N + 1)` does not take explicitly.
+
+Implicit patterns may be written anywhere among the explicit patterns; they are matched by name, not by
+position. An implicit argument is matched like an explicit one: a variable binds it, and a constructor or
+numeral pattern splits on it ([Evaluation](#evaluation)). An implicit argument of a constructor is often
+determined by [index unification](coverage.md#index-unification): a pattern variable then binds the value
+it determined. It is an error ([E0926](../errors/E0926.md)) if no implicit binder of that name can be
+matched there, and ([E0915](../errors/E0915.md)) if a clause or a constructor pattern matches the same
+binder twice. A missing case shows an implicit argument that a clause matches by name where the case
+constrains it: `isEmpty {n := _ + 1} _`.
+
+The following program reads the length of a vector from the function's implicit argument, and the
+length of its tail from the implicit argument of `vcons`.
+
+```hugin,run
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+length : {A : Type} -> {n : nat} -> vec A n -> nat.
+length {n := N} V = N.
+tailLength : {A : Type} -> {n : nat} -> vec A n -> nat.
+tailLength vnil = 0.
+tailLength (vcons {N := K} X Xs) = K.
+sizes : int -> int -> rel.
+sizes (toInt (length (vcons 1 (vcons 2 vnil)))) (toInt (tailLength (vcons 1 (vcons 2 vnil)))).
+```
+
+```output
+sizes 2 1.
+```
 
 ## Checking a clause
 
@@ -146,29 +193,28 @@ total 2.
 ## Evaluation
 
 An application of a function to as many arguments as its clauses have patterns, with the implicit
-arguments before them, evaluates its *case tree* (Cockx and Abel 2018), the same tree as for
-[coverage](coverage.md). The tree is defined by the clauses in their order: it keeps the clauses that may
-still apply, and while the first of them has a constructor, literal or quoted pattern against an argument
-that is not yet known, the tree *splits* on that argument. The argument split is the leftmost such
-position of the first clause that may still apply: the first argument with one, and within an argument,
-the outermost position first, then its constructor arguments from left to right (an absurd pattern `()`
-comes after the clause's other patterns); a position whose split is undecided is passed over for the
-clause's next one ([Undecided splits](coverage.md#undecided-splits)). A split has a branch per
-constructor that can occur ([Index unification](coverage.md#index-unification)), in which the clauses
-with another constructor there no longer apply. At an argument of a nat-like family, where the patterns
-are numeral patterns, the split is *by value*, as Agda's literal branches and Lean's value splits: a
-branch per literal that a clause that may still apply has there; then, if one of them has `P + j` there,
-a branch for the values of at least the least such `j` (the argument is `Q + j` for a new variable `Q`)
-and one for the other values below it; otherwise one for every other value. The clauses with a literal
-do not apply in the branches that are not their value's, and those with `P + j` not in the branch below
-`j`. When the first clause that may still apply has no such pattern left, its right-hand side gives the
-value. A numeral matches the constant of its family if it is `0`, and the successor applied to its
-predecessor otherwise ([Inductive families](families.md#numerals)); `f 50000 = 1. f _ = 0.` tests
-`50000` once, whatever its size.
-On arguments that are all known (closed constructor
-applications), this is the first clause whose patterns match them. The arithmetic of
-[`std/nat`](../std/nat.md#native-arithmetic) computes on numerals directly, with the value its clauses give,
-and by its case tree on other arguments.
+arguments before them and those that its implicit patterns match, evaluates its *case tree* (Cockx and
+Abel 2018), the same tree as for [coverage](coverage.md). The tree is defined by the clauses in their
+order: it keeps the clauses that may still apply, and while the first of them has a constructor, literal
+or quoted pattern against an argument that is not yet known, the tree *splits* on that argument. The
+argument split is the leftmost such position of the first clause that may still apply: the first argument
+with one, and within an argument, the outermost position first, then its constructor arguments from left
+to right (an absurd pattern `()` comes after the clause's other patterns); a position whose split is
+undecided is passed over for the clause's next one ([Undecided splits](coverage.md#undecided-splits)). A
+split has a branch per constructor that can occur ([Index unification](coverage.md#index-unification)),
+in which the clauses with another constructor there no longer apply. At an argument of a nat-like family,
+where the patterns are numeral patterns, the split is *by value*, as Agda's literal branches and Lean's
+value splits: a branch per literal that a clause that may still apply has there; then, if one of them has
+`P + j` there, a branch for the values of at least the least such `j` (the argument is `Q + j` for a new
+variable `Q`) and one for the other values below it; otherwise one for every other value. The clauses
+with a literal do not apply in the branches that are not their value's, and those with `P + j` not in the
+branch below `j`. When the first clause that may still apply has no such pattern left, its right-hand
+side gives the value. A numeral matches the constant of its family if it is `0`, and the successor
+applied to its predecessor otherwise ([Inductive families](families.md#numerals));
+`f 50000 = 1. f _ = 0.` tests `50000` once, whatever its size. On arguments that are all known (closed
+constructor applications), this is the first clause whose patterns match them. The arithmetic of
+[`std/nat`](../std/nat.md#native-arithmetic) computes on numerals directly, with the value its clauses
+give, and by its case tree on other arguments.
 
 An application whose tree splits on an argument that is not a constructor application (a variable of an
 enclosing function or of a clause, a postulate, a stuck application) stays unevaluated until the argument

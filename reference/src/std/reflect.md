@@ -97,4 +97,5 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `derived : sym -> bool` | whether a constant is derived |
 
 A primitive is declared `x : A = %builtin p.`; it is an error ([E0103](../errors/E0103.md)) if `A` is not
-the type of the primitive `p`.
+the type of the primitive `p`. [`std/eq`](eq.md#decidable-equality-of-atomic-values) declares two more,
+which state what `same` decides as proofs, and defines the decidable equality of atomic values with them.

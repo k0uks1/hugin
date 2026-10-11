@@ -1,0 +1,7 @@
+(* #186 P2: an opaque definition still counts for the termination check: `loop` calls itself through
+   `step`, which would prove `empty` (E0912) *)
+%use "std/eq".
+loop : nat -> empty. (*~ E0912 *)
+step : nat -> empty = [n] loop n.
+%opaque step.
+loop N = step N.

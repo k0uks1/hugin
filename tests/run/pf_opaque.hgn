@@ -1,0 +1,32 @@
+(* #186 P2: opaque definitions and functions (reference: meta/index): checked once, never unfolded or
+   evaluated, and not reported as unused (W0003) *)
+%use "std/eq".
+%use "std/nat".
+
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+
+(* a theorem that nothing uses: no W0003 *)
+sixteen : eq (plus 0 16) 16 = zeroPlus 16.
+
+(* later items use the statements of opaque items, not their proofs *)
+again : eq 16 (plus 0 16) = sym sixteen.
+%opaque zeroPlus sixteen again.
+
+(* an opaque function or definition is a constant to the rest of the program: `double 2` stays as it
+   is, and so does `four`, so their equality is proved by `refl` only for equal terms *)
+double : nat -> nat.
+double 0 = 0.
+double (N + 1) = double N + 2.
+four : nat = double 2.
+%opaque double four.
+same4 : eq four four = refl.
+sameApp : eq (double 2) (double 2) = refl.
+%opaque same4 sameApp.
+
+(* a definition that is not opaque and not used is still reported *)
+unused : nat = 3.
+
+shown : int -> rel.
+shown (toInt (plus 0 16)).

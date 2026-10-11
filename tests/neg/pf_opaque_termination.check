@@ -1,0 +1,12 @@
+error[E0912]: cannot show that `loop` terminates
+ --> tests/neg/pf_opaque_termination.hgn:4:1
+  |
+4 | loop : nat -> empty. (*~ E0912 *)
+  | ^^^^ possibly non-terminating
+...
+7 | loop N = step N.
+  | ---------------- in this clause: `step N`
+  |
+  = note: meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls
+
+1 error found

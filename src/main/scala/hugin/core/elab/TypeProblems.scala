@@ -70,6 +70,13 @@ enum TypeProblem extends Problem:
    *  scope (shown as `x : A`). */
   case UnsolvedGoal(name: Option[String], goal: String, stage: String, context: List[String], at: Span)
 
+  /** `f {x := e}` (reference: meta/functions) where `fn` has no implicit argument `x` before its next
+   *  explicit argument: `available` are the names it accepts there. */
+  case NoImplicitNamed(name: String, fn: String, available: List[String], at: Span)
+
+  /** `{x := e}` outside the arguments of an application or the patterns of a clause. */
+  case NamedArgumentAlone(at: Span)
+
   def code: Code = this match
     case _: ImplicitBinderAlone | _: UnknownOperator | _: NotAParameterName => Code.E0001
     case _: IntegerOutOfRange => Code.E0003
@@ -85,6 +92,7 @@ enum TypeProblem extends Problem:
     case _: NotStaged => Code.E0909
     case _: IncompleteHead | _: InvalidHead => Code.E0910
     case _: UnsolvedGoal => Code.E0924
+    case _: NoImplicitNamed | _: NamedArgumentAlone => Code.E0926
 
   def primary: Span = this match
     case ImplicitBinderAlone(s) => s
@@ -115,6 +123,8 @@ enum TypeProblem extends Problem:
     case IncompleteHead(s) => s
     case InvalidHead(_, s) => s
     case UnsolvedGoal(_, _, _, _, s) => s
+    case NoImplicitNamed(_, _, _, s) => s
+    case NamedArgumentAlone(s) => s
 
   def message: Msg = this match
     case _: ImplicitBinderAlone => msg"implicit binders must be followed by `->`"
@@ -148,6 +158,8 @@ enum TypeProblem extends Problem:
     case _: IncompleteHead => msg"incomplete rule head"
     case _: InvalidHead => msg"invalid rule head"
     case UnsolvedGoal(n, _, _, _, _) => msg"unsolved goal ${Src("?" + n.getOrElse(""))}"
+    case NoImplicitNamed(n, f, _, _) => msg"${Src(f)} has no implicit argument ${Src(n)} here"
+    case _: NamedArgumentAlone => msg"an implicit argument by name outside an application"
 
   override def primaryLabel: Msg = this match
     case _: ImplicitBinderAlone => msg"expected `{A : T} -> B`"
@@ -179,6 +191,8 @@ enum TypeProblem extends Problem:
     case _: IncompleteHead => msg"missing arguments"
     case InvalidHead(t, _) => msg"this has type ${Src(t)}"
     case UnsolvedGoal(_, g, _, _, _) => msg"goal: ${Src(g)}"
+    case _: NoImplicitNamed => msg"no implicit argument of this name"
+    case _: NamedArgumentAlone => msg"expected an argument of an application"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -227,6 +241,11 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(_, g, st, ctx, _) =>
       msg"the hole stands for ${Lit(if st == "object" then "object code" else "a meta value")} of type ${Src(g)}" ::
         (if ctx.isEmpty then Nil else List(msg"in scope: ${Lit(ctx.map(x => s"`$x`").mkString(", "))}"))
+    case NoImplicitNamed(_, f, Nil, _) => List(msg"${Src(f)} takes no implicit argument before its next explicit argument")
+    case NoImplicitNamed(_, f, as, _) =>
+      List(msg"${Src(f)} takes the implicit arguments ${Lit(as.map(a => s"`$a`").mkString(", "))} before its next explicit argument")
+    case _: NamedArgumentAlone =>
+      List(msg"`{x := e}` gives the implicit argument `x` of the function it is applied to, or binds it in a pattern")
     case _ => Nil
 
   override def helps: List[Msg] = this match

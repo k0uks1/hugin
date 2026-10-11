@@ -107,6 +107,25 @@ first (head (vcons 7 (vcons 8 vnil))).
 first 7.
 ```
 
+Literals of `int`, `float` and `string` and the symbols of `sym`
+([Reflection](../reflection.md#symbols-and-derived-constants)), the values of the meta types without
+constructors, are equal only if they are the same value: two distinct literals or two distinct symbols
+conflict, as two distinct constructors do, and two equal ones are removed from the equations. So an
+equation between distinct literals or symbols is refuted, and a function on its proofs has the single
+absurd clause. The following program refutes such equations with the identity family of
+[`std/eq`](../std/eq.md).
+
+```hugin
+%use "std/eq".
+r = %import "std/reflect".
+city : type.
+berlin, paris : city.
+distinctCities : eq {A := r.sym} '( berlin ) '( paris ) -> empty.
+distinctCities ().
+distinctNames : eq "berlin" "paris" -> empty.
+distinctNames ().
+```
+
 An equation that unification can neither solve nor refute yet, such as an index `double N` (a stuck
 function application) against `0`, is *postponed* until the other equations make no more progress, as
 in Agda's unifier: a later equation may solve `N`, after which `double N` reduces. Unification is

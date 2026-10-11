@@ -1,0 +1,74 @@
+(* std/eq: propositions as types (reference: std/eq). The identity family `eq` with its eliminator and
+   lemmas, written as ordinary clauses: J is dependent matching on `refl`, and K holds, since index
+   unification deletes `x = x`. Then the empty type, the unit type, sums, logical equivalence, decidable
+   propositions, and the decidable equality of atoms. The families are closed: no other file can add a
+   constructor to them. *)
+%use "std/reflect" (bool, true, false, same).
+
+(* `eq x y`: `x` and `y` are equal; `refl` is the only proof, of `eq x x` *)
+eq : {A : Type} -> A -> A -> Type.
+refl : {A : Type} -> {x : A} -> eq x x.
+
+(* J, the eliminator: a property of `y` and of the proof of `eq x y` holds for every `y` and proof if
+   it holds for `x` and `refl` *)
+eqElim : {A : Type} -> {x : A} -> (P : (y : A) -> eq x y -> Type) -> P x refl -> {y : A} -> (e : eq x y) -> P y e.
+eqElim P H refl = H.
+
+sym : {A : Type} -> {x y : A} -> eq x y -> eq y x.
+sym refl = refl.
+
+trans : {A : Type} -> {x y z : A} -> eq x y -> eq y z -> eq x z.
+trans refl Q = Q.
+
+cong : {A B : Type} -> {x y : A} -> (f : A -> B) -> eq x y -> eq (f x) (f y).
+cong F refl = refl.
+
+(* transport along an equation *)
+subst : {A : Type} -> {x y : A} -> (P : A -> Type) -> eq x y -> P x -> P y.
+subst P refl H = H.
+
+(* K: any two proofs of the same equation are equal (uniqueness of identity proofs) *)
+uip : {A : Type} -> {x y : A} -> (p q : eq x y) -> eq p q.
+uip refl refl = refl.
+
+(* The empty type: no constructor, so a function out of it has the single absurd clause *)
+empty : Type.
+emptyElim : {A : Type} -> empty -> A.
+emptyElim ().
+
+(* `false` and `true` are distinct constructors, so their equation is absurd *)
+absurdBool : {A : Type} -> eq false true -> A.
+absurdBool ().
+
+(* The unit type *)
+unit : Type.
+tt : unit.
+
+(* Sums: a proof of `either A B` is a proof of `A` or one of `B` *)
+either : Type -> Type -> Type.
+left : A -> either A B.
+right : B -> either A B.
+
+(* Logical equivalence *)
+iff : Type -> Type -> Type = [a] [b] { to : a -> b, from : b -> a }.
+
+(* Decidable propositions: a proof of `A` or a refutation of it *)
+dec : Type -> Type.
+yes : A -> dec A.
+no : (A -> empty) -> dec A.
+
+(* What `same` decides on atoms (literals, numerals, symbols), as evidence: two trusted primitives
+   (reference: std/eq). `sameTrue` is `refl` on two equal atoms; `apart` never reduces, as its result
+   type is empty. On closed distinct atoms `apart` agrees with the absurd clause that index unification
+   accepts there, by its conflict rule for distinct atoms. *)
+sameTrue : {A : Type} -> {a b : A} -> eq (same a b) true -> eq a b = %builtin sameTrue.
+apart : {A : Type} -> {a b : A} -> eq (same a b) false -> eq a b -> empty = %builtin apart.
+
+(* Decidable equality of atoms: `yes` with `refl` on equal atoms, `no` on distinct ones; stuck on
+   anything else, as `same` is *)
+decEq : {A : Type} -> (a b : A) -> dec (eq a b).
+decEq X Y = pick (same X Y) refl
+  where
+    pick : (s : bool) -> eq (same X Y) s -> dec (eq X Y).
+    pick true E = yes (sameTrue E).
+    pick false E = no (apart E).

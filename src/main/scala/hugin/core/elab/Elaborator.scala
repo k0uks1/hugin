@@ -94,6 +94,10 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  formula functions of a cycle (E0105). Their uses drop the items using them without further errors. */
   var leftOutMembers: Set[(Name, Int)] = Set.empty
 
+  /** The names that the file's `%opaque` directives name (reference: meta/index): its definitions and
+   *  functions of these names are opaque. */
+  var opaque: Set[Name] = Set.empty
+
   /** The names defined by clauses in the module: their declarations declare functions. */
   val functionNames: Names = Names("functionNames")
 
@@ -175,6 +179,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     val s = ElabState(scope.copy())
     s.functionNames.copyFrom(functionNames)
     s.declaredHere.copyFrom(declaredHere)
+    s.opaque = opaque
     s.opened0 = opened0
     s.exported0 = exported0
     s.signatures0 = signatures0

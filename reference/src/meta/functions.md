@@ -40,8 +40,8 @@ At an application of a function with implicit arguments, the compiler inserts a 
 implicit argument and solves it by higher-order pattern unification with the types around it. An unknown
 belongs to the item that creates it (see [the order of items](index.md)): it is solved within that item,
 and later items cannot solve it. It is an error ([E0903](../errors/E0903.md)) if an implicit argument or
-a type is not determined by the end of its item. Implicit arguments cannot be written explicitly; they
-are inferred from the explicit arguments and the expected type.
+a type is not determined by the end of its item. An implicit argument is inferred from the explicit
+arguments and the expected type, unless it is given by name ([below](#implicit-arguments-by-name)).
 
 Unification compares two terms up to their values: a definition is equal to its value, and an
 application of a function defined by clauses that reduces is equal to its result. Two applications of
@@ -97,6 +97,58 @@ result (compose inc double 20).
 ```output
 result 41.
 ```
+
+## Implicit arguments by name
+
+```text
+NamedArg  ::= "{" (VAR | NAME) ":=" Expr "}"
+App       ::= Expr (Expr | NamedArg)
+```
+
+An implicit argument can be given by the name of its binder: `f {x := e}` applies `f` to `e` as its
+implicit argument `x`. `:=` is the two characters `:` and `=` without a space between them. The binder
+must be one of the implicit binders of `f`'s type before its next explicit binder, and the implicit
+arguments before it are inserted as unknowns, as for an application without names. `e` is checked against
+the binder's type. The implicit arguments after `x` are not inserted yet: a further `{y := e'}` may give
+one of them, and the next explicit argument or the expected type inserts the others. The names are those
+of the declaration's binders, also of the binders that the free uppercase variables of a declaration give
+([above](#implicit-arguments)): `vcons : A -> vec A N -> vec A (N + 1).` has the implicit binders `A` and
+`N`.
+
+It is an error ([E0926](../errors/E0926.md)) if no implicit binder before the next explicit one has the
+name, or if `{x := e}` is not an argument of an application or a [pattern](clauses.md#implicit-patterns).
+
+An implicit argument is given by name where nothing else determines it, as the middle point `y` of
+`trans` from [`std/eq`](../std/eq.md) below, and where its explicit arguments determine it only up to an
+application of a function that does not reduce:
+
+```hugin,run
+%use "std/eq".
+%use "std/nat".
+vec : Type -> nat -> Type.
+vnil : vec A 0.
+vcons : A -> vec A N -> vec A (N + 1).
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+cast : {n : nat} -> vec int (plus 0 n) -> vec int n.
+cast {n := N} V = subst (vec int) (zeroPlus N) V.
+addAll : vec int N -> int.
+addAll vnil = 0.
+addAll (vcons X Xs) = X + addAll Xs.
+total : int -> rel.
+total (addAll (cast {n := 2} (vcons 40 (vcons 2 vnil)))).
+```
+
+```output
+total 42.
+```
+
+Without `{n := 2}`, the type of the argument, `vec int 2`, would have to match `vec int (plus 0 ?n)`,
+which does not determine the unknown `?n` ([E0901](../errors/E0901.md)).
+
+> **Rationale.** The spelling is that of Lean 4 (`f (x := e)`) and Rocq (`f (x:=e)`), with Agda's braces
+> (`f {x = e}`): `{x = e}` is already a [record value](records.md#syntax) passed as an explicit argument.
 
 ## Definitions
 
