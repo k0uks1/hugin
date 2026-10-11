@@ -4,7 +4,7 @@
 //     from `hugin run` (X.flags translated to options);
 //   - every tests/json program: Hugin.check's diagnostics must equal the JSON lines of X.check;
 //   - the highlighting, the editor's analysis and completion (Hugin.highlight, Hugin.analyse,
-//     Hugin.complete, Hugin.actions) on small programs;
+//     Hugin.complete, Hugin.actions, Hugin.expansion) on small programs;
 // and prints the bundle's size. Usage, from the repository root: node scripts/js-golden.mjs [web/target/bundle]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -142,6 +142,14 @@ if (split?.kind !== 'rewrite' || split.edits[0]?.from !== clause || split.edits[
   fail('actions', 'unexpected actions: ' + JSON.stringify(acts));
 worker.onmessage?.({ data: { id: 10, op: 'actions', source: aSource, from: aOff, to: aOff } });
 if (!posted.at(-1)?.result?.actions?.length) fail('worker', 'actions: ' + JSON.stringify(posted.at(-1)));
+
+// the expansion (Hugin.expansion) of a functor application, and the inlay hints of the table
+const eSource = 'p : int -> rel.\n%input p.\nmk (r : int -> rel) = { s : int -> rel. s X :- r X. }.\nm = mk p.\n%output m.s.\n';
+const exp = JSON.parse(Hugin.expansion(eSource, eSource.indexOf('mk p')));
+if (!exp.text?.includes('m.s X :- p X.')) fail('expansion', 'unexpected expansion: ' + JSON.stringify(exp));
+if (JSON.parse(Hugin.expansion(eSource, 0)).text !== null) fail('expansion', 'an expansion where there is none');
+const hints = JSON.parse(Hugin.analyse('ident : A -> A = [x] x.\nthree : int = ident 3.\n')).info?.hints;
+if (!hints?.some((h) => h[1] === '{int}' && h[3] === 'implicit')) fail('analyse', 'no implicit hint: ' + JSON.stringify(hints));
 
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');

@@ -8,14 +8,15 @@
 import { createEditor, showDiagnostics, showTokens, clear, setProgram, offset, applySuggestion } from "./editor.js";
 import { views, counts, h } from "./results.js";
 import { encodeProgram, readFragment } from "./share.js";
-import { showInfo } from "./ide.js";
+import { showInfo, code } from "./ide.js";
+import { showHints, setHintsShown, savedChoice } from "./hints.js";
 import { EditorView } from "@codemirror/view";
 
 const BUDGET_MS = 10_000;
 const $ = (id) => document.getElementById(id);
 const ui = {
   run: $("run"), check: $("check"), example: $("example"), phase: $("phase"), status: $("status"),
-  share: $("share"), editor: $("editor"), summary: $("summary"), tabs: $("tabs"), body: $("body"),
+  share: $("share"), hints: $("hints"), editor: $("editor"), summary: $("summary"), tabs: $("tabs"), body: $("body"),
 };
 
 // --- the compiler worker -------------------------------------------------------------------------
@@ -65,6 +66,25 @@ async function actions(source, from, to) {
   }
 }
 
+// the expansion of the meta code at an offset (the Ctrl-. menu's "Show expansion"), as completion
+async function expansion(source, offset) {
+  if (busy || !available) return null;
+  try {
+    const result = await request("expansion", source, "", { offset });
+    return result.version === version ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// an expansion, in the results' Expansion tab
+let expanded = null;
+function onExpansion(text) {
+  expanded = text;
+  tab = "expansion";
+  renderResult();
+}
+
 // completion: the compiler's candidates at an offset, or nothing while a run or check is busy (completion
 // does not queue behind a long run) or when the text changed before the answer came
 async function complete(source, offset) {
@@ -95,6 +115,7 @@ function analyseSoon() {
       if (result.version === version) {
         showTokens(editor, result.tokens);
         showInfo(editor, result.info);
+        showHints(editor, result.info && result.info.hints);
       }
     } catch (_) {
       // a failed or stopped analysis keeps the current colours and table
@@ -123,8 +144,8 @@ function onReady(info) {
 
 function renderResult() {
   ui.tabs.replaceChildren(); ui.body.replaceChildren();
-  if (!current) return ui.body.append(h("p", { class: "empty" }, "Run (Ctrl-Enter) shows the answers here."));
-  const all = views(current, {
+  if (!current && expanded == null) return ui.body.append(h("p", { class: "empty" }, "Run (Ctrl-Enter) shows the answers here."));
+  const all = !current ? [] : views(current, {
     phase: ui.phase.value,
     onFix: (s) => applySuggestion(editor, s),
     onGoto: (span) => {
@@ -133,7 +154,12 @@ function renderResult() {
       editor.focus();
     },
   });
-  if (!all.some(([key]) => key === tab)) tab = "answers";
+  if (expanded != null) all.push(["expansion", "Expansion", () => {
+    const pre = code(expanded.replace(/\n$/, ""), true);
+    pre.className = "text hugin";
+    return pre;
+  }]);
+  if (!all.some(([key]) => key === tab)) tab = all[0][0];
   for (const [key, label, render] of all) {
     const selected = key === tab;
     ui.tabs.append(h("button", { type: "button", role: "tab", "aria-selected": String(selected),
@@ -163,6 +189,7 @@ async function compile(op) {
       showDiagnostics(editor, result.diagnostics);
       showTokens(editor, result.tokens);
       showInfo(editor, result.info);
+      showHints(editor, result.info && result.info.hints);
     }
     ui.summary.textContent = counts(result.diagnostics);
     status(`${op === "run" ? "ran" : "checked"} in ${ms} ms`, errors ? "error" : "");
@@ -201,10 +228,12 @@ function onEdit() {
   analyseSoon();
 }
 
-const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete, actions });
+const editor = createEditor(ui.editor, "", { onRun: () => compile("run"), onEdit, complete, actions, expansion, onExpansion });
 startWorker();
 ready.then(onReady);
 
+ui.hints.checked = savedChoice();
+ui.hints.onchange = () => setHintsShown(editor, ui.hints.checked);
 ui.run.onclick = () => compile("run");
 ui.check.onclick = () => compile("check");
 ui.share.onclick = share;
@@ -212,7 +241,7 @@ ui.example.onchange = () => {
   if (!ui.example.value) return;
   loadExample(ui.example.value);
   history.replaceState(null, "", "#example=" + encodeURIComponent(ui.example.value));
-  current = null; renderResult(); ui.summary.textContent = "";
+  current = null; expanded = null; renderResult(); ui.summary.textContent = "";
 };
 
 async function init() {

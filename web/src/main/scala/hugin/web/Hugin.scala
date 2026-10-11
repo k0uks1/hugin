@@ -60,6 +60,12 @@ object Hugin:
   @JSExport def actions(source: String, from: Int, to: Int, options: js.UndefOr[js.Any] = js.undefined): String =
     Playground.actions(source, from, to, options)
 
+  /** What the meta code at an offset (UTF-16 code units) expanded to: the object rules and queries of the
+   *  directive or functor application around it, as Hugin text: `{ "version": 1, "text": … }` (null if
+   *  none; `docs/design/web-ide.md`, 5.2). */
+  @JSExport def expansion(source: String, offset: Int, options: js.UndefOr[js.Any] = js.undefined): String =
+    Playground.expansion(source, offset, options)
+
   /** Makes the current Web Worker answer messages ([[WorkerMain]]); for a worker without a handler of
    *  its own: `importScripts("hugin.js"); Hugin.serveWorker()`. */
   @JSExport def serveWorker(): Unit = WorkerMain.serve()
