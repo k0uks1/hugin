@@ -6,24 +6,533 @@ prove properties of object-level Datalog programs, such as "this derived relatio
 implemented. Written against `ccr-48027e29-daam41` at 28dbcb1. No program in this note was compiled: the
 task allowed no builds, and the only launcher on the machine predates the redesign. Statements about
 today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
+Chapter 1 was added after the designer's first review: it shows the language with every proposed
+addition and two complete proofs, before the analysis that justifies them.
 
-Contents: 1 recommendations, 2 Hugin today, 3 gap analysis, 4 logical consistency today, 5 prior art,
-6 a meta-level semantics of Datalog programs, 7 worked examples, 8 batches, 9 decisions for the
-designer, 10 sources.
+Contents: 1 the end state (a tour of the additions and two complete proofs), 2 recommendations,
+3 Hugin today, 4 gap analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of
+Datalog programs, 8 worked examples against hand-written families, 9 batches, 10 decisions for the
+designer, 11 sources.
 
-## 1. Recommendations
+## 1. The end state: proving with Hugin
+
+This chapter shows the language as it would be once batches P1–P8 (section 9) are in, and then
+proves two properties end to end, as a user would write them. Everything here is hypothetical syntax,
+built on today's syntax from `reference/src`: clauses, implicit binders `{x : A}`, records, `where`
+blocks, directives `%name …`, and functors over signatures. Places marked **(proposal)** are syntax
+the designer has not yet decided (D11 in section 10). Nothing in this chapter has been compiled. The
+programs were checked by hand against the rules in sections 3–7 and in the reference.
+
+### 1.1 A tour of the additions
+
+**Postulates, `--safe` and assumptions.** A constant without a value must say so. `--safe` rejects
+it, and `%assumptions` lists what a definition rests on.
+
+```hugin
+plusComm : (m n : nat) -> eq (plus m n) (plus n m) = %postulate.   (* (proposal) marker *)
+%assumptions sameFacts.
+```
+
+```text
+$ hugin check --safe closure.hgn
+error[E0925]: postulate `plusComm` is not allowed with --safe          (proposal: code and text)
+$ hugin check closure.hgn
+note: assumptions of `sameFacts`: none (no postulates, no derived adequacy lemmas)
+```
+
+A postulate is a marked axiom, and a declaration without a marker that is not a family or a
+constructor first draws a warning, then an error. → **P1**.
+
+**`std/eq`.** This is the identity family and its library, written as ordinary clauses: J is
+dependent matching on `refl`, with K (D9).
+
+```hugin
+%use "std/eq".
+eq : {A : Type} -> A -> A -> Type.                 (* (proposal) an implicit binder in a family's type *)
+refl : {A : Type} -> {x : A} -> eq x x.
+sym : {A : Type} -> {x y : A} -> eq x y -> eq y x.
+sym refl = refl.
+trans : {A : Type} -> {x y z : A} -> eq x y -> eq y z -> eq x z.
+trans refl Q = Q.
+cong : {A B : Type} -> {x y : A} -> (f : A -> B) -> eq x y -> eq (f x) (f y).
+cong F refl = refl.
+subst : {A : Type} -> {x y : A} -> (P : A -> Type) -> eq x y -> P x -> P y.
+subst P refl H = H.
+empty : Type.
+unit : Type.  tt : unit.
+either : Type -> Type -> Type.  left : A -> either A B.  right : B -> either A B.
+iff : Type -> Type -> Type = [a] [b] { to : a -> b, from : b -> a }.
+```
+
+A user lemma about `std/nat`, whose `plus` recurses on its second argument:
+
+```hugin
+zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+```
+
+`plus 0 (N + 1)` evaluates to `suc (plus 0 N)` by the second clause of `plus`, so `cong suc (zeroPlus N)`
+has the goal's type. The family is closed in `std/eq`, so no program can add a constructor. → **P2**.
+
+**Explicit implicit arguments and implicit patterns.** An implicit argument can be given by name, and
+a constructor's implicit argument can be bound in a pattern.
+
+```hugin
+three : eq (plus 0 3) 3 = zeroPlus 3.
+viaTrans : eq (plus 0 (plus 0 3)) 3 = trans {y := plus 0 3} (zeroPlus (plus 0 3)) three.
+src : {m : graph.model} -> {x y : m.node} -> lin m x y -> m.node.
+src {x := X} P = X.
+middle : {m : graph.model} -> {x z : m.node} -> lin m x z -> m.node.
+middle (lin1 E) = x.
+middle (lin2 {Y := W} E P) = W.                (* binds the rule's variable Y *)
+```
+
+The **(proposal)** spelling is `:=`: `{n = e}` would clash with a record value passed as an explicit
+argument (reference `meta/records.md`, "Syntax"). → **P2**.
+
+**Opaque theorems.** A theorem is checked once, never unfolded or evaluated afterwards, and not
+reported as unused.
+
+```hugin
+%opaque sameFacts.      (* (proposal) a local directive, like %input *)
+```
+
+Opaque definitions keep compile time independent of proof size: NOTES "Glued evaluation" says a
+definition's unfolded value is otherwise computed eagerly. They are also exempt from W0003. → **P2**.
+
+**`with` and `rewrite`.** `with` abstracts a term of the goal and splits on its value; `rewrite`
+rewrites the goal with an equation.
+
+```hugin
+maxN : nat -> nat -> nat = [m] [n] if (less m n) n m.
+maxIs : (m n : nat) -> either (eq (maxN m n) m) (eq (maxN m n) n).
+maxIs M N with less M N.                            (* (proposal) syntax *)
+maxIs M N | true = right refl.
+maxIs M N | false = left refl.
+
+twice : (n : nat) -> eq (plus 0 (plus 0 n)) n.
+twice N rewrite zeroPlus N = zeroPlus N.            (* (proposal) syntax *)
+```
+
+`with` normalises the goal, unfolding definitions such as `maxN` but not functions by clauses, then
+abstracts `less M N`. In the branch `true`, `if true N M` evaluates to `N`. `rewrite zeroPlus N` turns
+the goal into `eq (plus 0 N) N`; the clause is equivalent to
+`twice N = trans (cong (plus 0) (zeroPlus N)) (zeroPlus N)`. Both
+desugar to `where`-local functions and `subst`, and so add no rule to the core. → **P3**.
+
+**`decide`.** This is proof by evaluation. A boolean checker comes with a soundness lemma, and a closed
+instance is proved by `tt`, because `so true` evaluates to `unit`.
+
+```hugin
+%use "std/decide".
+so : bool -> Type.
+so true = unit.
+so false = empty.
+lt : nat -> nat -> Type.
+ltz : {n : nat} -> lt 0 (n + 1).
+lts : {m n : nat} -> lt m n -> lt (m + 1) (n + 1).
+lessSound : (m n : nat) -> so (less m n) -> lt m n.
+lessSound M 0 ().
+lessSound 0 (N + 1) T = ltz.
+lessSound (M + 1) (N + 1) T = lts (lessSound M N T).
+pair : Type = { fst : nat, snd : nat }.
+decider : (A : Type) -> (A -> Type) -> Type = [a] [p] { check : a -> bool, sound : (x : a) -> so (check x) -> p x }.
+decide : {A : Type} -> {P : A -> Type} -> (d : decider A P) -> (x : A) -> so (d.check x) -> P x =
+  [d] [x] [t] d.sound x t.
+ltDec : decider pair ([p] lt p.fst p.snd) = { check = [p] less p.fst p.snd, sound = [p] lessSound p.fst p.snd }.
+big : lt 3 100000 = decide ltDec { fst = 3, snd = 100000 } tt.
+```
+
+`less 3 100000` takes one native step (reference `std/nat.md`), so `so (less 3 100000)` is `unit`.
+`lessSound M 0 ()` is an absurd clause: `less M 0` evaluates to `false` by the first clause of `less`,
+and `so false` is the empty type. → **P4** (`std/decide`, and the `nat` lemmas).
+
+**The deep semantics.** This is a library over the reflective types: values, ground atoms, databases as
+predicates, and derivability as an inductive family (section 7.2).
+
+```hugin
+%use "std/semantics".
+value : Type.
+vint : zint -> value.  vstr : string -> value.  vfact : sym -> list value -> value.
+gatom : Type = { rel : sym, args : list value }.
+fact : sym -> list value -> gatom = [s] [vs] { rel = s, args = vs }.
+db : Type = gatom -> Type.
+nolower : db = [a] empty.
+derivable : list rule -> db -> db -> gatom -> Type.          (* rules, lower strata, input; section 7.2 *)
+positive : list rule -> Type.                                (* no `not`, no aggregate *)
+monotone : {rs : list rule} -> {d e : db} -> positive rs -> ((a : gatom) -> d a -> e a) ->
+           {a : gatom} -> derivable rs nolower d a -> derivable rs nolower e a.
+```
+
+`monotone` is proved in the library: a negation-free rule set derives more facts from more input
+facts. A user states theorems about any `list rule`, such as the rules of a module-wide directive's
+result (section 8.3). → **P5** (positive Datalog∃!), **P6** (negation, aggregates).
+
+**Derived semantic families.** `%semantics` derives, for a relation of a functor body, an inductive
+family over models of the functor's signature, with one constructor per rule.
+
+```hugin
+%use "std/graph".
+%semantics tc.path as lin (lin1, lin2).        (* (proposal) syntax and naming *)
+(* derived; --print-after elaborate shows: *)
+graph.model : Type = { node : Type, edge : node -> node -> Type }.
+lin : (m : graph.model) -> m.node -> m.node -> Type.
+lin1 : {m : graph.model} -> {X Y : m.node} -> m.edge X Y -> lin m X Y.
+lin2 : {m : graph.model} -> {X Z Y : m.node} -> m.edge X Y -> lin m Y Z -> lin m X Z.
+```
+
+The rules of `tc` in `std/graph` are `path X Y :- g.edge X Y.` and `path X Z :- g.edge X Y, path Y Z.`
+The constructors take the rules in order. Their implicit binders are the rule's variables, named as in
+the rule, in order of first occurrence. Their explicit arguments are the body atoms, in order. An object
+type of the signature becomes a carrier in `Type`, and a relation becomes a predicate (section 7.3).
+The user names the family and its constructors, so patterns need no qualified names. → **P7**.
+
+**The adequacy link.** `%semantics` also derives the lemma that ties the family to the deep semantics of
+the body's reified rules. It is a trusted lemma at first, and a generated proof later.
+
+```hugin
+(* derived, alongside lin: *)
+lin.rules : list rule.                 (* the reified rules of tc's body *)
+lin.rel : sym.                         (* the body's `path` *)
+lin.over : db -> graph.model.          (* carrier `value`; `edge` reads the input database *)
+lin.adequate : (d : db) -> (x y : value) ->
+  iff (lin (lin.over d) x y) (derivable lin.rules nolower d (fact lin.rel [x, y])).
+```
+
+```text
+$ hugin check closure.hgn --print-assumptions lin.adequate
+note: `lin.adequate` is a derived adequacy lemma (trusted, P7a)
+```
+
+Below the language, the compiler and the engine guarantee that an instance `t = tc G` prints
+`t.path a b` in a run exactly when `derivable lin.rules nolower d (fact lin.rel [a, b])` holds for that
+run's input `d`. This guarantee is trusted, or checked per run with `--certify`. → **P7** (P7a trusted,
+P7b generated proof).
+
+**`zint`.** These are the integers in proofs: defined by clauses over `nat`, native on numerals like
+`std/nat`, and checked for 64 bits where the object level is.
+
+```hugin
+%use "std/zint".
+zint : Type.
+pos : nat -> zint.            (* 0, 1, 2, … *)
+negsuc : nat -> zint.         (* -1, -2, … *)
+zadd : zint -> zint -> zint.
+add64 : zint -> zint -> option zint.        (* none if the sum does not fit 64 bits *)
+small : eq (zadd (pos 2) (negsuc 4)) (negsuc 2) = refl.
+```
+
+`add64` is the semantics of the object level's `+`, which is undefined on overflow (reference
+`object/arithmetic.md`). Whether `-3` may be written for `negsuc 2` is a **(proposal)**. → **P5**.
+
+**Derivations and certified runs.** `%derivations` exists today. P8 adds negative premises, an export
+in a verified checker's format, and a run mode that checks the output against `std/semantics`.
+
+```hugin
+%derivations eu.areached.
+```
+
+```text
+$ hugin run --export-proofs proofs.json europe.hgn        (proposal: flag; Tantow et al.'s JSON)
+$ hugin run --certify --facts roads.facts europe.hgn       (proposal: flag and report)
+eu.areached de.
+eu.areached fr.
+certified: 41 facts; 41 derivations checked by std/semantics.check (check.sound);
+model check passed; 1 query, no answers
+```
+
+`--certify` replaces trust in the engine, for that run, by a check whose soundness is proven in
+Hugin. → **P8a** (export), **P8b** (`--certify`).
+
+### 1.2 Proof A: an optimising rewrite derives exactly the same facts
+
+**The program.** `std/graph` computes the transitive closure right-linearly: one edge, then a path. An
+optimiser may prefer the non-linear *doubling* rule, which needs logarithmically many rounds. The user
+writes the variant as a functor, so the statement covers every graph:
+
+```hugin
+%use "std/graph".
+%use "std/eq".
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  @base path X Y :- g.edge X Y.
+  @join path X Z :- path X Y, path Y Z.
+}.
+
+%semantics tc.path as lin (lin1, lin2).
+%semantics tc2.path as dbl (dbl1, dbl2).
+```
+
+`%semantics` derives `lin`, `lin1` and `lin2` as in 1.1, and for `tc2`:
+
+```hugin
+dbl : (m : graph.model) -> m.node -> m.node -> Type.
+dbl1 : {m : graph.model} -> {X Y : m.node} -> m.edge X Y -> dbl m X Y.
+dbl2 : {m : graph.model} -> {X Z Y : m.node} -> dbl m X Y -> dbl m Y Z -> dbl m X Z.
+```
+
+**The statement.** For every model, `lin` and `dbl` relate the same nodes:
+
+```hugin
+sameFacts : {m : graph.model} -> {x y : m.node} -> iff (lin m x y) (dbl m x y).
+```
+
+**The proof**, with every lemma:
+
+```hugin
+(* the linear closure is transitive *)
+linTrans : {m : graph.model} -> {x y z : m.node} -> lin m x y -> lin m y z -> lin m x z.
+linTrans (lin1 E) Q = lin2 E Q.
+linTrans (lin2 E P) Q = lin2 E (linTrans P Q).
+
+(* every linear derivation is a doubling one *)
+toDbl : {m : graph.model} -> {x y : m.node} -> lin m x y -> dbl m x y.
+toDbl (lin1 E) = dbl1 E.
+toDbl (lin2 E P) = dbl2 (dbl1 E) (toDbl P).
+
+(* every doubling derivation is a linear one *)
+toLin : {m : graph.model} -> {x y : m.node} -> dbl m x y -> lin m x y.
+toLin (dbl1 E) = lin1 E.
+toLin (dbl2 P Q) = linTrans (toLin P) (toLin Q).
+
+sameFacts : {m : graph.model} -> {x y : m.node} -> iff (lin m x y) (dbl m x y) =
+  { to = toDbl, from = toLin }.
+%opaque sameFacts.
+```
+
+Each case, checked by hand:
+
+- `linTrans (lin1 E) Q`: `E : m.edge x y` and `Q : lin m y z`, so `lin2 E Q : lin m x z`.
+- `linTrans (lin2 E P) Q`: `E : m.edge x Y` and `P : lin m Y y`, so `linTrans P Q : lin m Y z` and
+  `lin2 E (…) : lin m x z`.
+- `toDbl (lin2 E P)`: `dbl1 E : dbl m x Y` and `toDbl P : dbl m Y y`, joined by `dbl2`.
+- `toLin (dbl2 P Q)`: `P : dbl m x Y` and `Q : dbl m Y y`, so `linTrans` joins the two linear
+  derivations.
+
+`sameFacts` is a definition with a declared type, `x : A = e.` (reference `meta/index.md`, "Meta
+items"); the statement above is its type.
+
+**What the compiler checks.** For each function, coverage: both constructors of the matched family,
+whose indices unify with any `x`, `y`. Termination: `P` and `Q` are variables inside the matched
+constructor (reference `meta/termination.md`). Positivity of the derived families, and their universe:
+`graph.model : Type₁`, and `lin`, `dbl : … -> Type₀` because `m` is a fixed index promoted to a
+parameter (D2). The types of every clause. And `--safe`: no postulates. A correct file prints nothing:
+
+```text
+$ hugin check --safe closure.hgn
+$ hugin check closure.hgn --print-assumptions sameFacts
+note: assumptions of `sameFacts`: none
+```
+
+**What the editor shows.** The user writes the statement and a hole, and asks the language server to
+split `P`, as it does today for holes (reference `meta/functions.md`, "Typed holes"):
+
+```hugin
+toLin : {m : graph.model} -> {x y : m.node} -> dbl m x y -> lin m x y.
+toLin P = ?.
+```
+
+The split produces `toLin (dbl1 E) = ?.` and `toLin (dbl2 P Q) = ?.`. Hovering over the second hole
+shows the goal, in E0924's format (`tests/neg/e0924_holes.check`). The constructor's variable `Y` is
+shown by its binder name:
+
+```text
+error[E0924]: unsolved goal `?`
+  --> closure.hgn:27:20
+   |
+27 | toLin (dbl2 P Q) = ?.
+   |                    ^ goal: `lin m x y`
+   |
+   = note: the hole stands for a meta value of type `lin m x y`
+   = note: in scope: `m : graph.model`, `x : m.node`, `y : m.node`, `P : dbl m x Y`, `Q : dbl m Y y`
+   = help: replace the hole with an expression of type `lin m x y`
+```
+
+A mistake gives an ordinary type error. `toDbl (lin2 E P) = dbl2 (toDbl P) (dbl1 E).` is E0901:
+`dbl1 E` has type `dbl m x Y` where `dbl m y ?Z` is expected, and `x` is not `y`. A recursive call
+that does not decrease, such as `toLin (dbl2 P Q) = toLin (dbl2 P Q)`, is E0912.
+
+**The guarantee for a program.** The user's program instantiates both functors on its roads:
+
+```hugin
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+%input road.
+roads : graph = { node = city, edge = road }.
+t1 = tc roads.
+t2 = tc2 roads.
+%output t1.path. %output t2.path.
+```
+
+For every input of `road`, `t1.path` and `t2.path` print the same pairs.
+
+| link | status |
+|---|---|
+| `sameFacts`: `lin` and `dbl` agree on every model | checked by the meta level |
+| `lin.adequate`, `dbl.adequate`: the families equal the deep semantics of the bodies | trusted in P7a (listed by `--print-assumptions`), proven in P7b |
+| `lin.over d` is the model that `t1`'s input determines: carrier `value`, `edge` read from `road` | by construction of the derivation (P7) |
+| staging and reflection of `tc roads`, `tc2 roads` produce exactly those rules | trusted (compiler) |
+| the engine computes the least model | trusted, or checked for each run by `--certify` (P8b) |
+
+**Bridges.** `iff`, `%opaque` and `--print-assumptions` → P1, P2. `%semantics` and adequacy → P7.
+`--certify` → P8b. The core of the proof (`linTrans`, `toDbl`, `toLin`) needs nothing new: written
+against hand-made families (section 8.1), it is accepted by today's language, judging by the reference.
+
+### 1.3 Proof B: a program analysis over-approximates
+
+**The program.** The analysis is a classic of abstract interpretation: reachability on a *coarsened*
+graph. Concrete nodes (cities) map to abstract nodes (countries) through a relation `alpha`. The
+analysis computes the reachable countries. The property: a city that is reached lies only in reached
+countries. So a country the analysis reports as unreached contains no reached city, which is what a
+user relies on when pruning by the analysis.
+
+```hugin
+%use "std/eq".
+
+abstraction : Type = {
+  node : type, edge : node -> node -> rel, seed : node -> rel,
+  anode : type, alpha : node -> anode -> rel }.
+
+coarse (a : abstraction) = {
+  reached : a.node -> rel.
+  @seed reached X :- a.seed X.
+  @step reached Y :- reached X, a.edge X Y.
+  aedge : a.anode -> a.anode -> rel.
+  @lift aedge A B :- a.edge X Y, a.alpha X A, a.alpha Y B.
+  areached : a.anode -> rel.
+  @aseed areached A :- a.seed X, a.alpha X A.
+  @astep areached B :- areached A, aedge A B.
+}.
+
+%semantics coarse.reached as isReached (rseed, rstep).
+%semantics coarse.aedge as isAedge (alift).
+%semantics coarse.areached as isAreached (aseed, astep).
+```
+
+The derived declarations, by the rule of 1.1 (implicit binders in order of first occurrence, body
+atoms as arguments):
+
+```hugin
+abstraction.model : Type = {
+  node : Type, edge : node -> node -> Type, seed : node -> Type,
+  anode : Type, alpha : node -> anode -> Type }.
+isReached : (m : abstraction.model) -> m.node -> Type.
+rseed : {m : abstraction.model} -> {X : m.node} -> m.seed X -> isReached m X.
+rstep : {m : abstraction.model} -> {Y X : m.node} -> isReached m X -> m.edge X Y -> isReached m Y.
+isAedge : (m : abstraction.model) -> m.anode -> m.anode -> Type.
+alift : {m : abstraction.model} -> {A B : m.anode} -> {X Y : m.node} ->
+        m.edge X Y -> m.alpha X A -> m.alpha Y B -> isAedge m A B.
+isAreached : (m : abstraction.model) -> m.anode -> Type.
+aseed : {m : abstraction.model} -> {A : m.anode} -> {X : m.node} -> m.seed X -> m.alpha X A -> isAreached m A.
+astep : {m : abstraction.model} -> {B A : m.anode} -> isAreached m A -> isAedge m A B -> isAreached m B.
+```
+
+**The hypothesis.** Every reached node has an abstraction. Without it, a reached city with no
+country would break the argument. It is a property of the *input*, so it is a hypothesis of the
+theorem:
+
+```hugin
+placed (m : abstraction.model) : Type =
+  (x : m.node) -> isReached m x -> { a : m.anode, ok : m.alpha x a }.
+```
+
+**The statement and the proof**, complete:
+
+```hugin
+(* every abstraction of a reached node is reached by the analysis *)
+sound : {m : abstraction.model} -> placed m -> {x : m.node} -> {a : m.anode} ->
+        isReached m x -> m.alpha x a -> isAreached m a.
+sound T (rseed S) H = aseed S H.
+sound T (rstep {X := w} R E) H = astep (sound T R (T w R).ok) (alift E (T w R).ok H).
+
+(* so a country reported unreached contains no reached city *)
+safe : {m : abstraction.model} -> placed m -> {x : m.node} -> {a : m.anode} ->
+       (isAreached m a -> empty) -> m.alpha x a -> isReached m x -> empty.
+safe T N H R = N (sound T R H).
+%opaque sound. %opaque safe.
+```
+
+Checked by hand:
+
+- `sound T (rseed S) H`: `S : m.seed x` and `H : m.alpha x a`, so `aseed S H : isAreached m a`.
+- `sound T (rstep {X := w} R E) H`: `R : isReached m w`, `E : m.edge w x` and `H : m.alpha x a`.
+  `T w R : { a : m.anode, ok : m.alpha w a }`, so `(T w R).ok : m.alpha w (T w R).a`. The recursive call
+  `sound T R (T w R).ok : isAreached m (T w R).a`. Then `alift E (T w R).ok H : isAedge m (T w R).a a`,
+  and `astep` gives `isAreached m a`.
+- `safe T N H R`: `sound T R H : isAreached m a`, and `N` maps it to `empty`.
+
+The implicit pattern `{X := w}` (P2) names the predecessor, which `T` needs. Without it, the proof
+would need a helper that returns the predecessor with its derivation. The converse of `sound` is false
+(an abstract edge may combine two unrelated concrete edges), so the analysis is sound but not complete;
+no proof of the converse exists, and none is attempted.
+
+**What the compiler checks.** Coverage of `sound`: `rseed` and `rstep`. Termination: `R` is a variable
+inside `rstep {X := w} R E`. That `T w R` is well typed, with `R : isReached m w`. The dependent record
+`{ a : m.anode, ok : m.alpha x a }` (reference `meta/records.md`). Positivity of the three derived
+families: each mentions only itself and earlier families (`isAreached` mentions `isAedge`).
+
+**What the editor shows.** At `sound T (rstep {X := w} R E) H = ?`, the hole's goal is
+`isAreached m a`, with `T : placed m`, `w : m.node`, `R : isReached m w`, `E : m.edge w x`,
+`H : m.alpha x a` in scope. Writing `astep ? ?` yields two goals: `isAreached m ?A` and
+`isAedge m ?A a`. `?A` is solved once the first is filled with `sound T R (T w R).ok`.
+
+**The guarantee for a program.**
+
+```hugin
+city : type. country : type.
+berlin, paris, rome : city. de, fr, it : country.
+road : city -> city -> rel.
+located : city -> country -> rel.
+start : city -> rel.
+%input road. %input located.
+start berlin.
+eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = located }.
+%output eu.areached.
+?- eu.reached X, not located X _.        (* the hypothesis `placed`: must have no answers *)
+```
+
+If the query has no answers in a run, then every country of a reached city is printed by
+`eu.areached`, and a country that is not printed contains no reached city.
+
+| link | status |
+|---|---|
+| `sound`, `safe` on every model | checked by the meta level |
+| `placed` holds in the run's model | the query has no answers; tied to `placed` by `isReached.adequate` (trusted) and the query semantics; `--certify` checks the empty answer with the certificate |
+| `isReached.adequate`, `isAedge.adequate`, `isAreached.adequate` | trusted in P7a, proven in P7b |
+| the engine | trusted, or checked by `--certify` |
+
+**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. Derived families and adequacy → P7. `--certify`
+and checked queries → P8b. Section 9 gives the batches in order.
+
+### 1.4 Where each piece comes from
+
+| piece | batch | standalone |
+|---|---|---|
+| `= %postulate`, `--safe`, `%assumptions`, parameter promotion | P1 | yes |
+| `std/eq`, `empty`/`unit`/`either`/`iff`, `{x := e}`, implicit patterns, `%opaque`, `decEq` | P2 | yes |
+| `with`, `rewrite` | P3 | yes |
+| `std/decide` (`so`, `decider`, `decide`), `nat` lemmas | P4 | yes |
+| `std/semantics` (positive), `zint` | P5 | partly |
+| negation, aggregates in `std/semantics` | P6 | no |
+| `%semantics`, `S.model`, `r.adequate` | P7 | no |
+| `--export-proofs` | P8a | yes |
+| `--certify` | P8b | no |
+
+## 2. Recommendations
 
 1. **First make the logic honest (batch P1).** Today False takes three lines: any meta declaration that
    is not a family or a constructor is a *postulate* (reference `meta/index.md`, "Meta items"), and
    `boom : (A : Type) -> A.` is one. Postulates should need an explicit marker (`= %postulate`, by
    analogy with `= %builtin`), and a `--safe` mode should reject them. A command should list the
    assumptions a definition depends on (Lean's `#print axioms`, Rocq's `Print Assumptions`). Apart from
-   postulates, this note found no way to derive False (section 4). One combination should still be
+   postulates, this note found no way to derive False (section 5). One combination should still be
    closed before proofs matter: forced large indices together with recursion on forced arguments, which
    Agda forbids under `--safe` (Agda issue #6654).
 2. **A small proof library and proof ergonomics (P2).** This means a closed `std/eq`, with `refl`, `sym`,
    `trans`, `cong`, `subst` and J written as ordinary clauses, plus `empty`, `unit` and `dec`. Also:
-   explicit implicit arguments `f {n = e}` and implicit patterns; *opaque theorems*, which are never
+   explicit implicit arguments `f {n := e}` and implicit patterns; *opaque theorems*, which are never
    unfolded or eagerly evaluated and are exempt from the unused-definition lint (W0003); and decidable
    equality of atoms with evidence (`same` gives only a `bool`). All of this is useful without the
    Datalog goal: equations about `std/nat` and `std/list`, and proofs about directive code.
@@ -38,7 +547,7 @@ designer, 10 sources.
    family per relation, with one constructor per rule, parameterised by a *model* of the relations it
    reads. Functors become the unit of proof: "for every graph `g`, `(tc g).path` is transitive" is a
    theorem about `tc.path.sem m` for every model `m`. Such families can be written by hand today:
-   example 7.1 proves transitivity, and 7.2 the equivalence of two closure programs, in today's syntax.
+   example 8.1 proves transitivity, and 8.2 the equivalence of two closure programs, in today's syntax.
    The derived families are tied to the deep semantics by an adequacy lemma. That lemma starts out
    trusted (and listed among the assumptions) and is generated as a proof later.
 5. **The engine stays trusted, with a certificate mode (P8).** Verifying the Scala engine is out of
@@ -52,7 +561,7 @@ designer, 10 sources.
    object program. Proof automation should be proof by reflection (`decide`), which suits Hugin's fast,
    memoised evaluator, together with the language server's existing goals and case splits.
 
-## 2. Hugin today
+## 3. Hugin today
 
 The meta level is "a total, dependently typed functional language: a two-level type theory" (reference
 `meta/index.md`). As a proof language it has the following.
@@ -108,7 +617,7 @@ The meta level is "a total, dependently typed functional language: a two-level t
 So the meta level is intended to be MLTT with K, inductive families, cumulative predicative universes,
 Σ and Π with eta, primitive base types and an opaque code type, plus postulates.
 
-## 3. Gap analysis
+## 4. Gap analysis
 
 Sources: Agda a3f41e8 (manual `doc/user-manual/language/*.lagda.rst`, `src/full/Agda/...`), Lean 4
 0bb12a8 (`src/...`) and Rocq 29f5238 (`doc/sphinx/...`, `theories/Corelib/...`).
@@ -120,7 +629,7 @@ Sources: Agda a3f41e8 (manual `doc/user-manual/language/*.lagda.rst`, `src/full/
 | Prop universe | `--prop` (`prop.lagda.rst`), matching only by `()` into `Set` | impredicative `Prop`; large elimination only for subsingletons (`src/kernel/inductive.cpp`, `elim_only_at_universe_zero`, :510) | `Prop`, `SProp` (`language/core/sorts.rst`; empty/singleton elimination, `language/core/inductive.rst`:1306) | none | no (D6) |
 | proof irrelevance, erasure | `irrelevance.lagda.rst`; `@0` (`runtime-irrelevance.lagda.rst`) | `Prop` erased by the compiler; `lcProof` (`Prelude.lean`:242) | extraction erases `Prop` (`addendum/extraction.rst`) | the whole meta level is erased by staging | free; opaque theorems for compile time (P2) |
 | induction principles | by matching; `TermCheck.hs` (`src/full/Agda/Termination/`) | generated recursors; structural or well-founded (`src/Lean/Elab/PreDefinition/{Structural,WF}`) | `Fixpoint`, generated `_rect`/`_ind` | by matching, size-change | enough; no infinitary (applied-subterm) recursion |
-| inductive families as evidence | yes | yes | yes | yes (example 7.1) | already there |
+| inductive families as evidence | yes | yes | yes | yes (example 8.1) | already there |
 | params vs indices | declared parameters; `--large-indices` off by default since 2.6.4 | declared, plus `inductive.autoPromoteIndices` (`src/Lean/Elab/MutualInductive.lean`:52, `fixedIndicesToParams`) | declared parameters | no parameters; forced implicit binders exempt from predicativity | P1 (D2) |
 | `with` / rewrite | `with-abstraction.lagda.rst` (with, rewrite, inspect) | `rw` (`src/Lean/Elab/Tactic/Rewrite.lean`), `match h :` | `rewrite` (`proofs/writing-proofs/equality.rst`) | `where`-local functions only; `subst` after P2 | P3, optional |
 | explicit implicits, implicit patterns | `{x = e}`, `{n}` | `(x := e)`, `@f` | `(x:=e)`, `@f` | no | P2 |
@@ -129,7 +638,7 @@ Sources: Agda a3f41e8 (manual `doc/user-manual/language/*.lagda.rst`, `src/full/
 | partial definitions | `TERMINATING` pragma, not `--safe` | `partial def` is opaque, needs `Inhabited` (`src/Lean/Elab/PreDefinition/MkInhabitant.lean`) | none in the core | none (`%partial` removed) | already there |
 | trusted arithmetic | built-in `Nat`, checked against its definition | kernel GMP acceleration (`src/kernel/type_checker.cpp`, `reduce_nat`, :668) | `Uint63`, `Float64` primitives | native `std/nat`, checked against its clauses | already there |
 | small kernel | no (the type checker is the kernel) | yes | yes | no (the elaborator is the kernel) | no (D7) |
-| two-level | `--two-level`, `SSet` (`two-level.lagda.rst`) | — | — | staging 2LTT, `⇑A` opaque | section 6 |
+| two-level | `--two-level`, `SSet` (`two-level.lagda.rst`) | — | — | staging 2LTT, `⇑A` opaque | section 7 |
 
 What is missing for proofs, in order of need:
 
@@ -157,7 +666,7 @@ What is missing for proofs, in order of need:
    proves goals by `refl` (Rocq's ssreflect `reflect`, Lean's `decide`, `src/Lean/Elab/Tactic/Decide.lean`).
    This needs no tactic language (P4).
 
-## 4. Logical consistency today
+## 5. Logical consistency today
 
 **Can False be proved now? Yes, by a postulate.** By reference `meta/index.md` ("Meta items") and
 `meta/families.md` ("Syntax"), `boom` below is a postulate, since its type ends in a variable, not in a
@@ -207,7 +716,7 @@ promote fixed indices to parameters and exempt only parameters.
 trusted, as in Agda. That is acceptable while the goal is to catch mistakes rather than to certify for
 third parties. A core re-checker is the long-term answer (D7).
 
-## 5. Prior art
+## 6. Prior art
 
 **Verified Datalog engines.**
 
@@ -217,7 +726,7 @@ third parties. A core re-checker is the long-term answer (D7).
   them by bottom-up and stratified evaluation, with proofs of soundness, termination, completeness and
   model minimality. They chose bottom-up evaluation because loop-freedom of top-down or optimised
   strategies is harder to establish. The stratified engine reuses the standard one per stratum. This
-  is the closest model for Hugin's deep semantics (6.2). Their engine *is* the proof object; Hugin's
+  is the closest model for Hugin's deep semantics (7.2). Their engine *is* the proof object; Hugin's
   engine is not, so Hugin takes their semantics, not their architecture.
 - Bonifati, Dumbrava and Gallego Arias, *Certified Graph View Maintenance with Regular Datalog*, TPLP
   18(3–4), 2018 (ICLP). Regular Datalog is a fragment with transitive closure as a primitive; an
@@ -225,7 +734,7 @@ third parties. A core re-checker is the long-term answer (D7).
 - Bégay, Crégut and Monin, *Developing and Certifying Datalog Optimizations in Coq/MathComp*, CPP 2021.
   A static analysis and two program transformations are certified on top of the Coq/MathComp
   formalisation, with a new trace semantics. Their transformations are what Hugin's module-wide
-  directives are; a "rewrite preserves the facts" theorem (7.3) is the same kind of result.
+  directives are; a "rewrite preserves the facts" theorem (8.3) is the same kind of result.
 - Schlichtkrull, Hansen and Nielson, AFP entry *Stratified Datalog* (2025; SAC 2024 paper
   *Isabelle-verified correctness of Datalog programs for program analysis*). It proves that every
   stratified program has a least solution, and proves five bit-vector analyses correct. These are
@@ -235,10 +744,10 @@ third parties. A core re-checker is the long-term answer (D7).
   352, 36). This is a Lean checker for Datalog proof trees and proof DAGs in a tool-independent JSON
   format. The model-theoretic and proof-theoretic semantics are proven equivalent
   (`modelAndProofTreeSemanticsEquivalent`), and a model checker (`checkPGR`) validates that a result is
-  closed under the rules. Evaluated on traces of Nemo. This is the certificate route of 6.6.
+  closed under the rules. Evaluated on traces of Nemo. This is the certificate route of 7.6.
 - Shahin, *A Shallow Embedding of Datalog in Lean*, arXiv 2605.02113 (2026). Datalog relations map to
   native Lean inductive predicates, and backward-chaining queries become theorems proved by tactics.
-  This is the shallow route of 6.3.
+  This is the shallow route of 7.3.
 
 No Agda formalisation of Datalog semantics was found.
 
@@ -265,11 +774,11 @@ is not the property users want.
 produces proof trees for derived facts; Hugin's `%derivations` does the same per rule (reference
 `object/io.md`, "Derivation facts"). Datafun (Arntzenius and Krishnaswami, ICFP 2016) types
 monotonicity; in Hugin, monotonicity of a negation-free program is a theorem of the deep semantics
-(6.2), not a type discipline.
+(7.2), not a type discipline.
 
-## 6. A meta-level semantics of Datalog programs
+## 7. A meta-level semantics of Datalog programs
 
-### 6.1 What has to be modelled
+### 7.1 What has to be modelled
 
 The object level is Datalog∃! with stratified negation, aggregates, 64-bit partial arithmetic,
 floats, strings and bound columns (reference `object/index.md`). Its meaning is the iterated least
@@ -282,7 +791,7 @@ IC_R(db) = db ∪ ⋃ { subfact(Head(R)[v/x]) | db ⊨ Body(R)[v/x] }
 (REDESIGN §3.3). The identity of a fact is determined by its constant and its arguments (reference
 `object/facts.md`), and bodies never create facts.
 
-### 6.2 The deep semantics (`std/semantics`, P5–P6)
+### 7.2 The deep semantics (`std/semantics`, P5–P6)
 
 The deep semantics is a library over the reflective types, so that the reflected or reified program
 *is* the object of proof.
@@ -338,7 +847,7 @@ module-wide directives (`(p : module) -> iff (derivable (rules p) …) (derivabl
 "at most N facts" for programs with finite carriers. The last one needs a finite enumeration of the
 model and is the most expensive.
 
-### 6.3 Shallow semantic families (P7)
+### 7.3 Shallow semantic families (P7)
 
 For a concrete program, the deep semantics is clumsy: rules are data, and substitution is explicit.
 The shallow embedding gives each relation `r : τ̄ -> rel` a meta family `r.sem`, with one constructor
@@ -355,10 +864,10 @@ per rule of `r`, whose arguments are the rule's variables and body atoms:
   A theorem quantifies over models, never over instances, so proofs never evaluate a functor
   application and generativity does not arise (D10).
 - **Derivation.** The derivation is like `T.lift`/`T.reify` for shared data (`core/elab/DerivedFunctions.scala`):
-  generated declarations that "can be written by hand", checked like hand-written ones. Example 7.1
+  generated declarations that "can be written by hand", checked like hand-written ones. Example 8.1
   writes them by hand.
 
-### 6.4 Connecting reflection, semantics and the engine
+### 7.4 Connecting reflection, semantics and the engine
 
 The chain from a theorem to the facts that a run prints has four links.
 
@@ -376,7 +885,7 @@ The chain from a theorem to the facts that a run prints has four links.
 4. **Staged program → output.** This link is the engine: semi-naive evaluation in
    `runtime/{Engine,Evaluation}.scala`.
 
-### 6.5 Trusted, verified or certified engine
+### 7.5 Trusted, verified or certified engine
 
 | option | what it gives | cost | verdict |
 |---|---|---|---|
@@ -385,7 +894,7 @@ The chain from a theorem to the facts that a run prints has four links.
 | meta-level reference engine | a naive `IC` fixpoint in Hugin, proven against `derivable`, evaluated at compile time for closed programs | P5 plus about 400 lines of Hugin; feasible only for small programs | optional: differential testing of the engine |
 | certificate per run (Tantow et al.) | soundness from proof trees (`%derivations` plus negative premises); completeness from a one-round model check | P8 | recommended as an opt-in mode |
 
-### 6.6 Certificates (P8)
+### 7.6 Certificates (P8)
 
 `%derivations` already gives, for each rule instance, the derived fact and its positive premises
 (reference `object/io.md`). A certificate needs, in addition, the instances' negative premises and
@@ -398,13 +907,13 @@ evaluator runs `check : module -> facts -> derivs -> bool`, proven in Hugin agai
 naive round) adds completeness, and negation then rests on checked lower strata. The meta evaluator is
 slow on large outputs, so this is a CI and audit mode, not the default.
 
-## 7. Worked examples
+## 8. Worked examples against hand-written families
 
-The syntax follows the reference. 7.1 and 7.2 use only features that exist today, with the semantic
+The syntax follows the reference. 8.1 and 8.2 use only features that exist today, with the semantic
 families written by hand. P7 would derive them from `std/graph`'s `tc`, and P2 would add the
-explicit-implicit conveniences. 7.3 needs P2 and P5.
+explicit-implicit conveniences. 8.3 needs P2 and P5.
 
-### 7.1 Reachability is transitive
+### 8.1 Reachability is transitive
 
 The shallow semantics of `tc` (`std/graph`: `path X Y :- g.edge X Y.` and `path X Z :- g.edge X Y,
 path Y Z.`), written by hand:
@@ -428,10 +937,10 @@ parameter, so `path` still lives in `Type₀`.
 
 With P7, `path` is `tc.path.sem` and `step1`/`step2` are its rule constructors. The statement about the
 actual relation then reads: for every instance `t = tc g` and every run whose input determines the model
-`m`, `t.path a b` is printed iff `tc.path.sem m ⟦a⟧ ⟦b⟧` is inhabited (adequacy, 6.4). So `trans`
+`m`, `t.path a b` is printed iff `tc.path.sem m ⟦a⟧ ⟦b⟧` is inhabited (adequacy, 7.4). So `trans`
 proves that every instance of `tc`, in every run, derives a transitive relation.
 
-### 7.2 Two closure programs derive the same facts
+### 8.2 Two closure programs derive the same facts
 
 The left-linear rule `path X Z :- path X Y, g.edge Y Z.` in place of the right-linear one:
 
@@ -457,9 +966,9 @@ sameFacts : {m : model} -> {x y : m.node} -> iff (path m x y) (lpath m x y) = { 
 ```
 
 Under adequacy, `sameFacts` states that both programs print the same `path` facts for every input. A
-"rewrite" here is a hand edit. 7.3 makes it a transformation.
+"rewrite" here is a hand edit. 8.3 makes it a transformation.
 
-### 7.3 A module-wide rewrite preserves the derived facts (deep)
+### 8.3 A module-wide rewrite preserves the derived facts (deep)
 
 A module-wide directive that reverses the body of every rule, of the kind a join-order optimiser
 would apply:
@@ -493,7 +1002,7 @@ unchanged. This is the kind of step that P3's `with` shortens. Together, `sound`
 `complete` make `revBodies` a *verified* directive: `%reorder` can be used with the guarantee that it
 changes no fact.
 
-## 8. Batches
+## 9. Batches
 
 Each batch is one PR. Line counts are rough (Scala plus Hugin library plus reference and tests).
 "Standalone" marks batches that are useful even if the full goal is never reached.
@@ -501,23 +1010,23 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 | batch | content | lines | unlocks | risks | standalone |
 |---|---|---|---|---|---|
 | **P1** honest logic | `x : A = %postulate.`; an unmarked postulate is a warning, then an error (D1); `--safe`; `--print-assumptions` / `%assumptions f.` (postulates, trusted primitives, adequacy lemmas); index promotion to parameters and forced-binder rule (D2); reference: a "Consistency" section | 500–800 | trustworthy proofs | migration of programs that rely on silent postulates; D2 may move a few families up a level | **yes**: catches typos that make postulates |
-| **P2** proof basics | `std/eq` (J, `subst`, `cong`, `sym`, `trans`), `empty`, `unit`, `dec`, `iff`; explicit implicits `f {n = e}` and implicit patterns; `%opaque` theorems (no unfolding, no eager evaluation, W0003 exempt); `decEq` for atoms with a symbol conflict rule; polymorphic families confirmed | 900–1400 | 7.1–7.3 conveniences; lemmas about `std/nat` and `std/list` | parser space for `{n = e}` next to records and implicit binders (reference `meta/records.md`, brace disambiguation) | **yes** |
+| **P2** proof basics | `std/eq` (J, `subst`, `cong`, `sym`, `trans`), `empty`, `unit`, `dec`, `iff`; explicit implicits `f {n := e}` and implicit patterns; `%opaque` theorems (no unfolding, no eager evaluation, W0003 exempt); `decEq` for atoms with a symbol conflict rule; polymorphic families confirmed | 900–1400 | 8.1–8.3 conveniences; lemmas about `std/nat` and `std/list` | the spelling `{n := e}` (`{n = e}` clashes with a record value next to records and implicit binders argument; reference `meta/records.md`, "Syntax") | **yes** |
 | **P3** `with` / rewrite | `with` abstraction desugared to a `where`-local function over the abstracted goal; `rewrite e` via `subst` | 600–900 | shorter proofs | Agda's experience: ill-typed abstractions; the error messages | yes |
 | **P4** proof by reflection | `std/decide`: `so : bool -> Type`, `decide`; `less`/`equal` lemmas for `nat` | 300–500 | arithmetic side conditions, small finite models | evaluation cost (bounded by memoisation and native `nat`) | **yes** |
-| **P5** deep semantics, positive | `std/semantics`: `value`, `zint`, terms, formulas without negation, `derivable` with subfacts, monotonicity, the model-theoretic equivalence; possibly a positivity extension for unsaturated nesting | 1200–1800, mostly Hugin | 7.3; theorems about directives | positivity of the nested `all`; meta evaluation speed | partly (a reference semantics in the language) |
+| **P5** deep semantics, positive | `std/semantics`: `value`, `zint`, terms, formulas without negation, `derivable` with subfacts, monotonicity, the model-theoretic equivalence; possibly a positivity extension for unsaturated nesting | 1200–1800, mostly Hugin | 8.3; theorems about directives | positivity of the nested `all`; meta evaluation speed | partly (a reference semantics in the language) |
 | **P6** negation and aggregates | strata (`model`), `not`, `count`/`sum`/`min`/`max` with finite witnesses; bound columns maybe later | 1000–1500 | full stratified Datalog∃! | aggregate proofs are heavy | no |
-| **P7** shallow families | `%semantics r` or functor: derived `r.sem`, model records of signatures, rule constructors; adequacy lemma trusted first, then generated | 1200–1800 | 7.1/7.2 tied to real relations | head unification with arithmetic; open types across files (closed-world carrier, D4) | no |
+| **P7** shallow families | `%semantics r` or functor: derived `r.sem`, model records of signatures, rule constructors; adequacy lemma trusted first, then generated | 1200–1800 | 8.1/8.2 tied to real relations | head unification with arithmetic; open types across files (closed-world carrier, D4) | no |
 | **P8a** proof-tree export | negative premises in `%derivations`; Tantow et al. JSON export | 300–500 | external verified checking of runs | format drift | **yes** |
 | **P8b** certified runs | `--certify`: reified output checked by a meta checker proven against P5/P6 | 800–1200 | per-run guarantees without a verified engine | meta evaluator speed on large outputs | no |
 
 Order: P1 → P2 → (P4, P3) → P5 → P7 → P6 → P8b. P8a can go at any time.
 
-## 9. Decisions for the designer
+## 10. Decisions for the designer
 
 | | decision | options | recommendation |
 |---|---|---|---|
 | D1 | postulate syntax and policy | keep silent postulates; marker `= %postulate` with a warning; marker required (error) | marker, a warning for one release, then an error with a quick fix; `--safe` rejects marked ones too |
-| D2 | forced large indices | keep; Agda 2.6.4 (count forced large binders); Lean (promote fixed indices to parameters, exempt only parameters); exclude forced large binders from size-change | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 7.1 small, plus Agda's default for the rest |
+| D2 | forced large indices | keep; Agda 2.6.4 (count forced large binders); Lean (promote fixed indices to parameters, exempt only parameters); exclude forced large binders from size-change | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 8.1 small, plus Agda's default for the rest |
 | D3 | semantics first | deep only; shallow only; deep, then shallow with adequacy | deep as the specification (P5), shallow (P7) with an adequacy lemma that is trusted and listed at first, generated later |
 | D4 | carrier of values | `⇑A` (syntactic: wrong for arithmetic); a mirror type per object type; one universal `value` plus a typing predicate | universal `value`; functor proofs use abstract model carriers. Open types: the carrier is closed over the whole program at staging |
 | D5 | engine | trusted; verified; certificate | trusted by default, certificate mode (P8); no verified engine |
@@ -525,9 +1034,10 @@ Order: P1 → P2 → (P4, P3) → P5 → P7 → P6 → P8b. P8a can go at any ti
 | D7 | automation and kernel | tactics; meta reflection; proof by reflection; core re-checker | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
 | D8 | integers in proofs | trusted `int` axioms; `zint` by clauses over `nat` with native acceleration | `zint`: consistent by construction, like `std/nat` |
 | D9 | K | keep; `--without-K` | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
-| D10 | generativity | ignore; forbid functor instantiation in opaque theorems; theorems about models only | theorems about models (6.3); audit whether memoised closed applications can share a module instance across items |
+| D10 | generativity | ignore; forbid functor instantiation in opaque theorems; theorems about models only | theorems about models (7.3); audit whether memoised closed applications can share a module instance across items |
+| D11 | syntax of the proof features (chapter 1) | as proposed in chapter 1; alternatives per item | decide per batch: `= %postulate` (as `= %builtin`), `{x := e}` and `{X := p}` (`=` clashes with record values), `%opaque f.` (a local directive), `f p̄ with e.` followed by `f p̄ \| v = e.` clauses, `rewrite e` after the patterns, `%semantics f.r as fam (c₁, …).` with derived `S.model`, `fam.adequate`, `fam.rules`, `fam.rel`, `fam.over` (named like `T.lift`), and the flags `--print-assumptions`, `--export-proofs`, `--certify` |
 
-## 10. Sources
+## 11. Sources
 
 - agda/agda a3f41e8: `doc/user-manual/language/{safe-agda,postulates,prop,irrelevance,runtime-irrelevance,with-abstraction,reflection,without-k,two-level,termination-checking,opaque-definitions}.lagda.rst`,
   `doc/user-manual/tools/command-line-options.rst` (`--large-indices`, `--forced-argument-recursion`),
