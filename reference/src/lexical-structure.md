@@ -74,8 +74,11 @@ STRING    ::= '"' (CHAR | ESCAPE)* '"'
 ESCAPE    ::= '\"' | '\\' | '\n' | '\t' | '\u{' HEXDIGIT+ '}'
 ```
 
-An *integer literal* denotes a 64-bit signed integer. It is an error ([E0003](errors/E0003.md)) if its
-value is larger than 2⁶³ − 1; the literal `9223372036854775808` is only valid after a unary minus.
+An *integer literal* denotes a 64-bit signed integer, or a numeral of a nat-like meta family. It is an
+error ([E0003](errors/E0003.md)) if its value is larger than 2⁶³ − 1, unless it is checked against a
+nat-like family, whose numerals are unbounded ([Inductive families](meta/families.md#numerals)); the
+literal `9223372036854775808` is also valid after a unary minus. A literal pattern is at most 100000
+([Clauses](meta/clauses.md#patterns)).
 
 A *float literal* denotes a 64-bit IEEE 754 number. It has digits on both sides of the point: `1.0`,
 `2.5e-3`. The text `1.` is the integer `1` followed by a period.
@@ -93,8 +96,7 @@ a meta value of a base type, or a numeral of a nat-like meta family such as `nat
 that is not yet known waits until the end of its item and is an `int` if nothing determines its type
 ([Functions](meta/functions.md#literals-and-primitive-operations)). A numeral is a term of the two
 constructors of its family, so it is an error ([E0901](errors/E0901.md)) if an integer literal checked
-against a nat-like family is negative or larger than 100000
-([Inductive families](meta/families.md#numerals)).
+against a nat-like family is negative ([Inductive families](meta/families.md#numerals)).
 
 The following program shows each kind of literal. Facts are printed with the escapes of string
 literals, and negative numbers inside a fact in parentheses.

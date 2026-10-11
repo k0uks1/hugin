@@ -96,6 +96,7 @@ trait Readback:
         Tm.RecTy(ls.zip(qs), rs, ds)
       case Rec(fs) => Tm.Rec(fs.map((n, v) => (n, go(l, v))))
       case Lit(x, st) => Tm.Lit(x, st)
+      case Nat(f, n) => Tm.Nat(f, n)
       case Base(b, st) => Tm.Base(b, st)
       case RelT => Tm.RelT
       case PropT => Tm.PropT

@@ -64,6 +64,10 @@ object Trees:
   final case class Absent()(val span: Span) extends Tree
   final case class RuleRef(name: String)(val span: Span) extends Tree // @r (in directives)
   final case class Lit(value: Literal)(val span: Span) extends Tree
+
+  /** An integer literal beyond the 64-bit range: only a numeral of a nat-like family can be one
+   *  (reference: lexical-structure). */
+  final case class BigLit(value: BigInt)(val span: Span) extends Tree
   final case class Select(qual: Tree, name: String)(val span: Span, val nameSpan: Span) extends Tree
   final case class Apply(fn: Tree, arg: Tree)(val span: Span) extends Tree
 

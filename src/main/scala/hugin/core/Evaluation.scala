@@ -43,6 +43,7 @@ trait Evaluation:
     case Tm.Rec(fs) => Rec(fs.map((l, t) => (l, eval(env, t))))
     case Tm.Proj(t, l) => proj(eval(env, t), l)
     case Tm.Lit(l, st) => Lit(l, st)
+    case Tm.Nat(f, n) => Nat(f, n)
     case Tm.Base(b, st) => Base(b, st)
     case Tm.RelT => RelT
     case Tm.PropT => PropT
@@ -88,6 +89,8 @@ trait Evaluation:
   /** A global as a value: a definition folded ([[Val.Top]]) with its value, anything else neutral. */
   def globalValue(id: Int): Val = globals(id).kind match
     case GlobalKind.Definition(_, v) => Top(id, Nil, Unfold.of(v))
+    // the constant of a nat-like family is the numeral 0
+    case GlobalKind.Constructor(fam) => natZero(fam, id).getOrElse(Rigid(Head.Glob(id), Nil))
     case _ => Rigid(Head.Glob(id), Nil)
 
   def metaValue(m: Int): Val = metas(m).solution.getOrElse(Flex(m, Nil))

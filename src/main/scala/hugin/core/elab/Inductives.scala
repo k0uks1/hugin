@@ -137,14 +137,11 @@ trait Inductives:
   def natLiteral(c: Cxt, l: Literal, ty: Val, span: Span): Option[Tm] = (l, natType(ty)) match
     case (Literal.IntL(n), Some((z, s))) =>
       if n < 0 then fail(TypeProblem.NegativeNat(show(c, ty), span))
-      if n > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
       Some(natTerm(z, s, n))
     case _ => None
 
   /** `e + k` checked against the nat-like family with the successor `suc`: `suc` applied `k` times. */
-  def natSuccessor(suc: Int, e: Tm, k: Long, span: Span): Tm =
-    if k > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
-    natSucc(suc, e, k)
+  def natSuccessor(suc: Int, e: Tm, k: Long, span: Span): Tm = natSucc(suc, e, k)
 
   /** `k` if `t` is an integer literal of at least 1: the right operand of `e + k` on a nat-like type
    *  (reference: meta/families, numerals). */

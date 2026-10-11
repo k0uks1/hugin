@@ -105,7 +105,9 @@ trait IndexUnifier:
                 case Left(s: IndexUnification.Stuck) => postpone(s)
                 case Left(r) => result = Some(r)
             case (None, None) =>
-              (a, b) match
+              // two numerals by value, a numeral against a constructor application by one view step
+              (natView(a), natView(b)) match
+                case _ if a.isInstanceOf[Val.Nat] && b.isInstanceOf[Val.Nat] => result = Some(IndexUnification.Conflict(a, b))
                 case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
                   if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
                   else
@@ -127,4 +129,5 @@ trait IndexUnifier:
 
   private def constructorTerm(v: Val): Boolean = force(v) match
     case Val.Rigid(Head.Glob(c), _) => isConstructor(c)
+    case _: Val.Nat => true
     case _ => false
