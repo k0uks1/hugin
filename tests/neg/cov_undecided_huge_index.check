@@ -1,0 +1,17 @@
+error[E0915]: cannot decide whether `vnil` applies here
+  --> tests/neg/cov_undecided_huge_index.hgn:17:5
+   |
+17 | e N vnil = 0. (*~ E0915 *)
+   |     ^^^^ in this pattern
+   |
+   = note: unifying the indices of its type requires `0 = double n`, which is neither solvable nor impossible
+
+error[E0915]: the case for `vnil` is impossible here
+  --> tests/neg/cov_undecided_huge_index.hgn:23:7
+   |
+23 | empty vnil refl = 0. (*~ E0915 *)
+   |       ^^^^ its index `0` conflicts with `double 9223372036854775807`
+   |
+   = note: a clause is checked in its own context: no argument can match its patterns, so the clause can never apply
+
+2 errors found

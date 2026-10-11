@@ -33,6 +33,46 @@ trait Machine:
    *  bodies of functions defined by clauses applied by [[appNative]]. */
   private var depth = 0
 
+  /** Whether the work in progress is no longer wanted (issue #195): asked every [[Machine.PollEvery]] steps
+   *  of evaluation (the applications of the machine and of the native evaluator, and the functions defined
+   *  by clauses run, also weak-head ones), so that a meta computation that takes too long stops with the
+   *  `InterruptedException("evaluation cancelled")` of the fixpoint engine ([[hugin.runtime.Engine.run]])
+   *  instead of running on in an abandoned thread. By default the platform's: on the JVM an interrupt of
+   *  the evaluating thread (a test's or the fuzzer's time limit), in the browser the playground's deadline. */
+  var cancellation: hugin.util.Cancellation = hugin.platform.Platform.cancellation
+
+  /** The steps of evaluation left until [[cancellation]] is asked again. */
+  private var untilPoll = PollEvery
+
+  /** The polls of [[cancellation]] left in the current [[withinPolls]], or -1 outside one. */
+  private var pollBudget = -1L
+
+  /** One step of evaluation: every [[Machine.PollEvery]] steps, [[cancellation]] is asked (and the budget
+   *  of [[withinPolls]] spent). */
+  protected final def step(): Unit =
+    untilPoll -= 1
+    if untilPoll <= 0 then poll()
+
+  private def poll(): Unit =
+    untilPoll = PollEvery
+    if cancellation.cancelled() then throw InterruptedException("evaluation cancelled")
+    if pollBudget >= 0 then
+      if pollBudget == 0 then throw OutOfPolls
+      pollBudget -= 1
+
+  /** `f` if it evaluates within `polls` polls of [[cancellation]] (`polls` × [[Machine.PollEvery]] steps),
+   *  else `None` (a diagnostic that shows the normal form of a value only if it is cheap to compute). A
+   *  cancellation is not caught. Nested budgets are not added up: the inner one applies while it runs. */
+  def withinPolls[A](polls: Long)(f: => A): Option[A] =
+    val (savedBudget, savedUntil) = (pollBudget, untilPoll)
+    pollBudget = polls
+    untilPoll = PollEvery
+    try Some(f)
+    catch case OutOfPolls => None
+    finally
+      pollBudget = savedBudget
+      untilPoll = savedUntil
+
   /** The value of `t` in `env`. */
   def eval(env: List[Val], t: Tm): Val = t match
     case _: Tm.Var | _: Tm.Global | _: Tm.Meta | _: Tm.Lam | _: Tm.Lit | _: Tm.Base | _: Tm.RecTy | Tm.U0 | _: Tm.U1 | Tm.RelT |
@@ -69,19 +109,21 @@ trait Machine:
         case _ => evalNode(env, t)
     finally depth -= 1
 
-  private def appNative(f: Val, a: Val, i: Icit): Val = f match
-    case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
-    case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
-    case Rigid(h @ Head.Glob(id), sp) =>
-      val sp1 = Elim.EApp(a, i) :: sp
-      matchFunction(id, sp1) match
-        case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
-        case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
-        case Matching.Stuck => Rigid(h, sp1)
-    case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
-    case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
-    case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
-    case other => throw Impossible(s"application of a non-function value $other")
+  private def appNative(f: Val, a: Val, i: Icit): Val =
+    step()
+    f match
+      case Lam(_, _, cl) => eval(a :: cl.env, cl.body)
+      case Obj(ObjForm.Loc(_), List(g)) => app(g, a, i)
+      case Rigid(h @ Head.Glob(id), sp) =>
+        val sp1 = Elim.EApp(a, i) :: sp
+        matchFunction(id, sp1) match
+          case r: Reduct => if r.hit != null then appSp(r.hit.nn, r.later) else evalReduct(r)
+          case Matching.NotClauses => reduceOther(id, sp1).getOrElse(Rigid(h, sp1))
+          case Matching.Stuck => Rigid(h, sp1)
+      case Rigid(h, sp) => Rigid(h, Elim.EApp(a, i) :: sp)
+      case Flex(m, sp) => Flex(m, Elim.EApp(a, i) :: sp)
+      case Top(id, sp, u) => Top(id, Elim.EApp(a, i) :: sp, Unfold(app(u.value, a, i)))
+      case other => throw Impossible(s"application of a non-function value $other")
 
   /** A term that evaluates without effects and without evaluating a subterm. */
   private def atomic(t: Tm): Boolean = t match
@@ -174,6 +216,7 @@ trait Machine:
                 v = evalNode(env, t)
                 mode = Return
           case Apply =>
+            step()
             f match
               case Lam(_, _, cl) =>
                 env = a :: cl.env
@@ -271,6 +314,13 @@ object Machine:
   /** Levels of nesting evaluated on the native stack before the machine takes over: at the measured worst
    *  (an interpreted JVM, ~2.6 KiB per level of a meta function's recursion) 96 levels take ~250 KiB. */
   inline val NativeDepth = 96
+
+  /** Steps of evaluation between two polls of [[Machine.cancellation]]: a poll is a call (on the JVM,
+   *  `Thread.interrupted`, an intrinsic), at most a few hundred nanoseconds apart. */
+  inline val PollEvery = 1024
+
+  /** Thrown when the budget of polls of [[Machine.withinPolls]] is spent. */
+  private[core] object OutOfPolls extends scala.util.control.ControlThrowable
 
   private inline val Eval = 0
   private inline val Apply = 1

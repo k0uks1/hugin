@@ -76,46 +76,86 @@ trait Matching:
     if hit != null then Reduct(hit, null, Nil, null, later)
     else
       Matching.clauseSteps += 1
-      runTree(tree.tree, args.toVector, key, later)
+      step()
+      runTree(tree.tree, args.toVector, key, later, lazily = false)
+
+  /** [[matchFunction]] for weak-head evaluation ([[WeakHead.whnf]], issue #195), of a function defined by
+   *  clauses applied to `args` (as many as its arity): its native result if every argument is a numeral in
+   *  weak-head form, else the body its case tree selects with the arguments it splits evaluated to
+   *  weak-head normal form only, on demand ([[Reduct]], never memoised: a memo key is a normal form). */
+  protected def matchWeak(tree: FunctionBody, args: List[Val], later: Spine): Reduct | Matching.Stuck.type =
+    val native = tree.native match
+      case Some(n) => nativeResult(n, args.map(whnf))
+      case None => None
+    native match
+      case Some(Some(v)) =>
+        Matching.nativeSteps += 1
+        Reduct(v, null, Nil, null, later)
+      case Some(None) => Matching.Stuck
+      case None =>
+        Matching.clauseSteps += 1
+        step()
+        runTree(tree.tree, args.toVector, null, later, lazily = true)
 
   protected def memoise(key: (Int, List[Int]), v: Val): Unit = memo(key) = v
 
   /** The body selected by the case tree `tree` for the variables `env`, or [[Matching.Stuck]] if a split
    *  meets a neutral (or a value that matches no branch). A loop rather than a recursion through the
    *  splits: the JVM stack does not grow with the depth of the case tree, which is large for quoted
-   *  patterns (`mirror ('( edge $X $Y :- $..B ) :: Rest)`, issue #88). */
+   *  patterns (`mirror ('( edge $X $Y :- $..B ) :: Rest)`, issue #88). `lazily`: the values split on are
+   *  evaluated to weak-head normal form only ([[matchWeak]]), and successors are taken off a numeral only
+   *  as far as the split tells its branches apart. */
   @scala.annotation.tailrec
-  private def runTree(tree: CaseTree, env: Vector[Val], key: (Int, List[Int]) | Null, later: Spine): Reduct | Matching.Stuck.type =
+  private def runTree(
+      tree: CaseTree,
+      env: Vector[Val],
+      key: (Int, List[Int]) | Null,
+      later: Spine,
+      lazily: Boolean
+  ): Reduct | Matching.Stuck.type =
     tree match
       case CaseTree.Leaf(body, size, subst, _) =>
         if env.length == size then Reduct(null, body, clauseEnv(subst, env), key, later) else Matching.Stuck
       case CaseTree.Split(level, branches) =>
         // a numeral matches `zero` or `suc` of its predecessor, in O(1) (Agda's `constructorForm`)
-        natView(forceData(env(level))) match
+        natView(if lazily then whnfData(env(level)) else forceData(env(level))) match
           case Rigid(Head.Glob(c), csp) =>
             branches.find(_.ctor == c) match
               case Some(b) =>
                 val args = csp.reverse.collect { case Elim.EApp(a, _) => a }
-                if args.length == b.arity then runTree(b.tree, env ++ args, key, later) else Matching.Stuck
+                if args.length == b.arity then runTree(b.tree, env ++ args, key, later, lazily) else Matching.Stuck
               case None => Matching.Stuck
           case _ => Matching.Stuck
       case CaseTree.SplitNat(level, fam, values, offset, above, below) =>
-        natChain(forceData(env(level))) match
+        // lazily, at most as many successors as tell the branches apart: one more than the largest literal,
+        // and the offset; a chain cut there is `Right` with a base that may still have successors
+        val chain =
+          if lazily then natChainWeak(env(level), (values.map(_._1 + 1) :+ offset).max)
+          else natChain(forceData(env(level)))
+        chain match
           case Left(m) =>
             values.find(_._1 == m) match
-              case Some((_, t)) => runTree(t, env, key, later)
+              case Some((_, t)) => runTree(t, env, key, later, lazily)
               case None =>
-                if offset > 0 && m >= offset then runTree(above, env :+ Nat(fam, m - offset), key, later)
-                else runTree(below, env, key, later)
+                if offset > 0 && m >= offset then runTree(above, env :+ Nat(fam, m - offset), key, later, lazily)
+                else runTree(below, env, key, later, lazily)
           // successors applied `i` times to a neutral: not a numeral below `i`, at least `i`
           case Right((i, base)) =>
             if values.exists(_._1 >= i) then Matching.Stuck
-            else if offset == 0 then runTree(below, env, key, later)
-            else if i >= offset then runTree(above, env :+ natSuccs(natLike(fam).get._2, base, i - offset), key, later)
+            else if offset == 0 then runTree(below, env, key, later, lazily)
+            else if i >= offset then runTree(above, env :+ natSuccs(natLike(fam).get._2, base, i - offset), key, later, lazily)
             else Matching.Stuck
       case CaseTree.SplitAtom(level, branches, default) =>
-        atomKey(env(level)) match
-          case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env, key, later)
+        // lazily, only a value whose weak-head form is an atom (or an offset, which may become a numeral) is
+        // looked at further: forcing anything else would evaluate what the weak-head form left
+        val k0 =
+          if !lazily then atomKey(env(level))
+          else
+            whnfData(env(level)) match
+              case w @ (_: Lit | _: Nat | _: NatAdd | _: Quote) => atomKey(w)
+              case _ => None
+        k0 match
+          case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env, key, later, lazily)
           case None => Matching.Stuck
 
   /** The environment of a clause's body at a leaf: the values of the clause context's variables, by the

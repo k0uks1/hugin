@@ -19,8 +19,6 @@ final case class SplitProblem(
 ):
   def size: Int = names.length
 
-  /** The values as an environment (innermost first), computed once per problem. */
-  lazy val env: List[Val] = values.reverse.toList
   def isFree(l: Int): Boolean = values(l) == Val.local(l)
 
   def extend(name: Name, ty: Val): SplitProblem =
@@ -34,16 +32,21 @@ final case class SplitProblem(
     val merged = range(x).meet(r)
     copy(ranges = ranges.updated(x, merged), dead = dead || merged.isEmpty)
 
-  /** Brings a value up to date with the current solutions. */
-  def norm(core: Core, v: Val): Val = core.eval(env, core.quote(size, v))
+  /** Brings a value up to date with the current solutions: substitutes them, without evaluating (issue
+   *  #195). The applications a solution unblocks stay delayed: index unification evaluates them to
+   *  weak-head form on demand ([[Core.whnf]]), anything else when it forces or reads back the value.
+   *  (Evaluation and read-back normalised the whole value, `double n` with `n := 9223372036854775807` in
+   *  2^63 steps.) */
+  def norm(core: Core, v: Val): Val = core.substitute(values, v)
 
   /** The free variables, ordered so that each one's type only mentions variables before it (solutions may
    *  mention later variables, so level order is not a telescope any more): a stable topological sort. */
   def telescopeOrder(core: Core): Vector[Int] =
     val free = (0 until size).filter(isFree).toVector
     val deps = free.map { l =>
-      val ty = core.quote(size, types(l))
-      l -> free.filter(x => x != l && core.occurs(size - x - 1, ty)).toSet
+      // read back only if a variable is in the type as it is (it may not be in its normal form)
+      lazy val ty = core.quote(size, types(l))
+      l -> free.filter(x => x != l && core.mentions(x, types(l)) && core.occurs(size - x - 1, ty)).toSet
     }.toMap
     val out = scala.collection.mutable.ArrayBuffer.empty[Int]
     while out.length < free.length do
@@ -65,7 +68,7 @@ final case class SplitProblem(
       case None => solved
       case Some(r) =>
         val q = solved.copy(ranges = ranges - x)
-        core.natChain(solved.values(x)) match
+        core.natChainWeak(solved.values(x), Long.MaxValue) match
           case Left(m) => if r.allows(m) then q else q.copy(dead = true)
           case Right((i, Val.Rigid(Head.Local(y), Nil))) if q.isFree(y) => q.restrict(y, r.shift(i))
           case Right(_) => q
@@ -100,7 +103,13 @@ enum IndexUnification:
 /** Unification of indices for dependent pattern matching (Cockx & Abel's unifier, without the
  *  restrictions needed for univalence: deletion, solution, injectivity, conflict and cycle rules; the
  *  conflict rule also for distinct atoms, symbols and literals, which have no constructors). The
- *  variables of the split problem are the unknowns. */
+ *  variables of the split problem are the unknowns.
+ *
+ *  It works up to weak-head normal form (issue #195), as Agda's unifier and the conversion checks of Lean
+ *  and Rocq do: each side of an equation is evaluated until its head is known ([[Core.whnf]]), and an
+ *  argument only when an equation between it and another one is reached. The outcome is the one of
+ *  unifying normal forms; what it shows in a diagnostic is the equation's sides, normalised if that is
+ *  cheap ([[Core.quoteShown]]). */
 trait IndexUnifier:
   self: Elaborator =>
   import core.*
@@ -127,71 +136,71 @@ trait IndexUnifier:
       else
         val (a0, b0) = eqs.head
         eqs = eqs.tail
-        val a = force(p.norm(core, a0))
-        val b = force(p.norm(core, b0))
+        // the sides up to date (`an`, `bn`, what diagnostics show), and their weak-head forms
+        val an = p.norm(core, a0)
+        val bn = p.norm(core, b0)
+        val a = whnf(an)
+        val b = whnf(bn)
         def postpone(s: IndexUnification.Stuck): Unit =
           if postponed.isEmpty then stuck = Some(s)
-          postponed = (a, b) :: postponed
-        if quote(p.size, a) != quote(p.size, b) then
+          postponed = (an, bn) :: postponed
+        if !sameWeak(p.size, a, b) then
           (freeVar(p, a), freeVar(p, b)) match
             case (Some(x), Some(y)) =>
               p = p.solve(core, x.max(y), Val.local(x.min(y)))
               progress = true
             case (Some(x), None) =>
-              solveVar(p, x, b) match
+              solveVar(p, x, b, bn) match
                 case Right(q) => p = q; progress = true
                 case Left(s: IndexUnification.Stuck) => postpone(s)
                 case Left(r) => result = Some(r)
             case (None, Some(y)) =>
-              solveVar(p, y, a) match
+              solveVar(p, y, a, an) match
                 case Right(q) => p = q; progress = true
                 case Left(s: IndexUnification.Stuck) => postpone(s)
                 case Left(r) => result = Some(r)
             case (None, None) if isNumeralForm(a) && isNumeralForm(b) =>
               // numerals and offsets by value: the smaller number of successors is taken off both sides
-              (natChain(a), natChain(b)) match
-                case (Left(m), Left(n)) => result = Some(IndexUnification.Conflict(a, b))
-                case (Left(m), Right((i, base))) =>
-                  if m >= i then
-                    eqs = (Val.Nat(natFamilyOf(b), m - i), base) :: eqs
-                    progress = true
-                  else result = Some(IndexUnification.Conflict(a, b))
-                case (Right((i, base)), Left(n)) =>
-                  if n >= i then
-                    eqs = (base, Val.Nat(natFamilyOf(a), n - i)) :: eqs
-                    progress = true
-                  else result = Some(IndexUnification.Conflict(a, b))
-                case (Right((i, b1)), Right((j, b2))) =>
-                  val m = i.min(j)
-                  eqs = (natAdd(natFamilyOf(a), b1, i - m), natAdd(natFamilyOf(b), b2, j - m)) :: eqs
+              numerals(a, b) match
+                case Some(eq) =>
+                  eqs = eq :: eqs
                   progress = true
+                case None => result = Some(IndexUnification.Conflict(an, bn))
             case (None, None) =>
               // a numeral against a constructor application by one view step
               (natView(a), natView(b)) match
-                case _ if a.isInstanceOf[Val.Nat] && b.isInstanceOf[Val.Nat] => result = Some(IndexUnification.Conflict(a, b))
+                case _ if a.isInstanceOf[Val.Nat] && b.isInstanceOf[Val.Nat] => result = Some(IndexUnification.Conflict(an, bn))
                 case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isConstructor(c1) && isConstructor(c2) =>
-                  if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(a, b))
+                  if c1 != c2 || sp1.length != sp2.length then result = Some(IndexUnification.Conflict(an, bn))
                   else
                     eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
                     progress = true
-                case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
+                case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(an, bn))
                 // two atoms (symbols, literals) are equal only if they are the same atom: distinct ones
                 // conflict, as distinct constructors do (reference: meta/coverage, index unification)
-                case _ if atomKey(a).isDefined && atomKey(b).isDefined =>
-                  if stripPositions(atomKey(a).get) == stripPositions(atomKey(b).get) then progress = true
-                  else result = Some(IndexUnification.Conflict(a, b))
-                case _ => postpone(IndexUnification.Stuck(a, b))
+                case _ if atomOf(a).isDefined && atomOf(b).isDefined =>
+                  if stripPositions(atomOf(a).get) == stripPositions(atomOf(b).get) then progress = true
+                  else result = Some(IndexUnification.Conflict(an, bn))
+                case _ => postpone(IndexUnification.Stuck(an, bn))
     result.getOrElse(IndexUnification.Solved(p))
 
   private def freeVar(p: SplitProblem, v: Val): Option[Int] = v match
     case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => Some(x)
     case _ => None
 
-  /** `x = t`: solve, unless `x` occurs in `t` (a cycle under constructors is a conflict). */
-  private def solveVar(p: SplitProblem, x: Int, t: Val): Either[IndexUnification, SplitProblem] =
-    if !occurs(p.size - x - 1, quote(p.size, t)) then Right(p.solve(core, x, t))
-    else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), t))
-    else Left(IndexUnification.Stuck(Val.local(x), t))
+  /** The atom a weak-head form is ([[Matching.atomKey]]); anything else is none without being evaluated
+   *  further. */
+  private def atomOf(v: Val): Option[Tm] = v match
+    case _: Val.Lit | _: Val.Nat | _: Val.Quote | _: Val.Obj => atomKey(v)
+    case _ => None
+
+  /** `x = t` (`t` in weak-head form, `shown` as the equation has it): solve, unless `x` occurs in `t` (a
+   *  cycle under constructors is a conflict). The occurs check reads `t` back only if `x` is in it as it
+   *  is ([[Core.mentions]]). */
+  private def solveVar(p: SplitProblem, x: Int, t: Val, shown: Val): Either[IndexUnification, SplitProblem] =
+    if !mentions(x, t) || !occurs(p.size - x - 1, quote(p.size, t)) then Right(p.solve(core, x, t))
+    else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), shown))
+    else Left(IndexUnification.Stuck(Val.local(x), shown))
 
   /** A numeral, an offset, or a successor application. */
   private def isNumeralForm(v: Val): Boolean = v match
@@ -209,7 +218,57 @@ trait IndexUnifier:
         case _ => -1
     case _ => -1
 
-  private def constructorTerm(v: Val): Boolean = force(v) match
+  /** A side of an equation between numeral forms, with successors taken off one weak-head step at a time:
+   *  `count` successors over `rest`, which is zero (`null`), or a value that is not a numeral form in
+   *  weak-head form (`done`), or a value not evaluated yet. */
+  private final class NatSide(val fam: Int, var count: BigInt, var rest: Val | Null, var done: Boolean):
+    def isZero: Boolean = done && rest == null
+
+    /** One weak-head step of the rest. */
+    def step(): Unit =
+      val w = whnf(rest.nn)
+      w match
+        case Val.Nat(_, n) => count += n; rest = null; done = true
+        case Val.NatAdd(_, b, k) => count += k; rest = b
+        case Val.Rigid(Head.Glob(c), List(Elim.EApp(x, Icit.Expl))) if isSuccessor(c) => count += 1; rest = x
+        case Val.Rigid(Head.Glob(c), Nil) if constantOf(c) => rest = null; done = true
+        case other => rest = other; done = true
+
+  private def natSide(v: Val): NatSide =
+    val s = NatSide(natFamilyOf(v), BigInt(0), v, false)
+    s.step()
+    s
+
+  /** An equation between numeral forms (in weak-head form) as the equation between what is left after the
+   *  smaller number of successors is taken off both sides, or `None` if they conflict: what comparing the
+   *  sides as numerals or successors applied to a base ([[Naturals.natChain]]) gives, with successors
+   *  taken off a side only as far as that is decided (`0 = double 9223372036854775807` conflicts after
+   *  one step of `double`, which gives two successors). */
+  private def numerals(a: Val, b: Val): Option[(Val, Val)] =
+    val x = natSide(a)
+    val y = natSide(b)
+    var out: Option[Option[(Val, Val)]] = None
+    while out.isEmpty do
+      if x.done && y.done then
+        out = Some(
+          if x.isZero && y.isZero then None
+          else if x.isZero then Option.when(x.count >= y.count)((Val.Nat(y.fam, x.count - y.count), y.rest.nn))
+          else if y.isZero then Option.when(y.count >= x.count)((x.rest.nn, Val.Nat(x.fam, y.count - x.count)))
+          else
+            val m = x.count.min(y.count)
+            Some((natAdd(x.fam, x.rest.nn, x.count - m), natAdd(y.fam, y.rest.nn, y.count - m)))
+        )
+      // a numeral against more successors than it has
+      else if x.isZero && y.count > x.count then out = Some(None)
+      else if y.isZero && x.count > y.count then out = Some(None)
+      // a base under fewer successors than the other side has so far: it equals the rest of that side
+      else if x.done && !x.isZero && y.count >= x.count then out = Some(Some((x.rest.nn, natAdd(y.fam, y.rest.nn, y.count - x.count))))
+      else if y.done && !y.isZero && x.count >= y.count then out = Some(Some((natAdd(x.fam, x.rest.nn, x.count - y.count), y.rest.nn)))
+      else if !x.done && (y.done || x.count <= y.count) then x.step()
+      else y.step()
+    out.get
+
+  private def constructorTerm(v: Val): Boolean = v match
     case Val.Rigid(Head.Glob(c), _) => isConstructor(c)
     case _: Val.Nat | _: Val.NatAdd => true
     case _ => false
