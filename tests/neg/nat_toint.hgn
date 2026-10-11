@@ -1,0 +1,5 @@
+(* #131: `toInt` of a numeral beyond the 64-bit meta `int` is stuck, so object code cannot use it
+   (reference: std/nat, native arithmetic) *)
+%use "std/nat".
+r : (n : int) -> rel.
+r (toInt (times 4294967296 2147483648)). (*~ E0909 *)

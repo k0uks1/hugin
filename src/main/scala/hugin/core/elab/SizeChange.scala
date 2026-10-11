@@ -344,12 +344,35 @@ trait SizeChange:
   private def compare(a: Tm, b: Tm): Option[Rel] =
     if a == b then Some(Rel.Le) else Option.when(properSubterm(b, a))(Rel.Lt)
 
-  /** `b` is a proper subterm of the constructor term `a`. */
-  private def properSubterm(b: Tm, a: Tm): Boolean =
-    val (h, args) = spine(natViewTm(a))
-    h match
-      case Tm.Global(c) if isConstructor(c) => args.exists(x => x == b || properSubterm(b, x))
-      case _ => false
+  /** `b` is a proper subterm of the constructor term `a`. A numeral is the unary term it stands for, read
+   *  off by value (reference: meta/termination): `m` is a proper subterm of `k` if `m < k`, and successors
+   *  applied to a term are peeled in one go. */
+  private def properSubterm(b: Tm, a: Tm): Boolean = (b, a) match
+    case (Tm.Nat(_, m), Tm.Nat(_, k)) => m < k
+    case (_, Tm.Nat(_, _)) => false
+    case _ =>
+      val (i, base) = successors(a)
+      if i > 0 then
+        // `b` is `a` with fewer successors, or a proper subterm of the term under them
+        val (j, bBase) = successors(b)
+        (bBase == base && j < i) || (b != base && properSubterm(b, base)) || b == base
+      else
+        val (h, args) = spine(a)
+        h match
+          case Tm.Global(c) if isConstructor(c) => args.exists(x => x == b || properSubterm(b, x))
+          case _ => false
+
+  /** The number of successors of a nat-like family applied to `t`, and the term under them. */
+  private def successors(t: Tm): (BigInt, Tm) =
+    var i = BigInt(0)
+    var cur = t
+    var more = true
+    while more do
+      cur match
+        case Tm.App(Tm.Global(c), x, Icit.Expl) if isSuccessor(c) => i += 1; cur = x
+        case Tm.NatAdd(_, x, k) => i += k; cur = x
+        case _ => more = false
+    (i, cur)
 
   // ---------------------------------------------------------------- the size-change principle
 

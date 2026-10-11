@@ -90,6 +90,7 @@ trait Printing:
     case Tm.Module(_, env) => env.exists(occurs(ix, _))
     case Tm.Persist(a) => occurs(ix, a)
     case Tm.FactTy(a) => occurs(ix, a)
+    case Tm.NatAdd(_, b, _) => occurs(ix, b)
     case _ => false
 
   private def fresh(names: List[Name], x: Name): Name =
@@ -110,12 +111,13 @@ trait Printing:
       node(ns, t, p)
 
   private def node(ns: List[Name], t: Tm, p: Int): String = t match
-    case Tm.App(_, _, Icit.Expl) | Tm.Global(_) | Tm.Nat(_, _) if numeralView(t).isDefined =>
+    case Tm.App(_, _, Icit.Expl) | Tm.Global(_) | Tm.Nat(_, _) | Tm.NatAdd(_, _, _) if numeralView(t).isDefined =>
       // a numeral of a nat-like family as its digits, `e + k` for an open one (reference: meta/families)
       numeralView(t).get match
         case (None, k) => k.toString
         case (Some(e), k) => par(p, 3, s"${go(ns, e, 3)} + $k")
     case Tm.Nat(_, n) => n.toString
+    case Tm.NatAdd(_, b, k) => par(p, 3, s"${go(ns, b, 3)} + $k")
     case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
     case Tm.Meta(m) => showMeta(m)

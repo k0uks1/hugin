@@ -89,8 +89,8 @@ nat-like family has numerals, whatever the names of the family and its construct
 - An integer literal `n` checked against a nat-like family is the *numeral* `suc (… (suc zero))` with
   `n` applications of the successor, also in patterns. It is an error ([E0901](../errors/E0901.md)) if
   `n` is negative. Numerals have no upper bound: a literal checked against a nat-like family may be
-  larger than 2⁶³ − 1 ([Lexical structure](../lexical-structure.md#literals)). A literal pattern is at
-  most 100000 ([Clauses](clauses.md#patterns)).
+  larger than 2⁶³ − 1 ([Lexical structure](../lexical-structure.md#literals)), also in a pattern
+  ([Clauses](clauses.md#patterns)).
 - A *successor expression* `e + k`, where `k` is an integer literal of at least 1, is the successor
   applied `k` times to `e` if it is checked against a nat-like family or if `e` has a nat-like type:
   `n + 2` is `suc (suc n)`. The same form is a pattern ([Clauses](clauses.md#patterns)).
@@ -98,13 +98,17 @@ nat-like family has numerals, whatever the names of the family and its construct
 Arithmetic does not apply to nat-like families otherwise: `m + n` of two naturals, `n - 1` and `n * 2`
 are errors ([E0901](../errors/E0901.md)); a function by clauses computes them, such as `plus` of
 [`std/nat`](../std/nat.md). The meta type `int` has no conversion to a nat-like family; a function by
-clauses converts in the other direction, such as `toInt` of `std/nat`.
+clauses converts in the other direction, such as `toInt` of `std/nat`. The functions of `std/nat` compute
+directly on numerals, in one step ([native arithmetic](../std/nat.md#native-arithmetic)); a program's own
+functions compute by their clauses.
 
 Numerals are terms of the two constructors, and every rule of the language treats them so: matching,
 unification, index unification and the termination check see the numeral `n + 1` as the successor
 applied to the numeral `n`, and `0` as the constant, one constructor at a time. The compiler represents
-a closed numeral as a number, as Agda and Lean 4 do, so that a numeral, its comparison and matching on
-it take constant time whatever its value; this representation is not observable. `suc ?m = 5` solves
+a closed numeral as a number, as Agda and Lean 4 do, and the successor applied `k` times to an open term
+as that term with the number `k` (Lean's offsets `e + k`), so that a numeral or an offset, its
+comparison and matching on it take constant time whatever its value; this representation is not
+observable: `suc (suc N)` and `N + 2` are the same term. `suc ?m = 5` solves
 `?m := 4`, and a function on `nat` that matches `N + 1` takes `N` of the numeral `50000` in one step.
 
 Diagnostics, `--print-after`, the REPL and the language server show a numeral as its digits, and the

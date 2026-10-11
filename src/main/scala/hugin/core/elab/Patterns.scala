@@ -13,10 +13,10 @@ enum Pat:
   case PVar(name: Name, span: Span, implicitBinder: Boolean = false)
   case PWild(span: Span)
   case PCon(ctor: Int, args: List[Pat], span: Span)
-  case PLit(n: Long, span: Span)
+  case PLit(n: BigInt, span: Span)
 
   /** `p + k` (`k ≥ 1`) against a nat-like type: the successor applied `k` times to `p`. */
-  case PSucc(p: Pat, k: Long, span: Span)
+  case PSucc(p: Pat, k: BigInt, span: Span)
 
   /** A value of a type without constructors (a reference to an object constant, a meta literal): `key` is
    *  its closed normal form, as [[hugin.core.Matching.atomKey]] computes it. Only quoted patterns produce
@@ -26,6 +26,17 @@ enum Pat:
   /** `()`, Agda's absurd pattern: matches nothing, and is allowed only at a position none of whose
    *  constructors can occur (reference: meta/clauses). */
   case PAbsurd(span: Span)
+
+/** A pattern against a nat-like family in numeral form ([[Patterns.natForm]]). */
+enum NatPattern:
+  case Literal(k: BigInt, span: Span)
+
+  /** `p + j`, where `p` is not a literal, a successor or the constant (`j = 0`: the pattern itself). */
+  case Offset(p: Pat, j: BigInt)
+
+  def plus(i: BigInt): NatPattern = this match
+    case Literal(k, span) => Literal(k + i, span)
+    case Offset(p, j) => Offset(p, j + i)
 
 /** One clause `f p̄ = e.` (or a definition `f X̄ = e.` of a declared function), with its `where` block; an
  *  absurd clause `f p̄.` has the right-hand side [[Absent]]. */
@@ -68,13 +79,9 @@ trait Patterns:
     case VarRef(n) => Pat.PVar(n, t.span)
     case Wildcard() => Pat.PWild(t.span)
     case Absurd() => Pat.PAbsurd(t.span)
-    case Lit(Literal.IntL(n)) if n >= 0 =>
-      if n > maxNatPattern then fail(TypeProblem.NatPatternTooLarge(t.span))
-      Pat.PLit(n, t.span)
-    case BigLit(_) => fail(TypeProblem.NatPatternTooLarge(t.span))
-    case Infix("+", p, k) if successorCount(k).isDefined =>
-      if successorCount(k).get > maxNatPattern then fail(TypeProblem.NatPatternTooLarge(t.span))
-      Pat.PSucc(pattern(p, expected), successorCount(k).get, t.span)
+    case Lit(Literal.IntL(n)) if n >= 0 => Pat.PLit(BigInt(n), t.span)
+    case BigLit(n) => Pat.PLit(n, t.span)
+    case Infix("+", p, k) if successorCount(k).isDefined => Pat.PSucc(pattern(p, expected), BigInt(successorCount(k).get), t.span)
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
@@ -92,16 +99,15 @@ trait Patterns:
         case _ =>
           fail(ClauseProblem.InvalidPattern(t.span))
 
-  /** A literal or successor pattern against the type `ty` (shown as `shown`), one constructor of the
-   *  nat-like family unfolded: `3` is `suc 2`, `P + 2` is `suc (P + 1)` (reference: meta/clauses). */
-  def natPattern(pat: Pat, ty: Val, shown: => String): Pat = (pat, natType(ty)) match
-    case (Pat.PLit(0, span), Some((z, _))) => Pat.PCon(z, Nil, span)
-    case (Pat.PLit(n, span), Some((_, s))) => Pat.PCon(s, List(Pat.PLit(n - 1, span)), span)
-    case (Pat.PSucc(q, k, span), Some((_, s))) =>
-      Pat.PCon(s, List(if k == 1 then q else Pat.PSucc(q, k - 1, span)), span)
-    case (Pat.PLit(_, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))
-    case (Pat.PSucc(_, _, span), _) => fail(ClauseProblem.LiteralPattern(shown, span))
-    case (other, _) => other
+  /** A pattern against the nat-like family with the constant `z` and the successor `s`, as a numeral or as
+   *  a pattern with the successor applied `j` times (reference: meta/clauses): `3` and `suc (suc (suc
+   *  zero))` are the literal 3, `P + 2` and `suc (suc P)` are `P` with the offset 2. */
+  def natForm(pat: Pat, z: Int, s: Int): NatPattern = pat match
+    case Pat.PLit(k, span) => NatPattern.Literal(k, span)
+    case Pat.PCon(`z`, Nil, span) => NatPattern.Literal(BigInt(0), span)
+    case Pat.PCon(`s`, List(q), _) => natForm(q, z, s).plus(1)
+    case Pat.PSucc(q, k, _) => natForm(q, z, s).plus(k)
+    case other => NatPattern.Offset(other, BigInt(0))
 
   /** `[p̄]` or `p :: ps`, with the element type if known. */
   def listPattern(t: Tree, elem: Option[Val]): Pat =

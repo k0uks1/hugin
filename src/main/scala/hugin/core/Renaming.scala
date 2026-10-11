@@ -190,6 +190,7 @@ trait Renaming:
     case Rec(fs) => Tm.Rec(fs.map((n, x) => (n, psubst(psub, x))))
     case Lit(l, st) => Tm.Lit(l, st)
     case Nat(f, n) => Tm.Nat(f, n)
+    case NatAdd(f, b, k) => Tm.NatAdd(f, psubst(psub, b), k)
     case Base(b, st) => Tm.Base(b, st)
     case RelT => Tm.RelT
     case PropT => Tm.PropT

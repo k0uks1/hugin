@@ -74,6 +74,8 @@ trait Items:
     def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
     val rules = meta.collect { case d: Decl if formulaFunctions(d.name.name) => (d.name.name, clausesOf(d.name.name), d.span.start) }
     elabByComponents(meta, groups.toList, rules.distinctBy(_._1))
+    // the operations of `std/nat` compute on numbers once its clauses are checked against them
+    bindNativeOperations()
     dropPending()
     checkObjectDeclarations(firstGlobal)
     if !file.signaturesOnly then exports.foreach(elabItemReporting)

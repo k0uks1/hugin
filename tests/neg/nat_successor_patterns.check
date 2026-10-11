@@ -20,10 +20,4 @@ error[E0915]: invalid pattern
    |
    = note: patterns are uppercase variables, `_`, constructors applied to patterns, natural-number literals and successor patterns `p + k`
 
-error[E0901]: nat pattern too large
-  --> tests/neg/nat_successor_patterns.hgn:16:6
-   |
-16 | big (N + 100001) = N. (*~ E0901 *)
-   |      ^^^^^^^^^^ a literal or successor pattern is at most 100000
-
-4 errors found
+3 errors found

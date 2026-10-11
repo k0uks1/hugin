@@ -1,0 +1,56 @@
+(* ---------------- after elaborate ---------------- *)
+big : nat = times 123456789 987654321.
+huge : nat = plus (times big big) 1.
+div : nat -> nat -> nat.
+  div N 0 = 0.
+  div N (D + 1) = divSucAux 0 D N D.
+mod : nat -> nat -> nat.
+  mod N 0 = N.
+  mod N (D + 1) = modSucAux 0 D N D.
+three : nat -> nat.
+  three N = N + 3.
+double : nat -> nat.
+  double N = plus (plus 0 N) N.
+less3 : nat -> bool.
+  less3 N = false.
+equal1 : nat -> bool.
+  equal1 N = false.
+down : nat -> nat.
+  down N = N + 3.
+vec : Type -> nat -> Type.
+vnil : {A : Type} -> vec A 0.
+vcons : {A : Type} -> {N : nat} -> A -> vec A N -> vec A (N + 1).
+vhead : {A : Type} -> {N : nat} -> vec A (plus N 1) -> A.
+  vhead (vcons X _) = X.
+r : (name : string) -> (n : int) -> rel.
+r "plus" 50000.
+r "minus" 0.
+r "minus" 999999.
+r "times" 121932631112635269.
+r "div" 121932630.
+r "mod" 910891341.
+r "equal" 1.
+r "less" 0.
+r "less" 1.
+r "open" 7.
+r "open" 42.
+r "open" 3.
+r "open" 0.
+r "open" 0.
+r "vec" 9.
+?- r S N.
+?- r S N.
+S = "div", N = 121932630.
+S = "equal", N = 1.
+S = "less", N = 0.
+S = "less", N = 1.
+S = "minus", N = 0.
+S = "minus", N = 999999.
+S = "mod", N = 910891341.
+S = "open", N = 0.
+S = "open", N = 3.
+S = "open", N = 42.
+S = "open", N = 7.
+S = "plus", N = 50000.
+S = "times", N = 121932631112635269.
+S = "vec", N = 9.

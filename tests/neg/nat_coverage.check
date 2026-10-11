@@ -1,0 +1,28 @@
+error[E0911]: the clauses of `f` do not cover all cases
+ --> tests/neg/nat_coverage.hgn:3:1
+  |
+3 | f : nat -> int. (*~ E0911 *)
+  | ^ missing: `f 1` and 4 more
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `f 1 = ….`
+
+error[E0911]: the clauses of `g` do not cover all cases
+ --> tests/neg/nat_coverage.hgn:7:1
+  |
+7 | g : nat -> int. (*~ E0911 *)
+  | ^ missing: `g 0` and 4 more
+  |
+  = note: meta functions are total: every argument must match a clause
+  = help: add a clause `g 0 = ….`
+
+warning[W0006]: unreachable clause of `h`
+  --> tests/neg/nat_coverage.hgn:13:1
+   |
+13 | h 7 = 7. (*~ W0006 *)
+   | ^^^^^^^^ this clause is never used
+   |
+   = note: the clauses before it cover all the cases it matches
+   = note: `-W unreachable_clauses` is on by default
+
+2 errors, 1 warning found

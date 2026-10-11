@@ -54,13 +54,14 @@ of the function's declared type, such as `A` and `N` in `head : vec A (suc N) ->
 right-hand side, unless a pattern variable has the same name. Literals of `int`, `float` and `string` are
 not patterns outside quoted patterns ([E0915](../errors/E0915.md)).
 
-A literal pattern and a successor pattern are constructor patterns: [coverage](coverage.md) and
-[termination](termination.md) see `suc (suc N)` for `N + 2`, so `N` is a constructor subterm of the
-argument. It is an error ([E0915](../errors/E0915.md)) if the type of the argument is not nat-like, or if
-a pattern with an operator is not a successor pattern: `N + 0`, `N + M` and `N - 1` are not patterns. A
-pattern is matched one constructor at a time, so it is an error ([E0901](../errors/E0901.md)) if a
-literal pattern or the `k` of a successor pattern is larger than 100000; numerals as values have no
-such bound ([Inductive families](families.md#numerals)).
+A literal pattern and a successor pattern stand for constructor patterns: `3` for `suc (suc (suc
+zero))` and `N + 2` for `suc (suc N)`, so [coverage](coverage.md) and [termination](termination.md) see
+`N` as a constructor subterm of the argument. Against a nat-like family, every pattern is read as a
+*numeral pattern*: a literal `k` (also `zero`, and the successor applied to a literal), or a pattern `P`
+with the successor applied `j` times, `P + j` (also `suc P`; `P` itself if `j = 0`). Literal and
+successor patterns have no upper bound. It is an error ([E0915](../errors/E0915.md)) if the type of the
+argument is not nat-like, or if a pattern with an operator is not a successor pattern: `N + 0`, `N + M`
+and `N - 1` are not patterns.
 
 The following function is rejected: `N - 1` is not a pattern, since it is not built from constructors.
 
@@ -154,11 +155,20 @@ the outermost position first, then its constructor arguments from left to right 
 comes after the clause's other patterns); a position whose split is undecided is passed over for the
 clause's next one ([Undecided splits](coverage.md#undecided-splits)). A split has a branch per
 constructor that can occur ([Index unification](coverage.md#index-unification)), in which the clauses
-with another constructor there no longer apply. When the first clause that may still apply has no such
-pattern left, its right-hand side gives the value. A numeral matches the constant of its family if it is
-`0`, and the successor applied to its predecessor otherwise ([Inductive families](families.md#numerals)).
+with another constructor there no longer apply. At an argument of a nat-like family, where the patterns
+are numeral patterns, the split is *by value*, as Agda's literal branches and Lean's value splits: a
+branch per literal that a clause that may still apply has there; then, if one of them has `P + j` there,
+a branch for the values of at least the least such `j` (the argument is `Q + j` for a new variable `Q`)
+and one for the other values below it; otherwise one for every other value. The clauses with a literal
+do not apply in the branches that are not their value's, and those with `P + j` not in the branch below
+`j`. When the first clause that may still apply has no such pattern left, its right-hand side gives the
+value. A numeral matches the constant of its family if it is `0`, and the successor applied to its
+predecessor otherwise ([Inductive families](families.md#numerals)); `f 50000 = 1. f _ = 0.` tests
+`50000` once, whatever its size.
 On arguments that are all known (closed constructor
-applications), this is the first clause whose patterns match them.
+applications), this is the first clause whose patterns match them. The arithmetic of
+[`std/nat`](../std/nat.md#native-arithmetic) computes on numerals directly, with the value its clauses give,
+and by its case tree on other arguments.
 
 An application whose tree splits on an argument that is not a constructor application (a variable of an
 enclosing function or of a clause, a postulate, a stuck application) stays unevaluated until the argument

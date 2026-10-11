@@ -259,7 +259,8 @@ class Elaborator(
     with Tooling
     with MetaTooling
     with Holes
-    with Literals:
+    with Literals
+    with NativeOperations:
   /** An elaborator over `core` (a fork of this one's) that continues from this one's declarations. */
   def fork(core: Core, reporter: Reporter, index: hugin.compiler.SemanticIndex): Elaborator =
     Elaborator(core, reporter, file, index, state.fork())

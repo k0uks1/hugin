@@ -374,6 +374,9 @@ Each batch is one pull request and updates the reference with the code.
    `prelude.md` (with #127 N1). Goldens: `run/nat_arith` (each operation on large numerals and on open
    terms; a user's own `plus` staying clause-defined), a unit test that a wrong library equation is an
    internal error, `run/nat_toint` (object code from `toInt 10^12` and the stuck case beyond 2⁶³).
+   As implemented: the operation is recorded in the function's `FunctionBody.native`, not as a third
+   field of `GlobalKind.Function` (the elaborator's patterns on it stay unchanged); the stuck case beyond
+   2⁶³ is the golden `neg/nat_toint` (E0909), since a run golden cannot fail.
 4. **Benchmarks** (9). `bench/meta/nat_large.hgn` in `BenchSet` and `bench/cold.sh`; numbers in
    `docs/PERFORMANCE.md`.
 
