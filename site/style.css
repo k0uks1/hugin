@@ -150,7 +150,7 @@ code, pre { font-family: var(--mono); }
   background: radial-gradient(closest-side, var(--bg-glow), transparent);
   pointer-events: none;
 }
-.hero .wrap { position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3.5rem; align-items: center; }
+.hero .wrap { position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3.5rem; align-items: start; }
 .hero h1 { font-size: 3.4rem; line-height: 1.05; letter-spacing: -0.03em; font-weight: 750; margin: 0 0 1.25rem; }
 .lede { font-size: 1.22rem; line-height: 1.55; color: var(--muted); margin: 0 0 2rem; max-width: 34rem; }
 .lede strong { color: var(--fg); font-weight: 600; }
@@ -201,21 +201,19 @@ code, pre { font-family: var(--mono); }
 .prompt { color: var(--muted); user-select: none; }
 .card-foot { padding: 0.6rem 1.1rem; border-top: 1px solid var(--line); font-size: 0.85rem; }
 
-/* the landing page's examples: a tab per example, switched by radio buttons (no script); the panels
-   share one grid cell, so the card keeps the height of the longest */
+/* the landing page's examples: a tab per example, switched by radio buttons (no script); only the
+   checked tab's panel is displayed, so the card takes the height of that example */
 .examples > input { position: absolute; opacity: 0; pointer-events: none; }
 .examples > .card-head { padding-top: 0; padding-bottom: 0; }
 .ex-tabs { display: flex; gap: 0.25rem; overflow-x: auto; }
 .ex-tabs label { padding: 0.6rem 0.55rem; font-family: var(--mono); color: var(--muted); white-space: nowrap; cursor: pointer; }
 .ex-tabs label:hover { color: var(--fg); }
-.examples .panels { display: grid; grid-template-columns: minmax(0, 1fr); }
-.examples .panel { grid-area: 1 / 1; display: flex; flex-direction: column; visibility: hidden; min-width: 0; }
-.examples .panel > pre { flex: 1; }
+.examples .panel { display: none; min-width: 0; }
 .examples .card-foot { display: flex; justify-content: space-between; gap: 1rem; background: var(--surface-2); color: var(--muted); }
 .examples .card-foot a { white-space: nowrap; }
 .examples > input:nth-of-type(1):checked ~ .panels > .panel:nth-of-type(1),
 .examples > input:nth-of-type(2):checked ~ .panels > .panel:nth-of-type(2),
-.examples > input:nth-of-type(3):checked ~ .panels > .panel:nth-of-type(3) { visibility: visible; }
+.examples > input:nth-of-type(3):checked ~ .panels > .panel:nth-of-type(3) { display: block; }
 .examples > input:nth-of-type(1):checked ~ .card-head label:nth-of-type(1),
 .examples > input:nth-of-type(2):checked ~ .card-head label:nth-of-type(2),
 .examples > input:nth-of-type(3):checked ~ .card-head label:nth-of-type(3) { color: var(--fg); box-shadow: inset 0 -2px var(--accent); }
