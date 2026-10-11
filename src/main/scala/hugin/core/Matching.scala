@@ -76,7 +76,28 @@ trait Matching:
     if hit != null then Reduct(hit, null, Nil, null, later)
     else
       Matching.clauseSteps += 1
+      step()
       runTree(tree.tree, args.toVector, key, later)
+
+  /** [[matchFunction]] for weak-head evaluation ([[WeakHead.whnf]], issue #195), of a function defined by
+   *  clauses applied to `args` (as many as its arity): its native result if every argument is a numeral in
+   *  weak-head form, else the body its case tree selects with the arguments it splits evaluated to
+   *  weak-head normal form only, on demand ([[Reduct]], never memoised: a memo key is a normal form). */
+  protected def matchWeak(tree: FunctionBody, args: List[Val], later: Spine): Reduct | Matching.Stuck.type =
+    // in weak-head form once: the case tree splits on them as they are
+    val ws = if tree.native.isDefined then args.map(whnf) else args
+    val native = tree.native match
+      case Some(n) => nativeResult(n, ws)
+      case None => None
+    native match
+      case Some(Some(v)) =>
+        Matching.nativeSteps += 1
+        Reduct(v, null, Nil, null, later)
+      case Some(None) => Matching.Stuck
+      case None =>
+        Matching.clauseSteps += 1
+        step()
+        runTreeWeak(tree.tree, ws.toVector, later)
 
   protected def memoise(key: (Int, List[Int]), v: Val): Unit = memo(key) = v
 
@@ -116,6 +137,48 @@ trait Matching:
       case CaseTree.SplitAtom(level, branches, default) =>
         atomKey(env(level)) match
           case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env, key, later)
+          case None => Matching.Stuck
+
+  /** [[runTree]] for weak-head evaluation ([[matchWeak]]): the values split on are evaluated to weak-head
+   *  normal form only, and successors are taken off a numeral only as far as the split tells its branches
+   *  apart. (A method of its own, so that the strict one stays as it was on the hot path of evaluation.) */
+  @scala.annotation.tailrec
+  private def runTreeWeak(tree: CaseTree, env: Vector[Val], later: Spine): Reduct | Matching.Stuck.type =
+    tree match
+      case CaseTree.Leaf(body, size, subst, _) =>
+        if env.length == size then Reduct(null, body, clauseEnv(subst, env), null, later) else Matching.Stuck
+      case CaseTree.Split(level, branches) =>
+        natView(whnfData(env(level))) match
+          case Rigid(Head.Glob(c), csp) =>
+            branches.find(_.ctor == c) match
+              case Some(b) =>
+                val args = csp.reverse.collect { case Elim.EApp(a, _) => a }
+                if args.length == b.arity then runTreeWeak(b.tree, env ++ args, later) else Matching.Stuck
+              case None => Matching.Stuck
+          case _ => Matching.Stuck
+      case CaseTree.SplitNat(level, fam, values, offset, above, below) =>
+        // at most as many successors as tell the branches apart: one more than the largest literal, and the
+        // offset; a chain cut there is `Right`, over a base that may have more successors
+        natChainWeak(env(level), (values.map(_._1 + 1) :+ offset).max) match
+          case Left(m) =>
+            values.find(_._1 == m) match
+              case Some((_, t)) => runTreeWeak(t, env, later)
+              case None =>
+                if offset > 0 && m >= offset then runTreeWeak(above, env :+ Nat(fam, m - offset), later)
+                else runTreeWeak(below, env, later)
+          case Right((i, base)) =>
+            if values.exists(_._1 >= i) then Matching.Stuck
+            else if offset == 0 then runTreeWeak(below, env, later)
+            else if i >= offset then runTreeWeak(above, env :+ natSuccs(natLike(fam).get._2, base, i - offset), later)
+            else Matching.Stuck
+      case CaseTree.SplitAtom(level, branches, default) =>
+        // only a weak-head form that is an atom (or an offset, which may become a numeral) is looked at
+        // further: forcing anything else would evaluate what the weak-head form left
+        val key = whnfData(env(level)) match
+          case w @ (_: Lit | _: Nat | _: NatAdd | _: Quote) => atomKey(w)
+          case _ => None
+        key match
+          case Some(k) => runTreeWeak(branches.find(_._1 == k).map(_._2).getOrElse(default), env, later)
           case None => Matching.Stuck
 
   /** The environment of a clause's body at a leaf: the values of the clause context's variables, by the

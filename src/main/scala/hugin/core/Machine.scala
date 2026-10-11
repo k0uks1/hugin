@@ -33,6 +33,53 @@ trait Machine:
    *  bodies of functions defined by clauses applied by [[appNative]]. */
   private var depth = 0
 
+  /** Whether the work in progress is no longer wanted (issue #195): asked every [[Machine.PollEvery]] steps
+   *  of evaluation, a step being a function defined by clauses run by its case tree (by the machine, by the
+   *  native evaluator, or weak-head, [[Matching.matchFunction]], [[Matching.matchWeak]]): every unbounded
+   *  computation, in the machine's loop or in native recursion, runs functions by clauses, since nothing
+   *  else recurses. So a meta computation that takes too long stops with the
+   *  `InterruptedException("evaluation cancelled")` of the fixpoint engine ([[hugin.runtime.Engine.run]])
+   *  instead of running on in an abandoned thread. By default the platform's: on the JVM an interrupt of
+   *  the evaluating thread (a test's or the fuzzer's time limit), in the browser the playground's deadline. */
+  var cancellation: hugin.util.Cancellation = hugin.platform.Platform.cancellation
+
+  /** The steps of evaluation left until [[cancellation]] is asked again. */
+  private var untilPoll = PollEvery
+
+  /** The polls of [[cancellation]] left in the current [[withinPolls]], or -1 outside one. */
+  private var pollBudget = -1L
+
+  /** One step of evaluation: every [[Machine.PollEvery]] steps, [[cancellation]] is asked (and the budget
+   *  of [[withinPolls]] spent). */
+  protected final def step(): Unit =
+    untilPoll -= 1
+    if untilPoll <= 0 then poll()
+
+  private def poll(): Unit =
+    untilPoll = PollEvery
+    if cancellation.cancelled() then throw InterruptedException("evaluation cancelled")
+    if pollBudget >= 0 then
+      if pollBudget == 0 then throw OutOfPolls
+      pollBudget -= 1
+
+  /** `f` if it evaluates within `polls` polls of [[cancellation]] (about `polls` × [[Machine.PollEvery]]
+   *  steps), else `None`: what is worth computing only if it is cheap (a normal form a diagnostic shows, a
+   *  strict evaluation before a weak-head one). A cancellation is not caught. Inside another budget, the
+   *  polls are spent from both, and the outer one ends the inner one if it runs out first. */
+  def withinPolls[A](polls: Long)(f: => A): Option[A] =
+    val outer = pollBudget
+    val limit = if outer >= 0 then polls.min(outer) else polls
+    pollBudget = limit
+    try Some(f)
+    catch
+      case OutOfPolls =>
+        // the outer budget is spent as well: it ends there
+        if outer >= 0 && limit == outer then
+          pollBudget = 0
+          throw OutOfPolls
+        None
+    finally pollBudget = if outer >= 0 then outer - (limit - pollBudget) else -1
+
   /** The value of `t` in `env`. */
   def eval(env: List[Val], t: Tm): Val = t match
     case _: Tm.Var | _: Tm.Global | _: Tm.Meta | _: Tm.Lam | _: Tm.Lit | _: Tm.Base | _: Tm.RecTy | Tm.U0 | _: Tm.U1 | Tm.RelT |
@@ -271,6 +318,14 @@ object Machine:
   /** Levels of nesting evaluated on the native stack before the machine takes over: at the measured worst
    *  (an interpreted JVM, ~2.6 KiB per level of a meta function's recursion) 96 levels take ~250 KiB. */
   inline val NativeDepth = 96
+
+  /** Steps of evaluation (case-tree runs of functions defined by clauses) between two polls of
+   *  [[Machine.cancellation]]: a poll is a call (on the JVM, `Thread.interrupted`, an intrinsic), about a
+   *  millisecond of evaluation apart. */
+  inline val PollEvery = 1024
+
+  /** Thrown when the budget of polls of [[Machine.withinPolls]] is spent. */
+  private[core] object OutOfPolls extends scala.util.control.ControlThrowable
 
   private inline val Eval = 0
   private inline val Apply = 1
