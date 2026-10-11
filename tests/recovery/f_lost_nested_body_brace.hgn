@@ -1,0 +1,54 @@
+(* The nested module body `inner` of tests/run/mc_formula_members.hgn with its `{` deleted (a mutant of
+   RecoveryFuzzSuite). The `}` of `inner` then closes the enclosing body of `hops`, so the later members
+   of `hops` become top-level items, where the parameter `g` is out of scope, and the `}` of `hops` is
+   unmatched. This pins today's recovery. *)
+nat : Type. zero : nat. suc : nat -> nat.
+city : type. berlin : city. paris : city. rome : city. oslo : city. bergen : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome. road rome oslo. road oslo bergen.
+
+paths : Type = { near : city -> city -> prop, within : nat -> city -> city -> prop }.
+(* a signature lists formula functions; `hidden` is not visible through `lib` *)
+lib : paths = {
+  (* `near` uses `link`, declared after it *)
+  near : city -> city -> prop.
+  near X Y :- link X Y ; link Y X.
+  link : city -> city -> prop.
+  link X Y :- road X Y.
+  (* a member function that returns a use of a formula function of the body *)
+  within : nat -> city -> city -> prop.
+  within zero X Y = near X Y.
+  within (suc N) X Y = near X Y ; within N X Y.
+  hidden : city -> prop.
+  hidden X :- road X _.
+}.
+close : city -> city -> rel.
+close X Y :- lib.within (suc zero) X Y.
+
+graph : Type = { node : type, edge : node -> node -> rel }.
+hops (g : graph) = {
+  (* a nested body *)
+  inner =
+    step : g.node -> g.node -> prop. (*~ E0001 *)
+    step X Y :- g.edge X Y.
+    from : g.node -> rel.
+    from X :- step X _.
+  }.
+  (* a meta parameter, a clause per tag *)
+  tagged : string -> g.node -> prop. (*~ E0101 *)
+  tagged "src" X :- inner.step X _.
+  tagged "dst" Y :- inner.step _ Y.
+  (* a formula function next to a negated relation of the body *)
+  ends : g.node -> rel. (*~ E0101 *)
+  ends X :- tagged "dst" X, not inner.from X.
+  (* variables other than the arguments are fresh at each use: `Y` is not shared by the two uses *)
+  two : g.node -> g.node -> prop. (*~ E0101 *)
+  two X Z :- inner.step X Y, inner.step Y Z.
+  four : g.node -> g.node -> rel. (*~ E0101 *)
+  four X Z :- two X Y, two Y Z.
+}. (*~ E0001 *)
+h1 = hops { node = city, edge = road }.
+h2 = hops { node = city, edge = road }.
+viaPath : city -> city -> rel.
+viaPath X Y :- h1.inner.step X Y, h2.tagged "src" X.
+%output close. %output h1.inner.from. %output h1.ends. %output h2.four. %output viaPath.

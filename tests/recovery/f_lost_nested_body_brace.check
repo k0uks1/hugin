@@ -1,0 +1,62 @@
+error[E0001]: expected `.` or `where`, found `:`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:32:10
+   |
+31 |   inner =
+   |   ----- this definition starts here
+32 |     step : g.node -> g.node -> prop. (*~ E0001 *)
+   |          ^ expected `.` or `where`
+
+error[E0101]: unresolved name `g`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:38:22
+   |
+38 |   tagged : string -> g.node -> prop. (*~ E0101 *)
+   |                      ^ not found in this scope
+
+error[E0101]: unresolved name `g`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:42:10
+   |
+42 |   ends : g.node -> rel. (*~ E0101 *)
+   |          ^ not found in this scope
+
+error[E0101]: unresolved name `g`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:45:9
+   |
+45 |   two : g.node -> g.node -> prop. (*~ E0101 *)
+   |         ^ not found in this scope
+
+error[E0101]: unresolved name `g`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:47:10
+   |
+47 |   four : g.node -> g.node -> rel. (*~ E0101 *)
+   |          ^ not found in this scope
+
+error[E0001]: unmatched `}`
+  --> tests/recovery/f_lost_nested_body_brace.hgn:49:1
+   |
+49 | }. (*~ E0001 *)
+   | ^ no module body to close
+
+6 errors found
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+city : type.
+berlin : city.
+paris : city.
+rome : city.
+oslo : city.
+bergen : city.
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+road rome oslo.
+road oslo bergen.
+paths : Type = { near : ⇑city -> ⇑city -> ⇑prop, within : nat -> ⇑city -> ⇑city -> ⇑prop }.
+lib : paths = { near = { near, link, within, hidden }.near, within = { near, link, within, hidden }.within }.
+close : city -> city -> rel.
+close X Y :- X = X#2, Y = Y#1, (X#2 = X#6, Y#1 = Y#5, road X#6 Y#5 ; Y#1 = X#8, X#2 = Y#7, road X#8 Y#7) ; X = X#4, Y = Y#3, (X#4 = X#10, Y#3 = Y#9, road X#10 Y#9 ; Y#3 = X#12, X#4 = Y#11, road X#12 Y#11).
+graph : Type = { node : ⇑type, edge : ⇑($node -> $node -> rel) }.
+viaPath : city -> city -> rel.
+%output close.
+%output viaPath.
