@@ -1,0 +1,18 @@
+(* %derivations with negative premises (reference: object/io): a negated atom is shown with the values of
+   its bound variables; a wildcard and a variable local to the negation keep their names; the values of an
+   expression are computed *)
+node : type.
+a, b, c : node.
+edge : node -> node -> rel.
+edge a b. edge b c.
+weight : node -> int -> rel.
+weight a 1. weight b 2. weight c 3.
+blocked : node -> int -> rel.
+blocked c 4.
+sink : node -> rel.
+@sink sink X :- weight X _, not edge X _.
+source : node -> rel.
+@source source X :- weight X _, not edge _Y X.
+free : node -> rel.
+@free free X :- weight X W, not blocked X (W + 1).
+%derivations @sink. %derivations @source. %derivations @free.

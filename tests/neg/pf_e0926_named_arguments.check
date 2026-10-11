@@ -1,0 +1,55 @@
+error[E0926]: `lengthOf` has no implicit argument `m` here
+  --> tests/neg/pf_e0926_named_arguments.hgn:10:11
+   |
+10 | lengthOf {m := N} V = N. (*~ E0926 *)
+   |           ^ no implicit argument of this name
+   |
+   = note: `lengthOf` takes the implicit arguments `A`, `n` before its next explicit argument
+
+error[E0926]: `vcons` has no implicit argument `M` here
+  --> tests/neg/pf_e0926_named_arguments.hgn:14:20
+   |
+14 | tailLength (vcons {M := K} X XS) = K. (*~ E0926 *)
+   |                    ^ no implicit argument of this name
+   |
+   = note: `vcons` takes the implicit arguments `A`, `N` before its next explicit argument
+
+error[E0926]: `pick` has no implicit argument `n` here
+  --> tests/neg/pf_e0926_named_arguments.hgn:17:9
+   |
+17 | pick X {n := N} = N. (*~ E0926 *)
+   |         ^ no implicit argument of this name
+   |
+   = note: `pick` takes no implicit argument before its next explicit argument
+
+error[E0915]: the implicit argument `n` is matched twice
+  --> tests/neg/pf_e0926_named_arguments.hgn:20:19
+   |
+20 | firstOf {n := N} {n := M} V = N. (*~ E0915 *)
+   |                   ^ matched again here
+
+error[E0926]: `trans` has no implicit argument `w` here
+  --> tests/neg/pf_e0926_named_arguments.hgn:22:37
+   |
+22 | viaTrans : eq (plus 0 3) 3 = trans {w := 3} refl refl. (*~ E0926 *)
+   |                                     ^ no implicit argument of this name
+   |
+   = note: `trans` takes the implicit arguments `A`, `x`, `y`, `z` before its next explicit argument
+
+error[E0926]: `plus` has no implicit argument `m` here
+  --> tests/neg/pf_e0926_named_arguments.hgn:23:25
+   |
+23 | plusThree : nat = plus {m := 3} 4. (*~ E0926 *)
+   |                         ^ no implicit argument of this name
+   |
+   = note: `plus` takes no implicit argument before its next explicit argument
+
+error[E0926]: an implicit argument by name outside an application
+  --> tests/neg/pf_e0926_named_arguments.hgn:24:9
+   |
+24 | alone = {y := 3}. (*~ E0926 *)
+   |         ^^^^^^^ expected an argument of an application
+   |
+   = note: `{x := e}` gives the implicit argument `x` of the function it is applied to, or binds it in a pattern
+
+7 errors found

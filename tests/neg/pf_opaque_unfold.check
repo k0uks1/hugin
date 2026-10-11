@@ -1,0 +1,17 @@
+error[E0901]: mismatched types
+ --> tests/neg/pf_opaque_unfold.hgn:9:23
+  |
+9 | byValue : eq four 4 = refl. (*~ E0901 *)
+  |                       ^^^^ expected `eq {nat} four 4`, found `eq {?1} 4 4`
+  |
+  = note: `four` does not unfold: `four` is opaque (`%opaque four.`)
+
+error[E0901]: mismatched types
+  --> tests/neg/pf_opaque_unfold.hgn:10:31
+   |
+10 | byClauses : eq (double 1) 2 = refl. (*~ E0901 *)
+   |                               ^^^^ expected `eq {nat} (double 1) 2`, found `eq {?1} 2 2`
+   |
+   = note: `double 1` does not unfold: `double` is opaque (`%opaque double.`)
+
+2 errors found

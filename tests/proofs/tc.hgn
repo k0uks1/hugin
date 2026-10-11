@@ -1,0 +1,9 @@
+(* --export-proofs (reference: object/io): proof trees of a transitive closure; every fact of `edge` and
+   `path` has a tree, and the rules without body state the facts of `edge` *)
+node : type.
+a, b, c, d : node.
+edge : node -> node -> rel.
+edge a b. edge b c. edge c d.
+path : node -> node -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.

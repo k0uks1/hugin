@@ -2,7 +2,7 @@
 
 A program reads *input facts* from facts files, and prints the facts of its *output relations* and the
 *answers* to its queries. This chapter defines queries, input relations, the format of facts files, the
-choice of the printed relations and derivation facts.
+choice of the printed relations, derivation facts and the export of a run's proofs.
 
 ## Queries
 
@@ -101,11 +101,22 @@ relations and demand relations.
 Derivations ::= "%derivations" (QualifiedName | RULE_NAME) "."
 ```
 
-`%derivations r.` asks for a *derivation fact* for every rule instance that derives a fact of `r`;
-`%derivations @n.` does so for the rules named `@n`. The derivation relation of the rules named `@n` is
-`@n` (`@n#1`, `@n#2`, … if several rules share the name). Its facts have the derived fact as their first
-argument and the facts of the positive body atoms of the instance after it. Derivation relations are
-output relations; they cannot be read by rules.
+`%derivations r.` asks for a *derivation fact* for every instance of a named rule that derives a fact of
+`r`; `%derivations @n.` does so for the rules named `@n`. The derivation relation of the rules named `@n`
+is `@n` (`@n#1`, `@n#2`, … if several rules share the name). Its facts have the derived fact as their
+first argument, followed by the *premises* of the instance in the order of the rule's body:
+
+- A positive body atom gives the fact it matches.
+- A negated atom `not r t̄` gives its *negative premise*, written `(not r v̄)`: the atom with each argument
+  replaced by its value under the instance's valuation. A variable that only the negated atom has is
+  local to the negation and keeps its name (`_` for a wildcard). The negative premise states that no fact
+  matches the atom; it is not a fact.
+
+Comparisons and aggregates give no premise. Derivation relations are output relations; they cannot be
+read by rules.
+
+> **Limitation.** A rule without a name has no derivation relation: `%derivations r.` shows no instances
+> of the unnamed rules of `r`.
 
 The following program records how each path was derived by the recursive rule.
 
@@ -122,3 +133,90 @@ path : node -> node -> rel.
 ```output
 @step (path a c) (edge a b) (path b c).
 ```
+
+The following program records the negative premises of the people without children. The wildcard is
+local to the negation.
+
+```hugin,run
+person : type.
+alice, bob : person.
+parent : person -> person -> rel.
+parent alice bob.
+known : person -> rel.
+known alice. known bob.
+childless : person -> rel.
+@none childless X :- known X, not parent X _.
+%derivations @none.
+```
+
+```output
+@none (childless bob) (known bob) (not parent bob _).
+```
+
+## Proof export
+
+The option `--export-proofs FILE` of `hugin run` writes the *proof export* of the run to `FILE`: a proof
+of every derived fact, in the JSON format of the verified Datalog checker of
+[Tantow et al. 2025](../notation.md#references). Their checker, written and proven correct in Lean, then
+validates the run without trusting the implementation. The option `--proof-format` chooses one proof
+tree per fact (`trees`, the default) or one ordered proof graph that holds every fact once
+(`ordered-graph`, the checker's option `-o`). The file has three members:
+
+- `program`: the *exported rules*, one rule for each head of each rule in the exported fragment (below),
+  and a rule without body for each fact of an input relation that no exported rule derives.
+- `trees` or `graph`: the proofs of the facts of every relation that occurs in the exported rules. A
+  node of a proof is a fact, and its children are the premises of one instance of an exported rule, in
+  the order of the body. Of the instances of a fact, the export takes one of least proof depth.
+- `hugin`: what the checker does not read: the version (1), the format, the assumption relations, the
+  assumed facts and the rules left out, each with the reason.
+
+The schema of the file is [`proof-export.schema.json`](proof-export.schema.json). A relation is named by
+its qualified name, a value by its text as `hugin run` prints it (`"pen"`, `seat 1`), and a variable by its
+name.
+
+The *exported fragment* is function-free Datalog: rules whose atoms have only variables and constants as
+arguments, without `as`, aggregates and disjunctions, whose head relation has no bound column. A negated
+atom `not r t̄` is exported as an atom of the relation `not r`, and a comparison `l op r` as the atom
+`op(l, r)`; a local variable of a negated atom is the constant of its name. These *assumption relations*
+have no rules: their atoms are leaves of the proofs, which the checker accepts as database facts. An atom
+of `not r` holds if no fact of the run matches it, and a comparison holds if it is true; both can be
+checked against the export.
+
+A rule outside the exported fragment is left out with a warning. A fact that no exported rule derives,
+and that is not a fact of an input relation, is an *assumed fact*: a leaf of the proofs, listed under
+`hugin`, with a warning.
+
+The following program has a negated atom and a comparison. Its export has the rule
+`childless(X) :- age(X, _#1), "not parent"(X, "_")`, in the format's notation, and the leaf
+`"not parent"(carol, "_")` in the proof of `childless carol`.
+
+```hugin,run
+person : type.
+alice, bob, carol : person.
+parent : person -> person -> rel.
+parent alice bob.
+parent alice carol.
+age : person -> int -> rel.
+age alice 40. age bob 12. age carol 9.
+childless : person -> rel.
+childless X :- age X _, not parent X _.
+younger : person -> person -> rel.
+younger X Y :- childless X, childless Y, age X A, age Y B, A < B.
+%output childless. %output younger.
+```
+
+```output
+childless bob.
+childless carol.
+younger carol bob.
+```
+
+> **Rationale.** The checker's Datalog is positive and has no built-in relations. Reading a negated atom
+> as an assumption is the reduct of a program by its model ([Gelfond and Lifschitz
+> 1988](../notation.md#references)): the checker validates the positive structure of every proof, and the
+> assumptions are what remains to be checked; when they hold, every fact of the export follows from the
+> program. The checker's model check (option `-c`) does not see the negated atoms that hold but no proof
+> uses, so it does not show that the export is complete for a rule with a negated atom. Constructor
+> terms, arithmetic and aggregates have no counterpart in the format, so their rules are left out rather
+> than encoded in a way the checker could not validate.
+

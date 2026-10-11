@@ -1,0 +1,71 @@
+{
+  "trees": [
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "1"}, {"constant": "2"}]}, "children": []}
+    },
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "2"}, {"constant": "3"}]}, "children": []}
+    },
+    {
+      "node": {"label": {"symbol": "edge", "terms": [{"constant": "4"}, {"constant": "1"}]}, "children": []}
+    },
+    {"node": {"label": {"symbol": "reach", "terms": [{"constant": "1"}]}, "children": []}},
+    {
+      "node": {
+        "label": {"symbol": "reach", "terms": [{"constant": "2"}]},
+        "children": [
+          {"node": {"label": {"symbol": "reach", "terms": [{"constant": "1"}]}, "children": []}},
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "1"}, {"constant": "2"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "reach", "terms": [{"constant": "3"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "reach", "terms": [{"constant": "2"}]},
+              "children": [
+                {
+                  "node": {"label": {"symbol": "reach", "terms": [{"constant": "1"}]}, "children": []}
+                },
+                {
+                  "node": {
+                    "label": {"symbol": "edge", "terms": [{"constant": "1"}, {"constant": "2"}]},
+                    "children": []
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "edge", "terms": [{"constant": "2"}, {"constant": "3"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "program": [
+    {"head": {"symbol": "reach", "terms": [{"constant": "1"}]}, "body": []},
+    {
+      "head": {"symbol": "reach", "terms": [{"variable": "Y"}]},
+      "body": [
+        {"symbol": "reach", "terms": [{"variable": "X"}]},
+        {"symbol": "edge", "terms": [{"variable": "X"}, {"variable": "Y"}]}
+      ]
+    },
+    {"head": {"symbol": "edge", "terms": [{"constant": "1"}, {"constant": "2"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "2"}, {"constant": "3"}]}, "body": []},
+    {"head": {"symbol": "edge", "terms": [{"constant": "4"}, {"constant": "1"}]}, "body": []}
+  ],
+  "hugin": {"version": 1, "format": "trees", "assumptionSymbols": [], "assumedFacts": [], "omittedRules": []}
+}

@@ -18,6 +18,21 @@ class CommandLineSuite extends munit.FunSuite:
     assertEquals(d.settings.printAssumptions, Nil)
   }
 
+  test("--export-proofs and --proof-format (reference: object/io)") {
+    val o = CommandLine.parse(List("run", "a.hgn", "--export-proofs", "p.json")).toOption.get
+    assertEquals(o.run.exportProofs, Some("p.json"))
+    assertEquals(o.run.proofFormat, None)
+    assert(o.settings.exportProofs, "the proof relations are compiled only with --export-proofs")
+    assert(!CommandLine.parse(List("run", "a.hgn")).toOption.get.settings.exportProofs)
+    val g = CommandLine.parse(List("run", "a.hgn", "--export-proofs", "p.json", "--proof-format", "ordered-graph")).toOption.get
+    assertEquals(g.run.proofFormat, Some(hugin.runtime.ProofExport.Format.OrderedGraph))
+    assertEquals(CommandLine.parse(List("check", "a.hgn", "--export-proofs", "p.json")), Left("--export-proofs needs the command `run`"))
+    assertEquals(CommandLine.parse(List("run", "a.hgn", "--proof-format", "trees")), Left("--proof-format needs --export-proofs"))
+    assert(CommandLine.parse(List("run", "a.hgn", "--export-proofs", "p.json", "--proof-format", "dag")).left.exists(
+      _.contains("unknown proof format")
+    ))
+  }
+
   test("phase names are validated") {
     assert(CommandLine.parse(List("check", "a.hgn", "--print-after", "elaborate,derivations")).isRight)
     assertEquals(CommandLine.parse(List("check", "a.hgn", "--stop-after", "nope")), Left("unknown phase `nope`; see `hugin phases`"))

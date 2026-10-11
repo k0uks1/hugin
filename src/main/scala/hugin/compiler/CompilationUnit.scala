@@ -55,3 +55,8 @@ final class CompilationUnit(val source: SourceFile):
 
   /** Rules named by `%derivations @r`. */
   val derivationRules: mutable.Set[String] = mutable.LinkedHashSet.empty
+
+  /** With `--export-proofs` (from `derivations` on): the proof relation of every head of every rule in the
+   *  exported fragment, and the rules outside it with the reason (`hugin.runtime.ProofExport`). */
+  var proofRules: Vector[hugin.obj.transform.ProofRule] = Vector.empty
+  var proofOmitted: Vector[(Rule, String)] = Vector.empty

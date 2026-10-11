@@ -34,7 +34,7 @@ trait Readback:
   private def stuckApplication(v: Val): Boolean = v match
     case Rigid(Head.Glob(id), sp) if sp.nonEmpty =>
       globals(id).kind match
-        case _: GlobalKind.Function | _: GlobalKind.Definition | GlobalKind.Postulate => true
+        case _: GlobalKind.Function | _: GlobalKind.Definition | _: GlobalKind.Opaque | GlobalKind.Postulate => true
         case _ => false
     case _ => false
 

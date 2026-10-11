@@ -128,6 +128,7 @@ private final class Canonical(ref: Int => Any):
     case GlobalKind.Function(arity, body) =>
       ("function", arity, body.map(b => (tree(b.tree), b.clauses.map(c => (c.body.map(tm), c.names, c.patterns.map(tm))))))
     case GlobalKind.Primitive(op, ctors) => ("primitive", op, ctors.map(ref))
+    case GlobalKind.Opaque(t, f) => ("opaque", t.map(tm), f.map((a, b) => kind(GlobalKind.Function(a, Some(b)))))
 
   private def objDecl(d: ObjDecl): Any = d match
     case ObjDecl.Refinement(base) => ("refinement", tm(base))

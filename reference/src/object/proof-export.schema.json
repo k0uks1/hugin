@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "proof-export.schema.json",
+  "title": "Proofs exported by hugin run --export-proofs",
+  "description": "The JSON input of the verified Datalog checker of Tantow, Gerlach, Mennicke and Krötzsch (ITP 2025; github.com/knowsys/CertifyingDatalog, v0.2.0): TreeProblemInput (trees and program) or OrderedGraphProblemInput (graph and program), as their Lean structures derive it, with the member hugin, which the checker does not read. See the language reference, object/io, Proof export.",
+  "type": "object",
+  "properties": {
+    "trees": { "type": "array", "items": { "$ref": "#/$defs/tree" } },
+    "graph": { "$ref": "#/$defs/orderedGraph" },
+    "program": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
+    "hugin": { "$ref": "#/$defs/hugin" }
+  },
+  "required": ["program", "hugin"],
+  "oneOf": [{ "required": ["trees"] }, { "required": ["graph"] }],
+  "additionalProperties": false,
+  "$defs": {
+    "constant": {
+      "type": "object",
+      "properties": { "constant": { "type": "string" } },
+      "required": ["constant"],
+      "additionalProperties": false
+    },
+    "variable": {
+      "type": "object",
+      "properties": { "variable": { "type": "string" } },
+      "required": ["variable"],
+      "additionalProperties": false
+    },
+    "atom": {
+      "description": "InputAtom: a relation symbol and its terms",
+      "type": "object",
+      "properties": {
+        "symbol": { "type": "string" },
+        "terms": { "type": "array", "items": { "oneOf": [{ "$ref": "#/$defs/constant" }, { "$ref": "#/$defs/variable" }] } }
+      },
+      "required": ["symbol", "terms"],
+      "additionalProperties": false
+    },
+    "groundAtom": {
+      "description": "InputAtom whose terms are constants, as the labels of proofs must be",
+      "type": "object",
+      "properties": {
+        "symbol": { "type": "string" },
+        "terms": { "type": "array", "items": { "$ref": "#/$defs/constant" } }
+      },
+      "required": ["symbol", "terms"],
+      "additionalProperties": false
+    },
+    "rule": {
+      "description": "InputRule",
+      "type": "object",
+      "properties": {
+        "head": { "$ref": "#/$defs/atom" },
+        "body": { "type": "array", "items": { "$ref": "#/$defs/atom" } }
+      },
+      "required": ["head", "body"],
+      "additionalProperties": false
+    },
+    "tree": {
+      "description": "InputTree InputAtom: the constructor node with its label and children",
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "object",
+          "properties": {
+            "label": { "$ref": "#/$defs/groundAtom" },
+            "children": { "type": "array", "items": { "$ref": "#/$defs/tree" } }
+          },
+          "required": ["label", "children"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["node"],
+      "additionalProperties": false
+    },
+    "orderedGraph": {
+      "description": "InputOrderedGraph: every predecessor is the index of an earlier edge",
+      "type": "object",
+      "properties": {
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "$ref": "#/$defs/groundAtom" },
+              "predecessors": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
+            },
+            "required": ["label", "predecessors"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["edges"],
+      "additionalProperties": false
+    },
+    "hugin": {
+      "description": "Hugin's extension, version 1: the assumption relations, the assumed facts and the rules left out",
+      "type": "object",
+      "properties": {
+        "version": { "const": 1 },
+        "format": { "enum": ["trees", "ordered-graph"] },
+        "assumptionSymbols": { "type": "array", "items": { "type": "string" } },
+        "assumedFacts": { "type": "array", "items": { "$ref": "#/$defs/groundAtom" } },
+        "omittedRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule": { "type": "string" },
+              "at": { "type": "string" },
+              "reason": { "type": "string" }
+            },
+            "required": ["rule", "at", "reason"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["version", "format", "assumptionSymbols", "assumedFacts", "omittedRules"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -50,6 +50,9 @@ enum ClauseProblem extends Problem:
   /** A name in a pattern that is not a constructor (`what`: "`x` is not a constructor", "unresolved name `x`"). */
   case NotAConstructor(what: String, at: Span)
   case BoundTwice(variable: String, at: Span)
+
+  /** `{x := p}` twice for the same implicit argument in one clause or constructor pattern. */
+  case ImplicitPatternTwice(binder: String, at: Span)
   case CannotMatchArgument(argument: String, at: Span)
   case UndecidableConstructor(constructor: String, equation: String, at: Span)
   case NotInductive(tpe: String, at: Span)
@@ -102,6 +105,7 @@ enum ClauseProblem extends Problem:
     case LiteralPattern(_, s) => s
     case NotAConstructor(_, s) => s
     case BoundTwice(_, s) => s
+    case ImplicitPatternTwice(_, s) => s
     case CannotMatchArgument(_, s) => s
     case UndecidableConstructor(_, _, s) => s
     case NotInductive(_, s) => s
@@ -135,6 +139,7 @@ enum ClauseProblem extends Problem:
     case _: LiteralPattern => msg"literal and successor patterns are only supported for nat-like types"
     case NotAConstructor(w, _) => Msg.text(s"$w in a pattern")
     case BoundTwice(v, _) => msg"the variable ${Src(v)} is bound twice in this clause"
+    case ImplicitPatternTwice(x, _) => msg"the implicit argument ${Src(x)} is matched twice"
     case _: CannotMatchArgument => msg"cannot match on this argument"
     case UndecidableConstructor(c, _, _) => msg"cannot decide whether ${Src(c)} applies here"
     case _: NotInductive => msg"cannot match on a value of this type"
@@ -167,6 +172,7 @@ enum ClauseProblem extends Problem:
     case LiteralPattern(t, _) => msg"a pattern of type ${Src(t)}"
     case _: NotAConstructor => msg"expected a constructor"
     case _: BoundTwice => msg"bound again here"
+    case _: ImplicitPatternTwice => msg"matched again here"
     case _: CannotMatchArgument | _: NotInductive => msg"constructor pattern"
     case _: UndecidableConstructor => msg"in this pattern"
     case _: LocalWithoutClauses => msg"declared here"

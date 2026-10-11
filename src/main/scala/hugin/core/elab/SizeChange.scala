@@ -266,6 +266,8 @@ trait SizeChange:
   /** The term of a definition. */
   private def definitionTerm(g: Int): Option[Tm] = kindOf(g) match
     case GlobalKind.Definition(tm, _) => Some(tm)
+    // an opaque definition does not unfold, but its calls are calls all the same
+    case GlobalKind.Opaque(Some(tm), _) => Some(tm)
     case _ => None
 
   private val reachableMemo = mutable.HashMap.empty[Int, Set[Int]]

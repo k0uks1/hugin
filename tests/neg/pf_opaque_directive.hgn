@@ -1,0 +1,14 @@
+(* #186 P2: `%opaque` names definitions and functions by clauses of the file (E0701), at the level of
+   the file (E0907) *)
+%use "std/eq".
+city : type.
+road : city -> city -> rel.
+%opaque road. (*~ E0701 *)
+%opaque refl. (*~ E0701 *)
+%opaque eq. (*~ E0701 *)
+%opaque nowhere. (*~ E0101 *)
+%opaque (road). (*~ E0701 *)
+m = {
+  four : nat = 4.
+  %opaque four. (*~ E0907 *)
+}.

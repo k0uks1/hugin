@@ -6,7 +6,7 @@ import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
 import hugin.lsp.HuginLanguageServer
-import hugin.runtime.Evaluation
+import hugin.runtime.{Evaluation, ProofExport}
 import java.nio.file.{Files, Path}
 
 /** Process exit codes. */
@@ -135,7 +135,25 @@ object Main:
       case Some(res) =>
         res.output.foreach(out)
         if opts.run.stats then res.statistics.foreach(err)
-        if errors then ExitCode.Errors else ExitCode.Ok
+        val exported = opts.run.exportProofs.forall(exportProofs(_, key, compiled, facts, opts, err))
+        if errors || !exported then ExitCode.Errors else ExitCode.Ok
+
+  /** `--export-proofs`: writes the proofs of the evaluated program to `file` and prints the warnings of the
+   *  export; false if the file could not be written. */
+  private def exportProofs(file: String, key: CompileKey, compiled: Compiled, facts: List[String], opts: Options, err: String => Unit)(using
+      db: Database
+  ): Boolean =
+    val fixpoint = db(Fixpoint, FixpointKey(key, facts)).get
+    val format = opts.run.proofFormat.getOrElse(ProofExport.Format.Trees)
+    val proofs = ProofExport(compiled.context.unit, compiled.context.unit.core.nn, fixpoint.engine, format)
+    proofs.warnings.foreach(err)
+    try
+      Files.writeString(Path.of(file), proofs.json.pretty() + "\n")
+      true
+    catch
+      case e: java.io.IOException =>
+        err(s"error: cannot write the proofs to `$file`: ${e.getMessage}")
+        false
 
   /** `hugin fix`: applies the machine-applicable suggestions, writes the file if it changed, and reports
    *  what is left. */

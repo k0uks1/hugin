@@ -1,0 +1,9 @@
+(* --export-proofs with --proof-format ordered-graph (reference: object/io): one ordered proof graph, in
+   which every fact occurs once and its premises come before it *)
+node : type.
+a, b, c, d : node.
+edge : node -> node -> rel.
+edge a b. edge b c. edge c d.
+path : node -> node -> rel.
+path X Y :- edge X Y.
+path X Z :- path X Y, path Y Z.

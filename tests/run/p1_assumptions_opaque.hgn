@@ -1,0 +1,15 @@
+(* The assumptions of a constant include those of the `%opaque` definitions it uses (issue #186, P1):
+   an opaque lemma does not unfold, but its proof rests on the postulate it applies. `decEq` of `std/eq`
+   rests on the trusted primitives `same`, `sameTrue` and `apart`. *)
+%use "std/eq" (eq, refl, decEq).
+plus : nat -> nat -> nat.
+plus 0 N = N.
+plus (M + 1) N = plus M N + 1.
+plusZero : (n : nat) -> eq (plus n 0) n = %postulate.
+lemma : eq (plus 2 0) 2 = plusZero 2.
+%opaque lemma.
+uses : eq (plus 2 0) 2 = lemma.
+%assumptions decEq.
+%assumptions uses.
+result : int -> rel.
+result 1.

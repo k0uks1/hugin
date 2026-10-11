@@ -40,7 +40,11 @@ final case class RunOptions(
     /** Print evaluation statistics to stderr. */
     stats: Boolean = false,
     /** Print every relation, including fact constructors and demand relations. */
-    allRelations: Boolean = false
+    allRelations: Boolean = false,
+    /** Write the run's proofs to this file (`--export-proofs`, [[hugin.runtime.ProofExport]]). */
+    exportProofs: Option[String] = None,
+    /** The format of the proofs (`--proof-format`). */
+    proofFormat: Option[hugin.runtime.ProofExport.Format] = None
 )
 
 final case class Options(
@@ -184,6 +188,18 @@ object CommandLine:
       opt[Unit]("all-relations")
         .text("print the facts of every relation (including fact constructors and demand relations)")
         .action((_, o) => o.copy(run = o.run.copy(allRelations = true))),
+      opt[String]("export-proofs")
+        .valueName("<file>")
+        .text("with run: write the proofs of the derived facts as JSON for Tantow et al.'s verified Datalog checker")
+        .action((f, o) => o.copy(settings = o.settings.copy(exportProofs = true), run = o.run.copy(exportProofs = Some(f)))),
+      opt[String]("proof-format")
+        .valueName("trees|ordered-graph")
+        .text("with --export-proofs: proof trees (default) or one ordered proof graph")
+        .validate(f =>
+          if hugin.runtime.ProofExport.Format.parse(f).isDefined then success
+          else failure(s"unknown proof format `$f`; expected trees or ordered-graph")
+        )
+        .action((f, o) => o.copy(run = o.run.copy(proofFormat = hugin.runtime.ProofExport.Format.parse(f)))),
       opt[Unit]("color")
         .text("colour diagnostics")
         .action((_, o) => o.copy(display = o.display.copy(color = true))),
@@ -220,6 +236,8 @@ object CommandLine:
           case Command.Help => failure("no command given")
           case Command.Explain("", false) => failure("`explain` needs a code, or --list")
           case Command.Query(_, r, None) if positional(r) => failure(s"`$r` needs a position `line:column`")
+          case c if o.run.exportProofs.isDefined && !c.isInstanceOf[Command.Run] => failure("--export-proofs needs the command `run`")
+          case _ if o.run.proofFormat.isDefined && o.run.exportProofs.isEmpty => failure("--proof-format needs --export-proofs")
           case _ => success
       )
     )

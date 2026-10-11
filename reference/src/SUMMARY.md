@@ -33,11 +33,13 @@
 - [The standard library](std/index.md)
     - [`std/reflect`](std/reflect.md)
     - [`std/nat`](std/nat.md)
+    - [`std/eq`](std/eq.md)
     - [`std/list`](std/list.md)
     - [`std/directives`](std/directives.md)
     - [`std/graph`](std/graph.md)
     - [`std/order`](std/order.md)
     - [`std/demand`](std/demand.md)
+- [The command line](command-line.md)
 
 ---
 

@@ -19,6 +19,7 @@ object Assumptions:
   private def trusted(g: GlobalEntry): Option[String] = g.kind match
     case GlobalKind.Primitive(op, _) => Some(s"trusted primitive %builtin ${op.key}")
     case GlobalKind.Function(_, Some(body)) => body.native.map(n => s"trusted native operation ${n.op.key}")
+    case GlobalKind.Opaque(_, Some((_, body))) => body.native.map(n => s"trusted native operation ${n.op.key}")
     case _ => None
 
   /** The assumptions that the global `id` depends on (itself, if it is one), in declaration order. */
@@ -70,14 +71,19 @@ object Assumptions:
           false
         case _ => false
       }: Unit
+    def function(body: FunctionBody): Unit =
+      tree(body.tree)
+      for c <- body.clauses do
+        c.body.foreach(tm)
+        c.patterns.foreach(tm)
     tm(g.tyTm)
     g.kind match
       case GlobalKind.Definition(t, _) => tm(t)
-      case GlobalKind.Function(_, Some(body)) =>
-        tree(body.tree)
-        for c <- body.clauses do
-          c.body.foreach(tm)
-          c.patterns.foreach(tm)
+      case GlobalKind.Function(_, Some(body)) => function(body)
+      // an opaque definition or function does not unfold, but its proof rests on what it mentions
+      case GlobalKind.Opaque(term, fn) =>
+        term.foreach(tm)
+        fn.foreach((_, body) => function(body))
       case GlobalKind.Inductive(ctors) => out ++= ctors
       case GlobalKind.Constructor(family) => out += family
       case GlobalKind.Primitive(_, ctors) => out ++= ctors

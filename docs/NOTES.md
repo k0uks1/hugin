@@ -149,7 +149,11 @@ elaboration, no variables local to negations or aggregates).
   aggregate counts distinct bindings of its variables as usual (issue #1, item B4). The version before
   C3 supplied the inputs by the demand transformation; see the history.
 * **Demand relations** are named `c.check` (derived constants, C3; formerly `c^d[m]`), derivation relations `@r` or `@r#i`. Derivation relations
-  are output relations; they cannot be referenced in atoms.
+  are output relations; they cannot be referenced in atoms. Their columns after the derived fact follow `RelSym.premises`: one identity
+  per positive atom, and per negated atom the values of its bound variables, which `Engine.show` prints as `(not r v̄)` (#186, P8a).
+  With `--export-proofs`, `DerivationsPhase` also adds a proof relation `proof#k` (`RelKind.Proof`, never printed) for every head of
+  every rule in the exported fragment, which records the values of its comparisons' variables as well; `runtime/ProofExport.scala`
+  reads them after the run (reference: object/io, "Proof export").
 * **Primitives.** Integer overflow and division by zero (also for floats) are undefined. Strings
   compare by code point. NaN is never produced by the primitive operations.
 * **Input facts** are accepted for relations declared `%input` or `%open`.
@@ -2336,3 +2340,40 @@ module environments, `KOrigin` for a trace frame), in `evalNode`'s order of eval
 object code and quotes while an observer records staging, stay `evalNode` steps. The native depth counts
 every compound term, not only applications. `LongListsSuite` evaluates `steps (N + 1) = steps N + 1`
 5 000 levels deep on a 1 MiB thread (computed numbers: a large literal is a deep term, walked elsewhere).
+
+## Proof basics (#186, batch P2)
+
+Design: `docs/design/proofs.md` (chapter 1, the P2 row, D9, D11). The reference: `std/eq`,
+`meta/functions` ("Implicit arguments by name"), `meta/clauses` ("Implicit patterns"), `meta/index`
+("Opaque definitions"), `meta/coverage` (the conflict rule for literals and symbols).
+
+* **`{x := e}` is parsed, not lexed**: `:` directly followed by `=` inside braces (`RecordSyntax`), so the
+  lexer, the TextMate grammar and the semantic tokens are unchanged; `x : = e` stays an error. The tree
+  `NamedArg` keeps the binder's name as a string, so the generic traversals that collect the free
+  uppercase variables of a declaration or the variables of a rule do not see it. The parser now also
+  reads `{x y : A}` with lowercase names as binders, as the grammar of `meta/functions` always said.
+* **Applications** (`Applications.inferNamedApp`): the head is inferred without inserting its implicit
+  arguments; the leading implicit binders up to the named one get unknowns, the named one is checked, and
+  the binders after it are left to the next argument (Agda's rule, `{x = e}` only up to the next
+  explicit binder).
+* **Patterns**: `Pat.PCon` carries the implicit patterns of a constructor by binder name, and
+  `constructorArgs` turns them into equations like the explicit ones. A clause's implicit patterns
+  replace the `implicitBinder` variable of their binder; the function's arity extends to the last binder
+  a clause names. `FunctionInfo.shown` adds the named positions to the missing cases (`isEmpty {n := _ +
+  1} _`). The refinement fix (`refinedClause`) is not offered for clauses with implicit patterns.
+* **`%opaque`** is split off with the declarations (`Items.splitItems`) and its names read before them
+  (`ElabState.opaque`). An opaque definition is declared `GlobalKind.Opaque(Some(term), None)` without
+  evaluating its term; an opaque function gets `GlobalKind.Opaque(None, Some((arity, tree)))` at the end
+  of `elabFunction`, after the termination check (which must still see its calls of itself as calls of a
+  function), or in `withheld` inside a cycle. Evaluation needs no test: `Opaque` is neither a
+  `Definition` nor a `Function`, so it is neutral, like a postulate. `SizeChange.definitionTerm` follows
+  an opaque definition's term, so an opaque definition cannot hide a cycle of calls. It is a kind of its
+  own, not a postulate, so that `--safe` and the assumptions of P1 do not count it.
+* **Atoms in index unification** (`IndexUnifier`): two literals or symbols (`atomKey`) conflict unless
+  they are the same; numerals already did.
+* **`decEq`** is defined in `std/eq` from `same` and two trusted primitives, `sameTrue` (reduces to
+  `refl` on equal atoms, reading the implicit arguments: `PrimOp.readsImplicit`) and `apart` (never
+  reduces). Their declared types are checked exactly (`Declarations.sameLemmaCtors`), with `eq` checked to
+  be an identity family, since a primitive with another type would assert something else.
+* `Universes.objectPartsValid` looked at a codomain with its variable as `_`, which crashed on a type that
+  applies a variable of a function type (`P x` for `P : A -> Type`, in `subst`); it binds the variable now.

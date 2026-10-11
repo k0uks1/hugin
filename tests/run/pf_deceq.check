@@ -1,0 +1,4 @@
+decided "cities" "no".
+decided "naturals" "no".
+decided "numbers" "yes".
+decided "strings" "yes".

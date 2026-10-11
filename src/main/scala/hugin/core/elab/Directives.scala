@@ -51,6 +51,8 @@ trait Directives:
       if inBody then unsupportedAt(d.span, "`%assumptions` in module bodies")
       resolve(c, n.name, n.span): Unit
       Nil
+    // `%opaque` is about the file's declarations ([[Items.elabOpaque]])
+    case DirArgs.Apply(_, _) if d.kind == "opaque" => unsupportedAt(d.span, "`%opaque` in module bodies")
     case DirArgs.Apply(args, decl) =>
       val (tm, footprint, attached) = application(c, d, args, decl)
       val frame = TraceFrame(s"in expansion of `${shown(d)}`", d.span)

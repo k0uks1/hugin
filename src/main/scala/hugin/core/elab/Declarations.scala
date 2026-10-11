@@ -129,7 +129,7 @@ trait Declarations:
       val (body, st) =
         if inferred then
           val (b, s, _) = atStage(positionStage(c2, d.tpe, unknown))(inferU(c2, d.tpe))
-          if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b)) then
+          if s == Stage.S0 && !isObjectConstantType(ev(c2, b)) || s == Stage.S1 && !objectPartsValid(ev(c2, b), c2.lvl) then
             fail(TypeProblem.NotObjectConstantType(d.tpe.span))
           (b, s)
         else (checkType(c2, d.tpe, Stage.S1), Stage.S1)
@@ -254,9 +254,21 @@ trait Declarations:
         // declared with its type first ([[DependencyOrder.provisionalSignatures]]): a definition still may
         // not reach itself through definitions alone
         if unfoldsTo(id, ztm) then fail(ElabProblem.SelfReference(name.name, declSpan, name.span))
-        globals(id).kind = GlobalKind.Definition(ztm, eval(Nil, ztm))
+        globals(id).kind = definitionKind(name.name, ztm)
         id
-      case None => declare(name, zonk(Nil, 0, ty), Stage.S1, GlobalKind.Definition(ztm, eval(Nil, ztm)), declSpan)
+      case None => declare(name, zonk(Nil, 0, ty), Stage.S1, definitionKind(name.name, ztm), declSpan)
+
+  /** The kind of a definition of `name` with the term `tm`: opaque if `%opaque name.` says so (its value
+   *  is then never computed), otherwise a definition with its value, computed now. Only the file's own
+   *  definitions are globals defined here (the members of a module body are bound in its context). */
+  private def definitionKind(name: Name, tm: Tm): GlobalKind =
+    if state.opaque(name) && state.bodyDeclared.isEmpty then GlobalKind.Opaque(Some(tm), None)
+    else GlobalKind.Definition(tm, eval(Nil, tm))
+
+  /** Whether the global `id` named `name` is made opaque by a directive `%opaque name.` of the file: a
+   *  definition or function that the file declares at its level (not a member of a module body). */
+  def opaqueHere(name: Name, id: Int): Boolean =
+    state.opaque(name) && state.bodyDeclared.isEmpty && scope.get(name).contains(id)
 
   /** `x : A = e.` declared with its type alone, a postulate until its value is elaborated. */
   def declareSignature(d: Decl): Unit =
@@ -272,6 +284,7 @@ trait Declarations:
       case Tm.Global(g) =>
         g == id || seen.add(g) && (kindOf(g) match
           case GlobalKind.Definition(d, _) => in(d)
+          case GlobalKind.Opaque(Some(d), _) => in(d)
           case _ => false
         )
       case _ => false
@@ -340,6 +353,7 @@ trait Declarations:
       case PrimOp.Labels if doms.length == 1 && isSym(doms.head) => ctorsOf(result, id => telescope(globals(id).ty)._1.length == 1)
       case PrimOp.Derive if doms.length == 2 && isSym(doms(0)) && isString(doms(1)) && isSym(result) => Some(Nil)
       case PrimOp.QAtom if binders.map(_._2) == List(Icit.Impl, Icit.Expl) => qatomCtors(doms(1), result)
+      case PrimOp.SameTrue | PrimOp.Apart => sameLemmaCtors(op, ty)
       case _ => None
     val expected = op match
       case PrimOp.Same => "A -> A -> bool"
@@ -347,7 +361,61 @@ trait Declarations:
       case PrimOp.Derived => "sym -> bool"
       case PrimOp.Derive => "sym -> string -> sym"
       case PrimOp.QAtom => "quoted A -> formula"
+      case PrimOp.SameTrue => "{A : Type} -> {a b : A} -> eq (same a b) true -> eq a b"
+      case PrimOp.Apart => "{A : Type} -> {a b : A} -> eq (same a b) false -> eq a b -> empty"
     found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))
+
+  /** `eq` and `refl` for the lemmas on `same` of `std/eq`, if the type is exactly theirs: `sameTrue : {A :
+   *  Type} -> {a b : A} -> eq (same a b) true -> eq a b` and `apart : {A : Type} -> {a b : A} -> eq (same a
+   *  b) false -> eq a b -> empty`, where `eq` is an identity family ([[identityFamily]]), `same` the
+   *  primitive, `true` and `false` its constructors and `empty` a family without constructors. The check
+   *  is exact because the lemmas are trusted: another type would assert something else. */
+  private def sameLemmaCtors(op: PrimOp, ty: Val): Option[List[Int]] =
+    import Tm.{App, Global, Pi, U1, Var}
+    def eqOf(e: Int, t: Tm, a: Tm, b: Tm) = App(App(App(Global(e), t, Icit.Impl), a, Icit.Expl), b, Icit.Expl)
+    quote(0, ty) match
+      case Pi(_, Icit.Impl, U1(_), Pi(_, Icit.Impl, Var(0), Pi(_, Icit.Impl, Var(1), Pi(_, Icit.Expl, hyp, rest)))) =>
+        hyp match
+          case App(
+                App(
+                  App(Global(e), Global(boolT), Icit.Impl),
+                  App(App(App(Global(s), Var(2), Icit.Impl), Var(1), Icit.Expl), Var(0), Icit.Expl),
+                  Icit.Expl
+                ),
+                Global(c),
+                Icit.Expl
+              ) =>
+            for
+              refl <- identityFamily(e)
+              bools <- globals(s).kind match
+                case GlobalKind.Primitive(PrimOp.Same, cs) => Some(cs)
+                case _ => None
+              if c == bools(if op == PrimOp.SameTrue then 0 else 1) && globals(c).kind == GlobalKind.Constructor(boolT)
+              if (op, rest) match
+                case (PrimOp.SameTrue, r) => r == eqOf(e, Var(3), Var(2), Var(1))
+                case (_, Pi(_, Icit.Expl, d, Global(empty))) =>
+                  d == eqOf(e, Var(3), Var(2), Var(1)) && globals(empty).kind == GlobalKind.Inductive(Nil)
+                case _ => false
+            yield List(e, refl)
+          case _ => None
+      case _ => None
+
+  /** The constructor of `e` if it is an identity family: `e : {A : Type} -> A -> A -> Type` with the one
+   *  constructor `refl : {A : Type} -> {x : A} -> e x x`. */
+  private def identityFamily(e: Int): Option[Int] =
+    import Tm.{App, Global, Pi, U1, Var}
+    (globals(e).kind, quote(0, globals(e).ty)) match
+      case (GlobalKind.Inductive(List(r)), Pi(_, Icit.Impl, U1(_), Pi(_, Icit.Expl, Var(0), Pi(_, Icit.Expl, Var(1), U1(_))))) =>
+        quote(0, globals(r).ty) match
+          case Pi(
+                _,
+                Icit.Impl,
+                U1(_),
+                Pi(_, Icit.Impl, Var(0), App(App(App(Global(`e`), Var(1), Icit.Impl), Var(0), Icit.Expl), Var(0), Icit.Expl))
+              ) =>
+            Some(r)
+          case _ => None
+      case _ => None
 
   /** `fatom`, `tapp` and `qterm` for `qatom : quoted A -> formula`: the domain is an inductive family with
    *  one constructor (`qterm`) whose argument has a constructor `tapp`, the result one with `fatom`. */

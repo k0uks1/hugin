@@ -18,7 +18,9 @@ final case class Settings(
     safe: Boolean = false,
     /** The meta constants whose assumptions (the postulates they depend on) are printed
      *  (`--print-assumptions`). */
-    printAssumptions: List[String] = Nil
+    printAssumptions: List[String] = Nil,
+    /** Record the instances of the rules for a proof export (`--export-proofs`, `hugin.runtime.ProofExport`). */
+    exportProofs: Boolean = false
 )
 
 /** How diagnostics are shown. Compilation always produces all diagnostics; clients filter and render

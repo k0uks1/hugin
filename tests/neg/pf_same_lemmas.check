@@ -1,0 +1,13 @@
+error[E0103]: the primitive `%builtin apart` has type `{A : Type} -> {a b : A} -> eq (same a b) false -> eq a b -> empty`
+ --> tests/neg/pf_same_lemmas.hgn:5:77
+  |
+5 | wrong : {A : Type} -> {a b : A} -> eq (same2 a b) true -> eq b b -> empty = %builtin apart. (*~ E0103 *)
+  |                                                                             ^^^^^^^^^^^^^^ declared with another type
+
+error[E0103]: the primitive `%builtin sameTrue` has type `{A : Type} -> {a b : A} -> eq (same a b) true -> eq a b`
+ --> tests/neg/pf_same_lemmas.hgn:6:71
+  |
+6 | wronger : {A : Type} -> {a b : A} -> eq (same2 a b) false -> eq a b = %builtin sameTrue. (*~ E0103 *)
+  |                                                                       ^^^^^^^^^^^^^^^^^ declared with another type
+
+2 errors found

@@ -31,6 +31,25 @@ arguments `A` and `N`. Pattern matching unifies all arguments of a family; param
 but the leading arguments that every constructor keeps fixed are the family's
 [parameters](#parameters).
 
+The type of a family may have implicit binders, which makes the family *polymorphic*:
+`eq : {A : Type} -> A -> A -> Type.` is a family of types `eq x y` for `x` and `y` of any type `A`, which
+uses of `eq` infer as they infer the implicit arguments of a function, or take [by
+name](functions.md#implicit-arguments-by-name) (`eq {A := int} 1 2`). Its constructors give the implicit
+argument in their result type, as `refl : {A : Type} -> {x : A} -> eq x x.` does. The following program
+declares this family, the identity family of [`std/eq`](../std/eq.md), and uses it at the meta type `int`
+and at the universe `Type`.
+
+```hugin
+eq : {A : Type} -> A -> A -> Type.
+refl : {A : Type} -> {x : A} -> eq x x.
+flip : {A : Type} -> {x y : A} -> eq x y -> eq y x.
+flip refl = refl.
+numbers : eq 1 1 -> eq 1 1.
+numbers E = flip E.
+types : eq {A := Type} nat nat -> eq nat nat.
+types E = flip E.
+```
+
 The following program declares vectors indexed by their length, a `nat` of the prelude, and appends
 two vectors. The type of `append` states the length of the result.
 

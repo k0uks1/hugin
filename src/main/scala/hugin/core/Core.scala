@@ -35,6 +35,12 @@ enum GlobalKind:
    *  (both known once its clauses are elaborated; arity -1 before). */
   case Function(arity: Int, tree: Option[FunctionBody])
 
+  /** A definition or a function by clauses made opaque by `%opaque x.` (reference: meta/index): checked
+   *  once, then neutral like a postulate. It never unfolds, and a definition's value is never computed.
+   *  `term` is a definition's term, `function` a function's arity and case tree: kept for the checks that
+   *  follow calls through definitions (termination), for tooling and for the summary of declarations. */
+  case Opaque(term: Option[Tm], function: Option[(Int, FunctionBody)])
+
   /** A primitive operation of the prelude (`eqsym : sym -> sym -> bool = %builtin eqsym.`), reduced by
    *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `nil`,
    *  `cons`). */

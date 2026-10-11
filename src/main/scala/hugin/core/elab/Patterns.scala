@@ -12,7 +12,10 @@ enum Pat:
    *  which is in scope unless a pattern variable shadows it. */
   case PVar(name: Name, span: Span, implicitBinder: Boolean = false)
   case PWild(span: Span)
-  case PCon(ctor: Int, args: List[Pat], span: Span)
+
+  /** A constructor applied to patterns for its explicit arguments; `implicits` are patterns for some of its
+   *  implicit arguments, by the names of their binders (`vcons {N := K} X XS`). */
+  case PCon(ctor: Int, args: List[Pat], span: Span, implicits: List[(Name, Pat)] = Nil)
   case PLit(n: BigInt, span: Span)
 
   /** `p + k` (`k ≥ 1`) against a nat-like type: the successor applied `k` times to `p`. */
@@ -85,17 +88,31 @@ trait Patterns:
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
     case _ =>
       TreeOps.flattenApp(t) match
-        case (h @ (_: Ident | _: SymRef), args) =>
+        case (h @ (_: Ident | _: SymRef), allArgs) =>
           val (c, n) = h match
             case SymRef(id, n) if isConstructor(id) => (id, n) // a generated pattern ([[DerivedFunctions]])
             case _ =>
               val c = constructorNamed(nameOf(h), h.span)
               recordUse(h.span, c)
               (c, nameOf(h))
-          val types = constructorArgTypes(c, expected)
+          val (named, args) = allArgs.partitionMap {
+            case na: NamedArg => Left(na)
+            case a => Right(a)
+          }
+          val binders = constructorBinderTypes(c, expected)
+          val types = binders.collect { case (_, Icit.Expl, a) => a }
           if types.length != args.length then
             fail(ClauseProblem.PatternArity(n, types.length, args.length, t.span))
-          Pat.PCon(c, args.zip(types).map(pattern(_, _)), t.span)
+          // `{N := p}`: a pattern for the implicit argument `N` of the constructor (reference: meta/clauses)
+          val implicitNames = binders.collect { case (x, Icit.Impl, _) => x }
+          val implicits = named.foldLeft(List.empty[(Name, Pat)]) { (acc, na) =>
+            val x = na.name
+            if acc.exists(_._1 == x) then fail(ClauseProblem.ImplicitPatternTwice(x, na.nameSpan))
+            binders.collectFirst { case (`x`, Icit.Impl, a) => a } match
+              case Some(a) => acc :+ (x -> pattern(na.value, a))
+              case None => fail(TypeProblem.NoImplicitNamed(x, n, implicitNames, na.nameSpan))
+          }
+          Pat.PCon(c, args.zip(types).map(pattern(_, _)), t.span, implicits)
         case _ =>
           fail(ClauseProblem.InvalidPattern(t.span))
 
@@ -104,8 +121,8 @@ trait Patterns:
    *  zero))` are the literal 3, `P + 2` and `suc (suc P)` are `P` with the offset 2. */
   def natForm(pat: Pat, z: Int, s: Int): NatPattern = pat match
     case Pat.PLit(k, span) => NatPattern.Literal(k, span)
-    case Pat.PCon(`z`, Nil, span) => NatPattern.Literal(BigInt(0), span)
-    case Pat.PCon(`s`, List(q), _) => natForm(q, z, s).plus(1)
+    case Pat.PCon(`z`, Nil, span, _) => NatPattern.Literal(BigInt(0), span)
+    case Pat.PCon(`s`, List(q), _, _) => natForm(q, z, s).plus(1)
     case Pat.PSucc(q, k, _) => natForm(q, z, s).plus(k)
     case other => NatPattern.Offset(other, BigInt(0))
 
@@ -120,10 +137,10 @@ trait Patterns:
       case ConsE(h, tl) => Pat.PCon(r.cons, List(pattern(h, elem), pattern(tl, listTy)), t.span)
       case other => pattern(other, listTy)
 
-  /** The types of the explicit arguments of constructor `c` matched against `expected`, where they are
-   *  closed: the implicit arguments are taken from the expected type (`cons : A -> list A -> list A`
-   *  against `list formula`). */
-  private def constructorArgTypes(c: Int, expected: Option[Val]): List[Option[Val]] =
+  /** The binders of constructor `c` matched against `expected`, with their types where they are closed:
+   *  the implicit arguments are taken from the expected type (`cons : A -> list A -> list A` against
+   *  `list formula`). */
+  private def constructorBinderTypes(c: Int, expected: Option[Val]): List[(Name, Icit, Option[Val])] =
     val (_, result) = telescope(globals(c).ty)
     val known: Map[Int, Val] = (expected.map(forceData), forceData(result)) match
       case (Some(Val.Rigid(Head.Glob(f), esp)), Val.Rigid(Head.Glob(g), rsp)) if f == g && esp.length == rsp.length =>
@@ -131,12 +148,12 @@ trait Patterns:
       case _ => Map.empty
     var ty = globals(c).ty
     var l = 0
-    val out = scala.collection.mutable.ListBuffer.empty[Option[Val]]
+    val out = scala.collection.mutable.ListBuffer.empty[(Name, Icit, Option[Val])]
     var more = true
     while more do
       force(ty) match
-        case Val.Pi(_, i, a, cl) =>
-          if i == Icit.Expl then out += closedType(a, l)
+        case Val.Pi(x, i, a, cl) =>
+          out += ((x, i, closedType(a, l)))
           ty = inst(cl, known.getOrElse(l, Val.local(l)))
           l += 1
         case _ => more = false

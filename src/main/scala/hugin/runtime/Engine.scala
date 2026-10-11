@@ -1,7 +1,7 @@
 package hugin.runtime
 
 import hugin.ir.*
-import hugin.obj.{ArithOp, CmpOp, Prims}
+import hugin.obj.{ArithOp, CmpOp, ObjPrinter, Premise, Prims, Term}
 import hugin.syntax.{AggKind, Literal}
 import hugin.util.Cancellation
 import scala.collection.mutable
@@ -370,7 +370,7 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
     case Id(rel, n) =>
       val r = store(rel)
       val t = r.tuples(n)
-      val s = (r.sym.displayName +: t.toVector.map(show(_, nested = true))).mkString(" ")
+      val s = (r.sym.displayName +: arguments(r, t)).mkString(" ")
       if nested && t.nonEmpty then s"($s)" else s
     case s: String => Literal.quote(s)
     case l: java.lang.Long => if nested && l < 0 then s"($l)" else l.toString
@@ -381,7 +381,41 @@ final class Engine(prog: CoreProgram, cancellation: Cancellation = hugin.platfor
   /** The name of a relation and its current tuples, each argument printed as [[facts]] prints it. */
   def rows(rel: Int): (String, List[List[String]]) =
     val r = store(rel)
-    (r.sym.displayName, r.tuples.indices.filter(r.current).map(n => r.tuples(n).toVector.map(show(_, nested = true)).toList).toList)
+    (r.sym.displayName, r.tuples.indices.filter(r.current).map(n => arguments(r, r.tuples(n)).toList).toList)
+
+  /** The printed arguments of a tuple of `r`. A derivation fact with negative premises shows each of them as
+   *  the negated atom with the values of its bound variables, `(not r v̄)` (reference: object/io,
+   *  "Derivation facts"); its local variables keep their names (`_` for a wildcard). */
+  private def arguments(r: Relation, t: Array[Any]): Vector[String] =
+    if !r.sym.premises.exists(_.isInstanceOf[Premise.Neg]) then t.toVector.map(show(_, nested = true))
+    else
+      var i = 1
+      show(t(0), nested = true) +: r.sym.premises.flatMap { p =>
+        val ws = t.slice(i, i + p.width)
+        i += p.width
+        p match
+          case Premise.Pos(_) => Vector(show(ws(0), nested = true))
+          case Premise.Neg(a, vs) =>
+            val env = vs.zip(ws).toMap
+            Vector(s"(not ${(a.rel.sym.displayName +: a.args.map(termText(_, env))).mkString(" ")})")
+          case Premise.Cmp(_, _) => Vector.empty
+      }
+
+  /** A term of a negated atom with the variables of `env` replaced by their values, printed as an argument. */
+  private def termText(t: Term, env: Map[String, Any]): String = t match
+    case Term.Var(n) => env.get(n).fold(hugin.obj.Var.display(n))(show(_, nested = true))
+    case Term.App(c, Nil) => c.sym.displayName
+    case Term.App(c, as) => (c.sym.displayName +: as.map(termText(_, env))).mkString("(", " ", ")")
+    case Term.As(x, _) => termText(x, env)
+    case other => value(other, env).fold(s"(${ObjPrinter.term(other)})")(show(_, nested = true))
+
+  /** The value of a literal or an arithmetic expression over the variables of `env`. */
+  def value(t: Term, env: Map[String, Any]): Option[Any] = t match
+    case Term.Lit(l) => Some(fromLit(l))
+    case Term.Var(n) => env.get(n)
+    case Term.Neg(x) => value(x, env).flatMap(v => toLit(v).fold(ExtendedInt.negate(v))(l => Prims.neg(l).map(fromLit)))
+    case Term.Arith(op, l, r) => for a <- value(l, env); b <- value(r, env); v <- arith(op, a, b) yield v
+    case _ => None
 
   /** The facts of a relation, printed and sorted. For a relation with a bound column, the current (best) tuple of each key. */
 

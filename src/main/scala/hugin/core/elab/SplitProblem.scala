@@ -90,7 +90,7 @@ object NatRange:
 enum IndexUnification:
   case Solved(p: SplitProblem)
 
-  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct literals): the
+  /** The constructor cannot apply (distinct constructors, a cycle `n = suc n`, distinct atoms): the
    *  equation `a = b` that conflicts (`a` from the constructor's type, `b` from the scrutinee's). */
   case Conflict(a: Val, b: Val)
 
@@ -98,7 +98,8 @@ enum IndexUnification:
   case Stuck(a: Val, b: Val)
 
 /** Unification of indices for dependent pattern matching (Cockx & Abel's unifier, without the
- *  restrictions needed for univalence: deletion, solution, injectivity, conflict and cycle rules). The
+ *  restrictions needed for univalence: deletion, solution, injectivity, conflict and cycle rules; the
+ *  conflict rule also for distinct atoms, symbols and literals, which have no constructors). The
  *  variables of the split problem are the unknowns. */
 trait IndexUnifier:
   self: Elaborator =>
@@ -174,6 +175,11 @@ trait IndexUnifier:
                     eqs = sp1.reverse.zip(sp2.reverse).collect { case (Elim.EApp(x, _), Elim.EApp(y, _)) => (x, y) } ++ eqs
                     progress = true
                 case (Val.Lit(x, _), Val.Lit(y, _)) if x != y => result = Some(IndexUnification.Conflict(a, b))
+                // two atoms (symbols, literals) are equal only if they are the same atom: distinct ones
+                // conflict, as distinct constructors do (reference: meta/coverage, index unification)
+                case _ if atomKey(a).isDefined && atomKey(b).isDefined =>
+                  if stripPositions(atomKey(a).get) == stripPositions(atomKey(b).get) then progress = true
+                  else result = Some(IndexUnification.Conflict(a, b))
                 case _ => postpone(IndexUnification.Stuck(a, b))
     result.getOrElse(IndexUnification.Solved(p))
 

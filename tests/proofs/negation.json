@@ -1,0 +1,172 @@
+{
+  "trees": [
+    {
+      "node": {
+        "label": {"symbol": "age", "terms": [{"constant": "alice"}, {"constant": "40"}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "age", "terms": [{"constant": "bob"}, {"constant": "12"}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "age", "terms": [{"constant": "carol"}, {"constant": "9"}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "childless", "terms": [{"constant": "bob"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "age", "terms": [{"constant": "bob"}, {"constant": "12"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "not parent", "terms": [{"constant": "bob"}, {"constant": "_"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "childless", "terms": [{"constant": "carol"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "age", "terms": [{"constant": "carol"}, {"constant": "9"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "not parent", "terms": [{"constant": "carol"}, {"constant": "_"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "parent", "terms": [{"constant": "alice"}, {"constant": "bob"}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "parent", "terms": [{"constant": "alice"}, {"constant": "carol"}]},
+        "children": []
+      }
+    },
+    {
+      "node": {
+        "label": {"symbol": "younger", "terms": [{"constant": "carol"}, {"constant": "bob"}]},
+        "children": [
+          {
+            "node": {
+              "label": {"symbol": "childless", "terms": [{"constant": "carol"}]},
+              "children": [
+                {
+                  "node": {
+                    "label": {"symbol": "age", "terms": [{"constant": "carol"}, {"constant": "9"}]},
+                    "children": []
+                  }
+                },
+                {
+                  "node": {
+                    "label": {"symbol": "not parent", "terms": [{"constant": "carol"}, {"constant": "_"}]},
+                    "children": []
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "childless", "terms": [{"constant": "bob"}]},
+              "children": [
+                {
+                  "node": {
+                    "label": {"symbol": "age", "terms": [{"constant": "bob"}, {"constant": "12"}]},
+                    "children": []
+                  }
+                },
+                {
+                  "node": {
+                    "label": {"symbol": "not parent", "terms": [{"constant": "bob"}, {"constant": "_"}]},
+                    "children": []
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "age", "terms": [{"constant": "carol"}, {"constant": "9"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "age", "terms": [{"constant": "bob"}, {"constant": "12"}]},
+              "children": []
+            }
+          },
+          {
+            "node": {
+              "label": {"symbol": "<", "terms": [{"constant": "9"}, {"constant": "12"}]},
+              "children": []
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "program": [
+    {
+      "head": {"symbol": "parent", "terms": [{"constant": "alice"}, {"constant": "bob"}]},
+      "body": []
+    },
+    {
+      "head": {"symbol": "parent", "terms": [{"constant": "alice"}, {"constant": "carol"}]},
+      "body": []
+    },
+    {"head": {"symbol": "age", "terms": [{"constant": "alice"}, {"constant": "40"}]}, "body": []},
+    {"head": {"symbol": "age", "terms": [{"constant": "bob"}, {"constant": "12"}]}, "body": []},
+    {"head": {"symbol": "age", "terms": [{"constant": "carol"}, {"constant": "9"}]}, "body": []},
+    {
+      "head": {"symbol": "childless", "terms": [{"variable": "X"}]},
+      "body": [
+        {"symbol": "age", "terms": [{"variable": "X"}, {"variable": "_#1"}]},
+        {"symbol": "not parent", "terms": [{"variable": "X"}, {"constant": "_"}]}
+      ]
+    },
+    {
+      "head": {"symbol": "younger", "terms": [{"variable": "X"}, {"variable": "Y"}]},
+      "body": [
+        {"symbol": "childless", "terms": [{"variable": "X"}]},
+        {"symbol": "childless", "terms": [{"variable": "Y"}]},
+        {"symbol": "age", "terms": [{"variable": "X"}, {"variable": "A"}]},
+        {"symbol": "age", "terms": [{"variable": "Y"}, {"variable": "B"}]},
+        {"symbol": "<", "terms": [{"variable": "A"}, {"variable": "B"}]}
+      ]
+    }
+  ],
+  "hugin": {
+    "version": 1,
+    "format": "trees",
+    "assumptionSymbols": ["<", "not parent"],
+    "assumedFacts": [],
+    "omittedRules": []
+  }
+}
