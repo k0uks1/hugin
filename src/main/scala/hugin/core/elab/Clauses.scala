@@ -310,10 +310,12 @@ trait Clauses:
     case Val.Rigid(Head.Glob(c), _) => globals(c).name
     case other => showVal(Nil, other)
 
-  /** A value of `p` as shown in a diagnostic: its free variables as `_`. */
+  /** A value of `p` as shown in a diagnostic: its free variables as `_`; normalised if that is cheap
+   *  ([[Core.quoteShown]]: values of a problem may hold applications that index unification left
+   *  unevaluated). */
   private def wild(p: SplitProblem, v: Val): String =
     val names = p.names.indices.map(l => if p.isFree(l) then "_" else p.names(l)).toList.reverse
-    showTm(names, explicitOnly(quote(p.size, v)))
+    showTm(names, explicitOnly(quoteShown(p.size, v)))
 
   /** An absurd pattern's variable must have a type none of whose constructors can occur (E0915 otherwise). */
   private def checkAbsurd(p: SplitProblem, e: Eqn): Unit =
@@ -335,10 +337,13 @@ trait Clauses:
           case other => fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
       case other => fail(ClauseProblem.AbsurdNotEmpty(wild(p, e.ty), List(headName(other)), span))
 
+  /** [[Printing.showVal]] of a value of `p`, normalised only if that is cheap ([[Core.quoteShown]]). */
+  private def shown(p: SplitProblem, v: Val): String = showTm(p.names.toList.reverse, quoteShown(p.size, v, folded = true))
+
   private def undecidable(p: SplitProblem, c: Int, a: Val, b: Val, span: Span): ClauseProblem =
     ClauseProblem.UndecidableConstructor(
       globals(c).name,
-      s"${showVal(p.names.toList.reverse, a)} = ${showVal(p.names.toList.reverse, b)}",
+      s"${shown(p, a)} = ${shown(p, b)}",
       span
     )
 
