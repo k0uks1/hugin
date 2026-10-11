@@ -3,7 +3,8 @@
 //     diagnostics, as `// ` comments, and Hugin.run's `output` must equal X.check, as GoldenTests builds it
 //     from `hugin run` (X.flags translated to options);
 //   - every tests/json program: Hugin.check's diagnostics must equal the JSON lines of X.check;
-//   - the highlighting and the editor's analysis (Hugin.highlight, Hugin.analyse) on small programs;
+//   - the highlighting, the editor's analysis and completion (Hugin.highlight, Hugin.analyse,
+//     Hugin.complete) on small programs;
 // and prints the bundle's size. Usage, from the repository root: node scripts/js-golden.mjs [web/target/bundle]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -120,6 +121,16 @@ else if (an.info.hovers[use[2]]?.[0] !== 'relation edge : int -> int -> rel') fa
 if (JSON.stringify(JSON.parse(Hugin.run(hlSource)).info) !== JSON.stringify(an.info)) fail('analyse', 'run and analyse disagree');
 const lib = JSON.parse(Hugin.analyse('%use "std/graph".\nc : type.\nr : c -> c -> rel.\n%input r.\nt = tc { node = c, edge = r }.\n'));
 if (!lib.info?.names?.some((n) => JSON.stringify(n[5]) === '["std/graph","tc"]')) fail('analyse', 'no library target: ' + JSON.stringify(lib.info));
+
+// completion (Hugin.complete): the identifier being typed, the candidates, the ranking by the expected type
+const cSource = 'nat : Type.\nzero : nat.\nsuc : nat -> nat.\nsize : nat -> int.\nsize zero = 0.\nquad : nat -> nat.\nquad Nat = s.\n';
+const cOff = cSource.indexOf('= s.') + 3;
+const comp = JSON.parse(Hugin.complete(cSource, cOff));
+const suc = comp.items?.find((i) => i.label === 'suc');
+if (comp.from !== cOff - 1 || !comp.ranked || !suc?.fits || suc.kind !== 'metaDefinition' || comp.items.find((i) => i.label === 'size')?.fits)
+  fail('complete', 'unexpected completions: ' + JSON.stringify(comp));
+worker.onmessage?.({ data: { id: 9, op: 'complete', source: cSource, offset: cOff } });
+if (posted.at(-1)?.result?.from !== cOff - 1) fail('worker', 'complete: ' + JSON.stringify(posted.at(-1)));
 
 const phases = JSON.parse(Hugin.phases());
 if (!phases.some((p) => p.name === 'elaborate')) fail('phases', 'no phase `elaborate`');

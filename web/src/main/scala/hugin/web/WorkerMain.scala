@@ -8,6 +8,7 @@ import scala.util.control.NonFatal
  *
  *  {{{
  *  { id, op: "check" | "run" | "analyse", source: "…", options: { … } }   →   { id, result: { …the JSON of Hugin… } }
+ *  { id, op: "complete", source: "…", offset: n, options: { … } }   →   { id, result: { …the JSON of Hugin.complete… } }
  *  { id, op: "phases" }                                       →   { id, result: [ … ] }
  *  }}}
  *
@@ -33,7 +34,13 @@ object WorkerMain:
         case "check" => Hugin.check(source, options)
         case "run" => Hugin.run(source, options)
         case "analyse" => Hugin.analyse(source, options)
+        case "complete" =>
+          val offset = request.offset.asInstanceOf[Any] match
+            case n: Double => n.toInt
+            case n: Int => n
+            case _ => throw IllegalArgumentException("`offset` must be a number")
+          Hugin.complete(source, offset, options)
         case "phases" => Hugin.phases()
-        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run, analyse or phases")
+        case _ => throw IllegalArgumentException(s"unknown op `$op`; expected check, run, analyse, complete or phases")
       js.Dynamic.literal(id = id, result = js.JSON.parse(json))
     catch case NonFatal(e) => js.Dynamic.literal(id = id, result = js.Dynamic.literal(version = Playground.Version, error = e.getMessage))
