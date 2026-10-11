@@ -39,7 +39,7 @@ Generated programs are written by `sbt "Test/runMain hugin.bench.Bench gen"` wit
 | group | programs |
 |---|---|
 | small (prelude-dominated) | `bench/small/one.hgn` (check), `tests/run/a01_transitive_closure`, `a05_stratified`, `c1_aggregates` |
-| meta-heavy | `tests/run/a04_typechecker` (`%demand`), `a10_meta_applicative` (functors, families), `f_modules`, `c1_roundtrip` (reflection), `c2_module_wide` (module-wide directive), `bench/meta/meta_scaled.hgn` (8 copies of functors + families + 2×`%demand` + reflection, under a module-wide directive), `bench/meta/nat_literals.hgn` (nat literals of 10000, 20000 and 50000: 69 s before the walk fix of #131 batch 0, 3 s after) |
+| meta-heavy | `tests/run/a04_typechecker` (`%demand`), `a10_meta_applicative` (functors, families), `f_modules`, `c1_roundtrip` (reflection), `c2_module_wide` (module-wide directive), `bench/meta/meta_scaled.hgn` (8 copies of functors + families + 2×`%demand` + reflection, under a module-wide directive), `bench/meta/nat_literals.hgn` (nat literals of 10000, 20000 and 50000: 69 s before the walk fix of #131 batch 0, 3 s after), the #131 programs `nat_numerals`, `nat_index`, `nat_patterns`, `nat_arith` (each also as `_small`, at sizes the base before #131 finishes on the default stack) and `nat_large` (section "Meta naturals as numbers") |
 | Datalog-heavy | `bench/datalog/tc` (transitive closure, 600-node chain + 600 random edges: 179 700 tuples), `sp` (shortest paths with a `min` bound column on a 60×60 grid), `strata` (negation and aggregates on a 20 000-node random graph) |
 | large generated | `bench/gen/large.hgn` (150 programs of the fuzz `ProgramGen`, renamed apart: 4 200 lines), check and run |
 
@@ -858,3 +858,92 @@ The cost is the elaboration of three declarations and two functions by clauses, 
 chain is cached by `StdlibCache`); no measurable CPU time. Making `std/nat` lazy again would need the
 lazy re-export to leave out a file that only left-out files import; not done, since it changes the
 chains that programs share (`LibraryQueriesSuite`).
+
+## Meta naturals as numbers (#131)
+
+#131 represents a closed numeral as a `BigInt` with `zero`/`suc` as views (#183), computes `std/nat`'s
+operations natively on numerals (#184) and splits on literal patterns by value (#185); docs/design/nat.md
+has the design. Batch 4 adds its bench programs to `bench/meta` (in `BenchSet` and `bench/cold.sh`):
+
+| program | what it measures |
+|---|---|
+| `nat_literals` (existing) | numerals of 10000, 20000, 50000 of a program's own nat-like family, `toInt` by its clauses |
+| `nat_numerals` | numerals of 10000 and 20000 of `std/nat`, `toInt`, `plus 10000 10000` computed by conversion in a clause's type |
+| `nat_index` | indexed families at indices near 20000: `fin 20000` against `fin (N + 1)`, `vec int 20000` against `vec A (N + 1)`, `eqn 20000 20000` |
+| `nat_patterns` | a literal pattern of 200 and an offset `N + 150` |
+| `nat_arith` | `std/nat`'s `plus 25000 25000`, `toInt`, and a program's own multiplication (200 × 250) and comparison by clauses |
+| `nat_numerals_small`, `nat_index_small`, `nat_arith_small` | the same at 200–500, sizes the base before #131 finishes on the default stack |
+| `nat_large` | the design's section 9 sizes: a numeral of 10⁶, native `times`/`minus`/`less`/`equal` near 10⁶, `plus 500000 500000` by conversion, a literal pattern of 50000 and an offset of 100001, `plus m 100001` against `m + 100001` on an open `m`, `vlen (rep 50000)` |
+
+`Bench cpu` now also prints two deterministic counts of one run of each program: the applications of
+functions by clauses that ran a case tree (memoised results not counted) and those computed by a native
+operation, counted in `Matching` (`clauseSteps`, `nativeSteps`). The first run in a JVM also elaborates
+the library chain (cached by `StdlibCache` afterwards), which is why the one-line compile shows steps and
+`check one-line` none. A program that fails, including by a stack overflow or heap exhaustion, is reported
+as failed and the other measurements go on (before, `cpu` printed nothing if one program failed).
+
+Measured with `Bench cpu` on the base before #131 (6451b3e, the parent of #183, with the same
+`Bench.scala`, the step counters and the bench programs added) against `feat/nat-131-b4` (#185's merge
+28dbcb1 plus this batch), in alternating JVMs, four each, two rounds of 5 runs after 3 warm-up runs per
+JVM (`HUGIN_BENCH_ROUNDS=2 HUGIN_BENCH_WARMUP=3 HUGIN_BENCH_RUNS=5`), `java -cp` on the built classes with
+the JVM's **default thread stack** (1 MiB). Main-thread CPU time; the median is the median of the four
+JVMs' medians, the minimum the minimum of all runs, the allocation the median of the JVMs' medians; steps
+are case-tree runs + native operations of one run, the same in every JVM. `nat_large` was run on the
+branch only (one JVM, 2 × 5 runs): the base does not finish it (below).
+
+| measurement (main thread) | CPU median before | after | change | CPU min before | after | alloc before | after | steps before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| prelude elaboration (uncached) | 160 ms | 146 ms | −9 % | 77.7 ms | 72.0 ms | 30.8 MB | 32.6 MB | 2085 + 0 | 2183 + 0 |
+| compile one-line program | 5.8 ms | 6.4 ms | +11 % | 2.7 ms | 2.3 ms | 0.79 MB | 0.84 MB | 55 + 0 | 153 + 0 |
+| check one-line | 5.1 ms | 5.4 ms | +6 % | 2.9 ms | 2.0 ms | 0.79 MB | 0.84 MB | 0 + 0 | 0 + 0 |
+| run a04_typechecker | 38.2 ms | 33.9 ms | −11 % | 18.0 ms | 17.3 ms | 9.94 MB | 9.96 MB | 2836 + 0 | 2836 + 0 |
+| run a10_meta_applicative | 19.9 ms | 19.4 ms | −2 % | 9.9 ms | 9.5 ms | 2.70 MB | 2.75 MB | 7 + 0 | 7 + 0 |
+| run f_modules | 28.0 ms | 30.7 ms | +10 % | 15.6 ms | 15.1 ms | 4.79 MB | 4.82 MB | 8 + 0 | 8 + 0 |
+| run c1_roundtrip | 15.3 ms | 17.2 ms | +12 % | 8.2 ms | 7.5 ms | 2.54 MB | 2.60 MB | 0 + 0 | 0 + 0 |
+| run c2_module_wide | 24.0 ms | 20.8 ms | −13 % | 11.8 ms | 12.4 ms | 4.69 MB | 4.79 MB | 17 + 0 | 17 + 0 |
+| run meta_scaled | 855 ms | 905 ms | +6 % | 696 ms | 658 ms | 356.4 MB | 353.4 MB | 32039 + 0 | 32039 + 0 |
+| run tc_chain | 383 ms | 399 ms | +4 % | 294 ms | 283 ms | 135.5 MB | 135.5 MB | 6 + 0 | 6 + 0 |
+| run nat_literals | stack overflow (infeasible) | 360 ms | | | 248 ms | | 207.5 MB | | 130007 + 0 |
+| run nat_numerals | stack overflow (infeasible) | 8.8 ms | | | 5.4 ms | | 1.61 MB | | 5 + 24 |
+| run nat_index | stack overflow (infeasible) | 13.2 ms | | | 9.7 ms | | 2.30 MB | | 3 + 0 |
+| run nat_patterns | 1091 ms | 7.7 ms | −99 % (141×) | 790 ms | 5.4 ms | 1192.6 MB | 1.42 MB | 11 + 0 | 11 + 0 |
+| run nat_arith | stack overflow (infeasible) | 44.0 ms | | | 28.7 ms | | 21.6 MB | | 10505 + 511 |
+| run nat_numerals_small | 15.6 ms | 8.6 ms | −45 % | 11.2 ms | 6.4 ms | 6.83 MB | 1.61 MB | 872 + 0 | 5 + 24 |
+| run nat_index_small | 19.2 ms | 13.5 ms | −30 % | 14.3 ms | 11.0 ms | 7.16 MB | 2.30 MB | 3 + 0 | 3 + 0 |
+| run nat_arith_small | 19.7 ms | 12.8 ms | −35 % | 16.0 ms | 9.2 ms | 13.2 MB | 3.65 MB | 4110 + 0 | 1055 + 61 |
+| run nat_large | infeasible (> 120 s) | 2146 ms | | | 1917 ms | | 917.0 MB | | 200169 + 69 |
+
+**Programs without numerals** (prelude to `tc_chain`): no regression. The case-tree runs are identical,
+and the JVMs' medians overlap for every measurement (f_modules 25.4–30.4 ms before, 25.3–32.5 ms after;
+c1_roundtrip 13.0–15.6 ms before, 14.9–18.5 ms after; meta_scaled 781–877 ms before, 811–1216 ms after),
+with the minimum lower after in all but c2_module_wide. The machine was shared with other builds, so the
+medians are noisy. Allocation is within 3 % except the prelude (+6 %) and the one-line compile (+6 %, 0.05
+MB): `std/nat` now declares eight functions instead of two and imports `bool`, so the library chain is
+larger, and its elaboration checks the native operations once per process (the 98 extra steps of the first
+compile; with the old `std/nat` in the branch's build the first compile takes 72 steps).
+
+**Numerals.** With the default stack, the base overflows on a numeral of a few hundred (a nested `suc (…
+zero)` term; it passes 500 and overflows at 700 alone, and a little lower inside a larger program), so
+`nat_literals`, `nat_numerals`, `nat_index` and `nat_arith` are infeasible there: they finish only with
+the staged launcher's 64 MiB stack (`-J-Xss64m`). At the sizes the base does finish, the branch is 30–45 %
+faster and allocates 3–4× less; `nat_numerals_small` runs 5 case trees and 24 native operations instead of
+872 case-tree runs. `nat_index_small` runs no clauses in either: the gain is in unification and checking,
+numerals against `N + 1` by one view step instead of a unary walk.
+
+**Patterns.** `f 200 = 1. f _ = 0.` with `g (N + 150)` costs 1.1 s and 1.2 GB on the base (the literal
+expands into a unary chain of splits, and coverage walks it) and 7.7 ms on the branch: a 141× speedup. The
+base's cost grows faster than quadratically: a literal pattern of 400 takes 17 s cold, 600 exhausts the
+default 3.8 GB heap; the branch handles 50000 and 100001 (`nat_large`).
+
+**Arithmetic.** `nat_arith_small` runs 4110 case trees on the base and 1055 + 61 native on the branch: the
+remaining case-tree runs are the program's own `mul` and `lt`, which stay defined by their clauses (only
+`std/nat`'s operations are native, design O1). `nat_large` computes `times 999 1001`, `minus 1000000 1`,
+`less`, `equal` and `plus 500000 500000` with 69 native operations; its 200169 case-tree runs are `rep`
+and `vlen` over a 50000-element vector, linear as the design expects (a vector of 50000 is 50000 values).
+
+**Full sizes (cold, `hugin run`, one run each, time cap 120 s).** `nat_large` does not finish on the base
+within 120 s, with either stack (on the base its numeral of 10⁶ is also above the old 100000 cap, E0901);
+the branch runs it in 7.7 s cold with the default stack (2.1 s CPU warm, above). With the launcher's stack
+the base runs `nat_literals` in 4.4 s, `nat_numerals` 5.9 s, `nat_index` 5.5 s, `nat_arith` 7.4 s; the
+branch with the default stack 5.3 s, 4.1 s, 3.8 s, 3.8 s (a one-line check takes 2.9 s cold on both,
+single runs on a shared machine).
