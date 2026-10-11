@@ -51,7 +51,7 @@ trait Matching:
             case None => null
           val hit = if key == null then null else memo.getOrElse(key, null)
           if hit != null then Reduct(hit, null, Nil, null, later)
-          else runTree(tree, args.toVector, key, later)
+          else runTree(tree.tree, args.toVector, key, later)
       case _ => Matching.NotClauses
 
   protected def memoise(key: (Int, List[Int]), v: Val): Unit = memo(key) = v
@@ -63,8 +63,8 @@ trait Matching:
   @scala.annotation.tailrec
   private def runTree(tree: CaseTree, env: Vector[Val], key: (Int, List[Int]) | Null, later: Spine): Reduct | Matching.Stuck.type =
     tree match
-      case CaseTree.Leaf(body, size, order, _, _) =>
-        if env.length == size then Reduct(null, body, order.reverseIterator.map(env).toList, key, later) else Matching.Stuck
+      case CaseTree.Leaf(body, size, subst, _) =>
+        if env.length == size then Reduct(null, body, clauseEnv(subst, env), key, later) else Matching.Stuck
       case CaseTree.Split(level, branches) =>
         forceData(env(level)) match
           case Rigid(Head.Glob(c), csp) =>
@@ -78,6 +78,24 @@ trait Matching:
         atomKey(env(level)) match
           case Some(k) => runTree(branches.find(_._1 == k).map(_._2).getOrElse(default), env, key, later)
           case None => Matching.Stuck
+
+  /** The environment of a clause's body at a leaf: the values of the clause context's variables, by the
+   *  leaf's substitution `subst` over the leaf's variables `env` (mostly variables of the leaf: `σ`
+   *  renames; otherwise a constructor term over them, for a variable of the clause that the leaf refines). */
+  private def clauseEnv(subst: Vector[Tm], env: Vector[Val]): List[Val] =
+    val size = env.length
+    var bodyEnv: List[Val] = Nil
+    var leafEnv: List[Val] | Null = null
+    var k = 0
+    while k < subst.length do
+      val v = subst(k) match
+        case Tm.Var(ix) => env(size - 1 - ix)
+        case t =>
+          if leafEnv == null then leafEnv = env.reverseIterator.toList
+          eval(leafEnv.nn, t)
+      bodyEnv = v :: bodyEnv
+      k += 1
+    bodyEnv
 
   /** A value forced, without the positions around it (reflected data carries the positions of the object
    *  syntax it was reified from, reference: reflection). */

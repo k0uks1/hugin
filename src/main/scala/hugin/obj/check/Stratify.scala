@@ -13,7 +13,7 @@ final class StratifyPhase extends Phase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
-    val es = DepGraph.edges(p)
+    val es = DepGraph.edgesOf(ctx.unit)
     val succ = es.groupBy(_.from).view.mapValues(_.map(_.to).distinct).toMap
     val comps = Graphs.components(p.rels.toList, (r: RelSym) => succ.getOrElse(r, Nil))
     ctx.unit.components = comps

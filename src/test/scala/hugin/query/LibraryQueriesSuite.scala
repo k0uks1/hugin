@@ -76,7 +76,7 @@ class LibraryQueriesSuite extends munit.FunSuite:
     assert(!compiled.hasErrors, compiled.diagnostics)
     // the prelude after the bundled files it imports (`std/demand` imports `std/list`, so the import graph
     // places it before the prelude)
-    val std = List("std/reflect", "std/list", "std/directives", "std/demand").map(m => SourceLoader.StdlibPrefix + m + ".hgn")
+    val std = List("std/reflect", "std/nat", "std/list", "std/directives", "std/demand").map(m => SourceLoader.StdlibPrefix + m + ".hgn")
     val graph = SourceLoader.StdlibPrefix + "std/graph.hgn"
     assertEquals(compiled.context.unit.libraries.keys.toList, std ++ List(SourceLoader.PreludePath, geo, graph, routes, other))
     // the prelude with its imports is one step of the chain; the program does not use `%demand`, so

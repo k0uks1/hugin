@@ -12,7 +12,8 @@ each with equations between the arguments and its patterns. While the first clau
 constructor pattern against an argument that is not yet known, the tree *splits* on that argument: it
 gets one branch per constructor of the argument's type. In each branch, the clauses whose pattern there
 is another constructor no longer apply. When the first clause that may apply has no constructor patterns
-left, its right-hand side is the leaf of the branch.
+left, it is the leaf of the branch: its right-hand side, checked once in its [clause
+context](clauses.md#checking-a-clause), at the arguments of the branch.
 
 ## Index unification
 
@@ -25,9 +26,6 @@ The following function takes the first element of a non-empty vector. `vnil` has
 conflicts with `suc N`, so `head` needs no clause for it.
 
 ```hugin,run
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 vec : Type -> nat -> Type.
 vnil : vec A zero.
 vcons : A -> vec A N -> vec A (suc N).
@@ -44,23 +42,50 @@ first 7.
 It is an error ([E0915](../errors/E0915.md)) if unification meets a problem that it can neither solve nor
 refute, such as an index `plus N M` that is a stuck function application against `zero`.
 
+A clause whose own constructors cannot occur, such as a `vnil` clause for `head`, is an error
+([E0915](../errors/E0915.md), [Checking a clause](clauses.md#checking-a-clause)).
+
+## Absurd clauses
+
+An [absurd clause](clauses.md#checking-a-clause) `f p̄.` takes part in the case tree like any clause, but
+an absurd pattern `()` splits only when the clause has no other constructor pattern left, and every
+branch of that split drops the clause: its variable's type has no possible constructor, so the split has
+no branches. An absurd clause is never a leaf, and never unreachable.
+
 ## Missing cases
 
 It is an error ([E0911](../errors/E0911.md)) if a branch of the case tree has no clause and some
 constructor could occur in it. The diagnostic shows the missing pattern, as the clauses are written: a
 local function of a [`where`](where.md) block or a member function of a
 [module body](../modules.md#module-bodies) is shown without the variables of its context that it uses
-(`f.g (suc _)` for a local function `g` of `f`). A branch without clauses is accepted if some argument in
+(`f.g (_ + 1)` for a local function `g` of `f`). A branch without clauses is accepted if some argument in
 it has a type without possible constructors.
 
-The following function is rejected, since it has no clause for `zero`.
+Literal and successor patterns of a nat-like type are constructor patterns
+([Clauses](clauses.md#patterns)): `0` is `zero` and `N + 1` is `suc N`, so the clauses `f 0 = …` and
+`f (N + 1) = …` cover `nat`. A missing case of a nat-like type is shown with numerals: `f 0`, `f (_ + 1)`.
+
+The following function is rejected, since it has no clause for `0`.
 
 ```hugin,compile_fail,E0911
-nat : Type.
-zero : nat.
-suc : nat -> nat.
 pred : nat -> nat.
-pred (suc N) = N.
+pred (N + 1) = N.
+```
+
+The following function covers `nat` with a literal pattern, a successor pattern of a literal and a
+successor pattern of a variable.
+
+```hugin,run
+parity : nat -> string.
+parity 0 = "even".
+parity 1 = "odd".
+parity (N + 2) = parity N.
+shown : string -> rel.
+shown (parity 7).
+```
+
+```output
+shown "odd".
 ```
 
 ## Unreachable clauses

@@ -1,0 +1,12 @@
+(* ---------------- after elaborate ---------------- *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+fin : nat -> Type.
+fzero : {N : nat} -> fin (N + 1).
+fsuc : {N : nat} -> fin N -> fin (N + 1).
+n2 : nat -> nat -> nat.
+  n2 0 0 = 0.
+  n2 _ _ = 1.
+r : fin 0 -> nat.
+  r ().

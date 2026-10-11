@@ -12,6 +12,6 @@ zero : nat.
 suc : nat -> nat.
 add : nat -> nat -> nat.
 plus : nat -> nat -> nat.
-  plus zero M = M.
-  plus (suc N) M = suc (plus N M).
-three : nat = plus (suc zero) (suc (suc zero)).
+  plus 0 M = M.
+  plus (N + 1) M = plus N M + 1.
+three : nat = plus 1 2.

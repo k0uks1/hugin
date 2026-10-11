@@ -30,9 +30,9 @@ enum GlobalKind:
    *  values are quoted object constants `⟨r⟩`, compared by identity (`Sym : Type = %builtin symbol.`). */
   case Symbols
 
-  /** A function defined by clauses: its case tree over its first `arity` arguments (both known once its
-   *  clauses are elaborated; arity -1 before). */
-  case Function(arity: Int, tree: Option[CaseTree])
+  /** A function defined by clauses: its case tree over its first `arity` arguments, with its clauses
+   *  (both known once its clauses are elaborated; arity -1 before). */
+  case Function(arity: Int, tree: Option[FunctionBody])
 
   /** A primitive operation of the prelude (`eqsym : sym -> sym -> bool = %builtin eqsym.`), reduced by
    *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `nil`,
@@ -125,7 +125,8 @@ final class MetaEntry(val ty: Val, val stage: Stage, val span: Span, val what: S
 /** The state shared by evaluation, unification and elaboration: globals, metavariables and universe
  *  levels. One `Core` elaborates one program. */
 final class Core private (val levels: Levels) extends Evaluation with Machine with Matching with Families with Modules with Requirements
-    with Readback with Renaming with Unification with Printing with Primitives with MemoKeys:
+    with Readback with Renaming with Unification with Printing with Primitives with MemoKeys
+    with Naturals:
   def this() = this(Levels())
 
   val globals: mutable.ArrayBuffer[GlobalEntry] = mutable.ArrayBuffer.empty

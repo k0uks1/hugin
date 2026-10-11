@@ -1,0 +1,18 @@
+close bergen oslo.
+close berlin paris.
+close oslo bergen.
+close oslo rome.
+close paris berlin.
+close paris rome.
+close rome oslo.
+close rome paris.
+h1.ends bergen.
+h1.inner.from berlin.
+h1.inner.from oslo.
+h1.inner.from paris.
+h1.inner.from rome.
+h2.four berlin bergen.
+viaPath berlin paris.
+viaPath oslo bergen.
+viaPath paris rome.
+viaPath rome oslo.
