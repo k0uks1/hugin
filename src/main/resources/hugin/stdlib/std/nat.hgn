@@ -1,5 +1,9 @@
 (* std/nat: the natural numbers of the meta level (reference: std/nat). The prelude opens `nat`, `zero`
-   and `suc`; a program writes `%use "std/nat".` for the functions. *)
+   and `suc`; a program writes `%use "std/nat".` for the functions. The clauses define the functions;
+   the compiler computes each of them directly on numbers when all its arguments are numerals, after
+   checking these clauses against its own operation (reference: std/nat, native arithmetic). *)
+%use "std/reflect" (bool, true, false).
+
 nat : Type.
 zero : nat.
 suc : nat -> nat.
@@ -8,6 +12,41 @@ suc : nat -> nat.
 plus : nat -> nat -> nat.
 plus N 0 = N.
 plus N (M + 1) = plus N M + 1.
+
+(* The truncated difference: 0 if the second argument is the larger *)
+minus : nat -> nat -> nat.
+minus N 0 = N.
+minus 0 (M + 1) = 0.
+minus (N + 1) (M + 1) = minus N M.
+
+(* The product, by recursion on the second argument *)
+times : nat -> nat -> nat.
+times N 0 = 0.
+times N (M + 1) = plus (times N M) N.
+
+(* Division and remainder by a successor (Agda's `div-helper` and `mod-helper`): `divSucAux 0 D N D`
+   is `N` divided by `D + 1`, `modSucAux 0 D N D` the remainder *)
+divSucAux : nat -> nat -> nat -> nat -> nat.
+divSucAux K M 0 J = K.
+divSucAux K M (N + 1) 0 = divSucAux (K + 1) M N M.
+divSucAux K M (N + 1) (J + 1) = divSucAux K M N J.
+
+modSucAux : nat -> nat -> nat -> nat -> nat.
+modSucAux K M 0 J = K.
+modSucAux K M (N + 1) 0 = modSucAux 0 M N M.
+modSucAux K M (N + 1) (J + 1) = modSucAux (K + 1) M N J.
+
+(* Equality and order of natural numbers, as booleans *)
+equal : nat -> nat -> bool.
+equal 0 0 = true.
+equal 0 (M + 1) = false.
+equal (N + 1) 0 = false.
+equal (N + 1) (M + 1) = equal N M.
+
+less : nat -> nat -> bool.
+less N 0 = false.
+less 0 (M + 1) = true.
+less (N + 1) (M + 1) = less N M.
 
 (* The integer of a natural number, to use it in object code *)
 toInt : nat -> int.

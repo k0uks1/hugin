@@ -1,0 +1,12 @@
+(* #131: `toInt` is the way from a natural number into object code: native on numerals up to the
+   64-bit meta `int`, stuck beyond (reference: std/nat, native arithmetic) *)
+%use "std/nat".
+
+trillion : nat = times 1000000 1000000.
+(* the largest meta `int`; `toInt` of 2^63 is stuck (tests/neg/nat_toint.hgn) *)
+largest : int = toInt 9223372036854775807.
+
+r : (n : int) -> rel.
+r (toInt trillion).
+r largest.
+?- r N.
