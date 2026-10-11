@@ -1,0 +1,95 @@
+names:
+  4:1-4:5 `city`  group 0  declaration  hover 0  -> 4:1
+  5:1-5:5 `road`  group 1  declaration  hover 1  -> 5:1
+  5:8-5:12 `city`  group 0  hover 2  -> 4:1
+  5:16-5:20 `city`  group 0  hover 2  -> 4:1
+  6:8-6:12 `road`  group 1  hover 3  -> 5:1
+  7:1-7:6 `roads`  group 2  declaration  hover 4  -> 7:1
+  7:9-7:11 `tc`  group 3  hover 5  -> std/graph.tc
+  7:21-7:25 `city`  group 0  hover 6  -> 4:1
+  7:34-7:38 `road`  group 1  hover 7  -> 5:1
+  8:9-8:14 `roads`  group 2  hover 8  -> 7:1
+  8:15-8:19 `path`  group 4  hover 9  -> std/graph.path
+  9:1-9:5 `nums`  group 5  declaration  hover 10  -> 9:1
+  9:8-9:12 `list`  group 6  hover 11  -> std/reflect.list
+  10:1-10:5 `nums`  group 5  hover 12  -> 9:1
+  10:7-10:11 `cons`  group 7  hover 13  -> std/reflect.cons
+  10:15-10:19 `cons`  group 7  hover 13  -> std/reflect.cons
+  10:22-10:25 `nil`  group 8  hover 14  -> std/reflect.nil
+  11:4-11:8 `nums`  group 5  hover 12  -> 9:1
+  11:9-11:10 `L`  group 9  declaration  hover 15  -> 11:9
+  11:12-11:15 `len`  group 10  hover 16  -> std/list.len
+  11:16-11:17 `L`  group 9  hover 15  -> 11:9
+  11:18-11:19 `N`  group 11  declaration  hover 17  -> 11:18
+hovers:
+  0   object type city : type
+  1   relation road : city -> city -> rel
+  2   object type city : type
+      `city` : `type`
+      stage: object
+  3   relation road : city -> city -> rel
+      directive application `%input road` : `decl`
+      footprint: local: it changes a declaration
+  4   meta definition roads : { path : ⇑(city -> city -> rel) }
+  5   meta definition tc : (g : graph) -> { path : ⇑(g.node -> g.node -> rel) }
+      `tc` : `(g : graph) -> { path : ⇑(g.node -> g.node -> rel) }`
+      stage: meta
+  6   object type city : type
+      `city` : `type`
+      stage: meta, object code `type`
+      elaborated: `⟨city⟩`
+  7   relation road : city -> city -> rel
+      `road` : `⇑(city -> city -> rel)`
+      stage: meta, object code `⇑(city -> city -> rel)`
+      elaborated: `⟨road⟩`
+  8   meta definition roads : { path : ⇑(city -> city -> rel) }
+      directive application `%output roads.path` : `decl`
+      footprint: local: it changes a declaration
+  9   relation roads.path : city -> city -> rel
+      directive application `%output roads.path` : `decl`
+      footprint: local: it changes a declaration
+  10   relation nums : list int -> rel
+  11   object type list A : data
+      shared data: at the meta level `list : Type -> Type`; at the object level `object type list A : data`
+      derived: `list.lift : {A1 : Type} -> {B1 : type} -> (A1 -> ⇑B1) -> list A1 -> ⇑$(list B1)`, `list.reify : {A1 : Type} -> (A1 -> term) -> list A1 -> term`
+      `list` : `(A : type) -> type`
+      stage: meta
+  12   relation nums : list int -> rel
+      `nums` : `list[int] -> rel`
+      stage: object
+  13   constructor cons A : A -> list A -> list A
+      instance: `cons[int]`
+      shared data: at the meta level `cons : {A : Type} -> A -> list A -> list A`; at the object level `constructor cons A : A -> list A -> list A`
+      `cons` : `⇑(int -> list[int] -> list[int])`
+      stage: meta, object code `⇑(int -> list[int] -> list[int])`
+      elaborated: `cons {⟨int⟩}`
+  14   constructor nil A : list A
+      instance: `nil[int]`
+      shared data: at the meta level `nil : {A : Type} -> list A`; at the object level `constructor nil A : list A`
+      `nil` : `list[int]`
+      stage: object
+      elaborated: `$(nil {⟨int⟩})`
+  15   variable L : list[int]
+      `L` : `list[int]`
+      stage: object
+  16   relation len A : (l : list A) -> (n : int) -> rel
+      instance: `len[int]`
+      `len` : `⇑((l : list[int]) -> (n : int) -> rel)`
+      stage: meta, object code `⇑((l : list[int]) -> (n : int) -> rel)`
+      elaborated: `len {⟨int⟩}`
+  17   variable N : int
+      `N` : `int`
+      stage: object
+hints:
+  7:21 `⟨` (Staging)
+  7:25 `⟩` (Staging)
+  7:34 `⟨` (Staging)
+  7:38 `⟩` (Staging)
+  9:8 `$` (Staging)
+  9:13 `⟨` (Staging)
+  9:16 `⟩` (Staging)
+  10:11 `{⟨int⟩}` (Implicit)
+  10:19 `{⟨int⟩}` (Implicit)
+  10:22 `$` (Staging)
+  10:25 `{⟨int⟩}` (Implicit)
+  11:15 `{⟨int⟩}` (Implicit)

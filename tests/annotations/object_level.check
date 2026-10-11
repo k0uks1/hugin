@@ -1,0 +1,67 @@
+names:
+  2:1-2:5 `city`  group 0  declaration  hover 0  -> 2:1
+  3:1-3:7 `berlin`  group 1  declaration  hover 1  -> 3:1
+  3:10-3:14 `city`  group 0  hover 0  -> 2:1
+  4:1-4:6 `paris`  group 2  declaration  hover 2  -> 4:1
+  4:9-4:13 `city`  group 0  hover 0  -> 2:1
+  5:1-5:5 `road`  group 3  declaration  hover 3  -> 5:1
+  5:8-5:12 `city`  group 0  hover 4  -> 2:1
+  5:16-5:20 `city`  group 0  hover 4  -> 2:1
+  6:1-6:5 `road`  group 3  hover 5  -> 5:1
+  6:6-6:12 `berlin`  group 1  hover 6  -> 3:1
+  6:13-6:18 `paris`  group 2  hover 7  -> 4:1
+  7:1-7:5 `path`  group 4  declaration  hover 8  -> 7:1
+  7:8-7:12 `city`  group 0  hover 4  -> 2:1
+  7:16-7:20 `city`  group 0  hover 4  -> 2:1
+  8:1-8:5 `path`  group 4  hover 9  -> 7:1
+  8:6-8:7 `X`  group 5  declaration  hover 10  -> 8:6
+  8:8-8:9 `Y`  group 6  declaration  hover 11  -> 8:8
+  8:13-8:17 `road`  group 3  hover 5  -> 5:1
+  8:18-8:19 `X`  group 5  hover 10  -> 8:6
+  8:20-8:21 `Y`  group 6  hover 11  -> 8:8
+  9:1-9:5 `path`  group 4  hover 9  -> 7:1
+  9:6-9:7 `X`  group 7  declaration  hover 10  -> 9:6
+  9:8-9:9 `Z`  group 8  declaration  hover 12  -> 9:8
+  9:13-9:17 `road`  group 3  hover 5  -> 5:1
+  9:18-9:19 `X`  group 7  hover 10  -> 9:6
+  9:20-9:21 `Y`  group 9  declaration  hover 11  -> 9:20
+  9:23-9:27 `path`  group 4  hover 9  -> 7:1
+  9:28-9:29 `Y`  group 9  hover 11  -> 9:20
+  9:30-9:31 `Z`  group 8  hover 12  -> 9:8
+  10:4-10:8 `path`  group 4  hover 9  -> 7:1
+  10:9-10:15 `berlin`  group 1  hover 6  -> 3:1
+  10:16-10:17 `C`  group 10  declaration  hover 13  -> 10:16
+hovers:
+  0   object type city : type
+  1   constructor berlin : city
+  2   constructor paris : city
+  3   relation road : city -> city -> rel
+  4   object type city : type
+      `city` : `type`
+      stage: object
+  5   relation road : city -> city -> rel
+      `road` : `city -> city -> rel`
+      stage: object
+  6   constructor berlin : city
+      `berlin` : `city`
+      stage: object
+  7   constructor paris : city
+      `paris` : `city`
+      stage: object
+  8   relation path : city -> city -> rel
+  9   relation path : city -> city -> rel
+      `path` : `city -> city -> rel`
+      stage: object
+  10   variable X : city
+      `X` : `city`
+      stage: object
+  11   variable Y : city
+      `Y` : `city`
+      stage: object
+  12   variable Z : city
+      `Z` : `city`
+      stage: object
+  13   variable C : city
+      `C` : `city`
+      stage: object
+hints:
