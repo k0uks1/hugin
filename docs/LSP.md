@@ -2,7 +2,11 @@
 
 `hugin lsp` serves the Language Server Protocol over stdio (`src/main/scala/hugin/lsp`), answering
 through the query database (`hugin.query`): `Ide` for the position queries that `hugin query` and the
-REPL share, `MetaIde` and `Expansion` for what only language servers show. This page records what the
+REPL share, `MetaIde` and `Expansion` for what only language servers show. Between them and the protocol
+lies the editor layer `hugin.ide` (#147, `docs/design/web-ide.md`): what hover shows, which completions
+fit, which fixes apply and how the outline nests are decided there, in offsets and plain case classes, so
+that the browser build and the CLI can share them; `hugin.lsp` only converts positions and encodes the
+answers in lsp4j's types. This page records what the
 server does for meta-level code (issue #54): the audit it started from, the features, the protocol, and
 the test of each feature.
 

@@ -1,0 +1,16 @@
+(* Successor patterns `P + k` need an integer literal `k >= 1` and a nat-like type (reference:
+   meta/clauses). *)
+pred : nat -> nat.
+pred 0 = 0.
+pred (N + 0) = N. (*~ E0915 *)
+
+half : int -> int.
+half (N + 1) = N. (*~ E0915 *)
+
+down : nat -> nat.
+down 0 = 0.
+down (N - 1) = N. (*~ E0915 *)
+
+big : nat -> nat.
+big 0 = 0.
+big (N + 100001) = N. (*~ E0901 *)

@@ -123,7 +123,7 @@ diagnostics do not move. The REPL's `:imports` leaves out the prelude's chain.
 
 A file that the prelude opens with a selective `%use` of an import is left out of the prelude's chain for
 a program that cannot use it (`compiler/LazyStdlib.scala`, reference: modules, the note at the end of
-"Opening modules"). Today this is `std/demand`. The file is still parsed with the prelude and stays in the
+"Opening modules"). Today this is `std/demand`; `std/nat` (#127), which the prelude opens selectively too, stays in the chain because `std/list` imports it. The file is still parsed with the prelude and stays in the
 import graph, which is static. It is left out if all of the following hold:
 
 * no other file of the chain or of the program imports it;

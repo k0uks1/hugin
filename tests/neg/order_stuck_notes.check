@@ -2,9 +2,9 @@ error[E0901]: mismatched types
   --> tests/neg/order_stuck_notes.hgn:14:19
    |
 14 | g (suc N) = check refl N. (*~ E0901 *)
-   |                   ^^^^ expected `eqn (f zero) zero`, found `eqn zero zero`
+   |                   ^^^^ expected `eqn (f 0) 0`, found `eqn 0 0`
    |
-   = note: `f zero` does not reduce here: `f`, `g` and `check` refer to each other, and inside such a cycle no body unfolds
+   = note: `f 0` does not reduce here: `f`, `g` and `check` refer to each other, and inside such a cycle no body unfolds
 
 error[E0912]: cannot show that `loop` terminates
   --> tests/neg/order_stuck_notes.hgn:18:1
@@ -20,8 +20,8 @@ error[E0901]: mismatched types
   --> tests/neg/order_stuck_notes.hgn:20:28
    |
 20 | t : eqn (loop zero) zero = refl. (*~ E0901 *)
-   |                            ^^^^ expected `eqn (loop zero) zero`, found `eqn zero zero`
+   |                            ^^^^ expected `eqn (loop 0) 0`, found `eqn 0 0`
    |
-   = note: `loop zero` does not reduce: `loop` was rejected by the termination check (E0912)
+   = note: `loop 0` does not reduce: `loop` was rejected by the termination check (E0912)
 
 3 errors found

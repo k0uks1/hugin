@@ -1,7 +1,7 @@
 package hugin.core
 package elab
 
-import hugin.syntax.Literal
+import hugin.syntax.{Literal, Tree}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
@@ -133,38 +133,22 @@ trait Inductives:
 
   // ---------------------------------------------------------------- nat literals
 
-  /** For a nat-like family: its zero and successor constructors. */
-  def natLike(fam: Int): Option[(Int, Int)] =
-    def shape(c: Int): Option[Boolean] = telescope(globals(c).ty) match
-      case (Nil, _) => Some(false)
-      case (List((_, Icit.Expl, a)), _) if isFam(a, fam) => Some(true)
-      case _ => None
-    val tyArgs = telescope(globals(fam).ty)._1
-    constructors(fam) match
-      case List(a, b) if tyArgs.isEmpty =>
-        (shape(a), shape(b)) match
-          case (Some(false), Some(true)) => Some((a, b))
-          case (Some(true), Some(false)) => Some((b, a))
-          case _ => None
-      case _ => None
-
-  private def isFam(a: Val, fam: Int): Boolean = force(a) match
-    case Val.Rigid(Head.Glob(f), Nil) => f == fam
-    case _ => false
-
-  /** The nat-like family a type is, with its constructors. */
-  def natType(ty: Val): Option[(Int, Int)] = force(ty) match
-    case Val.Rigid(Head.Glob(f), Nil) if isFamily(f) => natLike(f)
-    case _ => None
-
-  /** `n` as `suc (… zero)`. */
-  def natTerm(zero: Int, suc: Int, n: Long): Tm =
-    (1L to n).foldLeft(Tm.Global(zero): Tm)((acc, _) => Tm.App(Tm.Global(suc), acc, Icit.Expl))
-
   /** A literal checked against a nat-like type. */
   def natLiteral(c: Cxt, l: Literal, ty: Val, span: Span): Option[Tm] = (l, natType(ty)) match
     case (Literal.IntL(n), Some((z, s))) =>
       if n < 0 then fail(TypeProblem.NegativeNat(show(c, ty), span))
-      if n > 100000 then fail(TypeProblem.NatTooLarge(span))
+      if n > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
       Some(natTerm(z, s, n))
+    case _ => None
+
+  /** `e + k` checked against the nat-like family with the successor `suc`: `suc` applied `k` times. */
+  def natSuccessor(suc: Int, e: Tm, k: Long, span: Span): Tm =
+    if k > maxNatLiteral then fail(TypeProblem.NatTooLarge(span))
+    natSucc(suc, e, k)
+
+  /** `k` if `t` is an integer literal of at least 1: the right operand of `e + k` on a nat-like type
+   *  (reference: meta/families, numerals). */
+  def successorCount(t: Tree): Option[Long] = t match
+    case Parens(i) => successorCount(i)
+    case Lit(Literal.IntL(k)) if k >= 1 => Some(k)
     case _ => None

@@ -25,7 +25,7 @@ class FileDiagnosticsSuite extends munit.FunSuite:
   test("a library's diagnostics are its own file's, read from its queries without compiling it again") {
     given db: Database = Database()
     db.set(SourceText, "lib.hgn", "place : type.\nhere : place.\nbad X :- nothing X.\n")
-    db.set(SourceText, "main.hgn", "g = %import \"lib\".\nat : g.place -> rel.\nat g.here.\nat X :- missing X.\n")
+    db.set(SourceText, "main.hgn", "g = %import \"lib\".\nloc : g.place -> rel.\nloc g.here.\nloc X :- missing X.\n")
     db.set(SourceText, "other.hgn", "h = %import \"lib\".\n")
     val main = FileDiagnostics.of(CompileKey("main.hgn"))
     assertEquals(main.map(_.path), List("lib.hgn", "main.hgn"))

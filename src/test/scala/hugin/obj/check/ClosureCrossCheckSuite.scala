@@ -32,18 +32,8 @@ class ClosureCrossCheckSuite extends munit.FunSuite:
       }
       (rs.flatten, rs.length)
 
-  /** Compiles and compares on a thread with the launcher's stack (`-Xss64m`): the meta evaluator recurses
-   *  on the structure it reduces, and nat literals (issue #131) make that structure deep. */
   private def all(programs: Iterator[(String, () => Context)]): (List[String], Int) =
-    var result: Either[Throwable, (List[String], Int)] = Left(IllegalStateException("not run"))
-    val body: Runnable = () =>
-      result =
-        try Right(programs.map((o, c) => compare(c(), o)).foldLeft((List.empty[String], 0))((a, b) => (a._1 ++ b._1, a._2 + b._2)))
-        catch case e: Throwable => Left(e)
-    val thread = Thread(null, body, "closure-cross-check", 64L << 20)
-    thread.start()
-    thread.join()
-    result.fold(e => throw e, identity)
+    programs.map((o, c) => compare(c(), o)).foldLeft((List.empty[String], 0))((a, b) => (a._1 ++ b._1, a._2 + b._2))
 
   private def hgn(root: String): List[Path] =
     Files.walk(Path.of(root)).iterator.asScala.filter(_.toString.endsWith(".hgn")).toList.sorted
@@ -52,7 +42,7 @@ class ClosureCrossCheckSuite extends munit.FunSuite:
     val corpus = Corpus.entries.iterator.map(e => e.path -> (() => Fuzz.compile(e.program)))
     val files =
       // bench/meta/nat_literals.hgn has no recursive component and only stresses the elaboration of
-      // large numerals (issue #131), which needs the launcher's stack; it is measured by the bench harness
+      // large numerals (issue #131): its 50 000 numerals are slow to elaborate; it is measured by the bench harness
       (hgn("docs/design/examples") ++ hgn("bench").filterNot(_.endsWith("nat_literals.hgn"))).iterator
         .map(p => p.toString -> (() => TestSupport.compile(Files.readString(p))))
     val reference =
