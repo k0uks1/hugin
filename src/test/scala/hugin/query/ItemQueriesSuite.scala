@@ -127,15 +127,21 @@ class ItemQueriesSuite extends munit.FunSuite:
         assert(hugin.syntax.Slices.congruent(parsed.program.items, whole), p.toString)
   }
 
-  test("editing a declaration elaborates the declarations and every object item again") {
+  test("editing a declaration elaborates the declarations and the items that read it (#126, PR 7)") {
     given db: Database = setup()
     compile
     edit("limit : int = 5.", "limit : int = 7.")
     assertEquals(signatures, 1)
-    assertEquals(elaborated, items)
+    assertEquals(elaborated, 1) // `r X :- p X, X < limit.`
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
     edit("q : n1 -> rel.", "q : n2 -> rel.")
     assertEquals(signatures, 1)
-    assertEquals(elaborated, items)
+    assertEquals(elaborated, 2) // `q 3.` and `s X :- q X.`
+    assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
+    // a new declaration that no item reads, and a changed one that no item reads
+    edit("t : int -> rel.", "t : int -> rel.\nu : int -> rel.")
+    assertEquals((signatures, elaborated), (1, 0))
+    edit("n2 : type = int.", "n2 : type = float.")
     assertEquals(rendered(observe(db.get(SourceText, path))), rendered(fresh(db.get(SourceText, path))))
   }
 
@@ -171,9 +177,9 @@ class ItemQueriesSuite extends munit.FunSuite:
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn")))
     db.stats.reset()
     assert(!db(Compile, key).hasErrors)
-    // a new declaration: the declarations and every object item are elaborated again
+    // a new declaration: the declarations are elaborated again, and the new part's item (#126, PR 7)
     assertEquals(signatures, 1)
-    assertEquals(elaborated, 4)
+    assertEquals(elaborated, 1)
     db.set(SourceText, "in4.hgn", "?- r X.\n")
     db.set(Composite, "session", Vector(Part("in1.hgn"), Part("in2.hgn"), Part("in3.hgn"), Part("in4.hgn")))
     db.stats.reset()

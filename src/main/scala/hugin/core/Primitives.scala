@@ -44,6 +44,9 @@ trait Primitives:
 
   private val derived = mutable.LinkedHashMap.empty[(Int, String), Int]
 
+  /** The derived constants, without reporting a read ([[DeclarationsSummary]]). */
+  private[core] def derivedTable: List[((Int, String), Int)] = derived.toList
+
   protected def copyPrimitives(from: Primitives): Unit = derived ++= from.derived
 
   /** The global a derived constant was derived from, and its label. */

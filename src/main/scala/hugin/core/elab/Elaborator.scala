@@ -48,6 +48,15 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  they are observed ([[hugin.core.DeclarationReads]]). */
   private var reads: hugin.core.DeclarationReads | Null = null
 
+  /** The tables of the state, without reporting a read ([[hugin.core.DeclarationsSummary]]). */
+  private[core] def tables: (
+      Map[Name, List[(Int, hugin.util.Span)]],
+      Option[(hugin.util.Span, ImportedModule)],
+      Map[Name, hugin.syntax.Trees.RecordType],
+      Option[Option[Set[Name]]]
+  ) =
+    (opened0, exported0, signatures0, droppedUses0)
+
   def observe(r: hugin.core.DeclarationReads | Null): Unit =
     reads = r
     scope.reads = r
@@ -69,6 +78,9 @@ final class ElabState(val scope: NameScope = NameScope()):
       names
     def foreach[U](f: Name => U): Unit = toSet.foreach(f)
     private[ElabState] def copyFrom(other: ElabState#Names): Unit = names = other.names
+
+    /** The names, without reporting a read ([[hugin.core.DeclarationsSummary]]). */
+    private[core] def unobserved: Set[Name] = names
 
   /** The names the file's declarations and definitions declare (they shadow the prelude's in the whole
    *  file, also before their declarations). */

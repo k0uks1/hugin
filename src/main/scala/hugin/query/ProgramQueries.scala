@@ -204,10 +204,16 @@ object Signatures extends Query[ProgramKey, ElaboratedDeclarations]("signatures"
     ProgramElab.declarations(base, key.path, decls.files, decls.items)
 
 /** One object item of a program, elaborated against the program's declarations: recomputed only when the
- *  item (with its position) or the declarations change. */
+ *  item (with its position) or what it read of the declarations changes ([[DeclarationDependencies]]).
+ *  An item reused across an edit of the declarations was elaborated against earlier ones; assembly moves
+ *  it onto the current ones ([[hugin.core.Rebase]]). */
 object ElabItem extends Query[ItemQueryKey, ElaboratedItem]("elabItem"):
   def compute(key: ItemQueryKey)(using db: Database): ElaboratedItem =
-    ProgramElab.item(db(Signatures, key.program), db(ItemOf, key).item)
+    // the declarations are read untracked: the item depends on what its footprint says it read of them
+    val decls = db.untracked(Signatures, key.program)
+    val result = ProgramElab.item(decls, db(ItemOf, key).item)
+    DeclarationDependencies.record(key.program, decls, result.footprint.nn)
+    result
 
 /** A program assembled from its elaborated parts (recomputed after every edit of the program; the parts
  *  are reused). */

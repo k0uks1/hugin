@@ -16,6 +16,9 @@ trait Families:
 
   private val familyMemo = mutable.LinkedHashMap.empty[(Int, List[Tm]), Int]
 
+  /** The instances of families, without reporting a read ([[DeclarationsSummary]]). */
+  private[core] def familyTable: List[((Int, List[Tm]), Int)] = familyMemo.toList
+
   protected def copyFamilies(from: Families): Unit = familyMemo ++= from.familyMemo
 
   /** The instances of all families, in creation order. */

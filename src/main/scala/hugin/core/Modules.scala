@@ -40,7 +40,7 @@ trait Modules:
 
   private var bodyIds = 0
   def nextBodyId(): Int =
-    readAll("modules")
+    readAll("bodyIds")
     bodyIds += 1
     bodyIds
 
@@ -53,6 +53,11 @@ trait Modules:
   var hint: String = ""
 
   private val memo = mutable.HashMap.empty[(Int, Int, List[Tm]), Val]
+
+  /** The module tables, without reporting a read (for the projections of the declarations' state,
+   *  [[DeclarationsSummary]]). */
+  private[core] def moduleTables: (Int, Int, Set[String], Map[String, Int], Map[(Int, Int, List[Tm]), Val]) =
+    (bodyIds, anonymous, prefixes.toSet, fileRanks.toMap, memo.toMap)
   private val prefixes = mutable.HashSet.empty[String]
   private var anonymous = 0
   val moduleInstances: mutable.ListBuffer[ModuleInstance] = mutable.ListBuffer.empty
@@ -63,7 +68,7 @@ trait Modules:
   def evalModule(body: ModuleBody, env: List[Val]): Val = closedEnv(env) match
     case None => Val.Rigid(Head.Module(body, env), Nil)
     case Some(key) =>
-      readAll("modules")
+      readAll("moduleMemo")
       memo.getOrElseUpdate((body.id, site, key.map(stripPositions)), instantiate(body, env))
 
   /** The normal forms of an environment's values if they have no free variables and no unknowns
@@ -106,7 +111,7 @@ trait Modules:
     Val.Quote(Val.Rigid(Head.Glob(id), Nil))
 
   private def freshPrefix(): String =
-    readAll("modules")
+    readAll("prefixes")
     val base =
       if hint.nonEmpty then hint
       else
@@ -148,13 +153,13 @@ trait Modules:
 
   /** Ranks a file after the files ranked before (the prelude, the imported files, the program's files). */
   def rankFile(path: String): Unit =
-    readAll("modules")
+    readAll("fileRanks")
     fileRanks.getOrElseUpdate(path, fileRanks.size)
 
   /** The position of a span in the program: the files in the order they are ranked (as elaborated: the
    *  prelude, the imported files, the program), then the offset. */
   def positionOf(span: Span): Int =
-    readAll("modules")
+    readAll("fileRanks")
     val rank = fileRanks.getOrElseUpdate(span.source.path, fileRanks.size)
     rank * 10_000_000 + span.start
 
