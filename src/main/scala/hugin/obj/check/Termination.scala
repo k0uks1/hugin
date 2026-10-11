@@ -24,7 +24,7 @@ final class TerminationPhase extends Phase:
   def description = "every growing component terminates by descent along derivations or guarded induction (Section 10)"
 
   def run(using Context): Unit =
-    for (comp, verdict) <- Termination.verdicts(ctx.unit) do
+    for (comp, verdict) <- Termination.verdicts(ctx.unit, memo = !ctx.settings.explainTermination) do
       val names = Termination.showComponent(comp)
       def explain(s: String): Unit = if ctx.settings.explainTermination then ctx.unit.explanations += s
       verdict match
@@ -49,16 +49,21 @@ enum Verdict:
 object Termination:
   /** The verdict for every recursive component of the unit that is stratified (a cycle through negation or
    *  aggregation is a stratification error, E0601, reported already; it arises e.g. for the demand of an
-   *  auxiliary relation of an aggregate, issue #1, B4). */
-  def verdicts(unit: CompilationUnit): List[(List[RelSym], Verdict)] =
-    recursive(unit).map(rc => rc.comp -> verdict(rc, r => unit.splitRules.contains(r)))
+   *  auxiliary relation of an aggregate, issue #1, B4). With `memo`, a verdict that holds may come from an
+   *  earlier compilation of the same component ([[TerminationMemo]]); its explanation lines are then not
+   *  those of this compilation. */
+  def verdicts(unit: CompilationUnit, memo: Boolean = false): List[(List[RelSym], Verdict)] =
+    recursive(unit).map { rc =>
+      def compute = verdict(rc, r => unit.splitRules.contains(r))
+      rc.comp -> (if memo then TerminationMemo.verdict(rc)(compute) else compute)
+    }
 
   /** The recursive components of the unit that are stratified (see [[verdicts]]). */
   def recursive(unit: CompilationUnit): List[RecursiveComponent] =
     val p = unit.prog
     if p == null then return Nil
     given ProgramFacts = unit.facts
-    val es = DepGraph.edges(p)
+    val es = DepGraph.edgesOf(unit)
     val compOf = unit.components.zipWithIndex.flatMap((c, i) => c.map(_ -> i)).toMap
     val rulesByComp = p.rules.groupBy(r => headRel(r).flatMap(compOf.get).getOrElse(-1))
     for

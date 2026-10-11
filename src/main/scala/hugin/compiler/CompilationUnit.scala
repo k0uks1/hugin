@@ -39,6 +39,11 @@ final class CompilationUnit(val source: SourceFile):
   var core: hugin.ir.CoreProgram | Null = null
   var components: List[List[RelSym]] = Nil
 
+  /** The dependency edges of each rule of `prog` (by identity) for the facts `edgeFacts`, shared by the
+   *  phases that read the dependency graph (`hugin.obj.check.DepGraph.edgesOf`). */
+  val edgeCache: java.util.IdentityHashMap[AnyRef, List[hugin.obj.check.DepEdge]] = java.util.IdentityHashMap()
+  var edgeFacts: ProgramFacts | Null = null
+
   /** The split rules of Proposition 8.8 added by `stratify` (by identity; see `StratifyPhase.splitRules`). */
   val splitRules: java.util.Set[AnyRef] = java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
 

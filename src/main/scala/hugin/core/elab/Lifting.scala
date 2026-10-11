@@ -27,13 +27,31 @@ trait Lifting:
     }
 
   /** A hidden global function `name` of type `closeOver(c, a)`, and its value in `c`: the global applied
-   *  to the bound variables of `c`. */
-  def liftedFunction(c: Cxt, name: Name, a: Tm, span: Span, declSpan: Span = Span.NoSpan): (Int, Val) =
+   *  to the bound variables of `c`. A formula function of a module body is lifted as a postulate, defined
+   *  by its rules later ([[closeTerm]], [[FormulaFunctions]]). */
+  def liftedFunction(
+      c: Cxt,
+      name: Name,
+      a: Tm,
+      span: Span,
+      declSpan: Span = Span.NoSpan,
+      kind: GlobalKind = GlobalKind.Function(-1, None)
+  ): (Int, Val) =
     val closed = closeOver(c, a)
     val bound = boundVars(c)
-    val entry = GlobalEntry(name, eval(Nil, closed), closed, Stage.S1, GlobalKind.Function(-1, None), span, declSpan, hidden = bound.length)
+    val entry = GlobalEntry(name, eval(Nil, closed), closed, Stage.S1, kind, span, declSpan, hidden = bound.length)
     val id = addGlobal(entry)
     (id, bound.foldLeft(globalValue(id))((f, v) => app(f, v, Icit.Expl)))
+
+  /** Abstracts a term (zonked) in context `c` over the context, the value of a global lifted from `c`: a
+   *  λ for each bound variable, a let for each defined one that the term uses (the others are left out,
+   *  as in [[letBound]]: a definition of a module body may refer to the global itself). */
+  def closeTerm(c: Cxt, t: Tm): Tm =
+    c.binders.foldLeft(t) { (acc, b) =>
+      b.defn match
+        case Some(d) => if occurs(0, acc) then Tm.Let(b.name, b.tyTm, d, acc) else Tm.shift(acc, -1, 1)
+        case None => Tm.Lam(b.name, Icit.Expl, acc)
+    }
 
   /** The clauses of a function lifted from `c`, with a wildcard for each hidden argument. */
   def padded(c: Cxt, clauses: List[SurfaceClause]): List[SurfaceClause] =
