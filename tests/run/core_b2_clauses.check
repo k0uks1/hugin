@@ -36,6 +36,7 @@ total : int -> rel.
 total 42.
 isZero : nat -> int.
   isZero 0 = 1.
-  isZero (_ + 1) = 0.
+  isZero N = 0.
+  isZero (N + 1) = 0.
 fib 90 2880067194370816120.
 total 42.

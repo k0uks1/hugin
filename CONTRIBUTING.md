@@ -72,7 +72,8 @@ starting with `-D` to the JVM, so with it write `--deny <lint>`.
 
 `hugin fix FILE` applies the suggestions marked machine-applicable (adding a missing `.`, replacing a
 singleton variable by `_`, adding missing labels as `_`, `%complete`, the
-binders of a declared type as parameters of the definition) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
+binders of a declared type as parameters of the definition, removing a clause that can never apply,
+writing out the cases of a clause that needs the refinement made by the clauses before it) whose edits lie in the file, recompiling after each round until none is left, as `cargo fix`
 does. Suggestions that are guesses (a similar name) are only shown, and lints at `-A` are not fixed.
 
 

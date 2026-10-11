@@ -1,0 +1,29 @@
+(* #67: absurd patterns `()` and absurd clauses, as in Agda *)
+nat : Type.
+zero : nat.
+suc : nat -> nat.
+bool : Type.
+true : bool.
+false : bool.
+vec : Type -> nat -> Type.
+vnil : vec A zero.
+vcons : A -> vec A N -> vec A (suc N).
+fin : nat -> Type.
+fzero : fin (suc N).
+fsuc : fin N -> fin (suc N).
+r : fin zero -> nat.
+r ().
+f : vec (fin zero) (suc zero) -> nat.
+f (vcons () _).
+(* an absurd clause next to ordinary ones; it is never unreachable *)
+g : bool -> fin zero -> nat.
+g true ().
+g false X = zero.
+(* optional where coverage finds the empty type itself *)
+g2 : bool -> fin zero -> nat.
+g2 true X = zero.
+toInt : nat -> int.
+toInt zero = 0.
+toInt (suc N) = toInt N + 1.
+out : int -> rel.
+out (toInt (suc zero)).
