@@ -93,3 +93,73 @@ code.hugin .hg-label {
 code.hugin .hg-declaration {
   font-weight: bold;
 }
+/* Hovers and definitions (issue #132, docs/design/web-ide.md, 7.3): hugin-info.js shows the hover text
+   of a name in one popup; a name with a declaration is a link, coloured as its token. The occurrences
+   of the name in the popup are marked by a background and an underline, the name with keyboard focus
+   by a ring. The colours come from the mdBook theme, so they follow light and dark. */
+code.hugin a {
+  color: inherit;
+  text-decoration: none;
+}
+code.hugin a:hover {
+  text-decoration: underline;
+}
+code.hugin .hg-occ {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  text-decoration: underline;
+  border-radius: 2px;
+}
+code.hugin[data-hg]:focus-visible,
+code.hugin [data-i]:focus,
+code.hugin a:focus {
+  outline: 2px solid var(--links);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+.hg-popup {
+  position: absolute;
+  z-index: 200;
+  box-sizing: border-box;
+  max-width: min(36rem, calc(100vw - 2rem));
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--theme-popup-border);
+  border-radius: 4px;
+  background: var(--theme-popup-bg);
+  color: var(--fg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  font-size: 1.4rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.hg-popup code {
+  padding: 0;
+  background: none;
+  font-size: 0.95em;
+}
+.hg-sig code {
+  white-space: pre-wrap;
+}
+.hg-note {
+  margin-top: 0.2rem;
+}
+.hg-def {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: var(--links);
+}
+@media (hover: none), (pointer: coarse) {
+  .hg-def {
+    min-height: 44px;
+    line-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hg-popup:not([hidden]) {
+    animation: hg-fade 0.12s ease-out;
+  }
+}
+@keyframes hg-fade {
+  from {
+    opacity: 0;
+  }
+}

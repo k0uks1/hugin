@@ -3,7 +3,7 @@
 Design note for [issue #147](https://github.com/k0uks1/hugin/issues/147) (the language server's editor
 features in the playground, computed by the compiler in the playground's Web Worker) and
 [issue #132](https://github.com/k0uks1/hugin/issues/132) (hover and go to definition in the reference's
-code samples, computed at build time). Status: approved by the designer; I1, I2 and P1 implemented. The
+code samples, computed at build time). Status: approved by the designer; I1, I2, P1 and R1 implemented. The
 measurements this note cites were made against `a1a4274` (`origin/ccr-48027e29-daam41`) in a scratch
 copy and are not committed.
 
@@ -369,8 +369,9 @@ the page into one table, and writes:
 <script type="application/json" id="hg-hovers">[["rel path : node -> node -> rel"], …]</script>
 ```
 
-- `data-i` indexes the page's table. Occurrence groups are the same `data-i` with the same `href`
-  inside one block, so no extra attribute is needed.
+- `data-i` indexes the page's table. Occurrence groups are the names with the same `href` inside one
+  block, together with the declaration it points to, so no extra attribute is needed. (Their `data-i`
+  can differ: a use's hover carries notes that the declaration's does not.)
 - A use links to its declaration's `id` in the same block. Each block is its own program, so links
   never cross blocks. A library name links to the module's page in the reference (`std/graph.html`,
   `prelude.html`), with an anchor to its row where the page's declaration table lists the name. The
@@ -382,7 +383,7 @@ the page into one table, and writes:
 ### 7.3 Script and style
 
 `reference/hugin-info.js` (about 120 lines, ~3 KB minified, ~1.3 KB gzip, loaded with mdBook's
-`additional-js` and `defer`) creates one popup element, positions it under or over the token with
+`additional-js`, which places it at the end of the body, after the page's content) creates one popup element, positions it under or over the token with
 `getBoundingClientRect` (flipping at the viewport edge, `max-width: min(36rem, 100vw - 2rem)`), and
 handles mouse (300 ms delay; the popup is interactive so its "Definition" link can be clicked), focus and
 keys (9.1), and touch (9.2). `hugin.css` gains about 1 KB: the popup, the occurrence highlight, and a
