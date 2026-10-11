@@ -107,6 +107,8 @@ private final class Canonical(ref: Int => Any):
       g.pending,
       g.hidden,
       g.inCycle,
+      g.axiom,
+      g.parameters,
       g.span,
       g.declSpan,
       g.placedAt,

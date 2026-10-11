@@ -8,7 +8,8 @@ object program is evaluated.
 
 Every meta function terminates, and every meta function defined by clauses covers all its arguments.
 Therefore the elaboration of every program terminates, and every application of a meta function to
-closed arguments has a value.
+closed arguments has a value. The meta level is consistent as a logic unless a program assumes
+something with a postulate ([Consistency](consistency.md)).
 
 ## Stages
 
@@ -44,11 +45,13 @@ The meta level has the following items. Each is defined in the chapter given.
 | `T : Δ -> Type.` | an inductive family | [Inductive families](families.md) |
 | `c : Δ -> T ū.` | a meta constructor of the family `T` | [Inductive families](families.md) |
 | `f : A.` followed by clauses `f p̄ = e.` | a meta function defined by clauses | [Clauses](clauses.md) |
+| `f : A.` without clauses, of any other meta type | a meta function defined by no clauses: an error unless an argument has an empty type | [Clauses](clauses.md#syntax) |
 | `x : A = e.` | a definition with a declared type | [Functions](functions.md#definitions) |
 | `x = e.`, `f params = e.` | a definition with an inferred type | [Functions](functions.md#definitions) |
 | `f params : A = e.` | a definition with parameters and a declared result type | [Functions](functions.md#definitions) |
 | `f : … -> prop.` followed by rules `f t̄ :- φ.` | a formula function | [Staging](staging.md#formula-functions) |
-| `x : A.` of any other meta type | a *postulate*: a constant without a value | below |
+| `x : A = %postulate.` | a *postulate*: a constant without a value | [Functions](functions.md#postulates) |
+| `%assumptions f.` | prints the postulates and trusted primitives `f` depends on | [Consistency](consistency.md#assumptions) |
 | `%opaque x₁ … xₙ.` | the definitions and functions `xᵢ` do not unfold | [below](#opaque-definitions) |
 
 The items of a [module body](../modules.md#module-bodies) are those of a file, except the ones that a
@@ -60,7 +63,9 @@ object type, relation or constructor type gives an object constant; any other ty
 type. So `f : int -> int.` declares a meta function on compile-time integers, not a constructor.
 
 A *postulate* has a type but no value. Meta code that applies it is stuck; it is an error
-([E0909](../errors/E0909.md)) if object code depends on a stuck value.
+([E0909](../errors/E0909.md)) if object code depends on a stuck value. A postulate is always marked
+with `%postulate`: a declaration without a value that is not a family or a constructor is a function,
+which its clauses must cover ([E0911](../errors/E0911.md)).
 
 ## Order of elaboration
 

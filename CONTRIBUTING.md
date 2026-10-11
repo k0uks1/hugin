@@ -55,6 +55,10 @@ hugin lsp                 run the language server (LSP over stdin/stdout) for ed
   -D, --deny <lint>       deny the lint: report it as an error
   --deny-warnings         report every lint without a flag that warns by default as an error
   --explain-termination   print the termination argument of every recursive component
+  --safe                  reject postulates (`x : A = %postulate.`), also those of imported files (E0925)
+  --print-assumptions <name>
+                          print the postulates and trusted primitives the constant <name> depends on,
+                          transitively (repeatable; Lean's `#print axioms`, as `%assumptions name.`)
   --no-prelude            do not include the standard prelude
 ```
 
@@ -85,7 +89,10 @@ does. Suggestions that are guesses (a similar name) are only shown, and lints at
 - **Input.** Declarations, definitions, rules and directives extend the session; `?- query.` is answered
   at once against the session and the loaded facts. An item continues over several lines (with a `...`
   prompt) until its terminating period; periods in comments, strings and selections (`roads.path`) and
-  inside brackets do not count. Several items may share a line.
+  inside brackets do not count. Several items may share a line: a meta function and its clauses are one
+  input (`pred : nat -> nat. pred 0 = 0. pred (N + 1) = N.`), since a function without clauses is an
+  error (E0911). The flags of `hugin check` that change compilation (`--safe`, `--no-prelude`) apply to
+  the session.
 - **Errors do not lose state.** An input is accepted or rejected as a whole: if the session with the
   input has errors (also errors the input causes in earlier text, such as a cycle through negation), the
   session stays as it was. Diagnostics are rendered as in batch mode, with lines and columns relative to

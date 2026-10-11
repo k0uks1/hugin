@@ -1,0 +1,9 @@
+(* A meta declaration that is neither a family nor a constructor declares a function, also without
+   clauses (issue #186, P1): no clauses do not cover `boom`, so the declaration does not assume a value,
+   and False cannot be derived from it (reference: meta/clauses, "Syntax"). *)
+empty : Type.
+boom : (A : Type) -> A. (*~ E0911 *)
+absurd : empty = boom empty. (*~ W0003 *)
+(* without explicit arguments: `x : formula.` adds no constructor to a family of the library *)
+%use "std/reflect" (formula).
+x : formula. (*~ E0911 *)

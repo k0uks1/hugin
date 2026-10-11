@@ -1,0 +1,17 @@
+(* `%assumptions f.` prints what `--print-assumptions f` prints (issue #186, P1): the postulates `f`
+   depends on, and the trusted primitives, here the native `plus` and `toInt` of `std/nat` and the
+   primitive `same`; a constant built from constructors alone rests on nothing. *)
+%use "std/nat" (plus, toInt).
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+plusZero : (n : nat) -> eqn (plus n 0) n = %postulate.
+lemma : eqn (plus 2 0) 2 = plusZero 2.
+three : nat = plus 1 2.
+check : bool = same 1 1.
+plain : eqn 2 2 = refl.
+%assumptions lemma.
+%assumptions three.
+%assumptions check.
+%assumptions plain.
+result : int -> rel.
+result (toInt three).

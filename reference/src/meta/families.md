@@ -16,18 +16,20 @@ A meta declaration without a definition and without clauses is classified by its
 
 - `T : Δ -> Type.`, whose type ends in a universe, declares an inductive family with the arguments `Δ`;
 - `c : Δ -> T ū.`, whose type ends in a family `T` of the same file, declares a meta constructor of `T`;
-- any other meta declaration declares a postulate ([The meta level](index.md#meta-items)).
+- any other meta declaration declares a meta function defined by its [clauses](clauses.md), possibly
+  none.
 
 The constructors of a family are the constructor declarations that return it, in the order of the file. A
 constructor must return the family applied to all of its arguments. It is an error otherwise
 ([E0914](../errors/E0914.md), or [E0901](../errors/E0901.md) if the result is not a type). A program
 cannot add constructors to a family of the standard library or of another file: `x : formula.` in a
-program declares a postulate.
+program declares a function without clauses, an error ([E0911](../errors/E0911.md)).
 
 Free uppercase variables in the type of a constructor are implicit arguments
 ([Functions](functions.md#implicit-arguments)): `vcons : A -> vec A N -> vec A (suc N).` has the implicit
-arguments `A` and `N`. All arguments of a family are indices: pattern matching unifies them, and there is
-no separate notion of parameters.
+arguments `A` and `N`. Pattern matching unifies all arguments of a family; parameters are not declared,
+but the leading arguments that every constructor keeps fixed are the family's
+[parameters](#parameters).
 
 The type of a family may have implicit binders, which makes the family *polymorphic*:
 `eq : {A : Type} -> A -> A -> Type.` is a family of types `eq x y` for `x` and `y` of any type `A`, which
@@ -94,8 +96,60 @@ lam : (value -> value) -> value.
 
 The argument types of a constructor must live in the universe of its family. The compiler turns this
 into constraints on the levels ([Universes](universes.md)): `small : Type. mk : Type -> small.` puts
-`small` into `Type₁`. An implicit argument of a constructor that is also an argument of its result type,
-such as `A` in `vcons`, does not count.
+`small` into `Type₁`. An implicit argument of a constructor that is a [parameter](#parameters) of its
+family, such as `A` in `vcons`, does not count.
+
+## Parameters
+
+The *parameters* of a family are its longest prefix of arguments that every constructor keeps fixed. An
+argument at position *k* is kept fixed by a constructor `c : Δ -> T u₁ … uₙ` if `u_k` is a variable bound
+in `Δ`, a different one for each of the first *k* positions, and every occurrence of `T` in the types of
+`Δ` has the same variable at position *k*. The other arguments are *indices*. In `vec : Type -> nat ->
+Type.` with `vnil` and `vcons` above, the first argument is a parameter and the second an index:
+`vcons` returns `vec A (suc N)` and takes a `vec A N`. A family without constructors has only
+parameters. Parameters are inferred, not declared, as Lean's `autoPromoteIndices` does.
+
+Parameters matter in two rules:
+
+- *universe levels*: an implicit argument of a constructor at a parameter position of its result does not
+  count for the [universe levels](#universe-levels) of the family; an implicit argument at an index
+  position counts, as every other argument does;
+- *termination*: the arguments of a constructor at the parameter positions are not subterms of the
+  constructor's application ([Termination](termination.md)).
+
+Pattern matching, coverage and index unification treat parameters as indices.
+
+The following family is in `Type₀`: `A` is a parameter of `rep`, so `wrap`'s implicit argument `A : Type`
+does not count, and `rep (rep int)` is a type.
+
+```hugin,run
+rep : Type -> Type.
+wrap : A -> rep A.
+deep : rep (rep int) = wrap (wrap 1).
+ok : int -> rel.
+ok 1.
+```
+
+```output
+ok 1.
+```
+
+With the constructor `unit`, the argument of `rep` is an index: `unit` returns `rep int`, not `rep A`.
+Then `wrap`'s implicit argument `A : Type` counts, `rep` is in a universe above that of `A`, and
+`rep (rep int)` is an error ([E0904](../errors/E0904.md)).
+
+```hugin,compile_fail,E0904
+rep : Type -> Type.
+wrap : A -> rep A.
+unit : rep int.
+deep : rep (rep int) = wrap (wrap 1).
+```
+
+> **Rationale.** A constructor whose large argument is exempt because it is forced by an index, together
+> with recursion on such forced arguments, makes a type theory inconsistent: Agda forbids the
+> combination (its option `--large-indices` and its issue 6654). Exempting only parameters is Lean's
+> rule. A parameter is the same in a value and in its type, so it adds no information to the value and
+> no size to the family.
 
 ## Numerals
 

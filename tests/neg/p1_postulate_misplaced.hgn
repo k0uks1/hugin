@@ -1,0 +1,6 @@
+(* `%postulate` is only the definition of a top-level declaration (issue #186, P1): not an expression
+   (E0103), not a member of a module body (E0907). *)
+two : int = 1 + %postulate. (*~ E0103 *)
+m = {
+  ax : int = %postulate. (*~ E0907 *)
+}.

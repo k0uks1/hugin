@@ -33,6 +33,8 @@ command line is malformed or the program file does not exist.
 | `--proof-format trees\|ordered-graph` | with `--export-proofs`: one proof tree per fact (the default) or one ordered proof graph |
 | `--stats` | prints the time of each compiler phase and the number of rounds of each component |
 | `--explain-termination` | prints the termination argument of every recursive component ([Termination](object/termination.md)) |
+| `--safe` | rejects every postulate of the program and of the files it imports ([E0925](errors/E0925.md); [Consistency](meta/consistency.md#postulates)) |
+| `--print-assumptions <name>` | prints the postulates and trusted primitives that the constant `<name>` depends on; repeatable ([Consistency](meta/consistency.md#assumptions)) |
 | `--print-after <phase>,…` | prints the program after the phases (`all` for every phase) |
 | `--stop-after <phase>` | stops compilation after the phase |
 | `--no-prelude` | does not include the [prelude](prelude.md) |

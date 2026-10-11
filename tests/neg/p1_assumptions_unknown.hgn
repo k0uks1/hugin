@@ -1,0 +1,2 @@
+(* `%assumptions` names a constant in scope (issue #186, P1). *)
+%assumptions nowhere. (*~ E0101 *)

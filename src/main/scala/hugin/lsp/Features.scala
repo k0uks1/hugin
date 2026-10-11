@@ -30,7 +30,7 @@ final class Features(using db: Database):
   /** The URI of a path: the client's own for an open document. */
   def uriOf(path: String): Option[String] = opened.get(path).orElse(Uris.uri(path))
 
-  private def key(path: String) = CompileKey(path)
+  private def key(path: String) = CompileKey(path, meta.compileSettings)
   private def source(path: String): SourceFile = db(Parse, path).source
   private def offset(path: String, pos: Position): Int = Positions.offset(source(path), pos)
   private def location(span: Span): Option[Location] =

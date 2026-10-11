@@ -14,6 +14,11 @@ final case class Settings(
     prelude: Boolean = true,
     /** Explain why every growing component terminates (`--explain-termination`). */
     explainTermination: Boolean = false,
+    /** Reject postulates `x : A = %postulate.` (`--safe`, E0925). */
+    safe: Boolean = false,
+    /** The meta constants whose assumptions (the postulates they depend on) are printed
+     *  (`--print-assumptions`). */
+    printAssumptions: List[String] = Nil,
     /** Record the instances of the rules for a proof export (`--export-proofs`, `hugin.runtime.ProofExport`). */
     exportProofs: Boolean = false
 )

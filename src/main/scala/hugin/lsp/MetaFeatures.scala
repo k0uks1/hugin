@@ -23,6 +23,16 @@ object HintSettings:
       }
     case _ => current
 
+/** The client's settings of compilation: `safe` (`--safe`), in a JSON object `{ "safe": … }` (the
+ *  client's initialization options, or its configuration under `hugin`); a missing entry keeps
+ *  `current`'s. */
+object CompileSettings:
+  def from(options: Any, current: hugin.compiler.Settings): hugin.compiler.Settings = options match
+    case o: JsonObject =>
+      val section = Option(o.get("hugin")).collect { case h: JsonObject => h }.getOrElse(o)
+      current.copy(safe = Try(section.get("safe").getAsBoolean).getOrElse(current.safe))
+    case _ => current
+
 /** The meta-level features of the server (issue #54) in terms of the protocol: inlay hints (initialization
  *  option and setting `inlayHints`), the structured data of typed holes, and the expansion lenses. What
  *  they answer is decided by [[hugin.ide]]: [[hugin.ide.Hints]], [[hugin.ide.Goals]],
@@ -31,7 +41,10 @@ object HintSettings:
 final class MetaFeatures(using db: Database):
   var hintSettings: hugin.ide.HintSettings = hugin.ide.HintSettings()
 
-  private def key(path: String) = CompileKey(path)
+  /** The settings every document is compiled with ([[CompileSettings]]). */
+  var compileSettings: hugin.compiler.Settings = hugin.compiler.Settings()
+
+  private def key(path: String) = CompileKey(path, compileSettings)
   private def source(path: String): SourceFile = db(Parse, path).source
 
   // ---------------------------------------------------------------------------------------- inlay hints

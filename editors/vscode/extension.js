@@ -2,8 +2,8 @@
 // the TextMate grammar alone, so it works without the server.
 //
 // The meta level (issue #54): inlay hints are configured by `hugin.inlayHints.*` (sent as initialization
-// options and on every change), and `Hugin: Show Expansion` (also the code lenses on directive and
-// functor applications) opens the staged result of the meta code at the cursor in a read-only document
+// options and on every change), `hugin.safe` compiles as `--safe` does (rejecting postulates), and
+// `Hugin: Show Expansion` (also the code lenses on directive and functor applications) opens the staged result of the meta code at the cursor in a read-only document
 // `hugin-expansion:`, asking the server with its command `hugin.expansion`.
 const vscode = require("vscode");
 const { LanguageClient } = require("vscode-languageclient/node");
@@ -13,6 +13,10 @@ let client;
 const scheme = "hugin-expansion";
 const expansions = new Map(); // URI of an expansion document -> its text
 const changed = new vscode.EventEmitter();
+
+function safe() {
+  return vscode.workspace.getConfiguration("hugin").get("safe", false);
+}
 
 function hintSettings() {
   const c = vscode.workspace.getConfiguration("hugin.inlayHints");
@@ -49,7 +53,7 @@ function activate(context) {
     documentSelector: [{ scheme: "file", language: "hugin" }, { scheme: "untitled", language: "hugin" }],
     // edits of imported files made outside the editor reach the server
     synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher("**/*.{hgn,facts}") },
-    initializationOptions: { inlayHints: hintSettings() },
+    initializationOptions: { inlayHints: hintSettings(), safe: safe() },
   };
   client = new LanguageClient("hugin", "Hugin", serverOptions, clientOptions);
   client.start().catch((e) =>
@@ -67,6 +71,9 @@ function activate(context) {
       }
       if (e.affectsConfiguration("hugin.inlayHints")) {
         client.sendNotification("workspace/didChangeConfiguration", { settings: { hugin: { inlayHints: hintSettings() } } });
+      }
+      if (e.affectsConfiguration("hugin.safe")) {
+        client.sendNotification("workspace/didChangeConfiguration", { settings: { hugin: { safe: safe() } } });
       }
     })
   );

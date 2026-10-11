@@ -9,6 +9,15 @@ class CommandLineSuite extends munit.FunSuite:
     assert(CommandLine.parse(List("check", "a.hgn", "--explain-termination")).toOption.get.settings.explainTermination)
   }
 
+  test("--safe and --print-assumptions (#186)") {
+    val o = CommandLine.parse(List("run", "a.hgn", "--safe", "--print-assumptions", "f", "--print-assumptions", "g")).toOption.get
+    assert(o.settings.safe)
+    assertEquals(o.settings.printAssumptions, List("f", "g"))
+    val d = CommandLine.parse(List("check", "a.hgn")).toOption.get
+    assert(!d.settings.safe)
+    assertEquals(d.settings.printAssumptions, Nil)
+  }
+
   test("--export-proofs and --proof-format (reference: object/io)") {
     val o = CommandLine.parse(List("run", "a.hgn", "--export-proofs", "p.json")).toOption.get
     assertEquals(o.run.exportProofs, Some("p.json"))

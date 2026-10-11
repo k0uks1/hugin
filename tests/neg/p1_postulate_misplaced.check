@@ -1,0 +1,15 @@
+error[E0103]: `%postulate` is only allowed as the definition of a top-level declaration
+ --> tests/neg/p1_postulate_misplaced.hgn:3:17
+  |
+3 | two : int = 1 + %postulate. (*~ E0103 *)
+  |                 ^^^^^^^^^^ not the definition of a declaration
+
+error[E0907]: postulates (`%postulate`) in module bodies are not supported by the meta level
+ --> tests/neg/p1_postulate_misplaced.hgn:5:14
+  |
+5 |   ax : int = %postulate. (*~ E0907 *)
+  |              ^^^^^^^^^^ not supported
+  |
+  = note: see the open issues of the redesign in docs/NOTES.md
+
+2 errors found

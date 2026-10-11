@@ -6,7 +6,7 @@ one : nat = suc zero.
 eqn : nat -> nat -> Type.
 refl : eqn N N.
 r : int = q one _ refl. (*~ E0901 *)
-q : (x y : nat) -> eqn (c x) (c y) -> int.
+q : (x y : nat) -> eqn (c x) (c y) -> int = %postulate.
 c : nat -> nat.
 c zero = zero.
 c (suc N) = zero.

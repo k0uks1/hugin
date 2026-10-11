@@ -1,4 +1,4 @@
 (* new meta level: meta code that does not compute to object code *)
-f : int -> int.
+f : int -> int = %postulate.
 q : int -> rel.
 q (f 1).

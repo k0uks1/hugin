@@ -7,9 +7,12 @@ import hugin.util.*
 
 /** Inductive families (reference: meta/families). A meta declaration without clauses is classified by its
  *  type: `T : Δ -> Type.` declares an inductive family, `c : Δ -> T ū.` (for a family `T` of the module)
- *  one of its constructors; anything else is a postulate. Constructors are checked for strict positivity
- *  and predicativity (their arguments live in the family's universe). All arguments of a family are
- *  treated as indices: pattern matching unifies them (no separate parameters are needed).
+ *  one of its constructors; anything else is a function defined by no clauses ([[Items.checkClauseless]]).
+ *  Constructors are checked for strict positivity and predicativity (their arguments live in the family's
+ *  universe). Pattern matching unifies all arguments of a family, but its leading arguments that every
+ *  constructor keeps fixed are its *parameters* (D2 of the proofs note; Lean's `autoPromoteIndices`): a
+ *  constructor's implicit binders at their positions are exempt from predicativity, and they are not
+ *  subterms of the constructor's applications for termination.
  *
  *  Nat literals (Q2): a family with exactly a constant constructor and a constructor with one recursive
  *  argument (`zero : nat.  suc : nat -> nat.`) is *nat-like*; a literal `n` checked against it is
@@ -33,6 +36,8 @@ trait Inductives:
         // the meta `int` of another file: as the base type it is written as
         case i if binders.isEmpty && isMetaInt(i) => fail(ElabProblem.Unclassifiable(d.name.name, "int", true, d.tpe.span))
         case Val.U0 | Val.Lift(Val.U0) => fail(ElabProblem.TypeFunction(d.name.name, d.tpe.span))
+        // a function without clauses: its coverage is checked once the file's constructors are declared
+        case _ if state.clauseless(d.name.name) => GlobalKind.Function(-1, None)
         case _ => GlobalKind.Postulate
 
   def isFamily(id: Int): Boolean = globals(id).kind.isInstanceOf[GlobalKind.Inductive]
@@ -66,22 +71,104 @@ trait Inductives:
     val famLevel = force(famTy._2) match
       case Val.U1(k) => k
       case _ => Level.zero
+    // D2 (Lean's `autoPromoteIndices`): the leading arguments that every constructor keeps fixed are the
+    // family's parameters; only implicit binders at parameter positions are exempt from predicativity
+    val before = parameters(fam)
+    val promoted = before.min(fixedPrefix(fam, binders, resultSp))
+    if promoted < before then
+      // this constructor turns arguments of the family into indices: the constructors declared before it
+      // lose the exemption of their binders at those positions
+      for c <- constructors(fam) do
+        val (cb, cr) = telescope(globals(c).ty)
+        val csp = force(cr) match
+          case Val.Rigid(_, sp) => sp
+          case _ => Nil
+        checkLevels(fam, famLevel, cb, csp, parameterBinders(cb, csp, promoted), d, Some(globals(c).name))
+    checkLevels(fam, famLevel, binders, resultSp, parameterBinders(binders, resultSp, promoted), d, None)
+    globals(fam).parameters = promoted
+
+  /** The binders of a constructor `binders -> fam resultSp` outside `exempt` live in the family's
+   *  universe `famLevel`; `other` names the constructor if it is not the one declared by `d`. A forced
+   *  implicit binder that is not exempt is an index of the family, which the error says. */
+  private def checkLevels(
+      fam: Int,
+      famLevel: Level,
+      binders: List[(Name, Icit, Val)],
+      resultSp: Spine,
+      exempt: Set[Int],
+      d: Decl,
+      other: Option[Name]
+  ): Unit =
     val types = binders.map(_._3).toVector
     val forced = forcedBinders(binders, resultSp)
-    binders.zipWithIndex.filterNot((_, l) => forced(l)).foreach { case ((x, _, a), l) =>
+    binders.zipWithIndex.filterNot((_, l) => exempt(l)).foreach { case ((x, _, a), l) =>
       typeLevels(types.take(l), l, a).foreach { k =>
         if !levels.le(k, famLevel) then
-          fail(ClauseProblem.ArgumentTooLarge(x, globals(fam).name, showLevel(famLevel), d.tpe.span))
+          fail(ClauseProblem.ArgumentTooLarge(x, globals(fam).name, showLevel(famLevel), d.tpe.span, other, forced(l)))
       }
     }
 
   /** The implicit binders of a constructor that are arguments of its result (`A` in `cons : A -> list A ->
-   *  list A`): forced by the type, like parameters, so they do not count for predicativity (otherwise a
-   *  family over `Type` could not hold its elements in its own universe, and nested families such as
-   *  `tapp : sym -> list term -> term` would be universe-inconsistent). */
+   *  list A`): forced by the type. Those at the family's parameter positions do not count for
+   *  predicativity (otherwise a family over `Type` could not hold its elements in its own universe, and
+   *  nested families such as `tapp : sym -> list term -> term` would be universe-inconsistent); those at
+   *  its indices do (D2, Agda's default `--no-large-indices`). */
   private def forcedBinders(binders: List[(Name, Icit, Val)], resultSp: Spine): Set[Int] =
     val args = resultSp.collect { case Elim.EApp(Val.Rigid(Head.Local(x), Nil), _) => x }.toSet
     binders.zipWithIndex.collect { case ((_, Icit.Impl, _), l) if args(l) => l }.toSet
+
+  /** The number of parameters of the family `fam` (reference: meta/families, "Parameters"): its leading
+   *  arguments that every constructor declared so far keeps fixed; all its arguments while it has none. */
+  def parameters(fam: Int): Int =
+    val g = globals(fam)
+    if g.parameters >= 0 then g.parameters else telescope(g.ty)._1.length
+
+  /** The implicit binders of a constructor (with the result spine `resultSp`) that are the variables at
+   *  the family's first `params` positions: its parameters, exempt from predicativity. */
+  private def parameterBinders(binders: List[(Name, Icit, Val)], resultSp: Spine, params: Int): Set[Int] =
+    val forced = forcedBinders(binders, resultSp)
+    resultArgs(resultSp).take(params).flatMap(localOf).filter(forced).toSet
+
+  /** The binders of the constructor `ctor` at its family's parameter positions: not subterms of the
+   *  constructor's applications for termination, as parameters are not arguments of a constructor in Lean
+   *  or Agda (reference: meta/termination). */
+  def parameterArguments(ctor: Int): Set[Int] = globals(ctor).kind match
+    case GlobalKind.Constructor(fam) =>
+      force(telescope(globals(ctor).ty)._2) match
+        case Val.Rigid(_, sp) => resultArgs(sp).take(parameters(fam)).flatMap(localOf).toSet
+        case _ => Set.empty
+    case _ => Set.empty
+
+  private def resultArgs(sp: Spine): List[Val] = sp.reverse.collect { case Elim.EApp(v, _) => v }
+
+  private def localOf(v: Val): Option[Int] = force(v) match
+    case Val.Rigid(Head.Local(x), Nil) => Some(x)
+    case _ => None
+
+  /** The number of leading arguments of `fam` that a constructor `binders -> fam resultSp` keeps fixed
+   *  (Lean's `fixedIndicesToParams`): at each such position, its result has one of its binders, a
+   *  different one at each position, and every occurrence of `fam` in the types of its arguments has the
+   *  same binder at that position. */
+  private def fixedPrefix(fam: Int, binders: List[(Name, Icit, Val)], resultSp: Spine): Int =
+    val args = resultArgs(resultSp)
+    var seen = Set.empty[Int]
+    var p = 0
+    var fixed = true
+    while fixed && p < args.length do
+      localOf(args(p)) match
+        case Some(x) if !seen(x) && binders.zipWithIndex.forall { case ((_, _, a), l) => keepsFixed(fam, p, x, l, a) } =>
+          seen += x
+          p += 1
+        case _ => fixed = false
+    p
+
+  /** Every occurrence of `fam` in `a` (over `l` variables) has the variable `x` at position `i`. */
+  private def keepsFixed(fam: Int, i: Int, x: Int, l: Int, a: Val): Boolean = force(a) match
+    case Val.Pi(_, _, b, cl) => keepsFixed(fam, i, x, l, b) && keepsFixed(fam, i, x, l + 1, inst(cl, Val.local(l)))
+    case Val.Rigid(Head.Glob(f), sp) if sp.forall(_.isInstanceOf[Elim.EApp]) =>
+      val as = resultArgs(sp)
+      (f != fam || as.lift(i).flatMap(localOf).contains(x)) && as.forall(keepsFixed(fam, i, x, l, _))
+    case other => !mentions(fam, l, other)
 
   /** `T` occurs strictly positively in `a` (over `l` variables): `a` does not mention `T`, or is
    *  `(ȳ : B̄) -> T w̄` with `T` neither in `B̄` nor in `w̄`, or `T` occurs strictly positively in an argument
