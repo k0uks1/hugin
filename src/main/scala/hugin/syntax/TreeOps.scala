@@ -27,13 +27,16 @@ object TreeOps:
     case _: ErrorTree | _: Param.Malformed => true
     // the nodes of facts directly (a facts file has one item per fact, each checked): the same answers as
     // the generic traversal below, without iterating over their fields
-    case _: Ident | _: Lit | _: VarRef | _: Wildcard => false
+    case _: Ident | _: Lit | _: VarRef | _: Wildcard | _: Absurd => false
     case Apply(f, a) => hasSyntaxErrors(f) || hasSyntaxErrors(a)
     case Parens(t) => hasSyntaxErrors(t)
     case Rule(_, heads, body) => heads.exists(hasSyntaxErrors) || body.exists(hasSyntaxErrors)
     case p: Product => p.productIterator.exists(hasSyntaxErrors)
     case it: Iterable[?] => it.exists(hasSyntaxErrors)
     case _ => false
+
+  /** Whether a tree contains the absurd pattern `()`. */
+  def hasAbsurd(t: Tree): Boolean = nodes(t).exists(_.isInstanceOf[Absurd])
 
   /** The head and the arguments of an application `f a1 ... an`; parentheses around the whole
    *  application are dropped. */

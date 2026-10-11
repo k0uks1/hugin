@@ -30,9 +30,9 @@ enum GlobalKind:
    *  values are quoted object constants `⟨r⟩`, compared by identity (`Sym : Type = %builtin symbol.`). */
   case Symbols
 
-  /** A function defined by clauses: its case tree over its first `arity` arguments (both known once its
-   *  clauses are elaborated; arity -1 before). */
-  case Function(arity: Int, tree: Option[CaseTree])
+  /** A function defined by clauses: its case tree over its first `arity` arguments, with its clauses
+   *  (both known once its clauses are elaborated; arity -1 before). */
+  case Function(arity: Int, tree: Option[FunctionBody])
 
   /** A primitive operation of the prelude (`eqsym : sym -> sym -> bool = %builtin eqsym.`), reduced by
    *  [[Primitives]]; `ctors` are the constructors of its result type it builds (`true`, `false`; `nil`,

@@ -80,13 +80,14 @@
       ]
     },
     "meta": {
-      "comment": "the meta level's syntax: typed holes `?` and `?name` (not `?-`), quote holes `$..xs` and splices `$x`, the lift, `::`, and reflection quotes `'( … )` (parentheses nest inside)",
+      "comment": "the meta level's syntax: typed holes `?` and `?name` (not `?-`), quote holes `$..xs` and splices `$x`, the lift, `::`, the absurd pattern `()`, and reflection quotes `'( … )` (parentheses nest inside)",
       "patterns": [
         { "name": "keyword.other.hole.hugin", "match": "\\?(?!-)[A-Za-z0-9_']*" },
         { "name": "keyword.operator.splice.sequence.hugin", "match": "\\$\\.\\." },
         { "name": "keyword.operator.splice.hugin", "match": "\\$" },
         { "name": "keyword.operator.lift.hugin", "match": "⇑" },
         { "name": "keyword.operator.cons.hugin", "match": "::" },
+        { "name": "constant.language.absurd.hugin", "match": "(?<!')\\(\\s*\\)" },
         {
           "name": "meta.quote.hugin",
           "begin": "(?<![\\w'])'\\(",
