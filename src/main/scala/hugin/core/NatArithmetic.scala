@@ -32,6 +32,17 @@ trait NatArithmetic:
    *  if an argument is not a numeral (its clauses run). The arguments are only looked through (folded
    *  definitions, solved metas, positions), not reduced: a neutral argument is never forced here. */
   def nativeResult(n: NativeNat, args: List[Val]): Option[Option[Val]] =
+    (n.op, args) match
+      // `plus e k` of an open `e` and a numeral `k` is `e + k`, what its clauses on the second argument
+      // give after `k` steps: an offset, in one ([[Val.NatAdd]])
+      case (NatOp.Add, List(e, k)) =>
+        (numeral(e), numeral(k)) match
+          case (Val.Nat(_, _), _) => nativeNumbers(n, args)
+          case (_, Val.Nat(f, j)) if f == n.fam => Some(Some(natAdd(n.fam, e, j)))
+          case _ => None
+      case _ => nativeNumbers(n, args)
+
+  private def nativeNumbers(n: NativeNat, args: List[Val]): Option[Option[Val]] =
     val ns = new Array[BigInt](args.length)
     var rest = args
     var k = 0

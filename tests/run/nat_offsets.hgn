@@ -1,0 +1,15 @@
+(* #131: an open successor is an offset of any size: `plus n 100001` is `n + 100001` in one step, and
+   offsets are converted by value (reference: meta/families, numerals) *)
+%use "std/nat".
+eqn : nat -> nat -> Type.
+refl : eqn N N.
+p : (n : nat) -> eqn (plus n 100001) (n + 100001) -> nat.
+p _ refl = 0.
+q : (n : nat) -> eqn (plus n 100001) (suc (plus n 100000)) -> nat.
+q _ refl = 0.
+r : (n : nat) -> eqn ((n + 1) + 100000) (suc (suc n) + 99999) -> nat.
+r _ refl = 0.
+s : (n : nat) -> eqn (n + 100001) 100003 -> nat.
+s N refl = N.
+out : int -> int -> rel.
+out (toInt (plus 2 100001)) (toInt (s 2 refl)).

@@ -353,7 +353,8 @@ trait Clauses:
             fail(ClauseProblem.BoundTwice(v.name, v.span))
           binds = binds :+ (v, e.term, e.ty)
         case Pat.PWild(_) =>
-        case pat @ (_: Pat.PLit | _: Pat.PSucc | _: Pat.PCon) if natType(e.ty).exists((z, s) =>
+        case pat @ (_: Pat.PLit | _: Pat.PSucc | _: Pat.PCon)
+            if natType(e.ty).exists((z, s) =>
               pat match
                 case Pat.PCon(c, _, _) => c == z || c == s
                 case _ => true
@@ -482,45 +483,46 @@ trait Clauses:
       refuted: Boolean = false
   ): CaseTree =
     if p.dead then Discarded
-    else clauses.iterator.map(simplify(p, _)).collect { case Simplified.Ready(cl) => cl }.toList match
-      case Nil => if refuted then Discarded else absurdSplit(p).getOrElse(missingNode(f, p))
-      case first :: _ if first.eqns.isEmpty =>
-        f.used += first.index
-        if refuted then Discarded
-        else
-          f.leaves.getOrElseUpdate(first.index, mutable.ListBuffer.empty) += ((p, first))
-          leaf(p, first)
-      case all @ (first :: _) =>
-        // the canonical order: the leftmost position of the first clause whose split is decided; an
-        // absurd pattern splits only when the clause has no other constructor pattern left
-        val nonAbsurd = first.eqns.filter(e => !isAbsurd(e.pat))
-        val candidates = if nonAbsurd.isEmpty then List(first.eqns.head) else nonAbsurd
-        var undecided: Option[ClauseProblem] = None
-        var result: Option[CaseTree] = None
-        val it = candidates.iterator
-        while result.isEmpty && it.hasNext do
-          val e = it.next()
-          val x = force(e.term) match
-            case Val.Rigid(Head.Local(x), Nil) => x
-            case _ => throw Impossible("split on a non-variable")
-          e.pat match
-            case _: Pat.PAtom => result = Some(splitAtom(f, p, x, target, all, leaf, refuted))
-            case _: Pat.PLit | _: Pat.PSucc => result = Some(splitNat(f, p, x, e.ty, target, all, leaf, refuted))
-            case pat =>
-              val span = pat match
-                case Pat.PCon(_, _, s) => s
-                case Pat.PAbsurd(s) => s
-                case _ => first.source.span
-              force(p.types(x)) match
-                case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
-                  val unified = constructors(fam).map(c => (c, unifyConstructor(p, famSp, c)))
-                  unified.collectFirst { case (c, (p1, _, IndexUnification.Stuck(a, b))) => undecidable(p1, c, a, b, span) } match
-                    case Some(problem) => if undecided.isEmpty then undecided = Some(problem)
-                    case None => result = Some(split(f, p, x, target, all, unified, leaf, refuted))
-                case other =>
-                  if refuted then result = Some(Discarded)
-                  else fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
-        result.getOrElse(if refuted then Discarded else fail(undecided.get))
+    else
+      clauses.iterator.map(simplify(p, _)).collect { case Simplified.Ready(cl) => cl }.toList match
+        case Nil => if refuted then Discarded else absurdSplit(p).getOrElse(missingNode(f, p))
+        case first :: _ if first.eqns.isEmpty =>
+          f.used += first.index
+          if refuted then Discarded
+          else
+            f.leaves.getOrElseUpdate(first.index, mutable.ListBuffer.empty) += ((p, first))
+            leaf(p, first)
+        case all @ (first :: _) =>
+          // the canonical order: the leftmost position of the first clause whose split is decided; an
+          // absurd pattern splits only when the clause has no other constructor pattern left
+          val nonAbsurd = first.eqns.filter(e => !isAbsurd(e.pat))
+          val candidates = if nonAbsurd.isEmpty then List(first.eqns.head) else nonAbsurd
+          var undecided: Option[ClauseProblem] = None
+          var result: Option[CaseTree] = None
+          val it = candidates.iterator
+          while result.isEmpty && it.hasNext do
+            val e = it.next()
+            val x = force(e.term) match
+              case Val.Rigid(Head.Local(x), Nil) => x
+              case _ => throw Impossible("split on a non-variable")
+            e.pat match
+              case _: Pat.PAtom => result = Some(splitAtom(f, p, x, target, all, leaf, refuted))
+              case _: Pat.PLit | _: Pat.PSucc => result = Some(splitNat(f, p, x, e.ty, target, all, leaf, refuted))
+              case pat =>
+                val span = pat match
+                  case Pat.PCon(_, _, s) => s
+                  case Pat.PAbsurd(s) => s
+                  case _ => first.source.span
+                force(p.types(x)) match
+                  case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
+                    val unified = constructors(fam).map(c => (c, unifyConstructor(p, famSp, c)))
+                    unified.collectFirst { case (c, (p1, _, IndexUnification.Stuck(a, b))) => undecidable(p1, c, a, b, span) } match
+                      case Some(problem) => if undecided.isEmpty then undecided = Some(problem)
+                      case None => result = Some(split(f, p, x, target, all, unified, leaf, refuted))
+                  case other =>
+                    if refuted then result = Some(Discarded)
+                    else fail(ClauseProblem.NotInductive(showVal(p.names.toList.reverse, other), span))
+          result.getOrElse(if refuted then Discarded else fail(undecided.get))
 
   /** The tree of a case that no evaluation reaches (the analysis below an empty variable). */
   private val Discarded: CaseTree = CaseTree.Split(-1, Nil)
@@ -1177,7 +1179,8 @@ trait Clauses:
         case Right((i, _)) => if i > 0 then MPat.Succ(natLike(fam).get._2, i) else MPat.Wild
     else
       f match
-        case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) => MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
+        case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
+          MPat.Con(c, sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => toMPat(a) })
         case other => atomKey(other).fold(MPat.Wild)(MPat.Atom(_))
 
   /** The explicit arguments of a case as patterns. */
