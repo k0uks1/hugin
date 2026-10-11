@@ -2,8 +2,8 @@
 
 Design note for [issue #186](https://github.com/k0uks1/hugin/issues/186): the meta level should state and
 prove properties of object-level Datalog programs, such as "this derived relation is transitive" and
-"this rewrite derives the same facts". Status: research, for the designer's approval; nothing is
-implemented. Written against `ccr-48027e29-daam41` at 28dbcb1. No program in this note was compiled: the
+"this rewrite derives the same facts". Status: approved by the designer; P1 next. Nothing is
+implemented yet. Written against `ccr-48027e29-daam41` at 28dbcb1. No program in this note was compiled: the
 task allowed no builds, and the only launcher on the machine predates the redesign. Statements about
 today's behaviour are read from the reference, `docs/NOTES.md` and the sources, and are cited.
 
@@ -16,11 +16,14 @@ semantic judgment, `derives`, as an ordinary library family, with rule-name patt
 Chapter 1, the plan and the decisions now follow that recommendation. The third review accepted it,
 added the code bridge between `⇑A` and the reflective syntax (7.7, P7a), and asked whether a layered
 modal foundation would fit better (chapter 9: not now, with the conditions under which it would).
+The designer then approved the plan and every decision as recommended (chapter 12), with D1 and P1 in
+the form given there: a meta function without clauses is a coverage error, and postulates need
+`= %postulate`.
 
 Contents: 1 the end state (a tour and two complete proofs), 2 recommendations, 3 Hugin today, 4 gap
 analysis, 5 logical consistency today, 6 prior art, 7 a meta-level semantics of Datalog programs
 (with the code bridge, 7.7), 8 alternatives to `%semantics`, 9 is a (layered) modal foundation worth
-it?, 10 worked examples against hand-written families, 11 batches, 12 decisions for the designer,
+it?, 10 worked examples against hand-written families, 11 batches, 12 decisions (approved),
 13 sources.
 
 ## 1. The end state: proving with Hugin
@@ -28,29 +31,34 @@ it?, 10 worked examples against hand-written families, 11 batches, 12 decisions 
 This chapter shows the language once batches P1–P8 (chapter 11) are in, and proves two properties end
 to end, as a user would write them. Everything here is hypothetical syntax built on today's syntax from
 `reference/src`: clauses, implicit binders `{x : A}`, records, `where` blocks, directives `%name …` and
-reflection quotes `'( … )`. Places marked **(proposal)** are syntax the designer has not yet decided
-(D11). Nothing in this chapter has been compiled; the programs were checked by hand against the rules
+reflection quotes `'( … )`. Places marked **(proposal)** follow D11, approved as proposed; their details are fixed in
+each batch. Nothing in this chapter has been compiled; the programs were checked by hand against the rules
 of chapters 3–9 and of the reference.
 
 ### 1.1 A tour of the additions
 
-**Postulates, `--safe` and assumptions.** A constant without a value must say so. `--safe` rejects
-it, and `%assumptions` lists what a definition rests on.
+**No silent postulates; `%postulate`, `--safe` and assumptions.** A meta function declared without
+clauses is a coverage error, exactly as if its clauses were missing. A deliberate axiom says so with
+`= %postulate`, as a primitive says `= %builtin`. `--safe` rejects postulates, and `%assumptions` lists
+what a definition rests on.
 
 ```hugin
-plusComm : (m n : nat) -> eq (plus m n) (plus n m) = %postulate.   (* (proposal) marker *)
+boom : (A : Type) -> A.                                            (* now E0911 *)
+plusComm : (m n : nat) -> eq (plus m n) (plus n m) = %postulate.
 %assumptions sameFacts.
 ```
 
 ```text
+$ hugin check closure.hgn
+error[E0911]: missing cases in `boom`: `boom _`
+note: assumptions of `sameFacts`: none (no postulates)
 $ hugin check --safe closure.hgn
 error[E0925]: postulate `plusComm` is not allowed with --safe          (proposal: code and text)
-$ hugin check closure.hgn
-note: assumptions of `sameFacts`: none (no postulates)
 ```
 
-A postulate is a marked axiom. A declaration without a marker that is not a family or a constructor
-first draws a warning, then an error. → **P1**.
+Only a function with an empty argument type may have no clauses, which coverage already accepts.
+Abstract declarations in functor signatures and interface files are parameters, not postulates, and do
+not change. → **P1**.
 
 **`std/eq`.** The identity family and its library are written as ordinary clauses: J is dependent
 matching on `refl`, with K (D9).
@@ -523,7 +531,7 @@ and checked queries → P8b.
 
 | piece | batch | standalone |
 |---|---|---|
-| `= %postulate`, `--safe`, `%assumptions`, parameter promotion | P1 | yes |
+| E0911 for functions without clauses, `= %postulate`, `--safe`, `%assumptions`, parameter promotion | P1 | yes |
 | `std/eq`, `empty`/`unit`/`either`/`iff`, `{x := e}`, implicit patterns, `%opaque`, `decEq` | P2 | yes |
 | `match … with`, `match H : … with`, `rewrite … in` | P3 | yes |
 | inductive meta `int` with native arithmetic and comparisons; `std/decide` | P4 | yes |
@@ -538,9 +546,12 @@ and checked queries → P8b.
 
 1. **First make the logic honest (batch P1).** Today False takes three lines: any meta declaration that
    is not a family or a constructor is a *postulate* (reference `meta/index.md`, "Meta items"), and
-   `boom : (A : Type) -> A.` is one. Postulates should need an explicit marker (`= %postulate`, by
-   analogy with `= %builtin`), and a `--safe` mode should reject them. A command should list the
-   assumptions a definition depends on (Lean's `#print axioms`, Rocq's `Print Assumptions`). Apart from
+   `boom : (A : Type) -> A.` is one. The fix needs no new concept: a meta function declared without
+   clauses is a coverage error (E0911), exactly as if clauses were missing; only an empty argument type
+   needs none. Abstract declarations in functor signatures and interface files stay parameters. A
+   deliberate axiom is written `x : A = %postulate.`, like `= %builtin`, and `--safe` rejects it. A
+   command lists the assumptions a definition depends on (Lean's `#print axioms`, Rocq's
+   `Print Assumptions`). Apart from
    postulates, this note found no way to derive False (chapter 5). One combination should still be
    closed before proofs matter: forced large indices together with recursion on forced arguments, which
    Agda forbids under `--safe` (Agda issue #6654).
@@ -663,7 +674,8 @@ What is missing for proofs, in order of need:
 
 1. **Postulate hygiene** (P1). Agda's `--safe` refuses `postulate` ("can be used to assume any axiom",
    `safe-agda.lagda.rst`). In Hugin a typo can create a postulate: a declaration whose type does not end
-   in a family of the same file is one.
+   in a family of the same file is one. P1 makes a function without clauses an E0911 error and adds
+   `= %postulate` for deliberate axioms.
 2. **Equality and its library** (P2). The machinery for J is there; a closed library and a convention
    are not. Without universe polymorphism there is one `eq` per program, whose type argument lives at
    the maximal level used. Cumulativity and the forced-binder exemption keep `eq` itself in `Type₀`.
@@ -764,6 +776,8 @@ absurd : empty = boom empty.
 
 (`boom : empty.` would not do: it would declare a *constructor* of `empty`.) Lean has `sorryAx` and
 Agda has `postulate`; the difference is that both mark and track them (`#print axioms`, `--safe`).
+After P1, `boom` is E0911 (missing cases), and only `boom : (A : Type) -> A = %postulate.` is
+accepted, which `--safe` rejects.
 
 Apart from postulates, here is each hole the issue names.
 
@@ -1554,7 +1568,7 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 
 | batch | content | lines | unlocks | risks | standalone |
 |---|---|---|---|---|---|
-| **P1** honest logic | `x : A = %postulate.`; an unmarked postulate is a warning, then an error (D1); `--safe`; `--print-assumptions` / `%assumptions f.` (postulates, trusted primitives); index promotion to parameters and forced-binder rule (D2); reference: a "Consistency" section | 500–800 | trustworthy proofs | migration of programs that rely on silent postulates; D2 may move a few families up a level | **yes**: catches typos that make postulates |
+| **P1** honest logic | a meta function declared without clauses is E0911 (missing cases), unless an argument type is empty, as coverage already allows; abstract declarations in functor signatures and interface files stay parameters; `x : A = %postulate.` (like `= %builtin`) for deliberate axioms; `--safe` rejects postulates; `--print-assumptions` / `%assumptions f.` (postulates, trusted primitives); index promotion to parameters and forced-binder rule (D2); reference: a "Consistency" section | 500–800 | trustworthy proofs | programs that relied on silent postulates now get E0911 (no transition period, D1) | **yes**: catches typos that made postulates |
 | **P2** proof basics | `std/eq` (J, `subst`, `cong`, `sym`, `trans`), `empty`, `unit`, `either`, `dec`, `iff`; explicit implicits `f {n := e}` and implicit patterns; `%opaque` theorems (no unfolding, no eager evaluation, W0003 exempt); `decEq` for atoms and the symbol conflict rule; polymorphic families confirmed | 900–1400 | all of chapter 1's lemmas | the spelling `{n := e}` (`{n = e}` clashes with a record value argument; reference `meta/records.md`, "Syntax") | **yes** |
 | **P3** `match` and `rewrite` | right-hand-side `match e with \| p => e'`, `match H : e with` (abstraction in the goal after normalising with definitions unfolded; desugared to a `where`-local function); `rewrite H in e` via `subst` | 700–1000 | shorter proofs; case expressions in all meta code | which occurrences are abstracted (4.2); error messages for ill-typed abstractions (Agda's experience) | **yes**: Hugin has no case expression today |
 | **P4** numbers and decision | inductive meta `int` (`ofNat`, `negSucc`), unbounded, native arithmetic checked against its clauses (#184's method), comparison functions, literals; the range check at the meta→object crossing (D8a); `std/decide` (`so`, `decider`, `decide`), `nat`/`int` lemmas | 1000–1500 | arithmetic in proofs; `add64` in the semantics; meta comparisons | migration of meta `int` code (overflow becomes a crossing error instead of a stuck value); performance of the native path | **yes** |
@@ -1569,26 +1583,26 @@ Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b. P8a can go 
 version, P7 changes: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
 a lemma generator), it adds the code bridge (P7a) and rule patterns with one adequacy statement (P7b; chapters 8, 9).
 
-## 12. Decisions for the designer
+## 12. Decisions (approved)
 
-D3 (as below), D4, D8 and the `match`/`rewrite` form are accepted. The others are open.
+All decisions are approved by the designer as recommended; D1 in the revised form below.
 
-| | decision | options | recommendation |
-|---|---|---|---|
-| D1 | postulate syntax and policy | keep silent postulates; marker `= %postulate` with a warning; marker required (error) | marker, a warning for one release, then an error with a quick fix; `--safe` rejects marked ones too |
-| D2 | forced large indices | keep; Agda 2.6.4 (count forced large binders); Lean (promote fixed indices to parameters, exempt only parameters); exclude forced large binders from size-change | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
-| D3 | form of the semantics | per-relation families (`%semantics`); Abella-style core judgment; library judgment with rule patterns | **accepted:** library `derives` with rule patterns (chapter 8): no core former, no per-relation declarations, one adequacy statement |
-| D4 | carrier of values | **accepted:** one universal `value` over the existing base types (`int`, `float`, `string`) and symbols for facts | `vint`, `vfloat`, `vstr`, `vfact`; no copies of base types |
-| D5 | engine | trusted; verified; certificate | trusted by default, certificate mode (P8); no verified engine |
-| D6 | `Prop`, irrelevance | add `Prop`/`SProp`; none | none for now; revisit if quotients or subset types with proof fields are needed |
-| D7 | automation and kernel | tactics; meta reflection; proof by reflection; core re-checker | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
-| D8 | integers | **accepted:** the meta `int` is inductive (`ofNat`, `negSucc`), unbounded, native-accelerated with an equation check (#184); the object `int` stays 64-bit; semantics via `add64 : int -> int -> option int` | as accepted; see 4.3 |
-| D8a | the meta→object crossing of `int` | implicit range check with an error (as E0909 for undefined arithmetic today); explicit function (`toInt64 : int -> option …`) | implicit check with an error, which matches today's rule for persisted values, plus `fits64 : int -> bool` for proofs and for code that wants to branch |
-| D9 | K | keep; `--without-K` | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
-| D10 | generativity | ignore; forbid functor instantiation in opaque theorems; theorems about programs only | theorems about programs (`compile`, `body f`), never about instances; audit whether memoised closed applications can share a module instance across items |
-| D11 | syntax of the proof features | as proposed in chapter 1; alternatives per item | decide per batch: `= %postulate` (as `= %builtin`), `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e` on right-hand sides, `@r p̄` and `@input` (unnamed rules not matchable, or `@2` by position), `p ⊢ r v̄` in display, `body f`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
-| D12 | the converse round trip `quote (unquote q) = q` | trusted lemma for data made by quotes, listed by `--print-assumptions`; `unquote` taking typing evidence; none | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
-| D13 | a layered or contextual modal foundation (chapter 9) | adopt now; the code bridge now and revisit | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
+| | decision | approved |
+|---|---|---|
+| D1 | postulates | A meta function declared without clauses is a coverage error, E0911, exactly as if clauses were missing; only an empty argument type needs none. Abstract declarations in functor signatures and interface files are parameters and stay unchanged. `x : A = %postulate.` for deliberate axioms; `--safe` rejects postulates; assumptions are listed. No warning period: an error directly. A postulate is a definition-side choice, like `= %builtin`, not a sort like `: data`, so it belongs after `=` |
+| D2 | forced large indices | Lean's promotion, which keeps `vec A`, `quoted A`, `eq` and 10.1 small, plus Agda's default for the rest |
+| D3 | form of the semantics | library `derives` with rule patterns (chapter 8): no core former, no per-relation declarations, one adequacy statement |
+| D4 | carrier of values | one universal `value` over the existing base types and symbols: `vint`, `vfloat`, `vstr`, `vfact` |
+| D5 | engine | trusted by default, certificate mode (P8); no verified engine |
+| D6 | `Prop`, irrelevance | none for now; revisit if quotients or subset types with proof fields are needed |
+| D7 | automation and kernel | proof by reflection (P4) and the language server's goals; a core re-checker only if proofs must convince third parties |
+| D8 | integers | the meta `int` is inductive (`ofNat`, `negSucc`), unbounded, native-accelerated with an equation check (#184); the object `int` stays 64-bit; semantics via `add64 : int -> int -> option int` (4.3) |
+| D8a | the meta→object crossing of `int` | implicit check with an error, which matches today's rule for persisted values, plus `fits64 : int -> bool` for proofs and for code that wants to branch |
+| D9 | K | keep: UIP is consistent, simplifies matching, and Hugin has no univalent ambitions |
+| D10 | generativity | theorems about programs (`compile`, `body f`), never about instances; audit whether memoised closed applications can share a module instance across items |
+| D11 | syntax of the proof features | as proposed in chapter 1, details fixed per batch: `= %postulate`, `{x := e}` and `{X := p}`, `%opaque f.`, `match H : e with \| p => e'` and `rewrite H in e` on right-hand sides, `@r p̄` and `@input`, `p ⊢ r v̄` in display, `body f`, the flags `--print-assumptions`, `--export-proofs`, `--certify` |
+| D12 | the converse round trip `quote (unquote q) = q` | trusted, listed lemma: quotes are typed where written, and evidence would burden every use |
+| D13 | a layered or contextual modal foundation (chapter 9) | the code bridge; revisit if the object level gains β (lambdas, higher-order rules), object-level substitution in conversion, or heavy open-code analysis, or if Hugin wants tactics over its own meta level |
 
 ## 13. Sources
 
