@@ -90,7 +90,7 @@ enum ClauseProblem extends Problem:
     case _: TypedPattern => msg"patterns cannot have type annotations"
     case PatternArity(c, e, f, _) => msg"${Src(c)} expects $e argument(s) in a pattern, found $f"
     case _: InvalidPattern => msg"invalid pattern"
-    case _: LiteralPattern => msg"literal patterns are only supported for nat-like types"
+    case _: LiteralPattern => msg"literal and successor patterns are only supported for nat-like types"
     case NotAConstructor(w, _) => Msg.text(s"$w in a pattern")
     case BoundTwice(v, _) => msg"the variable ${Src(v)} is bound twice in this clause"
     case _: CannotMatchArgument => msg"cannot match on this argument"
@@ -147,7 +147,9 @@ enum ClauseProblem extends Problem:
     case ArgumentTooLarge(_, fam, u, _) =>
       List(msg"${Src(fam)} lives in ${Src(u)}; its constructors may only take arguments of types in that universe (predicativity)")
     case _: NotDefinableByClauses => List(msg"clauses define meta functions; object relations are defined by rules (`:-`)")
-    case _: InvalidPattern => List(msg"patterns are uppercase variables, `_`, constructors applied to patterns and natural-number literals")
+    case _: InvalidPattern => List(
+        msg"patterns are uppercase variables, `_`, constructors applied to patterns, natural-number literals and successor patterns `p + k`"
+      )
     case _: NotAConstructor => List(msg"pattern variables are uppercase; lowercase names in patterns are constructors")
     case CannotMatchArgument(a, _) => List(msg"the argument is ${Src(a)}, which is neither a variable nor a constructor application")
     case UndecidableConstructor(_, eq, _) =>
