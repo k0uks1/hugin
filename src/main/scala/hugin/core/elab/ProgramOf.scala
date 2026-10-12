@@ -208,7 +208,8 @@ trait ProgramOf:
     def global(n: Name): Option[Int] =
       if local(n) || state.bodyDeclared(n) then None else lookupGlobal(n).filter(globals(_).stage == Stage.S1)
     def path(t: Tree): Option[Val] = unparen(t) match
-      case Ident(n) => global(n).map(id => eval(Nil, Tm.Global(id)))
+      // a module value: a global whose type is a record type (no other definition is unfolded)
+      case Ident(n) => global(n).filter(id => force(globals(id).ty).isInstanceOf[Val.RecTy]).map(id => eval(Nil, Tm.Global(id)))
       case hugin.syntax.Trees.Select(q, l) if l.headOption.exists(_.isLetter) =>
         path(q).flatMap(v =>
           forceData(v) match
@@ -220,7 +221,11 @@ trait ProgramOf:
       TreeOps.flattenApp(unparen(p)) match
         case (head, Nil) => path(head).flatMap(moduleOf).map(_._1)
         case (Ident(f), args) if !args.exists(_.isInstanceOf[NamedArg]) =>
-          global(f).filter(id => telescope(globals(id).ty)._1.take(args.length).count(_._2 == Icit.Expl) == args.length).flatMap { id =>
+          // a functor: a global whose type takes the arguments explicitly and returns a record type
+          global(f).filter { id =>
+            val (params, result) = telescope(globals(id).ty)
+            params.length == args.length && params.forall(_._2 == Icit.Expl) && force(result).isInstanceOf[Val.RecTy]
+          }.flatMap { id =>
             val v = args.indices.foldLeft(eval(Nil, Tm.Global(id)))((g, j) => app(g, Val.local(c.lvl + j), Icit.Expl))
             force(v) match
               case Val.Rigid(Head.Module(body, _), Nil) => Some(body)

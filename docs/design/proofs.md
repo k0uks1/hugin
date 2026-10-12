@@ -2554,11 +2554,18 @@ replacing P7b's "a multi-head rule is named by its first head".
   its written program joins `judgmentArgumentTypes` (so `{x : G.node}` before `(tc G).path x y` works).
   A coercion elsewhere has an unknown database (E0947).
 - *E0960.* Remains for unowned relations (a variable's, the file's, the enclosing body's), under an
-  explicit `⇑`, and for owned relations without `std/semantics`; three helps: the turnstile `P ⊢ r t̄`
-  (`[x̄] P ⊢ r x̄` for the η case), "without the `⇑`", "load `std/semantics`". The note lists the owned
-  forms. No new code.
+  explicit `⇑`, and for every relation without `std/semantics` (the coercion is then off, so a file
+  without the library pays nothing); two helps: the turnstile `P ⊢ r t̄` (`[x̄] P ⊢ r x̄` for the η
+  case) and "without the `⇑`". The note lists the owned forms. No new code.
+- *No evaluation.* The owner lookup unfolds only globals whose type is a record type (module values) or a
+  functor returning one, and an opened alias of type `⇑τ`. The pre-pass and the η check look at a
+  family's codomains under fresh variables (a wildcard crashed on `std/certify`'s `(c : crule) -> env
+  c.vars -> Type`, regression `tests/pos/p9b_dependent_family`), and the pre-pass inspects only the
+  arguments whose shape can hold a candidate. A hover evaluates only a term that applies `derives` (an
+  earlier version evaluated every typed term to test for a judgment, which ran `p4_decide`'s proofs in the
+  browser bundle until it ran out of memory).
 - *Printing.* Hovers on a type that is a judgment (written or coerced) show it as `P ⊢ r t̄` in
-  "elaborated" (`MetaTooling.elaborated`, from the value). A program of a module without environment is
+  "elaborated" (`MetaTooling.elaborated`, from the value of a `derives` application). A program of a module without environment is
   shown by its name (`trip ⊢ path …`, was `programOf trip ⊢ …`); an instance of a functor still shows the
   program function applied to its environment (`programOf fast { node = ⟨city⟩, … } ⊢ …`) unless a judgment
   `tc G ⊢ …` named the functor first: open.

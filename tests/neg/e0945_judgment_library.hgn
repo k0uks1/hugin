@@ -1,6 +1,6 @@
 (* The judgment notation needs `std/semantics` (E0945), and so does the judgment coercion (E0960). *)
 %use "std/graph".
 oneStep : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y. (*~ E0945 *)
-(* without the library, an owned relation is not read as a judgment either (E0960, #186 P9b) *)
+(* without the library, no relation is read as a judgment (E0960, #186 P9b) *)
 coerced : (g : graph) -> {x y : g.node} -> (tc g).path x y -> Type. (*~ E0960 *)
 coerced _ _ = Type.

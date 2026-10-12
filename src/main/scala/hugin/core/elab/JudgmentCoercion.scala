@@ -83,42 +83,44 @@ trait JudgmentCoercion:
   /** `t` checked against `a` as a coerced judgment, if it is one: an applied owned atom against a meta
    *  universe, or an unapplied one against a family of meta types (the η form). */
   def checkCoerced(c: Cxt, t: Tree, a: Val): Option[Tm] =
-    unparen(t) match
-      case _: Apply =>
-        force(a) match
-          case Val.U1(_) => inferCoerced(c, t).map((tm, ty, s) => coe(c, t.span, tm, ty, s, a, Stage.S1))
-          case _ => None
-      case _: Select | _: Ident =>
-        force(a) match
-          case pi @ Val.Pi(_, Icit.Expl, _, _) if familyArity(pi, c.lvl) > 0 =>
-            ownedAtom(c, t, c.scope.contains).map(atom => checkEta(c, atom, pi))
-          case _ => None
-      case _ => None
+    if semanticsGlobals.isEmpty then None
+    else
+      unparen(t) match
+        case _: Apply =>
+          force(a) match
+            case Val.U1(_) => inferCoerced(c, t).map((tm, ty, s) => coe(c, t.span, tm, ty, s, a, Stage.S1))
+            case _ => None
+        case _: Select | _: Ident =>
+          force(a) match
+            case pi @ Val.Pi(_, Icit.Expl, _, _) if familyArity(pi, c.lvl) > 0 =>
+              ownedAtom(c, t, c.scope.contains).map(atom => checkEta(c, atom, pi))
+            case _ => None
+        case _ => None
 
   /** `t` inferred as a coerced judgment, if it is an applied owned atom (where a meta type is expected:
-   *  [[Bidirectional.infer]] in a type position). Without `std/semantics` the atom is E0960, whose help
-   *  names the library. */
+   *  [[Bidirectional.infer]] in a type position). Nothing is coerced without `std/semantics`, so that a
+   *  program without it pays nothing (its applied relations are E0960). */
   def inferCoerced(c: Cxt, t: Tree): Option[(Tm, Val, Stage)] =
-    unparen(t) match
-      case _: Apply =>
-        ownedAtom(c, t, c.scope.contains).filter(_.args.nonEmpty).map { atom =>
-          val (program, judgmentTree) = judgmentOf(atom, t.span)
-          if semanticsGlobals.isEmpty then
-            fail(TypeProblem.AppliedRelation(Printer.show(t), eta = false, t.span, Some(Printer.show(program))))
-          val resolved = atom.owner match
-            case Owner.Opened(inst, alias) =>
-              state.used += alias
-              recordUse(atom.head.span, alias)
-              Some(instanceProgram(c, inst, program, atom.head.span))
-            case Owner.Written(_) => None
-          try inferJudgmentOf(c, judgmentTree, resolved)
-          catch
-            case e: ElabError if e.diag.code == hugin.util.diagnostics.Code.E0945 || e.diag.code == hugin.util.diagnostics.Code.E0961 =>
-              val judgment = Printer.show(judgmentTree).stripPrefix("(").stripSuffix(")")
-              val note = s"`${Printer.show(t)}` is read as the judgment `$judgment`: its relation belongs to `${Printer.show(program)}`"
-              throw ElabError(e.diag.withNote(note), e.unresolved, e.silent)
-        }
-      case _ => None
+    if semanticsGlobals.isEmpty then None
+    else
+      unparen(t) match
+        case _: Apply =>
+          ownedAtom(c, t, c.scope.contains).filter(_.args.nonEmpty).map { atom =>
+            val (program, judgmentTree) = judgmentOf(atom, t.span)
+            val resolved = atom.owner match
+              case Owner.Opened(inst, alias) =>
+                state.used += alias
+                recordUse(atom.head.span, alias)
+                Some(instanceProgram(c, inst, program, atom.head.span))
+              case Owner.Written(_) => None
+            try inferJudgmentOf(c, judgmentTree, resolved)
+            catch
+              case e: ElabError if e.diag.code == hugin.util.diagnostics.Code.E0945 || e.diag.code == hugin.util.diagnostics.Code.E0961 =>
+                val judgment = Printer.show(judgmentTree).stripPrefix("(").stripSuffix(")")
+                val note = s"`${Printer.show(t)}` is read as the judgment `$judgment`: its relation belongs to `${Printer.show(program)}`"
+                throw ElabError(e.diag.withNote(note), e.unresolved, e.silent)
+          }
+        case _ => None
 
   /** The judgment tree an atom stands for (with its program as a tree, for display when it is opened). */
   private def judgmentOf(atom: OwnedAtom, span: Span): (Tree, Judgment) =
@@ -217,7 +219,9 @@ trait JudgmentCoercion:
           case Ident(f) if !local(f) && !state.bodyDeclared(f) =>
             lookupGlobal(f).filter(globals(_).stage == Stage.S1).foreach { id =>
               // the parameter types, under fresh variables (a type that does not evaluate: none)
-              val all = try telescope(globals(id).ty)._1 catch case _: Impossible => Nil
+              val all =
+                try telescope(globals(id).ty)._1
+                catch case _: Impossible => Nil
               val params = all.filter(_._2 == Icit.Expl)
               args.filterNot(_.isInstanceOf[NamedArg]).zip(params).foreach { (a, p) =>
                 // only the shapes that can hold a candidate: a type, a function, an unapplied path
