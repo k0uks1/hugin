@@ -101,8 +101,8 @@ class MetaLanguageServerSuite extends munit.FunSuite:
 
   test("#186 P7b: split a derivation into the rules of its relation; the goal in the judgment notation") {
     val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
-      "toTc : {x y : g.node} -> tc ⊢ path x y -> tc ⊢ path x y.\ntoTc P = ?.\n" +
-      "edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ g.edge x y.\nedgeIn E = ?.\n"
+      "toTc : {x y : G.node} -> tc G ⊢ path x y -> tc G ⊢ path x y.\ntoTc P = ?.\n" +
+      "edgeIn : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ G.edge x y.\nedgeIn E = ?.\n"
     val (s, _) = server(text)
     val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
     // the rules of `path` by their names, not `given` (`path` has rules); premises named by their relations
@@ -111,7 +111,9 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     val edge = actions(s, pos(text, "E = ?")).find(_.getTitle == "Split on `E`").get
     assertEquals(edit(edge)._2, "edgeIn (given I) = ?.")
     val goal = hover(s, pos(text, "?.\nedgeIn"))
-    assert(goal.contains("`tc g ⊢ path x y`"), goal)
+    assert(goal.contains("`tc G ⊢ path x y`"), goal)
+    // the declaration's anonymous database is not written (#186 P7c)
+    assert(!goal.contains("⊢["), goal)
   }
 
   test("#186 P3: add the missing branches of a `match`, and hover in a branch") {

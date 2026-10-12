@@ -1,0 +1,9 @@
+error[E0945]: `g.edge` is not a relation of `tc G`
+ --> tests/neg/e0945_parameter_relation.hgn:5:37
+  |
+5 | internal : {x y : G.node} -> tc G ⊢ g.edge x y -> Type. (*~ E0945 *)
+  |                                     ^^^^^^ unknown relation
+  |
+  = note: the atom of `P ⊢ r t̄` names a relation of `P`'s body, of a parameter through the functor's argument (`G.edge` in `tc G ⊢ …`) or of the file, as the body's rules do
+
+1 error found

@@ -130,7 +130,7 @@ trait Printing:
       val q = if op == "*" || op == "/" then 4 else 3
       par(p, q, s"${go(ns, a, q)} $op ${go(ns, b, q + 1)}")
     case Tm.App(Tm.Global(f), a, Icit.Expl) if intOperatorSymbol(f).contains("-x") => s"-${go(ns, a, 6)}"
-    case Tm.Var(ix) => ns.lift(ix).getOrElse(s"#$ix")
+    case Tm.Var(ix) => ns.lift(ix).map(x => if Printing.isAnonymousDatabase(x) then "_" else x).getOrElse(s"#$ix")
     case Tm.Global(id) => globals(id).name
     case Tm.Meta(m) => showMeta(m)
     case Tm.AppPruning(f, pr) =>
@@ -138,7 +138,8 @@ trait Printing:
       if args.isEmpty then go(ns, f, p) else par(p, 5, (go(ns, f, 5) :: args).mkString(" "))
     case Tm.Lam(x, i, b) =>
       val y = fresh(ns, x)
-      val bind = if i == Icit.Impl then s"{$y}" else y
+      val shown = if Printing.isAnonymousDatabase(y) then "_" else y
+      val bind = if i == Icit.Impl then s"{$shown}" else shown
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
     case Tm.App(_, _, Icit.Expl) if judgmentView(ns, t).isDefined => par(p, 1, judgmentView(ns, t).get)
     case Tm.App(f, a, i) =>
@@ -158,7 +159,7 @@ trait Printing:
     case Tm.Pi(x, i, a, b) =>
       val y = fresh(ns, x)
       val dom =
-        if i == Icit.Impl then s"{$y : ${go(ns, a, 0)}}"
+        if i == Icit.Impl then s"{${if Printing.isAnonymousDatabase(y) then "_" else y} : ${go(ns, a, 0)}}"
         else if x == "_" then go(ns, a, 1)
         else s"($y : ${go(ns, a, 0)})"
       par(p, 0, s"$dom -> ${go(y :: ns, b, 0)}")
@@ -206,7 +207,7 @@ trait Printing:
 
   /** `derives P d (atom ρ [v t₁, …])` with `P` the program of a module body as the judgment `f ā ⊢[d] r t̄`
    *  that it elaborates (reference: std/semantics, "The judgment notation"); `[d]` is left out for the
-   *  database named `d`. */
+   *  anonymous database of a declaration, and a parameter relation is shown through the argument. */
   private def judgmentView(ns: List[Name], t: Tm): Option[String] =
     def explicit(args: List[(Tm, Icit)]) = args.collect { case (a, Icit.Expl) => a }
     appSpine(t) match
@@ -238,7 +239,13 @@ trait Printing:
               case (Tm.Global(`voc`.own), List((n, Icit.Expl))) =>
                 numeralView(n).collect { case (None, k) => k.toInt }.flatMap(info.relations.lift)
               case (Tm.Global(`voc`.arg), List((Tm.Lit(hugin.syntax.Literal.StrL(l), _), Icit.Expl))) =>
-                Some(if info.context.length == 1 && !l.contains('.') then s"${info.context.head}.$l" else l)
+                // through the argument of the parameter, as the user writes it (#186 P7c): `tc G ⊢ G.edge x y`
+                val args = explicit(pargs)
+                def through(i: Int, rest: String): Option[String] = args.lift(i).map(a => s"${go(ns, a, 7)}.$rest")
+                if info.context.length == 1 && !l.contains('.') then through(0, l).orElse(Some(l))
+                else
+                  val (x, rest) = l.span(_ != '.')
+                  if rest.isEmpty then Some(l) else through(info.context.indexOf(x), rest.drop(1)).orElse(Some(l))
               case (Tm.Global(`voc`.ext), List((q, Icit.Expl))) =>
                 Tm.unloc(q) match
                   case Tm.Quote(Tm.Global(id)) => Some(globals(id).name)
@@ -255,7 +262,7 @@ trait Printing:
                     case Some(f) => (f :: explicit(pargs).map(go(ns, _, 6))).mkString(" ")
                     case None => go(ns, prog, 5)
                   val database = db match
-                    case Tm.Var(ix) if ns.lift(ix).contains("d") => ""
+                    case Tm.Var(ix) if ns.lift(ix).exists(Printing.isAnonymousDatabase) => ""
                     case other => s"[${go(ns, other, 0)}]"
                   s"$program ⊢$database ${(rel :: shown).mkString(" ")}"
               case _ => None
@@ -295,5 +302,12 @@ trait Printing:
     case _ => s"<malformed ${f.toString}>"
 
 object Printing:
+  /** The name of the anonymous database that a declaration's judgments without `[e]` share (reference:
+   *  std/semantics, "Generalisation"): not a name of the surface syntax, so no source can refer to it. It is
+   *  shown as `_` in its binder and elsewhere, and a judgment at it is shown without `[…]`. */
+  inline val AnonymousDatabase = "#db"
+
+  def isAnonymousDatabase(x: String): Boolean = x.startsWith(AnonymousDatabase)
+
   /** Integers with more bits (about 1200 decimal digits) are shown by their size. */
   inline val MaxShownBits = 4096

@@ -1,0 +1,23 @@
+(* A relation of a functor's parameter is named through the argument the judgment writes, `tc G ⊢ G.edge x
+   y`; the functor's own name of its parameter, `g`, is not in scope in the statement (#186 P7c, E0945). *)
+%use "std/graph".
+%use "std/semantics".
+internal : {x y : G.node} -> tc G ⊢ g.edge x y -> Type. (*~ E0945 *)
+through : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
+through E = path.1 E.
+%opaque through.
+
+(* with several parameters, each argument names the relations of the parameter at its position *)
+join (a : graph) (b : graph) = {
+  loop : a.node -> rel.
+  loop X :- a.edge X X, b.edge _ _.
+}.
+looped : {x : A.node} -> {y z : B.node} -> join A B ⊢ A.edge x x -> join A B ⊢ B.edge y z -> join A B ⊢ loop x.
+looped E F = loop.1 E F.
+%opaque looped.
+
+(* an argument that is not a variable names no relation: `road` is the file's relation, not `arg "edge"` *)
+city : type.
+road : city -> city -> rel.
+fileRoad : {x y : city} -> tc { node = city, edge = road } ⊢ road x y -> Type.
+fileRoad _ = Type.

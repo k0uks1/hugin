@@ -114,9 +114,10 @@ result type are implicit arguments as well: `ident (x : A) : A = x.` declares
 type first, then as an object type.
 
 A [judgment](../std/semantics.md#the-judgment-notation) `P ⊢ r t̄` in the type of a declaration, or in its
-parameters' types, adds implicit arguments before these: the database `d` if a judgment has no `[e]`, and
-the parameters of a functor written alone before `⊢`, by their names
-([Generalisation](../std/semantics.md#generalisation)).
+parameters' types, adds one implicit argument before these if a judgment has no `[e]`: the anonymous
+database that all such judgments of the declaration share, which has no name
+([Generalisation](../std/semantics.md#generalisation)). The functor of a judgment is applied to its
+arguments, so `tc G ⊢ path x y` binds `G` as a free uppercase variable.
 
 The following program composes two functions on compile-time integers. `compose` has three implicit
 arguments, which are inferred as `int` at its application.

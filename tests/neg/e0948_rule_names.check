@@ -6,7 +6,7 @@ error[E0948]: `path.3` is not a rule of `tc`: `path` has 2 rule(s), `path.1` to 
   |
   = note: the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program; a label `@n` adds the name `n`
 
-error[E0948]: the rule `path.1` derives facts of `path`, but the goal is a fact of `g.edge`
+error[E0948]: the rule `path.1` derives facts of `path`, but the goal is a fact of `G.edge`
  --> tests/neg/e0948_rule_names.hgn:8:23
   |
 8 | mismatch (path.1 E) = path.1 E. (*~ E0948 *)

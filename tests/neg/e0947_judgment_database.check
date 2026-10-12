@@ -1,18 +1,21 @@
-error[E0947]: no database for the judgment: no `d` in scope
- --> tests/neg/e0947_judgment_database.hgn:5:60
+error[E0947]: cannot determine the database of this judgment
+ --> tests/neg/e0947_judgment_database.hgn:6:60
   |
-5 | pathOf (g : graph) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
+6 | pathOf (g : graph) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
   |                                                            ^ which database?
   |
-  = note: in the type of a declaration, a judgment without `[e]` generalises the database `d`; elsewhere it uses the `d` in scope
-  = help: give the database: `P ⊢[e] r t̄`
+  = note: outside the type of a declaration, a judgment without `[e]` has an unknown database, which the expected type must determine
+  = note: in the type of a declaration, the judgments without `[e]` share the declaration's anonymous database
+  = help: give the database: `P ⊢[e] r t̄`, with a database `e` in scope
 
-warning[W0003]: unused definition `withDb`
- --> tests/neg/e0947_judgment_database.hgn:6:1
+error[E0947]: cannot determine the database of this judgment
+ --> tests/neg/e0947_judgment_database.hgn:7:69
   |
-6 | withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ W0003 *)
-  | ^^^^^^ never referenced
+7 | withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
+  |                                                                     ^ which database?
   |
-  = note: `-W unused_definitions` is on by default
+  = note: outside the type of a declaration, a judgment without `[e]` has an unknown database, which the expected type must determine
+  = note: in the type of a declaration, the judgments without `[e]` share the declaration's anonymous database
+  = help: give the database: `P ⊢[e] r t̄`, with a database `e` in scope
 
-1 error, 1 warning found
+2 errors found

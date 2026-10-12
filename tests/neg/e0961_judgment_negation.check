@@ -21,10 +21,10 @@ error[E0961]: the judgment notation covers programs without negation and aggrega
 error[E0961]: the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`
   --> tests/neg/e0961_judgment_negation.hgn:39:27
    |
-39 | looping : {x : g.node} -> loops ⊢ free x -> Type. (*~ E0961 *)
-   |                           ^^^^^ a program with a negation
+39 | looping : {x : G.node} -> loops G ⊢ free x -> Type. (*~ E0961 *)
+   |                           ^^^^^^^ a program with a negation
    |
-   = note: a rule of `free` in `loops` has a negation in its body
+   = note: a rule of `free` in `loops G` has a negation in its body
    = note: `P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run
    = help: state it with `nderives` or `perfect` of `std/strata`, which read negations and aggregates stratum by stratum
 

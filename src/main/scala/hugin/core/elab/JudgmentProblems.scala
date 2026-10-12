@@ -6,8 +6,8 @@ import hugin.util.diagnostics.*
 import scala.language.implicitConversions
 
 /** The problems of the judgment notation `P ⊢[e] r t̄` and of rule names (reference: std/semantics, "The
- *  judgment notation", "Rule names"): the atom of a judgment (E0945), a generalised functor parameter
- *  (E0946), the database (E0947), a rule name (E0948), `given` (E0949) and a program with negation or
+ *  judgment notation", "Rule names"): the atom of a judgment (E0945), a functor written alone (E0946),
+ *  the database (E0947), a rule name (E0948), `given` (E0949) and a program with negation or
  *  aggregates (E0961). Terms are given as shown to users. */
 enum JudgmentProblem extends Problem:
   /** A judgment in a program that does not load `std/semantics`. */
@@ -25,10 +25,12 @@ enum JudgmentProblem extends Problem:
   /** The type of an argument of `rel` cannot be inferred (a program value, whose relations have no types). */
   case UntypedArgument(rel: String, at: Span)
 
-  /** The functor `functor`'s parameter `param` cannot be generalised: `why`. */
-  case CannotGeneralise(functor: String, param: String, why: String, at: Span)
+  /** The functor `functor` written alone before `⊢`; `applied` is it applied to variables named after its
+   *  parameters, as the help shows it. */
+  case FunctorAlone(functor: String, applied: String, at: Span)
 
-  /** A judgment without `[e]` where no database `d` is in scope. */
+  /** A judgment without `[e]` outside the type of a declaration whose database unification did not
+   *  determine. */
   case NoDatabase(at: Span)
 
   /** A rule name used where no derivation of a known program is expected. */
@@ -59,7 +61,7 @@ enum JudgmentProblem extends Problem:
 
   def code: Code = this match
     case _: NoLibrary | _: UnknownRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
-    case _: CannotGeneralise => Code.E0946
+    case _: FunctorAlone => Code.E0946
     case _: NoDatabase => Code.E0947
     case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
       Code.E0948
@@ -72,7 +74,7 @@ enum JudgmentProblem extends Problem:
     case NotAnAtom(_, s) => s
     case AtomArity(_, _, _, s) => s
     case UntypedArgument(_, s) => s
-    case CannotGeneralise(_, _, _, s) => s
+    case FunctorAlone(_, _, s) => s
     case NoDatabase(s) => s
     case RuleNameWithoutJudgment(_, s) => s
     case UnknownRule(_, _, _, s) => s
@@ -89,8 +91,8 @@ enum JudgmentProblem extends Problem:
     case NotAnAtom(t, _) => msg"${Src(t)} is not an atom: a relation applied to arguments"
     case AtomArity(r, e, f, _) => msg"${Src(r)} has $e column(s), but the atom gives $f argument(s)"
     case UntypedArgument(r, _) => msg"cannot infer the object type of this argument of ${Src(r)}"
-    case CannotGeneralise(f, x, why, _) => msg"cannot generalise the parameter ${Src(x)} of ${Src(f)}: " ++ Msg.text(why)
-    case _: NoDatabase => msg"no database for the judgment: no `d` in scope"
+    case FunctorAlone(f, _, _) => msg"the functor ${Src(f)} is written alone before `⊢`, without its arguments"
+    case _: NoDatabase => msg"cannot determine the database of this judgment"
     case RuleNameWithoutJudgment(n, _) => msg"the rule name ${Src(n)} is used where no derivation of a known program is expected"
     case UnknownRule(n, p, why, _) => msg"${Src(n)} is not a rule of ${Src(p)}: " ++ Msg.text(why)
     case RuleHeadMismatch(n, d, g, _) => msg"the rule ${Src(n)} derives facts of ${Src(d)}, but the goal is a fact of ${Src(g)}"
@@ -107,7 +109,7 @@ enum JudgmentProblem extends Problem:
     case _: NotAnAtom => msg"expected an atom"
     case _: AtomArity => msg"wrong number of arguments"
     case _: UntypedArgument => msg"type unknown"
-    case _: CannotGeneralise => msg"in this judgment"
+    case _: FunctorAlone => msg"a functor, not a program"
     case _: NoDatabase => msg"which database?"
     case _: RuleNameWithoutJudgment => msg"no derivation expected here"
     case _: UnknownRule => msg"unknown rule"
@@ -122,14 +124,20 @@ enum JudgmentProblem extends Problem:
   override def notes: List[Msg] = this match
     case _: NoLibrary => List(msg"`P ⊢[d] r t̄` stands for `derives (programOf P) d (atom ρ [v t̄])` of `std/semantics`")
     case _: UnknownRelation =>
-      List(msg"the atom of `P ⊢ r t̄` names a relation of `P`'s body, of its parameters (`g.edge`) or of the file, as the body's rules do")
-    case _: UntypedArgument => List(msg"a program given as a value has no column types; write the argument as code of a known type")
-    case CannotGeneralise(_, x, _, _) =>
       List(
-        msg"in the type of a declaration, the parameters of a functor written alone before `⊢` become implicit binders named as in the functor (here ${Src(x)}), shared by all its judgments"
+        msg"the atom of `P ⊢ r t̄` names a relation of `P`'s body, of a parameter through the functor's argument (`G.edge` in `tc G ⊢ …`) or of the file, as the body's rules do"
+      )
+    case _: UntypedArgument => List(msg"a program given as a value has no column types; write the argument as code of a known type")
+    case _: FunctorAlone =>
+      List(
+        msg"the program of a judgment is a functor applied to arguments, a module or a program value; no parameter of a functor is bound by its name",
+        msg"in the type of a declaration, a free uppercase variable as the argument (`G`) is bound as an implicit argument, as any other"
       )
     case _: NoDatabase =>
-      List(msg"in the type of a declaration, a judgment without `[e]` generalises the database `d`; elsewhere it uses the `d` in scope")
+      List(
+        msg"outside the type of a declaration, a judgment without `[e]` has an unknown database, which the expected type must determine",
+        msg"in the type of a declaration, the judgments without `[e]` share the declaration's anonymous database"
+      )
     case _: RuleNameWithoutJudgment =>
       List(msg"a rule name `r.k` is a derivation of a judgment `P ⊢ r t̄`, so its expected type must be one, with `P` a module body")
     case UnknownRule(_, _, _, _) =>
@@ -154,8 +162,8 @@ enum JudgmentProblem extends Problem:
 
   override def helps: List[Msg] = this match
     case _: NoLibrary => List(msg"add ${Src("%use \"std/semantics\".")} to the file")
-    case CannotGeneralise(f, _, _, _) => List(msg"apply the functor to its arguments: ${Src(s"$f a ⊢ …")}")
-    case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}")
+    case FunctorAlone(_, applied, _) => List(msg"apply the functor to its arguments: write ${Src(s"$applied ⊢ …")}")
+    case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}, with a database `e` in scope")
     case _: NotPositive =>
       List(
         msg"state it with ${Src("nderives")} or ${Src("perfect")} of `std/strata`, which read negations and aggregates stratum by stratum"
