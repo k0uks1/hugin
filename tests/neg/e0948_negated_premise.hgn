@@ -1,0 +1,20 @@
+(* #186 P9c: a stratum-local rule name has a written premise for each atom, negated atom and aggregate of
+   its body, in body order (reference: std/semantics, "Rule names"): `ok.1` has two, the derivation of
+   `node x` and the negated premise of `not bad x`, as a pattern and as an expression. *)
+%use "std/semantics".
+%use "std/strata".
+%use "std/eq" (empty, emptyElim).
+city : type. berlin, paris : city.
+
+m = {
+  node : city -> rel.
+  bad : city -> rel.
+  node berlin. node paris. bad paris.
+  ok : city -> rel.
+  ok X :- node X, not bad X.
+}.
+fromOk : {x : city} -> m ⊢ ok x -> m ⊢ node x.
+fromOk (ok.1 B) = B. (*~ E0948 *)
+fromOk (given I) = emptyElim I.fst.
+
+okBerlin : m ⊢ ok berlin = ok.1 node.1. (*~ E0948 *)

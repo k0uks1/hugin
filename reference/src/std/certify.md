@@ -27,6 +27,7 @@ also decides membership in the perfect model by evaluation, both ways. A program
 | `perfectFacts : nat -> (p : program) -> (ins : list gatom) -> either failure (level (perfect p (memOf ins))).` | the perfect model by evaluation |
 | `decidePerfect : nat -> (p : program) -> (ins : list gatom) -> (a : gatom) -> option (dec (perfect p (memOf ins) a)).` | membership in the perfect model, decided |
 | `perfectHolds`, `perfectRefutes` | deciders for `decide` of [`std/decide`](decide.md): a fact is in the perfect model, or it is not |
+| `judgedHolds` | a stratum-local judgment ([`std/strata`](strata.md#the-stratum-local-judgment)) at the input facts `ins`, by `perfectHolds` and `adequate` |
 
 ## Certified runs
 

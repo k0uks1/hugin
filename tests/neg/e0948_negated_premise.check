@@ -1,0 +1,13 @@
+error[E0948]: the rule `ok.1` has 2 premise(s), but 1 are given
+  --> tests/neg/e0948_negated_premise.hgn:17:8
+   |
+17 | fromOk (ok.1 B) = B. (*~ E0948 *)
+   |        ^^^^^^^^ wrong number of premises
+
+error[E0948]: the rule `ok.1` has 2 premise(s), but 1 are given
+  --> tests/neg/e0948_negated_premise.hgn:20:28
+   |
+20 | okBerlin : m ⊢ ok berlin = ok.1 node.1. (*~ E0948 *)
+   |                            ^^^^^^^^^^^ wrong number of premises
+
+2 errors found

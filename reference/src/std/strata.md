@@ -25,6 +25,12 @@ is the result of reading the strata in order, from the input facts `d`. A progra
 | `toN : {p : program} -> {d : db} -> {a : gatom} -> derives p d a -> nderives p d a.` | a derivation of the positive fragment is one in a stratum |
 | `ngrow : {p q : program} -> {d : db} -> extends p q -> {a : gatom} -> nderives p d a -> nderives q d a.` | more rules derive more facts in a stratum |
 | `nmodel`, `isNModel`, `nleast`, `nderivesModel`, `nleastModel` | the derived facts of a stratum are its least model |
+| `take : nat -> list A -> list A.`, `stratumAt : list (list nat) -> nat -> list nat.` | the first `k` strata; the stratum `k` (`[]` beyond the last) |
+| `upTo : program -> nat -> db -> db.` | the facts of the strata before `k` |
+| `judged : program -> nat -> db -> db.` | the stratum-local judgment: the derivations of the stratum `k` |
+| `lastIn : program -> rref -> list (list nat) -> nat -> bool.` | `k` is a stratum, and no later one has a rule with a head of `r` |
+| `adequate` | a fact is in the perfect model exactly if the judgment of its relation's stratum derives it |
+| `staysFor`, `lower`, `raise`, `absentOf`, `refuted` | a judgment of a lower stratum in the database of a higher one; negated premises and refutations |
 
 ## Negation and aggregates in bodies
 
@@ -131,6 +137,82 @@ proved "sink".
 The rule's variables are `N` and the first wildcard; the second wildcard is local to the negation, so
 the negated atom is over `[city, city, city]`, the local variable first. `noOut` takes the value `Y` of
 the local variable and a fact `road paris Y`, which `roads` does not hold.
+
+## The stratum-local judgment
+
+The [judgment notation](semantics.md#the-judgment-notation) `P ⊢[d] r t̄` over a program with a negation or
+an aggregate in a rule is the *stratum-local judgment* of `r`:
+
+```hugin,ignore
+upTo : program -> nat -> db -> db = [p] [k] [d] [a] layers p (take k p.strata) (inputs p d) a.
+judged : program -> nat -> db -> db = [p] [k] [d] nderives (layer p (stratumAt p.strata k)) (upTo p k d).
+```
+
+`P ⊢[d] r t̄` is `nderives (layer p sₖ) (upTo p k d) (atom ρ vs)`, which is `judged p k d (atom ρ vs)`, for
+`p = programOf P`: the derivations of the stratum `sₖ` read with the facts of the strata before it,
+where `k` is the last stratum with a rule that has a head of `r` (the first stratum, `0`, for a relation
+without rules). It is an error ([E0961](../errors/E0961.md)) if the file does not load `std/strata`. The
+facts of `r` are made by the layers up to `k` and kept by the later ones, so the judgment is adequate:
+
+```hugin,ignore
+adequate : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} -> (k : nat) -> so (lastIn p r p.strata k) ->
+           iff (perfect p d (atom r vs)) (judged p k d (atom r vs)).
+```
+
+`lastIn p r ss k` is `true` if `k` is a stratum of `ss` and no later stratum's layer has a rule with a
+head of `r`, which evaluates for a program whose rules do, so that `tt` proves it for the `k` of the
+notation. A fact of a lower stratum `k` is a fact of the database `upTo p j d` of a higher one `j` if no
+layer in between has a rule with a head of its relation (`staysFor p r p.strata k j`): `raise` and
+`lower` convert, and for a negated atom without local variables `absentOf k j t` builds the premise
+`absent (upTo p j d) xs [] b` from a refutation of the judgment of its relation, `notIn (judged p k d)
+(instAtom xs b)`, and `refuted k j t` reads one from it.
+
+[Rule names](semantics.md#rule-names) derive the stratum-local judgment with `nfire`, and the facts of the
+strata below with `ngiven`. The following program proves that the module `m` derives `ok berlin`, by
+its rule with a negated premise: the fact `node berlin` and a refutation of `bad berlin`, which has no
+derivation since the one rule of `bad` derives `bad paris` and `bad` is not an input. A rule pattern
+binds the negated premise, whose instance `N enil` refutes the facts of `bad x` below the stratum of
+`ok`, which `given` lifts `F` to.
+
+```hugin,run
+%use "std/semantics".
+%use "std/strata".
+%use "std/eq" (empty, emptyElim).
+city : type. berlin, paris : city.
+m = {
+  node : city -> rel.
+  bad : city -> rel.
+  node berlin. node paris. bad paris.
+  ok : city -> rel.
+  ok X :- node X, not bad X.
+}.
+noBad : m ⊢ bad berlin -> empty.
+noBad (given I) = emptyElim I.fst.
+okBerlin : m ⊢ ok berlin = ok.1 node.1 noBad.
+okNotBad : {x : city} -> m ⊢ ok x -> m ⊢ bad x -> empty.
+okNotBad (ok.1 B N) F = N enil (given F).
+okNotBad (given I) F = emptyElim I.fst.
+%opaque noBad okBerlin okNotBad.
+proved : string -> rel.
+proved "okBerlin".
+```
+
+```output
+m.bad paris.
+m.node berlin.
+m.node paris.
+m.ok berlin.
+proved "okBerlin".
+```
+
+The run derives `m.ok berlin`, the fact that `okBerlin` proves. `given I` at a stratum-local judgment reaches the input facts, `inputs p d`, a record whose field `fst`
+is the proof that the relation is an input: for `bad`, which has rules, `so false`, which is empty.
+
+> **Rationale.** Reading a relation at the last stratum that makes its facts, with the strata below as a
+> database, is the iterated fixpoint of Apt et al. 1988 read stratum by stratum, as
+> [Benzaken et al. 2017](../notation.md#references) evaluate a stratum with negations read in the strata
+> below. A negated premise takes a refutation, as an inductive definition of Lean or Rocq accepts a
+> premise `¬ q x` for a `q` defined before and takes a function into the empty type for it.
 
 > **Note.** `holds` of `std/semantics` evaluates the positive fragment: a rule with a negation or an
 > aggregate derives nothing there. Evaluating a negation with a proof needs the facts of the strata below

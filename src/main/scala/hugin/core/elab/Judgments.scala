@@ -51,9 +51,10 @@ trait Judgments:
         if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
         else judgmentProgram(c, j.program, j.opSpan)
     val programShown = hugin.syntax.Printer.show(j.program)
-    // the notation reads the program in `derives`, the positive fragment (#186 P9a, E0961)
-    nonPositiveRule(sem, ev(c, prog)).foreach { (rel, aggregate) =>
-      fail(JudgmentProblem.NotPositive(programShown, rel, aggregate, j.program.span))
+    // a program with a negation or an aggregate is read stratum by stratum, in `std/strata` (#186 P9c);
+    // without the library, E0961 (#186 P9a)
+    val stratified = nonPositiveRule(sem, ev(c, prog)).map { (rel, aggregate) =>
+      strataGlobals.getOrElse(fail(JudgmentProblem.NotPositive(programShown, rel, aggregate, j.program.span)))
     }
     // the database
     val dbTy = eval(Nil, Tm.Global(sem("db")))
@@ -97,13 +98,34 @@ trait Judgments:
       Tm.apps(Tm.Global(r.cons), List((valueTy, Icit.Impl), (x, Icit.Expl), (acc, Icit.Expl)))
     )
     val atomTm = Tm.apps(Tm.Global(sem("atom")), List((ref, Icit.Expl), (list, Icit.Expl)))
-    val tm = Tm.apps(Tm.Global(sem("derives")), List((prog, Icit.Expl), (db, Icit.Expl), (atomTm, Icit.Expl)))
-    var ty = globals(sem("derives")).ty
-    for a <- List(prog, db, atomTm) do
+    val (family, programArg, dbArg) = stratified match
+      case None => (sem("derives"), prog, db)
+      case Some(st) =>
+        // `nderives (layer p sₖ) (upTo p k d) a`, `k` the stratum of the relation's judgment
+        val data = programData(ev(c, prog))
+        val k = data.fold(0)(_.stratumOf(rrefKey(sem, ev(c, ref))))
+        val nat = natOf(sem)
+        val natTy = Tm.Global(nat)
+        val sk = data.flatMap(_.strata.lift(k)).getOrElse(Nil).foldRight(Tm.App(Tm.Global(r.nil), natTy, Icit.Impl): Tm)((i, acc) =>
+          Tm.apps(Tm.Global(r.cons), List((natTy, Icit.Impl), (Tm.Nat(nat, BigInt(i)), Icit.Expl), (acc, Icit.Expl)))
+        )
+        val layerTm = Tm.apps(Tm.Global(st("layer")), List((prog, Icit.Expl), (sk, Icit.Expl)))
+        val upToTm = Tm.apps(Tm.Global(st("upTo")), List((prog, Icit.Expl), (Tm.Nat(nat, BigInt(k)), Icit.Expl), (db, Icit.Expl)))
+        (st("nderives"), layerTm, upToTm)
+    val tm = Tm.apps(Tm.Global(family), List((programArg, Icit.Expl), (dbArg, Icit.Expl), (atomTm, Icit.Expl)))
+    var ty = globals(family).ty
+    for a <- List(programArg, dbArg, atomTm) do
       force(ty) match
         case Val.Pi(_, _, _, cl) => ty = inst(cl, ev(c, a))
-        case _ => throw Impossible("derives over three arguments")
+        case _ => throw Impossible("a judgment over three arguments")
     (tm, ty, Stage.S1)
+
+  /** The globals of `std/strata`, if it is loaded: the stratified reading of the notation (#186 P9c). */
+  def strataGlobals: Option[Map[Name, Int]] =
+    if strataCache == null then strataCache = Some(libraryModule("std/strata")).filter(_.contains("upTo"))
+    strataCache.nn
+
+  private var strataCache: Option[Map[Name, Int]] | Null = null
 
   /** If the program is a functor applied to arguments and the relation `rel` of the file (by its resolved
    *  constant, compared syntactically, without evaluation) is the value of an argument that is not a
@@ -305,9 +327,19 @@ trait Judgments:
       names: List[Name],
       body: List[Boolean],
       headRels: List[Option[RelKey]],
-      premiseRels: List[Option[RelKey]] = Nil
+      premiseRels: List[Option[RelKey]] = Nil,
+      lits: List[BodyLit] = Nil
   ):
     def heads: Int = headRels.length
+
+  /** A literal of a rule's body, as a stratum-local rule name reads it (#186 P9c): an atom, a comparison, a
+   *  negated atom (of the relation `rel`, with local variables or not) or an aggregate. */
+  enum BodyLit:
+    case Pos, Cmp, Agg
+    case Neg(rel: Option[RelKey], locals: Boolean)
+
+    /** Whether the literal is a written premise of a stratum-local rule name (all but comparisons). */
+    def written: Boolean = this != BodyLit.Cmp
 
   /** A relation of a rule's atom: `Left(i)` for `own i`, `Right(s)` for `ext` of the file's constant `s` (the
    *  constructor of a nested fact, say), as [[goalRelation]] gives a goal's. */
@@ -323,7 +355,8 @@ trait Judgments:
       rules: List[RuleData],
       display: Option[ProgramDisplay],
       context: List[Name],
-      arguments: List[Val] = Nil
+      arguments: List[Val] = Nil,
+      strata: List[List[Int]] = Nil
   ):
     /** The names of the program's (rule, head) pairs, numbered per head relation (reference: std/semantics,
      *  "Rule names"). `crule.index` keeps numbering rules by their first head; rule names need not agree. */
@@ -339,6 +372,18 @@ trait Judgments:
 
     /** The heads of `rule` of the relation `rel`. */
     def headsOf(rule: RuleData, rel: RelKey): List[HeadName] = headNames.filter(h => h.rule.position == rule.position && h.rel == rel)
+
+    /** The strata (by index) whose layer has `rule`: those with one of its own heads (std/strata's `layer`). */
+    def layersOf(rule: RuleData): List[Int] =
+      strata.indices.toList.filter(i => rule.headRels.exists { case Some(Left(x)) => strata(i).contains(x); case _ => false })
+
+    /** The stratum of a relation's stratum-local judgment (#186 P9c): the last stratum with a rule that has a
+     *  head of it, 0 for a relation without rules (an input, of a parameter or of the file). */
+    def stratumOf(rel: Option[RelKey]): Int =
+      rel.fold(0)(k => headNames.filter(_.rel == k).flatMap(h => layersOf(h.rule)).maxOption.getOrElse(0))
+
+    /** The rules of the layer of the stratum `j`, in program order (`filter (headIn s) p.rules`). */
+    def layerRules(j: Int): List[RuleData] = rules.filter(layersOf(_).contains(j))
 
   /** The rules of a program value, if they evaluate (a program of a module body, possibly in parameters). */
   def programData(p: Val): Option[ProgramData] =
@@ -379,7 +424,16 @@ trait Judgments:
                           List(bsp.reverse.collectFirst { case Elim.EApp(a, Icit.Expl) => a }.flatMap(relOf(sem, _)))
                         case _ => Nil
                     )
-                    RuleData(pos, head.toInt, index.toInt, label, vars.length, names, isPos, heads.map(relOf(sem, _)), premiseRels)
+                    val lits = body.map(b =>
+                      forceData(b) match
+                        case Val.Rigid(Head.Glob(id), _) if id == sem("cpos") => BodyLit.Pos
+                        case Val.Rigid(Head.Glob(id), bsp) if sem.get("cnot").contains(id) =>
+                          val ex = bsp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }
+                          BodyLit.Neg(ex.lift(1).flatMap(relOf(sem, _)), ex.headOption.flatMap(listElems).forall(_.nonEmpty))
+                        case Val.Rigid(Head.Glob(id), _) if sem.get("cagg").contains(id) => BodyLit.Agg
+                        case _ => BodyLit.Cmp
+                    )
+                    RuleData(pos, head.toInt, index.toInt, label, vars.length, names, isPos, heads.map(relOf(sem, _)), premiseRels, lits)
                 case _ => None
             })
             for
@@ -389,24 +443,28 @@ trait Judgments:
               val arguments = p match
                 case Val.Top(_, sp, _) => sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }
                 case _ => Nil
-              ProgramData(rs, ru, display, display.map(_.context).getOrElse(Nil), arguments)
+              val strata =
+                listElems(proj(rec, "strata")).toList.flatten.map(s => listElems(s).toList.flatten.flatMap(natValue).map(_.toInt))
+              ProgramData(rs, ru, display, display.map(_.context).getOrElse(Nil), arguments, strata)
           case _ => None
       catch case _: Impossible => None
     }
 
   /** The relation of an atom `cat ρ ts` of a rule: `own i` or `ext` of a constant. */
   private def relOf(sem: Map[Name, Int], atom: Val): Option[RelKey] = forceData(atom) match
-    case Val.Rigid(Head.Glob(_), sp) =>
-      sp.reverse.collectFirst { case Elim.EApp(r, Icit.Expl) => forceData(r) } match
-        case Some(Val.Rigid(Head.Glob(k), rsp)) =>
-          val arg = rsp.collectFirst { case Elim.EApp(x, Icit.Expl) => x }
-          if k == sem("own") then arg.flatMap(natValue).map(n => Left(n.toInt))
-          else if k == sem("ext") then
-            arg.map(forceData).collect { case Val.Quote(q) => forceData(q) }.collect { case Val.Rigid(Head.Glob(id), Nil) =>
-              Right(globals(id).name)
-            }
-          else None
-        case _ => None
+    case Val.Rigid(Head.Glob(_), sp) => sp.reverse.collectFirst { case Elim.EApp(r, Icit.Expl) => r }.flatMap(rrefKey(sem, _))
+    case _ => None
+
+  /** A relation `own i` or `ext` of a constant as a key (`None` for `arg l`). */
+  private def rrefKey(sem: Map[Name, Int], r: Val): Option[RelKey] = forceData(r) match
+    case Val.Rigid(Head.Glob(k), rsp) =>
+      val arg = rsp.collectFirst { case Elim.EApp(x, Icit.Expl) => x }
+      if k == sem("own") then arg.flatMap(natValue).map(n => Left(n.toInt))
+      else if k == sem("ext") then
+        arg.map(forceData).collect { case Val.Quote(q) => forceData(q) }.collect { case Val.Rigid(Head.Glob(id), Nil) =>
+          Right(globals(id).name)
+        }
+      else None
     case _ => None
 
   private def natValue(v: Val): Option[BigInt] = forceData(v) match
@@ -470,6 +528,45 @@ trait Judgments:
             case _ => None
         case _ => None
     }
+
+  /** A judgment type as rule names read it (#186 P9c): `derives p d a`, or a stratum-local `nderives (layer p
+   *  s) m a` whose database `m` is `upTo p k d` (folded, unfolded, or as the chain of the strata below that
+   *  matching on `ngiven` leaves): the whole program `p`, the database `d`, the goal and the stratum `k`. */
+  final case class JudgmentView(program: Val, db: Val, goal: Val, stratum: Option[Int])
+
+  def judgmentView(ty: Val): Option[JudgmentView] =
+    derivationType(ty).map((p, d, a) => JudgmentView(p, d, a, None)).orElse {
+      strataGlobals.flatMap { st =>
+        force(ty) match
+          case Val.Rigid(Head.Glob(id), sp) if id == st("nderives") =>
+            explicitArgs(sp) match
+              case List(_, m, a) => stratumDb(st, m, 0).map((p, k, d) => JudgmentView(p, d, a, Some(k)))
+              case _ => None
+          case _ => None
+      }
+    }
+
+  private def explicitArgs(sp: Spine): List[Val] = sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }
+
+  /** The program, stratum and database of the database `m` of a stratum's derivations, `depth` strata
+   *  above it. */
+  private def stratumDb(st: Map[Name, Int], m: Val, depth: Int): Option[(Val, Int, Val)] =
+    def read(v: Val, extra: Int): Option[(Val, Int, Val)] = v match
+      case Val.Rigid(Head.Glob(id), sp) if id == st("inputs") && explicitArgs(sp).length == 2 + extra =>
+        val List(p, d) = explicitArgs(sp).take(2): @unchecked
+        Some((p, depth, d))
+      case Val.Rigid(Head.Glob(id), sp) if id == st("nderives") && explicitArgs(sp).length == 2 + extra =>
+        stratumDb(st, explicitArgs(sp)(1), depth + 1)
+      case _ => None
+    m match
+      case Val.Top(id, sp, _) if id == st("upTo") =>
+        explicitArgs(sp) match
+          case List(p, k, d) => natValue(k).map(n => (p, n.toInt + depth, d))
+          case _ => None
+      case _ =>
+        force(m) match
+          case lam: Val.Lam => read(force(app(lam, Val.local(1 << 24), Icit.Expl)), 1)
+          case other => read(other, 0)
 
   /** The relation of a goal atom `atom ρ vs`: `Left(i)` for `own i`, `Right(shown)` for another relation,
    *  `None` if it is not known. */
@@ -629,18 +726,26 @@ trait Judgments:
       def without: Option[Tm] = form match
         case RuleForm.Indexed(_, _) => fail(JudgmentProblem.RuleNameWithoutJudgment(shown, head.span))
         case _ => None
-      derivationType(a) match
+      judgmentView(a) match
         case None => without
-        case Some((p, _, goal)) =>
+        case Some(view) =>
           val g = ruleGlobals(sem)
+          val p = view.program
           form match
-            case RuleForm.Given => Option.when(named.isEmpty)(checkGiven(c, sem, g, positional.head, p, goal, a, head.span))
+            case RuleForm.Given =>
+              Option.when(named.isEmpty)(view.stratum match
+                case None => checkGiven(c, sem, g, positional.head, p, view.goal, a, head.span)
+                case Some(j) => checkGivenIn(c, sem, view, j, positional.head, a, head.span)
+              )
             case _ =>
               programData(p) match
                 case None => without
                 case Some(data) =>
-                  namedRule(sem, form, data, goal, shown, head.span, c.names).map(h =>
-                    checkRule(c, g, h, shown, head, named.collect { case n: NamedArg => n }, positional, a)
+                  val byName = named.collect { case n: NamedArg => n }
+                  namedRule(sem, form, data, view.goal, shown, head.span, c.names).map(h =>
+                    view.stratum match
+                      case None => checkRule(c, g, h, shown, head, byName, positional, a)
+                      case Some(j) => checkRuleIn(c, g, data, view, j, h, shown, head, byName, positional, a)
                   )
     }
 
@@ -829,6 +934,193 @@ trait Judgments:
       case Val.Pi(_, Icit.Expl, dom, _) => Tm.App(ft, check(c, fact, dom, Stage.S1), Icit.Expl)
       case _ => throw Impossible("given over two arguments")
 
+  // ---------------------------------------------------------------- stratum-local rule names (#186 P9c)
+
+  /** The proof of `so b` for a `b` that evaluates to `true`: the constructor of `unit`. */
+  private def unitProof(ty: Val): Option[Tm] = forceData(ty) match
+    case Val.Rigid(Head.Glob(fam), Nil) if isFamily(fam) && constructors(fam).length == 1 => Some(Tm.Global(constructors(fam).head))
+    case _ => None
+
+  /** `ngiven tt (… (ngiven tt x))`, `levels` times, against `ty`, with `x` built against the type below. */
+  private def liftBy(c: Cxt, st: Map[Name, Int], levels: Int, ty: Val, shown: String, sp: Span)(inner: Val => Tm): Tm =
+    if levels <= 0 then inner(ty)
+    else
+      val (ng, args) = applied(c, st("ngiven"), 2, ty, shown, sp)
+      val t = unitProof(args.dom(Nil)).getOrElse(throw Impossible("ngiven of a layer, whose relations are all inputs"))
+      val x = liftBy(c, st, levels - 1, args.dom(List(t)), shown, sp)(inner)
+      Tm.apps(ng, List((t, Icit.Expl), (x, Icit.Expl)))
+
+  /** The stratum (at most `j`) at which a stratum-local derivation fires `rule`: the last layer with it. */
+  private def firingStratum(data: ProgramData, rule: RuleData, j: Int, shown: String, sp: Span): Int =
+    data.layersOf(rule).filter(_ <= j).maxOption.getOrElse(fail(JudgmentProblem.LaterStratum(shown, sp)))
+
+  /** A rule name against a stratum-local judgment of the stratum `j`: `ngiven` down to the stratum whose layer
+   *  fires the rule, then `nfire` there, with its written premises in body order: an atom's derivation lifted
+   *  by `ngiven` from its relation's stratum, a negated atom's (a refutation of its relation's judgment if it
+   *  has no local variables, see [[negatedPremise]]) and an aggregate's witness. */
+  private def checkRuleIn(
+      c: Cxt,
+      g: RuleGlobals,
+      data: ProgramData,
+      view: JudgmentView,
+      j: Int,
+      named: HeadName,
+      shown: String,
+      head: Tree,
+      byName: List[NamedArg],
+      premises: List[Tree],
+      expected: Val
+  ): Tm =
+    val st = strataGlobals.get
+    val sem = semanticsGlobals.get
+    val rule = named.rule
+    val sp = head.span
+    val count = rule.lits.count(_.written)
+    if premises.length != count then
+      fail(JudgmentProblem.PremiseCount(
+        shown,
+        count,
+        premises.length,
+        Span(sp.origin, sp.from, premises.lastOption.map(_.span.until).getOrElse(sp.until))
+      ))
+    for n <- byName if !rule.names.contains(n.name) do
+      fail(JudgmentProblem.NoRuleVariable(shown, n.name, rule.names.filter(isVariableName), n.nameSpan))
+    val at = firingStratum(data, rule, j, shown, sp)
+    def ref(id: Int) = SymRef(id, globals(id).name)(sp)
+    liftBy(c, st, j - at, expected, shown, sp) { ty =>
+      val (fire, fireArgs) = applied(c, st("nfire"), 3, ty, shown, sp)
+      val position = data.layerRules(at).indexWhere(_.position == rule.position)
+      val member = (0 until position).foldLeft(ref(g.here): Tree)((acc, _) => Apply(ref(g.there), acc)(sp))
+      val m = check(c, member, fireArgs.dom(Nil), Stage.S1)
+      val (xsDom, xsMeta) = fireArgs.implicits("xs")
+      val supplied = (0 until rule.vars).map(i => rule.names.lift(i).flatMap(x => byName.find(_.name == x)).map(_.value)).toList
+      unifyAt(c, sp, xsMeta, ev(c, ruleEnv(c, g, xsDom, supplied, shown, rule.names, sp)))
+      val psMeta = freshMeta(c, fireArgs.dom(List(m)), Stage.S1, sp, s"the premises of `$shown`")
+      val h = check(c, headProof[Tree](named.j, ref(g.here), Apply(ref(g.there), _)(sp)), fireArgs.dom(List(m, psMeta)), Stage.S1)
+      val comparisons = mutable.ListBuffer.empty[(Val, Tm)]
+      var remaining = premises
+      var rels = rule.premiseRels
+      def next(): Tree =
+        val e = remaining.head
+        remaining = remaining.tail
+        e
+      def premisesTm(lits: List[BodyLit], ty: Val): Tm = lits match
+        case Nil => check(c, ref(st("nnil")), ty, Stage.S1)
+        case BodyLit.Pos :: rest =>
+          val (pp, args) = applied(c, st("npos"), 3, ty, shown, sp)
+          val eq = check(c, ref(g.refl), args.dom(Nil), Stage.S1)
+          val rel = rels.headOption.flatten
+          rels = rels.drop(1)
+          val e = next()
+          val d = liftBy(c, st, at - data.stratumOf(rel), args.dom(List(eq)), shown, sp)(t => check(c, e, t, Stage.S1))
+          val tail = premisesTm(rest, args.dom(List(eq, d)))
+          Tm.apps(pp, List((eq, Icit.Expl), (d, Icit.Expl), (tail, Icit.Expl)))
+        case BodyLit.Cmp :: rest =>
+          val (pc, args) = applied(c, st("ncmp"), 2, ty, shown, sp)
+          val proof = freshMeta(c, args.dom(Nil), Stage.S1, sp, s"a comparison of `$shown`")
+          comparisons += ((args.dom(Nil), proof))
+          val tail = premisesTm(rest, args.dom(List(proof)))
+          Tm.apps(pc, List((proof, Icit.Expl), (tail, Icit.Expl)))
+        case BodyLit.Neg(rel, locals) :: rest =>
+          val (pn, args) = applied(c, st("nneg"), 2, ty, shown, sp)
+          val n = negatedPremise(c, st, sem, data, view, at, rel, locals, args, next(), shown, sp)
+          val tail = premisesTm(rest, args.dom(List(n)))
+          Tm.apps(pn, List((n, Icit.Expl), (tail, Icit.Expl)))
+        case BodyLit.Agg :: rest =>
+          val (pa, args) = applied(c, st("nagg"), 2, ty, shown, sp)
+          val w = check(c, next(), args.dom(Nil), Stage.S1)
+          val tail = premisesTm(rest, args.dom(List(w)))
+          Tm.apps(pa, List((w, Icit.Expl), (tail, Icit.Expl)))
+      val ps = premisesTm(rule.lits, fireArgs.dom(List(m)))
+      unifyAt(c, sp, ev(c, psMeta), ev(c, ps))
+      for (ty, proof) <- comparisons do unifyAt(c, sp, ev(c, proof), ev(c, comparisonProof(c, sem, ty, shown, sp)))
+      Tm.apps(fire, List((m, Icit.Expl), (ps, Icit.Expl), (h, Icit.Expl)))
+    }
+
+  /** The premise of a negated atom of a rule that fires at the stratum `at`. Without local variables, and of
+   *  a relation `rel` of a stratum `k` below: a refutation `P ⊢ q t̄ -> empty` of its judgment, made the
+   *  premise `absent …` by `absentOf k at tt`, or else the premise itself; with local variables, the premise
+   *  `absent …` (#186 P9c, the addendum of proofs-level35 §6.3). */
+  private def negatedPremise(
+      c: Cxt,
+      st: Map[Name, Int],
+      sem: Map[Name, Int],
+      data: ProgramData,
+      view: JudgmentView,
+      at: Int,
+      rel: Option[RelKey],
+      locals: Boolean,
+      args: Applied,
+      e: Tree,
+      shown: String,
+      sp: Span
+  ): Tm =
+    val raw = args.dom(Nil)
+    val k = data.stratumOf(rel)
+    def direct: Tm = check(c, e, raw, Stage.S1)
+    if locals || rel.isEmpty || k >= at then direct
+    else
+      val nat = natOf(sem)
+      def q(n: Name) = quote(c.lvl, args.implicits(n)._2)
+      val implicits = List(quote(c.lvl, view.program), quote(c.lvl, view.db), q("ts"), q("xs"), q("b")).map((_, Icit.Impl))
+      val head =
+        Tm.apps(Tm.Global(st("absentOf")), implicits ++ List((Tm.Nat(nat, BigInt(k)), Icit.Expl), (Tm.Nat(nat, BigInt(at)), Icit.Expl)))
+      var ty = globals(st("absentOf")).ty
+      for (a, _) <- implicits ++ List((Tm.Nat(nat, BigInt(k)), Icit.Expl), (Tm.Nat(nat, BigInt(at)), Icit.Expl)) do
+        force(ty) match
+          case Val.Pi(_, _, _, cl) => ty = inst(cl, ev(c, a))
+          case _ => throw Impossible("absentOf over seven arguments")
+      force(ty) match
+        case Val.Pi(_, Icit.Expl, so, cl) =>
+          unitProof(so) match
+            case None => direct
+            case Some(t) =>
+              force(inst(cl, ev(c, t))) match
+                case Val.Pi(_, Icit.Expl, refutation, cl2) =>
+                  try
+                    undoOnFailure {
+                      val r = check(c, e, refutation, Stage.S1)
+                      unifyAt(c, sp, raw, inst(cl2, ev(c, r)))
+                      Tm.apps(head, List((t, Icit.Expl), (r, Icit.Expl)))
+                    }
+                  catch
+                    case first: ElabError =>
+                      try undoOnFailure(direct)
+                      catch case _: ElabError => throw first
+                case _ => throw Impossible("absentOf over nine arguments")
+        case _ => throw Impossible("absentOf over eight arguments")
+
+  /** `given I` against a stratum-local judgment of the stratum `j`: for an input relation, `ngiven` down to
+   *  the program's input facts, `{ fst = tt, snd = I }`; for a relation with rules whose judgment's stratum
+   *  `k` is `j` or below, `I` is its judgment, lifted by `ngiven` (E0949 otherwise). */
+  private def checkGivenIn(c: Cxt, sem: Map[Name, Int], view: JudgmentView, j: Int, fact: Tree, expected: Val, sp: Span): Tm =
+    val st = strataGlobals.get
+    val data = programData(view.program)
+    val relShown =
+      data.flatMap(d => goalRelation(sem, view.goal, d, c.names).map(_.fold(i => d.relations.lift(i).getOrElse(s"own $i"), identity)))
+        .getOrElse("the relation")
+    val input = forceData(app(proj(forceData(view.program), "input"), goalRef(sem, view.goal), Icit.Expl)) match
+      case Val.Rigid(Head.Glob(id), Nil) => Some(globals(id).name != "false")
+      case _ => None
+    input match
+      case Some(true) =>
+        liftBy(c, st, j, expected, "given", sp) { ty =>
+          val (ng, args) = applied(c, st("ngiven"), 2, ty, "given", sp)
+          val t = unitProof(args.dom(Nil)).getOrElse(throw Impossible("ngiven of a layer, whose relations are all inputs"))
+          val record = force(args.dom(List(t))) match
+            case Val.RecTy(List(fst, snd), env, List(fstTy, sndTy), _, _) =>
+              val proof = unitProof(eval(env, fstTy)).getOrElse(fail(JudgmentProblem.NotAnInput(relShown, false, sp)))
+              val i = check(c, fact, eval(ev(c, proof) :: env, sndTy), Stage.S1)
+              Tm.Rec(List(fst -> proof, snd -> i))
+            case other => throw Impossible(s"the input facts of a program: ${show(c, other)}")
+          Tm.apps(ng, List((t, Icit.Expl), (record, Icit.Expl)))
+        }
+      case Some(false) =>
+        val k = data.fold(j)(d => d.stratumOf(goalRelation(sem, view.goal, d)))
+        if k > j then fail(JudgmentProblem.NotAnInput(relShown, true, sp))
+        liftBy(c, st, j - k, expected, "given", sp)(ty => check(c, fact, ty, Stage.S1))
+      case None => fail(JudgmentProblem.NotAnInput(relShown, false, sp))
+
   /** A name a rule variable can be bound by in a pattern (written in the rule: not a wildcard or a
    *  generated name). */
   private def isVariableName(x: Name): Boolean =
@@ -843,15 +1135,15 @@ trait Judgments:
     if semanticsGlobals.isEmpty then None
     else
       ruleForm(Cxt.empty, head, positional).flatMap { form =>
-        derivationType(ty) match
-          case Some((p, _, goal)) => rulePatternIn(t, form, p, goal, None)
+        judgmentView(ty) match
+          case Some(view) => rulePatternIn(t, form, view.program, view.goal, None, view.stratum)
           case None =>
             form match
               case RuleForm.Indexed(_, _) => fail(JudgmentProblem.RuleNameWithoutJudgment(ruleShown(head), head.span))
               case _ => None
       }
 
-  private def rulePatternIn(t: Tree, form: RuleForm, p: Val, goal: Val, hint: Option[RelKey]): Option[Pat] =
+  private def rulePatternIn(t: Tree, form: RuleForm, p: Val, goal: Val, hint: Option[RelKey], stratum: Option[Int]): Option[Pat] =
     val sem = semanticsGlobals.get
     val g = ruleGlobals(sem)
     val (head, args) = TreeOps.flattenApp(t)
@@ -859,14 +1151,29 @@ trait Judgments:
     val positional = args.filterNot(_.isInstanceOf[NamedArg])
     val sp = t.span
     val shown = ruleShown(head)
-    // a premise: a rule name of the same program (of the premise's relation `rel`, if own), or any pattern
-    def premise(e: Tree, rel: Option[RelKey]): Pat =
+    // a premise: a rule name of the same program (of the premise's relation `rel`, if own; at the stratum `k`
+    // of its judgment, if stratified), or any pattern
+    def premise(e: Tree, rel: Option[RelKey], k: Option[Int] = None): Pat =
       val (h, as) = TreeOps.flattenApp(e)
-      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild, rel)).getOrElse(pattern(
+      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild, rel, k)).getOrElse(pattern(
         e,
         None
       ))
+    // `ngiven _ (… (ngiven _ q))`, `levels` times
+    def lifted(levels: Int, q: Pat): Pat =
+      (0 until levels).foldLeft(q)((acc, _) => Pat.PCon(strataGlobals.get("ngiven"), List(Pat.PWild(sp), acc), sp))
     form match
+      case RuleForm.Given if stratum.isDefined =>
+        if named.nonEmpty then None
+        else
+          // a judgment of a stratum `k` below, lifted, for a relation with rules; otherwise down to the input
+          // facts (where, for a relation with rules, `I.fst` refutes it)
+          val j = stratum.get
+          val data = programData(p)
+          val rel = data.flatMap(d => goalRelation(sem, goal, d).orElse(hint))
+          val k = for d <- data; r <- rel if d.headNames.exists(_.rel == r) yield d.stratumOf(rel)
+          val levels = k.filter(_ < j).fold(j + 1)(j - _)
+          Some(lifted(levels, premise(positional.head, None)))
       case RuleForm.Given =>
         if named.nonEmpty then None
         else Some(Pat.PCon(g.givenC, List(Pat.PWild(sp), premise(positional.head, None)), sp))
@@ -879,7 +1186,7 @@ trait Judgments:
               case _ => ProgramData(Nil, Nil, None, Nil)
         namedRule(sem, form, data, goal, shown, head.span, hint = hint).map { hn =>
           val rule = hn.rule
-          val premiseCount = rule.body.count(identity)
+          val premiseCount = if stratum.isDefined then rule.lits.count(_.written) else rule.body.count(identity)
           if positional.length != premiseCount then fail(JudgmentProblem.PremiseCount(shown, premiseCount, positional.length, sp))
           for n <- named if !rule.names.contains(n.name) do
             fail(JudgmentProblem.NoRuleVariable(shown, n.name, rule.names.filter(isVariableName), n.nameSpan))
@@ -903,7 +1210,33 @@ trait Judgments:
             case false :: more => Pat.PCon(g.pcmp, List(Pat.PWild(sp), prems(more)), sp)
           // the head: `there^j here` for the rule's `j`-th head atom (#186 P9d)
           val headPat = headProof[Pat](hn.j, Pat.PCon(g.here, Nil, sp), q => Pat.PCon(g.there, List(q), sp))
-          Pat.PCon(g.fire, List(member, prems(rule.body), headPat), sp, List("xs" -> env))
+          stratum match
+            case None => Pat.PCon(g.fire, List(member, prems(rule.body), headPat), sp, List("xs" -> env))
+            case Some(j) =>
+              // stratum-local (#186 P9c): `ngiven` down to the stratum that fires the rule, `nfire` there
+              val st = strataGlobals.get
+              val at = firingStratum(data, rule, j, shown, head.span)
+              val position = data.layerRules(at).indexWhere(_.position == rule.position)
+              val layerMember = (0 until position).foldLeft(Pat.PCon(g.here, Nil, sp))((acc, _) => Pat.PCon(g.there, List(acc), sp))
+              def nprems(lits: List[BodyLit]): Pat = lits match
+                case Nil => Pat.PCon(st("nnil"), Nil, sp)
+                case BodyLit.Pos :: more =>
+                  val rel = rels.headOption.flatten
+                  val k = data.stratumOf(rel)
+                  val e = premise(rest.head, rel, Some(math.min(k, at)))
+                  rest = rest.tail
+                  rels = rels.drop(1)
+                  Pat.PCon(st("npos"), List(Pat.PCon(g.refl, Nil, sp), lifted(at - k, e), nprems(more)), sp)
+                case BodyLit.Cmp :: more => Pat.PCon(st("ncmp"), List(Pat.PWild(sp), nprems(more)), sp)
+                case BodyLit.Neg(_, _) :: more =>
+                  val e = pattern(rest.head, None)
+                  rest = rest.tail
+                  Pat.PCon(st("nneg"), List(e, nprems(more)), sp)
+                case BodyLit.Agg :: more =>
+                  val e = pattern(rest.head, None)
+                  rest = rest.tail
+                  Pat.PCon(st("nagg"), List(e, nprems(more)), sp)
+              lifted(j - at, Pat.PCon(st("nfire"), List(layerMember, nprems(rule.lits), headPat), sp, List("xs" -> env)))
         }
 
   // ---------------------------------------------------------------- coverage
@@ -913,7 +1246,9 @@ trait Judgments:
    *  program's rules and heads: with them in Π, coverage splits a derivation into the program's rules, and
    *  refutes those whose head does not match the goal (reference: meta/coverage, "Derivations"). */
   def derivationPositions(ctor: Int, sp: Spine): Option[List[List[Int]]] =
-    semanticsGlobals.filter(sem => ctor == sem("given") || ctor == sem("fire")).flatMap { _ =>
+    // also `ngiven` and `nfire` of a stratum, whose program is the stratum's layer (#186 P9c)
+    def stratified = strataGlobals.exists(st => ctor == st("ngiven") || ctor == st("nfire"))
+    semanticsGlobals.filter(sem => ctor == sem("given") || ctor == sem("fire") || stratified).flatMap { _ =>
       sp.reverse.collectFirst { case Elim.EApp(p, Icit.Impl) => p }.flatMap(programData).map { data =>
         val rules = data.rules.length
         val heads = data.rules.map(_.heads).maxOption.getOrElse(1)
@@ -928,13 +1263,16 @@ trait Judgments:
    *  head relation is the goal's, by their names, with their premises named by their relations, and `given`
    *  if the goal's relation is an input; each case's names are fresh against `taken`. */
   def ruleSplits(ty: Val, taken: Iterable[String]): Option[List[String]] =
-    derivationType(ty).flatMap { (p, _, goal) =>
+    judgmentView(ty).flatMap { view =>
       val sem = semanticsGlobals.get
+      val p = view.program
+      val goal = view.goal
       programData(p).map { data =>
         val rel = goalRelation(sem, goal, data)
-        // every (rule, head) pair of the goal's relation, by its label if it names that head alone
-        val heads = data.headNames.filter(h => rel.forall(_ == h.rel))
-        val premiseNames = premiseInitials(p, sem, data)
+        // every (rule, head) pair of the goal's relation, by its label if it names that head alone; at a
+        // stratum, those of the rules that fire in it or below (#186 P9c)
+        val heads = data.headNames.filter(h => rel.forall(_ == h.rel) && view.stratum.forall(j => data.layersOf(h.rule).exists(_ <= j)))
+        val premiseNames = premiseInitials(p, sem, data, view.stratum.isDefined)
         val ruleCases = heads.map { h =>
           val r = h.rule
           val byLabel =
@@ -947,7 +1285,8 @@ trait Judgments:
         val input = forceData(app(proj(forceData(p), "input"), goalRef(sem, goal), Icit.Expl)) match
           case Val.Rigid(Head.Glob(id), Nil) => globals(id).name != "false"
           case _ => true
-        if input then ruleCases :+ s"(given ${FreshNames(taken)("I")})" else ruleCases
+        // at a stratum, `given` is a case for every relation: the facts from below (#186 P9c)
+        if input || view.stratum.isDefined then ruleCases :+ s"(given ${FreshNames(taken)("I")})" else ruleCases
       }
     }
 
@@ -957,7 +1296,7 @@ trait Judgments:
 
   /** For each rule, the names of its premises: the initial of the premise's relation, capitalised (`E`
    *  for `g.edge`, `P` for `path`). */
-  private def premiseInitials(p: Val, sem: Map[Name, Int], data: ProgramData): List[List[String]] =
+  private def premiseInitials(p: Val, sem: Map[Name, Int], data: ProgramData, stratified: Boolean = false): List[List[String]] =
     listElems(proj(forceData(p), "rules")).getOrElse(Nil).map { r =>
       listElems(proj(forceData(r), "body")).getOrElse(Nil).flatMap { b =>
         forceData(b) match
@@ -979,6 +1318,9 @@ trait Judgments:
                   }.getOrElse("p")
               case _ => "p"
             List(name.take(1).toUpperCase)
+          // the written premises of a stratum-local rule name (#186 P9c)
+          case Val.Rigid(Head.Glob(id), _) if stratified && sem.get("cnot").contains(id) => List("N")
+          case Val.Rigid(Head.Glob(id), _) if stratified && sem.get("cagg").contains(id) => List("A")
           case _ => Nil
       }
     }

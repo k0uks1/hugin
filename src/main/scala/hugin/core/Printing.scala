@@ -210,12 +210,28 @@ trait Printing:
    *  anonymous database of a declaration, and a parameter relation is shown through the argument. */
   private def judgmentView(ns: List[Name], t: Tm): Option[String] =
     def explicit(args: List[(Tm, Icit)]) = args.collect { case (a, Icit.Expl) => a }
-    appSpine(t) match
+    def named(id: Int, n: String) = id < globals.length && globals(id).name == n
+    // the stratum-local judgment of `std/strata` (#186 P9c): `nderives (layer p s) (upTo p k d) a`, and
+    // `judged p k d a`, shown as `p ⊢[d] r t̄`
+    val stratified = appSpine(t) match
+      case (Tm.Global(nd), args) if named(nd, "nderives") && args.length == 3 =>
+        (appSpine(args(0)._1), appSpine(args(1)._1)) match
+          case ((Tm.Global(l), List((p, _), _)), (Tm.Global(u), List(_, _, (d, _)))) if named(l, "layer") && named(u, "upTo") =>
+            Some((p, d, args(2)._1))
+          case _ => None
+      case (Tm.Global(jd), List((p, _), _, (d, _), (a, _))) if named(jd, "judged") => Some((p, d, a))
+      case _ => None
+    val parts = stratified.map((p, d, a) => (None, p, d, a)).orElse(appSpine(t) match
       case (Tm.Global(der), args) if explicit(args).length == 3 && args.length == 3 =>
         val List(prog, db, at) = explicit(args): @unchecked
+        Some((Some(der), prog, db, at))
+      case _ => None
+    )
+    parts match
+      case Some((der, prog, db, at)) =>
         appSpine(prog) match
           case (Tm.Global(pf), pargs)
-              if pf < globals.length && globals(pf).program != null && globals(pf).program.nn.vocab.derives == der =>
+              if pf < globals.length && globals(pf).program != null && der.forall(globals(pf).program.nn.vocab.derives == _) =>
             val info = globals(pf).program.nn
             val voc = info.vocab
             def elems(l: Tm): Option[List[Tm]] = appSpine(l) match

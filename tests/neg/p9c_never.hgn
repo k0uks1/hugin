@@ -1,0 +1,22 @@
+(* #186 P9c: with `std/strata`, a judgment over a program with negation is the stratum-local judgment
+   (reference: std/strata, "The stratum-local judgment"), so the statement that contradicts the run is no
+   longer provable: the derivation of the positive fragment that P9a's E0961 stopped (`fire` with a `ppos`
+   premise that the program's negation never has) is not one of `m ⊢ ok berlin`, and the rule `ok.1`
+   that derives it has its negated premise, so that `ok.1 B` alone is not a pattern of it. *)
+%use "std/semantics".
+%use "std/strata".
+%use "std/eq" (empty).
+city : type. berlin, paris : city.
+
+m = {
+  node : city -> rel.
+  bad : city -> rel.
+  node berlin. node paris. bad paris.
+  ok : city -> rel.
+  ok X :- node X, not bad X.
+}.
+never : m ⊢ ok berlin -> empty.
+never (fire {xs := econs X enil} (there (there (there here))) (ppos _ _ ()) here). (*~ E0915 *)
+
+alsoNever : m ⊢ ok berlin -> empty.
+alsoNever (ok.1 B) = B. (*~ E0948 *)
