@@ -1,0 +1,23 @@
+<p>The library <code>std/semantics</code> defines the meaning of Datalog in the meta level: an inductive
+family <code>derives p d a</code> whose values are the <em>derivations</em> of the fact <code>a</code> by the
+program <code>p</code> from the input facts <code>d</code>. A derivation is a tree: a rule at the root,
+and a derivation of each atom of its body below it. The facts that have a derivation are exactly the
+facts of the least model; the library proves this (<code>least</code>, <code>derivesModel</code>).</p>
+
+<p>The judgment <code>tc G ⊢ path x y</code> is notation for that type: the program of <code>tc G</code>
+derives <code>path x y</code>. In a declaration's type, <code>G</code> is a free variable, so the statement
+is about every graph, and the database of input facts is an implicit argument, so it is about every
+input. <code>x y : G.node</code> are nodes of that graph.</p>
+
+<p>Rule names are the constructors of derivations. <code>path.1 E</code> is a derivation by the first rule
+of <code>path</code> (<code>path X Y :- g.edge X Y</code>), given a derivation <code>E</code> of its one body
+atom. <code>G.edge</code> has no rules in <code>tc</code>: its facts are inputs.</p>
+
+<p>Rule names are also patterns. <code>hops</code> matches on the last rule of a derivation and counts its
+edges: it is an ordinary function on derivations. The clauses must cover every rule that can derive
+the goal's relation, as for any inductive type.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every graph and every set of input facts: an edge
+gives a path, and two edges give a path. <strong>What is trusted.</strong> That the engine computes the
+facts that <code>derives</code> defines; this is one statement for all programs (the last lesson
+returns to it).</p>

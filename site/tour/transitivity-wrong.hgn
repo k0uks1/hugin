@@ -1,0 +1,10 @@
+%use "std/graph".
+%use "std/semantics".
+
+(* wrong: the second clause forgets the recursive call, and returns a
+   path to y, not to z *)
+tcTrans : {x y z : G.node} ->
+          tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E P.
+%opaque tcTrans.

@@ -1,0 +1,14 @@
+(* An object type, its constants, a relation with facts, and rules. *)
+city : type.
+berlin, paris, rome, oslo : city.
+
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+road oslo berlin.
+
+reach : city -> city -> rel.
+reach X Y :- road X Y.
+reach X Z :- road X Y, reach Y Z.
+
+%output reach.

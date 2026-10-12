@@ -1,0 +1,34 @@
+<p>Every theorem in this tour is about the semantics, <code>derives</code> and the perfect model. That a
+run of the engine prints exactly those facts is one statement for all programs, <em>adequacy</em>, and
+it is trusted: the engine is tested against the semantics, not verified.</p>
+
+<p><code>hugin run --certify</code> checks adequacy for a single run. The compiler reifies the rules the
+engine ran, the input facts and the output, with a derivation of every fact, and the checker of
+<code>std/certify</code>, written and proved in Hugin, checks them: every printed fact has a derivation
+(soundness), and the printed facts are closed under the rules (a model check, which gives completeness).
+An accepted run prints a verdict on the error output (the first line on the right); a rejected one is an error.</p>
+
+<p>What remains trusted after a certified run is the reification: that the rules handed to the checker
+are the rules of the program as written and the ones the engine ran. The checker itself, its proof
+against <code>derives</code> and the perfect model, and the meta-level type checker that checks that proof
+are what the guarantee rests on.</p>
+
+<p>The certified fragment has atoms over variables and constants, negation and comparisons, without
+aggregates. Checking is quadratic in the number of facts, so it is a mode for tests and audits of small and
+medium runs. The playground runs the program without <code>--certify</code>; the output on the right is the
+CLI's, checked in CI.</p>
+
+<h2>What this tour has shown</h2>
+<ul>
+  <li>Proved by the compiler: transitivity and symmetry of closures, the equivalence of two programs,
+  the soundness of an abstraction, a property of a negated relation, and ground facts by evaluation, each
+  for every graph and every input database where the statement says so.</li>
+  <li>Trusted: adequacy of the engine (checked per run by <code>--certify</code>), the reification of
+  rules (<code>programOf</code>, and the rules <code>--certify</code> hands to the checker), the trusted
+  primitives of the meta level, and the type checker.</li>
+  <li>Not covered: running time, floats and string concatenation in rules (not interpreted by the
+  semantics), and the facts of one particular input unless a lemma takes them as a hypothesis.</li>
+</ul>
+<p>The reference has the details: <a href="{root}reference/std/semantics.html">std/semantics</a>,
+<a href="{root}reference/std/strata.html">std/strata</a>, <a href="{root}reference/std/certify.html">std/certify</a>
+and <a href="{root}reference/std/quote.html">std/quote</a>.</p>

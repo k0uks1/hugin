@@ -1,0 +1,7 @@
+?- roads.path berlin X.
+X = paris.
+X = rome.
+?- back.path rome X.
+X = berlin.
+X = paris.
+X = rome.

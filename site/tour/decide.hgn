@@ -1,0 +1,18 @@
+%use "std/eq" (tt).
+%use "std/semantics".
+
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+
+(* three rounds of naive evaluation derive the fact, with its
+   derivation *)
+viaParis : trip.path berlin rome = decide 3 tt.
+%opaque viaParis.
+%output trip.path.

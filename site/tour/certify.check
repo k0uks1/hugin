@@ -1,0 +1,7 @@
+// certified: the 9 facts of the run are the perfect model of the program (6 rules, 3 strata) from its 0 input facts
+ancestor ann bob.
+ancestor ann cyd.
+ancestor ann dan.
+ancestor bob cyd.
+childless cyd.
+childless dan.

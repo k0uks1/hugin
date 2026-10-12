@@ -1,0 +1,23 @@
+city : type.
+berlin, paris, rome, oslo : city.
+
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+road oslo berlin.
+
+reach : city -> city -> rel.
+reach X Y :- road X Y.
+reach X Z :- road X Y, reach Y Z.
+
+(* negation: a relation that is read under `not` is complete first
+   (stratification) *)
+start : city -> rel.
+start X :- road X _, not road _ X.
+
+(* an aggregate: how many cities each city reaches *)
+fanout : city -> int -> rel.
+fanout X N :- start X, N = count { Y | reach X Y }.
+
+?- reach X rome.
+?- fanout X N.

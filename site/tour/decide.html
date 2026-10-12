@@ -1,0 +1,26 @@
+<p>A fact about a module whose facts are part of the program can be proved by running the program.
+<code>decide n</code> is a lemma of <code>std/semantics</code>: if <code>holds n p a</code>, <code>n</code>
+rounds of naive evaluation of <code>p</code>, finds the fact <code>a</code>, then <code>p</code> derives
+it. The evaluation runs in the type checker, and <code>tt</code> is the proof that its result is
+<code>true</code>.</p>
+
+<p>The evaluation is certifying: every fact it finds carries its derivation, so the lemma is proved,
+not assumed. If the rounds are too few, the result is <code>false</code>, the proof obligation is the
+empty type, and <code>tt</code> is rejected; the wrong version below asks for two rounds where three are
+needed.</p>
+
+<p>How far this goes:</p>
+<ul>
+  <li>It is sound, not complete. <code>holds</code> may be <code>false</code> for a derived fact: input
+  relations contribute no facts, rules with negation or aggregates derive nothing in it, and a rule that
+  binds a variable only in a comparison is not evaluated.</li>
+  <li>It proves facts, not their absence. For stratified programs, <code>decidePerfect</code> of
+  <code>std/certify</code> decides membership in the perfect model both ways, with a model check for the
+  facts not found.</li>
+  <li>It costs compile time: every <code>decide</code> runs the evaluation once, when the definition is
+  checked.</li>
+</ul>
+
+<p class="scope"><strong>What is proved.</strong> <code>trip</code> derives <code>path berlin rome</code>,
+from every input database. <strong>What is trusted.</strong> Adequacy, and the meta-level evaluator
+that computes <code>holds</code>; the soundness of <code>holds</code> itself is a proved lemma.</p>

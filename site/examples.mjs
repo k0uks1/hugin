@@ -1,8 +1,9 @@
-// The playground's examples: the landing page's examples and the reference's checked `hugin,run` blocks
+// The playground's examples: the landing page's examples, the tour's programs (site/tour/lessons.mjs) and the reference's checked `hugin,run` blocks
 // (ReferenceExamplesSuite compiles and runs them), in the order of reference/src/SUMMARY.md. Blocks with
 // input facts or a relative %import are left out: the playground has a single file and no facts.
 import fs from "node:fs";
 import path from "node:path";
+import { lessons as tourLessons } from "./tour/lessons.mjs";
 
 const FENCE = /^```([^\n]*)\n([\s\S]*?)^```[ \t]*$/gm;
 
@@ -54,5 +55,11 @@ export function collectExamples(root) {
     title: `${e.name}: ${e.topic.toLowerCase()}`,
     code: fs.readFileSync(path.join(root, "site", e.file + ".hgn"), "utf8"),
   }));
-  return [...landing, ...chapters(src).flatMap((c) => examplesOf(src, c))];
+  const tour = tourLessons.map((l) => ({
+    id: `tour-${l.slug}`,
+    group: "Tour",
+    title: l.title,
+    code: fs.readFileSync(path.join(root, "site", "tour", l.file + ".hgn"), "utf8"),
+  }));
+  return [...landing, ...tour, ...chapters(src).flatMap((c) => examplesOf(src, c))];
 }

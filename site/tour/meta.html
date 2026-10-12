@@ -1,0 +1,21 @@
+<p>The meta level is a total, dependently typed functional language that runs at compile time. This
+lesson shows only what is needed to read proofs: a proposition is a type, and a proof is a value of
+that type.</p>
+
+<p><code>0 + n ≡ n</code> is the type <code>eq (plus 0 n) n</code> of <code>std/eq</code>, whose only
+value is <code>refl</code>, a proof that both sides are the same. <code>zeroPlus</code> is a function by
+clauses, one for each constructor of <code>nat</code>: for <code>0</code>, both sides evaluate to
+<code>0</code>; for <code>N + 1</code>, the recursive call proves the statement for <code>N</code>, and
+<code>cong suc</code> adds one to both sides. A recursive function is a proof by induction.</p>
+
+<p>The compiler accepts a function only if it is total: its clauses must cover every case (a missing case
+is an error), and each recursive call must be on a smaller argument. Without these checks
+<code>bad : (n : nat) -&gt; 0 ≡ 1</code> could be "proved" by a function that never returns.</p>
+
+<p><code>empty</code> is a type with no values; a function into it is a refutation. In
+<code>noLoop ()</code> the pattern <code>()</code> says there is no value to match: <code>1 ≡ 0</code>
+has no proof, since <code>1</code> and <code>0</code> are different constructors.</p>
+
+<p><code>%opaque</code> marks definitions as theorems: they are checked once and never unfolded
+afterwards. The tour marks every theorem this way, and the result pane lists the opaque definitions it
+checked.</p>

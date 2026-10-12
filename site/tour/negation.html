@@ -1,0 +1,21 @@
+<p>A relation defined with <code>not</code> is read in the strata below it: its judgment is the
+<em>stratum-local</em> judgment of <code>std/strata</code>, the derivations of its stratum with the
+facts of the lower strata as a fixed database. A negated premise of a rule is a refutation: a proof that
+no fact of that database matches the atom.</p>
+
+<p><code>noExit</code> states that a sink has no outgoing edge, for every complete graph. Matching the
+derivation of <code>sink x</code> on its rule <code>sink.1 E N</code> binds the negated premise
+<code>N</code>: for every value of the local variable <code>_</code>, the edge from <code>x</code> is not a
+fact. The edge <code>g.edge x y</code> is an input fact, which <code>given I</code> exposes; applying
+<code>N</code> to <code>y</code> and that fact gives the contradiction. The second clause is the case that
+<code>sink</code> is an input, which it is not: <code>I.fst</code> is a proof of <code>so false</code>,
+which is empty.</p>
+
+<p>The signature asks for <code>%complete edge</code>: a functor may negate a relation of its parameter
+only if every instance passes a relation that is complete before the functor's rules run.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every complete graph and every input database,
+<code>sink x</code> and <code>edge x y</code> are not both facts of the perfect model.
+<strong>What is trusted.</strong> Adequacy for stratified programs: that the run prints the perfect
+model. The step from the stratum-local judgment to the perfect model is a library lemma,
+<code>adequate</code>, and is proved.</p>

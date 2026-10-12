@@ -1,0 +1,15 @@
+<p>A <em>functor</em> is a module parameterised by a record of types and relations, its
+<em>signature</em>. The standard library's <code>std/graph</code> declares the signature
+<code>graph</code> and the functor <code>tc</code>, the transitive closure of any graph; its two rules are
+shown in the comment at the top of the program.</p>
+
+<p>Applying a functor to a record makes an <em>instance</em>: <code>roads</code> is the closure of the
+road graph, and its relation is <code>roads.path</code>. A relation is an ordinary value of the record:
+<code>back</code> closes the relation <code>both.link</code> of another instance.</p>
+
+<p>The proofs in Part 3 are mostly about functors, not instances. A theorem about <code>tc G</code>, for a
+variable <code>G</code>, holds for every graph, and so for every instance.</p>
+
+<p>The rules of a functor's body are named by their head relation and their position:
+<code>link.1</code> is the first rule with head <code>link</code>, <code>link.2</code> the second. Part 3
+uses these names to take derivations apart.</p>
