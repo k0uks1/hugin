@@ -7,4 +7,14 @@ error[E0945]: the judgment `⊢` needs the library `std/semantics`
   = note: `P ⊢[d] r t̄` stands for `derives (programOf P) d (atom ρ [v t̄])` of `std/semantics`
   = help: add `%use "std/semantics".` to the file
 
-1 error found
+error[E0960]: `(tc g).path x y` is not a type: it applies a relation to arguments
+ --> tests/neg/e0945_judgment_library.hgn:5:44
+  |
+5 | coerced : (g : graph) -> {x y : g.node} -> (tc g).path x y -> Type. (*~ E0960 *)
+  |                                            ^^^^^^^^^^^^^^^ an applied relation
+  |
+  = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+  = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+  = help: load `std/semantics` (`%use "std/semantics".`): an applied relation of `tc g` is then its judgment `tc g ⊢ r t̄`
+
+2 errors found

@@ -172,7 +172,8 @@ trait Bidirectional:
     // an owned relation where a meta type or a family of them is expected: its program's judgment
     val coerced = if st == Stage.S1 then checkCoerced(c, t, a) else None
     coerced.getOrElse(
-      if st == Stage.S1 && mayBeRuleName(c, t) && !force(a).isInstanceOf[Val.Pi] then checkRuleName(c, t, a).getOrElse(checkForm(c, t, a, st))
+      if st == Stage.S1 && mayBeRuleName(c, t) && !force(a).isInstanceOf[Val.Pi] then
+        checkRuleName(c, t, a).getOrElse(checkForm(c, t, a, st))
       else checkForm(c, t, a, st)
     )
 

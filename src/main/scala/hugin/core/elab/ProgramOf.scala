@@ -151,6 +151,7 @@ trait ProgramOf:
     val voc = vocabularyOpt(quoteLib = false).getOrElse(fail(ProgramOfProblem.NoLibrary(span)))
     val env = inst.env.drop(inst.body.members.length)
     val fn = programFunction(voc, inst.body, env.length, head, span)
+    if env.isEmpty then displayAs(fn, head)
     val envTms = env.reverse.map(v => quote(c.lvl, v))
     val scope = scopeOf(inst.body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), Map.empty)
     (Tm.apps(fn, envTms.map((_, Icit.Expl))), scope)
@@ -205,11 +206,21 @@ trait ProgramOf:
           moduleOf(ev(c, hTm)) match
             case Some((body, env)) =>
               val fn = programFunction(voc, body, env.length, head, p.span)
+              // a module without environment is shown by its name, `trip ⊢ path x y` (#186 P9b)
+              if env.isEmpty then displayAs(fn, head)
               val envTms = env.reverse.map(v => quote(c.lvl, v))
               // a module value: no argument is written, so no parameter relation is named (#186 P7c)
               val scope = scopeOf(body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), Map.empty)
               (Tm.apps(fn, envTms.map((_, Icit.Expl))), programTy, Stage.S1, Some(scope))
             case None => notAModule(p)
+
+  /** Judgments over the program function `fn` show their program as `head` (a name or a path). */
+  private def displayAs(fn: Tm, head: Tree): Unit = fn match
+    case Tm.Global(id) if globals(id).program != null =>
+      head match
+        case _: Ident | _: hugin.syntax.Trees.Select => globals(id).program.nn.functor = Some(hugin.syntax.Printer.show(head))
+        case _ =>
+    case _ =>
 
   /** The program of the functor `f` applied to `args` (terms in `c`): the body is found by applying `f` to
    *  fresh variables, so that no instance is created. */

@@ -2432,3 +2432,48 @@ generalisations (7.3, step 3) as action at a distance: names the user never wrot
   e0947_unnamed_database (`d` unbound in a type and in a clause, `{d := …}` E0926, `{D := E}` for a named
   database), e0945_parameter_relation (`g.edge` unbound; two parameters by position; an argument that is
   not a variable).
+
+**P9b (the judgment coercion, level 3.5's alternative A).** Design: [proofs-level35.md](proofs-level35.md)
+§2.1–2.5; reference `std/semantics.md`, "Relations as propositions".
+
+- *Where.* `Bidirectional.infer` (an `Apply` in a type position at the meta stage, as `inferU` and a check
+  against a universe set it) and `checkAt` (any meta check, before rule names): an applied owned atom
+  against `Type`, an unapplied one against `(x₁ : A₁) -> … -> Type` with n ≥ 1 explicit binders (the η
+  form). Code in `JudgmentCoercion`; the judgment is the `Judgment` tree P7b elaborates
+  (`inferJudgmentOf`), so typing, arity (E0945, with a note "`fast.path x` is read as the judgment `fast ⊢
+  path x`"), E0961 and the database are the turnstile's.
+- *Owner, syntactically.* `m.r` with `m` a module path (`fast`, `weak.v`: global values and record
+  projections, then the instance whose object members they are, as `programOf m` finds it); `(f ā).r` with
+  `f` a global functor and explicit arguments, the body found by applying `f` to fresh variables (no
+  instance is created, as `programOf (f ā)` does); a name whose global is an instance's relation or an
+  opened alias of one (a definition of type `⇑τ`, unfolded only then), owned by the instance that has it
+  as an object member (`instanceOwning`, a scan of `moduleInstances`). The owner must declare `r` (relation,
+  struct, constructor). Locals, body-declared names and a functor alone own nothing (`tc.path` stays
+  E0107).
+- *η form.* `[x̄] r x̄` as a surface lambda over the applied atom, checked against the family; binder
+  names from the family's, fresh against the scope and the names of the head (no capture of `G` in
+  `(tc G).r`).
+- *Database.* `coercionCandidates` walks a declaration's type trees once (only when `std/semantics` is
+  loaded): declared type, arrow parts, binder types, record field types, and the arguments of a global
+  meta constant whose explicit parameter type is a universe (walked as a type) or a family (an owned
+  unapplied relation, or a lambda's body); each owned atom's head span joins `BinderOrigin.Database`, and
+  its written program joins `judgmentArgumentTypes` (so `{x : G.node}` before `(tc G).path x y` works).
+  A coercion elsewhere has an unknown database (E0947).
+- *E0960.* Remains for unowned relations (a variable's, the file's, the enclosing body's), under an
+  explicit `⇑`, and for owned relations without `std/semantics`; three helps: the turnstile `P ⊢ r t̄`
+  (`[x̄] P ⊢ r x̄` for the η case), "without the `⇑`", "load `std/semantics`". The note lists the owned
+  forms. No new code.
+- *Printing.* Hovers on a type that is a judgment (written or coerced) show it as `P ⊢ r t̄` in
+  "elaborated" (`MetaTooling.elaborated`, from the value). A program of a module without environment is
+  shown by its name (`trip ⊢ path …`, was `programOf trip ⊢ …`); an instance of a functor still shows the
+  program function applied to its environment (`programOf fast { node = ⟨city⟩, … } ⊢ …`) unless a judgment
+  `tc G ⊢ …` named the functor first: open.
+- *Not done.* `linkSym _ _ L` (wildcards for the explicit nodes of `symmetric`, §1.3) fails to unify
+  (E0901, expected `undirected ?G ⊢[?d] link _ _`); the same happens with the turnstile and with a plain
+  Π over the nodes, so it is not the coercion's; `p9b_relations` writes the nodes. `programOf` of a body
+  that reads a member instance's relation (`rtc`'s `v.vertex`) is E0942 (P7a), so only `weak.v.vertex`
+  itself is judged.
+- *Tests.* run `p9b_proof_a`, `p9b_proof_b` (§1.1, §1.2 as written), `p9b_relations` (§1.3 with explicit
+  nodes, §1.4 both forms, `weak.v.vertex`, `(tc { … }).path`); neg `e0960_unowned_relation` (variable,
+  file, body), `p9b_not_coerced` (nullary, `tc.path` E0107, E0947 twice, E0945 with the note), updated
+  `e0960_applied_relation` and `e0945_judgment_library`; LSP: hover, goal and split below `(tc G).path`.

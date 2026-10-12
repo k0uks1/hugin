@@ -283,6 +283,95 @@ the anonymous database.
 > identifier. A theorem about `tc G` applies to each instance of `tc`, since the program of an instance
 > is the program of the functor at the instance's arguments.
 
+## Relations as propositions
+
+An applied relation that a program owns, written where a meta type is expected, is that program's
+judgment: `fast.path x y` is `fast ⊢ path x y`, and `(tc G).path x y` is `tc G ⊢ path x y`. Where a meta
+type is expected means where `⇑` would be inserted for an object type
+([Stage inference](../meta/staging.md#stage-inference)): checked against a universe, or as the domain,
+codomain or binder type of a meta function type. The program owns the relation if it declares it (a
+relation, a struct or a constructor of its body); it is found from the atom's head as written, without
+evaluating anything:
+
+| written | the program | the judgment |
+|---|---|---|
+| `fast.path x y`, `fast` an instance or a module | `fast` | `fast ⊢ path x y` |
+| `weak.v.vertex x`, a member instance ([Instances](../modules.md#instances)) | `weak.v` | `weak.v ⊢ vertex x` |
+| `(tc2 G).path x y`, a functor applied to its arguments | `tc2 G` | `tc2 G ⊢ path x y` |
+| `path x y` after `%use trip (path).` | the instance `trip` | `trip ⊢ path x y` |
+
+The judgment is the one that the turnstile without `[e]` denotes at the same place, at the same database:
+in the type of a declaration the anonymous one ([Generalisation](#generalisation)), elsewhere an unknown
+that unification must determine ([E0947](../errors/E0947.md)). Its arguments, its arity and the program's
+fragment are checked as for the turnstile ([E0945](../errors/E0945.md), [E0961](../errors/E0961.md)), and
+a free uppercase variable in the program, `G`, is bound as there. The coerced atoms of a declaration's type
+share its anonymous database where the compiler finds them from the type's syntax: in the declared type,
+an arrow's domain or codomain, a binder's type, a field type of a record type, and an argument of a global
+constant whose parameter is a type or a family of types; an atom in another position, such as an argument
+of a local function, has a database of its own.
+
+*The η form.* An owned relation written unapplied where a family of meta types `⇑τ₁ -> … -> ⇑τₙ -> Type`
+is expected is the function `[x₁] … [xₙ] P ⊢ r x₁ … xₙ`, as a relation passed where a formula function
+is expected is eta-expanded ([Stage inference](../meta/staging.md#stage-inference)). A combinator over meta
+relations then takes an object relation: `symmetric (undirected G).reach` below.
+
+Not coerced are: a relation of a variable or of a functor's parameter, `G.edge x y`, which every program
+over `G` reads (the judgment names the program, `tc G ⊢ G.edge x y`); a relation of the file and of the
+body the statement is written in; a relation used unapplied where a type is expected, which is its fact
+type ([Fact types](../object/types.md#fact-types)), so a nullary relation's judgment is written `fast ⊢
+flag`; a relation of a functor written alone, `tc.path x y`, which names no program
+([E0107](../errors/E0107.md)); and an atom with a named database, which keeps the turnstile, `P ⊢[e] r t̄`.
+An applied relation that no program owns where a meta type is expected is an error
+([E0960](../errors/E0960.md)). The coercion introduces no name: the head of the atom is resolved as
+everywhere, and only an object relation that a program owns is coerced. Diagnostics and hovers show the
+judgment, `tc G ⊢ path x y`.
+
+```hugin,run
+%use "std/graph" (graph).
+%use "std/eq" (tt).
+%use "std/semantics".
+
+symmetric : {A : Type} -> (A -> A -> Type) -> Type.
+symmetric {A := T} R = (x : T) -> (y : T) -> R x y -> R y x.
+
+undirected (g : graph) = {
+  link : g.node -> g.node -> rel.
+  link X Y :- g.edge X Y.
+  link Y X :- g.edge X Y.
+}.
+linkSym : symmetric (undirected G).link.
+linkSym X Y (link.1 E) = link.2 E.
+linkSym X Y (link.2 E) = link.1 E.
+
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris. hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+%use trip (path).
+viaParis : path berlin rome = decide 3 tt.
+%opaque linkSym viaParis.
+proved : string -> rel.
+proved "linkSym, viaParis".
+%output proved.
+```
+
+```output
+proved "linkSym, viaParis".
+```
+
+The type of `linkSym` is `{_ : db} -> {G : graph} -> symmetric ([x] [y] undirected G ⊢ link x y)`, and
+`viaParis` is `trip ⊢ path berlin rome`.
+
+> **Rationale.** The coercion is inserted by the expected type, as stage inference inserts `⇑`, and as
+> Lean's `CoeSort` and Rocq's coercions to `Sortclass` make a term a type where a sort is expected. It
+> needs no declaration: a relation is a proposition of the one program that declares it, so the owner is
+> read off the atom. A relation of a variable has no such program, and the same text would denote
+> different judgments in `tc G` and `tc2 G`, so it keeps the turnstile.
+
 ## Rule names
 
 The rules of a relation `r` of a program are named `r.1`, `r.2`, … in the order of the program's rules, a

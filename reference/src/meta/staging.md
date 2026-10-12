@@ -46,12 +46,16 @@ conversion ([Kovács 2022](../notation.md#references)):
 A relation, struct or constructor used as a type is its [fact type](../object/types.md#fact-types), also
 where a meta type is expected: `w : road = <road berlin paris>.` is the identity of a fact, of type
 `⇑road`, and so is a value of a nullary relation's fact type. A relation *applied* to arguments is not an
-object type: under `⇑` it would be the fact type of an application, which no object term has. It is an
-error ([E0960](../errors/E0960.md)) if an applied relation or struct is used where a meta type is expected
-(checked against a universe, or as the domain, codomain or binder type of a meta function type), if it is
-written under an explicit lift, `⇑(r t̄)`, or if a relation is used unapplied where a family of meta types
-is expected (`⇑A -> Type`), which eta-expansion would apply. The proposition that a program derives an
-atom is a judgment of [`std/semantics`](../std/semantics.md#the-judgment-notation), `P ⊢ r t̄`.
+object type: under `⇑` it would be the fact type of an application, which no object term has. Where a meta
+type is expected (checked against a universe, or as the domain, codomain or binder type of a meta function
+type), an applied relation that a program owns, such as `fast.path x y`, is that program's judgment of
+[`std/semantics`](../std/semantics.md#relations-as-propositions), `fast ⊢ path x y`, and so is an
+unapplied one where a family of meta types is expected (`⇑A -> Type`), by eta-expansion. It is an error
+([E0960](../errors/E0960.md)) if an applied relation or struct that no program owns (a relation of a
+variable or of the file) is used where a meta type is expected, if an applied relation is written under an
+explicit lift, `⇑(r t̄)`, or if such a relation is used unapplied where a family of meta types is
+expected, which eta-expansion would apply. The proposition that a program derives an atom of any relation
+is a judgment, `P ⊢ r t̄`.
 
 ```hugin,compile_fail,E0960
 city : type. berlin, paris : city.
