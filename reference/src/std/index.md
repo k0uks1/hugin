@@ -14,6 +14,7 @@ file.
 | [`std/eq`](eq.md) | propositions as types: the identity family and its lemmas, the empty and unit types, sums, equivalence, decidable propositions, the decidable equality of atomic values |
 | [`std/decide`](decide.md) | proof by evaluation (`so`, `decider`, `decide`), and lemmas about the arithmetic of `nat` and `int` |
 | [`std/semantics`](semantics.md) | the meaning of Datalog programs: programs as values, the derivations of their facts (`derives`), the judgment notation `P ⊢ r t̄` and rule names, the object level's 64-bit arithmetic |
+| [`std/strata`](strata.md) | the meaning of stratified programs with negation and aggregates: derivations in a stratum (`nderives`), aggregate witnesses, the perfect model |
 | [`std/quote`](quote.md) | the code bridge between object code and its data (`quote`, `unquote`, `quoteF`, `unquoteF`, `symOf`); the programs of modules as values (`programOf`) |
 | [`std/list`](list.md) | functions over meta lists, natural numbers as fuel, relations over the lists that are facts |
 | [`std/directives`](directives.md) | the parts of rules and modules, the calls of a relation, the binding analysis, fresh names and errors, for directive authors |

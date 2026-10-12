@@ -147,16 +147,28 @@ The program value is built as follows. No code is generated, and no instance of 
   variables), `capp` (a constructor term over variables), `carith` and `cneg`. A rule's heads are its head
   and its nested facts, outermost first. `(r t̄ as X)` in a body is the atom and the comparison of `X`
   with the identity of the fact.
+- A negation `not a` is `cnot us a`, and an aggregate `X = k { t | φ }` is `cagg us k X t φ`
+  ([`std/strata`](strata.md#negation-and-aggregates-in-bodies)), with the term `1` for `count`. Their
+  local variables `us` are the variables of the literal that the rule does not bind outside negations and
+  aggregates, by an atom, a comparison or an aggregate's result, in the order of the rule's variables;
+  they are not variables of the rule, and two aggregates may each have a local variable of the same name.
+  `sum`, `min` and `max` must be over integers, and the result of an aggregate an integer variable.
 - A rule's `head` is the relation of its first head, `index` its position among the rules of that
   relation from 1, and `label` its name `@n`.
 - The input test `inputOf is` of `std/semantics` holds for the relations `arg l` and `ext s` and for the body's own
   relations without rules (the extensional relations `is`); `strata` are the strongly connected
-  components of the body's own relations by the dependencies of rules, dependencies first.
+  components of the body's own relations by the dependencies of rules, dependencies first. A relation
+  depends on the relations of its rules' bodies, including those that they negate or aggregate over
+  ([Negation and stratification](../object/negation.md#stratification)).
 
-It is an error ([E0942](../errors/E0942.md)) if a rule is outside the positive fragment of
-`std/semantics` (negation, disjunction, aggregates, floats, string concatenation, ascriptions,
-projections, updates), builds a constructor term of a constant that the body declares, which has no
-code outside an instance, or has a variable whose type is not known.
+It is an error ([E0942](../errors/E0942.md)) if a rule is outside what `std/semantics` models
+(disjunction, aggregates over terms that are not integers, relations with a
+[bound column](../object/bound-columns.md), floats, string concatenation, ascriptions, projections,
+updates), builds a constructor term of a constant that the body declares, which has no
+code outside an instance, or has a variable whose type is not known. It is an error
+([E0950](../errors/E0950.md)) if the body is not stratified: a relation depends on itself through a
+negation or an aggregate. The compiler checks the strata of a module where it is instantiated, and
+`programOf` reads functors that may have no instance.
 
 The following program proves that the transitive closure is transitive, over the program of a functor
 written as ordinary rules, for every graph and every input database.

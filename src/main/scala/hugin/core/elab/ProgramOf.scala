@@ -2,7 +2,7 @@ package hugin.core
 package elab
 
 import hugin.obj.{ArithOp, BaseType, CmpOp}
-import hugin.syntax.{Literal, Tree, TreeOps}
+import hugin.syntax.{AggKind, Literal, Tree, TreeOps}
 import hugin.syntax.Trees.{Apply, Ident, Parens}
 import hugin.util.*
 
@@ -23,9 +23,11 @@ import scala.collection.mutable
  *  source order) are `own i`, the relations of its environment `arg l` by their path in it (`edge` for
  *  `g.edge`, `g.edge` if the body has several variables), other relations `ext s`. A rule's variables are
  *  typed by object typing, a wildcard or a variable of a formula function by the column it stands in.
- *  The program's inputs are the relations of its environment and outside it, and its own relations
- *  without rules (the extensional relations); its strata are the strongly connected components of its own
- *  relations, dependencies first. The data is built in the context of the body's environment and applied
+ *  A negation or an aggregate has the variables that occur nowhere else in the rule as its local
+ *  variables (#186 P6). The program's inputs are the relations of its environment and outside it, and its
+ *  own relations without rules (the extensional relations); its strata are the strongly connected
+ *  components of its own relations, dependencies first, and a negation or an aggregate must read an
+ *  earlier one (E0950). The data is built in the context of the body's environment and applied
  *  to it, so it is a meta term in the parameters, as a functor's body is. No code is generated. */
 trait ProgramOf:
   self: Elaborator =>
@@ -308,19 +310,70 @@ trait ProgramOf:
 
   private final case class RA(ref: Ref, args: List[RT])
 
+  /** A body literal. A negation and an aggregate have their local variables, filled in once the whole rule
+   *  is read; an aggregate has its result, its term (none for `count`, whose value does not depend on it)
+   *  and its body. */
   private enum RB:
     case Pos(a: RA)
     case Cmp(op: CmpOp, l: RT, r: RT)
+    case Neg(a: RA, locals: List[Int])
+    case Agg(kind: AggKind, x: RT, t: Option[RT], body: List[RB], locals: List[Int])
 
+  /** A rule: the types of all its variables (`types`), and the variables that are the rule's (`vars`), the
+   *  others being local to a negation or an aggregate. */
   private final case class ReadRule(
       head: Int,
       label: Option[Name],
-      vars: List[Val],
+      types: List[Val],
+      vars: List[Int],
       heads: List[RA],
       body: List[RB],
       span: Span,
       names: List[Name]
   )
+
+  private def termVars(t: RT): Set[Int] = t match
+    case RT.V(i) => Set(i)
+    case RT.C(_, _) => Set.empty
+    case RT.App(_, as, _, _) => as.flatMap(termVars).toSet
+    case RT.Ar(_, a, b) => termVars(a) ++ termVars(b)
+    case RT.Ng(a) => termVars(a)
+
+  private def atomVars(a: RA): Set[Int] = a.args.flatMap(termVars).toSet
+
+  /** The variables of a literal that are not local to it or to a literal inside it. */
+  private def freeVars(b: RB): Set[Int] = b match
+    case RB.Pos(a) => atomVars(a)
+    case RB.Cmp(_, l, r) => termVars(l) ++ termVars(r)
+    case RB.Neg(a, ls) => atomVars(a) -- ls
+    case RB.Agg(_, x, t, body, ls) => (termVars(x) ++ t.toList.flatMap(termVars) ++ body.flatMap(freeVars)) -- ls
+
+  /** The variables a literal binds: an atom's and a comparison's, an aggregate's result. */
+  private def binds(b: RB): Set[Int] = b match
+    case RB.Pos(a) => atomVars(a)
+    case RB.Cmp(_, l, r) => termVars(l) ++ termVars(r)
+    case RB.Agg(_, x, _, _, _) => termVars(x)
+    case RB.Neg(_, _) => Set.empty
+
+  /** The literals `bs` with the local variables of their negations and aggregates: the variables that are
+   *  not bound `outside` or by an atom, a comparison or an aggregate's result among `bs` (reference:
+   *  object/negation, object/aggregates). Two aggregates may have a local variable of the same name. */
+  private def scoped(bs: List[RB], outside: Set[Int]): List[RB] =
+    val bound = outside ++ bs.flatMap(binds)
+    bs.map {
+      case RB.Neg(a, _) => RB.Neg(a, (atomVars(a) -- bound).toList.sorted)
+      case RB.Agg(kind, x, t, body, _) =>
+        val inner = scoped(body, bound)
+        val ls = (t.toList.flatMap(termVars).toSet ++ inner.flatMap(freeVars)) -- bound
+        RB.Agg(kind, x, t, inner, ls.toList.sorted)
+      case other => other
+    }
+
+  /** The variables local to a literal or to a literal inside it. */
+  private def localVars(b: RB): List[Int] = b match
+    case RB.Neg(_, ls) => ls
+    case RB.Agg(_, _, _, body, ls) => ls ++ body.flatMap(localVars)
+    case _ => Nil
 
   /** The program of `body` in an environment of `n` variables, as a term in that environment, with the
    *  names of its own relations and of each rule's variables. */
@@ -407,18 +460,33 @@ trait ProgramOf:
           case ty => Some(ty)
         e2 = Val.Obj(ObjForm.Named(markers(i)), Nil) :: e2
       val heads = r.heads.flatMap(h => headAtoms(forceData(eval(e2, h))))
-      val body = r.body.toList.flatMap(b => formula(forceData(eval(e2, b))))
+      val body = scoped(r.body.toList.flatMap(b => formula(forceData(eval(e2, b)))), heads.flatMap(atomVars).toSet)
       val first = heads.headOption.map(_.ref) match
         case Some(Ref.Own(i)) => i
         case _ => no("its head is not a relation of the module")
-      val vars = types.toList.zip(shown).map {
+      val tys = types.toList.zip(shown).map {
         case (Some(ty), _) => ty
         case (None, x) => no(s"the type of the variable `${x.takeWhile(_ != '#')}` is not known")
       }
-      ReadRule(first, r.name, vars, heads, body, r.span, shown.toList)
+      val locals = body.flatMap(localVars).toSet
+      val ruleVars = tys.indices.filterNot(locals).toList
+      ReadRule(first, r.name, tys, ruleVars, heads, body, r.span, ruleVars.map(shown(_)))
 
-    /** The relation, type and code of an applied head, with its arguments. */
-    private def headOf(v: Val): Option[(HeadInfo, List[Val])] = v match
+    /** The relation, type and code of an applied head, with its arguments; a relation with a bound column
+     *  keeps the best value per key, which `std/semantics` does not model. */
+    private def headOf(v: Val): Option[(HeadInfo, List[Val])] =
+      val found = headOf0(v)
+      found.foreach { (h, _) =>
+        if objectColumns(h.ty).exists((_, ty) =>
+            forceData(ty) match
+              case Val.Obj(ObjForm.BoundCol(_), _) => true
+              case _ => false
+          )
+        then no("a relation with a bound column (`min τ` or `max τ`), which `std/semantics` does not model")
+      }
+      found
+
+    private def headOf0(v: Val): Option[(HeadInfo, List[Val])] = v match
       case Val.Rigid(Head.Glob(id), sp) if globals(id).stage == Stage.S0 && globals(id).kind.isInstanceOf[GlobalKind.Object] =>
         applications(sp).map(as => (HeadInfo(Ref.Ext(id), globals(id).ty, Some(Val.Rigid(Head.Glob(id), Nil))), as))
       case Val.Rigid(Head.Local(l), sp) =>
@@ -567,9 +635,41 @@ trait ProgramOf:
           case RT.App(h, _, _, _) => setType(xv, Some(factType(h)))
           case _ =>
         pos :+ RB.Cmp(CmpOp.Eq, xv, fact)
-      case Val.Obj(ObjForm.Not, _) => no("negation is not in the positive fragment of `std/semantics`")
-      case Val.Obj(ObjForm.Or, _) => no("disjunction is not in the positive fragment of `std/semantics`")
-      case Val.Obj(ObjForm.Agg(_), _) => no("aggregates are not in the positive fragment of `std/semantics`")
+      case Val.Obj(ObjForm.Not, List(a)) =>
+        headOf(forceData(a)) match
+          case Some((h, as)) =>
+            val args = as.map(term(_, inHead = false))
+            args.zipWithIndex.foreach((t, j) => setType(t, column(h.ty, j)))
+            List(RB.Neg(RA(h.ref, args), Nil))
+          case None => no("a negation of a formula that is not an atom")
+      case Val.Obj(ObjForm.Or, _) => no("disjunction is not modelled by `std/semantics`")
+      case Val.Obj(ObjForm.Agg(kind), List(x, t, b)) =>
+        val int = Val.Base(BaseType.IntT, Stage.S0)
+        val xv = term(x, inHead = false)
+        xv match
+          case RT.V(i) =>
+            types(i) match
+              case None => types(i) = Some(int)
+              case Some(ty) if forceData(ty) == int =>
+              case Some(_) =>
+                no(s"`${kind.show}` with a result that is not an `int` (`std/semantics` counts, adds and orders integers only)")
+          case _ => no(s"`${kind.show}` with a result that is not a variable")
+        val body = formula(forceData(b))
+        val tv = kind match
+          case AggKind.Count => None
+          case _ =>
+            val tt = term(t, inHead = false)
+            tt match
+              case RT.V(i) =>
+                types(i) match
+                  case None => types(i) = Some(int)
+                  case Some(ty) if forceData(ty) == int =>
+                  case Some(_) => no(s"`${kind.show}` over a term that is not an `int` (`std/semantics` orders and adds integers only)")
+              case RT.C(_, ty) if forceData(ty) == int =>
+              case RT.Ar(_, _, _) | RT.Ng(_) =>
+              case _ => no(s"`${kind.show}` over a term that is not an `int` (`std/semantics` orders and adds integers only)")
+            Some(tt)
+        List(RB.Agg(kind, xv, tv, body, Nil))
       case _ =>
         headOf(v) match
           case Some((h, as)) =>
@@ -633,13 +733,23 @@ trait ProgramOf:
       if i == 0 then app(g("here"), impl(codeT), impl(tys.head), impl(list(codeT, tys.tail)))
       else app(g("there"), impl(codeT), impl(tys(i)), impl(tys.head), impl(list(codeT, tys.tail)), expl(member(tys.tail, i - 1)))
     val opName = Map(ArithOp.Add -> "oadd", ArithOp.Sub -> "osub", ArithOp.Mul -> "omul", ArithOp.Div -> "odiv")
+    val aggName = Map(AggKind.Count -> "acount", AggKind.Sum -> "asum", AggKind.Min -> "amin", AggKind.Max -> "amax")
     val cmpName = Map(CmpOp.Eq -> "ceq", CmpOp.Ne -> "cne", CmpOp.Lt -> "clt", CmpOp.Le -> "cle", CmpOp.Gt -> "cgt", CmpOp.Ge -> "cge")
     val crules = rs.zipWithIndex.map { (r, k) =>
       at = r.span
-      val tys = r.vars.map(ty => Tm.quote(typeTm(ty)))
-      val ts = list(codeT, tys)
+      val allTys = r.types.map(ty => Tm.quote(typeTm(ty)))
+      // the variables in scope, innermost first: a literal's local variables before the rule's
+      var ctx = r.vars
+      def tys = ctx.map(allTys)
+      def ts = list(codeT, tys)
+      def pos(i: Int): Int = ctx.indexOf(i)
+      def within[A](locals: List[Int])(body: => A): A =
+        val saved = ctx
+        ctx = locals ++ ctx
+        try body
+        finally ctx = saved
       def typeOfRT(t: RT): Tm = t match
-        case RT.V(i) => tys(i)
+        case RT.V(i) => allTys(i)
         case RT.C(_, ty) => Tm.quote(typeTm(ty))
         case RT.App(h, _, _, _) =>
           Tm.quote(typeTm(codomainOf(h.ty) match
@@ -648,7 +758,7 @@ trait ProgramOf:
           ))
         case RT.Ar(_, _, _) | RT.Ng(_) => Tm.Quote(Tm.Base(BaseType.IntT, Stage.S0))
       def term(t: RT): Tm = t match
-        case RT.V(i) => app(g("cv"), impl(ts), impl(tys(i)), expl(member(tys, i)))
+        case RT.V(i) => app(g("cv"), impl(ts), impl(allTys(i)), expl(member(tys, pos(i))))
         case RT.C(code, _) => app(g("cc"), impl(ts), impl(typeOfRT(t)), expl(Tm.quote(codeTm(code))))
         case RT.App(_, _, code, true) => app(g("cc"), impl(ts), impl(typeOfRT(t)), expl(Tm.quote(codeTm(code))))
         case RT.App(h, args, _, false) =>
@@ -680,6 +790,16 @@ trait ProgramOf:
           val (lt, rt) = (typeOfRT(l), typeOfRT(r))
           if stripPositions(lt) != stripPositions(rt) then fail0("a comparison of terms of different object types", at)
           app(g("ccmp"), impl(ts), impl(lt), expl(Tm.Global(reflective(span).ctor(cmpName(op)))), expl(term(l)), expl(term(r)))
+        case RB.Neg(a, ls) =>
+          val outer = ts
+          app(g("cnot"), impl(outer), expl(list(codeT, ls.map(allTys))), expl(within(ls)(atom(a))))
+        case RB.Agg(kind, x, t, body, ls) =>
+          val outer = ts
+          val xt = term(x)
+          val one = RT.C(Val.Lit(Literal.IntL(1), Stage.S0), Val.Base(BaseType.IntT, Stage.S0))
+          val (tt, bt) = within(ls)((term(t.getOrElse(one)), list(app(g("cbody"), expl(ts)), body.map(literal))))
+          val op = Tm.Global(reflective(span).ctor(aggName(kind)))
+          app(g("cagg"), impl(outer), expl(list(codeT, ls.map(allTys))), expl(op), expl(xt), expl(tt), expl(bt))
       val index = rs.take(k).count(_.head == r.head) + 1
       val label = r.label match
         case Some(l) => app(Tm.Global(voc.some), impl(stringT), expl(str(l)))
@@ -689,7 +809,7 @@ trait ProgramOf:
           "head" -> nat(r.head),
           "index" -> nat(index),
           "label" -> label,
-          "vars" -> ts,
+          "vars" -> list(codeT, r.vars.map(allTys)),
           "heads" -> list(app(g("catom"), expl(ts)), r.heads.map(atom)),
           "body" -> list(app(g("cbody"), expl(ts)), r.body.map(literal))
         )
@@ -698,10 +818,21 @@ trait ProgramOf:
     // the own relations without rules are the inputs; the strata are the components of the dependencies
     val heads = rs.flatMap(_.heads.collect { case RA(Ref.Own(i), _) => i }).toSet
     val inputs = relations.indices.filterNot(heads).toList
-    val deps = relations.indices.map { i =>
-      i -> rs.filter(_.heads.exists(_.ref == Ref.Own(i))).flatMap(_.body.collect { case RB.Pos(RA(Ref.Own(j), _)) => j }).toSet
+    // a negation or an aggregate is a negative edge to the relations it reads (reference: object/negation)
+    def reads(b: RB, negative: Boolean): List[(Int, Boolean)] = b match
+      case RB.Pos(RA(Ref.Own(j), _)) => List((j, negative))
+      case RB.Neg(RA(Ref.Own(j), _), _) => List((j, true))
+      case RB.Agg(_, _, _, body, _) => body.flatMap(reads(_, true))
+      case _ => Nil
+    val edges = relations.indices.map { i =>
+      i -> rs.filter(_.heads.exists(_.ref == Ref.Own(i))).flatMap(r => r.body.flatMap(reads(_, false)).map((_, r.span)))
     }.toMap
+    val deps = edges.view.mapValues(_.map(_._1._1).toSet).toMap
     val strata = components(relations.length, deps)
+    val component = strata.zipWithIndex.flatMap((c, k) => c.map(_ -> k)).toMap
+    for (i, es) <- edges.toList.sortBy(_._1); ((j, negative), rule) <- es do
+      if negative && component(i) == component(j) then
+        fail(ProgramOfProblem.NotStratified(relations(i).toString, relations(j).toString, rule, span))
     Tm.Rec(
       List(
         "relations" -> list(stringT, relations.map(str)),

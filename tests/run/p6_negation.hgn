@@ -1,0 +1,91 @@
+(* #186 P6: stratified negation (reference: std/strata). The program of a functor with a negation, whose
+   local variable is the negation's own; a fact of the perfect model derived with a negated premise, and
+   a fact refuted through it; the perfect model is not monotone in the input facts; the strata that
+   `programOf` computes with a negation as a negative edge. *)
+%use "std/eq" (eq, refl, empty, emptyElim, tt).
+%use "std/semantics".
+%use "std/strata".
+%use "std/quote".
+
+complete_graph : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+
+(* a node with an incoming edge and no outgoing one; the wildcard in the negation is local to it *)
+sinks (g : complete_graph) = {
+  sink : g.node -> rel.
+  sink N :- g.edge _ N, not g.edge N _.
+}.
+
+sinkRule : ⇑type -> crule = [n] { head = 0, index = 1, label = none, vars = [n, n],
+  heads = [cat (own 0) (tcons (cv here) tnil)],
+  body = [cpos (cat (arg "edge") (tcons (cv (there here)) (tcons (cv here) tnil))),
+          cnot (n :: []) (cat (arg "edge") (tcons (cv (there here)) (tcons (cv here) tnil)))] }.
+rules : (g : complete_graph) -> eq (programOf (sinks g)).rules [sinkRule g.node] = [g] refl.
+strata : (g : complete_graph) -> eq (programOf (sinks g)).strata [[0]] = [g] refl.
+
+(* a concrete graph, and its input facts as a database *)
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+%input road.
+sinksP : program = programOf (sinks { node = city, edge = road }).
+
+roads : gatom -> Type.
+bp : roads (atom (arg "edge") [v (<berlin>), v (<paris>)]).
+
+noRoadFrom : {y : ⇑city} -> roads (atom (arg "edge") [v (<paris>), v y]) -> empty.
+noRoadFrom ().
+
+(* `sink paris`: the edge from berlin is given, and no edge leaves paris *)
+noOut : (ys : env [city]) -> notIn (inputs sinksP roads) (instAtom (eappend ys (econs (<paris>) (econs (<berlin>) enil)))
+          (cat (arg "edge") (tcons (cv (there here)) (tcons (cv here) tnil)))).
+noOut (econs Y enil) H = noRoadFrom H.snd.
+
+sinkParis : perfect sinksP roads (atom (own 0) [v (<paris>)]) =
+  nfire {xs := econs (<paris>) (econs (<berlin>) enil)} here
+    (npos refl (ngiven tt { fst = tt, snd = bp }) (nneg noOut nnil)) here.
+
+(* `sink berlin` is not derived: the edge from berlin refutes the negated premise *)
+notSink : perfect sinksP roads (atom (own 0) [v (<berlin>)]) -> empty.
+notSink (ngiven T F) = emptyElim F.fst.
+notSink (nfire {xs := econs X (econs W enil)} here (npos refl E (nneg N nnil)) here) =
+  N (econs (<paris>) enil) { fst = tt, snd = bp }.
+
+(* more input facts, fewer sinks: with the edge back from paris, `sink paris` is lost *)
+roads2 : gatom -> Type.
+bp2 : roads2 (atom (arg "edge") [v (<berlin>), v (<paris>)]).
+pb2 : roads2 (atom (arg "edge") [v (<paris>), v (<berlin>)]).
+
+more : included roads roads2.
+more A bp = bp2.
+
+lost : perfect sinksP roads2 (atom (own 0) [v (<paris>)]) -> empty.
+lost (ngiven T F) = emptyElim F.fst.
+lost (nfire {xs := econs X (econs W enil)} here (npos refl E (nneg N nnil)) here) =
+  N (econs (<berlin>) enil) { fst = tt, snd = pb2 }.
+
+notMonotone : ((d e : db) -> included d e -> perfect sinksP d (atom (own 0) [v (<paris>)]) ->
+               perfect sinksP e (atom (own 0) [v (<paris>)])) -> empty.
+notMonotone F = lost (F roads roads2 more sinkParis).
+
+(* an input fact is in the perfect model; a derivation of the positive fragment is one in a stratum *)
+edgeIn : perfect sinksP roads (atom (arg "edge") [v (<berlin>), v (<paris>)]) = perfectInput {p := sinksP} {d := roads} {r := arg "edge"} tt bp.
+lifted : nderives sinksP roads (atom (arg "edge") [v (<berlin>), v (<paris>)]) = toN (given tt bp).
+%opaque rules strata sinkParis notSink lost notMonotone edgeIn lifted.
+
+(* strata: `reach` comes before `unreached`, which negates it; `marked` and `seen` are one stratum *)
+reachable (g : complete_graph) = {
+  reach : g.node -> rel.
+  unreached : g.node -> rel.
+  marked : g.node -> rel.
+  seen : g.node -> rel.
+  reach Y :- g.edge _ Y.
+  reach Y :- reach X, g.edge X Y.
+  unreached X :- g.edge X _, not reach X.
+  marked X :- unreached X, seen X.
+  seen X :- marked X.
+}.
+layered : (g : complete_graph) -> eq (programOf (reachable g)).strata [[0], [1], [2, 3]] = [g] refl.
+%opaque layered.
+
+checked : string -> rel.
+checked "negation".
+%output checked.

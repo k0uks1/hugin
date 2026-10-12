@@ -2217,3 +2217,61 @@ Decisions made during implementation are listed here with their PR.
   input `own i` denote for `m`; trusted, to be checked per run by P8b.
 - *Codes.* E0945 (atom: unknown relation, arity, not an atom, no `std/semantics`), E0946 (generalisation),
   E0947 (no database), E0948 (rule names), E0949 (`given` for a relation with rules).
+
+**P6 (stratified negation and aggregates).**
+
+- *Formulation.* `derives` is unchanged and stays the positive fragment, monotone in the database and the
+  program, so P7b's notation over it is unaffected. A stratum is read by a new mutual pair
+  `nderives`/`npremises`: `derives` with `nneg` and `nagg`, whose premises read the database parameter `d`
+  (the completed strata below), never the derivations. The families are therefore strictly positive and
+  P5a's per-block check accepts them unchanged, with no stratum or size index. The perfect model is the
+  Type-valued recursion over the strata that 7.2 names: `perfect p d = layers p p.strata (inputs p d)`,
+  `layers p (s :: ss) m = layers p ss (nderives (layer p s) m)`. This is the iterated least fixpoint of
+  Apt, Blair and Walker and the perfect model of Przymusinski (both 1988), as Benzaken, Contejean and
+  Dumbrava's DatalogCert evaluates strata in order with negations read in the interpretation of the strata
+  below. Tantow et al.'s checker validates proof trees of positive programs; Hugin's proof export reads a
+  negated atom in the Gelfond–Lifschitz reduct of the computed model, which for a stratified program is
+  its perfect model (its unique stable model): reading negations in a fixed database is the same idea.
+- *Strata in detail.* `layer p s` has the rules with *any* head in `s` (a rule that builds a nested fact
+  of an earlier stratum belongs to it as well, as the compiler adds it there: reference `object/facts`),
+  and every relation as input, so the facts of all strata below, nested facts derived early included,
+  are `ngiven`. The start is `inputs p d`, the facts of `d` in the program's input relations.
+- *Negation.* `cnot us a`, not 7.2's `cneg`: `cneg` is the integer negation of terms since P5a. Its local
+  variables `us` come first (`catom (append us ts)`, `eappend ys xs`), and `absent` quantifies over them:
+  no values make the atom a fact (reference `object/negation`). An undefined instantiated atom makes the
+  negation fail (`notIn`), since a formula with an undefined operation does not hold.
+- *Aggregates.* `cagg us o x t bs`, with the finite witness `aggHolds d xs us o x t bs`, a record of the
+  valuations of the local variables, their soundness and completeness for the body read in `d` (`sat`),
+  `distinct`, and the value. It is a record-valued function, not a family, so an aggregate inside an
+  aggregate's body raises no positivity question (the recursion is structural on the body). The value
+  (`aggOf`) is computed on meta integers and range-checked once, so it does not depend on the order of the
+  witness or on partial sums; an undefined term, and `min`/`max` of no valuation, give `none`. `count`
+  counts valuations; `programOf` reads its term as the constant `1`. `sum`, `min` and `max` are over
+  `int` only (floats are not interpreted, the order of strings is not modelled): E0942 otherwise.
+- *Separate module.* The stratified semantics is `std/strata`. With it inside `std/semantics`, the
+  elaboration of `%use "std/semantics".` went from 2191 ms to 2567 ms (minimum of six runs, `--stats`),
+  which every golden that loads it pays; split, `std/semantics` stays at 2192 ms and `std/strata` takes
+  2558 ms in all. The families of a file are closed, so `cnot` and `cagg` stay in `std/semantics`, with
+  clauses for them in `holdsIn` (empty), `fromHolds`, `search` and `checkBody`: a rule with a negation or
+  an aggregate never fires in `derives` or `holds`. The name is flat, like the other modules of `std/`.
+- *`programOf`.* The local variables of a negation or an aggregate are its variables that the rule does
+  not bind outside negations and aggregates, by an atom, a comparison or an aggregate's result (the
+  binders of the canonical order, reference `object/aggregates`), in the order of the rule's variables;
+  they are not the rule's variables, and two aggregates may both have a local `P`. Negated atoms and
+  all atoms of aggregate bodies are negative edges for the strata; a negative edge inside a component is
+  E0950. The compiler stratifies a module only where it is instantiated (E0601), and `programOf` reads
+  functors that may have none.
+- *`holds`.* Not extended. Proving a negation or an aggregate by evaluation needs the completeness of the
+  facts of the strata below, that is a certified model check of the computed facts, which is P8b's
+  `closed` (7.6); `nmodel` and `nleast`, the lemma it rests on, are in `std/strata`. `holds` remains sound,
+  and rules with negations or aggregates derive nothing in it.
+- *Monotonicity.* `derives` is monotone in the database and the program (P5b); `nderives` is monotone in
+  the program (`ngrow`: negations read `d`, not the program's derivations) but not in `d`; each stratum is
+  the least model of its rules with negations and aggregates read in `d` (`nleast`, `nderivesModel`,
+  `nleastModel`); `perfect` is not monotone in the input facts, which `tests/run/p6_negation.hgn` proves
+  for a functor with a negation. Not proved here: `perfect p d a ↔ derives p d a` for a program without
+  negations and aggregates (it needs a lemma that the strata order the rules).
+- *Codes.* E0950 (a module that `programOf` cannot stratify); E0942 no longer covers negation and integer
+  aggregates. Bound columns stay out of scope: `programOf` now rejects an atom of a relation with a bound
+  column (E0942), whose best-value reading the program values do not model; before, only arithmetic on
+  such a column happened to be rejected.
