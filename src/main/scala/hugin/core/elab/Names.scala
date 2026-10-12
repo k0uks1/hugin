@@ -61,6 +61,8 @@ trait Names:
   /** E0101, with the most similar name in scope (same case of the first letter, edit distance at most
    *  a third of the name's length). */
   private def unresolved(c: Cxt, n: Name, span: Span): Nothing =
+    // a program-dependent declaration of the file or of a body, used before the scope's program exists
+    state.dependence(n).foreach(d => fail(ProgramOfProblem.ProgramCycle(n, d.chain.drop(1), d.body, span)))
     checkAmbiguous(n, span)
     // a name whose declaration was dropped, or that a dropped `%use` might have opened: the error is theirs
     if state.erroneous(n) || state.mightBeOpened(n) then

@@ -163,4 +163,6 @@ trait Directives:
     // a later declaration may declare it (the items of module bodies are elaborated with the declarations)
     // the directive's declaration had a syntax error
     if state.erroneous(d.kind) || state.unelaborated(d.kind) then syntaxError(d.kindSpan)
+    // a directive about the program it is part of (#186 P9f)
+    state.dependence(d.kind).foreach(dep => fail(ProgramOfProblem.ProgramCycle(d.kind, dep.chain.drop(1), dep.body, d.kindSpan)))
     throw ElabError(DirectiveProblem.UnknownDirective(d.kind, d.kindSpan, similarName(d.kind, globalNames)).toDiagnostic, Some(d.kind))

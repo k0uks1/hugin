@@ -64,6 +64,32 @@ lib = {
 }.
 ```
 
+Inside a body, `here` is the body's own program: `programOf here` is the program of its rules
+([`std/quote`](std/quote.md#programs-as-values)), at the parameters of the enclosing functor, and `here ⊢
+r t̄` a judgment about it. The members that use it, directly or through other members (with the clauses
+of a member function and the rules of a formula function), are *program-dependent*: they are elaborated
+after the body's object items, as a file's program-dependent declarations are ([Declarations about the
+file's program](meta/index.md#declarations-about-the-files-program)), and they are fields of the module
+like the other members, so every instance has them. Its object items and its object constants cannot use
+them ([E0962](errors/E0962.md)).
+
+```hugin
+%use "std/semantics".
+graph2 : Type = { node : type, edge : node -> node -> rel }.
+walks (g : graph2) = {
+  walk : g.node -> g.node -> rel.
+  walk X Y :- g.edge X Y.
+  walk X Z :- walk X Y, walk Y Z.
+  walkTrans : {D : db} -> {x y z : ⇑g.node} -> here ⊢[D] walk x y -> here ⊢[D] walk y z -> here ⊢[D] walk x z.
+  walkTrans P Q = walk.2 P Q.
+}.
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+fast = walks { node = city, edge = road }.
+```
+
+Here `fast.walkTrans` is the lemma for the instance's program, `walks { node = city, edge = road } ⊢ …`.
+
 Two programs that a file accepts are rejected in a body. A typed definition and a signature that need
 each other (`x : nat = pick zero.` with `pick : nat -> sel x.`) are an error, since a member's value
 cannot follow its type there. And a formula function or member function is checked for cycles with the
