@@ -1,0 +1,175 @@
+(* std/semantics: the meaning of Datalog programs in the meta level (reference: std/semantics). A program
+   is data: its rules over typed variables, as de Bruijn indices; the facts are atoms of values, which are
+   closed object code; and `derives p d a` is the inductive family of the derivations of the fact `a` by
+   the program `p` from the input facts `d`. This file is the positive fragment: atoms and comparisons in
+   bodies, the object level's 64-bit arithmetic. The judgment is a library family, not a core rule: its
+   consistency is that of inductive families (the proofs note, chapter 8). *)
+%use "std/reflect" (bool, true, false, if, list, nil, cons, option, none, some, sym, arith_op, oadd, osub, omul,
+  odiv, ocat, cmp_op, ceq, cne, clt, cle, cgt, cge).
+%use "std/nat" (nat).
+%use "std/int" (iequal, iless, ileq, fits64).
+%use "std/eq" (eq, empty).
+%use "std/decide" (so).
+%use "std/list" (map).
+
+(* Values: closed object code of any object type. A literal is a value (`v ⟨3⟩`), and so is the identity
+   of a fact, its object term (`v ⟨edge berlin paris⟩`): two values are equal exactly if they are the same
+   code, as two facts are the same fact exactly if they have the same constant and arguments *)
+value : Type.
+v : {t : ⇑type} -> ⇑t -> value.
+
+(* Relations, relative to a program: its own relation number `i`, the relation of a functor parameter by
+   the field of its signature, or a relation outside the program *)
+rref : Type.
+own : nat -> rref.
+arg : string -> rref.
+ext : sym -> rref.
+
+(* Facts: a relation with its arguments; a database is a set of facts, as a predicate *)
+gatom : Type.
+atom : rref -> list value -> gatom.
+db : Type = gatom -> Type.
+
+(* `member x xs`: `x` is an element of `xs`, at the position the proof counts *)
+member : {A : Type} -> A -> list A -> Type.
+here : {A : Type} -> {x : A} -> {xs : list A} -> member x (x :: xs).
+there : {A : Type} -> {x y : A} -> {xs : list A} -> member x xs -> member x (y :: xs).
+
+(* The values of a rule's variables, typed: `env [τ₁, …, τₙ]` holds code of the types `τ₁ … τₙ` *)
+env : list ⇑type -> Type.
+enil : env [].
+econs : {t : ⇑type} -> {ts : list ⇑type} -> ⇑t -> env ts -> env (t :: ts).
+
+(* The value of the variable at a position *)
+valueAt : {ts : list ⇑type} -> {t : ⇑type} -> env ts -> member t ts -> ⇑t.
+valueAt (econs X Xs) here = X.
+valueAt (econs X Xs) (there I) = valueAt Xs I.
+
+(* The values of an environment, untyped *)
+values : {ts : list ⇑type} -> env ts -> list value.
+values enil = [].
+values (econs X Xs) = v X :: values Xs.
+
+(* The object level's arithmetic (reference: object/arithmetic), computed on the meta integers of
+   `std/int`: `none` where the object operation is undefined, outside 64 bits or by a division by zero.
+   `intOf` is the meta integer of an object integer literal (a trusted primitive); a sum of two literals
+   is the literal of the sum, if it fits *)
+intOf : ⇑int -> int = %builtin intOf.
+
+codeOf : int -> ⇑int = [n] n.
+
+within64 : int -> option ⇑int.
+within64 N = if (fits64 N) (some (codeOf N)) none.
+
+add64 : ⇑int -> ⇑int -> option ⇑int = [a] [b] within64 (intOf a + intOf b).
+sub64 : ⇑int -> ⇑int -> option ⇑int = [a] [b] within64 (intOf a - intOf b).
+mul64 : ⇑int -> ⇑int -> option ⇑int = [a] [b] within64 (intOf a * intOf b).
+div64 : ⇑int -> ⇑int -> option ⇑int = [a] [b] if (iequal (intOf b) 0) none (within64 (intOf a / intOf b)).
+neg64 : ⇑int -> option ⇑int = [a] within64 (-(intOf a)).
+
+(* An operation of `std/reflect` on integers; concatenation is not one *)
+arith64 : arith_op -> ⇑int -> ⇑int -> option ⇑int.
+arith64 oadd A B = add64 A B.
+arith64 osub A B = sub64 A B.
+arith64 omul A B = mul64 A B.
+arith64 odiv A B = div64 A B.
+arith64 ocat A B = none.
+
+(* The terms of a rule, over its variables `ts`: `cterm ts τ` is a term of the object type `τ`, and
+   `cterms ts [τ₁, …, τₙ]` a list of terms of the types `τ₁ … τₙ`. A variable is its position; a constant
+   or literal is its code; `capp f ts` builds object code from the values of the terms `ts` with the meta
+   function `f`, as a constructor term `circle (X + 1)` does (`capp ([e] ⟨circle $(…)⟩) …`) *)
+cterm : list ⇑type -> ⇑type -> Type.
+cterms : list ⇑type -> list ⇑type -> Type.
+cv : {ts : list ⇑type} -> {t : ⇑type} -> member t ts -> cterm ts t.
+cc : {ts : list ⇑type} -> {t : ⇑type} -> ⇑t -> cterm ts t.
+capp : {ts ss : list ⇑type} -> {t : ⇑type} -> (env ss -> ⇑t) -> cterms ts ss -> cterm ts t.
+carith : {ts : list ⇑type} -> arith_op -> cterm ts int -> cterm ts int -> cterm ts int.
+cneg : {ts : list ⇑type} -> cterm ts int -> cterm ts int.
+tnil : {ts : list ⇑type} -> cterms ts [].
+tcons : {ts ss : list ⇑type} -> {t : ⇑type} -> cterm ts t -> cterms ts ss -> cterms ts (t :: ss).
+
+(* An atom of a rule: a relation with its argument terms *)
+catom : list ⇑type -> Type.
+cat : {ts ss : list ⇑type} -> rref -> cterms ts ss -> catom ts.
+
+(* A literal of a rule's body: an atom, or a comparison of two terms of the same type *)
+cbody : list ⇑type -> Type.
+cpos : {ts : list ⇑type} -> catom ts -> cbody ts.
+ccmp : {ts : list ⇑type} -> {t : ⇑type} -> cmp_op -> cterm ts t -> cterm ts t -> cbody ts.
+
+(* A rule: its head relation and its position among the rules of that relation (for its name `r.k`), an
+   optional label, the types of its variables, its head atoms (the head and its nested facts) and its
+   body. A program: the names of its own relations, its rules, its input relations and its strata *)
+crule : Type = { head : nat, index : nat, label : option string, vars : list ⇑type,
+                 heads : list (catom vars), body : list (cbody vars) }.
+program : Type = { relations : list string, rules : list crule, input : rref -> bool, strata : list (list nat) }.
+
+(* Instantiating terms and atoms with the values of the variables: `none` where arithmetic is undefined *)
+optMap : {A B : Type} -> (A -> B) -> option A -> option B.
+optMap F (some X) = some (F X).
+optMap F none = none.
+
+optArith : arith_op -> option ⇑int -> option ⇑int -> option ⇑int.
+optArith O (some A) (some B) = arith64 O A B.
+optArith O X Y = none.
+
+optNeg : option ⇑int -> option ⇑int.
+optNeg (some A) = neg64 A.
+optNeg none = none.
+
+optCons : {t : ⇑type} -> {ts : list ⇑type} -> option ⇑t -> option (env ts) -> option (env (t :: ts)).
+optCons (some X) (some Xs) = some (econs X Xs).
+optCons X Y = none.
+
+instTerm : {ts : list ⇑type} -> {t : ⇑type} -> env ts -> cterm ts t -> option ⇑t.
+instTerms : {ts ss : list ⇑type} -> env ts -> cterms ts ss -> option (env ss).
+instTerm Xs (cv I) = some (valueAt Xs I).
+instTerm Xs (cc C) = some C.
+instTerm Xs (capp F As) = optMap F (instTerms Xs As).
+instTerm Xs (carith O A B) = optArith O (instTerm Xs A) (instTerm Xs B).
+instTerm Xs (cneg A) = optNeg (instTerm Xs A).
+instTerms Xs tnil = some enil.
+instTerms Xs (tcons T Ts) = optCons (instTerm Xs T) (instTerms Xs Ts).
+
+(* An instantiated atom: its relation, and its arguments, `none` if arithmetic in them is undefined. The
+   relation is outside the option, so that an atom of another relation is told apart even while the
+   arithmetic in its arguments is not computed, as with variables in a proof *)
+patom : Type.
+pat : rref -> option (list value) -> patom.
+
+instAtom : {ts : list ⇑type} -> env ts -> catom ts -> patom.
+instAtom Xs (cat R As) = pat R (optMap values (instTerms Xs As)).
+
+(* When a comparison holds of two instantiated terms: equality and disequality of values of any type (the
+   same code), the order of integers *)
+holdsCmp : {t : ⇑type} -> cmp_op -> option ⇑t -> option ⇑t -> Type.
+cmpEq : {t : ⇑type} -> {x : ⇑t} -> holdsCmp ceq (some x) (some x).
+cmpNe : {t : ⇑type} -> {x y : ⇑t} -> (eq x y -> empty) -> holdsCmp cne (some x) (some y).
+cmpLt : {x y : ⇑int} -> so (iless (intOf x) (intOf y)) -> holdsCmp clt (some x) (some y).
+cmpLe : {x y : ⇑int} -> so (ileq (intOf x) (intOf y)) -> holdsCmp cle (some x) (some y).
+cmpGt : {x y : ⇑int} -> so (iless (intOf y) (intOf x)) -> holdsCmp cgt (some x) (some y).
+cmpGe : {x y : ⇑int} -> so (ileq (intOf y) (intOf x)) -> holdsCmp cge (some x) (some y).
+
+(* Derivations: `derives p d a` is a proof that the program `p` derives the fact `a` from the input facts
+   `d`, and `premises p d xs bs` that the body literals `bs` hold for the values `xs` of a rule's
+   variables. The two families are mutually inductive. A fact of an input relation is derived if it is
+   in `d` (`given`); a rule fires for values of its variables for which its body holds, and derives each
+   of its instantiated heads (`fire`). The goal atom of `fire` is made of variables and the head is a
+   membership, so that matching on `fire` with a known rule is decided by evaluating `instAtom` (the
+   proofs note, 7.2). *)
+derives : program -> db -> gatom -> Type.
+premises : program -> db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+given : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} ->
+        so (p.input r) -> d (atom r vs) -> derives p d (atom r vs).
+fire : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} -> {c : crule} -> {xs : env c.vars} ->
+       member c p.rules -> premises p d xs c.body -> member (pat r (some vs)) (map (instAtom xs) c.heads) ->
+       derives p d (atom r vs).
+pnil : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> premises p d xs [].
+ppos : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> {r : rref} ->
+       {vs : list value} -> {bs : list (cbody ts)} ->
+       eq (instAtom xs b) (pat r (some vs)) -> derives p d (atom r vs) -> premises p d xs bs ->
+       premises p d xs (cpos b :: bs).
+pcmp : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {t : ⇑type} -> {o : cmp_op} ->
+       {l r : cterm ts t} -> {bs : list (cbody ts)} ->
+       holdsCmp o (instTerm xs l) (instTerm xs r) -> premises p d xs bs -> premises p d xs (ccmp o l r :: bs).

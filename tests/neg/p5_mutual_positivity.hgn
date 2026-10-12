@@ -1,0 +1,15 @@
+(* #186 P5a: families whose constructors refer to each other form a mutual block; each of them must
+   occur strictly positively in all their constructors. `mkB` closes the block `a`, `b`, in which `mkA`
+   takes a function out of `b`: with both, `loop (mkB (mkA f)) = f (mkB (mkA f))` would prove `empty`. *)
+empty : Type.
+a : Type.
+b : Type.
+mkA : (b -> empty) -> a.
+mkB : a -> b.   (*~ E0913 *)
+
+(* a positive mutual block is accepted: trees and forests *)
+tree : Type.
+forest : Type.
+node : forest -> tree.
+leaf : forest.
+grow : tree -> forest -> forest.

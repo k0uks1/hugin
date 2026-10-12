@@ -19,7 +19,7 @@ the other chapters of the meta level:
 | rule | chapter | error |
 |---|---|---|
 | universes form a hierarchy; `Type : Type` is rejected | [Universes](universes.md) | [E0904](../errors/E0904.md) |
-| a family occurs only strictly positively in its constructors | [Inductive families](families.md#strict-positivity) | [E0913](../errors/E0913.md) |
+| a family, and every family of its mutual block, occurs only strictly positively in the constructors of the block | [Inductive families](families.md#strict-positivity) | [E0913](../errors/E0913.md) |
 | the arguments of a constructor live in its family's universe, except the implicit arguments at its [parameters](families.md#parameters) | [Inductive families](families.md#universe-levels) | [E0914](../errors/E0914.md), [E0904](../errors/E0904.md) |
 | the clauses of a function cover all its arguments; a function without clauses covers them only if an argument has an empty type | [Coverage](coverage.md#missing-cases) | [E0911](../errors/E0911.md) |
 | a recursive function decreases along every cycle of calls; the arguments of a constructor at its family's parameters are not its subterms | [Termination](termination.md) | [E0912](../errors/E0912.md) |
@@ -29,6 +29,9 @@ A program with an error is not compiled, so a proof that relies on an unchecked 
 Index unification has the rule K: two proofs of the same equation of constructor terms are equal, which
 is consistent with these rules (uniqueness of identity proofs). Object code cannot be inspected by meta
 code (`⇑A` has no eliminator), so the facts that the object level derives never reach the meta logic.
+Index unification decides equations of object code by its syntax ([Coverage](coverage.md#index-unification)):
+distinct object constants and distinct literals conflict, which is consistent since conversion never
+makes them equal.
 
 A constructor whose large argument is exempt from predicativity only because an index of its result
 determines it, together with recursion on such forced arguments, is inconsistent (Agda's issue 6654).

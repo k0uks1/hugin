@@ -76,6 +76,36 @@ answer (size (same 2)).
 answer 2.
 ```
 
+An application of a meta constructor checked against an expected type, `c a₁ … aₙ`, possibly with named
+implicit arguments before `a₁`, is elaborated in a different order: the constructor's leading implicit
+arguments are inserted as unknowns, its result type after the `n` explicit arguments is unified with the
+expected type, and then the arguments are checked, in order. This happens only if that result type does
+not depend on the explicit arguments and is a family applied, and only if the unification succeeds;
+otherwise it is undone, and the arguments are checked first, as for any application. The unification
+adds no solution that the comparison of the application's type with the expected type would not add
+afterwards. It gives the arguments types that only the expected type determines. In the following
+program, `refl` is checked against `eq (3 + 1) 4`: the expected type determines `P`, which no argument
+of `pack` does.
+
+```hugin,run
+%use "std/eq" (eq, refl).
+witness : (A : Type) -> (A -> Type) -> Type.
+pack : {A : Type} -> {P : A -> Type} -> (x : A) -> P x -> witness A P.
+three : witness nat ([n] eq (n + 1) 4) = pack 3 refl.
+%opaque three.
+found : int -> rel.
+found 3.
+```
+
+```output
+found 3.
+```
+
+> **Rationale.** Agda checks a constructor application by taking the parameters of its family from the
+> target type first, and Lean 4 propagates the expected type into an application whose result does not
+> depend on its explicit arguments. The derivations of [`std/semantics`](../std/semantics.md) need it:
+> the program and the rule of a step are known only from the type of the derivation.
+
 The free uppercase variables of the type of a declaration `x : A.` or `x : A = e.` are implicit arguments
 of `x`. So `ident : A -> A = [x] x.` declares `ident : {A : Type} -> A -> A`. The free uppercase
 variables in the parameter types of a definition, `f (x : A) = e.` or `f (x : A) : B = e.`, and in its

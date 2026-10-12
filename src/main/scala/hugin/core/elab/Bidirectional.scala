@@ -207,6 +207,10 @@ trait Bidirectional:
       val (head, args) = TreeOps.flattenApp(t)
       missingColumns(ty).foreach(n => objectArity(head, tm, args.length + n, args.length, t.span))
       coe(c, t.span, tm, ty, s, a, st)
+    // a constructor applied: its family's arguments are taken from the expected type first
+    case (Apply(_, _), ty) if st == Stage.S1 && constructorHead(c, t).isDefined =>
+      val (tm, ty2, s) = insert(c, t.span, checkConstructorApp(c, t, constructorHead(c, t).get, ty))
+      coe(c, t.span, tm, ty2, s, a, st)
     case _ =>
       val (tm, ty, s) = insert(c, t.span, infer(c, t))
       coe(c, t.span, tm, ty, s, a, st)

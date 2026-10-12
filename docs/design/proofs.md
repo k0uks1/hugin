@@ -1983,3 +1983,46 @@ Decisions made during implementation are listed here with their PR.
   argument of `eq` is shown after `≡` (`≡{nat}`), as after any applied name.
 - *Codes.* E0932 (ambiguous operator), E0933 (no binding of the operator fits); E0701 for an invalid
   binding.
+
+**P5a (`std/semantics`: values, programs, `derives`).**
+
+- *Mutual positivity.* Hugin's check looked at each family alone, so `mkA : (b -> empty) -> a.` and
+  `mkB : a -> b.` both passed and proved `empty` (an inconsistency, independent of P5). The *mutual
+  block* of a family (the strongly connected component of "a constructor of `F` mentions `G`") is now
+  recomputed when a constructor is declared, and every family of the block must occur strictly
+  positively in every constructor of the block (Agda's `Positivity` over the occurrence graph, Lean 4's
+  and Rocq's checks of a mutual block). No `mutual` keyword, since items are unordered; the error (E0913)
+  is reported at the constructor that closes the block, before any function can use it. `derives` and
+  `premises` are such a block.
+- *Index unification on object code.* Quotes are decomposed, spliced variables solved, object constants
+  (relations, constructors, types) are injective and pairwise disjoint, object literals and base types
+  disjoint, `x = ⟨c $x⟩` a cycle. Object arithmetic and persisted meta values against literals are
+  postponed (not computed), so the rules agree with conversion, which compares object code syntactically
+  (chapter 9). This is the core change that 7.2 asks for; no new typing rule.
+- *Constructor applications checked against the expected type.* `fire M (ppos refl E pnil) H` could not
+  be checked: Hugin checked arguments before unifying the result type, and `refl`'s type depends on the
+  rule, which only the expected type gives. A meta constructor application (with named implicits before
+  its positional arguments) now unifies its result type with the expected type first, if the result does
+  not depend on the explicit arguments; undone on failure. Agda's `checkConstructorApplication`, Lean 4's
+  `propagateExpectedType`. 11.3's `fire (memberMap M) …` needs the same.
+- *No `sub`.* Nested facts are heads: `crule.heads` lists the head and its nested constructor terms, and
+  T_R's `subfacts(H[v/x])` equals `subfacts(H)[v/x]` plus facts already present (reference
+  `object/facts.md`: every bound value has only facts as constructor subterms); the input database holds
+  nested facts as loading adds them. A `subfactOf` relation would need to take object code apart, which
+  meta code cannot (D13; P7a's bridge could, later).
+- *Instantiated atoms keep their relation outside the partiality.* `instAtom : env ts -> catom ts -> patom`
+  with `pat : rref -> option (list value) -> patom`; `fire` ends in `member (pat r (some vs)) (map
+  (instAtom xs) c.heads)` and derives `atom r vs`, and `ppos` takes `eq (instAtom xs b) (pat r (some
+  vs))`. With `option gatom`, arithmetic in a head over proof variables hid the relation, and a rule of
+  another relation could not be refuted (green slime, 7.2).
+- *Terms.* `cterm ts τ`: `cv` (a variable, `member τ ts`), `cc` (closed code), `capp` (object code built
+  by a meta function from the values of argument terms: constructor terms without object-level
+  application), `carith` over `std/reflect`'s `arith_op`, `cneg`. Variables are `member`, as rules in
+  `p.rules`. Comparisons `ccmp o l r` with `holdsCmp` (a family over `option ⇑τ`: syntactic equality and
+  disequality on any type, integer order); `pcmp C Ps` as in 11.3.
+- *Arithmetic.* `intOf : ⇑int -> int`, a trusted primitive (listed by `%assumptions`): the meta value of
+  an object integer literal, and `intOf ⟨$m⟩ = m`; stuck elsewhere. `add64`, `sub64`, `mul64`, `div64`
+  (none on zero; toward zero), `neg64`: `none` outside 64 bits. Floats and string concatenation are not
+  interpreted (`arith64 ocat = none`).
+- *Names.* `member`/`here`/`there` as in 11.3 (clashes with `std/list`'s relation `member` only if both
+  are opened unselectively, E0109 at the use).

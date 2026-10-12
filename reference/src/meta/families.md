@@ -92,6 +92,54 @@ lam : (value -> value) -> value.
 > **Rationale.** A constructor such as `lam` allows a value that applies itself, and with it a
 > non-terminating computation without recursion.
 
+Families may be *mutually inductive*: the constructors of one take arguments of another, and the
+other's constructors arguments of the first. The *mutual block* of a family is the set of the families
+whose constructors refer to it, directly or through other families, and to which its constructors
+refer in the same way. Each family of a mutual block may occur only strictly positively in the argument
+types of the constructors of every family of the block. It is an error ([E0913](../errors/E0913.md))
+otherwise, reported at the constructor that closes the block. Families need no keyword to be mutual,
+and may be declared in any order.
+
+The following program declares even and odd numbers as two mutually inductive families, and halves an
+even number by two mutually recursive functions.
+
+```hugin,run
+even : nat -> Type.
+odd : nat -> Type.
+ezero : even 0.
+esuc : odd N -> even (N + 1).
+osuc : even N -> odd (N + 1).
+half : {n : nat} -> even n -> nat.
+halfOdd : {n : nat} -> odd n -> nat.
+half ezero = 0.
+half (esuc O) = halfOdd O.
+halfOdd (osuc E) = half E + 1.
+toInt : nat -> int.
+toInt 0 = 0.
+toInt (N + 1) = toInt N + 1.
+halved : int -> rel.
+halved (toInt (half (esuc (osuc (esuc (osuc ezero)))))).
+```
+
+```output
+halved 2.
+```
+
+The following declarations are rejected: `term` and `closure` form a mutual block, and `close` takes a
+function out of `term`.
+
+```hugin,compile_fail,E0913
+empty : Type.
+term : Type.
+closure : Type.
+lam : closure -> term.
+close : (term -> empty) -> closure.
+```
+
+> **Rationale.** Checked one at a time, `lam` and `close` would both pass: neither family occurs to the
+> left of an arrow in its own constructors. Together they allow a term that applies itself, as `lam` of
+> a single family does. Agda, Lean 4 and Rocq check the positivity of a mutual block as a whole.
+
 ## Universe levels
 
 The argument types of a constructor must live in the universe of its family. The compiler turns this

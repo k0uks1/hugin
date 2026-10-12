@@ -1,0 +1,11 @@
+error[E0913]: `b` occurs in a non-positive position
+ --> tests/neg/p5_mutual_positivity.hgn:8:7
+  |
+8 | mkB : a -> b.   (*~ E0913 *)
+  |       ^^^^^^ closes a mutual block in which argument 1 of `mkA` is not strictly positive
+  |
+  = note: the argument has type `b -> empty`
+  = note: a family may only occur strictly positively in the arguments of its constructors: not to the left of an arrow, nor inside the arguments of another type
+  = note: `b` is defined mutually with `a`: their constructors refer to each other, so each of them may only occur strictly positively in the arguments of all their constructors
+
+1 error found

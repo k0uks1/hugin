@@ -144,6 +144,7 @@ trait IndexUnifier:
         def postpone(s: IndexUnification.Stuck): Unit =
           if postponed.isEmpty then stuck = Some(s)
           postponed = (an, bn) :: postponed
+        lazy val code = if isCode(a) || isCode(b) then objectCode(p, a, b, an, bn) else None
         if !sameWeak(p.size, a, b) then
           (freeVar(p, a), freeVar(p, b)) match
             case (Some(x), Some(y)) =>
@@ -166,6 +167,12 @@ trait IndexUnifier:
                   eqs = eq :: eqs
                   progress = true
                 case None => result = Some(IndexUnification.Conflict(an, bn))
+            case (None, None) if code.isDefined =>
+              code.get match
+                case Right(more) =>
+                  eqs = more ++ eqs
+                  progress = true
+                case Left(r) => result = Some(r)
             case (None, None) =>
               // a numeral against a constructor application by one view step
               (natView(a), natView(b)) match
@@ -187,6 +194,68 @@ trait IndexUnifier:
   private def freeVar(p: SplitProblem, v: Val): Option[Int] = v match
     case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) => Some(x)
     case _ => None
+
+  // ---------------------------------------------------------------- object code (#186 P5)
+
+  /** A weak-head form that is object code or a quote of it: index unification compares it by the rules
+   *  of [[objectCode]]. */
+  private def isCode(v: Val): Boolean = Val.unloc(v) match
+    case _: Val.Quote | _: Val.Persist => true
+    case Val.Lit(_, Stage.S0) => true
+    case Val.Rigid(Head.Glob(c), _) => isObjectConst(c)
+    case Val.Rigid(Head.Local(_), Elim.ESplice :: _) => true
+    case Val.Base(_, Stage.S0) => true
+    case _ => false
+
+  /** An object constant (a type, relation, constructor or struct): generative, so distinct ones are never
+   *  equal, and an application of one is equal to another only argument by argument. An instance of an
+   *  object family is one too; the family itself is not (it is applied to types first). */
+  private def isObjectConst(c: Int): Boolean = globals(c).kind.isInstanceOf[GlobalKind.Object]
+
+  /** An equation between object code (in weak-head form; `an`, `bn` as the equation shows them), by the
+   *  rules for closed object code, whose equality is syntactic (reference: meta/coverage, index
+   *  unification; the proofs note, chapter 9): a quote is decomposed (`⟨t⟩ = ⟨u⟩` is `t = u`, and η
+   *  `⟨t⟩ = u` is `t = $u`), a spliced variable is solved (`$x = t` is `x = ⟨t⟩`), applications of the
+   *  same object constant are decomposed (injectivity), distinct object constants and distinct literals
+   *  conflict (disjointness), as constructors of a meta family do. Persisted meta values are equal if the
+   *  values are (persisting is injective). `None` (postponed) for anything else: object arithmetic
+   *  (`⟨1 + 2⟩` is not the literal `⟨3⟩` as code), a persisted value against a literal, an instance of
+   *  an object family against an application of the family. `Some(Right(eqs))`: the equations it is
+   *  equivalent to. */
+  private def objectCode(
+      p: SplitProblem,
+      a0: Val,
+      b0: Val,
+      an: Val,
+      bn: Val
+  ): Option[Either[IndexUnification, List[(Val, Val)]]] =
+    val a = Val.unloc(a0)
+    val b = Val.unloc(b0)
+    def conflict = Some(Left(IndexUnification.Conflict(an, bn)))
+    def args(sp: Spine): Option[List[Val]] =
+      val as = sp.reverse.collect { case Elim.EApp(x, _) => x }
+      Option.when(as.length == sp.length)(as)
+    (a, b) match
+      case (Val.Quote(x), Val.Quote(y)) => Some(Right(List((x, y))))
+      case (Val.Quote(x), y: Val.Rigid) => Some(Right(List((x, vSplice(y)))))
+      case (x: Val.Rigid, Val.Quote(y)) => Some(Right(List((vSplice(x), y))))
+      case (Val.Rigid(Head.Local(x), List(Elim.ESplice)), y) if p.isFree(x) => Some(Right(List((Val.local(x), vQuote(y)))))
+      case (x, Val.Rigid(Head.Local(y), List(Elim.ESplice))) if p.isFree(y) => Some(Right(List((vQuote(x), Val.local(y)))))
+      case (Val.Lit(x, Stage.S0), Val.Lit(y, Stage.S0)) => if x == y then Some(Right(Nil)) else conflict
+      case (Val.Persist(x), Val.Persist(y)) => Some(Right(List((x, y))))
+      case (Val.Rigid(Head.Glob(c1), sp1), Val.Rigid(Head.Glob(c2), sp2)) if isObjectConst(c1) && isObjectConst(c2) =>
+        if c1 != c2 then conflict
+        else
+          (args(sp1), args(sp2)) match
+            case (Some(xs), Some(ys)) if xs.length == ys.length => Some(Right(xs.zip(ys)))
+            case _ => None
+      case (Val.Rigid(Head.Glob(c), _), Val.Lit(_, Stage.S0)) if isObjectConst(c) => conflict
+      case (Val.Lit(_, Stage.S0), Val.Rigid(Head.Glob(c), _)) if isObjectConst(c) => conflict
+      // the base types, as object types: distinct from each other and from the declared object types
+      case (Val.Base(x, Stage.S0), Val.Base(y, Stage.S0)) => if x == y then Some(Right(Nil)) else conflict
+      case (Val.Base(_, Stage.S0), Val.Rigid(Head.Glob(c), _)) if isObjectConst(c) => conflict
+      case (Val.Rigid(Head.Glob(c), _), Val.Base(_, Stage.S0)) if isObjectConst(c) => conflict
+      case _ => None
 
   /** The atom a weak-head form is ([[Matching.atomKey]]); anything else is none without being evaluated
    *  further. */
@@ -271,4 +340,9 @@ trait IndexUnifier:
   private def constructorTerm(v: Val): Boolean = v match
     case Val.Rigid(Head.Glob(c), _) => isConstructor(c)
     case _: Val.Nat | _: Val.NatAdd => true
+    // an object constant applied, quoted: object terms are finite trees, so `x = ⟨c $x⟩` is a cycle
+    case Val.Quote(t) =>
+      Val.unloc(t) match
+        case Val.Rigid(Head.Glob(c), _) => isObjectConst(c)
+        case _ => false
     case _ => false

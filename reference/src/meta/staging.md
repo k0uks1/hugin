@@ -19,7 +19,9 @@ For an object type `A`, the meta type `⇑A` (*lift* of `A`) is the type of *obj
 term of the object level that is not evaluated at compile time. Its values can be passed around, stored
 in records and returned by functions, and they are inserted into object items, but they cannot be
 inspected: a meta function cannot match on a value of type `⇑A`. Programs that inspect object syntax use
-the [reflective types](../reflection.md). Object code is
+the [reflective types](../reflection.md). Index unification compares object code by its syntax
+([Coverage](coverage.md#index-unification)), so that an equation of object code of distinct constants or
+literals has no proof. Object code is
 [object-typed](../object/types.md#where-object-code-is-typed) where it is written.
 
 The types of relations (`node -> node -> rel`) and of formulas (`prop`) are object types in this sense:

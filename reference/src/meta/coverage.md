@@ -126,6 +126,41 @@ distinctNames : eq "berlin" "paris" -> empty.
 distinctNames ().
 ```
 
+Object code ([Staging](staging.md#object-code)) is compared by its syntax, as a term of the object level.
+A quote is decomposed: `⟨t⟩ = ⟨u⟩` is the equation `t = u` between object terms, and a variable of type
+`⇑A` spliced into object code is solved (`$x = t` solves `x := ⟨t⟩`). Object constants are treated as
+constructors: two applications of the same relation, constructor or object type are equal exactly if
+their arguments are, and applications of distinct object constants conflict. Distinct object literals,
+distinct base types, and a literal against an application of an object constant conflict as well, and
+an object term that contains itself is a cycle. Object arithmetic is not computed: `⟨1 + 2⟩ = ⟨3⟩` is
+neither solved nor refuted, and neither is a persisted meta value against a literal. The following
+program refutes equations of object code and derives one from another.
+
+```hugin,run
+%use "std/eq".
+shape : type.
+circle : (radius : int) -> shape.
+square : (side : int) -> shape.
+distinct : eq {A := ⇑shape} (<circle 1>) (<square 1>) -> empty.
+distinct ().
+smaller : eq {A := ⇑shape} (<circle 1>) (<circle 2>) -> empty.
+smaller ().
+radius : {x y : ⇑int} -> eq {A := ⇑shape} (<circle $x>) (<circle $y>) -> eq x y.
+radius refl = refl.
+%opaque radius.
+drawn : shape -> rel.
+drawn (circle 1).
+```
+
+```output
+drawn (circle 1).
+```
+
+> **Rationale.** The identity of a fact is determined by its constant and its arguments
+> ([Facts and identity](../object/facts.md#identity)), and conversion compares object code by its
+> syntax, so object constants behave as constructors. Index unification on object code is what lets a
+> proof about a program match on the facts of [`std/semantics`](../std/semantics.md).
+
 An equation that unification can neither solve nor refute yet, such as an index `double N` (a stuck
 function application) against `0`, is *postponed* until the other equations make no more progress, as
 in Agda's unifier: a later equation may solve `N`, after which `double N` reduces. Unification is

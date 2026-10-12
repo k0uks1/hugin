@@ -33,7 +33,18 @@ enum ClauseProblem extends Problem:
 
   /** `call`: a clause on the cycle of calls that does not decrease, with its call. */
   case NotTerminating(fn: String, at: Span, call: Option[(Span, String)])
-  case NonPositive(family: String, argument: Int, argumentType: String, at: Span)
+
+  /** `mutual`: the other families of the mutual block of `family` (#186 P5), whose constructors are
+   *  checked together with `family`'s; `of`: the constructor of the argument, if it is not the one
+   *  declared at `at` (which closed the block). */
+  case NonPositive(
+      family: String,
+      argument: Int,
+      argumentType: String,
+      at: Span,
+      mutual: List[String] = Nil,
+      of: Option[String] = None
+  )
   case PartialFamilyResult(family: String, at: Span)
 
   /** `of`: the constructor of the argument if it is not the one declared at `at` (which made the
@@ -100,7 +111,7 @@ enum ClauseProblem extends Problem:
     case BranchesNotCovering(_, s, _) => s
     case UnreachableBranch(s) => s
     case NotTerminating(_, s, _) => s
-    case NonPositive(_, _, _, s) => s
+    case NonPositive(_, _, _, s, _, _) => s
     case PartialFamilyResult(_, s) => s
     case ArgumentTooLarge(_, _, _, s, _, _) => s
     case NotDefinableByClauses(_, s, _, _) => s
@@ -135,7 +146,7 @@ enum ClauseProblem extends Problem:
     case _: BranchesNotCovering => msg"the branches of this `match` do not cover all cases"
     case _: UnreachableBranch => msg"unreachable branch of a `match`"
     case NotTerminating(f, _, _) => msg"cannot show that ${Src(f)} terminates"
-    case NonPositive(fam, _, _, _) => msg"${Src(fam)} occurs in a non-positive position"
+    case NonPositive(fam, _, _, _, _, _) => msg"${Src(fam)} occurs in a non-positive position"
     case PartialFamilyResult(fam, _) => msg"a constructor of ${Src(fam)} must return it applied to all its arguments"
     case ArgumentTooLarge(x, fam, _, _, None, _) => msg"the argument ${Src(x)} is too large for ${Src(fam)}"
     case ArgumentTooLarge(x, fam, _, _, Some(c), _) => msg"the argument ${Src(x)} of ${Src(c)} is too large for ${Src(fam)}"
@@ -173,7 +184,8 @@ enum ClauseProblem extends Problem:
     case BranchesNotCovering(m, _, k) => msg"missing: ${Src(m)} and $k more"
     case _: UnreachableBranch => msg"this branch is never used"
     case _: NotTerminating => msg"possibly non-terminating"
-    case NonPositive(_, k, _, _) => msg"in the type of the constructor's argument $k"
+    case NonPositive(_, k, _, _, _, None) => msg"in the type of the constructor's argument $k"
+    case NonPositive(_, k, _, _, _, Some(c)) => msg"closes a mutual block in which argument $k of ${Src(c)} is not strictly positive"
     case _: PartialFamilyResult => msg"partially applied family"
     case _: ArgumentTooLarge => msg"argument in a larger universe"
     case _: NotDefinableByClauses | _: ClausesWithoutDeclaration => msg"clause"
@@ -222,10 +234,16 @@ enum ClauseProblem extends Problem:
       List(
         msg"meta functions must be total: some argument must get structurally smaller (a constructor subterm of a pattern) along every cycle of calls"
       )
-    case NonPositive(_, _, t, _) =>
+    case NonPositive(fam, _, t, _, mutual, _) =>
       List(
         msg"the argument has type ${Src(t)}",
         msg"a family may only occur strictly positively in the arguments of its constructors: not to the left of an arrow, nor inside the arguments of another type"
+      ) ++ (if mutual.isEmpty then Nil
+            else
+              List(
+                msg"${Src(fam)} is defined mutually with " ++ Msg.text(mutual.map(m => s"`$m`").mkString(", ")) ++
+                  msg": their constructors refer to each other, so each of them may only occur strictly positively in the arguments of all their constructors"
+              )
       )
     case ArgumentTooLarge(x, fam, u, _, of, index) =>
       msg"${Src(fam)} lives in ${Src(u)}; its constructors may only take arguments of types in that universe (predicativity)" ::
