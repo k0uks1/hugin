@@ -285,27 +285,34 @@ the anonymous database.
 
 ## Rule names
 
-The rules of a relation `r` of a program are named `r.1`, `r.2`, … in the order of the program's rules, a
-rule by the relation of its first head (its `index`, [Programs](#programs)); a rule's label `@n` adds the
-name `n`, where `n` does not denote anything else. A *rule name* is a derivation by its rule, both as a
-pattern and as an expression, against a judgment whose program's rules evaluate. `given` is the
-derivation of a fact of an input relation.
+A rule names each of its heads: the heads of a relation `r` of a program are named `r.1`, `r.2`, … in the
+order of the program's rules and, within a rule, of its heads, the nested facts of its constructor terms
+included. A rule `edge X Y, edge Y X :- g.edge X Y.` has the names `edge.1` (the head `edge X Y`) and
+`edge.2` (the head `edge Y X`); a rule with the heads `from X, to Y` has a name among the heads of `from`
+and one among those of `to`; and `drawn (circle R) :- big R.` is also `circle.1`, the first rule that
+builds a fact of the file's constructor `circle`. For a rule with one head, its name agrees with its
+`index` ([Programs](#programs)), which numbers rules by their first head; with several heads, the names
+are counted separately and need not agree with it. A rule's label `@n` adds the name `n`, where `n` does
+not denote anything else; it names the rule's head of the goal's relation. A *rule name* is a derivation
+by its rule and head, both as a pattern and as an expression, against a judgment whose program's rules
+evaluate. `given` is the derivation of a fact of an input relation.
 
 As a pattern against `P ⊢[e] a`, the rule name of a rule with the variables `X₁ … Xₖ`, applied to the
 patterns `p₁ … pₘ`, stands for
 
 ```hugin,ignore
-fire {xs := econs X₁ (… (econs Xₖ enil))} M (ppos refl p₁ (… (ppos refl pₘ pnil))) here
+fire {xs := econs X₁ (… (econs Xₖ enil))} M (ppos refl p₁ (… (ppos refl pₘ pnil))) H
 ```
 
-where `M` is the membership proof of the rule in the program's rules. The patterns `p₁ … pₘ` are the
+where `M` is the membership proof of the rule in the program's rules, and `H` the proof `there^j here`
+that the named head is the rule's head atom at position `j` (`here` for its first). The patterns `p₁ … pₘ` are the
 premises, one for each atom of the rule's body, in body order; the body's comparisons are not written
 (`pcmp _` stands for them). The rule's variables are bound as implicit patterns under their names in the
 rule: in the clause, `Y` is in scope as the value of the rule's variable `Y`, unless a pattern variable of
 the clause or an earlier rule name has that name. `{X := p}` matches the rule's variable `X` with the
 pattern `p`. Index unification determines the variables of the head from the goal, and coverage considers
-the program's rules ([Derivations](../meta/coverage.md#derivations)): a clause for each rule of the goal's
-relation covers a derivation, and `given I`, `given _ I`, is refuted for a relation with rules.
+the program's rules ([Derivations](../meta/coverage.md#derivations)): a clause for each rule name of the
+goal's relation covers a derivation, and `given I`, `given _ I`, is refuted for a relation with rules.
 
 As an expression of a judgment's type, a rule name builds the same derivation. The rule's variables are
 determined by the goal's fact, then by the premises; `{X := e}` gives the variable `X`. The body's
@@ -316,12 +323,37 @@ if `so (p.input r)` evaluates to `unit`.
 It is an error ([E0948](../errors/E0948.md)) if a rule name names no rule of the program, names a rule
 whose head relation is not the goal's, has a different number of premises than the rule has atoms in its
 body, names a variable that the rule does not have, has a comparison that does not evaluate to true, or is
-used where no judgment of a program with known rules is expected; and ([E0949](../errors/E0949.md)) if
+used where no judgment of a program with known rules is expected, or if a label is used against a goal of
+a relation of which its rule has several heads (the label would name each of them: `edge.1` and `edge.2`
+must be written); and ([E0949](../errors/E0949.md)) if
 `given` derives a fact of a relation that is not an input of the program.
 
 In the editor, splitting a pattern variable of a judgment's type offers the rule names of the goal's
 relation, with a variable for each premise named after the premise's relation, and `given` if the goal's
-relation is an input: `toTc P = ?.` splits into `toTc (path.1 E) = ?.` and `toTc (path.2 E P) = ?.`.
+relation is an input: `toTc P = ?.` splits into `toTc (path.1 E) = ?.` and `toTc (path.2 E P) = ?.`. Each head of a rule is
+a case of its own.
+
+The following program proves that the graph `both` derives the reverse of each of its edges: one clause
+for each head of its rule.
+
+```hugin,run
+%use "std/graph".
+%use "std/semantics".
+both (g : graph) = {
+  edge : g.node -> g.node -> rel.
+  edge X Y, edge Y X :- g.edge X Y.
+}.
+flip : {x y : G.node} -> both G ⊢ edge x y -> both G ⊢ edge y x.
+flip (edge.1 E) = edge.2 E.
+flip (edge.2 E) = edge.1 E.
+%opaque flip.
+proved : string -> rel.
+proved "flip".
+```
+
+```output
+proved "flip".
+```
 
 The following program proves that the transitive closure `tc` and the variant `tc2` with the doubling rule
 derive the same paths, for every graph and every input database. `given` derives the input edges, and

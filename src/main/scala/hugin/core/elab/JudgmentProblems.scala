@@ -161,7 +161,9 @@ enum JudgmentProblem extends Problem:
     case _: RuleNameWithoutJudgment =>
       List(msg"a rule name `r.k` is a derivation of a judgment `P ⊢ r t̄`, so its expected type must be one, with `P` a module body")
     case UnknownRule(_, _, _, _) =>
-      List(msg"the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program, one name for each head of `r`; a label `@n` adds the name `n`")
+      List(
+        msg"the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program, one name for each head of `r`; a label `@n` adds the name `n`"
+      )
     case _: LabelHeads =>
       List(msg"a label names its rule; a rule with several heads of the goal's relation has a name `r.k` for each of them")
     case NoRuleVariable(_, _, vs, _) =>

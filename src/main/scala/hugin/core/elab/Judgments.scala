@@ -850,7 +850,10 @@ trait Judgments:
     // a premise: a rule name of the same program (of the premise's relation `rel`, if own), or any pattern
     def premise(e: Tree, rel: Option[RelKey]): Pat =
       val (h, as) = TreeOps.flattenApp(e)
-      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild, rel)).getOrElse(pattern(e, None))
+      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild, rel)).getOrElse(pattern(
+        e,
+        None
+      ))
     form match
       case RuleForm.Given =>
         if named.nonEmpty then None
@@ -922,7 +925,8 @@ trait Judgments:
         val premiseNames = premiseInitials(p, sem, data)
         val ruleCases = heads.map { h =>
           val r = h.rule
-          val byLabel = data.headsOf(r, h.rel).length == 1 && (rel.isDefined || data.headNames.find(_.rule.position == r.position).contains(h))
+          val byLabel =
+            data.headsOf(r, h.rel).length == 1 && (rel.isDefined || data.headNames.find(_.rule.position == r.position).contains(h))
           val name = r.label.filter(_ => byLabel).getOrElse(s"${h.rel.fold(data.relations.lift(_).getOrElse("?"), identity)}.${h.k}")
           val fresh = FreshNames(taken)
           val ps = premiseNames.lift(r.position).getOrElse(Nil).map(fresh(_))
