@@ -192,6 +192,11 @@ The program `P` is one of the following:
 
 - a functor applied to arguments, or a module: its program is `programOf P`
   ([`std/quote`](quote.md#programs-as-values));
+- `here`: the program of the current file, or of the module body the judgment is written in
+  (`programOf here`): the relations that the file (the body) declares are `own i`, and inside a functor's
+  body the relations of its parameters are named through the parameters' own names (`g.edge`), which are
+  in scope there. A declaration with such a judgment is elaborated after the rules ([Declarations about
+  the file's program](../meta/index.md#declarations-about-the-files-program));
 - a value of type `program`: the program as it is.
 
 A functor written alone, `tc ⊢ path x y`, is an error ([E0946](../errors/E0946.md)): its arguments are

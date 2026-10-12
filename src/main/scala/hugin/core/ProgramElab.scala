@@ -53,6 +53,39 @@ final class ElaboratedItem(
     val declarations: ElaboratedDeclarations | Null = null
 )
 
+/** The program of a file for its program-dependent declarations (#186 P9f): read from its assembled object
+ *  items and moved into `core`, a fork of the declarations' core that holds the program's family instances
+ *  and its generated definition (`program`, or the problem that prevents it), with the file's relations.
+ *  Two are equal if they are over the same declarations with the same program data (not its positions), so
+ *  that an edit that leaves the program alone (a moved rule, a comment) elaborates no proof again. */
+final class HereProgram(
+    val decls: ElaboratedDeclarations,
+    val core: Core,
+    val program: Either[hugin.util.Span => elab.ProgramOfProblem, Int],
+    val relations: List[Int],
+    private val data: Any
+):
+  override def equals(that: Any): Boolean = that match
+    case h: HereProgram => (h.decls eq decls) && h.data == data
+    case _ => false
+  override def hashCode: Int = data.hashCode
+
+/** The program-dependent declarations of a file, elaborated after its object items against its program
+ *  ([[HereProgram]]), in a fork of the program's core. */
+final class ElaboratedDeferred(
+    val here: HereProgram,
+    val elaborator: elab.Elaborator,
+    val items: List[CoreItem],
+    val diagnostics: List[Diagnostic],
+    val index: SemanticIndex
+):
+  def core: Core = elaborator.core
+
+/** The items of a program by phase: its declarations, its program-dependent declarations (#186 P9f) and its
+ *  object items, each in source order. Compared by identity: trees compare without their positions, and
+ *  the queries that read a phase compare its items with their positions themselves. */
+final class Phases(val declarations: List[Item], val deferred: elab.ProgramPhase.Deferred, val objects: List[Item])
+
 /** The elaboration of a program in parts, each a function of the parts before it, so that a query
  *  database can memoise them (`hugin.query`): the prelude and the imported files one after the other
  *  ([[prelude]], [[library]]); the program's declarations ([[declarations]]); each object item on its own
@@ -118,6 +151,14 @@ object ProgramElab:
   /** The declarations and the object items of a program, in source order. */
   def split(items: List[Item]): (List[Item], List[Item]) = elab.Elaborator(Core(), Reporter()).splitItems(items)
 
+  /** The declarations, the program-dependent declarations and the object items of a program
+   *  ([[elab.ProgramPhase]]). */
+  def phases(items: List[Item]): Phases =
+    val e = elab.Elaborator(Core(), Reporter())
+    val (decls, objects) = e.splitItems(items)
+    val (now, deferred) = e.programPhase(decls)
+    Phases(now, deferred, objects)
+
   /** The files of a program's items, in order (a program of several files: a REPL session), after the
    *  program's path: the order in which they are placed in the object program. */
   def files(path: String, items: List[Item]): List[String] =
@@ -125,14 +166,56 @@ object ProgramElab:
 
   /** The declarations `decls` of the program at `path` (made of the files `files`), elaborated in a fork
    *  of `base`. */
-  def declarations(base: ElabBase, path: String, files: List[String], decls: List[Item]): ElaboratedDeclarations =
+  def declarations(
+      base: ElabBase,
+      path: String,
+      files: List[String],
+      decls: List[Item],
+      deferred: elab.ProgramPhase.Deferred = elab.ProgramPhase.Deferred.empty
+  ): ElaboratedDeclarations =
     val core = base.core.fork()
     files.foreach(core.rankFile)
     val reporter = Reporter()
     val env = elab.FileEnv(path, "", base.prelude, base.imports, lintUnused = true, builtinNames = base.builtinNames)
     val e = elab.Elaborator(core, reporter, env, SemanticIndex())
-    e.elabDeclarations(decls)
+    e.elabDeclarations(decls, deferred)
     ElaboratedDeclarations(base, e, e.items.toList, reporter.diagnostics, e.index)
+
+  /** The program of the file whose declarations are `decls` and whose object items are assembled in
+   *  `assembled` ([[HereProgram]]): its rules read in a fork of the assembled core, then moved into a fork of
+   *  the declarations' core. */
+  def hereProgram(decls: ElaboratedDeclarations, assembled: Elaborated): HereProgram =
+    val scratch = assembled.core.fork()
+    val reader = decls.elaborator.fork(scratch, Reporter(), SemanticIndex())
+    val relations = reader.fileRelations
+    val rules = assembled.programItems.collect { case r: CoreItem.RuleItem => r }
+    val core = decls.core.fork()
+    def failed(p: hugin.util.Span => elab.ProgramOfProblem) = HereProgram(decls, core, Left(p), relations, (relations, p(Span.NoSpan)))
+    reader.fileProgram(relations, rules, Span.NoSpan) match
+      case Left(p) => failed(p)
+      case Right((tm, names)) =>
+        val base = decls.core.globals.length
+        val movable = !Tm.exists(tm) {
+          case Tm.Global(id) => id >= base && scratch.globals(id).instanceOf.isEmpty
+          case Tm.Meta(_) | Tm.AppPruning(_, _) => true
+          case _ => false
+        }
+        if !movable then failed(elab.ProgramOfProblem.CannotReify("a rule mentions a constant that an object item creates", Span.NoSpan, _))
+        else
+          val moved = Moved(decls.core, scratch, core).term(tm)
+          val instances = (base until core.globals.length).map(core.globals(_).instanceOf).toVector
+          val id = decls.elaborator.fork(core, Reporter(), SemanticIndex()).fileProgramGlobal(moved, relations, names, Span.NoSpan)
+          HereProgram(decls, core, Right(id), relations, (relations, moved, names, instances))
+
+  /** The program-dependent declarations `deferred` of the program whose declarations are `decls`, elaborated
+   *  against its program `here`. */
+  def deferred(decls: ElaboratedDeclarations, here: HereProgram, deferred: elab.ProgramPhase.Deferred): ElaboratedDeferred =
+    val core = here.core.fork()
+    val reporter = Reporter()
+    val e = decls.elaborator.fork(core, reporter, SemanticIndex())
+    e.useFileProgram(here.program, here.relations)
+    e.elabDeferred(deferred)
+    ElaboratedDeferred(here, e, e.items.toList, reporter.diagnostics, e.index)
 
   /** One object item of a program, elaborated against its declarations in a fork of their core. */
   def item(decls: ElaboratedDeclarations, item: Item): ElaboratedItem = observed(decls, item, None)
@@ -190,8 +273,13 @@ object ProgramElab:
    *  there), then the checks across items run. If the items contain a module-wide directive, their rules
    *  and queries are replaced by the expansion of the module (reference: directives): every rule and query then
    *  depends on the expansion, while the items of local directives are kept as elaborated. */
-  def assemble(decls: ElaboratedDeclarations, results: List[ElaboratedItem]): (Elaborated, List[Diagnostic], SemanticIndex) =
-    val core = decls.core.fork()
+  def assemble(
+      decls: ElaboratedDeclarations,
+      results: List[ElaboratedItem],
+      deferred: Option[ElaboratedDeferred] = None
+  ): (Elaborated, List[Diagnostic], SemanticIndex) =
+    // with program-dependent declarations, in a fork of their core (which forks the declarations')
+    val core = deferred.fold(decls.core)(_.core).fork()
     results.map(_.item.span).filter(_.exists).foreach(sp => core.rankFile(sp.source.path))
     val reporter = Reporter()
     val index = SemanticIndex()
@@ -225,9 +313,17 @@ object ProgramElab:
           case _: CoreItem.RuleItem | _: CoreItem.QueryItem => false
           case _ => true
         } ++ e.expandModule(parts.toList)
-    e.finish()
+    // the checks across items see the program-dependent declarations too
+    val last = deferred.fold(e) { d =>
+      diagnostics ++= d.diagnostics
+      index.include(d.index)
+      val f = d.elaborator.fork(core, reporter, index)
+      f.state.used ++= e.state.used
+      f
+    }
+    last.finish()
     diagnostics ++= reporter.diagnostics.drop(reported)
-    val programItems = decls.items ++ objectItems
+    val programItems = decls.items ++ deferred.fold(Nil)(_.items) ++ objectItems
     (Elaborated(core, decls.base.items ++ programItems, programItems), diagnostics.toList, index)
 
   /** How to move a portable item into `to`, a fork of `decls`' core: as it is if it was elaborated
@@ -269,7 +365,7 @@ private final class Moved(
 
   def part(p: elab.ModulePart): elab.ModulePart = elab.ModulePart.map(p, term)
 
-  private def term(t: Tm): Tm =
+  def term(t: Tm): Tm =
     if refuseFrom._2 != Int.MaxValue && Tm.exists(t) {
         case Tm.U1(l) => !l.isConst && l.v >= refuseFrom._2 && l.v < base.levels.count
         case _ => false

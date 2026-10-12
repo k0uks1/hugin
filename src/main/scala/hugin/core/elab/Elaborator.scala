@@ -93,6 +93,17 @@ final class ElabState(val scope: NameScope = NameScope()):
    *  whole body, also before their declarations ([[ModuleBodies]]). */
   var bodyDeclared: Set[Name] = Set.empty
 
+  /** Why a name of the file or of a body being elaborated is program-dependent, if it is: its declaration
+   *  is elaborated after the scope's object items, and a use before is E0962 ([[ProgramPhase]]). A read
+   *  of the declarations, name by name. */
+  def dependence(n: Name): Option[ProgramPhase.Dependence] =
+    val r = reads
+    if r != null then r.name("programDependent", n)
+    programDependent0.get(n)
+  def programDependent: Map[Name, ProgramPhase.Dependence] = programDependent0
+  def programDependent_=(m: Map[Name, ProgramPhase.Dependence]): Unit = programDependent0 = m
+  private[core] var programDependent0: Map[Name, ProgramPhase.Dependence] = Map.empty
+
   /** The members (name, level) of the module bodies being elaborated that are left out although bound: the
    *  formula functions of a cycle (E0105). Their uses drop the items using them without further errors. */
   var leftOutMembers: Set[(Name, Int)] = Set.empty
@@ -203,6 +214,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     s.erroneous.copyFrom(erroneous)
     s.unelaborated.copyFrom(unelaborated)
     s.droppedUses0 = droppedUses0
+    s.programDependent0 = programDependent0
     s.used = used
     s
 

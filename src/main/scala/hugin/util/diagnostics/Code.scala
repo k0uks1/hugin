@@ -166,6 +166,7 @@ enum Code(
   case E0957 extends Code(957, Phase.Elaboration, "run whose certificate is rejected")
   case E0960 extends Code(960, Phase.Elaboration, "applied relation used as a meta type")
   case E0961 extends Code(961, Phase.Elaboration, "judgment over a program with negation or aggregates")
+  case E0962 extends Code(962, Phase.Elaboration, "cycle through the program of a file or a module body")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
   case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")

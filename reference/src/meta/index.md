@@ -143,6 +143,43 @@ declarations and definitions are fixed while the clauses are elaborated, and the
 function or formula function must solve its own unknowns
 ([E0903](../errors/E0903.md)), as a declaration of a file does.
 
+### Declarations about the file's program
+
+A declaration may be about the rules of its own file: `programOf here` is the file's program and `here ⊢
+r t̄` a judgment about it ([`std/quote`](../std/quote.md#programs-as-values),
+[`std/semantics`](../std/semantics.md#the-judgment-notation)). Such a declaration needs all of the file's
+rules, so it is elaborated after them. A declaration is *program-dependent* if it mentions `programOf here`
+or `here ⊢ …` (outside the module bodies it contains, where `here` is the body's program), or the name of
+a program-dependent declaration of the file; the clauses of a function and the rules of a formula
+function go with its declaration, and a `%opaque` item or `%export` that names a program-dependent
+declaration goes with it. Whether a declaration is program-dependent is decided from the names it
+mentions, before anything is elaborated, as its place in the dependency order is.
+
+The file is elaborated in this order: its other declarations, by their cycles as above; its rules,
+queries and directives; then its program-dependent declarations, by their cycles. The other declarations
+keep their order, so a file without `here` is elaborated as if the phase did not exist.
+
+```hugin
+%use "std/semantics".
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+path : city -> city -> rel.
+path X Y :- road X Y.
+path X Z :- road X Y, path Y Z.
+trans : {D : db} -> {x y z : ⇑city} -> here ⊢[D] path x y -> here ⊢[D] path y z -> here ⊢[D] path x z.
+trans (path.1 R) Q = path.2 R Q.
+trans (path.2 R P) Q = path.2 R (trans P Q).
+%opaque trans.
+```
+
+It is an error ([E0962](../errors/E0962.md)) if a rule, a query or a directive uses a program-dependent
+declaration, directly or through other declarations, or uses `programOf here` itself: it would be part of
+the program the declaration is about. So is the use of a program-dependent declaration by a `%use` item,
+an `%infix` binding or an object constant, which the rules need. A module body has the same phase for its
+members ([Modules](../modules.md#module-bodies)).
+
 The option `--print-after elaborate` prints the elaborated program: meta definitions with the inserted
 quotes `⟨…⟩`, splices `$…` and implicit arguments, the compiled clauses of functions, and the object
 items after staging. Types and implicit arguments are printed with definitions by their names, as in

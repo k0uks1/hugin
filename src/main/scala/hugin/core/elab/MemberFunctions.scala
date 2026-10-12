@@ -28,6 +28,9 @@ trait MemberFunctions:
    *  member functions in nested bodies). */
   private var memberPath: List[Name] = Nil
 
+  /** Whether a member's definition is being elaborated (a body inside it is not a definition's value). */
+  def inMemberDefinition: Boolean = memberPath.nonEmpty
+
   def inMember[A](n: Name)(f: => A): A =
     val saved = memberPath
     memberPath = n :: memberPath

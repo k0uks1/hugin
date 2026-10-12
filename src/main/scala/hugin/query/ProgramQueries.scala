@@ -1,7 +1,7 @@
 package hugin.query
 
 import hugin.compiler.{LazyStdlib, Library, ProgramElaboration, SourceLoader, StdlibCache}
-import hugin.core.{ElabBase, ElaboratedDeclarations, ElaboratedItem, ProgramElab, SourceItems}
+import hugin.core.{ElabBase, ElaboratedDeclarations, ElaboratedDeferred, ElaboratedItem, HereProgram, Phases, ProgramElab, SourceItems}
 import hugin.syntax.Trees.Item
 import hugin.util.*
 
@@ -93,23 +93,48 @@ object ElabLibrary extends Query[ChainKey, ElabBase]("elabLibrary"):
  *  stand-in ([[hugin.core.elab.BrokenItems]]: what the declarations read of it, compared with its start
  *  but not its text), so that typing inside a rule does not change the declarations while it does not
  *  parse. */
-final class ProgramDeclarations(val items: List[Item], val fingerprints: List[ItemFingerprint], val files: List[String]):
+final class ProgramDeclarations(
+    val items: List[Item],
+    val fingerprints: List[ItemFingerprint],
+    val files: List[String],
+    /** What the declarations read of the program-dependent ones: their names (#186 P9f). */
+    val deferred: hugin.core.elab.ProgramPhase.Deferred = hugin.core.elab.ProgramPhase.Deferred.empty
+):
   override def equals(that: Any): Boolean = that match
-    case d: ProgramDeclarations => fingerprints == d.fingerprints && files == d.files
+    case d: ProgramDeclarations => fingerprints == d.fingerprints && files == d.files && deferred.names == d.deferred.names
     case _ => false
   override def hashCode: Int = fingerprints.hashCode
 
+/** A program's items by phase ([[ProgramElab.phases]]): recomputed after every edit (cheap), read by the
+ *  queries that select a phase and cut it off. */
+object PhasesOf extends Query[ProgramKey, Phases]("phasesOf"):
+  def compute(key: ProgramKey)(using db: Database): Phases = ProgramElab.phases(db(ParseProgram, key.path).program.items)
+
 object DeclarationsOf extends Query[ProgramKey, ProgramDeclarations]("declarationsOf"):
   def compute(key: ProgramKey)(using db: Database): ProgramDeclarations =
-    val items = db(ParseProgram, key.path).program.items
-    val decls = ProgramElab.split(items)._1
+    val phases = db(PhasesOf, key)
+    val decls = phases.declarations
     val summarised = hugin.core.elab.BrokenItems.standIns(decls)
     // a stand-in by its tree and its start (the order of the declarations), not its text
     val fingerprints = summarised.map { i =>
       if !hugin.core.elab.BrokenItems.summarised(i) || !i.span.exists then ItemFingerprint.of(i)
       else ItemFingerprint(i, i.span.source.path, i.span.start, 0, 0, "", None)
     }
-    ProgramDeclarations(summarised, fingerprints, ProgramElab.files(key.path, decls))
+    val deferred = phases.deferred
+    ProgramDeclarations(summarised, fingerprints, ProgramElab.files(key.path, decls ++ deferred.items), deferred.copy(items = Nil))
+
+/** The program-dependent declarations of a program (#186 P9f) with their fingerprints: cut off unless one of
+ *  them changed, with its position. */
+final class DeferredDeclarations(val deferred: hugin.core.elab.ProgramPhase.Deferred, val fingerprints: List[ItemFingerprint]):
+  override def equals(that: Any): Boolean = that match
+    case d: DeferredDeclarations => fingerprints == d.fingerprints && deferred.names == d.deferred.names
+    case _ => false
+  override def hashCode: Int = fingerprints.hashCode
+
+object DeferredOf extends Query[ProgramKey, DeferredDeclarations]("deferredOf"):
+  def compute(key: ProgramKey)(using db: Database): DeferredDeclarations =
+    val deferred = db(PhasesOf, key).deferred
+    DeferredDeclarations(deferred, deferred.items.map(ItemFingerprint.of))
 
 /** The object items of a program with their keys, in order (recomputed after every edit; cheap). Equal
  *  only if the items are, with their positions ([[ItemFingerprint]]): the items are what [[ItemOf]] reads.
@@ -128,7 +153,7 @@ final class ObjectItems(val items: List[(ItemKey, Item)]):
 
 object ObjectItemsOf extends Query[ProgramKey, ObjectItems]("objectItems"):
   def compute(key: ProgramKey)(using db: Database): ObjectItems =
-    val items = ProgramElab.split(db(ParseProgram, key.path).program.items)._2
+    val items = db(PhasesOf, key).objects
     ObjectItems(ItemKey.assign(items).zip(items))
 
 /** One item with its position ([[ItemFingerprint]]): cut off unless the item or its position changed. */
@@ -201,7 +226,7 @@ object Signatures extends Query[ProgramKey, ElaboratedDeclarations]("signatures"
   def compute(key: ProgramKey)(using db: Database): ElaboratedDeclarations =
     val decls = db(DeclarationsOf, key)
     val base = db(ElabLibrary, chainOf(key))
-    ProgramElab.declarations(base, key.path, decls.files, decls.items)
+    ProgramElab.declarations(base, key.path, decls.files, decls.items, decls.deferred)
 
 /** One object item of a program, elaborated against the program's declarations: recomputed only when the
  *  item (with its position) or what it read of the declarations changes ([[DeclarationDependencies]]).
@@ -221,5 +246,26 @@ object ElabProgram extends Query[ProgramKey, ProgramElaboration]("elabFile"):
   def compute(key: ProgramKey)(using db: Database): ProgramElaboration =
     val decls = db(Signatures, key)
     val items = db(ObjectItemsOf, key).items.map((k, _) => db(ElabItem, ItemQueryKey(key, k)))
-    val (elaborated, diagnostics, index) = ProgramElab.assemble(decls, items)
+    val deferred = Option.when(!db(DeferredOf, key).deferred.isEmpty)(db(ElabDeferred, key))
+    val (elaborated, diagnostics, index) = ProgramElab.assemble(decls, items, deferred)
     ProgramElaboration(elaborated, diagnostics, index)
+
+/** The program of a file for its program-dependent declarations (#186 P9f): after its object items, cut off
+ *  unless the program data changes ([[HereProgram]]), so that an edit that keeps the program (a moved rule,
+ *  a comment, an edit of a proof) elaborates no program-dependent declaration again. Its object items are
+ *  assembled once more for it (only in programs with such declarations). */
+object HereProgramOf extends Query[ProgramKey, HereProgram]("hereProgram"):
+  def compute(key: ProgramKey)(using db: Database): HereProgram =
+    val decls = db(Signatures, key)
+    val items = db(ObjectItemsOf, key).items.map((k, _) => db(ElabItem, ItemQueryKey(key, k)))
+    val (assembled, _, _) = ProgramElab.assemble(decls, items)
+    ProgramElab.hereProgram(decls, assembled)
+
+/** The program-dependent declarations of a program, elaborated against its program: recomputed when they
+ *  change, when the declarations change, or when the program does; never when only an object item changes
+ *  and the program stays the same. No object item depends on them (E0962). */
+object ElabDeferred extends Query[ProgramKey, ElaboratedDeferred]("elabDeferred"):
+  def compute(key: ProgramKey)(using db: Database): ElaboratedDeferred =
+    val decls = db(Signatures, key)
+    val deferred = db(DeferredOf, key).deferred
+    ProgramElab.deferred(decls, db(HereProgramOf, key), deferred)

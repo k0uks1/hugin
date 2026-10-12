@@ -79,3 +79,65 @@ class ElabOrderSuite extends munit.FunSuite:
     val h = ElabOrder.mentions(items(1))
     assert(!h("h") && !h("a") && h("int"), h)
   }
+
+  /** The program-dependent declarations of a file (#186 P9f), by name, with their chains. */
+  private def phase(code: String): (List[String], Map[String, List[String]]) =
+    val items = hugin.syntax.Parser.parse(SourceFile.virtual("test.hgn", code), Reporter()).items
+    val (_, deferred) = hugin.core.elab.ProgramPhase.classify(
+      items,
+      programOfFree = true,
+      {
+        case Directive(_, _: DirArgs.Use) => false
+        case _ => true
+      }
+    )
+    def name(i: Item): String = i match
+      case d: Decl => d.name.name
+      case d: Def => d.name.name
+      case c: Clause => hugin.syntax.TreeOps.headName(c.lhs).fold("?")(_.name)
+      case d: Directive => s"%${d.kind}"
+      case _ => "?"
+    (deferred.items.map(name), deferred.chains)
+
+  test("program-dependent declarations: `here` and what uses it, after the object items (#186 P9f)") {
+    val (later, chains) = phase(
+      """road : int -> int -> rel.
+        |road 1 2.
+        |p : program = programOf here.
+        |n : int = 3.
+        |count : program -> int.
+        |count P = n.
+        |size : int = count p.
+        |lemma : {D : db} -> here ⊢[D] road 1 2 -> Type.
+        |lemma _ = Type.
+        |m = { q : int -> rel. stated : program = programOf here. }.
+        |%opaque lemma n.
+        |%use p.
+        |""".stripMargin
+    )
+    // `count` and `n` mention no program; the body's `here` is its own; `%use` is never deferred
+    assertEquals(later, List("p", "size", "lemma", "lemma", "%opaque"))
+    assertEquals(
+      chains,
+      Map("p" -> List("p", "programOf here"), "size" -> List("size", "p", "programOf here"), "lemma" -> List("lemma", "here ⊢ …"))
+    )
+  }
+
+  test("a file without `here` has no program-dependent declarations; `where` and `there` are not `here`") {
+    val (later, _) = phase("x : int = 1.\nf : int -> int.\nf X = y where y = X.\nthere : int = x.\n")
+    assertEquals(later, Nil)
+  }
+
+  test("`here` as the membership proof of `std/semantics` is not the program: nothing is deferred (#186 P9f)") {
+    val (later, chains) = phase(
+      """second : {A : Type} -> {x y : A} -> {xs : list A} -> member y (x :: y :: xs) = there here.
+        |walk : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} -> tcPath g d x z -> Type.
+        |walk (fire {xs := econs X (econs Z enil)} (there here) (ppos refl E pnil) here) = Type.
+        |walk (fire here Ps (there ())) = Type.
+        |r : int -> rel.
+        |r 1.
+        |""".stripMargin
+    )
+    assertEquals(later, Nil)
+    assertEquals(chains, Map.empty[String, List[String]])
+  }

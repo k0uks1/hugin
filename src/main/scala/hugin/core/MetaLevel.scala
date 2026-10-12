@@ -38,9 +38,16 @@ object MetaLevel:
       index: hugin.compiler.SemanticIndex
   ): Elaborated =
     val base = libraries.foldLeft(base0)(ProgramElab.library)
-    val (decls, objectItems) = ProgramElab.split(program.items)
-    val declarations = ProgramElab.declarations(base, program.path, ProgramElab.files(program.path, decls), decls)
-    val (elaborated, diagnostics, idx) = ProgramElab.assemble(declarations, objectItems.map(ProgramElab.item(declarations, _)))
+    val phases = ProgramElab.phases(program.items)
+    val files = ProgramElab.files(program.path, phases.declarations ++ phases.deferred.items)
+    val declarations = ProgramElab.declarations(base, program.path, files, phases.declarations, phases.deferred)
+    val items = phases.objects.map(ProgramElab.item(declarations, _))
+    // the program-dependent declarations after the object items, against the file's program (#186 P9f)
+    val deferred = Option.when(!phases.deferred.isEmpty) {
+      val (assembled, _, _) = ProgramElab.assemble(declarations, items)
+      ProgramElab.deferred(declarations, ProgramElab.hereProgram(declarations, assembled), phases.deferred)
+    }
+    val (elaborated, diagnostics, idx) = ProgramElab.assemble(declarations, items, deferred)
     diagnostics.foreach(reporter.report)
     index.include(idx)
     elaborated

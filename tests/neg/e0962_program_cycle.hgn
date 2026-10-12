@@ -1,0 +1,35 @@
+(* A rule, a query or a directive that uses a declaration about the program of its own file or module body,
+   directly or through other declarations, depends on its own program (E0962). *)
+%use "std/reflect" (module).
+%use "std/semantics".
+%use "std/quote".
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+road berlin paris.
+pick : program -> ⇑city.
+pick P = <berlin>.
+
+(* a formula function whose rules read the file's program, through `fileP` *)
+fileP : program = programOf here.
+fromStart : city -> prop. (*~ W0003 *)
+fromStart X :- road Y X, Y = $(pick fileP).
+reached : city -> rel.
+reached X :- fromStart X. (*~ E0962 *)
+
+(* the program used directly by a query *)
+?- road X Y, X = $(pick (programOf here)). (*~ E0962 *)
+
+(* a module-wide directive that reads the program it rewrites *)
+keep : module -> module.
+keep M = if (same (pick fileP) (pick fileP)) M M.
+%keep. (*~ E0962 *)
+
+(* in a module body: its rules cannot use a member about the body's program *)
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  far : city -> prop.
+  far X :- hop Y X, Y = $(pick (programOf here)).
+  arrived : city -> rel.
+  arrived X :- far X. (*~ E0962 *)
+}.
