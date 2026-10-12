@@ -11,6 +11,7 @@ trip = {
   path X Z :- hop X Y, path Y Z.
 }.
 
-(* two rounds are not enough: `holds 2 …` is false, and `tt` is no proof of the empty type *)
+(* two rounds are not enough: `holds 2 …` is false, and `tt` is no
+   proof of the empty type *)
 viaParis : trip.path berlin rome = decide 2 tt.
 %opaque viaParis.

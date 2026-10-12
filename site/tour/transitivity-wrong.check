@@ -1,7 +1,7 @@
 error[E0901]: mismatched types
- --> site/tour/transitivity-wrong.hgn:7:35
+ --> site/tour/transitivity-wrong.hgn:9:35
   |
-7 | tcTrans (path.2 E P) Q = path.2 E P.
+9 | tcTrans (path.2 E P) Q = path.2 E P.
   |                                   ^ expected `tc G ⊢ path Y z`, found `tc G ⊢ path Y y`
 
 1 error found

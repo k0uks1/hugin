@@ -3,7 +3,8 @@
 %use "std/semantics".
 %use "std/strata".
 
-complete_graph : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+complete_graph : Type =
+  { node : type, edge : node -> node -> rel, %complete edge }.
 
 (* a sink is entered by an edge and left by none *)
 sinks (g : complete_graph) = {

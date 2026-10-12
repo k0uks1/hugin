@@ -10,7 +10,8 @@ reach : city -> city -> rel.
 reach X Y :- road X Y.
 reach X Z :- road X Y, reach Y Z.
 
-(* negation: a relation that is read under `not` is complete first (stratification) *)
+(* negation: a relation that is read under `not` is complete first
+   (stratification) *)
 start : city -> rel.
 start X :- road X _, not road _ X.
 

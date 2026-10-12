@@ -13,18 +13,22 @@ undirected (g : graph) = {
   reach X Z :- link X Y, reach Y Z.
 }.
 
-(* (undirected G).link, unapplied, is the family [x] [y] undirected G ⊢ link x y *)
+(* (undirected G).link, unapplied, is the family
+   [x] [y] undirected G ⊢ link x y *)
 linkSym : symmetric (undirected G).link.
 linkSym X Y (link.1 E) = link.2 E.
 linkSym X Y (link.2 E) = link.1 E.
 
-reachTrans : {x y z : G.node} -> (undirected G).reach x y -> (undirected G).reach y z -> (undirected G).reach x z.
+reachTrans : {x y z : G.node} ->
+             (undirected G).reach x y -> (undirected G).reach y z ->
+             (undirected G).reach x z.
 reachTrans (reach.1 L) Q = reach.2 L Q.
 reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
 
 reachSym : symmetric (undirected G).reach.
 reachSym X Y (reach.1 L) = reach.1 (linkSym X Y L).
-reachSym X Z (reach.2 L P) = reachTrans (reachSym Y Z P) (reach.1 (linkSym X Y L)).
+reachSym X Z (reach.2 L P) =
+  reachTrans (reachSym Y Z P) (reach.1 (linkSym X Y L)).
 %opaque linkSym reachTrans reachSym.
 
 city : type. berlin, paris, rome : city.

@@ -11,7 +11,8 @@ trip = {
   path X Z :- hop X Y, path Y Z.
 }.
 
-(* three rounds of naive evaluation derive the fact, with its derivation *)
+(* three rounds of naive evaluation derive the fact, with its
+   derivation *)
 viaParis : trip.path berlin rome = decide 3 tt.
 %opaque viaParis.
 %output trip.path.

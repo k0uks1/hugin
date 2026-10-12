@@ -1,12 +1,14 @@
 %use "std/eq".
 %use "std/nat".
 
-(* nat is an inductive type of the meta level; `plus` recurses on its second argument *)
+(* nat is an inductive type of the meta level; `plus` recurses on its
+   second argument *)
 zeroPlus : (n : nat) -> 0 + n ≡ n.
 zeroPlus 0 = refl.
 zeroPlus (N + 1) = cong suc (zeroPlus N).
 
-(* a type with no proof: no clause is needed, the pattern () says the case is impossible *)
+(* a type with no proof: no clause is needed, the pattern () says the
+   case is impossible *)
 noLoop : 1 ≡ 0 -> empty.
 noLoop ().
 

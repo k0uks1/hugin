@@ -6,7 +6,8 @@ abstraction : Type = {
   node : type, edge : node -> node -> rel, seed : node -> rel,
   anode : type, alpha : node -> anode -> rel }.
 
-(* reachability on the graph, and on the coarse graph of the abstract nodes *)
+(* reachability on the graph, and on the coarse graph of the abstract
+   nodes *)
 coarse (a : abstraction) = {
   reached : a.node -> rel.
   reached X :- a.seed X.
@@ -18,15 +19,21 @@ coarse (a : abstraction) = {
   areached B :- areached A, aedge A B.
 
   (* the hypothesis: every reached node has an abstraction *)
-  placed : (⇑a.node -> Type) -> (⇑a.node -> ⇑a.anode -> Type) -> Type.
-  placed Reached Alpha = (x : ⇑a.node) -> Reached x -> { b : ⇑a.anode, ok : Alpha x b }.
+  placed : (⇑a.node -> Type) -> (⇑a.node -> ⇑a.anode -> Type) ->
+           Type.
+  placed Reached Alpha =
+    (x : ⇑a.node) -> Reached x -> { b : ⇑a.anode, ok : Alpha x b }.
 
-  (* every abstraction of a reached node is reached on the coarse graph *)
-  sound : placed reached a.alpha -> {x : a.node} -> {b : a.anode} -> reached x -> a.alpha x b -> areached b.
+  (* every abstraction of a reached node is reached on the coarse
+     graph *)
+  sound : placed reached a.alpha -> {x : a.node} -> {b : a.anode} ->
+          reached x -> a.alpha x b -> areached b.
   sound T (reached.1 S) H = areached.1 S H.
-  sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
+  sound T (reached.2 {X := W} R E) H =
+    areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
-  (* so an abstract node that the analysis does not reach contains no reached node *)
+  (* so an abstract node that the analysis does not reach contains no
+     reached node *)
   safe : placed reached a.alpha -> {x : a.node} -> {b : a.anode} ->
          (areached b -> empty) -> a.alpha x b -> reached x -> empty.
   safe T N H R = N (sound T R H).
@@ -39,5 +46,6 @@ road : city -> city -> rel. road berlin paris. road paris lyon.
 start : city -> rel. start berlin.
 located : city -> country -> rel.
 located berlin de. located paris fr. located lyon fr. located oslo no.
-eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = located }.
+eu = coarse { node = city, edge = road, seed = start,
+              anode = country, alpha = located }.
 %output eu.areached.
