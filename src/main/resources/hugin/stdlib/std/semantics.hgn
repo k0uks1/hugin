@@ -6,11 +6,11 @@
    consistency is that of inductive families (the proofs note, chapter 8). *)
 %use "std/reflect" (bool, true, false, if, list, nil, cons, option, none, some, sym, arith_op, oadd, osub, omul,
   odiv, ocat, cmp_op, ceq, cne, clt, cle, cgt, cge).
-%use "std/nat" (nat).
+%use "std/nat" (nat, equal).
 %use "std/int" (iequal, iless, ileq, fits64).
 %use "std/eq" (eq, refl, cong, subst, empty, emptyElim, unit, tt, dec, yes, no, decEq).
 %use "std/decide" (so, decider).
-%use "std/list" (map, concat).
+%use "std/list" (map, concat, any).
 
 (* Values: closed object code of any object type. A literal is a value (`v ⟨3⟩`), and so is the identity
    of a fact, its object term (`v ⟨edge berlin paris⟩`): two values are equal exactly if they are the same
@@ -104,6 +104,13 @@ ccmp : {ts : list ⇑type} -> {t : ⇑type} -> cmp_op -> cterm ts t -> cterm ts 
 crule : Type = { head : nat, index : nat, label : option string, vars : list ⇑type,
                  heads : list (catom vars), body : list (cbody vars) }.
 program : Type = { relations : list string, rules : list crule, input : rref -> bool, strata : list (list nat) }.
+
+(* The input test of the programs that `programOf` builds (reference: std/quote): the relations of the
+   module's parameters and outside it, and its own relations `Is` without rules (the extensional relations) *)
+inputOf : list nat -> rref -> bool.
+inputOf Is (own I) = any ([j] equal I j) Is.
+inputOf Is (arg L) = true.
+inputOf Is (ext S) = true.
 
 (* Instantiating terms and atoms with the values of the variables: `none` where arithmetic is undefined *)
 optMap : {A B : Type} -> (A -> B) -> option A -> option B.

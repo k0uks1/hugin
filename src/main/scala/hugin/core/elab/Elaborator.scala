@@ -248,6 +248,7 @@ class Elaborator(
     with Operators
     with Overloading
     with Items
+    with ProgramOf
     with DependencyOrder
     with Declarations
     with Inductives

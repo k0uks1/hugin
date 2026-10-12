@@ -1,12 +1,13 @@
-(* Quoted syntax that has no reflective representation, holes in the wrong places, and quotes whose
+(* Quoted syntax that has no reflective representation (an ascription in a pattern, whose type is code), holes in the wrong places, and quotes whose
    content is not of the category the expected type needs (E0917). *) %use "std/reflect".
 p : int -> rel.
 q : int -> int -> rel.
 f : int -> int = %postulate.
 
-asRule : rule = '( p X :- (q X Y as F) ). (*~ E0917 *)
-ascription : rule = '( p X :- p (X : int) ). (*~ E0917 *)
-projection : rule = '( p X :- q X Y, p Y.l ). (*~ E0917 *)
+lambda : rule = '( p X :- q X ([y] y) ). (*~ E0917 *)
+ascribed : formula -> int.
+ascribed '( p ($X : int) ) = 1. (*~ E0917 *)
+ascribed _ = 0.
 misplaced : formula = '( $..Xs ). (*~ E0917 *)
 
 firstArgs : formula -> list term.

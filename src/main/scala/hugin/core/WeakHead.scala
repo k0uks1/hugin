@@ -142,10 +142,23 @@ trait WeakHead:
   /** `v` with the variables of levels below `values.length` replaced by their values, without evaluating:
    *  the applications that the substitution unblocks stay delayed (what [[elab.SplitProblem.norm]] does,
    *  where evaluation and read-back normalised the whole value). Folded definitions and solved metas are
-   *  unfolded, as read-back unfolds them. */
+   *  unfolded, as read-back unfolds them, except a folded definition whose arguments mention no variable
+   *  that the substitution changes: its value is closed over its arguments, so it is unchanged, and it
+   *  is not walked (a program value of `programOf` in the type of every variable of a split problem). */
   final def substitute(values: Vector[Val], v: Val): Val =
     val n = values.length
+    val changed = Array.tabulate(n)(x =>
+      values(x) match
+        case Rigid(Head.Local(`x`), Nil) => false
+        case _ => true
+    )
+    val anyChanged = changed.contains(true)
+    def touched(sp: Spine): Boolean = anyChanged && sp.exists {
+      case Elim.EApp(a, _) => mentionsAny(changed, a)
+      case _ => false
+    }
     def go(v: Val): Val = v match
+      case Top(_, sp, _) if !touched(sp) => v
       case Rigid(Head.Local(x), sp) => appSpWeak(if x < n then values(x) else Rigid(Head.Local(x), Nil), goSp(sp))
       case Rigid(Head.Glob(id), sp) => if sp.isEmpty then v else Rigid(Head.Glob(id), goSp(sp))
       case Rigid(Head.Module(b, env), sp) => Rigid(Head.Module(b, env.map(go)), goSp(sp))
@@ -171,6 +184,33 @@ trait WeakHead:
       case Elim.EApp(a, i) => Elim.EApp(go(a), i)
       case e => e
     }
+    go(v)
+
+  /** Whether a variable of a level `l` with `ls(l)` occurs in `v` as it is, unevaluated ([[mentions]]). */
+  final def mentionsAny(ls: Array[Boolean], v: Val): Boolean =
+    def sp(s: Spine): Boolean = s.exists {
+      case Elim.EApp(a, _) => go(a)
+      case _ => false
+    }
+    def go(v: Val): Boolean = v match
+      case Rigid(Head.Local(x), s) => (x < ls.length && ls(x)) || sp(s)
+      case Rigid(Head.Glob(_), s) => sp(s)
+      case Rigid(Head.Module(_, env), s) => env.exists(go) || sp(s)
+      case Flex(m, s) => metas(m).solution.exists(go) || sp(s)
+      case Top(_, s, _) => sp(s)
+      case Lam(_, _, cl) => cl.env.exists(go)
+      case Pi(_, _, a, cl) => go(a) || cl.env.exists(go)
+      case r: RecTy => r.env.exists(go)
+      case Rec(fs) => fs.exists(f => go(f._2))
+      case Lift(a) => go(a)
+      case Quote(t) => go(t)
+      case NatAdd(_, b, _) => go(b)
+      case Arith(_, a, b, _) => go(a) || go(b)
+      case Negate(a, _) => go(a)
+      case Obj(_, as) => as.exists(go)
+      case Persist(t) => go(t)
+      case FactTy(r) => go(r)
+      case U0 | _: U1 | _: Lit | _: Base | _: Nat | _: IntNum | RelT | PropT => false
     go(v)
 
   /** Whether the variable of level `l` occurs in `v` as it is, unevaluated. If not, it does not occur in its

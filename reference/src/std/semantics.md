@@ -18,6 +18,7 @@ arithmetic. A program writes `%use "std/semantics".`; it builds on [`std/eq`](eq
 | `env : list ⇑type -> Type.`, `enil`, `econs` | the values of a rule's variables, typed |
 | `cterm`, `cterms`, `catom`, `cbody` | the terms, atoms and body literals of a rule |
 | `crule : Type.`, `program : Type.` | a rule and a program |
+| `inputOf : list nat -> rref -> bool.` | the input test of the programs that `programOf` builds ([`std/quote`](quote.md#programs-as-values)) |
 | `intOf : ⇑int -> int.` | the meta integer of an object integer literal |
 | `add64`, `sub64`, `mul64`, `div64 : ⇑int -> ⇑int -> option ⇑int.`, `neg64 : ⇑int -> option ⇑int.` | the object level's arithmetic |
 | `instTerm`, `instTerms`, `instAtom` | instantiating terms and atoms with the values of the variables |
@@ -50,7 +51,9 @@ program's input relations are known from its data.
 
 ## Programs
 
-The rules of a program are data over their variables. A rule with the variables of the object types
+The rules of a program are data over their variables. The program of an ordinary functor or module
+is built by `programOf` of [`std/quote`](quote.md#programs-as-values); a program can also be written by
+hand, as below. A rule with the variables of the object types
 `τ₁ … τₙ` has the list `[τ₁, …, τₙ]` of its variables' types, and a variable is its position in that
 list, a proof of `member τᵢ [τ₁, …, τₙ]`. The values of the variables are an `env [τ₁, …, τₙ]`, built by
 `econs` from code of the types `τᵢ`.

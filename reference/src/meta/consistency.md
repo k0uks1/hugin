@@ -66,7 +66,7 @@ that its type, its value or its clauses mention, and, transitively, those of eve
 mention, also inside [opaque](index.md#opaque-definitions) definitions and functions, which do not
 unfold but whose proofs rest on what they mention. The *trusted primitives* are code of the compiler that the meta level relies on without a
 proof: the primitive operations `x : A = %builtin p.` of the standard library (`same`, `sameTrue`,
-`apart`, `labels`, `derive`, `derived`, `qatom`), and the functions of [`std/nat`](../std/nat.md#native-arithmetic) and
+`apart`, `labels`, `derive`, `derived`, `qatom`, `intOf`, and the code bridge `quote`, `unquote`, `quoteF`, `unquoteF` and `symOf` of [`std/quote`](../std/quote.md)), and the functions of [`std/nat`](../std/nat.md#native-arithmetic) and
 [`std/int`](../std/int.md#native-arithmetic) that compute natively, whose native operation is checked
 against their clauses when the library is elaborated. The arithmetic operators on meta integers apply
 the functions of `std/int`, so a constant computed with them rests on those functions. The arithmetic of

@@ -1,0 +1,34 @@
+error[E0942]: cannot reify a rule as a program value: negation is not in the positive fragment of `std/semantics`
+  --> tests/neg/e0942_programof_reify.hgn:11:35
+   |
+ 9 |   isolated X :- g.edge X X, not marked X.
+   |   --------------------------------------- this rule
+...
+11 | p : graph2 -> program = programOf lonely. (*~ E0942 *)
+   |                                   ^^^^^^ in the program of this module
+   |
+   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+
+error[E0942]: cannot reify a rule as a program value: string concatenation `^` is not interpreted by `std/semantics`
+  --> tests/neg/e0942_programof_reify.hgn:17:35
+   |
+15 |   label (X ^ "!") :- base X.
+   |   -------------------------- this rule
+...
+17 | q : graph2 -> program = programOf names. (*~ E0942 *)
+   |                                   ^^^^^ in the program of this module
+   |
+   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+
+error[E0942]: cannot reify a rule as a program value: a constructor term of a constant that the module declares, which has no code outside an instance
+  --> tests/neg/e0942_programof_reify.hgn:25:35
+   |
+23 |   drawn (dot N) :- size N.
+   |   ------------------------ this rule
+...
+25 | r : graph2 -> program = programOf local. (*~ E0942 *)
+   |                                   ^^^^^ in the program of this module
+   |
+   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+
+3 errors found

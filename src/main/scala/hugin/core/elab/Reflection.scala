@@ -265,6 +265,7 @@ trait Reflection:
     case ("fnot", List(f), s) => Not(formula(f, s, names, t))(s)
     case ("fconj", List(f, g), s) => Conj(formula(f, s, names, t), formula(g, s, names, t))(s)
     case ("fdisj", List(f, g), s) => Disj(formula(f, s, names, t), formula(g, s, names, t))(s)
+    case ("fas", List(f, x), s) => As(formula(f, s, names, t), asVariable(x, s, names, t))(s)
     case ("fagg", List(k, x, tm, f), s) =>
       val v = t.fresh("V")
       val agg = Agg(aggKind(k, s, t), term(tm, s, v :: names, t), formula(f, s, v :: names, t))(s)
@@ -282,7 +283,42 @@ trait Reflection:
     case ("tapp", List(sym, ts), s) => application(sym, ts, s, names, t)
     case ("tarith", List(op, a, b), s) => Infix(arithOp(op, s, t).show, term(a, s, names, t), term(b, s, names, t))(s, s)
     case ("tneg", List(a), s) => Neg(term(a, s, names, t))(s)
+    case ("tas", List(a, x), s) => As(term(a, s, names, t), asVariable(x, s, names, t))(s)
+    case ("tascribe", List(a, ty), s) => Ascribe(term(a, s, names, t), typeTree(ty, s, t))(s)
+    case ("tproj", List(a, l), s) =>
+      literal(l, s, t) match
+        case Literal.StrL(label) if label.nonEmpty => Select(term(a, s, names, t), label)(s, s)
+        case _ => malformed("a projection without a label", s)
+    case ("twith", List(a, us), s) =>
+      val fields = elements(us, s, t).map { (u, us2) =>
+        ctorApp(u, us2, t) match
+          case ("uset", List(l, e), s2) =>
+            literal(l, s2, t) match
+              case Literal.StrL(label) if label.nonEmpty => Field(Ident(label)(s2), term(e, s2, names, t))
+              case _ => malformed("an update without a label", s2)
+          case (_, _, s2) => malformed("not an update", s2)
+      }
+      With(term(a, s, names, t), fields)(s)
     case (_, _, s) => malformed("not a term", s)
+
+  /** The variable of `t as X`. */
+  private def asVariable(x: Val, s: Span, names: List[Name], t: Target): VarRef = term(x, s, names, t) match
+    case v: VarRef => v
+    case NamedVar(n) => VarRef(n)(s)
+    case _ => malformed("`as` with a term that is not a variable", s)
+
+  /** The syntax of an object type given as code (the type of an ascription): a base type, an object
+   *  constant (also a relation used as the type of its facts) or a union of them. */
+  private def typeTree(v: Val, s: Span, t: Target): Tree =
+    def go(ty: Val): Tree = peel(ty, s)._1 match
+      case Val.Base(b, Stage.S0) => Ident(b.show)(s)
+      case Val.Rigid(Head.Glob(id), Nil) => SymRef(id, globals(id).name)(s)
+      case Val.FactTy(r) => go(r)
+      case Val.Obj(ObjForm.Union, as) if as.nonEmpty => as.map(go).reduceLeft((a, b) => Union(a, b)(s))
+      case other => notClosed(other, s, t)
+    peel(v, s)._1 match
+      case Val.Quote(ty) => go(ty)
+      case other => notClosed(other, s, t)
 
   private def variable(n: Name, s: Span, t: Target): Tree =
     variablesUsed.foreach(_ += n)

@@ -55,7 +55,7 @@ trait ModuleBodies:
       val (cb, members) = elabMembers(c, parts, functions)
       recordBody(c, cb, body.span, members, parts.members)
       val items = objectItems(cb, parts.objects)
-      val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items)
+      val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items, c.binders.reverse.map(b => (b.name, b.tyTm)))
       val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
       (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)
     finally

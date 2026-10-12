@@ -122,7 +122,7 @@ enum ReflectionProblem extends Problem:
       )
     case _: Unsupported =>
       List(
-        msg"reflective data represents variables, literals, applications of object constants, arithmetic, comparisons, `not`, `,`, `;` and aggregates"
+        msg"reflective data represents variables, literals, applications of object constants, arithmetic, `as`, ascriptions, projections, updates, comparisons, `not`, `,`, `;` and aggregates"
       )
     case _: NotObjectSyntax =>
       List(msg"quoted object syntax is an object constant applied to terms, a variable, a literal, a hole `$$x`, or a formula")

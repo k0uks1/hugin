@@ -63,7 +63,9 @@ final case class SplitProblem(
    *  variable under the successors of `t`, or decides whether the case is dead. */
   def solve(core: Core, x: Int, t: Val): SplitProblem =
     val p = copy(values = values.updated(x, t))
-    val solved = p.copy(values = p.values.map(p.norm(core, _)), types = p.types.map(p.norm(core, _)))
+    // the values and types are up to date with the solutions before: only those that mention `x` change
+    def upd(v: Val): Val = if core.mentions(x, v) then p.norm(core, v) else v
+    val solved = p.copy(values = p.values.updated(x, p.norm(core, t)).map(upd), types = p.types.map(upd))
     ranges.get(x) match
       case None => solved
       case Some(r) =>

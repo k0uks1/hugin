@@ -116,6 +116,7 @@ trait Quotes:
         Q.Con("fcmp", List(Q.Con(cmpCtor(quotedCmp(op)), Nil, false, sp), q(l, RKind.Term), q(r, RKind.Term)), true, sp)
       case (RKind.Formula, Wildcard()) => Q.Hole(t, k, sp)
       case (RKind.Formula, _: Agg) => fail(ReflectionProblem.Unsupported("an aggregate without `X =`", "a formula", sp))
+      case (RKind.Formula, As(a, v)) => Q.Con("fas", List(q(a, k), q(v, RKind.Term)), true, sp)
       case (RKind.Formula, _) if metaValueAt(c, t) => metaValue(c, t, k)
       case (RKind.Formula, _) => application(c, t, "fatom", bound)
       case (RKind.Term, VarRef(n)) =>
@@ -133,9 +134,17 @@ trait Quotes:
       case (RKind.Term, Neg(a)) => Q.Con("tneg", List(q(a, k)), true, sp)
       case (RKind.Term, Infix(op, l, r)) if quotedArith.contains(op) =>
         Q.Con("tarith", List(Q.Con(arithCtor(quotedArith(op)), Nil, false, sp), q(l, k), q(r, k)), true, sp)
-      // a rule of the file reified for a module-wide directive: an ascription has no representation, the
-      // term is reflected without it (its type is checked again where the rule is elaborated)
-      case (RKind.Term, Ascribe(e, _)) if reifyingRules => q(e, k)
+      case (RKind.Term, As(e, v)) => Q.Con("tas", List(q(e, k), q(v, k)), true, sp)
+      // the object type is code (`⇑type`), elaborated where the quote is written
+      case (RKind.Term, Ascribe(e, ty)) =>
+        val at = atStage(Stage.S0)(check(c, ty, Val.U0, Stage.S0))
+        Q.Con("tascribe", List(q(e, k), Q.Raw(Tm.Quote(at), ty.span)), true, sp)
+      case (RKind.Term, s @ Select(qual, l)) if projected(qual) && symbolOf(c, s).isEmpty =>
+        Q.Con("tproj", List(q(qual, k), Q.QLit(Literal.StrL(l), s.nameSpan)), true, sp)
+      case (RKind.Term, With(e, fields)) =>
+        val updates =
+          fields.map(f => Q.Con("uset", List(Q.QLit(Literal.StrL(f.label.name), f.label.span), q(f.value, k)), false, f.label.span))
+        Q.Con("twith", List(q(e, k), Q.QList(updates, k, sp)), true, sp)
       case (RKind.Term, _) if metaValueAt(c, t) => metaValue(c, t, k)
       case (RKind.Term, _) => application(c, t, "tapp", bound)
       case (RKind.Sym, _) => symbol(c, t, "a reference to an object constant")
@@ -206,6 +215,13 @@ trait Quotes:
       else fail(ReflectionProblem.NotObjectSyntax("a measure (variables or labels)", t.span))
     val names = ps.map(p => Left(Tm.Lit(Literal.StrL(nameOf(p)), Stage.S1)))
     Q.Raw(con(ctor, listData(Tm.Base(hugin.obj.BaseType.StringT, Stage.S1), names)), t.span)
+
+  /** Whether `q.l` is a projection of an object term: `q` is an object variable or a projection of one
+   *  (otherwise `q.l` names a constant of a module). */
+  private def projected(q: Tree): Boolean = q match
+    case VarRef(_) | Parens(_) | Apply(_, _) => true
+    case Select(i, _) => projected(i)
+    case _ => false
 
   private def varName(t: Tree): Option[Name] = t match
     case VarRef(n) => Some(n)

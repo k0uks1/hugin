@@ -1,0 +1,17 @@
+error[E0941]: `three` is not a functor, a functor application or a module
+ --> tests/neg/e0941_programof_module.hgn:6:25
+  |
+6 | p : program = programOf three. (*~ E0941 *)
+  |                         ^^^^^ expected a module
+  |
+  = note: `programOf` reifies the rules of a module body: of a functor, of a functor applied to arguments, or of a module
+
+error[E0941]: `here` is not a functor, a functor application or a module
+ --> tests/neg/e0941_programof_module.hgn:7:25
+  |
+7 | q : program = programOf here. (*~ E0941 *)
+  |                         ^^^^ expected a module
+  |
+  = note: `programOf here`, the program of the current file, is not available yet: it needs the file's rules before its meta definitions
+
+2 errors found

@@ -71,16 +71,20 @@ program opens them with `%use "std/reflect".` ([Modules](modules.md#opening-modu
 | `list A` | `nil`, `cons` | sequences: the shared `list` ([Inductive families](meta/families.md#shared-data)) at the meta level, written `[]`, `[a, b]` and `x :: xs` |
 | `sym` | none | references to object constants, compared by identity |
 | `index` | `izero`, `isuc` | de Bruijn indices of variables bound by aggregates |
-| `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (list term)`, `tarith arith_op term term`, `tneg term` | terms |
+| `term` | `tvar string`, `tbound index`, `twild`, `tint int`, `tfloat float`, `tstr string`, `tapp sym (list term)`, `tarith arith_op term term`, `tneg term`, `tas term term`, `tascribe term ⇑type`, `tproj term string`, `twith term (list update)` | terms |
+| `update` | `uset string term` | a field of a functional update and its new term |
 | `quoted A` | `qterm term` | a term of the object type `A` ([Typed terms](#typed-terms)) |
-| `formula` | `fatom sym (list term)`, `fcmp cmp_op term term`, `fnot formula`, `fconj formula formula`, `fdisj formula formula`, `fagg agg_op term term formula` | formulas |
+| `formula` | `fatom sym (list term)`, `fcmp cmp_op term term`, `fnot formula`, `fconj formula formula`, `fdisj formula formula`, `fagg agg_op term term formula`, `fas formula term` | formulas |
 | `rule` | `horn (list formula) (list formula)` | a rule: its heads and its body conjuncts |
 | `item` | `irule rule`, `iquery (list formula)`, `inamed string rule`, `ierror string`, `irelation sym (list column)` | items |
 | `module` | (a definition: `list item`) | the rules and queries of a file |
 | `column` | `colof sym index` | the column of an object constant at an index |
 
 `arith_op`, `cmp_op` and `agg_op` enumerate the operators `+ - * / ^`, the comparisons and the
-aggregates. An object variable is represented by its name (`tvar "X"`). In an aggregate
+aggregates. `tas t x` is `t as X` with the variable `x`, `tascribe t a` the ascription `(t : A)`, whose object
+type is code `a : ⇑type`, `tproj t l` the projection `t.l`, `twith t us` the update `t with { l₁ = e₁, … }`
+with a `uset l e` per field, and `fas f x` an atom `f` with its fact bound to the variable `x`
+([Facts and identity](object/facts.md)). An object variable is represented by its name (`tvar "X"`). In an aggregate
 `X = k { t | φ }` whose term `t` is a variable `V`, `V` is bound by the aggregate: its occurrences in `t`
 and `φ` are `tbound` indices (a locally nameless representation). `fagg k x t φ` holds the result `x`,
 the term `t` and the body `φ`.
@@ -134,7 +138,10 @@ In the content,
   (`R : ⇑(A -> rel)`, a functor's parameter `g.edge`) stands for that constant, like a name;
 - `,`, `;`, `not`, comparisons and aggregates are formulas, arithmetic and literals terms;
 - a named pattern `r { l = t, .. }` is the atom with its arguments in column order;
-- a plain uppercase identifier is an object variable (`tvar "X"`), and `_` the wildcard `twild`.
+- a plain uppercase identifier is an object variable (`tvar "X"`), and `_` the wildcard `twild`;
+- `(t as X)`, `(t : A)`, `X.l` and `(t with { l = e })` are `tas`, `tascribe`, `tproj` and `twith` in a
+  term, and `(a as X)` is `fas` in a formula; the type `A` of an ascription is elaborated as an object
+  type where the quote is written.
 
 A quote is [object-typed](object/types.md#where-object-code-is-typed) where it is written, whether or
 not it is ever reflected, according to its category:
@@ -156,8 +163,10 @@ The holes of a quote are typed by their values:
   not typed, and neither are the arguments of an atom whose relation is a hole.
 
 It is an error ([E0401](errors/E0401.md), [E0402](errors/E0402.md)) if the content of a quote is
-ill-typed. A hole whose value is object code `⇑A` is an error ([E0901](errors/E0901.md)): object code
-is opaque, and a quote holds data.
+ill-typed. A hole whose value is object code `⇑A` stands for the data of the code, `$(quote c)` for a
+term and `$(quoteF c)` for a formula of type `⇑prop`, if the program loads the code bridge
+[`std/quote`](std/quote.md); it is then a term of type `A`. Without the code bridge it is an error
+([E0901](errors/E0901.md)): object code is opaque, and a quote holds data.
 
 The following definition is rejected: the quoted term must be a `typ`, and `lit 1` is an `expr`.
 
@@ -190,8 +199,9 @@ both X = '( busy :- teaches $X, cleans $X ).
 ```
 
 Meta values are written as holes (see below): `'( $R X :- $..Body )`. It is an error
-([E0917](errors/E0917.md)) to quote `as`, an ascription, a projection or an update, which have no
-representation, content of another category than the expected type's (two items where a rule is
+([E0917](errors/E0917.md)) to quote a lambda or a record, which have no representation, an ascription in
+a pattern (its type is code, which a pattern cannot match), content of another category than the
+expected type's (two items where a rule is
 expected, a rule where a formula is expected), a quote directly inside quoted syntax, or a
 [typed hole](meta/functions.md#typed-holes) `?`. A quote cannot denote a list of formulas or terms; such
 a list is a meta list of quotes (`['( p X ), '( q X )]`), and a quote checked against it is an error
@@ -383,14 +393,17 @@ A quoted term `q : quoted A` may be used as follows:
   `B`, and nothing is inserted: `quoted` is covariant;
 - in object code, with or without `$`, `q` stands for the term it describes, which is reflected and
   typed like a term written in its place; as for a `term` in object code, the data must be closed
-  ([E0918](errors/E0918.md));
+  ([E0918](errors/E0918.md)), unless the program loads the code bridge [`std/quote`](std/quote.md): data
+  that depends on a variable is then `unquote q`, typed where the code is staged;
+- where object code `⇑B` is expected, `unquote q` is inserted if the program loads the code bridge and `A`
+  is a subtype of `B`;
 - as the value of a hole of a quote, `q` is a term of type `A` ([Quotes](#quotes));
 - where a `formula` is expected, `q` is accepted if `A` is a type of facts, and `qatom q` is inserted
   ([Typed atoms](#typed-atoms)).
 
 It is an error ([E0901](errors/E0901.md)) to use a quoted term otherwise. In particular, a `term` is not
-a `quoted A`, `quoted A` is not `quoted B` unless `A` is a subtype of `B`, and a quoted term is not
-object code `⇑A`. A [directive](directives.md) quotes an argument at a parameter of type `quoted A`
+a `quoted A`, `quoted A` is not `quoted B` unless `A` is a subtype of `B`, and without the code bridge a
+quoted term is not object code `⇑A`. A [directive](directives.md) quotes an argument at a parameter of type `quoted A`
 implicitly, as a term of type `A`.
 
 The following program uses a quoted term as a term, in a head with `$` and in an equation through a

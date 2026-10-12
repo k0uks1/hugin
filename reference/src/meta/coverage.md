@@ -53,10 +53,12 @@ At a position of a nat-like family, where the patterns are numeral patterns
 ([Clauses](clauses.md#patterns)), the probes are *value classes* instead of unary terms: the literals `k`
 and offsets `P + j` of the clauses at the position cut the numerals into the singletons `{k}` and the
 intervals between the cuts `k`, `k + 1` and `j`, the last one unbounded, and no clause tells the numerals
-of a class apart. A singleton or a bounded interval gives a probe per numeral in it, and the unbounded
-interval from `a` the probe `Q + a` (`Q` if `a` is 0). These are the verdicts of the unary probes `sucⁿ
-zero`, at the cost of the number of literals and offsets, not of their values: `f 3 = 0. f (N + 5) = 1.`
-misses `f 0`, `f 1`, `f 2` and `f 4`.
+of a class apart. A singleton or a bounded interval of at most 20 numerals gives a probe per numeral in
+it; a longer bounded interval from `a` to `b` gives the probe `Q + a` with `Q` below `b - a`, and the
+unbounded interval from `a` the probe `Q + a` (`Q` if `a` is 0). These are the verdicts of the unary
+probes `sucⁿ zero`, at the cost of the number of literals and offsets, not of their values:
+`f 3 = 0. f (N + 5) = 1.` misses `f 0`, `f 1`, `f 2` and `f 4`, and a clause `f 9223372036854775807 = 0.` adds one class
+for the numerals below it.
 
 Emptiness is decided one level deep: a variable is empty if every constructor of its type conflicts with
 its indices. A refuted probe needs no clause, but a clause that matches only refuted probes is

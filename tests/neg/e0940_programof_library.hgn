@@ -1,0 +1,8 @@
+(* `programOf` needs the code bridge `std/quote` (E0940). *)
+%use "std/semantics".
+graph2 : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph2) = { (*~ W0003 *)
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+}.
+p : graph2 -> program = programOf tc. (*~ E0940 *)

@@ -1,0 +1,31 @@
+(* std/quote: the code bridge (reference: std/quote). Object code `⇑A` is opaque; the reflective syntax of
+   `std/reflect` can be taken apart. `quote` turns canonical object code into the data that describes it,
+   `unquote` turns closed data back into code, and the compiler guarantees that the two interconvert
+   faithfully: `unquote (quote c)` is `c` by conversion, for every `c`. The object level has no binders
+   that conversion substitutes into, so a structural `quote` is stable (Kovács, ICFP 2022, §6; the proofs
+   note, chapter 9). All five are trusted primitives. *)
+%use "std/reflect" (quoted, term, formula, sym).
+%use "std/eq" (eq, refl).
+
+(* The data of object code of type `A`; stuck on code that is not canonical, such as a variable *)
+quote : {A : ⇑type} -> ⇑A -> quoted A = %builtin quote.
+
+(* The code that closed data describes; `unquote (quote c)` is `c` *)
+unquote : {A : ⇑type} -> quoted A -> ⇑A = %builtin unquote.
+
+(* The same for formulas, such as the result of a formula function *)
+quoteF : ⇑prop -> formula = %builtin quoteF.
+unquoteF : formula -> ⇑prop = %builtin unquoteF.
+
+(* The symbol of the code of an object constant *)
+symOf : {R : ⇑type} -> ⇑R -> sym = %builtin symOf.
+
+(* The converse round trip on the data of code: `quote (unquote q)` is `q` for `q = quote c`, by
+   computation on canonical code and by `unquote (quote c) = c` on a variable. For data in general it is
+   false: `qterm` makes data of any shape (`tarith` of two literals unquotes to their computed sum) *)
+quoteUnquote : {A : ⇑type} -> (c : ⇑A) -> eq (quote (unquote (quote c))) (quote c) = [c] refl.
+quoteUnquoteF : (f : ⇑prop) -> eq (quoteF (unquoteF (quoteF f))) (quoteF f) = [f] refl.
+%opaque quoteUnquote quoteUnquoteF.
+
+(* `programOf P`, a special form (reference: std/quote), is the program of the module `P` as a value of
+   `std/semantics`, which a program that uses it loads as well *)

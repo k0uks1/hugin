@@ -28,6 +28,8 @@ import scala.collection.mutable
  *    such as object arithmetic, which is not a value (#186 P5: the semantics computes the object level's
  *    arithmetic on the meta integers, reference: std/semantics).
  *
+ *  - `quote`, `unquote`, `quoteF`, `unquoteF` and `symOf` of `std/quote`: the code bridge ([[CodeBridge]]).
+ *
  *  They reduce on closed arguments only (a symbol is closed when it is a quoted object constant); on
  *  anything else they are stuck, like a function on a neutral. */
 enum PrimOp(val key: String):
@@ -40,17 +42,28 @@ enum PrimOp(val key: String):
   case Apart extends PrimOp("apart")
   case IntOf extends PrimOp("intOf")
 
+  /** The code bridge of `std/quote` ([[CodeBridge]]). */
+  case Quote extends PrimOp("quote")
+  case Unquote extends PrimOp("unquote")
+  case QuoteF extends PrimOp("quoteF")
+  case UnquoteF extends PrimOp("unquoteF")
+  case SymOf extends PrimOp("symOf")
+
+  def isBridge: Boolean = this match
+    case Quote | Unquote | QuoteF | UnquoteF | SymOf => true
+    case _ => false
+
   /** The arguments, implicit ones included. */
   def arity: Int = this match
-    case Labels | Derived | IntOf => 1
-    case Derive | QAtom => 2
+    case Labels | Derived | IntOf | QuoteF | UnquoteF => 1
+    case Derive | QAtom | Quote | Unquote | SymOf => 2
     case Same => 3
     case SameTrue => 4
     case Apart => 5
 
   /** Whether the reduction reads the implicit arguments as well (otherwise only the explicit ones). */
   def readsImplicit: Boolean = this match
-    case SameTrue | Apart => true
+    case SameTrue | Apart | Quote => true
     case _ => false
 
 object PrimOp:
@@ -74,6 +87,10 @@ trait Primitives:
 
   /** The application of primitive `op` (building `ctors`) to `args`, if they are canonical. */
   def reducePrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
+    if op.isBridge then reduceBridge(op, ctors, args.map(forceData))
+    else reduceOtherPrimitive(op, ctors, args)
+
+  private def reduceOtherPrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
     (op, args.map(forceData)) match
       case (PrimOp.Same, List(a, b)) =>
         for x <- sameKey(a); y <- sameKey(b)

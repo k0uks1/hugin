@@ -60,6 +60,7 @@ trait QuoteTerms:
 
   private def reifyQ(c: Cxt, q: Q): Tm = q match
     case h @ Q.Hole(x, RKind.Term, _) => termHole(c, x, h)
+    case Q.Hole(x, RKind.Formula, _) => formulaHole(c, x)
     case Q.Hole(x, k, _) => check(c, x, ev(c, kindType(k)), Stage.S1)
     case Q.EntryHole(x, k, sp) => entryHole(c, x, k, sp)
     case Q.SeqHole(_, _, sp) => fail(ReflectionProblem.MisplacedSequenceHole(sp))
@@ -67,6 +68,10 @@ trait QuoteTerms:
       val r = reflective(sp)
       val fty = args.foldRight(kindType(k))((_, acc) => Tm.Pi("_", Icit.Expl, Tm.Global(r.term), acc))
       args.foldLeft(check(c, f, eval(Nil, fty), Stage.S1))((acc, a) => Tm.App(acc, reifyQ(c, a), Icit.Expl))
+    // the fields of an update are a list of `update`, not of terms
+    case Q.Con("twith", List(e, Q.QList(us, _, _)), located, sp) =>
+      val t = con("twith", reifyQ(c, e), listData(Tm.Global(reflective(sp).ctor("update")), us.map(u => Left(reifyQ(c, u)))))
+      if located then Tm.loc(sp, t) else t
     case Q.Con(n, args, located, sp) =>
       val t = con(n, args.map(reifyQ(c, _))*)
       if located then Tm.loc(sp, t) else t
@@ -91,13 +96,32 @@ trait QuoteTerms:
   private def termHole(c: Cxt, x: Tree, hole: Q): Tm =
     val term = ev(c, kindType(RKind.Term))
     val inferred =
-      try Some(undoOnFailure(insert(c, x.span, infer(c, x))))
+      try
+        Some(undoOnFailure(insert(c, x.span, infer(c, x))) match
+          // object code: its data, by the code bridge's `quote`
+          case (tm, ty, Stage.S1) if quotedCode(c, tm, ty, formula = false).isDefined =>
+            val (q, qty) = quotedCode(c, tm, ty, formula = false).get
+            (q, qty, Stage.S1)
+          case other => other
+        )
       catch case _: ElabError => None
     inferred.foreach((tm, ty, _) => recordHole(c, hole, tm, ty))
     inferred match
       case Some((tm, ty, Stage.S1)) if reflectiveKind(ty).isEmpty && reifyCode(c, tm, ty).isDefined => reifyCode(c, tm, ty).get
       case Some((tm, ty, s)) => coe(c, x.span, tm, ty, s, term, Stage.S1)
       case None => check(c, x, term, Stage.S1)
+
+  /** A hole `$x` at a formula: `x` of type `formula`, or object code `⇑prop` as its data, by the code
+   *  bridge's `quoteF`. */
+  private def formulaHole(c: Cxt, x: Tree): Tm =
+    val formula = ev(c, kindType(RKind.Formula))
+    val inferred =
+      try Some(undoOnFailure(insert(c, x.span, infer(c, x))))
+      catch case _: ElabError => None
+    inferred match
+      case Some((tm, ty, Stage.S1)) if quotedCode(c, tm, ty, formula = true).isDefined => quotedCode(c, tm, ty, formula = true).get._1
+      case Some((tm, ty, s)) => coe(c, x.span, tm, ty, s, formula, Stage.S1)
+      case None => check(c, x, formula, Stage.S1)
 
   /** A whole entry `$x` of kind `k` (a rule or an item): `x` of that kind, or a formula (the fact `x`), or
    *  for an item a rule. */

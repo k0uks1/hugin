@@ -1,0 +1,7 @@
+(* The argument of `programOf` is not a functor, a functor application or a module (E0941); `here`, the
+   current file, is not available yet. *)
+%use "std/semantics".
+%use "std/quote".
+three : int = 3.
+p : program = programOf three. (*~ E0941 *)
+q : program = programOf here. (*~ E0941 *)

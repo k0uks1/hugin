@@ -1,0 +1,11 @@
+(* Coverage cuts the numerals at a clause's literal into classes; a long interval that no clause tells
+   apart is one class, not its numerals one by one (a mutant of p1_assumptions hung on 2^63 - 1). *)
+plus : nat -> nat -> nat. (*~ E0911 *)
+plus 9223372036854775807 N = N.
+plus (M + 1) N = 1.
+
+f : nat -> nat. (*~ E0911 *)
+f 0 = 0.
+f 5 = 1.
+f 9223372036854775807 = 2.
+f (N + 9223372036854775807) = 3.

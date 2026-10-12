@@ -1134,8 +1134,19 @@ trait Clauses:
     val s = natLike(fam).get._2
     def value(v: BigInt): Iterator[Either[SplitProblem, Unit]] =
       if r.allows(v) then Iterator(Left(q.solve(core, x, Val.Nat(fam, v)))) else Iterator.empty
+    // a long interval that no clause tells apart is one class, `x := z + a` with `z < b - a`, not its
+    // numerals one by one (`f 9223372036854775807` cuts at 2^63 - 1); all that `x` can be, it is `x`. A short
+    // one gives its numerals, which name the missing cases exactly (at most [[MaxMissing]] are shown)
     def interval(a: BigInt, b: BigInt): Iterator[Either[SplitProblem, Unit]] =
-      Iterator.iterate(a)(_ + 1).takeWhile(_ < b).flatMap(value)
+      if b - a <= MaxMissing then Iterator.iterate(a)(_ + 1).takeWhile(_ < b).flatMap(value)
+      else if a == 0 && r.below.exists(_ <= b) then Iterator(Right(()))
+      else
+        Iterator.single(()).flatMap { _ =>
+          val q1 = q.extend(q.names(x), q.types(x))
+          val z = Val.local(q.size)
+          val q2 = q1.solve(core, x, if a == 0 then z else natSuccs(s, z, a)).restrict(q.size, NatRange(Set.empty, Some(b - a)))
+          if q2.dead then Iterator.empty else Iterator(Left(q2))
+        }
     val bounded = cuts.zip(cuts.tail).iterator.flatMap((a, b) => interval(a, b))
     val last = cuts.last
     val unbounded: Iterator[Either[SplitProblem, Unit]] = r.below match

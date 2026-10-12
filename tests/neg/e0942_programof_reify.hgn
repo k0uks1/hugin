@@ -1,0 +1,25 @@
+(* Rules outside the positive fragment of `std/semantics` cannot be reified by `programOf` (E0942):
+   negation, string concatenation, and a constructor term of a constructor the module declares. *)
+%use "std/semantics".
+%use "std/quote".
+graph2 : Type = { node : type, edge : node -> node -> rel }.
+lonely (g : graph2) = {
+  isolated : g.node -> rel.
+  marked : g.node -> rel.
+  isolated X :- g.edge X X, not marked X.
+}.
+p : graph2 -> program = programOf lonely. (*~ E0942 *)
+names (g : graph2) = {
+  label : string -> rel.
+  base : string -> rel.
+  label (X ^ "!") :- base X.
+}.
+q : graph2 -> program = programOf names. (*~ E0942 *)
+local (g : graph2) = {
+  shape : type.
+  dot : int -> shape.
+  drawn : shape -> rel.
+  size : int -> rel.
+  drawn (dot N) :- size N.
+}.
+r : graph2 -> program = programOf local. (*~ E0942 *)

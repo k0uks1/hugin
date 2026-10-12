@@ -69,11 +69,12 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 | `cmp_op` (`ceq`, `cne`, `clt`, `cle`, `cgt`, `cge`) | comparison operators |
 | `agg_op` (`acount`, `asum`, `amin`, `amax`) | aggregate operators |
 | `term`, `formula`, `rule`, `item`, `module` | object syntax as data, written as quotes `'( … )` ([Reflection](../reflection.md#quotes)) |
+| `update`, `uset` | a field of a functional update `t with { l = e }` and its new term |
 | `quoted A`, `qterm`, `raw` | a term of the object type `A`, made without a check, and its term ([Reflection](../reflection.md#typed-terms)) |
 | `qvar` | the typed variable named by a hint ([Reflection](../reflection.md#typed-variables)) |
 | `qatom` | a typed atom as a formula, inserted where a formula is expected ([Reflection](../reflection.md#typed-atoms)) |
 | `column`, `colof` | the column of an object constant at an index |
-| `pick`, `openT`, `openTs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
+| `pick`, `openT`, `openTs`, `openUs`, `openF` | instantiate the variable bound at an index, as a higher-order hole does |
 
 ## Declarations and directives
 

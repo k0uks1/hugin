@@ -358,6 +358,7 @@ trait Declarations:
         forceData(doms.head) match
           case Val.Lift(t) if forceData(t) == Val.Base(hugin.obj.BaseType.IntT, Stage.S0) => Some(Nil)
           case _ => None
+      case _ if op.isBridge => bridgeCtors(op, binders.map(_._2), doms, result)
       case _ => None
     val expected = op match
       case PrimOp.Same => "A -> A -> bool"
@@ -368,7 +369,62 @@ trait Declarations:
       case PrimOp.SameTrue => "{A : Type} -> {a b : A} -> eq (same a b) true -> eq a b"
       case PrimOp.Apart => "{A : Type} -> {a b : A} -> eq (same a b) false -> eq a b -> empty"
       case PrimOp.IntOf => "⇑int -> int"
+      case PrimOp.Quote => "{A : ⇑type} -> ⇑A -> quoted A"
+      case PrimOp.Unquote => "{A : ⇑type} -> quoted A -> ⇑A"
+      case PrimOp.QuoteF => "⇑prop -> formula"
+      case PrimOp.UnquoteF => "formula -> ⇑prop"
+      case PrimOp.SymOf => "{R : ⇑type} -> ⇑R -> sym"
     found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))
+
+  /** The constructors a primitive of the code bridge builds and reads ([[hugin.core.CodeBridge]]), if its
+   *  type is its own: `quote : {A : ⇑type} -> ⇑A -> quoted A`, `unquote : {A : ⇑type} -> quoted A -> ⇑A`,
+   *  `quoteF : ⇑prop -> formula`, `unquoteF : formula -> ⇑prop` and `symOf : {R : ⇑type} -> ⇑R -> sym`, where
+   *  `quoted A` has the one constructor `qterm` of a `term` with `tapp`, and `formula` has `fatom`. The
+   *  constructors are found by name among those of the types the declared type reaches. */
+  private def bridgeCtors(op: PrimOp, icits: List[Icit], doms: List[Val], result: Val): Option[List[Int]] =
+    import Icit.{Expl, Impl}
+    def lifted(v: Val, of: Val => Boolean): Boolean = forceData(v) match
+      case Val.Lift(t) => of(forceData(t))
+      case _ => false
+    def anyType(v: Val) = true
+    def prop(v: Val) = v == Val.PropT
+    def head(v: Val): Option[Int] = forceData(v) match
+      case Val.Rigid(Head.Glob(id), _) => Some(id)
+      case _ => None
+    def isSymbols(v: Val) = head(v).exists(globals(_).kind == GlobalKind.Symbols)
+    // the constructors of the inductive types `v` reaches through its constructors' arguments, by name
+    def reached(vs: List[Val]): Map[Name, Int] =
+      val seen = scala.collection.mutable.LinkedHashSet.empty[Int]
+      val todo = scala.collection.mutable.Stack.from(vs.flatMap(head))
+      val out = scala.collection.mutable.LinkedHashMap.empty[Name, Int]
+      while todo.nonEmpty do
+        val t = todo.pop()
+        if seen.add(t) then
+          globals(t).kind match
+            case GlobalKind.Inductive(cs) =>
+              for c <- cs do
+                out.getOrElseUpdate(globals(c).name, c)
+                for (_, _, d) <- telescope(globals(c).ty)._1 do
+                  todo.pushAll(head(d))
+                  forceData(d) match
+                    case Val.Rigid(_, sp) => todo.pushAll(sp.collect { case Elim.EApp(a, _) => a }.flatMap(head))
+                    case _ =>
+            case _ =>
+      out.toMap
+    def ctors(vs: List[Val], need: List[Name]): Option[List[Int]] =
+      val found = reached(vs)
+      Option.when(need.forall(found.contains))(CodeBridge.names.map(n => found.getOrElse(n, -1)))
+    def quotedTerm(v: Val) = reached(List(v)).get("qterm").isDefined
+    def formula(v: Val) = reached(List(v)).get("fatom").isDefined && quotedTerm(v) == false
+    (op, icits, doms) match
+      case (PrimOp.Quote, List(Impl, Expl), List(_, d)) if lifted(d, anyType) && quotedTerm(result) =>
+        ctors(List(result), CodeBridge.termNames :+ "qterm")
+      case (PrimOp.Unquote, List(Impl, Expl), List(_, d)) if quotedTerm(d) && lifted(result, anyType) =>
+        ctors(List(d), CodeBridge.termNames :+ "qterm")
+      case (PrimOp.QuoteF, List(Expl), List(d)) if lifted(d, prop) && formula(result) => ctors(List(result), CodeBridge.formulaNames)
+      case (PrimOp.UnquoteF, List(Expl), List(d)) if formula(d) && lifted(result, prop) => ctors(List(d), CodeBridge.formulaNames)
+      case (PrimOp.SymOf, List(Impl, Expl), List(_, d)) if lifted(d, anyType) && isSymbols(result) => Some(Nil)
+      case _ => None
 
   /** `eq` and `refl` for the lemmas on `same` of `std/eq`, if the type is exactly theirs: `sameTrue : {A :
    *  Type} -> {a b : A} -> eq (same a b) true -> eq a b` and `apart : {A : Type} -> {a b : A} -> eq (same a

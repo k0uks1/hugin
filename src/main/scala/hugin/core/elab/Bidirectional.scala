@@ -26,6 +26,7 @@ trait Bidirectional:
     case Lit(Literal.IntL(k)) if metaInt != null => (Tm.IntNum(BigInt(k)), metaIntType, Stage.S1)
     case Lit(Literal.IntL(_)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
+    case Apply(_, _) if isProgramOf(c, t) => inferProgramOf(c, t)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     case s: Select => inferSelect(c, s)
     case Arrow(_, _, _) if endsInRel(t) => (objectArrow(c, t), Val.U0, Stage.S0)
