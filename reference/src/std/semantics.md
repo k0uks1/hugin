@@ -378,7 +378,7 @@ program value without input relations, and proves `linked berlin paris` by evalu
 ```hugin,run
 %use "std/eq" (tt).
 %use "std/semantics".
-checker = %import "std/decide".
+%use "std/decide" (decide).
 city : type. berlin, paris : city.
 noInputs : rref -> bool.
 noInputs R = false.
@@ -389,7 +389,7 @@ linkedRule : crule = { head = 0, index = 1, label = none, vars = [city, city],
   body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
 roads : program = { relations = ["linked", "road"], rules = [roadFact, linkedRule], input = noInputs, strata = [[1], [0]] }.
 onward : {d : db} -> derives roads d (atom (own 0) [v (<berlin>), v (<paris>)]) =
-  checker.decide (derivable 2 roads) (atom (own 0) [v (<berlin>), v (<paris>)]) tt.
+  decide (derivable 2 roads) (atom (own 0) [v (<berlin>), v (<paris>)]) tt.
 %opaque onward.
 proved : string -> rel.
 proved "linked".
@@ -407,10 +407,12 @@ a variable only in a comparison or a constructor term, or that has a negation or
 nothing in `holds`, so `holds` may be
 `false` for a derived fact, but never `true` for a fact that is not derived.
 
-The example uses the generic `decide` of `std/decide` through its module value, since `std/semantics`
-declares a `decide` of its own: `decide n t` is `holdsSound n p a t` with the program and the fact taken
-from the expected type, for judgments: a fact of a module whose facts are part of its program is proved by `decide n tt` for enough
-rounds `n`. The following program proves by evaluation that a module derives a path through Paris, for
+The example opens the generic `decide` of `std/decide` next to the `decide` that `std/semantics` declares
+itself. The name is then [overloaded](../modules.md#overloaded-opened-names) and chosen by the types:
+applied to three arguments, only the generic one fits, since the semantics' `decide` takes two. The
+semantics' own `decide n t` is `holdsSound n p a t` with the program and the fact taken from the expected
+type, for judgments: a fact of a module whose facts are part of its program is proved by `decide n tt`
+for enough rounds `n`. The following program proves by evaluation that a module derives a path through Paris, for
 every database.
 
 ```hugin,run

@@ -367,7 +367,9 @@ only functions, since a pattern is built from constructors and variables; the su
 pattern as before.
 
 Each operand is elaborated once, so the time to resolve nested operators grows linearly with their
-number. On an operator, the editor shows the function it denotes, and go to definition goes to it.
+number. On an operator, the editor shows the function it denotes, and go to definition goes to it. A name
+that `%use` items open for several meta constants is chosen between in the same way ([Overloaded opened
+names](modules.md#overloaded-opened-names)).
 
 The following program states and proves that `0` is a left unit of `+` on `nat`, and uses `-`, `*` and
 the `+` of `int`.

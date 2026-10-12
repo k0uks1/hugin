@@ -46,7 +46,8 @@ The directive `%partial` of earlier versions has been removed; it is an error ([
 So `%use` makes the directives of a module available: after `%use "lib/closures".`, a function
 `symmetric` of that file is the directive `%symmetric`. It is an error ([E0101](errors/E0101.md)) if no
 `d` is in scope; the diagnostic suggests a directive with a similar name. It is an error
-([E0109](errors/E0109.md)) if two `%use` items open `d` for different functions. The compiler elaborates
+([E0109](errors/E0109.md)) if two `%use` items open `d` for different functions: a directive is not
+[chosen by the types](modules.md#overloaded-opened-names), as other opened names of meta constants are. The compiler elaborates
 the application `d a₁ … aₙ` with the arguments checked against `d`'s parameter types, with stage
 inference. The arguments of a directive are object syntax, like the item they stand in: an argument at a
 parameter of a reflective type (`term`, `formula`, `rule`, `item`, `sym`, `decl`, `measure`) or of type

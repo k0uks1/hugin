@@ -1,0 +1,5 @@
+(* #186 P9e: `decide` is opened by two `%use` items for two meta constants; without an expected type or
+   an argument, both fit *)
+%use "std/decide".
+%use "std/semantics".
+which = decide. (*~ E0932 *)
