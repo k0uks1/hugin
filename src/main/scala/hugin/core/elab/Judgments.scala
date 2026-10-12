@@ -49,6 +49,10 @@ trait Judgments:
         if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
         else judgmentProgram(c, j.program, j.opSpan)
     val programShown = hugin.syntax.Printer.show(j.program)
+    // the notation reads the program in `derives`, the positive fragment (#186 P9a, E0961)
+    nonPositiveRule(sem, ev(c, prog)).foreach { (rel, aggregate) =>
+      fail(JudgmentProblem.NotPositive(programShown, rel, aggregate, j.program.span))
+    }
     // the database
     val dbTy = eval(Nil, Tm.Global(sem("db")))
     val db = j.db match
@@ -297,6 +301,31 @@ trait Judgments:
   private def natValue(v: Val): Option[BigInt] = forceData(v) match
     case Val.Nat(_, n) => Some(n)
     case _ => None
+
+  /** The first rule of a program value with a negation or an aggregate in its body, if its rules
+   *  evaluate: the relation of its head (if known by name) and whether it is an aggregate. */
+  private def nonPositiveRule(sem: Map[Name, Int], p: Val): Option[(Option[String], Boolean)] =
+    try
+      forceData(p) match
+        case rec: Val.Rec =>
+          val relations = listElems(proj(rec, "relations")).map(_.map(forceData).collect {
+            case Val.Lit(hugin.syntax.Literal.StrL(s), _) => s
+          })
+          listElems(proj(rec, "rules")).getOrElse(Nil).iterator.flatMap { r =>
+            forceData(r) match
+              case rr: Val.Rec =>
+                val kinds = listElems(proj(rr, "body")).getOrElse(Nil).map(forceData).collect {
+                  case Val.Rigid(Head.Glob(id), _) if sem.get("cnot").contains(id) => false
+                  case Val.Rigid(Head.Glob(id), _) if sem.get("cagg").contains(id) => true
+                }
+                kinds.headOption.map { aggregate =>
+                  val rel = natValue(proj(rr, "head")).flatMap(h => relations.flatMap(_.lift(h.toInt)))
+                  (rel, aggregate)
+                }
+              case _ => None
+          }.nextOption()
+        case _ => None
+    catch case _: Impossible => None
 
   /** The elements of a meta list value, if it is a list of known length. */
   private def listElems(v: Val): Option[List[Val]] =

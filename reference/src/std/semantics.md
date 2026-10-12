@@ -206,6 +206,13 @@ value, `r` is one of the names its `relations` list, and the arguments' types ar
 ([E0945](../errors/E0945.md)) if `r` is none of these, or if the atom has a different number of arguments
 than `r` has columns.
 
+The notation covers programs without negation and aggregates, the positive fragment of this page: a
+rule with a negated atom or an aggregate in its body never fires in `derives`, so a judgment over a program
+with such a rule would state facts about a different program than the one that runs. It is an error
+([E0961](../errors/E0961.md)) if a rule of `P` has a negation or an aggregate in its body (when the rules
+of `P` are known: a module body, a functor applied or written alone, or a program value that evaluates).
+Such a program's facts are stated with `nderives` and `perfect` of [`std/strata`](strata.md).
+
 The database `e` is written in brackets directly after the turnstile. Without it, a judgment uses the
 variable `d`: in the type of a declaration, the database that generalisation binds, and elsewhere the `d`
 in scope. It is an error ([E0947](../errors/E0947.md)) if there is none.
@@ -443,7 +450,8 @@ The judgment is about the program that the engine runs, by one statement for all
 > `m`: for `arg l`, the relation that the arguments of `m`'s functor application give the parameter's
 > field `l`; for `ext s`, the relation `s`; for `own i`, the input relation `i` of `m`'s body.
 
-The statement holds for the positive fragment of this page. It is trusted: the engine is not verified
+The statement holds for the positive fragment of this page, which is the scope of the notation
+([E0961](../errors/E0961.md)). It is trusted: the engine is not verified
 against `derives`, but tested against it, as the reference semantics. A theorem about a functor applies to
 each of its instances, since `programOf m` is the program of the application that made `m`
 ([`std/quote`](quote.md#programs-as-values)): `iff (tc g ⊢ path x y) (tc2 g ⊢ path x y)` at `g := { node

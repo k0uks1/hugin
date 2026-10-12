@@ -1,0 +1,12 @@
+error[E0105]: formula function `m.ping` refers to itself
+  --> tests/neg/mc_formula_cycle_order.hgn:8:13
+   |
+ 8 |   ping X :- pong X. (*~ E0105 *)
+   |             ^^^^ expands to a use of it again
+...
+12 |   ping : node -> prop.
+   |   ---- declared here
+   |
+   = note: a formula function is expanded where it is used, so its expansion would not end; recursion is written with a relation
+
+1 error found

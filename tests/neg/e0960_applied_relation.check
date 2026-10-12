@@ -1,0 +1,59 @@
+error[E0960]: `fast.path x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_applied_relation.hgn:22:28
+   |
+22 | instance : {x y : city} -> fast.path x y -> fast.path x y. (*~ E0960 *)
+   |                            ^^^^^^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program whose rules derive it
+   = help: name the program in a judgment of `std/semantics`: `P ⊢ r t̄`
+
+error[E0960]: `(tc g).path x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_applied_relation.hgn:24:41
+   |
+24 | applied (g : graph) : {x y : g.node} -> (tc g).path x y -> Type = [_] Type. (*~ E0960 *)
+   |                                         ^^^^^^^^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program whose rules derive it
+   = help: name the program in a judgment of `std/semantics`: `P ⊢ r t̄`
+
+error[E0960]: `g.edge x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_applied_relation.hgn:25:54
+   |
+25 | param (g : graph) (x : g.node) (y : g.node) : Type = g.edge x y. (*~ E0960 *)
+   |                                                      ^^^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program whose rules derive it
+   = help: name the program in a judgment of `std/semantics`: `P ⊢ r t̄`
+
+error[E0960]: `fast.path x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_applied_relation.hgn:26:30
+   |
+26 | explicit : {x y : city} -> ⇑(fast.path x y) -> Type. (*~ E0960 *)
+   |                              ^^^^^^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program whose rules derive it
+   = help: name the program in a judgment of `std/semantics`: `P ⊢ r t̄`
+
+error[E0960]: `fast.path` is not a type family: it is a relation, and its applications are not types
+  --> tests/neg/e0960_applied_relation.hgn:28:32
+   |
+28 | eta : ⇑city -> ⇑city -> Type = fast.path. (*~ E0960 *)
+   |                                ^^^^^^^^^ a relation where a type family is expected
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program whose rules derive it
+   = help: name the program in a judgment of `std/semantics`: `P ⊢ r t̄`
+
+warning[W0003]: unused definition `identity`
+  --> tests/neg/e0960_applied_relation.hgn:31:1
+   |
+31 | identity : fast.path = <fast.path berlin paris>. (*~ W0003 *)
+   | ^^^^^^^^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+5 errors, 1 warning found
