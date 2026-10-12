@@ -433,16 +433,70 @@ X = rome.
 ```
 
 Names opened by `%use` are shadowed by the declarations of the file, in the whole file. It is an error
-([E0109](errors/E0109.md)) to use a name that two `%use` items open for different declarations; opening
-the same declaration twice is not an error. The following program opens `factor` from two modules.
+([E0109](errors/E0109.md)) to use a name that two `%use` items open for different declarations, unless
+they are all meta constants (see [Overloaded opened names](#overloaded-opened-names)); opening the same
+declaration twice is not an error. The following program opens the relation `path` of two instances.
 
 ```hugin,compile_fail,E0109
-metric = { unit : string = "km". factor : int = 1000. }.
-imperial = { unit : string = "mi". factor : int = 1609. }.
-%use metric.
-%use imperial (factor).
-distance : int -> rel.
-distance (12 * factor).
+graph : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+}.
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+road berlin paris.
+rail : city -> city -> rel.
+%use (tc { node = city, edge = road }).
+%use (tc { node = city, edge = rail }).
+?- path berlin X.
+```
+
+### Overloaded opened names
+
+A name that `%use` items open for several declarations that are all meta constants (functions,
+definitions, constructors and postulates of the meta level, also meta types) is *overloaded*: a use of
+it denotes one of them, chosen by the types as an [operator bound to several meta
+functions](lexical-structure.md#operators-bound-to-meta-functions) is. For a use `n a₁ … aₖ` (`k ≥ 0`
+explicit arguments):
+
+1. A candidate whose type takes fewer than `k` explicit arguments is left out, and so is one whose result
+   after the `k` arguments has a head that differs from the expected type's (a type constructor, a base
+   type, a universe, a function type, `⇑`, a record type, `rel` or `prop`). A head that is not known (an
+   unsolved type, a stuck type-level application) fits every candidate.
+2. If several remain and `k ≥ 1`, the first argument is inferred, and a candidate whose first explicit
+   domain has a head that differs from that of the argument's type is left out.
+
+Each argument is elaborated once, and nothing is undone: the chosen candidate is applied as if it were
+written alone, and its arguments are then checked against its type. It is an error
+([E0932](errors/E0932.md)) if several candidates remain, and ([E0933](errors/E0933.md)) if none does.
+Object constants (relations, object types and constructors, also those of a module instance) are never
+overloaded: a name opened for an object constant and another declaration is ambiguous (E0109). A
+declaration of the file still shadows the opened names, and a name that only one `%use` opens is not
+overloaded. In an editor, hover and go to definition show the chosen constant.
+
+The following program opens `decide` of [`std/semantics`](std/semantics.md) (a derivation by evaluation)
+and the generic `decide` of [`std/decide`](std/decide.md) (a decider's proof). The first use expects a
+[judgment](std/semantics.md#the-judgment-notation), the result of the semantics' `decide` after two
+arguments; the second applies three arguments, which only the generic `decide` takes.
+
+```hugin,run
+%use "std/eq" (eq, tt).
+%use "std/nat".
+%use "std/decide".
+%use "std/semantics".
+city : type. berlin, paris : city.
+trip = { hop : city -> city -> rel. hop berlin paris. }.
+direct : trip ⊢ hop berlin paris = decide 1 tt.
+same : eq (plus 2 2) 4 = decide natEqual { fst = plus 2 2, snd = 4 } tt.
+%opaque direct same.
+proved : string -> rel.
+proved "both".
+%output proved.
+```
+
+```output
+proved "both".
 ```
 
 `%use` and `%export` are not directives (meta functions): they change scopes and the module of a file,
@@ -463,7 +517,9 @@ which no meta function can.
 
 The scopes of a compilation are nested as follows: the prelude encloses every file; each file is a scope
 of its own; each module body is a scope inside the scope where it is written. The names that a file opens
-with `%use` lie between the file and the enclosing scope. A name declared in a scope shadows the same
+with `%use` lie between the file and the enclosing scope; a name opened for several meta constants is
+[overloaded](#overloaded-opened-names), and one opened for several declarations of which one is an object
+constant is ambiguous ([E0109](errors/E0109.md)). A name declared in a scope shadows the same
 name of an enclosing scope, in the whole scope, also before its declaration. The names the prelude opens
 are in scope in every file. When a program declares an object constant with the name of a constant of the
 prelude or of the standard library, that constant is displayed as `prelude.n`.

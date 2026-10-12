@@ -244,7 +244,9 @@ import graph sees it). An opened name denotes the global the field is (an import
 constructors stay constructors in patterns); a field that is not a declaration (a member of a module
 instance) is opened as a hidden definition equal to the projection. Opened names lie between the file's
 declarations (which shadow them in the whole file) and the prelude; a name opened for two globals is E0109
-where it is used. `%use` items are elaborated first among the declarations, and an item whose name is
+where it is used, unless they are all meta constants (#186 P9e): then a use chooses by P2b's head rule
+(`Overloading.resolveOpened`; E0932 if several fit, E0933 if none does), and a directive `%d` still
+reports E0109. `%use` items are elaborated first among the declarations, and an item whose name is
 unresolved is retried while a `%use` is pending, so `%use m.` may come before `m = %import "f".` The
 names the prelude opens are part of the prelude's scope (`ProgramElab.prelude`), which is how the prelude
 re-exports from other files (batch B1).
