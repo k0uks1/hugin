@@ -1,0 +1,40 @@
+(* The judgment notation reads a program in `derives`, the positive fragment, in which a rule with a
+   negation or an aggregate never fires: a judgment over such a program is E0961 (`nderives` of
+   `std/strata` reads it stratum by stratum). Without the error, `never` would be accepted although the
+   run derives `m.ok berlin`. *)
+%use "std/semantics".
+%use "std/eq" (empty).
+city : type. berlin, paris : city.
+
+m = {
+  node : city -> rel.
+  bad : city -> rel.
+  node berlin. node paris. bad paris.
+  ok : city -> rel.
+  ok X :- node X, not bad X.
+}.
+never : m ⊢ ok berlin -> empty. (*~ E0961 *)
+never (fire {xs := econs X enil} (there (there (there here))) (ppos _ _ ()) here).
+
+n = {
+  node : city -> rel.
+  node berlin. node paris.
+  size : int -> rel.
+  size N :- N = count { X | node X }.
+}.
+counted : {k : int} -> n ⊢ size k -> Type. (*~ E0961 *)
+counted _ = Type.
+
+(* a positive program keeps the notation *)
+p = { node : city -> rel. node berlin. }.
+same : p ⊢ node berlin -> p ⊢ node berlin.
+same P = P.
+
+(* also a functor written alone, whose rule negates a (complete) parameter relation *)
+%use "std/graph".
+loops (g : complete_graph) = {
+  free : g.node -> rel.
+  free X :- g.edge X _, not g.edge X X.
+}.
+looping : {x : g.node} -> loops ⊢ free x -> Type. (*~ E0961 *)
+looping _ = Type.

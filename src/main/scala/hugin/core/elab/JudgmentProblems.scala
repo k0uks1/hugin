@@ -7,8 +7,8 @@ import scala.language.implicitConversions
 
 /** The problems of the judgment notation `P ⊢[e] r t̄` and of rule names (reference: std/semantics, "The
  *  judgment notation", "Rule names"): the atom of a judgment (E0945), a generalised functor parameter
- *  (E0946), the database (E0947), a rule name (E0948) and `given` (E0949). Terms are given as shown to
- *  users. */
+ *  (E0946), the database (E0947), a rule name (E0948), `given` (E0949) and a program with negation or
+ *  aggregates (E0961). Terms are given as shown to users. */
 enum JudgmentProblem extends Problem:
   /** A judgment in a program that does not load `std/semantics`. */
   case NoLibrary(at: Span)
@@ -53,6 +53,10 @@ enum JudgmentProblem extends Problem:
    *  does not evaluate (`decided` false). */
   case NotAnInput(rel: String, decided: Boolean, at: Span)
 
+  /** A judgment over the program `program`, a rule of which (with a head of `rel`, if known) has a negation
+   *  or (`aggregate`) an aggregate: the notation reads programs in the positive `derives` (#186 P9a). */
+  case NotPositive(program: String, rel: Option[String], aggregate: Boolean, at: Span)
+
   def code: Code = this match
     case _: NoLibrary | _: UnknownRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
     case _: CannotGeneralise => Code.E0946
@@ -60,6 +64,7 @@ enum JudgmentProblem extends Problem:
     case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
       Code.E0948
     case _: NotAnInput => Code.E0949
+    case _: NotPositive => Code.E0961
 
   def primary: Span = this match
     case NoLibrary(s) => s
@@ -76,6 +81,7 @@ enum JudgmentProblem extends Problem:
     case NoRuleVariable(_, _, _, s) => s
     case ComparisonUndecided(_, _, s) => s
     case NotAnInput(_, _, s) => s
+    case NotPositive(_, _, _, s) => s
 
   def message: Msg = this match
     case _: NoLibrary => msg"the judgment `⊢` needs the library `std/semantics`"
@@ -93,6 +99,7 @@ enum JudgmentProblem extends Problem:
     case ComparisonUndecided(n, cmp, _) => msg"cannot prove a comparison of the rule ${Src(n)} by evaluation: ${Src(cmp)}"
     case NotAnInput(r, true, _) => msg"${Src(r)} is not an input of the program: it has rules, so `given` cannot derive its facts"
     case NotAnInput(r, false, _) => msg"cannot decide whether ${Src(r)} is an input of the program"
+    case _: NotPositive => msg"the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`"
 
   override def primaryLabel: Msg = this match
     case _: NoLibrary => msg"judgment here"
@@ -109,6 +116,8 @@ enum JudgmentProblem extends Problem:
     case _: NoRuleVariable => msg"unknown variable"
     case _: ComparisonUndecided => msg"comparison not proved"
     case _: NotAnInput => msg"not an input"
+    case NotPositive(_, _, false, _) => msg"a program with a negation"
+    case NotPositive(_, _, true, _) => msg"a program with an aggregate"
 
   override def notes: List[Msg] = this match
     case _: NoLibrary => List(msg"`P ⊢[d] r t̄` stands for `derives (programOf P) d (atom ρ [v t̄])` of `std/semantics`")
@@ -134,10 +143,21 @@ enum JudgmentProblem extends Problem:
       )
     case NotAnInput(_, true, _) =>
       List(msg"`given` derives the facts of an input relation: one without rules, of a parameter, or outside the program")
+    case NotPositive(p, rel, aggregate, _) =>
+      val what = if aggregate then "an aggregate" else "a negation"
+      val rule = rel.fold(msg"a rule of ${Src(p)}")(r => msg"a rule of ${Src(r)} in ${Src(p)}")
+      List(
+        rule ++ Msg.text(s" has $what in its body"),
+        msg"`P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run"
+      )
     case _ => Nil
 
   override def helps: List[Msg] = this match
     case _: NoLibrary => List(msg"add ${Src("%use \"std/semantics\".")} to the file")
     case CannotGeneralise(f, _, _, _) => List(msg"apply the functor to its arguments: ${Src(s"$f a ⊢ …")}")
     case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}")
+    case _: NotPositive =>
+      List(
+        msg"state it with ${Src("nderives")} or ${Src("perfect")} of `std/strata`, which read negations and aggregates stratum by stratum"
+      )
     case _ => Nil

@@ -85,6 +85,11 @@ enum TypeProblem extends Problem:
   /** `{x := e}` outside the arguments of an application or the patterns of a clause. */
   case NamedArgumentAlone(at: Span)
 
+  /** A relation (or struct) applied to arguments where a meta type is expected, also under an explicit
+   *  `⇑`: the lift of an applied fact type, which has no closed inhabitants (#186 P9a). With `eta`, the
+   *  unapplied relation `shown` where a type family is expected, which would be such a type once applied. */
+  case AppliedRelation(shown: String, eta: Boolean, at: Span)
+
   def code: Code = this match
     case _: ImplicitBinderAlone | _: UnknownOperator | _: NotAParameterName => Code.E0001
     case _: IntegerOutOfRange => Code.E0003
@@ -103,6 +108,7 @@ enum TypeProblem extends Problem:
     case _: IncompleteHead | _: InvalidHead => Code.E0910
     case _: UnsolvedGoal => Code.E0924
     case _: NoImplicitNamed | _: NamedArgumentAlone => Code.E0926
+    case _: AppliedRelation => Code.E0960
 
   def primary: Span = this match
     case ImplicitBinderAlone(s) => s
@@ -137,6 +143,7 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(_, _, _, _, s) => s
     case NoImplicitNamed(_, _, _, s) => s
     case NamedArgumentAlone(s) => s
+    case AppliedRelation(_, _, s) => s
 
   def message: Msg = this match
     case _: ImplicitBinderAlone => msg"implicit binders must be followed by `->`"
@@ -174,6 +181,8 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(n, _, _, _, _) => msg"unsolved goal ${Src("?" + n.getOrElse(""))}"
     case NoImplicitNamed(n, f, _, _) => msg"${Src(f)} has no implicit argument ${Src(n)} here"
     case _: NamedArgumentAlone => msg"an implicit argument by name outside an application"
+    case AppliedRelation(r, false, _) => msg"${Src(r)} is not a type: it applies a relation to arguments"
+    case AppliedRelation(r, true, _) => msg"${Src(r)} is not a type family: it is a relation, and its applications are not types"
 
   override def primaryLabel: Msg = this match
     case _: ImplicitBinderAlone => msg"expected `{A : T} -> B`"
@@ -209,6 +218,8 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(_, g, _, _, _) => msg"goal: ${Src(g)}"
     case _: NoImplicitNamed => msg"no implicit argument of this name"
     case _: NamedArgumentAlone => msg"expected an argument of an application"
+    case AppliedRelation(_, false, _) => msg"an applied relation"
+    case AppliedRelation(_, true, _) => msg"a relation where a type family is expected"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -269,6 +280,11 @@ enum TypeProblem extends Problem:
       List(msg"${Src(f)} takes the implicit arguments ${Lit(as.map(a => s"`$a`").mkString(", "))} before its next explicit argument")
     case _: NamedArgumentAlone =>
       List(msg"`{x := e}` gives the implicit argument `x` of the function it is applied to, or binds it in a pattern")
+    case _: AppliedRelation =>
+      List(
+        msg"as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone",
+        msg"an applied relation is a proposition of the program whose rules derive it"
+      )
     case _ => Nil
 
   override def helps: List[Msg] = this match
@@ -279,4 +295,5 @@ enum TypeProblem extends Problem:
     case _: IntegerCrossing =>
       List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
     case _: NoMetaInt => List(msg"compile the program with the prelude, or use object integers only")
+    case _: AppliedRelation => List(msg"name the program in a judgment of `std/semantics`: ${Src("P ⊢ r t̄")}")
     case _ => Nil

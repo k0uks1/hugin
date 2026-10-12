@@ -1,0 +1,31 @@
+error[E0961]: the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`
+  --> tests/neg/e0961_judgment_negation.hgn:16:9
+   |
+16 | never : m ⊢ ok berlin -> empty. (*~ E0961 *)
+   |         ^ a program with a negation
+   |
+   = note: a rule of `ok` in `m` has a negation in its body
+   = note: `P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run
+   = help: state it with `nderives` or `perfect` of `std/strata`, which read negations and aggregates stratum by stratum
+
+error[E0961]: the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`
+  --> tests/neg/e0961_judgment_negation.hgn:25:24
+   |
+25 | counted : {k : int} -> n ⊢ size k -> Type. (*~ E0961 *)
+   |                        ^ a program with an aggregate
+   |
+   = note: a rule of `size` in `n` has an aggregate in its body
+   = note: `P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run
+   = help: state it with `nderives` or `perfect` of `std/strata`, which read negations and aggregates stratum by stratum
+
+error[E0961]: the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`
+  --> tests/neg/e0961_judgment_negation.hgn:39:27
+   |
+39 | looping : {x : g.node} -> loops ⊢ free x -> Type. (*~ E0961 *)
+   |                           ^^^^^ a program with a negation
+   |
+   = note: a rule of `free` in `loops` has a negation in its body
+   = note: `P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run
+   = help: state it with `nderives` or `perfect` of `std/strata`, which read negations and aggregates stratum by stratum
+
+3 errors found

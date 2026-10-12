@@ -88,10 +88,32 @@ trait Coercions:
         unify(c.lvl, a1, a2)
         Some(t1)
 
-  /** A type `t : type` used where a meta type is expected: `⇑t`, or the meta primitive for a base type. */
-  def liftType(c: Cxt, t: Tm): Tm = force(ev(c, t)) match
+  /** A type `t : type` (written at `span`) used where a meta type is expected: `⇑t`, or the meta primitive
+   *  for a base type. */
+  def liftType(c: Cxt, t: Tm, span: Span): Tm = force(ev(c, t)) match
     case Val.Base(b, Stage.S0) => Tm.Base(b, Stage.S1)
-    case _ => Tm.Lift(t)
+    case _ =>
+      requireNoAppliedFact(c, t, span)
+      Tm.Lift(t)
+
+  /** An object type `t` (written at `span`) under `⇑` in a meta type must not be the fact type of an
+   *  application, `⇑(r t̄)`: no object term has it, since the fact type of a relation or struct `r` is `r`
+   *  alone (E0960, #186 P9a). The fact type of an unapplied relation stays a type (a fact's identity). */
+  def requireNoAppliedFact(c: Cxt, t: Tm, span: Span): Unit = Tm.unloc(t) match
+    case Tm.FactTy(a) if appliedRelation(a) => fail(TypeProblem.AppliedRelation(shownAt(c, a, span), eta = false, span))
+    case _ =>
+
+  /** Whether object code is a relation (or struct) applied to explicit arguments. */
+  private def appliedRelation(a: Tm): Boolean = Tm.unloc(a) match
+    case Tm.App(_, _, Icit.Expl) => true
+    case Tm.App(f, _, Icit.Impl) => appliedRelation(f)
+    case _ => false
+
+  private def shownAt(c: Cxt, a: Tm, span: Span): String =
+    if span.exists && span.text.nonEmpty then span.text else show(c, ev(c, a))
+
+  /** Whether the current coercion is below the η-expansion of a Π type (the relation was written unapplied). */
+  private var coercingEta = false
 
   private def coeOpt(c: Cxt, t: Tm, a: Val, s: Stage, a2: Val, s2: Stage): Option[Tm] =
     (force(a), force(a2)) match
@@ -101,17 +123,21 @@ trait Coercions:
         val tw = Tm.shift(t, 1)
         coeOpt(c2, Tm.Var(0), d2, s2, d, s) match
           case None =>
-            coeOpt(c2, Tm.App(tw, Tm.Var(0), i), inst(b, Val.local(c.lvl)), s, inst(b2, Val.local(c.lvl)), s2)
+            underEta(coeOpt(c2, Tm.App(tw, Tm.Var(0), i), inst(b, Val.local(c.lvl)), s, inst(b2, Val.local(c.lvl)), s2))
               .map(body => Tm.Lam(x2, i, body))
           case Some(cv) =>
-            val body = coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2)
+            val body = underEta(coeOpt(c2, Tm.App(tw, cv, i), inst(b, ev(c2, cv)), s, inst(b2, Val.local(c.lvl)), s2))
             Some(Tm.Lam(if x2 == "_" then x else x2, i, body.getOrElse(Tm.App(tw, cv, i))))
       case (Val.U0, Val.U1(_)) =>
-        val lifted = liftType(c, t)
+        val lifted = liftType(c, t, coercionAt)
         if lifted.isInstanceOf[Tm.Lift] then insertedLift()
         Some(lifted)
       case (rel, Val.U0) if isFactConstantType(rel) => Some(Tm.FactTy(t))
-      case (rel, Val.U1(_)) if isFactConstantType(rel) => Some(Tm.Lift(Tm.FactTy(t)))
+      case (rel, Val.U1(_)) if isFactConstantType(rel) =>
+        if appliedRelation(t) then
+          val shown = if coercingEta then coercionAt.text else shownAt(c, t, coercionAt)
+          fail(TypeProblem.AppliedRelation(shown, coercingEta, coercionAt))
+        Some(Tm.Lift(Tm.FactTy(t)))
       case (Val.U1(l), Val.U1(l2)) =>
         if !levels.le(l, l2) then throw UnifyError(UnifyFailure.Universe)
         None
@@ -143,6 +169,12 @@ trait Coercions:
       case (rt: Val.RecTy, rt2: Val.RecTy) => coeRecord(c, t, rt, s, rt2, s2)
       case (from, to) if s == Stage.S1 && s2 == Stage.S1 && coeQuoted(c, t, from, to).isDefined => coeQuoted(c, t, from, to).get
       case _ => justUnify(c, t, a, s, a2, s2)
+
+  private def underEta[A](f: => A): A =
+    val saved = coercingEta
+    coercingEta = true
+    try f
+    finally coercingEta = saved
 
   /** A constructor application of an object type, used as a formula: an atom of the constructor's
    *  relation (in Datalog∃! every constructor is a relation, reference: object/facts). */
@@ -181,7 +213,12 @@ trait Coercions:
 
   /** `⇑A`, the explicit lift. */
   def inferLift(c: Cxt, a: Tree): (Tm, Val, Stage) =
-    (Tm.Lift(check(c, a, Val.U0, Stage.S0)), Val.U1(Level.zero), Stage.S1)
+    val t = check(c, a, Val.U0, Stage.S0)
+    def inner(t: Tree): Tree = t match
+      case hugin.syntax.Trees.Parens(i) => inner(i)
+      case other => other
+    requireNoAppliedFact(c, t, inner(a).span)
+    (Tm.Lift(t), Val.U1(Level.zero), Stage.S1)
 
   /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta value
    *  with a lifting (the rule Lift: a primitive persisted as a literal, a value of a shared type lifted). */

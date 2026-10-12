@@ -67,7 +67,7 @@ trait PiTypes:
         val dom = Tm.shift(dt, cc.lvl - c.lvl)
         val inner = if sd == Stage.S1 then bind(cc, n, ev(c, dt), sd) else newBinder(cc, n, ev(c, dt), sd)
         val (bt, sb, ub) = go(inner, more)
-        mixedPi(cc, span, n, dom, sd, ud, bt, sb, ub)
+        mixedPi(cc, span, n, dom, sd, ud, bt, sb, ub, d.span, cod.span)
     val (tm, s, u) = go(c, ns.map(_._1))
     (tm, u, s)
 
@@ -78,7 +78,19 @@ trait PiTypes:
   /** `(n : dom) -> body` from a domain at stage `sd` and a body at stage `sb` (in context `c`, the body
    *  under one more binder): object if both are object types, otherwise a meta Π whose object parts are
    *  lifted. A meta type cannot depend on an object variable. */
-  private def mixedPi(c: Cxt, span: Span, n: Name, dom: Tm, sd: Stage, ud: Val, body: Tm, sb: Stage, ub: Val): (Tm, Stage, Val) =
+  private def mixedPi(
+      c: Cxt,
+      span: Span,
+      n: Name,
+      dom: Tm,
+      sd: Stage,
+      ud: Val,
+      body: Tm,
+      sb: Stage,
+      ub: Val,
+      domSpan: Span,
+      codSpan: Span
+  ): (Tm, Stage, Val) =
     if sd == Stage.S0 && sb == Stage.S0 then (Tm.Pi(n, Icit.Expl, dom, body), Stage.S0, Val.U0)
     else
       if sd == Stage.S0 && occurs(0, body) then
@@ -86,8 +98,8 @@ trait PiTypes:
       val l = levels.fresh()
       requireLe(c, span, ud, l)
       requireLe(c, span, ub, l)
-      val dom1 = if sd == Stage.S0 then liftType(c, dom) else dom
-      val body1 = if sb == Stage.S0 then liftType(bind(c, n, ev(c, dom1), Stage.S1), body) else body
+      val dom1 = if sd == Stage.S0 then liftType(c, dom, domSpan) else dom
+      val body1 = if sb == Stage.S0 then liftType(bind(c, n, ev(c, dom1), Stage.S1), body, codSpan) else body
       (Tm.Pi(n, Icit.Expl, dom1, body1), Stage.S1, Val.U1(l))
 
   /** An arrow checked against `Type l`: domains and codomain are meta types. */
@@ -108,7 +120,10 @@ trait PiTypes:
    *  shared type is the object type. */
   private def formulaParam(c: Cxt, d: Tree, l: Level): Tm =
     val (t, s, _) = atStage(Stage.S0)(inferU(c, d))
-    if s == Stage.S0 then Tm.Lift(t) else check(c, d, Val.U1(l), Stage.S1)
+    if s == Stage.S0 then
+      requireNoAppliedFact(c, t, d.span)
+      Tm.Lift(t)
+    else check(c, d, Val.U1(l), Stage.S1)
 
   /** `{A B : T} -> B` checked against `Type l`. */
   def checkImplicitPi(c: Cxt, names: List[Tree], dom: Tree, cod: Tree, l: Level): Tm =
