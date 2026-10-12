@@ -2123,9 +2123,10 @@ Decisions made during implementation are listed here with their PR.
   first occurrence, heads first (as P5a's examples); `index` counts from 1 (`path.1`).
 - *Variable types.* Object typing's solution; for a wildcard and a formula function's variable (not rule
   variables of the core), the type of the column it stands in. Without either, E0942.
-- *Inputs and strata.* The input test is `inputOf is` of `std/quote`: `arg` and `ext` relations, and the
+- *Inputs and strata.* The input test is `inputOf is`, added to `std/semantics`: `arg` and `ext` relations, and the
   own relations without rules (the extensional relations, Abiteboul, Hull and Vianu, ch. 12), so
-  `given` is refuted for a relation with rules (chapter 1). `std/quote` therefore loads `std/semantics`.
+  `given` is refuted for a relation with rules (chapter 1). `std/quote` does not load `std/semantics`
+  (whose proofs take most of a compilation); `programOf` needs both loaded (E0940).
   Strata are Tarjan's components of the own relations, dependencies first; P6 refines them for negation.
 - *Heads and `as`.* A rule's heads are its head and its constructor terms, outermost first (P5a's "no
   `sub`"); `(r t̄ as X)` in a body is the atom plus `ccmp ceq X t` with the fact's identity `t`, `X` of the

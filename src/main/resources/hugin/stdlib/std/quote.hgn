@@ -6,10 +6,6 @@
    note, chapter 9). All five are trusted primitives. *)
 %use "std/reflect" (quoted, term, formula, sym).
 %use "std/eq" (eq, refl).
-%use "std/reflect" (list, bool, true).
-%use "std/nat" (nat, equal).
-%use "std/list" (any).
-%use "std/semantics" (rref, own, arg, ext).
 
 (* The data of object code of type `A`; stuck on code that is not canonical, such as a variable *)
 quote : {A : ⇑type} -> ⇑A -> quoted A = %builtin quote.
@@ -31,10 +27,5 @@ quoteUnquote : {A : ⇑type} -> (c : ⇑A) -> eq (quote (unquote (quote c))) (qu
 quoteUnquoteF : (f : ⇑prop) -> eq (quoteF (unquoteF (quoteF f))) (quoteF f) = [f] refl.
 %opaque quoteUnquote quoteUnquoteF.
 
-(* `programOf P` (a special form, reference: std/quote) is the program of the module `P` as a value of
-   `std/semantics`. Its input test: the relations of the module's parameters and outside it, and its own
-   relations `Is` without rules (the extensional relations) *)
-inputOf : list nat -> rref -> bool.
-inputOf Is (own I) = any ([j] equal I j) Is.
-inputOf Is (arg L) = true.
-inputOf Is (ext S) = true.
+(* `programOf P`, a special form (reference: std/quote), is the program of the module `P` as a value of
+   `std/semantics`, which a program that uses it loads as well *)

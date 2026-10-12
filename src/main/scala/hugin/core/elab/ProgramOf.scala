@@ -46,8 +46,8 @@ trait ProgramOf:
     val quoteLib = module("std/quote")
     val sem = module("std/semantics")
     val r = reflectiveGlobals
-    (quoteLib.get("inputOf"), sem.get("own"), r, coreName("some"), coreName("none")) match
-      case (Some(inputOf), Some(own), Some(rg), Some(some), Some(none)) if sem.contains("program") =>
+    (sem.get("inputOf"), sem.get("own"), r, coreName("some"), coreName("none")) match
+      case (Some(inputOf), Some(own), Some(rg), Some(some), Some(none)) if sem.contains("program") && quoteLib.contains("quote") =>
         val nat = telescope(globals(own).ty)._1.collectFirst { case (_, Icit.Expl, d) => d }.map(forceData) match
           case Some(Val.Rigid(Head.Glob(id), Nil)) => id
           case other => throw Impossible(s"own over $other")
@@ -107,8 +107,8 @@ trait ProgramOf:
         case _ =>
           moduleOf(ev(c, hTm)) match
             case Some((body, env)) =>
-              val reified = reify(voc, body, env.length, p.span)
-              (Tm.apps(lams(env.length, reified), env.reverse.map(v => (quote(c.lvl, v), Icit.Expl))), programTy, Stage.S1)
+              val fn = programFunction(voc, body, env.length, head, p.span)
+              (Tm.apps(fn, env.reverse.map(v => (quote(c.lvl, v), Icit.Expl))), programTy, Stage.S1)
             case None => notAModule(p)
 
   /** The program of the functor `f` applied to `args` (terms in `c`): the body is found by applying `f` to
@@ -119,10 +119,32 @@ trait ProgramOf:
     val v = probes.foldLeft(ev(c, f))((g, a) => app(g, a, Icit.Expl))
     force(v) match
       case Val.Rigid(Head.Module(body, env), Nil) =>
-        val reified = reify(voc, body, env.length, p.span)
-        val inner = Tm.apps(lams(env.length, reified), env.reverse.map(e => (quote(c.lvl + k, e), Icit.Expl)))
+        val fn = programFunction(voc, body, env.length, TreeOps.flattenApp(p)._1, p.span)
+        val inner = Tm.apps(fn, env.reverse.map(e => (quote(c.lvl + k, e), Icit.Expl)))
         Tm.apps(lams(k, inner), args.map((_, Icit.Expl)))
       case _ => fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(p), false, p.span))
+
+  /** The programs of the module bodies reified so far, as generated definitions. */
+  private val programFunctions = mutable.HashMap.empty[Int, Int]
+
+  /** The program of `body` as a closed function of its environment's `n` variables: a definition the
+   *  compiler generates once per body, named after the head `head` of its first use (`programOf tc`), so
+   *  that values mention it folded (glued evaluation), comparisons of two programs of the same body
+   *  compare its arguments, and applications to closed arguments are memoised. Without the types of the
+   *  environment (not recorded), the function itself. */
+  private def programFunction(voc: Vocabulary, body: ModuleBody, n: Int, head: Tree, span: Span): Tm =
+    def fn = lams(n, reify(voc, body, n, span))
+    if body.context.length != n then fn
+    else
+      val id = programFunctions.getOrElseUpdate(
+        body.id, {
+          val tm = zonk(Nil, 0, fn)
+          val tyTm = body.context.foldRight(Tm.Global(voc.sem("program")): Tm)((b, acc) => Tm.Pi(b._1, Icit.Expl, b._2, acc))
+          val name = s"programOf ${hugin.syntax.Printer.show(head)}"
+          addGlobal(GlobalEntry(name, eval(Nil, tyTm), tyTm, Stage.S1, GlobalKind.Definition(tm, eval(Nil, tm)), span, span))
+        }
+      )
+      Tm.Global(id)
 
   private def lams(n: Int, body: Tm): Tm = (0 until n).foldLeft(body)((acc, i) => Tm.Lam(s"x$i", Icit.Expl, acc))
 

@@ -3,8 +3,9 @@
 The module `std/quote` is the *code bridge*: it converts between object code `⇑A`
 ([Staging](../meta/staging.md)), which a program can build and splice but not take apart, and the
 reflective syntax of [`std/reflect`](reflect.md) ([Reflection](../reflection.md)), which it can take
-apart. A program writes `%use "std/quote".`; it loads [`std/semantics`](semantics.md), whose program
-values `programOf` builds ([Programs as values](#programs-as-values)).
+apart. A program writes `%use "std/quote".`; to use `programOf`
+([Programs as values](#programs-as-values)), whose values are programs of
+[`std/semantics`](semantics.md), it loads that library as well.
 
 | declaration | meaning |
 |---|---|
@@ -15,7 +16,6 @@ values `programOf` builds ([Programs as values](#programs-as-values)).
 | `symOf : {R : ⇑type} -> ⇑R -> sym.` | the symbol of the code of an object constant |
 | `quoteUnquote : {A : ⇑type} -> (c : ⇑A) -> eq (quote (unquote (quote c))) (quote c).` | the converse round trip on the data of code, by `refl` |
 | `quoteUnquoteF` | the same for formulas |
-| `inputOf : list nat -> rref -> bool.` | the input test of a program that `programOf` builds |
 | `programOf P` | the program of the module `P` as a value of `std/semantics` (a special form) |
 
 The first five are trusted primitives ([Consistency](../meta/consistency.md#assumptions)); the two
@@ -125,7 +125,8 @@ cannot be inspected. It is a name only in this position, unless the program decl
 - a module `m` made by a functor application: the program of that application, so that
   `programOf fast` is `programOf (tc2 { node = city, edge = road })` for `fast = tc2 { … }`.
 
-It is an error ([E0940](../errors/E0940.md)) if the program does not load `std/quote`, and
+It is an error ([E0940](../errors/E0940.md)) if the program does not load `std/quote` and
+`std/semantics`, and
 ([E0941](../errors/E0941.md)) if `P` is none of these. `programOf here`, the program of the current file,
 is not available yet ([E0941](../errors/E0941.md)).
 
@@ -147,7 +148,7 @@ The program value is built as follows. No code is generated, and no instance of 
   with the identity of the fact.
 - A rule's `head` is the relation of its first head, `index` its position among the rules of that
   relation from 1, and `label` its name `@n`.
-- The input test `inputOf is` holds for the relations `arg l` and `ext s` and for the body's own
+- The input test `inputOf is` of `std/semantics` holds for the relations `arg l` and `ext s` and for the body's own
   relations without rules (the extensional relations `is`); `strata` are the strongly connected
   components of the body's own relations by the dependencies of rules, dependencies first.
 

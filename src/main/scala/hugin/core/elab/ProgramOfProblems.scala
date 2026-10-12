@@ -9,7 +9,7 @@ import scala.language.implicitConversions
  *  are not loaded (E0940), its argument is not a functor, a functor application or a module (E0941), or a
  *  rule of the module is outside what `std/semantics` models (E0942). Terms are given as shown to users. */
 enum ProgramOfProblem extends Problem:
-  /** `programOf` in a program that does not load `std/quote`. */
+  /** `programOf` in a program that does not load `std/quote` and `std/semantics`. */
   case NoLibrary(at: Span)
 
   /** `programOf p` where `p` (shown) is not a functor, a functor application or a module; `here` if it is
@@ -30,7 +30,7 @@ enum ProgramOfProblem extends Problem:
     case CannotReify(_, _, s) => s
 
   def message: Msg = this match
-    case _: NoLibrary => msg"`programOf` needs the code bridge `std/quote`"
+    case _: NoLibrary => msg"`programOf` needs the libraries `std/quote` and `std/semantics`"
     case NotAModule(p, _, _) => msg"${Src(p)} is not a functor, a functor application or a module"
     case CannotReify(reason, _, _) => msg"cannot reify a rule as a program value: " ++ Msg.text(reason)
 
@@ -44,7 +44,7 @@ enum ProgramOfProblem extends Problem:
     case _ => Nil
 
   override def notes: List[Msg] = this match
-    case _: NoLibrary => List(msg"`programOf` builds a `program` of `std/semantics` with the vocabulary of `std/quote`")
+    case _: NoLibrary => List(msg"`programOf` is a form of the code bridge `std/quote`, and builds a `program` of `std/semantics`")
     case NotAModule(_, true, _) =>
       List(
         msg"`programOf here`, the program of the current file, is not available yet: it needs the file's rules before its meta definitions"
@@ -57,5 +57,5 @@ enum ProgramOfProblem extends Problem:
       )
 
   override def helps: List[Msg] = this match
-    case _: NoLibrary => List(msg"add ${Src("%use \"std/quote\".")} to the file")
+    case _: NoLibrary => List(msg"add ${Src("%use \"std/quote\".")} and ${Src("%use \"std/semantics\".")} to the file")
     case _ => Nil

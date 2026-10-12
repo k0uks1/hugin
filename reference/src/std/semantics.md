@@ -18,6 +18,7 @@ arithmetic. A program writes `%use "std/semantics".`; it builds on [`std/eq`](eq
 | `env : list ⇑type -> Type.`, `enil`, `econs` | the values of a rule's variables, typed |
 | `cterm`, `cterms`, `catom`, `cbody` | the terms, atoms and body literals of a rule |
 | `crule : Type.`, `program : Type.` | a rule and a program |
+| `inputOf : list nat -> rref -> bool.` | the input test of the programs that `programOf` builds ([`std/quote`](quote.md#programs-as-values)) |
 | `intOf : ⇑int -> int.` | the meta integer of an object integer literal |
 | `add64`, `sub64`, `mul64`, `div64 : ⇑int -> ⇑int -> option ⇑int.`, `neg64 : ⇑int -> option ⇑int.` | the object level's arithmetic |
 | `instTerm`, `instTerms`, `instAtom` | instantiating terms and atoms with the values of the variables |
