@@ -1,0 +1,68 @@
+(* #186 P7a: the code bridge of `std/quote` (reference: std/quote, reflection). `quote` computes on canonical
+   object code, `unquote` is its inverse on closed data, and `unquote (quote c)` is `c` by conversion, also
+   for a variable `c`; `quoteF` and `unquoteF` for formulas, with canonical names for the variables of a
+   formula function; `symOf`; object code in a hole of a quote, and a quoted term with a variable in object
+   code; `as`, ascriptions, projections and updates in quotes and in reflected data. *)
+%use "std/reflect".
+%use "std/eq" (eq, refl).
+%use "std/quote".
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+shape : type.
+circle : (r : int) -> shape.
+fig : (n : int) -> (at : city) -> rel.
+near : city -> city -> rel.
+hub : city -> rel.
+
+(* quote: structural on canonical code *)
+q1 : eq (quote (<circle 3>)) (qterm (tapp '( circle ) [tint 3])) = refl.
+(* object arithmetic on literals is computed where the code is built *)
+q2 : eq (quote (<1 + 2 * 3>)) (qterm (tint 7)) = refl.
+q3 : eq (quote (<"a">)) (qterm (tstr "a")) = refl.
+(* a persisted meta integer quotes to its literal *)
+seven : int = 7.
+q4 : eq (quote (<$seven>)) (qterm (tint 7)) = refl.
+
+(* unquote: the inverse on closed data, and a conversion rule on a stuck `quote` *)
+r1 : eq (unquote (quote (<circle 3>))) (<circle 3>) = refl.
+r2 : eq (unquote (qterm (tapp '( circle ) [tint 4]) : quoted shape)) (<circle 4>) = refl.
+r3 : (c : ⇑shape) -> eq (unquote (quote c)) c = [c] refl.
+r4 : (f : ⇑prop) -> eq (unquoteF (quoteF f)) f = [f] refl.
+
+(* quoteF of a formula function's result: its variables named by their first occurrence *)
+cheap : city -> prop.
+cheap X :- road X _.
+f1 : eq (quoteF (cheap berlin))
+  (fconj (fcmp ceq (tapp '( berlin ) []) (tvar "X#0")) (fatom '( road ) [tvar "X#0", twild])) = refl.
+f2 : eq (quoteF (unquoteF '( road berlin paris, not road paris berlin ))) '( road berlin paris, not road paris berlin ) = refl.
+
+(* symOf *)
+s1 : eq (symOf road) '( road ) = refl.
+
+(* object code in a hole of a quote is its data; a quoted term in object code with a variable is unquoted *)
+viaHole : ⇑city -> formula = [c] '( road $c paris ).
+h1 : eq (viaHole (<rome>)) '( road rome paris ) = refl.
+both : formula = '( $(cheap rome), road paris rome ).
+asCode : quoted city -> ⇑city = [q] q.
+code1 : ⇑city = asCode '( paris ).
+road $code1 rome.
+road berlin berlin.
+
+(* `as`, ascriptions, projections and updates as data, reflected *)
+forms : list rule = '(
+  near X Y :- (fig 1 X as F), road X Y, Y = F.at.
+  near X X :- (fig 1 X as F), (fig 2 X as G), G = (F with { n = 2 }).
+  hub Y :- road X Y, Y = (X : city).
+).
+$forms.
+fig 1 berlin. fig 2 berlin.
+p1 : eq (quote (<fig 1 rome>)) '( fig 1 rome ) = refl.
+
+%opaque q1 q2 q3 q4 r1 r2 r3 r4 f1 f2 s1 h1 p1.
+used : formula = both.
+%opaque used.
+
+checked : string -> rel.
+checked "quote".
+%output checked. %output near. %output hub. %output road.

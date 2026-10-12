@@ -18,7 +18,8 @@ trait Coercions:
       case Some(k) => reflectCode(c, t, k, span, Some(a2))._1
       case None =>
         quotedIndex(a).filter(_ => s == Stage.S1 && s2 == Stage.S0) match
-          // a quoted term in object code stands for its term
+          // a quoted term in object code stands for its term: open data by `unquote`
+          case Some(x) if unquotedInCode(c, t) => coeStaged(c, span, unquoteTm(c, t, x), Val.Lift(vSplice(x)), s, a2, s2)
           case Some(x) => reflectCode(c, rawTerm(c, x, t), RKind.Term, span, Some(a2))._1
           case None => coeStaged(c, span, t, a, s, a2, s2)
   }
@@ -120,6 +121,9 @@ trait Coercions:
         catch case e: UnifyError => if !liftSubtype(c, x, y) then throw e
         None
       case (Val.Flex(_, _), _) | (_, Val.Flex(_, _)) => justUnify(c, t, a, s, a2, s2)
+      // a quoted term used as object code: `unquote` of the code bridge (reference: reflection)
+      case (from, Val.Lift(y)) if s == Stage.S1 && s2 == Stage.S1 && quotedIndex(from).isDefined && bridgeGlobal("unquote").isDefined =>
+        Some(unquoted(c, t, quotedIndex(from).get, y))
       case (Val.Lift(x), to) if s2 == Stage.S0 && isObjectData(to) && isObjectData(x) =>
         // spliced code at an object position: its object type is checked by object typing ([[ObjectTyping]])
         insertedLifting(Tm.splice(t))
@@ -189,6 +193,8 @@ trait Coercions:
       case Some(k) =>
         val (tm, ty) = reflectCode(c, at, k, span, None)
         (tm, ty, Stage.S0)
+      case None if quotedIndex(aty).isDefined && unquotedInCode(c, at) =>
+        splicedCode(c, unquoteTm(c, at, quotedIndex(aty).get), Val.Lift(vSplice(quotedIndex(aty).get)), a.span, span)
       case None if quotedIndex(aty).isDefined =>
         // a quoted term stands for its term
         val (tm, ty) = reflectCode(c, rawTerm(c, quotedIndex(aty).get, at), RKind.Term, span, None)

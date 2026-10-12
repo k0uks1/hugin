@@ -2026,3 +2026,43 @@ Decisions made during implementation are listed here with their PR.
   interpreted (`arith64 ocat = none`).
 - *Names.* `member`/`here`/`there` as in 11.3 (clashes with `std/list`'s relation `member` only if both
   are opened unselectively, E0109 at the use).
+
+**P7a (the code bridge and `programOf`).**
+
+- *Module.* `std/quote` holds the bridge: `quote`, `unquote`, `quoteF`, `unquoteF` and `symOf` are `%builtin`
+  primitives (trusted, listed by `%assumptions`); the constructors they build and read are found by name
+  among those the declared types reach, as for `qatom`. It is separate from `std/semantics`, which it
+  does not need.
+- *The missing syntax forms.* `tas term term`, `tascribe term ⇑type`, `tproj term string`, `twith term
+  (list update)` with `uset : string -> term -> update`, and `fas formula term`: one constructor per object
+  form of `core/ObjForm.scala`, as `Lean.Expr` has one per core form. The type of an ascription is code
+  (`⇑type`, like the index of `quoted`), since types are not data (Q5); an ascription is therefore not a
+  quoted pattern (E0917). Lambdas and records stay E0917.
+- *`quote`.* Structural on canonical code; stuck as a whole if any subterm is not canonical (equation 2),
+  instead of pushing `raw (quote x)` inside, so its result is closed data whenever it reduces. Object
+  arithmetic on two literals is already computed when the code is built (chapter 9), so `quote ⟨1 + 2⟩`
+  is `tint 3`. `quoteF` nests n-ary conjunctions and disjunctions to the left, as `a, b, c` parses.
+- *Canonical names.* A hygiene name `X#k` is renamed by its first occurrence, with one counter for the
+  whole code (`X#0`, `Y#1`): the canonical form of locally nameless syntax (Charguéraud, JAR 2012), here
+  for the free variables a formula function introduces. Other names (`qvar`'s `x#v`, written names) are
+  kept. Conversion compares object variables by name, so `unquote (quote c)` is `c` up to this renaming
+  for code with hygiene variables; for terms without them, and for neutral `c`, it is exact.
+- *`unquote`.* Structural and untyped: code is typed where it is staged, as reflected data is (equation
+  4). It rebuilds arithmetic as evaluation does (literals computed), and a meta integer outside 64 bits
+  as a persisted value, which staging reports (E0930). The aggregate variable of `fagg` becomes `V#bₙ`
+  (`n` the depth), a name neither source syntax nor `quote` writes.
+- *The conversion rule.* `unquote` (`unquoteF`) applied to a stuck `quote c` (`quoteF c`) reduces to `c`, in
+  the primitive's reduction: like `$⟨t⟩ = t`, no change to the unifier.
+- *D12, realised by a proof.* `quoteUnquote : {A : ⇑type} -> (c : ⇑A) -> eq (quote (unquote (quote c)))
+  (quote c)` (and `quoteUnquoteF`) hold by `refl`: by computation on canonical code, by the conversion
+  rule on a variable. The unrestricted statement `quote (unquote q) = q` is false (`qterm (tarith oadd
+  (tint 1) (tint 2))` unquotes to `⟨3⟩`), so a trusted postulate of it would be inconsistent; D12's
+  "trusted, listed lemma" becomes a proved lemma on the image of `quote`, which covers the data of code.
+- *Insertion.* With `std/quote` loaded (found through its module value, as `std/eq` for `match`):
+  `unquote` is inserted where `quoted A` is used as `⇑B` with `A ≤ B`, and for a quoted term in object
+  code whose data depends on a variable (closed data is still reflected where it is elaborated, which
+  types it early and keeps its positions); `quote` only in a hole of a quote (`$c`, `c : ⇑A`), and
+  `quoteF` in a formula hole (`c : ⇑prop`), the symmetric case the note did not name. Without
+  `std/quote`, both stay E0901 / E0918 as before.
+- *`symOf : {R : ⇑type} -> ⇑R -> sym`*, the identity on the code of an object constant (a symbol is that
+  code), stuck otherwise.

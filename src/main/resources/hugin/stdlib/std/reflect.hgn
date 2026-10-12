@@ -72,6 +72,15 @@ tstr : string -> term.
 tapp : sym -> list term -> term.
 tarith : arith_op -> term -> term -> term.
 tneg : term -> term.
+(* `t as X`, `(t : A)`, `t.l` and `t with { l₁ = e₁, … }`; the object type of an ascription is code *)
+tas : term -> term -> term.
+tascribe : term -> ⇑type -> term.
+tproj : term -> string -> term.
+twith : term -> list update -> term.
+
+(* A field of a functional update and its new term *)
+update : Type.
+uset : string -> term -> update.
 
 (* A term of the object type `A` (reference: reflection): a quote checked against `quoted A`, or the
    hole `$X` of a quoted pattern at a column of type `A`, is one. `qterm` makes one without a check
@@ -95,6 +104,8 @@ fconj : formula -> formula -> formula.
 fdisj : formula -> formula -> formula.
 (* `X = k { t | φ }`: `t` and `φ` are under one binder, the variable `t` names *)
 fagg : agg_op -> term -> term -> formula -> formula.
+(* `a as X`: an atom with its fact bound to the variable `X` *)
+fas : formula -> term -> formula.
 
 (* A term of a type of facts as an atom (reference: reflection): `qatom` turns the data `qterm (tapp s ts)`
    into `fatom s ts`, and is stuck on any other term, which reflection rejects. A `quoted A` whose `A` is a
@@ -133,7 +144,15 @@ openT K W (tbound J) = pick K J W (tbound J).
 openT K W (tapp S Ts) = tapp S (openTs K W Ts).
 openT K W (tarith O A B) = tarith O (openT K W A) (openT K W B).
 openT K W (tneg A) = tneg (openT K W A).
+openT K W (tas A X) = tas (openT K W A) (openT K W X).
+openT K W (tascribe A Ty) = tascribe (openT K W A) Ty.
+openT K W (tproj A L) = tproj (openT K W A) L.
+openT K W (twith A Us) = twith (openT K W A) (openUs K W Us).
 openT K W T = T.
+
+openUs : index -> term -> list update -> list update.
+openUs K W [] = [].
+openUs K W (uset L A :: Us) = uset L (openT K W A) :: openUs K W Us.
 
 openTs : index -> term -> list term -> list term.
 openTs K W [] = [].
@@ -146,6 +165,7 @@ openF K W (fnot F) = fnot (openF K W F).
 openF K W (fconj F G) = fconj (openF K W F) (openF K W G).
 openF K W (fdisj F G) = fdisj (openF K W F) (openF K W G).
 openF K W (fagg O X T F) = fagg O (openT K W X) (openT (isuc K) W T) (openF (isuc K) W F).
+openF K W (fas F X) = fas (openF K W F) (openT K W X).
 
 (* Directives (reference: directives): `%d a₁ … aₙ.` applies the meta function `d`, and the type of the
    application says what it changes. A directive returning a `decl` changes the declaration of an object

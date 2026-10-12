@@ -40,6 +40,49 @@ trait TypedQuotes:
   def qatomOf(c: Cxt, a: Val, t: Tm): Tm =
     Tm.App(Tm.App(Tm.Global(typed("qatom").get), quote(c.lvl, a), Icit.Impl), t, Icit.Expl)
 
+  /** A global of `std/quote`, the code bridge, if the program loads it (any of its files may: the module
+   *  values of the files elaborated before are known), as [[Matches]] finds `std/eq`. */
+  def bridgeGlobal(n: Name): Option[Int] =
+    val path = hugin.compiler.SourceLoader.resolve(file.path, "std/quote")
+    file.imports.get(path).map(_.value).collect { case Tm.Rec(fields) => fields }.flatMap(_.collectFirst { case (`n`, Tm.Global(id)) =>
+      id
+    })
+
+  /** `unquote {A} t`: the quoted term `t : quoted A` as object code of type `⇑B`, if `A` is a subtype of
+   *  `B`. */
+  def unquoted(c: Cxt, t: Tm, a: Val, b: Val): Tm =
+    val at = vSplice(a)
+    try undoOnFailure(unify(c.lvl, at, b))
+    catch case e: UnifyError => if !liftSubtype(c, at, b) then throw e
+    unquoteTm(c, t, a)
+
+  /** `unquote {A} t` (`A`, the index of `quoted A`, is code of an object type: the result has the type
+   *  `⇑$A`). */
+  def unquoteTm(c: Cxt, t: Tm, a: Val): Tm =
+    Tm.App(Tm.App(Tm.Global(bridgeGlobal("unquote").get), quote(c.lvl, a), Icit.Impl), t, Icit.Expl)
+
+  /** Whether the quoted term `t` in object code is converted by the code bridge's `unquote`: the program
+   *  loads it, and the data depends on a variable of `c`, so reflection, which turns closed data into code
+   *  where it is elaborated, cannot (E0918). */
+  def unquotedInCode(c: Cxt, t: Tm): Boolean =
+    bridgeGlobal("unquote").isDefined && Tm.exists(quote(c.lvl, ev(c, t))) {
+      case Tm.Var(_) => true
+      case _ => false
+    }
+
+  /** `quote {A} t` (`quoteF t` for a formula): object code as the value of a hole of a quote, if the
+   *  program loads the code bridge; its type. */
+  def quotedCode(c: Cxt, t: Tm, ty: Val, formula: Boolean): Option[(Tm, Val)] = force(ty) match
+    case Val.Lift(a) if formula && force(a) == Val.PropT =>
+      bridgeGlobal("quoteF").map(q => (Tm.App(Tm.Global(q), t, Icit.Expl), eval(Nil, kindType(RKind.Formula))))
+    case Val.Lift(a) if !formula && typed("quoted").isDefined =>
+      bridgeGlobal("quote").map { q =>
+        val code = Val.Quote(a) // the index of `quoted` is code of the object type
+        val qa = Val.Rigid(Head.Glob(typed("quoted").get), List(Elim.EApp(code, Icit.Expl)))
+        (Tm.App(Tm.App(Tm.Global(q), quote(c.lvl, code), Icit.Impl), t, Icit.Expl), qa)
+      }
+    case _ => None
+
   /** Whether `A` of `quoted A` is a type of facts (or a type the core does not know). */
   private def factIndex(c: Cxt, a: Val): Boolean =
     val env = objEnv(c)
@@ -252,6 +295,14 @@ trait TypedQuotes:
       case Q.Con("tarith", List(Q.Con(op, _, _, _), a, b), _, sp) =>
         arithOp(op).map(o => OTerm.Arith(o, term(a, bound), term(b, bound), sp)).getOrElse(OTerm.Code(OTy.Unknown, sp))
       case Q.Con("tneg", List(a), _, sp) => OTerm.Neg(term(a, bound), sp)
+      case Q.Con("tas", List(a, Q.Var(n, _)), _, sp) => OTerm.As(term(a, bound), n, sp)
+      case Q.Con("tascribe", List(a, Q.Raw(Tm.Quote(ty), _)), _, sp) => OTerm.Ascr(term(a, bound), env.oty(ev(c, ty)), sp)
+      case Q.Con("tproj", List(a, Q.QLit(hugin.syntax.Literal.StrL(l), _)), _, sp) => OTerm.Proj(term(a, bound), l, sp)
+      case Q.Con("twith", List(a, us), _, sp) =>
+        val fields = elems(us).collect { case Q.Con("uset", List(Q.QLit(hugin.syntax.Literal.StrL(l), lsp), e), _, _) =>
+          (l, term(e, bound), lsp)
+        }
+        OTerm.With(term(a, bound), fields, sp)
       case h @ Q.Hole(_, _, sp) =>
         val ty = Option(holeTypes.get(h)).getOrElse(OTy.Unknown)
         Option(quotedHoles.get(h)).filter(shared) match
@@ -269,6 +320,11 @@ trait TypedQuotes:
       case Q.Con("fcmp", List(Q.Con(op, _, _, _), l, r), _, sp) =>
         cmpOp(op).map(o => OFormula.Cmp(o, term(l, bound), term(r, bound), sp)).toList
       case Q.Con("fnot", List(a), _, sp) => formulas(a, bound).map(OFormula.Not(_, sp))
+      case Q.Con("fas", List(a, Q.Var(n, _)), _, _) =>
+        formulas(a, bound).map {
+          case at: OFormula.Atom => at.copy(as = Some(n))
+          case other => other
+        }
       case Q.Con("fconj", List(a, b), _, _) => formulas(a, bound) ++ formulas(b, bound)
       case Q.Con("fdisj", List(a, b), _, sp) => List(OFormula.Disj(List(formulas(a, bound), formulas(b, bound)), sp))
       case Q.Con("fagg", List(Q.Con(op, _, _, _), x, t, body), _, sp) =>

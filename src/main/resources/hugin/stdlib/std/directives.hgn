@@ -48,6 +48,7 @@ fvars (fnot F) = fvars F.
 fvars (fconj F G) = append (fvars F) (fvars G).
 fvars (fdisj F G) = append (fvars F) (fvars G).
 fvars (fagg O X T F) = append (tvars X) (append (tvars T) (fvars F)).
+fvars (fas F X) = append (fvars F) (tvars X).
 
 (* The variables a formula binds: an atom all of its own, an equation those of its sides without
    arithmetic, an aggregate its result, a conjunction those of both sides *)
