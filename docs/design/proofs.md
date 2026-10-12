@@ -503,7 +503,7 @@ placed (d : db) (a : abstraction) : Type =
 sound : placed d a -> {x : a.node} -> {b : a.anode} ->
         coarse ⊢ reached x -> coarse ⊢ a.alpha x b -> coarse ⊢ areached b.
 sound T (reached.1 S) H = areached.1 S H.
-sound T (reached.2 {X := w} R E) H = areached.2 (sound T R (T w R).ok) (aedge.1 E (T w R).ok H).
+sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
 (* so an abstract node reported unreached contains no reached node *)
 safe : placed d a -> {x : a.node} -> {b : a.anode} ->
@@ -517,10 +517,10 @@ Generalisation inserts `{d : db} -> {a : abstraction} ->` in front, so `placed d
 
 - `sound T (reached.1 S) H`: `reached.1` binds `X := x`, so `S : coarse ⊢ a.seed x` and
   `H : coarse ⊢ a.alpha x b`. `areached.1 S H`, with `A := b` and `X := x`, derives `areached b`.
-- `sound T (reached.2 {X := w} R E) H`: `reached.2` binds `Y := x` and `X := w : a.node`, so
-  `R : coarse ⊢ reached w` and `E : coarse ⊢ a.edge w x`. `T w R : { b : a.anode, ok : … a.alpha w b }`.
-  The recursive call `sound T R (T w R).ok : coarse ⊢ areached (T w R).b`. Then `aedge.1 E (T w R).ok H`
-  (with `X := w`, `Y := x`, `A := (T w R).b`, `B := b`) derives `aedge (T w R).b b`, and `areached.2`
+- `sound T (reached.2 {X := W} R E) H`: `reached.2` binds `Y := x` and `X := W : a.node`, so
+  `R : coarse ⊢ reached W` and `E : coarse ⊢ a.edge W x`. `T W R : { b : a.anode, ok : … a.alpha W b }`.
+  The recursive call `sound T R (T W R).ok : coarse ⊢ areached (T W R).b`. Then `aedge.1 E (T W R).ok H`
+  (with `X := W`, `Y := x`, `A := (T W R).b`, `B := b`) derives `aedge (T W R).b b`, and `areached.2`
   derives `areached b`.
 - `safe T N H R`: `sound T R H : coarse ⊢ areached b`, and `N` maps it to `empty`.
 
@@ -532,7 +532,7 @@ analysis is sound but not complete, and no proof of it is attempted.
 - Coverage of `sound`: the rules with head `reached`. `reached` has rules, so there is no `given` case.
 - Termination: `R` is a premise below the matched rule.
 - The dependent record `{ b : a.anode, ok : … }` (reference `meta/records.md`).
-- The types: `w : a.node` because `X`'s column type in `reached.2` is `a.node`.
+- The types: `W : a.node` because `X`'s column type in `reached.2` is `a.node`.
 
 **What the editor shows.** Splitting `R : coarse ⊢ reached x` in `sound T R H = ?` produces
 `sound T (reached.1 S) H = ?.` and `sound T (reached.2 {X := X} R E) H = ?.`. At the second hole, the
@@ -550,7 +550,7 @@ two goals, `coarse a ⊢ areached ?A` and `coarse a ⊢ aedge ?A b`.
 | `programOf eu` is `programOf (coarse { … })` | by the recorded origin of the functor application (compiler) |
 | `eu` prints exactly what `eu ⊢ …` derives | trusted, or checked by `--certify` |
 
-**Bridges.** `{X := w}`, `empty`, `%opaque` → P2. `derives` → P5. `programOf` → P7a. `⊢`, rule names,
+**Bridges.** `{X := W}`, `empty`, `%opaque` → P2. `derives` → P5. `programOf` → P7a. `⊢`, rule names,
 `given`, generalisation → P7b. `--certify` and checked queries → P8b.
 
 ### 1.4 Where each piece comes from
@@ -1560,12 +1560,13 @@ honest form. Open questions for its design: name resolution of `(f g).r` at the 
 today it denotes object code; display; and interaction with generativity, where an abbreviation over
 the functor, not an instance, avoids it.
 
-**Design (P9, awaiting approval):** [proofs-level35.md](proofs-level35.md). It answers these questions
+**Design (P9, approved):** [proofs-level35.md](proofs-level35.md). It answers these questions
 with one elaboration rule, a coercion: an applied relation that a program owns, written where a meta type
 is expected, is that program's judgment (`fast.path x y` is `fast ⊢ path x y`, `(tc2 G).path x y` is
 `tc2 G ⊢ path x y`), with no keyword, generated declaration, core rule or blessed name (L27). Revision 2 adds locale-style proofs
 inside a program's own body (unqualified relations, lemmas inherited by instances), after an elaboration
-phase that also delivers `programOf here`. It also proposes how to settle the flags that P7b left open
+phase that also delivers `programOf here`; in the file itself, a file relation is written unqualified
+(`trip x y`). It also proposes how to settle the flags that P7b left open
 (negation, multi-head rule names, the `decide` clash).
 
 ### 10.2 Level 4: every relation is an inductive predicate
