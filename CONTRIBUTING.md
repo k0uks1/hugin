@@ -732,9 +732,9 @@ scripts/smoke.sh                # CLI smoke test
 ## The website
 
 The site at <https://k0uks1.github.io/hugin/> (issue #58, design in
-[`docs/design/website.md`](docs/design/website.md)) has four parts: the landing page (`/hugin/`), the
-install page (`/hugin/install/`), the language reference (`/hugin/reference/`, the mdBook in
-`reference/`) and the playground (`/hugin/play/`).
+[`docs/design/website.md`](docs/design/website.md)) has five parts: the landing page (`/hugin/`), the
+install page (`/hugin/install/`), the language tour (`/hugin/tour/`), the language reference
+(`/hugin/reference/`, the mdBook in `reference/`) and the playground (`/hugin/play/`).
 The book's pages at their URLs before the move (`/hugin/<page>.html`) are redirect pages. The sources are
 in `site/`:
 
@@ -744,6 +744,13 @@ site/
   example*.hgn, .check    the landing page's examples (a tab each, `landingExamples` in examples.mjs) and
                           their outputs; run by GoldenTests like tests/run
   install/index.html      the install page
+  tour/lessons.mjs        the language tour: its parts and lessons, in order; build.mjs makes a page per
+                          lesson (/tour/<part>/<slug>/), the contents (/tour/) and everything/ (all lessons)
+  tour/<file>.html, .hgn  a lesson's text and program; <file>.check is the output of `hugin run` (with
+                          <file>.flags), <wrong>.hgn and .check a wrong version and its diagnostics; all are
+                          checked by TourExamplesSuite, a suite of its own (std/semantics is slow to load)
+  tour/tour.js, tour.css  a lesson page's script (bundled): the playground's editor and worker, started on
+                          first use, check the program as the reader types; ← and → change lessons
   theme.js                the light/dark switch, inlined into every page's <head> (the only script of
                           the landing and install pages)
   play/index.html         the playground; play.css, its additional styles

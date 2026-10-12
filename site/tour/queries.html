@@ -1,0 +1,15 @@
+<p>A query <code>?- atom.</code> prints the values of its variables for which the atom is a fact.</p>
+
+<p>A body may also negate an atom (<code>not road _ X</code>) and aggregate over the solutions of a
+formula (<code>count</code>, <code>sum</code>, <code>min</code>, <code>max</code>). Both read a relation
+that must be complete when they are evaluated, so the compiler orders the relations into
+<em>strata</em>: <code>road</code> is complete before <code>start</code> is computed, and
+<code>start</code> and <code>reach</code> before <code>fanout</code>. A program in which a relation depends on itself through a
+negation or an aggregate is rejected. The meaning of such a program is its <em>perfect model</em>:
+the least model of each stratum in turn, with negations and aggregates read in the strata below.</p>
+
+<p><code>_</code> is a variable that occurs once. In <code>not road _ X</code> it is local to the negation:
+<code>start X</code> holds if <code>X</code> has an outgoing road and no road enters it.</p>
+
+<p>Part 2 has a lesson about proofs over a relation defined with <code>not</code>; aggregates have
+the same treatment in the library (<code>std/strata</code>), and are not used further in this tour.</p>

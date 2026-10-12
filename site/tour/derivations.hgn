@@ -1,0 +1,18 @@
+%use "std/graph".
+%use "std/nat".
+%use "std/semantics".
+
+(* `tc G ⊢ path x y`: the program `tc G` derives `path x y`, for any graph G and any input facts *)
+oneStep : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
+oneStep E = path.1 E.
+
+(* a derivation is a value: count its edges *)
+hops : {x y : G.node} -> tc G ⊢ path x y -> nat.
+hops (path.1 E) = 1.
+hops (path.2 E P) = hops P + 1.
+
+(* rule names build derivations: two edges make a path of two hops *)
+twoEdges : {x y z : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ G.edge y z -> tc G ⊢ path x z.
+twoEdges E F = path.2 E (path.1 F).
+
+%opaque oneStep twoEdges.

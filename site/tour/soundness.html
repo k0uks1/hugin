@@ -1,0 +1,20 @@
+<p>A common use of Datalog is program analysis, where a large graph is abstracted to a smaller one and
+the analysis runs on the abstraction. The functor <code>coarse</code> computes both: <code>reached</code>,
+reachability from the seeds on the graph, and <code>areached</code>, reachability on the graph of
+abstract nodes, where <code>alpha x a</code> places node <code>x</code> in abstract node <code>a</code>.</p>
+
+<p><code>sound</code> states that the abstraction over-approximates: if <code>x</code> is reached and
+<code>alpha x b</code>, then <code>b</code> is reached on the coarse graph. It needs a hypothesis,
+<code>placed</code>: every reached node has some abstraction. Without it the statement is false (a reached
+node with no abstract node would break the induction), so it is an argument of the theorem. The proof
+is by induction on the derivation of <code>reached x</code>, and uses the rule <code>aedge.1</code> to
+lift each concrete edge.</p>
+
+<p><code>safe</code> is the form an analysis uses: an abstract node the analysis does not reach
+contains no reached node. In the run, <code>no</code> is not reached, so no city in Norway is reachable
+from Berlin.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every abstraction and every input database that
+satisfies <code>placed</code>: every abstract node of a reached node is reached. <strong>What is
+trusted.</strong> Adequacy. The hypothesis <code>placed</code> is about the input; it is not checked
+for the facts of a particular run.</p>

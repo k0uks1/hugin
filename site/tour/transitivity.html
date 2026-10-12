@@ -1,0 +1,22 @@
+<p>The closure <code>tc</code> builds paths from the left: an edge, then a path. Transitivity, joining
+two arbitrary paths, is not one of its rules; it is a property of what the rules derive, and it needs a
+proof by induction.</p>
+
+<p><code>tcTrans</code> recurses on the derivation of the first path. If it is an edge
+(<code>path.1 E</code>), the second rule applied to that edge and the second path gives the result. If
+it is an edge followed by a path (<code>path.2 E P</code>), the rule's middle variable <code>Y</code> is in
+scope, <code>P</code> derives <code>path Y y</code>, and the recursive call joins <code>P</code> with
+<code>Q</code>. The call is on a sub-derivation, so the recursion terminates.</p>
+
+<p>The statement is about the program as written: change a rule of <code>tc</code>, and the proof is
+checked against the new rules. The wrong version below returns <code>P</code> instead of the recursive
+call; the compiler reports that it derives <code>path Y y</code> where <code>path Y z</code> is needed.</p>
+
+<p class="try">Try: replace the right side of the second clause with <code>?</code>. The compiler reports
+the goal, <code>tc G ⊢ path x z</code>, with the variables in scope. Or delete the first clause, and see
+the missing case.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every graph <code>G</code>, every input database and
+all nodes <code>x y z</code>: if <code>tc G</code> derives <code>path x y</code> and <code>path y z</code>,
+it derives <code>path x z</code>. <strong>What is trusted.</strong> That a run of an instance of
+<code>tc</code> prints exactly the derived facts (adequacy).</p>

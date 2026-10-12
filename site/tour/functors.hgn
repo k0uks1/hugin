@@ -1,0 +1,28 @@
+%use "std/graph".
+(* std/graph declares the signature `graph` and the functor `tc`:
+     graph : Type = { node : type, edge : node -> node -> rel }.
+     tc (g : graph) = {
+       path : g.node -> g.node -> rel.
+       path X Y :- g.edge X Y.
+       path X Z :- g.edge X Y, path Y Z.
+     }.                                                              *)
+
+city : type.
+berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris.
+road paris rome.
+
+(* a functor of our own: both directions of every edge *)
+undirected (g : graph) = {
+  link : g.node -> g.node -> rel.
+  link X Y :- g.edge X Y.
+  link Y X :- g.edge X Y.
+}.
+
+roads = tc { node = city, edge = road }.
+both = undirected { node = city, edge = road }.
+back = tc { node = city, edge = both.link }.
+
+?- roads.path berlin X.
+?- back.path rome X.

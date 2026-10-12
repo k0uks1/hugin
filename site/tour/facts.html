@@ -1,0 +1,17 @@
+<p>A Hugin program has two levels. The <em>object level</em> is Datalog with types: it declares relations,
+states facts and derives new facts with rules. The <em>meta level</em>, introduced later in this tour, runs at
+compile time; it can build object programs and, the subject of this tour, prove things about them.</p>
+
+<p><code>city : type.</code> declares an object type, and <code>berlin, paris, rome, oslo : city.</code> its
+constants. <code>road : city -&gt; city -&gt; rel.</code> declares a relation with two columns of type
+<code>city</code>. A fact is an atom followed by a period.</p>
+
+<p>A rule <code>head :- body.</code> derives the head for every assignment of its variables (uppercase
+names) for which every atom of the body is a fact. The two rules of <code>reach</code> are the usual
+transitive closure: a road is a way, and a road followed by a way is a way.</p>
+
+<p>The program's meaning is its <em>least model</em>: the smallest set of facts that contains the given
+facts and is closed under the rules. <code>%output reach.</code> prints the facts of <code>reach</code> in
+it. Arguments are type-checked: <code>reach berlin 3</code> is a compile error.</p>
+
+<p class="try">Try: add <code>road rome oslo.</code> and see the output grow to every pair of cities.</p>

@@ -14,7 +14,8 @@ import { parser } from "./hugin-lang.js";
 import { fixesField, hasFixes } from "./actions.js";
 
 // where a declaration of the bundled standard library is documented: its module's page in the reference
-const REFERENCE = "../reference/";
+// resolved against the bundle (play/play.js, tour/tour.js), so that it holds on pages at any depth
+const REFERENCE = new URL("../reference/", import.meta.url).href;
 
 class Name extends RangeValue {
   constructor(data) { super(); this.data = data; }

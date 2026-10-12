@@ -1,0 +1,7 @@
+error[E0901]: mismatched types
+  --> site/tour/decide-wrong.hgn:15:45
+   |
+15 | viaParis : trip.path berlin rome = decide 2 tt.
+   |                                             ^^ expected `empty`, found `unit`
+
+1 error found

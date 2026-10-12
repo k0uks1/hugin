@@ -1,0 +1,8 @@
+%use "std/graph".
+%use "std/semantics".
+
+(* the transitive closure of std/graph is transitive, for every graph and every input database *)
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+%opaque tcTrans.

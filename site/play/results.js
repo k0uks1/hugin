@@ -31,7 +31,7 @@ function relations(result) {
   return result.relations.map((r) => [h("p", { class: "query" }, r.name), table(r.vars, r.rows)]);
 }
 
-function diagnostics(result, onFix, onGoto) {
+export function diagnostics(result, onFix, onGoto) {
   if (!result.diagnostics.length) return h("p", { class: "empty" }, "No diagnostics.");
   return result.diagnostics.map((d) => {
     const span = mainSpan(d);

@@ -1,0 +1,34 @@
+%use "std/graph" (graph).
+%use "std/semantics".
+
+symmetric : {A : Type} -> (A -> A -> Type) -> Type.
+symmetric {A := T} R = (x : T) -> (y : T) -> R x y -> R y x.
+
+undirected (g : graph) = {
+  link : g.node -> g.node -> rel.
+  link X Y :- g.edge X Y.
+  link Y X :- g.edge X Y.
+  reach : g.node -> g.node -> rel.
+  reach X Y :- link X Y.
+  reach X Z :- link X Y, reach Y Z.
+}.
+
+(* (undirected G).link, unapplied, is the family [x] [y] undirected G ⊢ link x y *)
+linkSym : symmetric (undirected G).link.
+linkSym X Y (link.1 E) = link.2 E.
+linkSym X Y (link.2 E) = link.1 E.
+
+reachTrans : {x y z : G.node} -> (undirected G).reach x y -> (undirected G).reach y z -> (undirected G).reach x z.
+reachTrans (reach.1 L) Q = reach.2 L Q.
+reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
+
+reachSym : symmetric (undirected G).reach.
+reachSym X Y (reach.1 L) = reach.1 (linkSym X Y L).
+reachSym X Z (reach.2 L P) = reachTrans (reachSym Y Z P) (reach.1 (linkSym X Y L)).
+%opaque linkSym reachTrans reachSym.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+roads = undirected { node = city, edge = road }.
+?- roads.reach rome X.

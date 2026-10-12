@@ -1,0 +1,6 @@
+?- reach X rome.
+X = berlin.
+X = oslo.
+X = paris.
+?- fanout X N.
+X = oslo, N = 3.

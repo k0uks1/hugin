@@ -6,6 +6,9 @@
 .editor .cm-editor { flex: 1; min-width: 0; background: transparent; color: var(--fg); font-size: 0.84rem; }
 .editor .cm-editor.cm-focused { outline: none; }
 .editor .cm-scroller { font-family: var(--mono); line-height: 1.65; padding: 1.1rem 0; overflow-x: auto; container-type: inline-size; tab-size: 2; }
+/* focusing the content scrolls it into view; without the gutter's width as padding, a content wider than the
+   editor is scrolled under the sticky line numbers */
+.editor .cm-scroller { scroll-padding-left: 2.5rem; }
 .editor .cm-content { padding: 0; caret-color: var(--fg); }
 .editor .cm-line { padding: 0 1.25rem 0 1.1rem; }
 .editor .cm-gutters { background: var(--surface); border: 0; color: var(--muted); }

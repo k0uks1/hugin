@@ -8,6 +8,11 @@
 //   _site/install/                how to install Hugin
 //   every page                    the theme switch, site/theme.js, inlined into the <head>; the CSS and
 //                                 JS references carry ?v=<content hash> (cache busting)
+//   _site/tour/                   the language tour: a contents page, one page per lesson (site/tour/lessons.mjs:
+//                                 its text site/tour/<file>.html, its program <file>.hgn and output <file>.check,
+//                                 checked by TourExamplesSuite), and every lesson on one page (everything/);
+//                                 tour.js (site/tour/tour.js, bundled by esbuild) makes the programs editable
+//                                 and checks them in the browser with the playground's worker
 //   _site/play/                   the playground: play.js (CodeMirror and the page, bundled by esbuild),
 //                                 worker.js, hugin.js (the Scala.js compiler, batch W4) and examples.json
 //   _site/reference/              the language reference (the mdBook output, reference/book)
@@ -25,6 +30,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { collectExamples, landingExamples } from "./examples.mjs";
+import { parts as tourParts, lessons as tourLessons } from "./tour/lessons.mjs";
 
 const site = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(site);
@@ -114,6 +120,184 @@ function pages() {
   copy(path.join(site, "style.css"), "style.css");
 }
 
+// --- the language tour ------------------------------------------------------------------------------
+const tourPages = [];
+
+// the header of a page at depth `root` ("../" per level), with `current` marked
+function header(root, current) {
+  const link = (href, text) => `<a href="${root}${href}"${current === href ? ' aria-current="page"' : ""}>${text}</a>`;
+  return `<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="${root}">Hugin</a>
+    <nav>
+      ${link("tour/", "Tour")}
+      ${link("play/", "Playground")}
+      ${link("reference/", "Reference")}
+      <a class="gh" href="https://github.com/k0uks1/hugin">GitHub</a>
+      ${THEME_BUTTON}
+    </nav>
+  </div>
+</header>`;
+}
+
+function footer(root) {
+  return `<footer class="foot">
+  <div class="wrap">
+    <nav><a href="${root}">Home</a><a href="${root}tour/">Tour</a><a href="${root}install/">Install</a><a href="${root}play/">Playground</a><a href="${root}reference/">Reference</a><a href="https://github.com/k0uks1/hugin">GitHub</a></nav>
+  </div>
+</footer>`;
+}
+
+function shell(rel, { title, description, body, script = false, bodyClass = "" }) {
+  const root = "../".repeat(rel.split("/").length - 1);
+  const theme = fs.readFileSync(path.join(site, "theme.js"), "utf8").replace(/^\/\/.*\n/gm, "").trim();
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escape(title)}</title>
+<meta name="description" content="${escape(description)}">
+<link rel="stylesheet" href="${root}style.css">
+<link rel="stylesheet" href="${root}play/play.css">
+<link rel="stylesheet" href="${root}tour/tour.css">
+<script>${theme}</script>
+${script ? `<script type="module" src="${root}tour/tour.js"></script>\n` : ""}</head>
+<body class="${bodyClass}" data-root="${root}">
+${header(root, "tour/")}
+${body.replace(/\{root\}/g, root)}
+${footer(root)}
+</body>
+</html>
+`;
+  write(rel, html);
+  tourPages.push(rel);
+}
+
+// the theorems of a program: the names its %opaque directives list
+const theorems = (code) => [...code.matchAll(/^\s*%opaque\s+([^.]*)\./gm)].flatMap((m) => m[1].trim().split(/\s+/));
+
+function tour() {
+  const dir = path.join(site, "tour");
+  const read = (f) => fs.readFileSync(path.join(dir, f), "utf8");
+  const programs = tourLessons.flatMap((l) => [l.file, ...(l.wrong ? [l.wrong] : [])]);
+  const codes = programs.map((f) => read(f + ".hgn"));
+  const highlighted = JSON.parse(compiler(["highlight"], JSON.stringify(codes.map((code) => ({ code, prelude: true })))));
+  const html = new Map(programs.map((f, i) => {
+    if (highlighted[i].map((r) => r[0]).join("") !== codes[i]) fail(`the highlighted runs do not cover site/tour/${f}.hgn`);
+    return [f, highlighted[i].map(([text, classes]) =>
+      classes.length ? `<span class="${classes.map((c) => "hg-" + c).join(" ")}">${escape(text)}</span>` : escape(text)).join("").replace(/\n$/, "")];
+  }));
+  const partOf = (l) => tourParts.findIndex((p) => p.id === l.part);
+  const href = (l) => `{root}tour/${l.part}/${l.slug}/`;
+
+  // the static result: what CI checked (TourExamplesSuite); tour.js replaces it with the browser's
+  function result(l) {
+    const flags = fs.existsSync(path.join(dir, l.file + ".flags")) ? read(l.file + ".flags").trim() + " " : "";
+    const check = read(l.file + ".check");
+    const names = theorems(read(l.file + ".hgn"));
+    const ok = names.length ? `No errors. Checked: ${names.map((n) => `<code>${escape(n)}</code>`).join(", ")}.` : "No errors.";
+    return `<div class="card results">
+<div class="card-head"><span class="file">$ hugin run ${flags}${l.file}.hgn</span><span class="status" data-status>checked in CI</span></div>
+<div class="body" data-result><p class="ok">${ok}</p>${check.trim() ? `<pre class="text">${escape(check.replace(/^\/\/ /gm, "").replace(/\n$/, ""))}</pre>` : ""}</div>
+</div>`;
+  }
+
+  function wrongBlock(l) {
+    if (!l.wrong) return "";
+    return `<details class="wrong" data-wrong>
+<summary>A wrong version, and the compiler's answer</summary>
+<pre class="code"><code class="hugin">${html.get(l.wrong)}</code></pre>
+<pre class="text">${escape(read(l.wrong + ".check").replace(/\n+$/, ""))}</pre>
+</details>`;
+  }
+
+  function work(l, live) {
+    const data = live ? `<script type="application/json" id="lesson">${JSON.stringify({
+      file: l.file + ".hgn", code: read(l.file + ".hgn"), wrong: l.wrong ? read(l.wrong + ".hgn") : null,
+      example: "tour-" + l.slug, browserFlags: fs.existsSync(path.join(dir, l.file + ".flags")) ? read(l.file + ".flags").trim() : "",
+    }).replace(/</g, "\\u003c")}</script>` : "";
+    return `<section class="work" aria-label="Program">
+<div class="card editor">
+<div class="card-head"><span class="file">${l.file}.hgn</span><span class="tools" data-tools><a href="{root}play/#example=tour-${l.slug}">Open in the playground</a></span></div>
+<div class="code"${live ? ' id="editor"' : ""} data-editor><pre><code class="hugin">${html.get(l.file)}</code></pre></div>
+</div>
+${result(l)}
+${wrongBlock(l)}
+${data}
+</section>`;
+  }
+
+  const lessonNumber = (l) => tourLessons.indexOf(l) + 1;
+  const eyebrow = (l) => `Part ${partOf(l) + 1} · ${escape(tourParts[partOf(l)].title)} · ${lessonNumber(l)} of ${tourLessons.length}`;
+
+  tourLessons.forEach((l, i) => {
+    const prev = tourLessons[i - 1], next = tourLessons[i + 1];
+    const pager = `<nav class="pager" aria-label="Lessons">
+${prev ? `<a rel="prev" href="${href(prev)}" data-key="ArrowLeft"><span>← Back</span><small>${escape(prev.title)}</small></a>` : `<a rel="prev" href="{root}tour/" data-key="ArrowLeft"><span>← Back</span><small>Contents</small></a>`}
+<a class="toc" href="{root}tour/">Contents</a>
+${next ? `<a rel="next" href="${href(next)}" data-key="ArrowRight"><span>Next →</span><small>${escape(next.title)}</small></a>` : `<a rel="next" href="{root}tour/everything/" data-key="ArrowRight"><span>Next →</span><small>Everything on one page</small></a>`}
+</nav>`;
+    shell(`tour/${l.part}/${l.slug}/index.html`, {
+      title: `${l.title} · Tour · Hugin`, description: l.summary, script: true, bodyClass: "wide",
+      body: `<main class="tour">
+<div class="wrap lesson">
+<article class="text">
+<p class="eyebrow">${eyebrow(l)}</p>
+<h1>${escape(l.title)}</h1>
+${read(l.file + ".html").trim()}
+</article>
+${work(l, true)}
+<div class="lesson-nav">
+${pager}
+<p class="keys">Keys: <kbd>←</kbd> <kbd>→</kbd> previous and next lesson (outside the editor) · <kbd>Ctrl</kbd>-<kbd>Enter</kbd> check now</p>
+</div>
+</div>
+</main>`,
+    });
+  });
+
+  const contents = tourParts.map((p, pi) => `<section class="part">
+<p class="eyebrow">Part ${pi + 1}</p>
+<h2>${escape(p.title)}</h2>
+<p>${escape(p.blurb)}</p>
+<ol class="lessons" start="${tourLessons.findIndex((l) => l.part === p.id) + 1}">
+${tourLessons.filter((l) => l.part === p.id).map((l) => `<li><a href="${href(l)}"><strong>${escape(l.title)}</strong><span>${escape(l.summary)}</span></a></li>`).join("\n")}
+</ol>
+</section>`).join("\n");
+  shell("tour/index.html", {
+    title: "Language tour · Hugin", description: "A tour of Hugin: the basics, then proofs about Datalog programs that the compiler checks.",
+    body: `<main class="tour contents">
+<div class="wrap">
+<h1>A tour of Hugin</h1>
+<p class="lede">Part 1 shows the basics of the language in four short lessons. Part 2 states properties of
+Datalog programs as types and proves them; the compiler checks every proof. Each lesson comes with its program,
+which you can edit; it is checked in the browser as you type.</p>
+${contents}
+<p class="more"><a href="${href(tourLessons[0])}">Start with the first lesson →</a> · <a href="{root}tour/everything/">Everything on one page</a></p>
+</div>
+</main>`,
+  });
+
+  shell("tour/everything/index.html", {
+    title: "Everything · Tour · Hugin", description: "Every lesson of the Hugin tour on one page.",
+    body: `<main class="tour everything">
+<div class="wrap">
+<h1>A tour of Hugin: everything</h1>
+<p class="lede">Every lesson on one page, with its program and the output that CI checked. The lessons'
+own pages have editable programs. <a href="{root}tour/">Contents</a></p>
+${tourLessons.map((l) => `<section class="lesson-all" id="${l.slug}">
+<p class="eyebrow">${eyebrow(l)}</p>
+<h2><a href="${href(l)}">${escape(l.title)}</a></h2>
+<div class="text">${read(l.file + ".html").trim().replace(/<h2>/g, "<h3>").replace(/<\/h2>/g, "</h3>")}</div>
+${work(l, false)}
+</section>`).join("\n")}
+</div>
+</main>`,
+  });
+  copy(path.join(dir, "tour.css"), "tour/tour.css");
+}
+
 // --- the playground --------------------------------------------------------------------------------
 async function playground() {
   let esbuild;
@@ -125,6 +309,11 @@ async function playground() {
   await esbuild.build({
     entryPoints: [path.join(site, "play", "main.js")],
     outfile: path.join(out, "play", "play.js"),
+    bundle: true, minify: true, format: "esm", target: "es2022", legalComments: "none", logLevel: "warning",
+  });
+  await esbuild.build({
+    entryPoints: [path.join(site, "tour", "tour.js")],
+    outfile: path.join(out, "tour", "tour.js"),
     bundle: true, minify: true, format: "esm", target: "es2022", legalComments: "none", logLevel: "warning",
   });
   page("play/index.html");
@@ -200,6 +389,14 @@ function cacheBusting() {
   bust("index.html", [['href="style.css"', "style.css"]]);
   bust("install/index.html", [['href="../style.css"', "style.css"]]);
   bust("play/index.html", [['href="../style.css"', "style.css"], ['href="play.css"', "play/play.css"], ['src="play.js"', "play/play.js"]]);
+  bust("tour/tour.js", [['"play/worker.js"', "play/worker.js"]]);
+  for (const rel of tourPages) {
+    const root = "../".repeat(rel.split("/").length - 1);
+    const text = fs.readFileSync(path.join(out, rel), "utf8");
+    bust(rel, [[`href="${root}style.css"`, "style.css"], [`href="${root}play/play.css"`, "play/play.css"],
+      [`href="${root}tour/tour.css"`, "tour/tour.css"], [`src="${root}tour/tour.js"`, "tour/tour.js"]]
+      .filter(([quoted]) => !quoted.startsWith("src=") || text.includes(quoted))); // only lessons have the script
+  }
 }
 
 // --- helpers ---------------------------------------------------------------------------------------
@@ -218,6 +415,7 @@ const gzip = (...rels) =>
 
 fs.rmSync(out, { recursive: true, force: true });
 pages();
+tour();
 await playground();
 cacheBusting();
 const redirects = reference();
@@ -225,4 +423,5 @@ console.log(`site/build.mjs: wrote ${path.relative(root, out) || out}/`);
 console.log(`  landing page ${gzip("index.html", "style.css")} KB gzip (HTML and CSS; JavaScript only for the theme switch)`);
 console.log(`  playground   ${gzip("play/play.js")} KB gzip (editor and page)` +
   (bundle ? `, compiler ${gzip("play/hugin.js")} KB gzip` : ", no compiler bundle"));
+console.log(`  tour         ${tourLessons.length} lessons, ${gzip("tour/tour.js")} KB gzip (tour.js; the compiler is the playground's)`);
 console.log(`  reference    ${redirects} redirect pages from the old URLs`);

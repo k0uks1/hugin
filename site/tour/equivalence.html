@@ -1,0 +1,20 @@
+<p><code>tc2</code> computes the same closure with the <em>doubling</em> rule <code>path X Z :- path X Y,
+path Y Z</code>, which needs logarithmically many rounds of evaluation where <code>tc</code> needs linearly
+many. The theorem <code>sameFacts</code> says the rewrite is correct: for every graph and every input,
+both programs derive the same paths.</p>
+
+<p>The proof is in two directions. <code>toTc2</code> maps each rule of <code>tc</code> to rules of
+<code>tc2</code>. <code>toTc</code> maps the doubling rule to <code>tcTrans</code>, the transitivity of
+<code>tc</code> from the earlier lesson: that is where the induction is needed. <code>edgeIn</code> and
+<code>edgeOut</code> move an input edge between the two programs, which read the same parameter
+relation.</p>
+
+<p>The lemmas are written inside the functor's body. There, <code>path x y</code> unqualified is the
+judgment of the body's own program, <code>tc2 g ⊢ path x y</code>, and the other program is qualified,
+<code>(tc g).path x y</code>. Members of a body are fields of every instance: <code>fast.sameFacts</code> is
+the theorem about the instance <code>fast</code>, without restating it.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every graph and every input database,
+<code>tc</code> and <code>tc2</code> derive the same facts <code>path x y</code>; so does <code>fast</code>
+with <code>tc</code> over the same roads. <strong>What is trusted.</strong> Adequacy: that the engine's
+runs of both programs print the derived facts. Running time is not part of the statement.</p>

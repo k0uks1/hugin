@@ -1,0 +1,18 @@
+<p>An applied relation of a program, written where a type is expected, is that program's judgment:
+<code>(undirected G).reach x y</code> means <code>undirected G ⊢ reach x y</code>. Written without arguments,
+<code>(undirected G).reach</code> is the family <code>[x] [y] undirected G ⊢ reach x y</code>. So a
+property of meta relations, such as <code>symmetric</code> here, applies to an object relation as it is.</p>
+
+<p>Symmetry of <code>reach</code> needs two lemmas. <code>linkSym</code>: each rule of <code>link</code>
+derives the reverse of the other's head, from the same edge. <code>reachTrans</code>: transitivity, as in
+the previous lesson. Then <code>reachSym</code> is by induction: a one-step path is reversed by
+<code>linkSym</code>; a path <code>link x Y</code>, <code>reach Y z</code> is reversed by reversing the rest
+(the recursive call) and appending the reversed link with <code>reachTrans</code>.</p>
+
+<p>The query at the end runs an instance on two roads; <code>rome</code> reaches back to
+<code>berlin</code>, as the theorem says it must.</p>
+
+<p class="scope"><strong>What is proved.</strong> For every graph <code>G</code> and every input database,
+<code>reach</code> of <code>undirected G</code> is symmetric. <strong>What is trusted.</strong> Adequacy,
+as before; the definition of <code>symmetric</code> is ordinary code in the program, and is part of the
+statement a reader has to check.</p>

@@ -1,0 +1,23 @@
+%use "std/graph" (graph).
+%use "std/eq" (empty, emptyElim).
+%use "std/semantics".
+%use "std/strata".
+
+complete_graph : Type = { node : type, edge : node -> node -> rel, %complete edge }.
+
+(* a sink is entered by an edge and left by none *)
+sinks (g : complete_graph) = {
+  sink : g.node -> rel.
+  sink N :- g.edge _ N, not g.edge N _.
+
+  noExit : {x y : g.node} -> sink x -> g.edge x y -> empty.
+  noExit (sink.1 E N) (given I) = N (econs y enil) I.
+  noExit (given I) F = emptyElim I.fst.
+  %opaque noExit.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+ends = sinks { node = city, edge = road }.
+%output ends.sink.

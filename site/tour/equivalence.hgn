@@ -1,0 +1,39 @@
+%use "std/graph".
+%use "std/eq" (iff).
+%use "std/semantics".
+
+tcTrans : {x y z : G.node} -> (tc G).path x y -> (tc G).path y z -> (tc G).path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+%opaque tcTrans.
+
+(* the doubling rule: logarithmically many rounds instead of linearly many *)
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+
+  (* lemmas about the body's program: `path x y` here is `tc2 g ⊢ path x y` *)
+  edgeIn : {x y : g.node} -> tc g ⊢ g.edge x y -> g.edge x y.
+  edgeIn (given I) = given I.
+  edgeOut : {x y : g.node} -> g.edge x y -> tc g ⊢ g.edge x y.
+  edgeOut (given I) = given I.
+  toTc2 : {x y : g.node} -> (tc g).path x y -> path x y.
+  toTc2 (path.1 E) = path.1 (edgeIn E).
+  toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+  toTc : {x y : g.node} -> path x y -> (tc g).path x y.
+  toTc (path.1 E) = path.1 (edgeOut E).
+  toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
+  sameFacts : {x y : g.node} -> iff ((tc g).path x y) (path x y) = { to = toTc2, from = toTc }.
+  %opaque sameFacts.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+fast = tc2 { node = city, edge = road }.
+
+(* every instance has the lemma, about its own program *)
+forFast : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y) = fast.sameFacts.
+%opaque forFast.
+%output fast.path.
