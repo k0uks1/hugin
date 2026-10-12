@@ -2463,6 +2463,60 @@ replacing P7b's "a multi-head rule is named by its first head".
   `to` head and `to.1`, `to.2`; `circle.1` for a constructor term in a head, beside `given`); neg
   `e0948_label_heads` (pattern and expression); LSP split of `both` and `twice`.
 
+**P9c (stratified judgments; design: `proofs-level35.md` §6.3 and its addendum §6.3.1, decision 6).**
+
+- *The reading.* Over a program with a negation or an aggregate (its rules evaluate and one has `cnot` or
+  `cagg`), `P ⊢[e] r t̄` elaborates to `nderives (layer p sₖ) (upTo p k e) (atom ρ vs)`, `sₖ` written out as
+  a list literal. `k` is the last stratum whose layer has a rule with a head of `r` (`ProgramData.stratumOf`:
+  a rule is in the layer of each stratum with one of its own heads, as `headIn`); a relation without
+  rules (an input, a parameter's, the file's) is at stratum 0. Positive programs keep `derives`; a coerced
+  atom (P9b) takes the same path. E0961 remains only for a file that does not load `std/strata`.
+- *`upTo` as the design defines it.* `upTo p k d = [a] layers p (take k p.strata) (inputs p d) a`, a
+  lambda: matching `ngiven` on a stratum-local derivation leaves the chain `nderives (layer p sₖ₋₁) (…)`
+  that `layers` computes, and the canonical judgment of the stratum below compares with it by η, so a
+  peeled premise has its relation's stratum-local type with no lemma. `judged p k d` names the judgment.
+- *Adequacy, proved.* `adequate k tt : iff (perfect p d (atom r vs)) (judged p k d (atom r vs))` for every
+  `k` with `lastIn p r p.strata k`: `k` is a stratum and no later layer has a rule with a head of `r`
+  (decided: `freeAfter`, `freeOf`, `headsFree`, with `diffRef` on relations by `equal` and `same`, and its
+  soundness `diffSound` through `apart`). One direction is P6's `kept`, the other `stays`: a layer
+  without such a rule derives the facts of `r` only by `ngiven` (`onlyGiven`). Both are identity-like
+  recursions over the strata (`toStratum`, `fromStratum`), with no lemma about `take` and `append`. The
+  elaborator's `k` satisfies `lastIn` by construction, so `tt` proves it. Nothing is postulated.
+- *Rule names* number (rule, head) pairs over the whole program (P9d); at a judgment of stratum `j`, a rule
+  fires in the last layer `j' ≤ j` that has it (E0948 "fires in a later stratum" if none): `ngiven tt`
+  `j − j'` times, then `nfire` with the member proof in that layer's rules (`ProgramData.layerRules`). An
+  atom's premise of stratum `k < j'` is lifted by `ngiven` `j' − k` times, as the design says. Written
+  premises: atoms, negated atoms and aggregates in body order; comparisons by evaluation (`ncmp`). A
+  negated atom without local variables takes, in an expression, a refutation of its relation's judgment,
+  wrapped by `absentOf k j' tt` (built with all its implicit arguments, which unification could not
+  infer through the folded `upTo`), or else the premise itself; in a pattern it binds the premise
+  (`absent …`). The addendum (§6.3.1) records why, with the prior art. `given` at a stratum reaches the
+  input facts for an input relation (`{ fst = tt, snd = I }`; a pattern binds the record, and `I.fst`
+  refutes a relation with rules), and lifts a lower stratum's judgment for a relation with rules.
+- *Recognising the judgment.* `judgmentView` reads `derives` or a stratum-local `nderives` whose database
+  is `upTo p k d` (folded or as a lambda) or the chain below it (`stratumDb` down to `inputs p d`), giving
+  the program, the database and the stratum. Coverage extends P7b's Π positions to `ngiven` and `nfire`
+  (the layer's rules), so a clause per rule name and `given I` cover. Splits offer the rule names of the
+  rules that fire at or below the stratum, premises `N` and `A` for negations and aggregates, and always
+  `given`. `layer` and `upTo` of `std/strata` stay folded in normal forms, as a program does
+  (`GlobalEntry.judgmentPart`), and print as `P ⊢[d] r t̄`; a peeled premise's type, a chain of
+  `nderives`, prints as it is.
+- *`decide`.* Not connected to the notation: the judgment's database is arbitrary (the anonymous one),
+  `perfectHolds` decides membership only at `memOf ins`, and the perfect model is not monotone in the
+  input facts, so no `decide n tt` can prove `P ⊢ r t̄` for every database. `std/certify` gains
+  `judgedHolds n p ins r vs k tt tt : judged p k (memOf ins) (atom r vs)`, `perfectHolds` composed with
+  `adequate`, for a judgment at a database of listed facts (p8b_certify).
+- *Cost.* `std/strata` grows by about 175 lines; its elaboration went from 2992 ms to 3081 ms (minimum of
+  six runs, `--stats`, `std/semantics` included), so it stays one module. The goldens p9c_negation and
+  p9c_aggregate check in about 1 s each in the suite.
+- *Tests.* run `p9c_negation` (`ok.1 node.1 noBad` proves `m ⊢ ok berlin`; `noBad (given I) = emptyElim
+  I.fst`; a rule pattern's negated premise `N enil (given F)`; `adequate` to the perfect model),
+  `p9c_aggregate` (`size.1` with a `count` witness; a pattern binding it); neg `p9c_never` (P9a's `never`
+  is E0915, `ok.1 B` E0948), `e0948_negated_premise` (pattern and expression), `e0961_judgment_negation`
+  (without `std/strata`); p8b_certify (`judgedHolds`); LSP split and hover of a stratum-local goal.
+- *Open.* Displays of a peeled premise show the `nderives` chain rather than `P ⊢ q t̄` (the printer does not
+  know the strata). `refuted`, the pattern-side conversion, takes its strata explicitly.
+
 **P9f (the proof phase, `programOf here`; design: `proofs-level35.md` §4.3.6).**
 
 - *Prior art.* Lean 4, Isabelle and Agda elaborate in textual order, so an inductive definition is complete

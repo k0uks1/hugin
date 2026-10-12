@@ -1163,6 +1163,44 @@ because P7b treats every non-atom literal as a comparison.
    by strata. How a negated premise is best presented in patterns is the one sub-question that P9c settles
    in a short addendum before it is implemented.
 
+#### 6.3.1 Addendum (P9c): negated premises and aggregate witnesses in rule names
+
+*Positions.* A stratum-local rule name `r.j p̄` has one written premise for each atom, negated atom and
+aggregate of the rule's body, in body order; comparisons are not written (`ncmp _` in a pattern, proved
+by evaluation in an expression), as in P7b. `ok X :- node X, not bad X.` is `ok.1 B N`. The positions
+are those of `npos`, `nneg` and `nagg` in `npremises`, so the count is the body's, and a missing negated
+premise is P7b's E0948 "has 2 premise(s), but 1 are given".
+
+*Patterns: the premise as it is.* The pattern variable of `not q t̄` binds `nneg`'s argument, `absent (upTo p
+j d) xs us b`, and that of an aggregate its witness `aggHolds …`, unchanged. A pattern cannot apply a
+function: Hugin has no view patterns, and rule names are Agda's pattern synonyms, which expand to
+constructor patterns only (Agda's `with` and Idris' views are separate mechanisms). For a negation
+without local variables, `N enil : upTo p j d (atom q vs) -> empty` refutes the facts of `q` below the
+rule's stratum, and `given F` lifts a judgment `F : P ⊢ q t̄` into them (below), so `okNotBad (ok.1 B N)
+F = N enil (given F)` needs no stratum number. The library lemma `refuted k j tt N : notIn (judged p k d)
+…`, the direction §6.3 names, is there for the general case; its strata are explicit (below, *Inference*).
+
+*Expressions: a refutation.* In an expression, the argument for `not q t̄` without local variables is a
+refutation `P ⊢ q t̄ -> empty` of `q`'s own stratum-local judgment, which the elaborator makes the premise
+with `absentOf k j tt` (`k` the stratum of `q`, `j` the rule's); the premise `absent …` itself is accepted
+as well (a pattern variable passed on). This is how a negative premise reads where negation is a
+function into the empty type: Lean's and Rocq's inductive definitions accept a premise `¬ q x` exactly
+when `q` is defined before (strict positivity), and the constructor then takes a refutation, as
+DatalogCert reads a negated literal as absence from the model of the strata below. With local
+variables (`not g.edge N _`), the argument is the premise `absent …`, which quantifies over them. An
+aggregate's argument is its witness, a record (P6), in both positions.
+
+*`given`.* At a stratum, `given I` is `ngiven` down to the program's input facts for an input relation
+(an expression builds `{ fst = tt, snd = I }` there; a pattern binds the record, so `I.fst` refutes a
+relation with rules), and for a relation with rules whose stratum `k` is at or below the expected one,
+`given F` lifts its judgment `F` by `ngiven`. A derivation of a fact of a lower stratum inside a rule
+name is lifted the same way, so that premises have their relation's stratum-local type.
+
+*Inference.* Two applications of the same definition are compared by their arguments without solving
+unknowns (smalltt's flex state), so the implicit arguments of a lemma over `judged p k d` or `upTo p k d`
+are not inferred from them: the conversions take their strata explicitly, and the elaborator, which
+knows them, inserts `absentOf` and the `ngiven` chains itself.
+
 ### 6.4 Other flags that level 3.5 touches
 
 - *L17, `programOf f : graph -> program`* for a bare functor. Level 3.5 never uses the bare form: a coerced
