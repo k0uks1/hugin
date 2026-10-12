@@ -10,7 +10,8 @@ import scala.collection.mutable
  *  declaration's head is the name before the `:` with its parameters). What a directive means is decided
  *  by elaboration: the parser knows only the forms with a grammar of their own:
  *
- *  - `%infix assoc p name` (operators are resolved while parsing);
+ *  - `%infix assoc p name` (operators are resolved while parsing), and `%infix op f` (a symbol bound to a
+ *    meta function, resolved by elaboration);
  *  - `%assumptions name` (a name, resolved by elaboration);
  *  - `%partial` (removed) and `%complete` (only in signatures, [[RecordSyntax]]).
  */
@@ -31,6 +32,12 @@ private[syntax] trait DirectiveSyntax extends ParserBase:
           else
             expected(List(Expect.Thing(what)), Some(context))
             None
+        if Parser.bindableOperators.contains(kind) && !atColumn0(position) then
+          // `%infix + plus.`: the symbol denotes the meta function (its precedence is the table's)
+          val op = advance()
+          val n = next(Tok.Name, "the name of a meta function")
+          val ok = endItem(context, List(Expect.period))
+          return n.filter(_ => ok).map(n => directive(DirArgs.Operator(Parser.operatorName(op), op.span, Ident(n.text)(n.span)))).toList
         val a = next(Tok.Name, "`left`, `right` or `none`")
         for a <- a if !Set("left", "right", "none")(a.text) do error(SyntaxError.UnknownAssociativity(a.text, a.span))
         val p = a.flatMap(_ => next(Tok.IntLit, "a precedence (an integer)"))

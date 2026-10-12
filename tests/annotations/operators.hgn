@@ -1,0 +1,7 @@
+(* annotations of operators bound to meta functions (#186 P2b): `+` and `≡` refer to `plus` and `eq` *)
+%use "std/eq".
+%use "std/nat".
+double : nat -> nat.
+double N = N + N.
+twice : (n : nat) -> double n ≡ n + n.
+twice N = refl.

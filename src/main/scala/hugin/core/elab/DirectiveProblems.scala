@@ -39,13 +39,18 @@ enum DirectiveProblem extends Problem:
   /** `%opaque` without names, with something else than a name, or before a declaration. */
   case OpaqueArgument(at: Span)
 
+  /** `%infix op f.` for a constant `f` that is not a meta function of the file with two explicit
+   *  arguments (`what` it is instead). */
+  case NotBindable(op: String, name: String, what: String, at: Span)
+
   def code: Code = this match
     case _: UnknownDirective => Code.E0101
     case _: NotADirective => Code.E1001
     case _: NotAttachable => Code.E1002
     case _: ChangedDeclaration => Code.E1003
     case _: Rejected => Code.E1000
-    case _: NotARelation | _: NotForRules | _: LabelsWithPattern | _: NotOpaqueable | _: OpaqueArgument => Code.E0701
+    case _: NotARelation | _: NotForRules | _: LabelsWithPattern | _: NotOpaqueable | _: OpaqueArgument | _: NotBindable =>
+      Code.E0701
 
   def primary: Span = this match
     case UnknownDirective(_, s, _) => s
@@ -58,6 +63,7 @@ enum DirectiveProblem extends Problem:
     case LabelsWithPattern(s) => s
     case NotOpaqueable(_, _, s) => s
     case OpaqueArgument(s) => s
+    case NotBindable(_, _, _, s) => s
 
   def message: Msg = this match
     case UnknownDirective(n, _, _) => msg"unknown directive ${Src("%" + n)}"
@@ -70,6 +76,7 @@ enum DirectiveProblem extends Problem:
     case _: LabelsWithPattern => msg"a measure of labels names the relation without arguments"
     case NotOpaqueable(n, _, _) => msg"${Src(n)} cannot be made opaque"
     case _: OpaqueArgument => msg"`%opaque` expects the names of definitions or functions"
+    case NotBindable(op, n, _, _) => msg"the operator ${Src(op)} cannot denote ${Src(n)}"
 
   override def primaryLabel: Msg = this match
     case _: UnknownDirective => msg"not found in this scope"
@@ -80,6 +87,7 @@ enum DirectiveProblem extends Problem:
     case _: NotARelation => msg"not a relation"
     case NotOpaqueable(_, w, _) => Msg.text(w)
     case _: OpaqueArgument => msg"expected names"
+    case NotBindable(_, _, w, _) => Msg.text(w)
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -99,6 +107,10 @@ enum DirectiveProblem extends Problem:
     case _: NotOpaqueable | _: OpaqueArgument =>
       List(
         msg"`%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded"
+      )
+    case _: NotBindable =>
+      List(
+        msg"`%infix op f.` makes the symbol `op` denote `f`, a meta constant of this file applied to two explicit arguments: `a op b` is `f a b`"
       )
     case _ => Nil
 

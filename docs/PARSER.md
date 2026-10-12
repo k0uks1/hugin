@@ -347,6 +347,7 @@ label on the opener. Specific messages replace the generic one for common mistak
 | `->` or `=` after a branch's pattern (`\| true -> 1`) | ``expected `=>`, found `->` `` + how a branch is written | `=>` (maybe incorrect) |
 | a new keyword `match` or `rewrite` used as a name (`match : int -> rel.`, `match X Y`) | the expected set, with the help that the word is a keyword (#186 P3); `in` is a name except where it ends the equation of a `rewrite` (`ParserBase.inEnds`) | — |
 | `%infix` with a missing part | expected `left`, `right` or `none` / a precedence (an integer) / the name of the operator | — |
+| `%infix op` without its function (`op` one of `+ - * / ^ ≡ ==`, #186 P2b) | expected the name of a meta function | — |
 
 Holes outside quotes are a matter of elaboration (E0917), not of syntax: `$x` is also an explicit
 splice, valid wherever the meta level allows one, and the elaborator knows whether a tree is inside a

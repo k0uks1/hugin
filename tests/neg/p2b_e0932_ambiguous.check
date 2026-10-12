@@ -1,0 +1,11 @@
+error[E0932]: ambiguous operator `+`
+ --> tests/neg/p2b_e0932_ambiguous.hgn:6:17
+  |
+6 | add = [x] [y] x + y. (*~ E0932 *)
+  |                 ^ 2 bindings fit
+  |
+  = note: `+` denotes `plus : nat -> nat -> nat`
+  = note: `+` denotes `iplus : int -> int -> int`
+  = help: give the type of an operand, `(x : T)`, or apply one of the functions by name: `plus`, `iplus`
+
+1 error found

@@ -116,6 +116,7 @@
         { "name": "keyword.operator.rule.hugin", "match": ":-|\\?-" },
         { "name": "keyword.operator.type.hugin", "match": "->|<:" },
         { "name": "keyword.operator.branch.hugin", "match": "=>" },
+        { "name": "keyword.operator.equality.hugin", "match": "≡|==" },
         { "name": "keyword.operator.rest.hugin", "match": "\\.\\." },
         { "name": "keyword.operator.comparison.hugin", "match": "<>|<=|>=|<|>|=" },
         { "name": "keyword.operator.arithmetic.hugin", "match": "[-+*/^]" },

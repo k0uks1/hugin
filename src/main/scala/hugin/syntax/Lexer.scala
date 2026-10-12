@@ -23,6 +23,9 @@ enum Tok:
   // meta/match); `=>` separates a branch's pattern from its expression. `in` is a name, which the parser
   // takes as the end of `rewrite H` only there (a contextual keyword)
   case KwMatch, KwRewrite, FatArrow
+  // `≡` (ASCII `==`): the meta level's equality operator, bound by `%infix ≡ eq.` (reference:
+  // lexical-structure, operators bound to meta functions)
+  case Equiv
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -105,7 +108,8 @@ object Lexer:
     Tok.KwMax -> "max",
     Tok.KwMatch -> "match",
     Tok.KwRewrite -> "rewrite",
-    Tok.FatArrow -> "=>"
+    Tok.FatArrow -> "=>",
+    Tok.Equiv -> "≡"
   )
 
 /** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. */
@@ -233,6 +237,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
         case ';' => sym(Tok.Semi, 1)
         case '|' => sym(Tok.Bar, 1)
         case '=' if peek(1) == '>' => sym(Tok.FatArrow, 2)
+        case '=' if peek(1) == '=' => sym(Tok.Equiv, 2)
         case '=' => sym(Tok.Eq, 1)
         case '+' => sym(Tok.Plus, 1)
         case '*' => sym(Tok.Star, 1)
@@ -252,6 +257,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
           err(SyntaxError.UnexpectedCharacter("'", _), start, start + 1)
           sym(Tok.Quote, 1)
         case '⇑' => sym(Tok.Up, 1)
+        case '≡' => sym(Tok.Equiv, 1)
         case _ =>
           val cp = s.codePointAt(pos)
           pos += Character.charCount(cp)

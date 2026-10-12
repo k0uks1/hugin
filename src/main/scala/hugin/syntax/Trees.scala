@@ -248,6 +248,10 @@ object Trees:
     /** `%infix assoc p name`: handled by the parser. */
     case Infix(assoc: String, prec: Int, name: Ident)
 
+    /** `%infix op f`: the symbol `op` (`+ - * / ^ ≡`, at `opSpan`) denotes the meta function `f` of the
+     *  file (reference: lexical-structure, operators bound to meta functions); resolved by elaboration. */
+    case Operator(op: String, opSpan: Span, function: Ident)
+
     /** `%use m.` or `%use m (x, y).` (reference: modules): opens the fields of the module `m` (an
      *  expression; `%use "f"` is `%use %import "f"`), or only those named, into the file's scope. */
     case Use(module: Tree, names: Option[List[Ident]])

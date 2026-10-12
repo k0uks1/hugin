@@ -1,0 +1,18 @@
+(* #186 P2b: no binding of the operator fits (E0933): the candidates are listed; `≡` without `std/eq`, and
+   in object code, denotes nothing. A binding to a function is not a pattern (E0915), and `%infix op f.`
+   binds a meta function of the file with two explicit arguments (E0701) *)
+%use "std/nat".
+%use "std/reflect" (bool, true, false).
+both : bool = true + false. (*~ E0933 *)
+same : (n : nat) -> n ≡ n. (*~ E0933 *)
+p : int -> rel.
+p 1.
+q : int -> rel.
+q X :- p X, X ≡ 1. (*~ E0933 *)
+half : nat -> nat.
+half (N + M) = N. (*~ E0915 *)
+three : nat = 3.
+r : int -> rel.
+r (toInt three).
+%infix * three. (*~ E0701 *)
+%infix - plus. (*~ E0701 *)

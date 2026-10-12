@@ -90,6 +90,8 @@ trait Patterns:
     case BigLit(n) => Pat.PLit(n, t.span)
     case Infix("+", p, k) if successorCount(k).isDefined => Pat.PSucc(pattern(p, expected), BigInt(successorCount(k).get), t.span)
     case ListLit(_) | ConsE(_, _) => listPattern(t, expected.flatMap(listElement))
+    // `p op q` for an operator bound to a constructor ([[Overloading]])
+    case i: Infix if bindableOperators(i.op) && visibleOperators(i.op).nonEmpty => pattern(operatorPattern(i, expected), expected)
     case _ =>
       TreeOps.flattenApp(t) match
         case (h @ (_: Ident | _: SymRef), allArgs) =>

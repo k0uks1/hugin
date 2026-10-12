@@ -25,13 +25,18 @@ trait Imports:
 
   /** The module value of the file elaborated by this elaborator: what its `%export` ascribes, or else its
    *  declarations in order ([[Uses]]). */
-  def moduleValue: ImportedModule = state.exported.fold(fileModule)(_._2)
+  def moduleValue: ImportedModule = state.exported.fold(fileModule)(_._2).copy(operators = ownOperators)
 
   /** The record of the file's declarations, in order. */
   def fileModule: ImportedModule =
     val fields = scope.toList.flatMap((n, id) => field(id).map((n, _)))
     val decls = scope.toList.filter((_, id) => field(id).isDefined).map((_, id) => (globals(id).span, globals(id).declSpan))
-    ImportedModule(Tm.Rec(fields.map((n, f) => (n, f._1))), Tm.RecTy(fields.map((n, f) => (n, f._2)), Nil, decls), state.erroneous.toSet)
+    ImportedModule(
+      Tm.Rec(fields.map((n, f) => (n, f._1))),
+      Tm.RecTy(fields.map((n, f) => (n, f._2)), Nil, decls),
+      state.erroneous.toSet,
+      ownOperators
+    )
 
   /** Whether `m.l` names a declaration of an imported file that was dropped for an error there. */
   def droppedImport(qual: hugin.syntax.Tree, label: Name): Boolean = qual match

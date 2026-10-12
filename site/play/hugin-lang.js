@@ -23,6 +23,7 @@ const SCOPES = [
   ["keyword.operator.splice", "operator"], ["keyword.operator.lift", "operator"],
   ["keyword.operator.cons", "operator"], ["keyword.operator.rule", "operator"],
   ["keyword.operator.type", "operator"], ["keyword.operator.branch", "operator"],
+  ["keyword.operator.equality", "operator"],
   ["variable", "variable"],
 ];
 const CLASSES = ["comment", "string", "number", "decorator", "label", "declaration", "keyword", "type", "operator", "variable"];
