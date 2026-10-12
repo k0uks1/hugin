@@ -1,0 +1,3 @@
+(* an object relation named like the meta function of twice_a *)
+double : int -> int -> rel.
+double 1 2.

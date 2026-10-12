@@ -1,0 +1,6 @@
+(* #186 P9e: `decide` is opened by two `%use` items for two meta constants; after two arguments, neither's
+   result is a `nat` *)
+%use "std/nat".
+%use "std/decide".
+%use "std/semantics".
+wrong : nat = decide 3 tt. (*~ E0933 *)

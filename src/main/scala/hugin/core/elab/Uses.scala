@@ -14,7 +14,9 @@ import hugin.util.*
  *    the field is a declaration (an import's fields are), so an opened constructor is still a
  *    constructor; another field is opened as a definition equal to the projection. Opened names are
  *    between the file's own declarations, which shadow them in the whole file, and the enclosing scope;
- *    a name opened for two different globals is ambiguous where it is used (E0109).
+ *    a name opened for two different globals is ambiguous where it is used (E0109), unless they are all
+ *    meta constants: then the name is overloaded and a use chooses among them by the types
+ *    ([[Overloading]], #186 P9e).
  *  - `%export S.` ascribes the file's module value the signature `S`, as `(file : S)` would: an import
  *    of the file is the record of `S`'s fields (transparent: types stay their definitions, constructors
  *    constructors). It is elaborated after the file's declarations; a second one, or one in a module
@@ -49,6 +51,25 @@ trait Uses:
     case List((id, _)) => Some(id)
     case _ => None
   }
+
+  /** The declarations that `%use` items open the name `n` for, if they are several and all meta constants
+   *  and the file does not declare `n` (#186 P9e): such a name is overloaded, and a use of it chooses
+   *  among them by the types ([[Overloading]]). Each comes with the `%use` that opens it. */
+  def overloadedName(n: Name): Option[List[(Int, Span)]] =
+    if state.declaredHere(n) || scope.get(n).isDefined then None
+    else state.opened.get(n).filter(all => all.length >= 2 && all.forall((id, _) => metaConstant(id)))
+
+  /** Whether an opened global is a meta constant: not an object constant, nor a field that stands for one
+   *  (the relation, constructor or type of a module instance, opened as code `⇑A` or an object type). */
+  private def metaConstant(id: Int): Boolean =
+    val g = globals(id)
+    g.stage == Stage.S1 && (g.kind match
+      case GlobalKind.Definition(Tm.Proj(_, _), _) =>
+        force(g.ty) match
+          case _: Val.Lift | Val.U0 => false
+          case _ => true
+      case _ => true
+    )
 
   /** E0109 if `n` is opened for two different globals and the file does not declare it. */
   def checkAmbiguous(n: Name, span: Span): Unit =

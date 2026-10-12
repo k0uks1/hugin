@@ -163,3 +163,46 @@ class OperatorBindingsSuite extends munit.FunSuite:
     assertEquals(errors(nats + "node : type.\nedge : node -> node -> rel.\n%infix - edge.\n"), List("E0701"))
     assertEquals(errors(nats + "%infix - nothing.\n"), List("E0101"))
   }
+
+  // ---------------------------------------------------------------- names opened for several constants (P9e)
+
+  private val opened =
+    """nat : Type.
+      |zero : nat.
+      |flag : Type.
+      |yes : flag.
+      |a = { pick : nat -> nat = [n] n. size : nat = zero. }.
+      |b = { pick : flag -> flag = [f] f. size : flag = yes. }.
+      |%use a.
+      |%use b.
+      |""".stripMargin
+
+  test("a name opened for several meta constants is chosen by the expected type, else by the first argument") {
+    val e = ok(opened + "x : nat = pick zero.\ny : flag = pick yes.\nz = pick yes.\ns : nat = size.\n")
+    assertEquals(e.nfOf("x"), "zero")
+    assertEquals(e.nfOf("y"), "yes")
+    assertEquals(e.typeOf("z"), "flag")
+    assertEquals(e.nfOf("s"), "zero")
+  }
+
+  test("an opened name that several constants fit is E0932; one that none fits is E0933; a declaration shadows") {
+    assertEquals(errors(opened + "w = size.\n"), List("E0932"))
+    assertEquals(errors(opened + "w : flag -> flag = pick.\n"), List("E0932"))
+    val msg = firstError(opened + "q : Type = pick zero.\n")
+    assert(msg.contains("error[E0933]"), msg)
+    assert(msg.contains("`pick` denotes `pick : flag -> flag`"), msg)
+    // the head rule: the expected type chooses, and the argument is then checked against the chosen one
+    assert(errors(opened + "v : nat = pick yes.\n").nonEmpty)
+    assertEquals(ok(opened + "pick : nat -> nat = [n] zero.\nx : nat = pick zero.\n").errors, Nil)
+  }
+
+  test("hover and go to definition show the chosen constant") {
+    import hugin.query.{CompileKey, Database, Ide, SourceText}
+    val program = "%use \"std/decide\".\n%use \"std/semantics\".\nsame = decide natEqual.\n"
+    given db: Database = Database()
+    db.set(SourceText, "d.hgn", program)
+    val key = CompileKey("d.hgn")
+    val at = program.indexOf("= decide") + 2
+    assertEquals(Ide.definition(key, at).map(_.source.path), Some("<stdlib>/std/decide.hgn"), Ide.diagnostics(key).map(_.message))
+    assert(Ide.hover(key, at).exists(_.contains("decider A P")), Ide.hover(key, at))
+  }

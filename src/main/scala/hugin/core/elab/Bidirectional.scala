@@ -21,6 +21,8 @@ trait Bidirectional:
 
   private def inferForm(c: Cxt, t: Tree): (Tm, Val, Stage) = t match
     case Parens(i) => infer(c, i)
+    // a name that `%use` opens for several meta constants: chosen by the types ([[Overloading]])
+    case Ident(_) if overloadedHead(c, t).isDefined => inferOpened(c, t)
     case Ident(n) => resolve(c, n, t.span)
     case VarRef("Type") if !c.scope.contains("Type") =>
       val r @ (Tm.U1(l), _, _) = inferMetaUniverse(): @unchecked
@@ -40,6 +42,7 @@ trait Bidirectional:
         =>
       val head = TreeOps.flattenApp(t)._1
       fail(JudgmentProblem.RuleNameWithoutJudgment(hugin.syntax.Printer.show(head), head.span))
+    case Apply(_, _) if overloadedHead(c, t).isDefined => inferOpened(c, t)
     case Apply(f, a) => inferApp(c, f, a, t.span)
     // a rule name is a derivation of a judgment: it needs the judgment as its expected type
     case Select(Ident(_), k) if k.nonEmpty && k.forall(_.isDigit) =>
@@ -100,6 +103,10 @@ trait Bidirectional:
     case m: Match => inferMatch(c, m)
     case r: Rewrite => fail(MatchProblem.RewriteWithoutGoal(r.kwSpan))
     case other => inferObjectForm(c, other).getOrElse(unsupported(other))
+
+  private def inferOpened(c: Cxt, t: Tree): (Tm, Val, Stage) = resolveOpened(c, t, None) match
+    case Left(chosen) => infer(c, chosen)
+    case Right(r) => r
 
   /** Infers with a known stage: literals and `_` take the stage; other terms are moved to it. */
   def inferS(c: Cxt, t: Tree, st: Stage): (Tm, Val) =
@@ -199,6 +206,13 @@ trait Bidirectional:
     // before the rule for `⇑A`: the branches are checked against the goal, also one of object code
     case (m: Match, _) if st == Stage.S1 => checkMatch(c, m, a)
     case (r: Rewrite, _) if st == Stage.S1 => checkRewrite(c, r, a)
+    // a name that `%use` opens for several meta constants, chosen by the types ([[Overloading]])
+    case (Ident(_) | Apply(_, _), _) if st == Stage.S1 && overloadedHead(c, t).isDefined =>
+      resolveOpened(c, t, Some(a)) match
+        case Left(chosen) => checkForm(c, chosen, a, st)
+        case Right((tm, ty, s)) =>
+          val (tm2, ty2, s2) = insert(c, t.span, (tm, ty, s))
+          coe(c, t.span, tm2, ty2, s2, a, st)
     case (_, Val.Lift(x)) if st == Stage.S1 =>
       // every value of `⇑A` is a quote (up to conversion): check object code under a quote
       val code = check(c, t, x, Stage.S0)

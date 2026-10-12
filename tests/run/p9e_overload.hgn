@@ -1,0 +1,40 @@
+(* #186 P9e: a name that two `%use` items open for different meta constants is chosen by the types
+   (reference: modules, "Overloaded opened names"): `decide` of `std/semantics` (a derivation by
+   evaluation) and `decide` of `std/decide` (a decider's proof), in one file. *)
+%use "std/eq" (tt).
+%use "std/nat".
+%use "std/decide".
+%use "std/semantics".
+
+(* `std/semantics`'s `decide`: its result after two arguments is a derivation, as expected *)
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+viaParis : trip ⊢ path berlin rome = decide 3 tt.
+
+(* `std/decide`'s `decide`: the semantics' one takes only two explicit arguments *)
+lt : nat -> nat -> Type.
+ltz : {n : nat} -> lt 0 (n + 1).
+lts : {m n : nat} -> lt m n -> lt (m + 1) (n + 1).
+lessSound : (m n : nat) -> so (less m n) -> lt m n.
+lessSound M 0 ().
+lessSound 0 (N + 1) T = ltz.
+lessSound (M + 1) (N + 1) T = lts (lessSound M N T).
+pair : Type = { fst : nat, snd : nat }.
+ltDec : decider pair ([p] lt p.fst p.snd) = { check = [p] less p.fst p.snd, sound = [p] lessSound p.fst p.snd }.
+large : lt 3 100000 = decide ltDec { fst = 3, snd = 100000 } tt.
+
+(* no expected type, and both take two arguments: the first one, a decider, decides *)
+upTo5 = decide ltDec { fst = 2, snd = 5 }.
+small : lt 2 5 = upTo5 tt.
+%opaque viaParis large small.
+
+checked : string -> rel.
+checked "overloaded".
+%output checked.
