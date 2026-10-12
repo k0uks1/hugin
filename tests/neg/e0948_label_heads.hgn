@@ -1,0 +1,12 @@
+(* #186 P9d: a label names its rule; against a goal of a relation of which the rule has two heads, it would
+   name both, so the head must be named by `r.k` (E0948). *)
+%use "std/graph".
+%use "std/semantics".
+both (g : graph) = {
+  edge : g.node -> g.node -> rel.
+  @sym edge X Y, edge Y X :- g.edge X Y.
+}.
+flip : {x y : G.node} -> both G ⊢ edge x y -> both G ⊢ edge y x.
+flip (sym E) = edge.2 E. (*~ E0948 *)
+back : {x y : G.node} -> both G ⊢ G.edge x y -> both G ⊢ edge y x.
+back E = sym E. (*~ E0948 *)

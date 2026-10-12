@@ -46,6 +46,9 @@ enum JudgmentProblem extends Problem:
   /** The rule `name` derives facts of `derives`, but the goal is a fact of `goal`. */
   case RuleHeadMismatch(name: String, derives: String, goal: String, at: Span)
 
+  /** A label `label` against a goal of `rel`, of which its rule has several heads (`names`, #186 P9d). */
+  case LabelHeads(label: String, rel: String, names: List[String], at: Span)
+
   /** The rule `name` has `expected` premises (atoms of its body), and `found` are given. */
   case PremiseCount(name: String, expected: Int, found: Int, at: Span)
 
@@ -67,7 +70,7 @@ enum JudgmentProblem extends Problem:
     case _: NoLibrary | _: UnknownRelation | _: ArgumentRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
     case _: FunctorAlone => Code.E0946
     case _: NoDatabase => Code.E0947
-    case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
+    case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: LabelHeads | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
       Code.E0948
     case _: NotAnInput => Code.E0949
     case _: NotPositive => Code.E0961
@@ -84,6 +87,7 @@ enum JudgmentProblem extends Problem:
     case RuleNameWithoutJudgment(_, s) => s
     case UnknownRule(_, _, _, s) => s
     case RuleHeadMismatch(_, _, _, s) => s
+    case LabelHeads(_, _, _, s) => s
     case PremiseCount(_, _, _, s) => s
     case NoRuleVariable(_, _, _, s) => s
     case ComparisonUndecided(_, _, s) => s
@@ -104,6 +108,8 @@ enum JudgmentProblem extends Problem:
     case RuleNameWithoutJudgment(n, _) => msg"the rule name ${Src(n)} is used where no derivation of a known program is expected"
     case UnknownRule(n, p, why, _) => msg"${Src(n)} is not a rule of ${Src(p)}: " ++ Msg.text(why)
     case RuleHeadMismatch(n, d, g, _) => msg"the rule ${Src(n)} derives facts of ${Src(d)}, but the goal is a fact of ${Src(g)}"
+    case LabelHeads(l, r, hs, _) =>
+      msg"the label ${Src(l)} names ${hs.length} heads of ${Src(r)}: " ++ Msg.join(hs.map(h => msg"${Src(h)}"), ", ")
     case PremiseCount(n, e, f, _) => msg"the rule ${Src(n)} has $e premise(s), but $f are given"
     case NoRuleVariable(n, x, _, _) => msg"the rule ${Src(n)} has no variable ${Src(x)}"
     case ComparisonUndecided(n, cmp, _) => msg"cannot prove a comparison of the rule ${Src(n)} by evaluation: ${Src(cmp)}"
@@ -123,6 +129,7 @@ enum JudgmentProblem extends Problem:
     case _: RuleNameWithoutJudgment => msg"no derivation expected here"
     case _: UnknownRule => msg"unknown rule"
     case _: RuleHeadMismatch => msg"the rule's head does not match the goal"
+    case _: LabelHeads => msg"which head?"
     case _: PremiseCount => msg"wrong number of premises"
     case _: NoRuleVariable => msg"unknown variable"
     case _: ComparisonUndecided => msg"comparison not proved"
@@ -154,7 +161,11 @@ enum JudgmentProblem extends Problem:
     case _: RuleNameWithoutJudgment =>
       List(msg"a rule name `r.k` is a derivation of a judgment `P ⊢ r t̄`, so its expected type must be one, with `P` a module body")
     case UnknownRule(_, _, _, _) =>
-      List(msg"the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program; a label `@n` adds the name `n`")
+      List(
+        msg"the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program, one name for each head of `r`; a label `@n` adds the name `n`"
+      )
+    case _: LabelHeads =>
+      List(msg"a label names its rule; a rule with several heads of the goal's relation has a name `r.k` for each of them")
     case NoRuleVariable(_, _, vs, _) =>
       if vs.isEmpty then List(msg"the rule's variables are not known by name")
       else List(Msg.text("the rule's variables: ") ++ Msg.join(vs.map(v => msg"${Src(v)}"), ", "))
@@ -183,6 +194,7 @@ enum JudgmentProblem extends Problem:
       List(
         msg"${Src(r)} is the argument for the parameter relation ${Src(name)}; state it through a variable argument (${Src(s"$f $x ⊢ $through …")}) or through an instance"
       )
+    case LabelHeads(_, _, hs, _) => List(msg"name the head by its rule name: " ++ Msg.join(hs.map(h => msg"${Src(h)}"), " or "))
     case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}, with a database `e` in scope")
     case _: NotPositive =>
       List(

@@ -1,0 +1,19 @@
+error[E0948]: the label `sym` names 2 heads of `edge`: `edge.1`, `edge.2`
+  --> tests/neg/e0948_label_heads.hgn:10:7
+   |
+10 | flip (sym E) = edge.2 E. (*~ E0948 *)
+   |       ^^^ which head?
+   |
+   = note: a label names its rule; a rule with several heads of the goal's relation has a name `r.k` for each of them
+   = help: name the head by its rule name: `edge.1` or `edge.2`
+
+error[E0948]: the label `sym` names 2 heads of `edge`: `edge.1`, `edge.2`
+  --> tests/neg/e0948_label_heads.hgn:12:10
+   |
+12 | back E = sym E. (*~ E0948 *)
+   |          ^^^ which head?
+   |
+   = note: a label names its rule; a rule with several heads of the goal's relation has a name `r.k` for each of them
+   = help: name the head by its rule name: `edge.1` or `edge.2`
+
+2 errors found
