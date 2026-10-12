@@ -250,7 +250,7 @@ Application by juxtaposition (`edge X Y`) binds tighter than every binary operat
 error ([E0001](errors/E0001.md)). `≡` binds looser than `::` and the arithmetic operators and tighter
 than `->`, so `(n m : nat) -> n + m ≡ m + n` needs no parentheses. The right operand of `⊢` is an
 optional database `[e]`, directly after the turnstile, and an atom, which is an application; `⊢` binds
-tighter than `->`, so `tc ⊢ path x y -> tc ⊢ path y x` needs no parentheses. Among the levels of
+tighter than `->`, so `tc G ⊢ path x y -> tc G ⊢ path y x` needs no parentheses. Among the levels of
 user-defined operators, `⊢` is between 3 and 4, at the level of an operator of precedence 3.
 
 On a nat-like meta type, `+` with an integer literal as its right operand is the successor applied that

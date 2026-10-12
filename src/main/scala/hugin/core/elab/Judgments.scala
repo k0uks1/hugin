@@ -13,14 +13,22 @@ import scala.collection.mutable
  *  - `P ⊢[e] r t₁ … tₙ` is `derives (programOf P) e (atom ρ [v t₁, …, v tₙ])`: `r` is resolved in the scope
  *    of `P`'s body as `programOf` reads its rules (its own relations `own i`, its parameters' relations
  *    `arg l`, the file's relations `ext s`), and each `tᵢ` is checked as code of `r`'s column type.
- *  - In the type of a declaration, a functor written alone before `⊢` stands for the functor applied to its
- *    parameters, and a judgment without `[e]` for one at the database `d`: they become the declaration's
- *    first implicit binders, shared by its judgments (Agda's generalisation of declared variables, Lean's
- *    auto-bound implicits).
+ *  - The program names its functor's arguments: a functor written alone is an error (E0946); in the type
+ *    of a declaration, `tc G ⊢ …` binds `G` as any free uppercase variable (#186 P7c).
+ *  - A judgment without `[e]` in the type of a declaration (and its parameters' types) is at the
+ *    declaration's one anonymous database, its first implicit binder, shared by all such judgments of the
+ *    declaration; elsewhere its database is an unknown that unification must determine (E0947). No
+ *    identifier is generalised that the user did not write (Agda's `variable` and Lean's auto-bound
+ *    implicits bind written names only; one database per statement is Abella's ambient specification).
  *  - A rule name `r.k` (or a rule's label) is a pattern synonym for `fire` at the `k`-th rule of `r`, with
  *    the rule's variables, its premises in body order and its first head: as a pattern on a derivation, and
  *    as an expression that builds one. `given I` is `given t I` with `t` the proof that the relation is an
  *    input (Agda's pattern synonyms, Isabelle's `tc.intros(k)`, Abella's `case` on `{P |- A}`). */
+object Judgments:
+  /** What the unknown database of a judgment without `[e]` outside a declaration's type is called; unsolved,
+   *  it is E0947 ([[Items.checkSolved]]). */
+  val UnknownDatabase = "the database of a judgment"
+
 trait Judgments:
   self: Elaborator =>
   import core.*
@@ -31,23 +39,11 @@ trait Judgments:
   def inferJudgment(c: Cxt, j: Judgment): (Tm, Val, Stage) =
     val sem = semanticsGlobals.getOrElse(fail(JudgmentProblem.NoLibrary(j.opSpan)))
     val programTy = eval(Nil, Tm.Global(sem("program")))
-    // the program: a functor alone is applied to its parameters, which generalisation bound
-    val (prog, scope) = generalisedFunctor(j.program) match
-      case Some((name, params)) =>
-        val applied = params.foldLeft(j.program) { (f, x) =>
-          if !c.scope.contains(x) then
-            fail(JudgmentProblem.CannotGeneralise(
-              name,
-              x,
-              s"`$x` is not in scope here (generalisation applies in the type of a declaration)",
-              j.program.span
-            ))
-          Apply(f, Ident(x)(j.program.span))(j.program.span)
-        }
-        judgmentProgram(c, applied, j.opSpan)
-      case None =>
-        if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
-        else judgmentProgram(c, j.program, j.opSpan)
+    // the program: a functor applied, a module or a program value; a functor alone names no arguments
+    rejectFunctorAlone(j)
+    val (prog, scope) =
+      if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
+      else judgmentProgram(c, j.program, j.opSpan)
     val programShown = hugin.syntax.Printer.show(j.program)
     // the notation reads the program in `derives`, the positive fragment (#186 P9a, E0961)
     nonPositiveRule(sem, ev(c, prog)).foreach { (rel, aggregate) =>
@@ -58,14 +54,23 @@ trait Judgments:
     val db = j.db match
       case Some(e) => check(c, e, dbTy, Stage.S1)
       case None =>
-        if !c.scope.contains("d") then fail(JudgmentProblem.NoDatabase(j.opSpan))
-        check(c, Ident("d")(j.opSpan), dbTy, Stage.S1)
+        anonymousDatabase(c, j.opSpan) match
+          case Some(level) => quote(c.lvl, Val.local(level))
+          case None => freshMeta(c, dbTy, Stage.S1, j.opSpan, Judgments.UnknownDatabase)
     // the atom: its relation in the program's scope, its arguments as code of the relation's column types
     val (head, args) = TreeOps.flattenApp(j.atom)
     val path = namePath(head).getOrElse(fail(JudgmentProblem.NotAnAtom(hugin.syntax.Printer.show(j.atom), j.atom.span)))
     val relShown = path.mkString(".")
     val (ref, relTy) =
       relationRef(c, sem, prog, scope, path).getOrElse(fail(JudgmentProblem.UnknownRelation(relShown, programShown, head.span)))
+    // a relation of the file that is the value of an argument written out names that argument, which the
+    // program reads as its parameter's relation `arg l`, not as `ext s`: an error, not another meaning
+    ref match
+      case Tm.App(Tm.Global(e), _, _) if e == sem("ext") && path.length == 1 =>
+        argumentRelation(c, j.program, path.head).foreach { (functor, param, label) =>
+          fail(JudgmentProblem.ArgumentRelation(relShown, functor, param, label, head.span))
+        }
+      case _ =>
     val columns = relTy.map(t => objectColumns(t).map(_._2))
     columns.foreach { cs =>
       if cs.length != args.length then fail(JudgmentProblem.AtomArity(relShown, cs.length, args.length, j.atom.span))
@@ -94,25 +99,71 @@ trait Judgments:
         case _ => throw Impossible("derives over three arguments")
     (tm, ty, Stage.S1)
 
+  /** If the program is a functor applied to arguments and the relation `rel` of the file (by its resolved
+   *  constant, compared syntactically, without evaluation) is the value of an argument that is not a
+   *  variable, or of a field of a record literal written as one: the functor, the parameter and the
+   *  field (#186 P7c). */
+  private def argumentRelation(c: Cxt, program: Tree, rel: Name): Option[(String, Name, Option[Name])] =
+    def constant(t: Tree): Option[Int] = t match
+      case Parens(i) => constant(i)
+      case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).map(sharedAt(_, Stage.S0))
+      case _ => None
+    val target = constant(Ident(rel)(Span.NoSpan))
+    val (head, written) = TreeOps.flattenApp(program)
+    def unwrap(t: Tree): Tree = t match
+      case Parens(i) => unwrap(i)
+      case other => other
+    (head, target) match
+      case (Ident(f), Some(id)) if !c.scope.contains(f) && lookupGlobal(f).isDefined =>
+        val params = telescope(globals(lookupGlobal(f).get).ty)._1.filter(_._2 == Icit.Expl).map(_._1)
+        written.filterNot(_.isInstanceOf[NamedArg]).zipWithIndex.iterator.flatMap { (a, i) =>
+          val param = params.lift(i).getOrElse("_")
+          unwrap(a) match
+            case VarRef(n) if c.scope.contains(n) => None
+            case Ident(n) if c.scope.contains(n) => None
+            case r: RecordLit => r.fields.find(fl => constant(fl.value).contains(id)).map(fl => (f, param, Some(fl.label.name)))
+            case other => Option.when(constant(other).contains(id))((f, param, None))
+        }.nextOption()
+      case _ => None
+
   /** `a.b.c` as a path of names. */
   private def namePath(t: Tree): Option[List[Name]] = t match
     case Ident(n) => Some(List(n))
+    case VarRef(n) => Some(List(n))
     case Select(q, n) if n.headOption.exists(_.isLetter) => namePath(q).map(_ :+ n)
     case Parens(i) => namePath(i)
     case _ => None
 
-  /** The functor that a program written alone stands for, with its parameters' names: a global meta
-   *  constant of a Π type with explicit binders (written as a name or a path, not applied). */
-  def generalisedFunctor(p: Tree): Option[(String, List[Name])] = p match
-    case Parens(i) => generalisedFunctor(i)
+  /** A functor written alone as the program of a judgment, with its parameters' names: a global meta
+   *  constant of a Π type with explicit binders (written as a name, not applied). */
+  def functorAlone(p: Tree): Option[(String, List[Name])] = p match
+    case Parens(i) => functorAlone(i)
     case Ident(n) if lookupGlobal(n).isDefined => functorParams(lookupGlobal(n).get).map(ps => (n, ps))
     case _ => None
+
+  /** E0946 for a judgment whose program is a functor written alone; the help applies it to variables named
+   *  after its parameters, `tc G`. */
+  private def rejectFunctorAlone(j: Judgment): Unit =
+    functorAlone(j.program).foreach { (name, params) =>
+      val applied = (name :: params.map(x => if x.headOption.exists(_.isLetter) then x.capitalize else "X")).mkString(" ")
+      fail(JudgmentProblem.FunctorAlone(name, applied, j.program.span))
+    }
 
   private def functorParams(id: Int): Option[List[Name]] =
     if globals(id).stage != Stage.S1 then None
     else
       val explicit = telescope(globals(id).ty)._1.takeWhile(_._2 == Icit.Expl).map(_._1)
       Option.when(explicit.nonEmpty && telescope(globals(id).ty)._1.forall(_._2 == Icit.Expl))(explicit)
+
+  /** The level of the anonymous database of the declaration whose type has the judgment with the turnstile
+   *  at `at` and without `[e]`, if `c` binds it. */
+  private def anonymousDatabase(c: Cxt, at: Span): Option[Int] =
+    c.binders.zipWithIndex.collectFirst {
+      case (b, k) if (b.origin match
+            case BinderOrigin.Database(js) => js.contains(at)
+            case _ => false
+          ) => c.lvl - k - 1
+    }
 
   /** Whether the program of a judgment is a value of type `program` (a variable or a constant of that type,
    *  possibly applied), rather than a module body for `programOf`. Decided from the head's declared type, so
@@ -182,59 +233,49 @@ trait Judgments:
 
   // ---------------------------------------------------------------- generalisation
 
-  /** The generalised binders of a declaration's type `trees` (its type and its parameters' types), bound
-   *  in `c`: the database `d` if a judgment has no `[e]`, and the parameters of each functor written alone
-   *  before `⊢`, by the names of its declaration; parameters of the same name are one binder, if their
-   *  types agree. Names in `bound` (the declaration's own parameters) and names in scope are not bound. */
-  def generalisedBinders(trees: List[Tree], c: Cxt, bound: Set[Name]): (Cxt, List[(Name, Tm)]) =
-    val judgments = trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment => j })
-    if judgments.isEmpty then (c, Nil)
-    else
-      var cx = c
-      val out = mutable.ListBuffer.empty[(Name, Tm)]
-      val ours = mutable.Map.empty[Name, Int]
-      if judgments.exists(_.db.isEmpty) && !bound("d") && !cx.scope.contains("d") then
-        semanticsGlobals.foreach { sem =>
-          val dbTm = Tm.Global(sem("db"))
-          cx = bind(cx, "d", eval(Nil, dbTm), Stage.S1)
-          out += (("d", dbTm))
-        }
-      for j <- judgments do
-        generalisedFunctor(j.program).foreach { (name, _) =>
-          var ty = globals(lookupGlobal(name).get).ty
-          var more = true
-          while more do
-            force(ty) match
-              case Val.Pi(x, Icit.Expl, dom, cl) =>
-                if x == "_" then fail(JudgmentProblem.CannotGeneralise(name, "_", "it has no name", j.program.span))
-                val level =
-                  if bound(x) then None
-                  else
-                    ours.get(x) match
-                      case Some(l) =>
-                        val agrees =
-                          try { undoOnFailure(unify(cx.lvl, cx.binder(l).ty, dom)); true }
-                          catch case _: UnifyError => false
-                        if !agrees then
-                          fail(
-                            JudgmentProblem.CannotGeneralise(
-                              name,
-                              x,
-                              s"another functor's parameter `$x` has the type `${show(cx, cx.binder(l).ty)}`, this one `${show(cx, dom)}`",
-                              j.program.span
-                            )
-                          )
-                        Some(l)
-                      case None if cx.scope.contains(x) => Some(cx.scope(x))
-                      case None =>
-                        out += ((x, quote(cx.lvl, dom)))
-                        cx = bind(cx, x, dom, Stage.S1)
-                        ours(x) = cx.lvl - 1
-                        Some(cx.lvl - 1)
-                ty = inst(cl, level.map(Val.local).getOrElse(Val.Wild))
-              case _ => more = false
-        }
-      (cx, out.toList)
+  /** The generalised binder of a declaration's type `trees` (its type and its parameters' types), bound in
+   *  `c`: the anonymous database, if a judgment has no `[e]`. It has no source name, so it cannot be
+   *  referred to or matched by `{x := p}`; the judgments without `[e]` of `trees`, and only they, are at it. */
+  def generalisedBinders(trees: List[Tree], c: Cxt): (Cxt, List[(Name, Tm)]) =
+    val omitted = trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment if j.db.isEmpty => j.opSpan }).toSet
+    semanticsGlobals.filter(_ => omitted.nonEmpty) match
+      case Some(sem) =>
+        val dbTm = Tm.Global(sem("db"))
+        val x = Printing.AnonymousDatabase
+        (bind(c, x, eval(Nil, dbTm), Stage.S1, BinderOrigin.Database(omitted)), List((x, dbTm)))
+      case None => (c, Nil)
+
+  /** The types of the free uppercase variables `generalised` of a declaration's type `trees` (bound in `c`)
+   *  that are a functor's arguments in a judgment, `tc G ⊢ …`, or its database, `⊢[D]`: unified with the
+   *  types of the functor's parameters and with `db`, before the type is elaborated, so that a binder
+   *  before the judgment may use them (`{x y : G.node} -> tc G ⊢ path x y`). A disagreement is left to the
+   *  elaboration of the judgment, which reports it. */
+  def judgmentArgumentTypes(trees: List[Tree], c: Cxt, generalised: Set[Name]): Unit =
+    def agree(n: Name, ty: Val): Unit =
+      if generalised(n) && c.scope.contains(n) then
+        try undoOnFailure(unify(c.lvl, c.binder(c.scope(n)).ty, ty))
+        catch case _: UnifyError => ()
+    for j <- trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment => j }) do
+      // before the binders that would need the argument's type (`{x : G.node} -> tc ⊢ …`)
+      rejectFunctorAlone(j)
+      val (head, args) = TreeOps.flattenApp(j.program)
+      head match
+        case Ident(f) if !c.scope.contains(f) =>
+          lookupGlobal(f).filter(globals(_).stage == Stage.S1).foreach { id =>
+            var ty = globals(id).ty
+            var rest = args
+            while rest.nonEmpty do
+              (rest.head, force(ty)) match
+                case (VarRef(n), Val.Pi(_, Icit.Expl, dom, cl)) if c.scope.contains(n) =>
+                  agree(n, dom)
+                  ty = inst(cl, Val.local(c.scope(n)))
+                  rest = rest.tail
+                case _ => rest = Nil
+          }
+        case _ =>
+      j.db match
+        case Some(VarRef(n)) => semanticsGlobals.foreach(sem => agree(n, eval(Nil, Tm.Global(sem("db")))))
+        case _ =>
 
   // ---------------------------------------------------------------- program data
 
@@ -252,7 +293,14 @@ trait Judgments:
       heads: Int
   )
 
-  final case class ProgramData(relations: List[String], rules: List[RuleData], display: Option[ProgramDisplay], context: List[Name])
+  /** `arguments`: the values of the program's environment variables (its functor's arguments), if known. */
+  final case class ProgramData(
+      relations: List[String],
+      rules: List[RuleData],
+      display: Option[ProgramDisplay],
+      context: List[Name],
+      arguments: List[Val] = Nil
+  )
 
   /** The rules of a program value, if they evaluate (a program of a module body, possibly in parameters). */
   def programData(p: Val): Option[ProgramData] =
@@ -293,7 +341,11 @@ trait Judgments:
             for
               rs <- relations
               ru <- rules
-            yield ProgramData(rs, ru, display, display.map(_.context).getOrElse(Nil))
+            yield
+              val arguments = p match
+                case Val.Top(_, sp, _) => sp.reverse.collect { case Elim.EApp(a, Icit.Expl) => a }
+                case _ => Nil
+              ProgramData(rs, ru, display, display.map(_.context).getOrElse(Nil), arguments)
           case _ => None
       catch case _: Impossible => None
     }
@@ -362,7 +414,14 @@ trait Judgments:
 
   /** The relation of a goal atom `atom ρ vs`: `Left(i)` for `own i`, `Right(shown)` for another relation,
    *  `None` if it is not known. */
-  private def goalRelation(sem: Map[Name, Int], a: Val, data: ProgramData): Option[Either[Int, String]] =
+  private def goalRelation(sem: Map[Name, Int], a: Val, data: ProgramData, names: List[Name] = Nil): Option[Either[Int, String]] =
+    // a parameter relation through its argument, shown in the names `names` of the judgment's context (as
+    // the user writes it, `G.edge`), or by its label without them
+    def through(i: Int, rest: String): Option[String] =
+      Option.when(names.nonEmpty)(()).flatMap(_ => data.arguments.lift(i)).map { v =>
+        val shown = showValPlain(names, v)
+        if shown.contains(' ') && !shown.startsWith("{") then s"($shown).$rest" else s"$shown.$rest"
+      }
     forceData(a) match
       case Val.Rigid(Head.Glob(at), sp) if at == sem("atom") =>
         sp.reverse.collectFirst { case Elim.EApp(r, Icit.Expl) => forceData(r) } match
@@ -371,7 +430,12 @@ trait Judgments:
             if k == sem("own") then arg.collect { case Val.Nat(_, n) => Left(n.toInt) }
             else if k == sem("arg") then
               arg.collect { case Val.Lit(hugin.syntax.Literal.StrL(l), _) =>
-                Right(if data.context.length == 1 && !l.contains('.') then s"${data.context.head}.$l" else l)
+                val (x, rest) = l.span(_ != '.')
+                Right(
+                  if data.context.length == 1 && !l.contains('.') then through(0, l).getOrElse(l)
+                  else if rest.nonEmpty then through(data.context.indexOf(x), rest.drop(1)).getOrElse(l)
+                  else l
+                )
               }
             else if k == sem("ext") then
               arg.collect { case Val.Quote(q) => forceData(q) }.collect { case Val.Rigid(Head.Glob(id), Nil) => Right(globals(id).name) }
@@ -407,7 +471,15 @@ trait Judgments:
 
   /** The rule a form names in the program, checked against the goal; `None` for a label the program does
    *  not have (the name is then elaborated as usual). */
-  private def namedRule(sem: Map[Name, Int], form: RuleForm, data: ProgramData, goal: Val, shown: String, at: Span): Option[RuleData] =
+  private def namedRule(
+      sem: Map[Name, Int],
+      form: RuleForm,
+      data: ProgramData,
+      goal: Val,
+      shown: String,
+      at: Span,
+      names: List[Name] = Nil
+  ): Option[RuleData] =
     val programShown = data.display.flatMap(_.functor).getOrElse("the program")
     val rule = form match
       case RuleForm.Indexed(r, k) =>
@@ -421,7 +493,7 @@ trait Judgments:
       case RuleForm.Label(l) => data.rules.find(_.label.contains(l))
       case RuleForm.Given => None
     rule.foreach { rd =>
-      goalRelation(sem, goal, data).foreach {
+      goalRelation(sem, goal, data, names).foreach {
         case Left(i) if i == rd.head =>
         case other =>
           val goalShown = other match
@@ -486,7 +558,7 @@ trait Judgments:
               programData(p) match
                 case None => without
                 case Some(data) =>
-                  namedRule(sem, form, data, goal, shown, head.span).map(rule =>
+                  namedRule(sem, form, data, goal, shown, head.span, c.names).map(rule =>
                     checkRule(c, g, rule, shown, head, named.collect { case n: NamedArg => n }, positional, a)
                   )
     }
@@ -658,7 +730,7 @@ trait Judgments:
       case _ => throw Impossible("given over two arguments")
     unifyAt(c, sp, expected, result)
     val relShown = programData(p).flatMap(data =>
-      goalRelation(sem, goal, data).map(_.fold(i => data.relations.lift(i).getOrElse(s"own $i"), identity))
+      goalRelation(sem, goal, data, c.names).map(_.fold(i => data.relations.lift(i).getOrElse(s"own $i"), identity))
     ).getOrElse("the relation")
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>

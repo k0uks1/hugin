@@ -276,8 +276,12 @@ enum TypeProblem extends Problem:
       msg"the hole stands for ${Lit(if st == "object" then "object code" else "a meta value")} of type ${Src(g)}" ::
         (if ctx.isEmpty then Nil else List(msg"in scope: ${Lit(ctx.map(x => s"`$x`").mkString(", "))}"))
     case NoImplicitNamed(_, f, Nil, _) => List(msg"${Src(f)} takes no implicit argument before its next explicit argument")
-    case NoImplicitNamed(_, f, as, _) =>
-      List(msg"${Src(f)} takes the implicit arguments ${Lit(as.map(a => s"`$a`").mkString(", "))} before its next explicit argument")
+    case NoImplicitNamed(_, f, all, _) =>
+      // the anonymous database of a declaration's judgments has no name to give (#186 P7c)
+      all.filterNot(hugin.core.Printing.isAnonymousDatabase) match
+        case Nil => List(msg"${Src(f)} takes no implicit argument by name before its next explicit argument")
+        case as =>
+          List(msg"${Src(f)} takes the implicit arguments ${Lit(as.map(a => s"`$a`").mkString(", "))} before its next explicit argument")
     case _: NamedArgumentAlone =>
       List(msg"`{x := e}` gives the implicit argument `x` of the function it is applied to, or binds it in a pattern")
     case _: AppliedRelation =>

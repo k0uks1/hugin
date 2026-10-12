@@ -1,21 +1,21 @@
-error[E0945]: `road` is not a relation of `tc`
- --> tests/neg/e0945_judgment_atom.hgn:6:34
+error[E0945]: `road` is not a relation of `tc G`
+ --> tests/neg/e0945_judgment_atom.hgn:6:36
   |
-6 | unknown : {x y : g.node} -> tc ⊢ road x y. (*~ E0945 *)
-  |                                  ^^^^ unknown relation
+6 | unknown : {x y : G.node} -> tc G ⊢ road x y. (*~ E0945 *)
+  |                                    ^^^^ unknown relation
   |
-  = note: the atom of `P ⊢ r t̄` names a relation of `P`'s body, of its parameters (`g.edge`) or of the file, as the body's rules do
+  = note: the atom of `P ⊢ r t̄` names a relation of `P`'s body, of a parameter through the functor's argument (`G.edge` in `tc G ⊢ …`) or of the file, as the body's rules do
 
 error[E0945]: `path` has 2 column(s), but the atom gives 1 argument(s)
- --> tests/neg/e0945_judgment_atom.hgn:7:30
+ --> tests/neg/e0945_judgment_atom.hgn:7:32
   |
-7 | arity : {x : g.node} -> tc ⊢ path x. (*~ E0945 *)
-  |                              ^^^^^^ wrong number of arguments
+7 | arity : {x : G.node} -> tc G ⊢ path x. (*~ E0945 *)
+  |                                ^^^^^^ wrong number of arguments
 
 error[E0945]: `3` is not an atom: a relation applied to arguments
- --> tests/neg/e0945_judgment_atom.hgn:8:16
+ --> tests/neg/e0945_judgment_atom.hgn:8:18
   |
-8 | notAtom : tc ⊢ 3. (*~ E0945 *)
-  |                ^ expected an atom
+8 | notAtom : tc G ⊢ 3. (*~ E0945 *)
+  |                  ^ expected an atom
 
 3 errors found

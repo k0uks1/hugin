@@ -1,5 +1,5 @@
 (* `given` derives the facts of an input relation; a relation with rules is not one (E0949). *)
 %use "std/graph".
 %use "std/semantics".
-fromInput : {x y : g.node} -> d (atom (own 0) [v x, v y]) -> tc ⊢ path x y.
+fromInput : {x y : G.node} -> D (atom (own 0) [v x, v y]) -> tc G ⊢[D] path x y.
 fromInput F = given F. (*~ E0949 *)

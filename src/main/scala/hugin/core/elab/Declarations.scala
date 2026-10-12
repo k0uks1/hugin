@@ -78,14 +78,16 @@ trait Declarations:
     }
     (c, out)
 
-  /** The context of a declaration's type: its implicit binders (the generalised binders of its judgments
-   *  first, [[Judgments.generalisedBinders]], then its free uppercase variables), then its parameters (an
+  /** The context of a declaration's type: its implicit binders (the anonymous database of its judgments
+   *  first, [[Judgments.generalisedBinders]], then its free uppercase variables, typed by the judgments
+   *  whose functor or database they are, [[Judgments.judgmentArgumentTypes]]), then its parameters (an
    *  untyped one is typed by `untyped`). */
   private def declContext(d: Decl, base: Cxt, untyped: (Cxt, VarRef) => Tm = objectTypeParam): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
     val paramNames = d.params.map(_.nameString).toSet
     val paramTypes = d.params.collect { case Param.Typed(_, t, _) => t }
-    val (c0, generalised) = generalisedBinders(d.tpe :: paramTypes, base, paramNames)
+    val (c0, generalised) = generalisedBinders(d.tpe :: paramTypes, base)
     val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)), c0)
+    judgmentArgumentTypes(d.tpe :: paramTypes, c, imps.map(_._1).toSet)
     val (c2, ps) = bindParams(c, d.params, untyped)
     (c2, generalised ++ imps, ps)
 

@@ -37,7 +37,7 @@ defined by [`std/strata`](strata.md). A program writes `%use "std/semantics".`; 
 | `derivable : {d : db} -> nat -> (p : program) -> decider gatom (derives p d).` | a decider for `decide` of [`std/decide`](decide.md) |
 | `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives p d a.` | proof by evaluation of a [judgment](#the-judgment-notation) |
 
-A property of an ordinary program is stated in the [judgment notation](#the-judgment-notation), `tc ⊢
+A property of an ordinary program is stated in the [judgment notation](#the-judgment-notation), `tc G ⊢
 path x y`, which elaborates to `derives`, and proved with [rule names](#rule-names), `path.1 E`, which
 elaborate to its constructors.
 
@@ -192,16 +192,29 @@ The program `P` is one of the following:
 
 - a functor applied to arguments, or a module: its program is `programOf P`
   ([`std/quote`](quote.md#programs-as-values));
-- a functor written alone, `tc`: the functor applied to its parameters by their names, `tc g`, where `g`
-  is a variable in scope, which [generalisation](#generalisation) binds in the type of a declaration;
 - a value of type `program`: the program as it is.
+
+A functor written alone, `tc ⊢ path x y`, is an error ([E0946](../errors/E0946.md)): its arguments are
+written, `tc G ⊢ path x y`, and in the type of a declaration a free uppercase variable `G` is bound as
+any other ([Generalisation](#generalisation)).
 
 The atom's relation `r` is resolved as the rules of `P`'s body name relations, so that a judgment speaks
 of the program as `programOf` reads it: a relation that the body declares is `own i`, a relation of a
-parameter by its path, `g.edge`, is `arg l`, and an object relation of the file is `ext s`. Each argument
+functor's parameter is `arg l`, and an object relation of the file is `ext s`. A parameter's relation is
+named through the argument that the judgment writes for the parameter, which must be a variable:
+`G.edge` in `tc G ⊢ G.edge x y`, for `tc (g : graph)`'s `g.edge`; with several parameters, each
+argument names the relations of the parameter at its position. The functor's own name of the parameter,
+`g`, is not in scope in the judgment. An argument that is not a variable names no relation. A relation
+of the file that is written as such an argument, or as the value of a field of a record written as one,
+is the parameter's relation `arg l` for the program's rules, not the file's `ext s`: naming it in the
+atom is an error ([E0945](../errors/E0945.md)), so `tc { node = city, edge = road } ⊢ road x y` is
+rejected and is stated through a variable argument, `tc G ⊢ G.edge x y`, or an instance. The comparison is
+by the constant the name resolves to, as written, without evaluation; a relation of the file that is no
+argument's value is `ext s`. A module value, such as an instance `fast`, names none of its functor's
+parameters. Each argument
 `tᵢ` is checked as code `⇑τᵢ` of the relation's column type `τᵢ`
 ([Object code](../meta/staging.md#object-code)), and is the value `v tᵢ`. So the variables of a statement
-are typed nodes: `x : g.node` is object code of the parameter's type `g.node`. For a program given as a
+are typed nodes: `x : G.node` is object code of the parameter's type `G.node`. For a program given as a
 value, `r` is one of the names its `relations` list, and the arguments' types are inferred. It is an error
 ([E0945](../errors/E0945.md)) if `r` is none of these, or if the atom has a different number of arguments
 than `r` has columns.
@@ -210,33 +223,37 @@ The notation covers programs without negation and aggregates, the positive fragm
 rule with a negated atom or an aggregate in its body never fires in `derives`, so a judgment over a program
 with such a rule would state facts about a different program than the one that runs. It is an error
 ([E0961](../errors/E0961.md)) if a rule of `P` has a negation or an aggregate in its body (when the rules
-of `P` are known: a module body, a functor applied or written alone, or a program value that evaluates).
+of `P` are known: a module body, a functor applied, or a program value that evaluates).
 Such a program's facts are stated with `nderives` and `perfect` of [`std/strata`](strata.md).
 
-The database `e` is written in brackets directly after the turnstile. Without it, a judgment uses the
-variable `d`: in the type of a declaration, the database that generalisation binds, and elsewhere the `d`
-in scope. It is an error ([E0947](../errors/E0947.md)) if there is none.
+The database `e` is written in brackets directly after the turnstile. Without it, a judgment in the type
+of a declaration is at the declaration's anonymous database ([Generalisation](#generalisation)).
+Elsewhere, in a definition's body, a lambda, a clause or a local type, its database is an unknown that
+unification must determine, as an implicit argument's: `[p : tc g ⊢ path x x] p` checked against
+`tc g ⊢[e] path x x -> tc g ⊢[e] path x x` is at `e`. It is an error ([E0947](../errors/E0947.md)) if
+unification does not determine it. No name has a meaning for a judgment that it does not write: a
+variable named `d` in scope is not its database.
 
-Diagnostics and hovers show `derives (programOf (f ā)) d (atom ρ vs)` as the judgment `f ā ⊢ r t̄` that
-it elaborates from, without `[d]` for the database named `d`: the goal of `toTc` below is shown as
-`tc g ⊢ path x y`.
+Diagnostics and hovers show `derives (programOf (f ā)) e (atom ρ vs)` as the judgment `f ā ⊢[e] r t̄`
+that it elaborates from, without `[e]` for a declaration's anonymous database, and a parameter's relation
+through the argument: the goal of `toTc` below is shown as `tc G ⊢ path x y`. The anonymous database
+is shown as `_` elsewhere, as in its binder `{_ : db}`.
 
 ### Generalisation
 
-In the type of a declaration, and in the types of its parameters, two kinds of names in judgments are
-*generalised*: they become the declaration's first implicit binders, before those of its free uppercase
-variables ([Implicit arguments](../meta/functions.md#implicit-arguments)).
+In the type of a declaration, and in the types of its parameters, the judgments without `[e]` are at one
+*anonymous database*: the declaration's first implicit binder, `{_ : db}`, before those of its free
+uppercase variables ([Implicit arguments](../meta/functions.md#implicit-arguments)), shared by all these
+judgments, so that a statement such as `tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z` is about
+one database. The binder has no name: no expression refers to it and no clause matches it by name.
 
-- If a judgment has no database, the database `d`, as `{d : db}`.
-- For each functor written alone before `⊢`, its parameters, by the names and types of its declaration,
-  in order: `tc ⊢ path x y` with `tc (g : graph)` adds `{g : graph}`. Parameters of the same name are one
-  binder, so `tc ⊢` and `tc2 ⊢` share `g`.
-
-A name that is a parameter of the declaration or already in scope is not bound again: the judgments use
-it. It is an error ([E0946](../errors/E0946.md)) if two functors' parameters of the same name have
-different types, if a parameter has no name, or if a functor is written alone where its parameter is not
-in scope. The binders are those of `x : A.` and `x : A = e.`; a clause of the declaration may match them by
-name, `{g := G}`.
+Nothing else is generalised that the statement does not write. The program's arguments are written out,
+and a free uppercase variable among them, `G` in `tc G ⊢ …`, is bound as any other, with the type of the
+functor's parameter, which is known before the binders of the type are elaborated, so that `{x y :
+G.node}` may come first. The same variable shares a graph between judgments, `tc G ⊢ …` and `tc2 G ⊢ …`.
+A database that a statement refers to is named the same way, `tc G ⊢[D] path x y`: `D` is a free
+uppercase variable, which a clause may match, `{D := E}`. The binders are those of `x : A.` and
+`x : A = e.`; a clause of the declaration may match `G` by name, `{G := H}`.
 
 The following program states that an edge is a path, for every graph and every database, and proves it by
 the first rule of `path` of the transitive closure of [`std/graph`](graph.md).
@@ -244,7 +261,7 @@ the first rule of `path` of the transitive closure of [`std/graph`](graph.md).
 ```hugin,run
 %use "std/graph".
 %use "std/semantics".
-oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.
+oneStep : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
 oneStep E = path.1 E.
 %opaque oneStep.
 proved : string -> rel.
@@ -255,13 +272,16 @@ proved "oneStep".
 proved "oneStep".
 ```
 
-The type of `oneStep` is `{d : db} -> {g : graph} -> {x y : ⇑g.node} -> derives (programOf (tc g)) d
-(atom (arg "edge") [v x, v y]) -> derives (programOf (tc g)) d (atom (own 0) [v x, v y])`.
+The type of `oneStep` is `{_ : db} -> {G : graph} -> {x y : ⇑G.node} -> derives (programOf (tc G)) _
+(atom (arg "edge") [v x, v y]) -> derives (programOf (tc G)) _ (atom (own 0) [v x, v y])`, where `_` is
+the anonymous database.
 
-> **Rationale.** Generalisation is Agda's generalisation of declared variables and Lean's auto-bound
-> implicits, for the two names a judgment leaves open: the parameter that a theorem about a functor
-> quantifies over, and the database of input facts. A theorem about `tc` applies to each of its
-> instances, since the program of an instance is the program of the functor at the instance's arguments.
+> **Rationale.** Agda's generalisation of declared `variable`s and Lean's auto-bound implicits bind only
+> names that the user writes; a name the statement does not write, such as a functor's parameter or a
+> database `d`, would act at a distance. The one anonymous database is a scoping rule, one database per
+> statement, as Abella's specification judgments share the ambient specification, and blesses no
+> identifier. A theorem about `tc G` applies to each instance of `tc`, since the program of an instance
+> is the program of the functor at the instance's arguments.
 
 ## Rule names
 
@@ -316,20 +336,20 @@ tc2 (g : graph) = {
   path X Y :- g.edge X Y.
   path X Z :- path X Y, path Y Z.
 }.
-edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn : {x y : G.node} -> tc G ⊢ G.edge x y -> tc2 G ⊢ G.edge x y.
 edgeIn (given I) = given I.
-edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut : {x y : G.node} -> tc2 G ⊢ G.edge x y -> tc G ⊢ G.edge x y.
 edgeOut (given I) = given I.
-tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
-toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 : {x y : G.node} -> tc G ⊢ path x y -> tc2 G ⊢ path x y.
 toTc2 (path.1 E) = path.1 (edgeIn E).
 toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
-toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc : {x y : G.node} -> tc2 G ⊢ path x y -> tc G ⊢ path x y.
 toTc (path.1 E) = path.1 (edgeOut E).
 toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
-sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
+sameFacts : {x y : G.node} -> iff (tc G ⊢ path x y) (tc2 G ⊢ path x y) = { to = toTc2, from = toTc }.
 %opaque sameFacts.
 proved : string -> rel.
 proved "sameFacts".
@@ -340,7 +360,7 @@ proved "sameFacts".
 ```
 
 In `tcTrans (path.2 E P) Q`, the rule `path X Z :- g.edge X Y, path Y Z.` binds `X` and `Z` to `x` and
-`y`, and its variable `Y` is a node in scope: `E : tc g ⊢ g.edge x Y` and `P : tc g ⊢ path Y y`. The
+`y`, and its variable `Y` is a node in scope: `E : tc G ⊢ G.edge x Y` and `P : tc G ⊢ path Y y`. The
 recursive call is on the premise `P`, so it terminates ([Termination](../meta/termination.md)).
 
 > **Rationale.** Rule names are pattern synonyms computed from the program value (Agda's pattern
@@ -454,7 +474,7 @@ The statement holds for the positive fragment of this page, which is the scope o
 ([E0961](../errors/E0961.md)). It is trusted: the engine is not verified
 against `derives`, but tested against it, as the reference semantics. A theorem about a functor applies to
 each of its instances, since `programOf m` is the program of the application that made `m`
-([`std/quote`](quote.md#programs-as-values)): `iff (tc g ⊢ path x y) (tc2 g ⊢ path x y)` at `g := { node
+([`std/quote`](quote.md#programs-as-values)): `iff (tc G ⊢ path x y) (tc2 G ⊢ path x y)` at `G := { node
 = city, edge = road }` is about the run of `fast = tc2 { node = city, edge = road }`.
 
 The option `--certify` of `hugin run` checks the statement for a run, for the program the engine ran and

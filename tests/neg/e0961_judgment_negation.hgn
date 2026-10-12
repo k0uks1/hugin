@@ -30,11 +30,11 @@ p = { node : city -> rel. node berlin. }.
 same : p ⊢ node berlin -> p ⊢ node berlin.
 same P = P.
 
-(* also a functor written alone, whose rule negates a (complete) parameter relation *)
+(* also a functor applied to a variable, whose rule negates a (complete) parameter relation *)
 %use "std/graph".
 loops (g : complete_graph) = {
   free : g.node -> rel.
   free X :- g.edge X _, not g.edge X X.
 }.
-looping : {x : g.node} -> loops ⊢ free x -> Type. (*~ E0961 *)
+looping : {x : G.node} -> loops G ⊢ free x -> Type. (*~ E0961 *)
 looping _ = Type.
