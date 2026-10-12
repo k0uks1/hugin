@@ -168,7 +168,8 @@ object Playground:
         evaluation = outcome.result
         // `--certify`: the verdict of std/certify on the run
         if request.settings.certify && evaluation.isDefined then
-          val certified = hugin.runtime.Certify(compiled.context.unit, compiled.context.unit.core.nn, db(Fixpoint, FixpointKey(key, Nil)).get.engine)
+          val certified =
+            hugin.runtime.Certify(compiled.context.unit, compiled.context.unit.core.nn, db(Fixpoint, FixpointKey(key, Nil)).get.engine)
           diagnostics = diagnostics ++ certified.diagnostics
           summary = certified.summary
       catch case _: InterruptedException => cancelled = true
