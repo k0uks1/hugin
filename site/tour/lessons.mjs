@@ -5,18 +5,19 @@
 // site/build.mjs renders the pages, and site/tour/tour.js makes the program on each page editable and
 // checks it in the browser.
 export const parts = [
-  { id: "basics", title: "Basics", blurb: "Enough of the language to read the proofs: relations, rules, modules and the meta level." },
+  { id: "datalog", title: "Datalog", blurb: "Relations, facts and rules; queries, negation and aggregates." },
+  { id: "abstraction", title: "Abstraction", blurb: "Programs parameterised by signatures, and a meta level in which types are propositions and functions are proofs." },
   { id: "proofs", title: "Proofs about programs", blurb: "Properties of Datalog programs stated as types, and proofs that the compiler checks." },
 ];
 
 export const lessons = [
-  { part: "basics", slug: "facts", file: "facts", title: "Relations and rules",
+  { part: "datalog", slug: "facts", file: "facts", title: "Relations and rules",
     summary: "Object types, relations, facts, and rules that derive new facts." },
-  { part: "basics", slug: "queries", file: "queries", title: "Queries, negation, aggregates",
+  { part: "datalog", slug: "queries", file: "queries", title: "Queries, negation, aggregates",
     summary: "Asking questions, and the two non-monotone features: negation and aggregates." },
-  { part: "basics", slug: "modules", file: "functors", title: "Modules and functors",
+  { part: "abstraction", slug: "modules", file: "functors", title: "Modules and functors",
     summary: "Programs parameterised by a signature: std/graph's tc, and instances of it." },
-  { part: "basics", slug: "meta", file: "meta", title: "The meta level",
+  { part: "abstraction", slug: "meta", file: "meta", title: "The meta level",
     summary: "Types as propositions, functions by clauses as proofs." },
   { part: "proofs", slug: "derivations", file: "derivations", title: "Derivations are values",
     summary: "The judgment P ⊢ r x y, and rule names as constructors and patterns." },

@@ -266,11 +266,11 @@ ${tourLessons.filter((l) => l.part === p.id).map((l) => `<li><a href="${href(l)}
 </ol>
 </section>`).join("\n");
   shell("tour/index.html", {
-    title: "Language tour · Hugin", description: "A tour of Hugin: the basics, then proofs about Datalog programs that the compiler checks.",
+    title: "Language tour · Hugin", description: "A tour of Hugin: Datalog, functors and the meta level, then proofs about Datalog programs that the compiler checks.",
     body: `<main class="tour contents">
 <div class="wrap">
 <h1>A tour of Hugin</h1>
-<p class="lede">Part 1 shows the basics of the language in four short lessons. Part 2 states properties of
+<p class="lede">Part 1 shows Hugin's Datalog, and Part 2 its functors and meta level. Part 3 states properties of
 Datalog programs as types and proves them; the compiler checks every proof. Each lesson comes with its program,
 which you can edit; it is checked in the browser as you type.</p>
 ${contents}
