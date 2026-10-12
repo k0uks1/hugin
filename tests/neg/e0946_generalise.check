@@ -1,27 +1,31 @@
-warning[W0003]: unused definition `weights`
- --> tests/neg/e0946_generalise.hgn:6:1
+error[E0946]: the functor `tc` is written alone before `⊢`, without its arguments
+ --> tests/neg/e0946_generalise.hgn:8:25
   |
-6 | weights (g : weighted) = { (*~ W0003 *)
-  | ^^^^^^^ never referenced
+8 | alone : {x : G.node} -> tc ⊢ path x x. (*~ E0946 *)
+  |                         ^^ a functor, not a program
   |
-  = note: `-W unused_definitions` is on by default
+  = note: the program of a judgment is a functor applied to arguments, a module or a program value; no parameter of a functor is bound by its name
+  = note: in the type of a declaration, a free uppercase variable as the argument (`G`) is bound as an implicit argument, as any other
+  = help: apply the functor to its arguments: write `tc G ⊢ …`
 
-error[E0946]: cannot generalise the parameter `g` of `weights`: another functor's parameter `g` has the type `graph`, this one `weighted`
-  --> tests/neg/e0946_generalise.hgn:10:42
-   |
-10 | clash : {x : g.node} -> tc ⊢ path x x -> weights ⊢ heavy x. (*~ E0946 *)
-   |                                          ^^^^^^^ in this judgment
-   |
-   = note: in the type of a declaration, the parameters of a functor written alone before `⊢` become implicit binders named as in the functor (here `g`), shared by all its judgments
-   = help: apply the functor to its arguments: `weights a ⊢ …`
+error[E0946]: the functor `tc` is written alone before `⊢`, without its arguments
+ --> tests/neg/e0946_generalise.hgn:9:42
+  |
+9 | inside (h : graph) (x : h.node) : Type = tc ⊢[D] path x x. (*~ E0946 *)
+  |                                          ^^ a functor, not a program
+  |
+  = note: the program of a judgment is a functor applied to arguments, a module or a program value; no parameter of a functor is bound by its name
+  = note: in the type of a declaration, a free uppercase variable as the argument (`G`) is bound as an implicit argument, as any other
+  = help: apply the functor to its arguments: write `tc G ⊢ …`
 
-error[E0946]: cannot generalise the parameter `g` of `tc`: `g` is not in scope here (generalisation applies in the type of a declaration)
-  --> tests/neg/e0946_generalise.hgn:11:42
+error[E0946]: the functor `tc` is written alone before `⊢`, without its arguments
+  --> tests/neg/e0946_generalise.hgn:10:44
    |
-11 | inside (h : graph) (x : h.node) : Type = tc ⊢ g.edge x x. (*~ E0946 *)
-   |                                          ^^ in this judgment
+10 | mixed : {x : G.node} -> tc G ⊢ path x x -> tc ⊢ path x x. (*~ E0946 *)
+   |                                            ^^ a functor, not a program
    |
-   = note: in the type of a declaration, the parameters of a functor written alone before `⊢` become implicit binders named as in the functor (here `g`), shared by all its judgments
-   = help: apply the functor to its arguments: `tc a ⊢ …`
+   = note: the program of a judgment is a functor applied to arguments, a module or a program value; no parameter of a functor is bound by its name
+   = note: in the type of a declaration, a free uppercase variable as the argument (`G`) is bound as an implicit argument, as any other
+   = help: apply the functor to its arguments: write `tc G ⊢ …`
 
-2 errors, 1 warning found
+3 errors found

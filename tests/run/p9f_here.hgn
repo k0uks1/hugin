@@ -19,7 +19,7 @@ path X Z :- road X Y, path Y Z.
 fileP : program = programOf here.
 (* `relationsOf` does not mention `here`, but it uses `fileP`: it is elaborated after the rules too *)
 relationsOf : list string = fileP.relations.
-names : eq relationsOf ["berlin", "paris", "rome", "road", "path"] = refl.
+names : eq relationsOf ["berlin", "paris", "rome", "road", "path", "far"] = refl.
 
 (* the file's rules by name, at any database *)
 trans : {D : db} -> {x y z : ⇑city} -> here ⊢[D] path x y -> here ⊢[D] path y z -> here ⊢[D] path x z.
@@ -28,6 +28,14 @@ trans (path.2 R P) Q = path.2 R (trans P Q).
 (* by evaluation: three rounds of the file's rules derive the fact *)
 viaParis : {D : db} -> here ⊢[D] path berlin rome = decide 3 tt.
 %opaque trans viaParis names.
+
+(* `here` as std/semantics' membership proof is not the program: `second` is elaborated before the rules,
+   and a rule may use it *)
+second : {A : Type} -> {x y : A} -> {xs : list A} -> member y (x :: y :: xs) = there here.
+pickSecond : {xs : list int} -> member 2 (1 :: 2 :: xs) -> ⇑city = [_] <rome>.
+far : city -> rel.
+far X :- path berlin X, X = $(pickSecond {xs := nil} second).
+%output far.
 
 graph2 : Type = { node : type, edge : node -> node -> rel }.
 

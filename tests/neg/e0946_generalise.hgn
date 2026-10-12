@@ -1,11 +1,10 @@
-(* The parameters of a functor written alone before `⊢` are generalised by their names; two functors whose
-   parameters have the same name but different types cannot share it (E0946), and outside the type of a
-   declaration the parameter must be in scope. *)
+(* A functor written alone before `⊢` is an error (E0946): a judgment names its program, and no parameter
+   of a functor is bound by the functor's name for it. The help applies the functor to a variable named
+   after its parameter, `tc G ⊢ …`, which the type of a declaration binds as any free uppercase variable
+   (#186 P7c). Alone in a type, alone in a definition's body, and alone where the statement also names its
+   graph. *)
 %use "std/graph".
 %use "std/semantics".
-weights (g : weighted) = { (*~ W0003 *)
-  heavy : g.node -> rel.
-  heavy X :- g.edge X X 9.
-}.
-clash : {x : g.node} -> tc ⊢ path x x -> weights ⊢ heavy x. (*~ E0946 *)
-inside (h : graph) (x : h.node) : Type = tc ⊢ g.edge x x. (*~ E0946 *)
+alone : {x : G.node} -> tc ⊢ path x x. (*~ E0946 *)
+inside (h : graph) (x : h.node) : Type = tc ⊢[D] path x x. (*~ E0946 *)
+mixed : {x : G.node} -> tc G ⊢ path x x -> tc ⊢ path x x. (*~ E0946 *)

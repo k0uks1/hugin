@@ -514,8 +514,11 @@ trait Items:
    *  object typing infers), once the literals postponed since then are resolved ([[Literals]]). */
   def checkSolved(start: Int): Unit =
     resolveLiterals(start)
-    (start until metas.length).find(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved).foreach { m =>
+    val unsolved = (start until metas.length).filter(m => metas(m).solution.isEmpty && !metas(m).allowUnsolved)
+    // a judgment's unknown database first: the other unknowns may depend on it
+    unsolved.find(m => metas(m).what == Judgments.UnknownDatabase).orElse(unsolved.headOption).foreach { m =>
       val e = metas(m)
+      if e.what == Judgments.UnknownDatabase then fail(JudgmentProblem.NoDatabase(e.span))
       if e.what.startsWith("type argument") then fail(ElabProblem.UndeterminedTypeArgument(e.what, e.span))
       fail(TypeProblem.CannotInfer(e.what, e.span))
     }

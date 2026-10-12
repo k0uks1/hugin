@@ -19,11 +19,14 @@ final case class Binder(
 final case class Site(span: hugin.util.Span, what: String)
 
 /** What declared a variable: a parameter (of a definition or functor, with the position of its name and
- *  its type as written), a member of a module body, or anything else. */
+ *  its type as written), a member of a module body, the anonymous database of a declaration's judgments
+ *  (with the turnstiles, by their positions, of the judgments without `[e]` it is the database of), or
+ *  anything else. */
 enum BinderOrigin:
   case Plain
   case Param(span: hugin.util.Span, tpe: hugin.syntax.Tree)
   case Member
+  case Database(judgments: Set[hugin.util.Span])
 
 /** An elaboration context: the environment for evaluation (innermost first), the bound variables with
  *  their types and stages, the source names in scope (name → level) and the pruning that applies fresh

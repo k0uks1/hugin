@@ -127,3 +127,18 @@ class ElabOrderSuite extends munit.FunSuite:
     val (later, _) = phase("x : int = 1.\nf : int -> int.\nf X = y where y = X.\nthere : int = x.\n")
     assertEquals(later, Nil)
   }
+
+  test("`here` as the membership proof of `std/semantics` is not the program: nothing is deferred (#186 P9f)") {
+    val (later, chains) = phase(
+      """second : {A : Type} -> {x y : A} -> {xs : list A} -> member y (x :: y :: xs) = there here.
+        |walk : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} -> tcPath g d x z -> Type.
+        |walk (fire {xs := econs X (econs Z enil)} (there here) (ppos refl E pnil) here) = Type.
+        |walk (fire here Ps (there ())) = Type.
+        |r : int -> rel.
+        |r 1.
+        |""".stripMargin
+    )
+    assertEquals(later, Nil)
+    assertEquals(chains, Map.empty[String, List[String]])
+  }
+

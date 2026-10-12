@@ -3,6 +3,6 @@
 %use "std/graph".
 %use "std/semantics".
 city : type. berlin : city.
-unknown : {x y : g.node} -> tc ⊢ road x y. (*~ E0945 *)
-arity : {x : g.node} -> tc ⊢ path x. (*~ E0945 *)
-notAtom : tc ⊢ 3. (*~ E0945 *)
+unknown : {x y : G.node} -> tc G ⊢ road x y. (*~ E0945 *)
+arity : {x : G.node} -> tc G ⊢ path x. (*~ E0945 *)
+notAtom : tc G ⊢ 3. (*~ E0945 *)

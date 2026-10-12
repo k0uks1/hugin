@@ -3,7 +3,7 @@ package elab
 
 import hugin.obj.{ArithOp, BaseType, CmpOp}
 import hugin.syntax.{AggKind, Literal, Tree, TreeOps}
-import hugin.syntax.Trees.{Apply, Ident, Parens}
+import hugin.syntax.Trees.{Apply, Ident, NamedArg, Parens, VarRef}
 import hugin.util.*
 
 import scala.collection.mutable
@@ -134,7 +134,8 @@ trait ProgramOf:
             case _ =>
           val env = (0 until n).reverse.map(Val.local).toList
           val v = eval(env, Tm.apps(fn, (0 until n).map(i => (Tm.Var(n - 1 - i), Icit.Expl)).toList))
-          HereState.Available(v, scopeOf(body, n, tm => eval(env, tm)))
+          // inside the body, its parameters are in scope by their own names: `g.edge` is `arg "edge"`
+          HereState.Available(v, scopeOf(body, n, tm => eval(env, tm), body.context.map(_._1).zipWithIndex.toMap))
         } match
           case Right(h) => h
           case Left(p) => HereState.Failed(p)
@@ -247,7 +248,8 @@ trait ProgramOf:
             case Some((body, env)) =>
               val fn = programFunction(voc, body, env.length, head, p.span)
               val envTms = env.reverse.map(v => quote(c.lvl, v))
-              val scope = scopeOf(body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))))
+              // a module value: no argument is written, so no parameter relation is named (#186 P7c)
+              val scope = scopeOf(body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), Map.empty)
               (Tm.apps(fn, envTms.map((_, Icit.Expl))), programTy, Stage.S1, Some(scope))
             case None => notAModule(p)
 
@@ -272,12 +274,28 @@ trait ProgramOf:
         val inner = Tm.apps(fn, envTms.map((_, Icit.Expl)))
         def inC(tm: Tm): Val =
           eval(c.env, Tm.apps(lams(k, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), args.map((_, Icit.Expl))))
-        (Tm.apps(lams(k, inner), args.map((_, Icit.Expl))), scopeOf(body, env.length, inC))
+        // the arguments written as variables, by the environment's variable they become: `tc G ⊢ G.edge x y`
+        // names the relation `edge` of `tc`'s parameter through `G` (#186 P7c)
+        val written = TreeOps.flattenApp(p)._2.filterNot(_.isInstanceOf[NamedArg])
+        def variable(t: Tree): Option[Name] = t match
+          case Parens(i) => variable(i)
+          case VarRef(x) if c.scope.contains(x) => Some(x)
+          case Ident(x) if c.scope.contains(x) => Some(x)
+          case _ => None
+        val byArgument = env.reverse.zipWithIndex.flatMap { (e, i) =>
+          force(e) match
+            case Val.Rigid(Head.Local(l), Nil) if l >= c.lvl && l < c.lvl + k =>
+              written.lift(l - c.lvl).flatMap(variable).map(_ -> i)
+            case _ => None
+        }.toMap
+        (Tm.apps(lams(k, inner), args.map((_, Icit.Expl))), scopeOf(body, env.length, inC, byArgument))
       case _ => fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(p), p.span))
 
   /** The scope of `body` in an environment of `n` variables; `inC` turns a term over them into a value in
-   *  the context of the judgment. */
-  private def scopeOf(body: ModuleBody, n: Int, inC: Tm => Val): ProgramScope =
+   *  the context of the judgment. A parameter relation is named through `byArgument`, the names of the
+   *  arguments written as variables, by the environment's variable they are: never by the functor's own
+   *  name of the parameter, which the user did not write. */
+  private def scopeOf(body: ModuleBody, n: Int, inC: Tm => Val, byArgument: Map[Name, Int]): ProgramScope =
     val (ctxTypes, ctxNames) = contextOf(body, n)
     var e = (0 until n).reverse.map(Val.local).toList
     var level = n
@@ -296,9 +314,9 @@ trait ProgramOf:
       m.name -> (i, strengthen(quote(total, ty), n, total).map(inC))
     }.toMap
     def param(path: List[Name]): Option[(String, Option[Val])] = path match
-      case x :: projs if ctxNames.exists(_._2 == x) =>
-        val l = ctxNames.find(_._2 == x).get._1
-        val label = if n == 1 && projs.nonEmpty then projs.mkString(".") else (x :: projs).mkString(".")
+      case x :: projs if byArgument.get(x).exists(ctxNames.contains) =>
+        val l = byArgument(x)
+        val label = if n == 1 && projs.nonEmpty then projs.mkString(".") else (ctxNames(l) :: projs).mkString(".")
         Some((label, typeAlong(ctxTypes, l, projs).map(t => inC(quote(n, t)))))
       case _ => None
     ProgramScope(own, param, ctxNames.toList.sortBy(_._1).map(_._2))

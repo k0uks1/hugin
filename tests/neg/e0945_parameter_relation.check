@@ -1,0 +1,27 @@
+error[E0945]: `g.edge` is not a relation of `tc G`
+ --> tests/neg/e0945_parameter_relation.hgn:5:37
+  |
+5 | internal : {x y : G.node} -> tc G ⊢ g.edge x y -> Type. (*~ E0945 *)
+  |                                     ^^^^^^ unknown relation
+  |
+  = note: the atom of `P ⊢ r t̄` names a relation of `P`'s body, of a parameter through the functor's argument (`G.edge` in `tc G ⊢ …`) or of the file, as the body's rules do
+
+error[E0945]: `road` is the argument of `tc` for the parameter relation `edge`, which the program reads as its parameter's relation
+  --> tests/neg/e0945_parameter_relation.hgn:26:64
+   |
+26 | fieldValue : {x y : city} -> tc { node = city, edge = road } ⊢ road x y -> Type. (*~ E0945 *)
+   |                                                                ^^^^ an argument of the program
+   |
+   = note: the atom would name the file's relation `ext s`, a different relation of `derives` than the parameter's `arg l` that the program's rules read
+   = help: `road` is the argument for the parameter relation `edge`; state it through a variable argument (`tc G ⊢ G.edge …`) or through an instance
+
+error[E0945]: `road` is the argument of `hops` for the parameter `r`, which the program reads as its parameter's relation
+  --> tests/neg/e0945_parameter_relation.hgn:33:42
+   |
+33 | wholeValue : {x y : city} -> hops road ⊢ road x y -> Type. (*~ E0945 *)
+   |                                          ^^^^ an argument of the program
+   |
+   = note: the atom would name the file's relation `ext s`, a different relation of `derives` than the parameter's `arg l` that the program's rules read
+   = help: `road` is the argument for the parameter relation `r`; state it through a variable argument (`hops R ⊢ R …`) or through an instance
+
+3 errors found
