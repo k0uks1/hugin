@@ -90,7 +90,7 @@ trait JudgmentCoercion:
           case _ => None
       case _: Select | _: Ident =>
         force(a) match
-          case pi @ Val.Pi(_, Icit.Expl, _, _) if familyArity(pi) > 0 =>
+          case pi @ Val.Pi(_, Icit.Expl, _, _) if familyArity(pi, c.lvl) > 0 =>
             ownedAtom(c, t, c.scope.contains).map(atom => checkEta(c, atom, pi))
           case _ => None
       case _ => None
@@ -131,19 +131,24 @@ trait JudgmentCoercion:
     val rel = atom.args.foldLeft(Ident(atom.rel)(relSpan): Tree)((f, x) => Apply(f, x)(f.span.to(x.span)))
     (program, Judgment(program, None, rel)(span, atom.at))
 
-  /** The number of explicit binders of a family of meta types `(x₁ : A₁) -> … -> Type`, or 0. */
-  private def familyArity(a: Val): Int =
-    var t = force(a)
-    var n = 0
-    while t.isInstanceOf[Val.Pi] do
+  /** The number of explicit binders of a family of meta types `(x₁ : A₁) -> … -> Type`, or 0; `lvl` is the
+   *  size of the context of `a`. The codomains are looked at under fresh variables (never a wildcard: a
+   *  dependent codomain may project from its variable, `(t : T) -> t.vars -> Type`), and a type that does
+   *  not evaluate is no family. */
+  private def familyArity(a: Val, lvl: Int): Int =
+    try
+      var t = force(a)
+      var n = 0
+      while t.isInstanceOf[Val.Pi] do
+        t match
+          case Val.Pi(_, Icit.Expl, _, cl) =>
+            t = force(inst(cl, Val.local(lvl + n)))
+            n += 1
+          case _ => return 0
       t match
-        case Val.Pi(_, Icit.Expl, _, cl) =>
-          n += 1
-          t = force(inst(cl, Val.Wild))
-        case _ => return 0
-    t match
-      case Val.U1(_) => n
-      case _ => 0
+        case Val.U1(_) => n
+        case _ => 0
+    catch case _: Impossible => 0
 
   /** The η form: `r` against `(x₁ : A₁) -> … -> Type` is `[x̄] r x̄`, whose body is the coerced atom. The
    *  binders are named after the family's, fresh against the names in scope and in the atom's head. */
@@ -156,7 +161,7 @@ trait JudgmentCoercion:
       ty match
         case Val.Pi(x, _, _, cl) =>
           names += fresh(if x.headOption.exists(_.isLower) then x else "x")
-          ty = force(inst(cl, Val.Wild))
+          ty = force(inst(cl, Val.local(c.lvl + names.length - 1)))
         case _ =>
     val sp = atom.head.span
     val body = names.foldLeft(atom.head)((f, x) => Apply(f, Ident(x)(Span.NoSpan))(sp))
@@ -211,11 +216,21 @@ trait JudgmentCoercion:
         unparen(head) match
           case Ident(f) if !local(f) && !state.bodyDeclared(f) =>
             lookupGlobal(f).filter(globals(_).stage == Stage.S1).foreach { id =>
-              val params = telescope(globals(id).ty)._1.filter(_._2 == Icit.Expl)
+              // the parameter types, under fresh variables (a type that does not evaluate: none)
+              val all = try telescope(globals(id).ty)._1 catch case _: Impossible => Nil
+              val params = all.filter(_._2 == Icit.Expl)
               args.filterNot(_.isInstanceOf[NamedArg]).zip(params).foreach { (a, p) =>
-                force(p._3) match
-                  case Val.U1(_) => typePos(a, bound)
-                  case pi: Val.Pi if familyArity(pi) > 0 => family(a, bound, local)
+                // only the shapes that can hold a candidate: a type, a function, an unapplied path
+                unparen(a) match
+                  case _: Lambda | _: Select | _: Ident =>
+                    force(p._3) match
+                      case pi: Val.Pi if familyArity(pi, all.length) > 0 => family(a, bound, local)
+                      case Val.U1(_) => typePos(a, bound)
+                      case _ =>
+                  case _: Apply | _: Arrow | _: ImplicitPi | _: RecordType =>
+                    force(p._3) match
+                      case Val.U1(_) => typePos(a, bound)
+                      case _ =>
                   case _ =>
               }
             }
