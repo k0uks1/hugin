@@ -1,0 +1,14 @@
+(* A cycle of formula functions of a module body whose rules come before the declaration (from a mutant of
+   mc_formula_members found by MutationFuzzSuite): the type of `ping`, lifted over the members before it,
+   no longer holds the definition of `pong`, which it does not use, so checking the cycle does not unfold
+   it (the compiler ran out of memory). The cycle is E0105 as in declaration order. *)
+node : type.
+edge : node -> node -> rel.
+m = {
+  ping X :- pong X. (*~ E0105 *)
+  pong : node -> prop.
+  pong X :- edge X _, ping X.
+  more : node -> rel.
+  ping : node -> prop.
+  more X :- edge X _, ping X.
+}.

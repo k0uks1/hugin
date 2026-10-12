@@ -18,11 +18,14 @@ trait Lifting:
   def boundVars(c: Cxt): List[Val] =
     c.binders.reverse.zipWithIndex.collect { case (b, l) if b.defn.isEmpty => Val.local(l) }
 
-  /** Abstracts a type in context `c` over the context: Π for bound variables, let for defined ones. */
+  /** Abstracts a type in context `c` over the context: Π for bound variables, let for defined ones that the
+   *  type uses (the others are left out, as in [[closeTerm]]: evaluating the type evaluates its lets, and a
+   *  formula function of a module body is defined by its rules before its cycles are checked, so the
+   *  definition of another member may not end, E0105). */
   private def closeOver(c: Cxt, a: Tm): Tm =
     c.binders.foldLeft(a) { (acc, b) =>
       b.defn match
-        case Some(d) => Tm.Let(b.name, b.tyTm, d, acc)
+        case Some(d) => if occurs(0, acc) then Tm.Let(b.name, b.tyTm, d, acc) else Tm.shift(acc, -1, 1)
         case None => Tm.Pi(b.name, Icit.Expl, b.tyTm, acc)
     }
 
