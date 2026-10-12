@@ -116,6 +116,21 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assert(!goal.contains("⊢["), goal)
   }
 
+  test("#186 P9d: a split offers every head of a rule: `edge.1`, `edge.2`; a label for its rule's one head") {
+    val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
+      "both (g : graph) = {\n  edge : g.node -> g.node -> rel.\n  edge X Y, edge Y X :- g.edge X Y.\n}.\n" +
+      "flip : {x y : G.node} -> both G ⊢ edge x y -> both G ⊢ edge y x.\nflip P = ?.\n" +
+      "twice (g : graph) = {\n  from : g.node -> rel.\n  to : g.node -> rel.\n" +
+      "  @ends from X, to Y :- g.edge X Y.\n  to Y :- from Y.\n}.\n" +
+      "arrives : {y : G.node} -> twice G ⊢ to y -> twice G ⊢ to y.\narrives T = ?.\n"
+    val (s, _) = server(text)
+    val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
+    assertEquals(edit(split)._2, "flip (edge.1 E) = ?.\nflip (edge.2 E) = ?.")
+    // `to`'s heads are numbered on their own; the label names the one head of `to` of its rule
+    val to = actions(s, pos(text, "T = ?")).find(_.getTitle == "Split on `T`").get
+    assertEquals(edit(to)._2, "arrives (ends E) = ?.\narrives (to.2 F) = ?.")
+  }
+
   test("#186 P3: add the missing branches of a `match`, and hover in a branch") {
     val text = nat + "isZero : nat -> nat.\nisZero M = match M with\n  | zero => suc zero.\n"
     val (s, c) = server(text)

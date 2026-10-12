@@ -1,0 +1,54 @@
+(* #186 P9d: a name for every head of a rule (reference: std/semantics, "Rule names"). The (rule, head)
+   pairs of a relation are numbered in program and head order: `edge.1` and `edge.2` are the two heads of
+   one rule, and the nested fact that a head's constructor term builds is named by its constructor. Coverage
+   splits a derivation into the named heads. *)
+%use "std/graph".
+%use "std/semantics".
+
+(* two heads of one relation: `edge.1` derives `edge X Y`, `edge.2` derives `edge Y X` *)
+both (g : graph) = {
+  edge : g.node -> g.node -> rel.
+  edge X Y, edge Y X :- g.edge X Y.
+}.
+flip : {x y : G.node} -> both G ⊢ edge x y -> both G ⊢ edge y x.
+flip (edge.1 E) = edge.2 E.
+flip (edge.2 E) = edge.1 E.
+
+(* heads of different relations count their own heads: the rule `ends` has the heads `from.2` and `to.1`;
+   its label names the head of the goal's relation *)
+twice (g : graph) = {
+  from : g.node -> rel.
+  to : g.node -> rel.
+  from X :- g.edge X _.
+  @ends from X, to Y :- g.edge X Y.
+  to Y :- from Y.
+}.
+leaves : {x : G.node} -> twice G ⊢ from x -> twice G ⊢ from x.
+leaves (from.1 E) = ends E.
+leaves (ends E) = from.1 E.
+arrives : {y : G.node} -> twice G ⊢ to y -> twice G ⊢ to y.
+arrives (ends {X := W} E) = to.1 {X := W} E.
+arrives (to.2 F) = to.2 (leaves F).
+
+(* a constructor term in a head: the nested fact `circle R` is the rule's second head, `circle.1`; a fact
+   of the file's constructor is also an input, derived by `given` *)
+%use "std/reflect" (bool, true, false).
+shape : type.
+circle : int -> shape.
+sized = {
+  big : int -> rel.
+  drawn : shape -> rel.
+  big 3.
+  drawn (circle R) :- big R.
+}.
+drawnCircle : {r : ⇑int} -> sized ⊢ big r -> sized ⊢ circle r.
+drawnCircle B = circle.1 B.
+built : {r : ⇑int} -> sized ⊢ circle r -> bool.
+built (circle.1 B) = true.
+built (given I) = false.
+three : sized ⊢ circle 3 = circle.1 big.1.
+%opaque flip leaves arrives drawnCircle built three.
+
+checked : string -> rel.
+checked "every head named".
+%output checked.
