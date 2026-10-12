@@ -161,7 +161,7 @@ trait Overloading:
         val s = shape(ity)
         // an integer literal next to an operand of unknown type makes it an `int`, as without bindings
         // (reference: meta/functions, literals)
-        if s.isEmpty && builtin && isIntLit(second) then return Resolved.Builtin(Some((ft, fty, fs)))
+        if force(ity).isInstanceOf[Val.Flex] && builtin && isIntLit(second) then return Resolved.Builtin(Some((ft, fty, fs)))
         val byOperand = byResult.filter { id =>
           val sig = signature(id)
           fits(if swapped then sig.second else sig.first, s)
