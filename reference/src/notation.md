@@ -84,6 +84,7 @@ not use them:
 | base type | `int`, `float` or `string` | [Object types](object/types.md#base-types) |
 | body | the formula after `:-` of a rule | [Rules](object/rules.md) |
 | bound column | the last column of a relation, declared `min τ` or `max τ`, of which a relation keeps only the best value per key | [Bound columns](object/bound-columns.md) |
+| certified run | a run with `--certify`, whose facts the checker of `std/certify` shows to be exactly the least or perfect model of the program from its input facts | [`std/certify`](std/certify.md) |
 | clause | an equation `f p̄ = e.` that defines a meta function for the arguments that match the patterns `p̄` | [Clauses](meta/clauses.md) |
 | closed type | a fact type or a union of closed types; projections and updates apply to it | [Object types](object/types.md#unions) |
 | column | a parameter position of a relation or constructor, with a type and an optional label | [Declarations](object/declarations.md) |
@@ -203,6 +204,7 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | Kaminski et al. 2017 | M. Kaminski, B. Cuenca Grau, E. V. Kostylev, B. Motik, I. Horrocks. *Foundations of Declarative Data Analysis Using Limit Datalog Programs.* IJCAI 2017. [arXiv:1705.06927](https://arxiv.org/abs/1705.06927). Limit Datalog, the source of bound columns. |
 | Kovács 2022 | A. Kovács. *Staged Compilation with Two-Level Type Theory.* ICFP 2022. [doi:10.1145/3547641](https://doi.org/10.1145/3547641). Stage inference and the two-level type theory of the meta level. |
 | Lee et al. 2001 | C. S. Lee, N. D. Jones, A. M. Ben-Amram. *The Size-Change Principle for Program Termination.* POPL 2001. The termination checks of both levels. |
+| McConnell et al. 2011 | R. M. McConnell, K. Mehlhorn, S. Näher, P. Schweitzer. *Certifying Algorithms.* Computer Science Review 5(2), 2011, 119–161. [doi:10.1016/j.cosrev.2010.09.009](https://doi.org/10.1016/j.cosrev.2010.09.009). An algorithm that gives a witness of its result with it, checked by a simple checker: the checkers of [`std/certify`](std/certify.md). |
 | Maranget 2007 | L. Maranget. *Warnings for Pattern Matching.* Journal of Functional Programming 17(3), 2007. Usefulness of clauses and exhaustiveness, defined on values (Definitions 4–6). |
 | Maranget 2008 | L. Maranget. *Compiling Pattern Matching to Good Decision Trees.* ML Workshop 2008. Column heuristics for case trees, which the fixed split order of clauses does not use. |
 | Przymusinski 1988 | T. C. Przymusinski. *On the Declarative Semantics of Deductive Databases and Logic Programs.* In J. Minker (ed.), Foundations of Deductive Databases and Logic Programming, Morgan Kaufmann, 1988, 193–216. The perfect model of a stratified program. |

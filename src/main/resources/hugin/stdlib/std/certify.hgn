@@ -278,13 +278,18 @@ bindO : {A B : Type} -> option A -> (A -> option B) -> option B.
 bindO (some X) F = F X.
 bindO none F = none.
 
-hereIf : {g a : gatom} -> {gs : list gatom} -> option (eq g a) -> option (member a (g :: gs)).
-hereIf (some refl) = some here.
-hereIf none = none.
+(* the position of a fact in a list: the search stops at the first match, and the membership in the whole
+   list is built once, by `k` *)
+findFrom : (all gs : list gatom) -> (a : gatom) -> ((b : gatom) -> member b gs -> member b all) -> option (member a all).
+hereAt : (all : list gatom) -> (g : gatom) -> (gs : list gatom) -> (a : gatom) ->
+         ((b : gatom) -> member b (g :: gs) -> member b all) -> option (eq g a) -> option (member a all).
+findFrom All [] A K = none.
+findFrom All (G :: Gs) A K = hereAt All G Gs A K (eqGatom G A).
+hereAt All G Gs A K (some refl) = some (K G here).
+hereAt All G Gs A K none = findFrom All Gs A ([b] [m] K b (there m)).
 
 findIn : (gs : list gatom) -> (a : gatom) -> option (member a gs).
-findIn [] A = none.
-findIn (G :: Gs) A = orElse (hereIf (eqGatom G A)) (optMap there (findIn Gs A)).
+findIn Gs A = findFrom Gs Gs A ([b] [m] m).
 
 (* ---------------------------------------------------------------- the model check *)
 
@@ -596,26 +601,33 @@ checkPositive P Ins Fs =
 
 (* ---------------------------------------------------------------- the stratified checker *)
 
-(* the facts of the strata below a stratum are its input facts *)
-liftProof : (p : program) -> (s : list nat) -> {m : db} -> (a : gatom) -> m a -> nderives (layer p s) m a.
-liftProof P S (atom R Vs) H = ngiven tt H.
+(* The facts of the strata below a stratum are its input facts: every relation is an input relation of a
+   stratum `q = layer p s`. The functions of a stratum take `q` as a value, computed once, since a term
+   `layer p s` would filter the rules again wherever a derivation mentions it *)
+allInput : program -> Type = [q] (r : rref) -> so (q.input r).
 
-liftAll : (p : program) -> (s : list nat) -> {m : db} -> list (pfact m) -> list (pfact (nderives (layer p s) m)).
-liftAll P S [] = [].
-liftAll P S {m := M} (E :: Es) = { fact = E.fact, proof = liftProof P S {m := M} E.fact E.proof, self = E.self } :: liftAll P S Es.
+liftProof : (q : program) -> allInput q -> {m : db} -> (a : gatom) -> m a -> nderives q m a.
+liftProof Q All (atom R Vs) H = ngiven (All R) H.
 
-liftKeeps : (p : program) -> (s : list nat) -> {m : db} -> (es : list (pfact m)) -> (a : gatom) ->
-            member a (pfacts es) -> member a (pfacts (liftAll p s es)).
-liftKeeps P S (E :: Es) A here = here.
-liftKeeps P S (E :: Es) A (there M) = there (liftKeeps P S Es A M).
+liftAll : (q : program) -> allInput q -> {m : db} -> list (pfact m) -> list (pfact (nderives q m)).
+liftAll Q All [] = [].
+liftAll Q All {m := M} (E :: Es) = { fact = E.fact, proof = liftProof Q All {m := M} E.fact E.proof, self = E.self } :: liftAll Q All Es.
+
+liftKeeps : (q : program) -> (all : allInput q) -> {m : db} -> (es : list (pfact m)) -> (a : gatom) ->
+            member a (pfacts es) -> member a (pfacts (liftAll q all es)).
+liftKeeps Q All (E :: Es) A here = here.
+liftKeeps Q All (E :: Es) A (there M) = there (liftKeeps Q All Es A M).
 
 foundP : {m : db} -> {a b : gatom} -> option (eq a b) -> m a -> option (m b) -> option (m b).
 foundP (some refl) H R = some H.
 foundP none H R = R.
 
 findP : {m : db} -> (a : gatom) -> list (pfact m) -> option (m a).
+findPAt : {m : db} -> (a : gatom) -> (e : pfact m) -> list (pfact m) -> option (eq e.fact a) -> option (m a).
 findP A [] = none.
-findP {m := M} A (E :: Es) = foundP {m := M} (eqGatom E.fact A) E.proof (findP A Es).
+findP {m := M} A (E :: Es) = findPAt {m := M} A E Es (eqGatom E.fact A).
+findPAt A E Es (some refl) = some E.proof.
+findPAt A E Es none = findP A Es.
 
 (* a negated atom without local variables bound by matching: no fact of the strata below matches it *)
 known : {ts : list ⇑type} -> env ts -> penv ts.
@@ -747,14 +759,13 @@ nfireOne Q Low C Cs [] A = none.
 nfireOne Q Low C Cs (R :: Rs) A =
   orElse (nfireAt Q Low C Cs R.x R.at (completes (cands (pfacts Cs) R.x.body [unbound R.x.vars])) A) (nfireOne Q Low C Cs Rs A).
 
-derivedN : (p : program) -> (s : list nat) -> {m : db} -> (low : list (pfact m)) ->
-           ((a : gatom) -> m a -> member a (pfacts low)) -> list { x : crule, at : member x (layer p s).rules } ->
-           stocked (nderives (layer p s) m) (pfacts low) -> list cfact ->
-           either failure (stocked (nderives (layer p s) m) (pfacts low)).
-derivedN P S Low C Rs St [] = right St.
-derivedN P S Low C Rs (stock Es I) (cf A Ns :: Fs) =
-  bindE (orFail (badFact A) (both2 pairUp (bindO (atAll Es Ns) ([cs] nfireOne (layer P S) Low C cs Rs A)) (selfCheck A)))
-    ([h] derivedN P S Low C Rs (stockPush h (stock Es I)) Fs).
+derivedN : (q : program) -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> list { x : crule, at : member x q.rules } ->
+           stocked (nderives q m) (pfacts low) -> list cfact -> either failure (stocked (nderives q m) (pfacts low)).
+derivedN Q Low C Rs St [] = right St.
+derivedN Q Low C Rs (stock Es I) (cf A Ns :: Fs) =
+  bindE (orFail (badFact A) (both2 pairUp (bindO (atAll Es Ns) ([cs] nfireOne Q Low C cs Rs A)) (selfCheck A)))
+    ([h] derivedN Q Low C Rs (stockPush h (stock Es I)) Fs).
 
 (* the model check of a stratum: bodies read with the atoms in the stratum's facts and the negations in
    the facts below; a negation is refuted by a fact below that matches it *)
@@ -817,19 +828,21 @@ finishN : (q : program) -> (m : db) -> (es : list (pfact (nderives q m))) -> ((a
           level (nderives q m).
 finishN Q M Es I K = { facts = Es, complete = [a] [x] nleast (nmodelOf Q M (pfacts Es) I K) x }.
 
-closeN : (p : program) -> (s : list nat) -> {m : db} -> (low : list (pfact m)) ->
-         ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> stocked (nderives (layer p s) m) (pfacts low) ->
-         either failure (level (nderives (layer p s) m)).
-closeN P S {m := M} Low C K (stock Es I) =
-  orFail (notClosed K) (optMap (finishN (layer P S) M Es ([a] [h] I a (C a h)))
+closeN : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) -> nat ->
+         stocked (nderives q m) (pfacts low) -> either failure (level (nderives q m)).
+closeN Q {m := M} Low C K (stock Es I) =
+  orFail (notClosed K) (optMap (finishN Q M Es ([a] [h] I a (C a h)))
     (rulesIn (holdsW M (pfacts Es)) (pfacts Es) (selfOf Es) ([c] [xs] posOfW M (pfacts Es) xs c.body) (envW M Low (pfacts Es))
-      (layer P S).rules)).
+      Q.rules)).
+
+stratumQ : (q : program) -> allInput q -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> list cfact -> either failure (level (nderives q m)).
+stratumQ Q All Low C K Fs =
+  bindE (derivedN Q Low C (positions Q.rules) (stock (liftAll Q All Low) (liftKeeps Q All Low)) Fs) (closeN Q Low C K).
 
 stratumN : (p : program) -> (s : list nat) -> {m : db} -> (low : list (pfact m)) ->
            ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> list cfact -> either failure (level (nderives (layer p s) m)).
-stratumN P S Low C K Fs =
-  bindE (derivedN P S Low C (positions (layer P S).rules) (stock (liftAll P S Low) (liftKeeps P S Low)) Fs)
-    (closeN P S Low C K).
+stratumN P S Low C K Fs = stratumQ (layer P S) ([r] tt) Low C K Fs.
 
 layersN : (p : program) -> (ss : list (list nat)) -> {m : db} -> (low : list (pfact m)) ->
           ((a : gatom) -> m a -> member a (pfacts low)) -> list (list cfact) -> nat -> either failure (level (layers p ss m)).
@@ -895,10 +908,14 @@ addNew S [] = S.
 addNew (stock Es I) (N :: Ns) =
   addNew (if (isSome (findIn (pfacts Es) N.fact)) (stock Es I) (stockPush {a := N.fact} { fst = N.proof, snd = N.self } (stock Es I))) Ns.
 
-roundN : (p : program) -> (s : list nat) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
-         list { x : crule, at : member x (layer p s).rules } -> stocked (nderives (layer p s) m) (pfacts low) ->
-         stocked (nderives (layer p s) m) (pfacts low).
-roundN P S Low C Rs (stock Es I) = addNew (stock Es I) (nfireAll (layer P S) Low C Es Rs).
+roundN : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+         list { x : crule, at : member x q.rules } -> stocked (nderives q m) (pfacts low) -> stocked (nderives q m) (pfacts low).
+roundN Q Low C Rs (stock Es I) = addNew (stock Es I) (nfireAll Q Low C Es Rs).
+
+stratumR : nat -> (q : program) -> allInput q -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> either failure (level (nderives q m)).
+stratumR N Q All Low C K =
+  closeN Q Low C K (rounds2 N (roundN Q Low C (positions Q.rules)) (stock (liftAll Q All Low) (liftKeeps Q All Low))).
 
 rounds2 : {A : Type} -> nat -> (A -> A) -> A -> A.
 rounds2 0 F X = X.
@@ -908,8 +925,7 @@ layersR : nat -> (p : program) -> (ss : list (list nat)) -> {m : db} -> (low : l
           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> either failure (level (layers p ss m)).
 layersR N P [] Low C K = right { facts = Low, complete = C }.
 layersR N P (S :: Ss) Low C K =
-  bindE (closeN P S Low C K (rounds2 N (roundN P S Low C (positions (layer P S).rules)) (stock (liftAll P S Low) (liftKeeps P S Low))))
-    ([l] layersR N P Ss l.facts l.complete (K + 1)).
+  bindE (stratumR N (layer P S) ([r] tt) Low C K) ([l] layersR N P Ss l.facts l.complete (K + 1)).
 
 startR : nat -> (p : program) -> (ins : list gatom) -> stocked (inputs p (memOf ins)) ins -> either failure (level (perfect p (memOf ins))).
 startR N P Ins (stock Es I) = layersR N P P.strata Es (inputsCover P Ins I) 1.
@@ -919,19 +935,19 @@ perfectFacts : nat -> (p : program) -> (ins : list gatom) -> either failure (lev
 perfectFacts N P Ins =
   bindE (givenBy P (inputs P (memOf Ins)) Ins ([r] [vs] [k] [t] { fst = t, snd = k }) Ins ([a] [k] k)) ([s] startR N P Ins s).
 
-foundSome : {m : db} -> {a b : gatom} -> (o : option (eq a b)) -> (h : m a) -> (r : option (m b)) -> so (isSome o) ->
-            so (isSome (foundP {m := m} o h r)).
-foundSome (some refl) H R T = tt.
-foundSome none H R ().
+findAtSome : {m : db} -> (a : gatom) -> (e : pfact m) -> (es : list (pfact m)) -> (o : option (eq e.fact a)) ->
+             so (isSome o) -> so (isSome (findPAt {m := m} a e es o)).
+findAtSome A E Es (some refl) T = tt.
+findAtSome A E Es none ().
 
-foundAfter : {m : db} -> {a b : gatom} -> (o : option (eq a b)) -> (h : m a) -> (r : option (m b)) -> so (isSome r) ->
-             so (isSome (foundP {m := m} o h r)).
-foundAfter (some refl) H R T = tt.
-foundAfter none H R T = T.
+findAtAfter : {m : db} -> (a : gatom) -> (e : pfact m) -> (es : list (pfact m)) -> (o : option (eq e.fact a)) ->
+              so (isSome (findP a es)) -> so (isSome (findPAt {m := m} a e es o)).
+findAtAfter A E Es (some refl) T = tt.
+findAtAfter A E Es none T = T.
 
 findPSome : {m : db} -> (a : gatom) -> (es : list (pfact m)) -> member a (pfacts es) -> so (isSome (findP a es)).
-findPSome {m := M} A (E :: Es) here = foundSome {m := M} (eqGatom E.fact E.fact) E.proof (findP E.fact Es) E.self.
-findPSome {m := M} A (E :: Es) (there K) = foundAfter {m := M} (eqGatom E.fact A) E.proof (findP A Es) (findPSome A Es K).
+findPSome {m := M} A (E :: Es) here = findAtSome {m := M} E.fact E Es (eqGatom E.fact E.fact) E.self.
+findPSome {m := M} A (E :: Es) (there K) = findAtAfter {m := M} A E Es (eqGatom E.fact A) (findPSome A Es K).
 
 decideWith : {m : db} -> (a : gatom) -> (l : level m) -> (o : option (m a)) -> eq (findP a l.facts) o -> dec (m a).
 decideWith A L (some H) E = yes H.

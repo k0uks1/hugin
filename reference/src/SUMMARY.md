@@ -39,6 +39,7 @@
     - [`std/decide`](std/decide.md)
     - [`std/semantics`](std/semantics.md)
     - [`std/strata`](std/strata.md)
+    - [`std/certify`](std/certify.md)
     - [`std/quote`](std/quote.md)
     - [`std/list`](std/list.md)
     - [`std/directives`](std/directives.md)

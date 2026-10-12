@@ -41,8 +41,13 @@ object Certify:
       CertifyProblem.OutsideFragment(s"this rule is outside the certified fragment, because $why", r.span)
     )
     if omitted.nonEmpty then return Outcome(omitted.map(_.toDiagnostic), None)
-    try Reifier(unit, elaborated.nn.core, prog, engine).run()
+    val core = elaborated.nn.core
+    // the checker reads no declarations of the program that a later edit could change: no observer
+    val observer = core.reads
+    core.observe(null)
+    try Reifier(unit, core, prog, engine).run()
     catch case Outside(why, span) => Outcome(List(CertifyProblem.OutsideFragment(why, if span.exists then span else at).toDiagnostic), None)
+    finally core.observe(observer)
 
   /** A part of the run outside the certified fragment. */
   private final case class Outside(why: String, span: Span) extends Exception(why, null, false, false)

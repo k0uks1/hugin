@@ -31,6 +31,7 @@ command line is malformed or the program file does not exist.
 | `--all-relations` | prints the facts of every relation, also of constructors and demand relations |
 | `--export-proofs <file>` | with `run`: writes the proofs of the derived facts to the file ([Proof export](object/io.md#proof-export)) |
 | `--proof-format trees\|ordered-graph` | with `--export-proofs`: one proof tree per fact (the default) or one ordered proof graph |
+| `--certify` | with `run`: checks the run with the checker of [`std/certify`](std/certify.md), which the program loads, and prints the verdict; an error if the run is not certified ([E0955](errors/E0955.md), [E0956](errors/E0956.md), [E0957](errors/E0957.md)) |
 | `--stats` | prints the time of each compiler phase and the number of rounds of each component |
 | `--explain-termination` | prints the termination argument of every recursive component ([Termination](object/termination.md)) |
 | `--safe` | rejects every postulate of the program and of the files it imports ([E0925](errors/E0925.md); [Consistency](meta/consistency.md#postulates)) |

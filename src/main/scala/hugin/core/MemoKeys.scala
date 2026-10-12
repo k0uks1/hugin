@@ -44,9 +44,19 @@ trait MemoKeys:
 
   /** The normal forms of the arguments, if they are closed (no variables, no metas, no functions). */
   def closedKey(args: List[Val]): Option[List[Tm]] =
-    // one read-back for all arguments: values they share are read back once (issue #108)
-    val tms = sharingReadBack(args.map(a => quoteKey(a)._1))
-    Option.when(tms.forall(closedId))(tms)
+    // an argument that is a function, a type or open at its head makes the key open: then nothing is
+    // read back (the arguments of a proof by evaluation are often closures, #186 P8b)
+    if args.exists(neverClosed) then None
+    else
+      // one read-back for all arguments: values they share are read back once (issue #108)
+      val tms = sharingReadBack(args.map(a => quoteKey(a)._1))
+      Option.when(tms.forall(closedId))(tms)
+
+  /** Whether a key with the argument `v` is never closed, by its form at the head. */
+  private def neverClosed(v: Val): Boolean = v match
+    case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => true
+    case Val.Rigid(Head.Local(_), _) | Val.Flex(_, _) => openHead(v)
+    case _ => false
 
   /** The ids of the normal forms of `args`, if they are all closed ([[closedKey]]). */
   def closedKeyIds(args: List[Val]): Option[List[Int]] = closedKey(args).map(_.map(termId))

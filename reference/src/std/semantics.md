@@ -449,8 +449,10 @@ each of its instances, since `programOf m` is the program of the application tha
 ([`std/quote`](quote.md#programs-as-values)): `iff (tc g ⊢ path x y) (tc2 g ⊢ path x y)` at `g := { node
 = city, edge = road }` is about the run of `fast = tc2 { node = city, edge = road }`.
 
-> **Note.** The proofs note (#186) plans a run mode that checks the statement for each run, by checking
-> the run's derivations against `derives`.
+The option `--certify` of `hugin run` checks the statement for a run, for the program the engine ran and
+the run's input facts: the checker of [`std/certify`](certify.md) builds the derivation of every fact of
+the run and shows that the facts are closed under the rules, so that the run's facts are exactly the
+derived ones.
 
 > **Rationale.** The judgment is an inductive family of the library, not a rule of the core calculus:
 > its consistency is that of inductive families, and a proof about a program is an ordinary meta

@@ -133,9 +133,10 @@ the negated atom is over `[city, city, city]`, the local variable first. `noOut`
 the local variable and a fact `road paris Y`, which `roads` does not hold.
 
 > **Note.** `holds` of `std/semantics` evaluates the positive fragment: a rule with a negation or an
-> aggregate derives nothing there. Evaluating a negation or an aggregate with a proof needs the facts of
-> the strata below to be complete, which a model check of the computed facts shows (`nleast`); that
-> check is planned with the certified runs of the proofs note (#186, P8b).
+> aggregate derives nothing there. Evaluating a negation with a proof needs the facts of the strata below
+> to be complete, which a model check of the computed facts shows (`nleast`): `decidePerfect` of
+> [`std/certify`](certify.md#deciding-the-perfect-model) evaluates stratified programs with negation so,
+> and decides membership in the perfect model both ways. Aggregates are not evaluated there.
 
 > **Rationale.** Reading the strata in order, with the negations read in the completed strata below, is
 > the perfect model (Apt et al. 1988; [Przymusinski 1988](../notation.md#references)), as the verified

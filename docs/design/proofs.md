@@ -2275,3 +2275,63 @@ Decisions made during implementation are listed here with their PR.
   aggregates. Bound columns stay out of scope: `programOf` now rejects an atom of a relation with a bound
   column (E0942), whose best-value reading the program values do not model; before, only arithmetic on
   such a column happened to be rejected.
+
+**P8b (certified runs).**
+
+- *Which program is certified.* The program the engine ran, reified by the driver from the rules the proof
+  export records (one rule per head, the export's fragment), not `programOf`: `programOf here` does not
+  exist (P7a), and 7.4 places `--certify` on link 3 (staged program → output), with link 2 (reification)
+  trusted as it is for `programOf`. The certificate carries its program, as Tantow et al.'s JSON does.
+  The driver reifies an *untyped* program (`uprogram`: variables by position, constants by value) and
+  `typeProgram`, meta code, types it into a `program` (member proofs, the types of comparisons), so the
+  trusted reifier builds only data with no implicit arguments to get wrong.
+- *Certificate.* The derived facts in the export's settle order (premises first), each with the positions
+  of its positive premises among the facts before it, stratum by stratum for a stratified program: P8a's
+  proof DAG with back references. The checker finds the rule and the valuation itself, by matching the
+  rules against the premises, so the certificate names neither (and is independent of variable order).
+- *Certifying checker.* For each fact the checker builds its `derives` (`nderives`) derivation, as P5b's
+  `holds` does, so soundness is the result type (`level m`: facts with proofs in `m`); no soundness proof
+  of a search (McConnell et al.'s certifying algorithms; Lean's `decide`).
+- *`closed`, the model check.* For each rule, the candidates of its body (positive atoms matched against
+  all facts) are checked: complete, and either the heads are facts or the body is refuted (a failing
+  comparison, or a negated atom matched by a fact below, found by a guessed and then verified witness).
+  `candsOk` proves the candidates complete (every valuation whose positive atoms are facts agrees with one),
+  so the facts are a `model` (`nmodel`) and `least` (`nleast`) gives completeness: Tantow et al.'s
+  one-round model check, with its soundness proved instead of trusted. Matching treats a term other than
+  a variable or a constant as no constraint, which keeps the proof simple; such terms are outside the
+  fragment anyway.
+- *Reflexivity without a primitive.* Completeness of matching needs a value to compare equal to itself;
+  `same` is stuck on open code and a postulate `same a a = true` is false for float NaN literals. The
+  checker instead checks `isSome (eqGatom a a)` once per accepted fact (`selfG`) and the proof derives
+  what it needs from it: proof by evaluation of the concrete data, no new trusted primitive.
+- *Negation.* A negated atom in a derivation is decided by the facts of the strata below, made complete by
+  their model check (P6's `nleast`); `absentIn` proves `absent` from the completeness of matching against
+  them (the atom must have variables and constants only, so it is defined). Aggregates are outside the
+  fragment (P8a's), so `checkStrata` rejects them; their witnesses would need the same machinery per body.
+- *Positive and stratified checkers.* A program without negation is checked against `derives` and its
+  least model (`checkPositive`); one with negation against `perfect` (`checkStrata`), stratum by stratum
+  with the engine's components as strata, each stratum program computed once (a term `layer p s` in an
+  implicit argument would filter the rules at every derivation node: a run of 56 facts went from 47 s to 9 s).
+- *`holds` for stratified programs.* `perfectFacts n p ins` evaluates each stratum by `n` naive rounds
+  (negations decided by the facts below) followed by its model check; `decidePerfect` then decides
+  membership both ways, with `perfectHolds`/`perfectRefutes` deciders. A new function in `std/certify`
+  rather than an extension of `holds`, which takes no database and stays the positive fragment.
+- *Library and loading.* `std/certify` loads `std/semantics` and `std/strata`; the program loads it
+  (E0955 otherwise), like `programOf` needs its libraries (E0940): a checker is something the program
+  chooses to trust, and the elaboration (about 1 s on top of `std/strata`) is paid only by programs that
+  ask for it. The verdict line goes to stderr; a rejected or uncertifiable run is an error (exit 1).
+- *Codes.* E0955 (no `std/certify`), E0956 (outside the certified fragment: a rule the export leaves out,
+  a value that is a fact or an infinity, a type the semantics does not model), E0957 (the checker rejects
+  the run). Order comparisons are interpreted on integers only (as `std/semantics`), so a comparison of
+  strings is E0957, the explanation's example.
+- *Memo keys.* The memo of closed applications read back every argument at every reduction; the checker's
+  arguments are closures and growing proofs. A key with a function, a type or an open value is never
+  closed, so it is now not read back at all (`MemoKeys`: `neverClosed`, `Unused`), which changes no memo
+  hit (MemoKeysSuite, LongListsSuite). The checker's own searches stop at the first hit and build a
+  membership once (`findFrom`), instead of nesting `optMap there`.
+- *Measured limits* (once, `benchlock`, loaded machine, before the last two optimisations): transitive
+  closure of a chain of 20 nodes, 209 facts, 12.7 s with `--certify` against 4.8 s without; larger chains
+  and the stratified variant failed. After them (single diagnostic runs): 209 facts 3.6 s CPU in the
+  checker, 819 facts about 60 s, 56 stratified facts 1.5 s. The cost is quadratic (premise lookup by
+  position in a list, the model check's naive join); a certified run is an audit mode for small and
+  medium runs. Goldens: p8b_certify 1.5 s, p8b_strata 1.5 s in the test JVM.
