@@ -2,8 +2,10 @@
    model of `std/semantics` (reference: std/semantics). *)
 %use "std/reflect" (oadd, clt).
 %use "std/eq" (eq, refl, empty, emptyElim, tt).
-%use "std/decide" (so, decide).
+%use "std/decide" (so).
 %use "std/semantics".
+(* `decide` of std/decide, the generic one: std/semantics has its own for judgments (P7b) *)
+checker = %import "std/decide".
 
 noInputs : rref -> bool.
 noInputs R = false.
@@ -29,7 +31,7 @@ threeRounds : eq (holds 3 tiny goal) true = refl.
 noWayBack : eq (holds 5 tiny (atom (own 0) [v (<rome>), v (<berlin>)])) false = refl.
 
 (* `decide`: three rounds derive the path; the derivation is valid for every database *)
-viaParis : {d : db} -> derives tiny d goal = decide (derivable 3 tiny) goal tt.
+viaParis : {d : db} -> derives tiny d goal = checker.decide (derivable 3 tiny) goal tt.
 
 (* a comparison and arithmetic: `next (X + 1) :- start X, X < 3.` with `start 0.` *)
 startFact : crule = { head = 1, index = 1, label = none, vars = [], heads = [cat (own 1) (tcons (cc 0) tnil)], body = [] }.
@@ -37,7 +39,7 @@ nextRule : crule = { head = 0, index = 1, label = none, vars = [int],
   heads = [cat (own 1) (tcons (carith oadd (cv here) (cc 1)) tnil)],
   body = [cpos (cat (own 1) (tcons (cv here) tnil)), ccmp clt (cv here) (cc 3)] }.
 counting : program = { relations = ["next", "start"], rules = [startFact, nextRule], input = noInputs, strata = [[1, 0]] }.
-three : {d : db} -> derives counting d (atom (own 1) [v 3]) = decide (derivable 4 counting) (atom (own 1) [v 3]) tt.
+three : {d : db} -> derives counting d (atom (own 1) [v 3]) = checker.decide (derivable 4 counting) (atom (own 1) [v 3]) tt.
 noFour : eq (holds 8 counting (atom (own 1) [v 4])) false = refl.
 
 (* the least model: what is derived is in every model, and the derived facts are a model *)

@@ -131,6 +131,11 @@ sizes (toInt (length (vcons 1 (vcons 2 vnil)))) (toInt (tailLength (vcons 1 (vco
 sizes 2 1.
 ```
 
+A pattern against a derivation of a [judgment](../std/semantics.md#the-judgment-notation) may be a *rule
+name*, `path.1 E`, or `given I`: it stands for the constructor pattern of the derivation by that rule, and
+binds the rule's variables as implicit patterns under their names in the rule
+([Rule names](../std/semantics.md#rule-names)).
+
 ## Checking a clause
 
 Each clause is checked on its own, once, as in Agda, Idris 2 and Lean 4. Its *clause context* is

@@ -123,7 +123,7 @@ The remaining tokens are:
 
 ```text
 :-   ?-   ->   =>   <:   <>   <=   >=   ..   ::   .   ,   ;   :   |   =   <   >
-+    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '    ≡    ==
++    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '    ≡    ==   ⊢    |-
 ```
 
 A prime `'` is a token only at the start of a token and directly before `(`: `'(` opens a
@@ -132,7 +132,9 @@ a character of a name (`x'`, `f''`).
 
 A period `.` that directly follows a name, a variable or a closing parenthesis `)`, without space, and
 is directly followed by a lowercase letter is a *selector*: `g.edge`, `E.loc`, `m.path`, `(tc g).path`
-select a field or a column label. Every other `.` ends an item.
+select a field or a column label. A period that directly follows a name, without space, and is directly
+followed by a digit makes a *rule name* with the digits: `path.1`, `reached.2`
+([Rule names](std/semantics.md#rule-names)). Every other `.` ends an item.
 
 Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'( )` are pairs. It is an error
 ([E0005](errors/E0005.md)) if an item ends before an opening one is closed.
@@ -145,6 +147,9 @@ where an operand starts opens a [staging quote](meta/staging.md#explicit-quotes)
 `≡` (U+2261) is the equality operator of the meta level, and `==` is its ASCII spelling: `n == m` is
 `n ≡ m`. `=` itself is not an operator of the meta level: it defines (`x = e.`) and compares in object
 formulas (see [Operators bound to meta functions](#operators-bound-to-meta-functions)).
+
+`⊢` (U+22A2) is the turnstile of a [judgment](std/semantics.md#the-judgment-notation) `P ⊢ r t̄`, and
+`|-` is its ASCII spelling.
 
 A question mark `?` that is not followed by `-` is a [typed hole](meta/functions.md#typed-holes),
 together with the name characters directly after it: `?`, `?rest`.
@@ -231,6 +236,7 @@ the tightest binding:
 | `;` | left | disjunction of formulas |
 | `,` | left | conjunction of formulas |
 | `->` | right | function, relation and constructor types |
+| `⊢` (`\|-`) | none | a [judgment](std/semantics.md#the-judgment-notation) `P ⊢[e] r t̄` (meta level) |
 | `\|` | left | union of object types |
 | `≡` (`==`) | none | equality (meta level) |
 | `::` | right | a list with a first element (meta level) |
@@ -242,7 +248,10 @@ Application by juxtaposition (`edge X Y`) binds tighter than every binary operat
 `e.l` binds tighter than application. The prefix operators `not` and unary `-` apply to an application:
 `not edge X Y` is `not (edge X Y)`. Comparison operators and `≡` do not associate: `A < B < C` is an
 error ([E0001](errors/E0001.md)). `≡` binds looser than `::` and the arithmetic operators and tighter
-than `->`, so `(n m : nat) -> n + m ≡ m + n` needs no parentheses.
+than `->`, so `(n m : nat) -> n + m ≡ m + n` needs no parentheses. The right operand of `⊢` is an
+optional database `[e]`, directly after the turnstile, and an atom, which is an application; `⊢` binds
+tighter than `->`, so `tc ⊢ path x y -> tc ⊢ path y x` needs no parentheses. Among the levels of
+user-defined operators, `⊢` is between 3 and 4, at the level of an operator of precedence 3.
 
 On a nat-like meta type, `+` with an integer literal as its right operand is the successor applied that
 many times, in expressions and in patterns: `N + 2` is `suc (suc N)`

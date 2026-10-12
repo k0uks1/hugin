@@ -113,6 +113,11 @@ result type are implicit arguments as well: `ident (x : A) : A = x.` declares
 `ident : {A : Type} -> A -> A`. The type of such a variable is not given. The compiler tries it as a meta
 type first, then as an object type.
 
+A [judgment](../std/semantics.md#the-judgment-notation) `P ⊢ r t̄` in the type of a declaration, or in its
+parameters' types, adds implicit arguments before these: the database `d` if a judgment has no `[e]`, and
+the parameters of a functor written alone before `⊢`, by their names
+([Generalisation](../std/semantics.md#generalisation)).
+
 The following program composes two functions on compile-time integers. `compose` has three implicit
 arguments, which are inferred as `int` at its application.
 
