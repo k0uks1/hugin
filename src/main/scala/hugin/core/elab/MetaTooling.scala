@@ -97,9 +97,26 @@ trait MetaTooling:
 
   /** The elaborated term, if it shows what is not written (implicit arguments, quotes, splices). */
   private def elaborated(c: Cxt, tm: Tm, span: Span): Option[String] =
-    val text = showTm(c.names, zonk(c.env, c.lvl, tm))
+    val zonked = zonk(c.env, c.lvl, tm)
     def norm(s: String) = s.filterNot(_.isWhitespace)
-    Option.when(text.length <= MaxShown && norm(text) != norm(span.text) && text.exists(c => c == '{' || c == '⟨' || c == '$'))(text)
+    // a judgment, also one that an atom was read as (#186 P9b), is shown in its notation, `P ⊢ r t̄`; only
+    // a term that is an application of `derives` is evaluated for it (a hover never runs other terms)
+    def head(t: Tm): Tm = Tm.unloc(t) match
+      case Tm.App(f, _, _) => head(f)
+      case other => other
+    val isJudgment = head(zonked) match
+      case Tm.Global(id) => semanticsGlobals.exists(_.get("derives").contains(id))
+      case _ => false
+    val judgment =
+      if !isJudgment then None
+      else
+        try Option(ev(c, zonked)).filter(v => derivationType(v).isDefined).map(v => show(c, v))
+        catch case NonFatal(_) => None
+    judgment match
+      case Some(text) => Option.when(text.length <= MaxShown && norm(text) != norm(span.text))(text)
+      case None =>
+        val text = showTm(c.names, zonked)
+        Option.when(text.length <= MaxShown && norm(text) != norm(span.text) && text.exists(c => c == '{' || c == '⟨' || c == '$'))(text)
 
   private val MaxShown = 200
 

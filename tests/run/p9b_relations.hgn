@@ -1,0 +1,82 @@
+(* #186 P9b: the forms of the judgment coercion (reference: std/semantics, "Relations as propositions";
+   level 3.5 note §1.3, §1.4, §2.3). An applied relation that a program owns, written where a meta type is
+   expected, is that program's judgment: of a functor application `(undirected G).reach x y`, of a module
+   `trip.path`, of a name opened from it by `%use`, of a member instance `weak.v.vertex x`, of a functor
+   applied to a written record. Unapplied where a family of meta types is expected, it is the function
+   `[x] [y] P ⊢ r x y` (the η form), so a meta combinator such as `symmetric` takes an object relation. Rule
+   names, `given` and `decide` work below a coerced type as below the turnstile, whose type it is. *)
+%use "std/graph" (graph, tc).
+%use "std/semantics".
+%use "std/eq" (tt).
+
+symmetric : {A : Type} -> (A -> A -> Type) -> Type.
+symmetric {A := T} R = (x : T) -> (y : T) -> R x y -> R y x.
+
+undirected (g : graph) = {
+  link : g.node -> g.node -> rel.
+  link X Y :- g.edge X Y.
+  link Y X :- g.edge X Y.
+  reach : g.node -> g.node -> rel.
+  reach X Y :- link X Y.
+  reach X Z :- link X Y, reach Y Z.
+}.
+
+(* the η form: `(undirected G).link` is `[x] [y] undirected G ⊢ link x y`; the nodes are explicit, since
+   `symmetric` quantifies them explicitly *)
+linkSym : symmetric (undirected G).link.
+linkSym X Y (link.1 E) = link.2 E.
+linkSym X Y (link.2 E) = link.1 E.
+
+reachTrans : {x y z : G.node} -> (undirected G).reach x y -> (undirected G).reach y z ->
+             (undirected G).reach x z.
+reachTrans (reach.1 L) Q = reach.2 L Q.
+reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
+
+reachSym : symmetric (undirected G).reach.
+reachSym X Y (reach.1 L) = reach.1 (linkSym X Y L).
+reachSym X Y (reach.2 {Y := W} L R) = reachTrans (reachSym W Y R) (reach.1 (linkSym X W L)).
+%opaque linkSym reachTrans reachSym.
+
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+(* a module's relation, and the same relation opened by `%use`: both are `trip ⊢ path berlin rome` *)
+viaParis : trip.path berlin rome = decide 3 tt.
+%use trip (path).
+viaParis2 : path berlin rome = decide 3 tt.
+%opaque viaParis viaParis2.
+
+vertices (g : graph) = {
+  vertex : g.node -> rel.
+  vertex X :- g.edge X _.
+  vertex Y :- g.edge _ Y.
+}.
+rtc (g : graph) = {
+  v = vertices g.
+  reach : g.node -> g.node -> rel.
+  reach X X :- v.vertex X.
+  reach X Z :- reach X Y, g.edge Y Z.
+}.
+hop : city -> city -> rel.
+hop berlin paris.
+weak = rtc { node = city, edge = hop }.
+(* a member instance: `weak.v` is the instance of `vertices` that `rtc`'s body makes *)
+sameVertex : {x : city} -> weak.v.vertex x -> weak.v ⊢ vertex x.
+sameVertex V = V.
+firstHop : {x : city} -> weak.v.vertex x -> city.
+firstHop (vertex.1 {X := A} E) = A.
+firstHop (vertex.2 {Y := B} E) = B.
+(* a functor applied to a written record *)
+closed : {x y : city} -> (tc { node = city, edge = hop }).path x y -> tc { node = city, edge = hop } ⊢ path x y.
+closed P = P.
+%opaque sameVertex firstHop closed.
+
+checked : string -> rel.
+checked "relations".
+%output checked.

@@ -117,7 +117,12 @@ A [judgment](../std/semantics.md#the-judgment-notation) `P ⊢ r t̄` in the typ
 parameters' types, adds one implicit argument before these if a judgment has no `[e]`: the anonymous
 database that all such judgments of the declaration share, which has no name
 ([Generalisation](../std/semantics.md#generalisation)). The functor of a judgment is applied to its
-arguments, so `tc G ⊢ path x y` binds `G` as a free uppercase variable.
+arguments, so `tc G ⊢ path x y` binds `G` as a free uppercase variable. An atom that is read as a judgment
+([Relations as propositions](../std/semantics.md#relations-as-propositions)), such as `(tc G).path x y`,
+counts as a judgment without `[e]` where the compiler finds it from the type's syntax: in the declared
+type, an arrow's domain or codomain, a binder's type, a field type of a record type, or an argument of a
+global constant whose parameter is a type or a family of types (`iff`, a combinator over relations). It
+binds `G` in the same way.
 
 The following program composes two functions on compile-time integers. `compose` has three implicit
 arguments, which are inferred as `int` at its application.

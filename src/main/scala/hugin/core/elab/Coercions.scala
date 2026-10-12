@@ -99,8 +99,8 @@ trait Coercions:
   /** An object type `t` (written at `span`) under `⇑` in a meta type must not be the fact type of an
    *  application, `⇑(r t̄)`: no object term has it, since the fact type of a relation or struct `r` is `r`
    *  alone (E0960, #186 P9a). The fact type of an unapplied relation stays a type (a fact's identity). */
-  def requireNoAppliedFact(c: Cxt, t: Tm, span: Span): Unit = Tm.unloc(t) match
-    case Tm.FactTy(a) if appliedRelation(a) => fail(TypeProblem.AppliedRelation(shownAt(c, a, span), eta = false, span))
+  def requireNoAppliedFact(c: Cxt, t: Tm, span: Span, lifted: Boolean = false): Unit = Tm.unloc(t) match
+    case Tm.FactTy(a) if appliedRelation(a) => fail(TypeProblem.AppliedRelation(shownAt(c, a, span), eta = false, span, lifted = lifted))
     case _ =>
 
   /** Whether object code is a relation (or struct) applied to explicit arguments. */
@@ -217,7 +217,7 @@ trait Coercions:
     def inner(t: Tree): Tree = t match
       case hugin.syntax.Trees.Parens(i) => inner(i)
       case other => other
-    requireNoAppliedFact(c, t, inner(a).span)
+    requireNoAppliedFact(c, t, inner(a).span, lifted = true)
     (Tm.Lift(t), Val.U1(Level.zero), Stage.S1)
 
   /** `$t`, the explicit splice (reference: meta/staging): `t` must be meta code of type `⇑A`, or a meta value

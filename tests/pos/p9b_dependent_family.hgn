@@ -1,0 +1,10 @@
+(* #186 P9b regression: the pre-pass that finds coerced atoms for the anonymous database looks at the
+   parameter types of a global constant applied in a declaration's type. A family whose codomain
+   projects from its variable, `(c : rule) -> env c.vars -> Type` as in `std/certify`, must be looked at
+   under a fresh variable, not evaluated at a wildcard (which crashed). *)
+%use "std/semantics".
+
+rule : Type = { vars : Type }.
+goal : ((c : rule) -> c.vars -> Type) -> (c : rule) -> c.vars -> Type = [h] [c] [x] h c x.
+moved : (h : (c : rule) -> c.vars -> Type) -> (c : rule) -> (x : c.vars) -> goal h c x -> h c x =
+  [h] [c] [x] [g] g.

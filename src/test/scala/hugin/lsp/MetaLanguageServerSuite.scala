@@ -116,6 +116,18 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assert(!goal.contains("⊢["), goal)
   }
 
+  test("#186 P9b: a coerced atom shows its judgment in hovers and goals; a split below it offers the rules") {
+    val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
+      "toTc : {x y : G.node} -> (tc G).path x y -> (tc G).path x y.\ntoTc P = ?.\n"
+    val (s, _) = server(text)
+    val atom = hover(s, pos(text, "(tc G).path x y ->"))
+    assert(atom.contains("tc G ⊢ path x y"), atom)
+    val goal = hover(s, pos(text, "?."))
+    assert(goal.contains("`tc G ⊢ path x y`"), goal)
+    val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
+    assertEquals(edit(split)._2, "toTc (path.1 E) = ?.\ntoTc (path.2 E P) = ?.")
+  }
+
   test("#186 P9d: a split offers every head of a rule: `edge.1`, `edge.2`; a label for its rule's one head") {
     val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
       "both (g : graph) = {\n  edge : g.node -> g.node -> rel.\n  edge X Y, edge Y X :- g.edge X Y.\n}.\n" +

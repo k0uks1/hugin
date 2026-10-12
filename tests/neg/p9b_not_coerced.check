@@ -1,0 +1,43 @@
+error[E0901]: mismatched types
+  --> tests/neg/p9b_not_coerced.hgn:24:13
+   |
+24 | flagged F = F. (*~ E0901 *)
+   |             ^ expected `programOf fast { node = ⟨city⟩, edge = ⟨road⟩ } ⊢ done`, found `⇑fast.done`
+
+error[E0107]: `tc` is not a module
+  --> tests/neg/p9b_not_coerced.hgn:27:9
+   |
+27 | alone : tc.path berlin paris -> Type. (*~ E0107 *)
+   |         ^^ has meta type `(g : graph) -> { path : ⇑(g.node -> g.node -> rel) }`
+   |
+   = note: a path `m.x` requires `m` to be module-valued
+
+error[E0947]: cannot determine the database of this judgment
+  --> tests/neg/p9b_not_coerced.hgn:30:35
+   |
+30 | family : ⇑city -> ⇑city -> Type = fast.path. (*~ E0947 *)
+   |                                   ^^^^^^^^^ which database?
+   |
+   = note: outside the type of a declaration, a judgment without `[e]` has an unknown database, which the expected type must determine
+   = note: in the type of a declaration, the judgments without `[e]` share the declaration's anonymous database
+   = help: give the database: `P ⊢[e] r t̄`, with a database `e` in scope
+
+error[E0947]: cannot determine the database of this judgment
+  --> tests/neg/p9b_not_coerced.hgn:31:16
+   |
+31 | value : Type = fast.path berlin paris. (*~ E0947 *)
+   |                ^^^^^^^^^ which database?
+   |
+   = note: outside the type of a declaration, a judgment without `[e]` has an unknown database, which the expected type must determine
+   = note: in the type of a declaration, the judgments without `[e]` share the declaration's anonymous database
+   = help: give the database: `P ⊢[e] r t̄`, with a database `e` in scope
+
+error[E0945]: `path` has 2 column(s), but the atom gives 1 argument(s)
+  --> tests/neg/p9b_not_coerced.hgn:33:28
+   |
+33 | arity : {x : city} -> fast.path x -> Type. (*~ E0945 *)
+   |                            ^^^^^^ wrong number of arguments
+   |
+   = note: `fast.path x` is read as the judgment `fast ⊢ path x`: its relation belongs to `fast`
+
+5 errors found

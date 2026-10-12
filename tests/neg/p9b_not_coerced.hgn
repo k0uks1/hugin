@@ -1,0 +1,35 @@
+(* #186 P9b: what the judgment coercion does not cover. A nullary relation used as a type is its fact type
+   (the proposition is `fast ⊢ done`); a functor written alone names no program (`tc.path`, E0107); a
+   coerced atom outside a declaration's type has an unknown database, which nothing here determines
+   (E0947); an atom that does not fit its program is E0945, with a note on how it was read. *)
+%use "std/graph".
+%use "std/semantics".
+%use "std/eq" (tt).
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+  done : rel.
+  done.
+}.
+
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+%output fast.path.
+
+flagged : fast.done -> fast ⊢ done.
+flagged F = F. (*~ E0901 *)
+proved : fast ⊢ done = decide 1 tt.
+
+alone : tc.path berlin paris -> Type. (*~ E0107 *)
+alone _ = Type.
+
+family : ⇑city -> ⇑city -> Type = fast.path. (*~ E0947 *)
+value : Type = fast.path berlin paris. (*~ E0947 *)
+
+arity : {x : city} -> fast.path x -> Type. (*~ E0945 *)
+arity _ = Type.
+%opaque proved.

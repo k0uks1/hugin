@@ -36,14 +36,20 @@ trait Judgments:
   // ---------------------------------------------------------------- the judgment
 
   /** `P ⊢[e] r t̄`. */
-  def inferJudgment(c: Cxt, j: Judgment): (Tm, Val, Stage) =
+  def inferJudgment(c: Cxt, j: Judgment): (Tm, Val, Stage) = inferJudgmentOf(c, j, None)
+
+  /** `P ⊢[e] r t̄`, with the program already resolved if `resolved` is given (a coerced atom of an opened
+   *  instance relation, #186 P9b: `j.program` then only shows it). */
+  def inferJudgmentOf(c: Cxt, j: Judgment, resolved: Option[(Tm, ProgramScope)]): (Tm, Val, Stage) =
     val sem = semanticsGlobals.getOrElse(fail(JudgmentProblem.NoLibrary(j.opSpan)))
     val programTy = eval(Nil, Tm.Global(sem("program")))
     // the program: a functor applied, a module or a program value; a functor alone names no arguments
-    rejectFunctorAlone(j)
-    val (prog, scope) =
-      if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
-      else judgmentProgram(c, j.program, j.opSpan)
+    val (prog, scope) = resolved match
+      case Some((p, sc)) => (p, Some(sc))
+      case None =>
+        rejectFunctorAlone(j)
+        if programValued(c, j.program, programTy) then (check(c, j.program, programTy, Stage.S1), None)
+        else judgmentProgram(c, j.program, j.opSpan)
     val programShown = hugin.syntax.Printer.show(j.program)
     // a program with a negation or an aggregate is read stratum by stratum, in `std/strata` (#186 P9c);
     // without the library, E0961 (#186 P9a)
@@ -259,7 +265,9 @@ trait Judgments:
    *  `c`: the anonymous database, if a judgment has no `[e]`. It has no source name, so it cannot be
    *  referred to or matched by `{x := p}`; the judgments without `[e]` of `trees`, and only they, are at it. */
   def generalisedBinders(trees: List[Tree], c: Cxt): (Cxt, List[(Name, Tm)]) =
-    val omitted = trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment if j.db.isEmpty => j.opSpan }).toSet
+    // the judgments without `[e]`, and the atoms coerced to judgments (#186 P9b), which have none
+    val omitted = (trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment if j.db.isEmpty => j.opSpan }) ++
+      coercionCandidates(trees, c).map(_._2)).toSet
     semanticsGlobals.filter(_ => omitted.nonEmpty) match
       case Some(sem) =>
         val dbTm = Tm.Global(sem("db"))
@@ -277,10 +285,8 @@ trait Judgments:
       if generalised(n) && c.scope.contains(n) then
         try undoOnFailure(unify(c.lvl, c.binder(c.scope(n)).ty, ty))
         catch case _: UnifyError => ()
-    for j <- trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment => j }) do
-      // before the binders that would need the argument's type (`{x : G.node} -> tc ⊢ …`)
-      rejectFunctorAlone(j)
-      val (head, args) = TreeOps.flattenApp(j.program)
+    def functorArguments(program: Tree): Unit =
+      val (head, args) = TreeOps.flattenApp(program)
       head match
         case Ident(f) if !c.scope.contains(f) =>
           lookupGlobal(f).filter(globals(_).stage == Stage.S1).foreach { id =>
@@ -295,9 +301,15 @@ trait Judgments:
                 case _ => rest = Nil
           }
         case _ =>
+    for j <- trees.flatMap(t => TreeOps.nodes(t).collect { case j: Judgment => j }) do
+      // before the binders that would need the argument's type (`{x : G.node} -> tc ⊢ …`)
+      rejectFunctorAlone(j)
+      functorArguments(j.program)
       j.db match
         case Some(VarRef(n)) => semanticsGlobals.foreach(sem => agree(n, eval(Nil, Tm.Global(sem("db")))))
         case _ =>
+    // the programs of the coerced atoms, `(tc G).path x y` (#186 P9b)
+    for case (Some(program), _) <- coercionCandidates(trees, c) do functorArguments(program)
 
   // ---------------------------------------------------------------- program data
 
