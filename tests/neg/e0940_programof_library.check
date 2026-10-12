@@ -1,0 +1,18 @@
+warning[W0003]: unused definition `tc`
+ --> tests/neg/e0940_programof_library.hgn:4:1
+  |
+4 | tc (g : graph2) = { (*~ W0003 *)
+  | ^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0940]: `programOf` needs the code bridge `std/quote`
+ --> tests/neg/e0940_programof_library.hgn:8:25
+  |
+8 | p : graph2 -> program = programOf tc. (*~ E0940 *)
+  |                         ^^^^^^^^^^^^ `programOf` is used here
+  |
+  = note: `programOf` builds a `program` of `std/semantics` with the vocabulary of `std/quote`
+  = help: add `%use "std/quote".` to the file
+
+1 error, 1 warning found

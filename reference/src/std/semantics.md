@@ -50,7 +50,9 @@ program's input relations are known from its data.
 
 ## Programs
 
-The rules of a program are data over their variables. A rule with the variables of the object types
+The rules of a program are data over their variables. The program of an ordinary functor or module
+is built by `programOf` of [`std/quote`](quote.md#programs-as-values); a program can also be written by
+hand, as below. A rule with the variables of the object types
 `τ₁ … τₙ` has the list `[τ₁, …, τₙ]` of its variables' types, and a variable is its position in that
 list, a proof of `member τᵢ [τ₁, …, τₙ]`. The values of the variables are an `env [τ₁, …, τₙ]`, built by
 `econs` from code of the types `τᵢ`.

@@ -14,8 +14,10 @@ enum MemberKind:
 
 /** A module body `{ items }` (reference: modules): its members (a telescope, whose types and definitions see
  *  the body's environment and the members before them) and its object items (rules, queries,
- *  directives, edges, in the context of the environment, the members and their own variables). */
-final case class ModuleBody(id: Int, span: Span, members: List[Member], items: List[CoreItem])
+ *  directives, edges, in the context of the environment, the members and their own variables).
+ *  `context` names and types the variables of its environment (outermost first, each type in the context
+ *  of the ones before), such as a functor's parameters, for `programOf` ([[elab.ProgramOf]]). */
+final case class ModuleBody(id: Int, span: Span, members: List[Member], items: List[CoreItem], context: List[(Name, Tm)] = Nil)
 
 /** An instance of a module body: its environment, with the members' values innermost, and the prefix of
  *  the names of its object constants. */

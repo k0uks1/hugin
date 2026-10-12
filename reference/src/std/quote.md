@@ -3,7 +3,8 @@
 The module `std/quote` is the *code bridge*: it converts between object code `⇑A`
 ([Staging](../meta/staging.md)), which a program can build and splice but not take apart, and the
 reflective syntax of [`std/reflect`](reflect.md) ([Reflection](../reflection.md)), which it can take
-apart. A program writes `%use "std/quote".`
+apart. A program writes `%use "std/quote".`; it loads [`std/semantics`](semantics.md), whose program
+values `programOf` builds ([Programs as values](#programs-as-values)).
 
 | declaration | meaning |
 |---|---|
@@ -14,6 +15,8 @@ apart. A program writes `%use "std/quote".`
 | `symOf : {R : ⇑type} -> ⇑R -> sym.` | the symbol of the code of an object constant |
 | `quoteUnquote : {A : ⇑type} -> (c : ⇑A) -> eq (quote (unquote (quote c))) (quote c).` | the converse round trip on the data of code, by `refl` |
 | `quoteUnquoteF` | the same for formulas |
+| `inputOf : list nat -> rref -> bool.` | the input test of a program that `programOf` builds |
+| `programOf P` | the program of the module `P` as a value of `std/semantics` (a special form) |
 
 The first five are trusted primitives ([Consistency](../meta/consistency.md#assumptions)); the two
 lemmas are proved by `refl`.
@@ -101,6 +104,90 @@ road $start berlin.
 
 ```output
 road paris berlin.
+```
+
+## Programs as values
+
+```text
+ProgramOf ::= "programOf" Expr
+```
+
+`programOf P` is the program of the module `P` as a value of type `program` of
+[`std/semantics`](semantics.md), so that a property of an ordinary functor is a meta type about its
+rules as written. `programOf` is a special form, not a function: a functor is a meta function, which
+cannot be inspected. It is a name only in this position, unless the program declares or opens a
+`programOf` of its own. `P` is one of the following:
+
+- a functor applied to arguments, `f a₁ … aₙ`, where the arguments may be variables: the program of the
+  body of `f`, its parameters' types as the arguments give them;
+- a functor `f`: the function `[x̄] programOf (f x̄)` from its parameters to programs, of type
+  `graph -> program` for a functor over `graph`;
+- a module `m` made by a functor application: the program of that application, so that
+  `programOf fast` is `programOf (tc2 { node = city, edge = road })` for `fast = tc2 { … }`.
+
+It is an error ([E0940](../errors/E0940.md)) if the program does not load `std/quote`, and
+([E0941](../errors/E0941.md)) if `P` is none of these. `programOf here`, the program of the current file,
+is not available yet ([E0941](../errors/E0941.md)).
+
+The program value is built as follows. No code is generated, and no instance of the module is created.
+
+- The body's rules are read as [staging](../meta/staging.md) would stage them: the meta code they splice
+  runs and formula functions are inlined, with the body's parameters and object constants abstract.
+- Relations are references ([`std/semantics`](semantics.md#values-and-relations)): the relations,
+  structs and constructors that the body declares are `own i`, numbered in the order they are written
+  (`relations` lists their names); a relation of a parameter is `arg l` with its field `l` of the
+  signature (`arg "edge"` for `g.edge`), qualified by the parameter's name if the functor has several
+  (`arg "g.edge"`); any other relation is `ext s`.
+- The variables of a rule are listed in the order they first occur (heads first), each with its object
+  type: the type that [object typing](../object/types.md) gives it, or for a wildcard `_` and a variable of
+  a formula function the type of the column it stands in.
+- Terms are `cv` (variables), `cc` (closed code, such as literals and constructor terms without
+  variables), `capp` (a constructor term over variables), `carith` and `cneg`. A rule's heads are its head
+  and its nested facts, outermost first. `(r t̄ as X)` in a body is the atom and the comparison of `X`
+  with the identity of the fact.
+- A rule's `head` is the relation of its first head, `index` its position among the rules of that
+  relation from 1, and `label` its name `@n`.
+- The input test `inputOf is` holds for the relations `arg l` and `ext s` and for the body's own
+  relations without rules (the extensional relations `is`); `strata` are the strongly connected
+  components of the body's own relations by the dependencies of rules, dependencies first.
+
+It is an error ([E0942](../errors/E0942.md)) if a rule is outside the positive fragment of
+`std/semantics` (negation, disjunction, aggregates, floats, string concatenation, ascriptions,
+projections, updates), builds a constructor term of a constant that the body declares, which has no
+code outside an instance, or has a variable whose type is not known.
+
+The following program proves that the transitive closure is transitive, over the program of a functor
+written as ordinary rules, for every graph and every input database.
+
+```hugin,run
+%use "std/eq" (eq, refl).
+%use "std/semantics".
+%use "std/quote".
+graph2 : Type = { node : type, edge : node -> node -> rel }.
+tc (g : graph2) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+pathOf : (g : graph2) -> db -> ⇑g.node -> ⇑g.node -> Type =
+  [g] [d] [x] [y] derives (programOf (tc g)) d (atom (own 0) [v x, v y]).
+walk : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} ->
+       derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]) -> pathOf g d y z -> pathOf g d x z.
+walk {x := X} {y := Y} {z := Z} E P =
+  fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here.
+trans : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} -> pathOf g d x y -> pathOf g d y z -> pathOf g d x z.
+trans (given () I) Q.
+trans {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) Q = walk {g := G} E Q.
+trans {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) Q =
+  walk {g := G} E (trans {g := G} P Q).
+names : (g : graph2) -> eq (programOf (tc g)).relations ["path"] = [g] refl.
+%opaque trans names.
+proved : string -> rel.
+proved "trans".
+```
+
+```output
+proved "trans".
 ```
 
 > **Note.** The bridge follows the "analysable deep embedding" of Kovács's two-level type theory (ICFP

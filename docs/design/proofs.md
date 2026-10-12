@@ -2099,3 +2099,46 @@ Decisions made during implementation are listed here with their PR.
   `std/quote`, both stay E0901 / E0918 as before.
 - *`symOf : {R : ⇑type} -> ⇑R -> sym`*, the identity on the code of an object constant (a symbol is that
   code), stuck otherwise.
+- *`programOf`, syntax.* A contextual special form, like P3's `in`: `programOf e` is the form unless a
+  `programOf` is declared or opened; `programOf f a b` reads as `programOf (f a b)`. Lean's `quote` and
+  Agda's `quoteTerm` are syntax for the same reason: the argument (a functor, a meta function) cannot be
+  inspected as a value.
+- *How the body is read.* The functor is applied to fresh variables, so its body is a module in an open
+  environment and no instance is created (generativity, D10, is untouched). The rules are evaluated as
+  staging evaluates them, with the environment and the object members abstract, which runs splices and
+  inlines formula functions; the normal forms are read as data. The data is built as a term over the
+  body's environment and applied to the actual arguments, so `programOf (tc g)` is meta code in `g` and
+  computes under substitution (`programOf (tc { node = city, edge = road })` gives the rules over `city`).
+  A module body records its context's names and types (`ModuleBody.context`) for the column types of
+  parameter relations.
+- *Instances.* `programOf m` finds the instance among the recorded module instances (its object constants)
+  and reads its body at the instance's recorded environment: the "recorded origin" of 7.4 and D10, so
+  `programOf fast` is `programOf (tc2 { … })` by `refl`.
+- *A bare functor* `programOf f` is `[x̄] programOf (f x̄)`, of type `graph2 -> program`, not chapter 1's
+  `tcP : program`: a closed program would need code for the abstract `g.node`. P7b's generalisation
+  writes `f g` anyway.
+- *References and numbering.* The body's relations, structs and constructors are `own i` in source order;
+  a parameter relation is `arg l` by its path in the parameter (`edge`), qualified by the parameter's name
+  only if the body has several environment variables; everything else `ext s`. Variables are numbered by
+  first occurrence, heads first (as P5a's examples); `index` counts from 1 (`path.1`).
+- *Variable types.* Object typing's solution; for a wildcard and a formula function's variable (not rule
+  variables of the core), the type of the column it stands in. Without either, E0942.
+- *Inputs and strata.* The input test is `inputOf is` of `std/quote`: `arg` and `ext` relations, and the
+  own relations without rules (the extensional relations, Abiteboul, Hull and Vianu, ch. 12), so
+  `given` is refuted for a relation with rules (chapter 1). `std/quote` therefore loads `std/semantics`.
+  Strata are Tarjan's components of the own relations, dependencies first; P6 refines them for negation.
+- *Heads and `as`.* A rule's heads are its head and its constructor terms, outermost first (P5a's "no
+  `sub`"); `(r t̄ as X)` in a body is the atom plus `ccmp ceq X t` with the fact's identity `t`, `X` of the
+  fact type.
+- *Outside the fragment* (E0942): negation, disjunction, aggregates, floats, `^`, ascriptions,
+  projections, updates, and constructor terms of a constant the body declares (generative: no code
+  outside an instance). E0940: `std/quote` not loaded; E0941: not a functor, application or module.
+- *`here` is deferred.* The file's object rules are elaborated after all its meta declarations (reference
+  `meta/index`, "Order of elaboration"), so `programOf here` needs a new phase after the object items, with
+  the items that use it and everything that depends on them moved there, and a rule that splices such a
+  value rejected as a cycle. That is the risk 12 names; it is left to a follow-up, and `programOf here` is
+  E0941 with a note.
+- *Proof A over `programOf`.* `tests/run/p7a_program.hgn` proves `sameFacts` for `tc` and `tc2` over
+  `programOf (tc g)` and `programOf (tc2 g)` with `fire`/`given`. `g` must be passed (`{g := G}`):
+  `programOf (tc g)` mentions `g` only in variable types, so unification does not determine it, which is
+  what P7b's generalised parameters address.

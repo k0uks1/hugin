@@ -1,0 +1,139 @@
+(* #186 P7a: `programOf` (reference: std/quote, "Programs as values"). The rules of ordinary functors as
+   programs of `std/semantics`, compared with the program written by hand, and proof A of the proofs note
+   (chapter 1) over them, without the notation of P7b: `tc` and `tc2`, the doubling variant, derive the
+   same paths for every graph and every input. Then an instance, a bare functor, and the forms a body
+   may use: constructor terms and their nested facts, arithmetic, comparisons, wildcards, formula
+   functions, `as`, labels and relations outside the module. *)
+%use "std/reflect" (oadd, cgt, ceq).
+%use "std/eq" (eq, refl, empty, iff).
+%use "std/semantics".
+%use "std/quote".
+
+graph2 : Type = { node : type, edge : node -> node -> rel }.
+
+tc (g : graph2) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- g.edge X Y, path Y Z.
+}.
+
+tc2 (g : graph2) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+}.
+
+(* the rules of `tc`, written by hand: the variables in order of first occurrence *)
+path1 : ⇑type -> crule = [n] { head = 0, index = 1, label = none, vars = [n, n],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there here)) tnil))],
+  body = [cpos (cat (arg "edge") (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
+path2 : ⇑type -> crule = [n] { head = 0, index = 2, label = none, vars = [n, n, n],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there here)) tnil))],
+  body = [cpos (cat (arg "edge") (tcons (cv here) (tcons (cv (there (there here))) tnil))),
+          cpos (cat (own 0) (tcons (cv (there (there here))) (tcons (cv (there here)) tnil)))] }.
+rules : (g : graph2) -> eq (programOf (tc g)).rules [path1 g.node, path2 g.node] = [g] refl.
+names : (g : graph2) -> eq (programOf (tc g)).relations ["path"] = [g] refl.
+strata : (g : graph2) -> eq (programOf (tc g)).strata [[0]] = [g] refl.
+pathOwn : (g : graph2) -> eq ((programOf (tc g)).input (own 0)) false = [g] refl.
+edgeIn : (g : graph2) -> eq ((programOf (tc g)).input (arg "edge")) true = [g] refl.
+
+(* `tc ⊢[d] path x y` and `tc2 ⊢[d] path x y`, written out *)
+tcPath : (g : graph2) -> db -> ⇑g.node -> ⇑g.node -> Type = [g] [d] [x] [y] derives (programOf (tc g)) d (atom (own 0) [v x, v y]).
+tc2Path : (g : graph2) -> db -> ⇑g.node -> ⇑g.node -> Type = [g] [d] [x] [y] derives (programOf (tc2 g)) d (atom (own 0) [v x, v y]).
+
+(* tc's paths are transitive *)
+walk : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} ->
+       derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]) -> tcPath g d y z -> tcPath g d x z.
+walk {x := X} {y := Y} {z := Z} E P = fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here.
+
+tcTrans : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} -> tcPath g d x y -> tcPath g d y z -> tcPath g d x z.
+tcTrans (given () I) Q.
+tcTrans {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) Q = walk {g := G} E Q.
+tcTrans {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) Q =
+  walk {g := G} E (tcTrans {g := G} P Q).
+
+(* an input edge is an input edge in either program *)
+edgeTo : {g : graph2} -> {d : db} -> {x y : ⇑g.node} ->
+         derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]) -> derives (programOf (tc2 g)) d (atom (arg "edge") [v x, v y]).
+edgeTo (given T I) = given T I.
+edgeTo (fire here Ps (there ())).
+edgeTo (fire (there here) Ps (there ())).
+
+edgeFrom : {g : graph2} -> {d : db} -> {x y : ⇑g.node} ->
+           derives (programOf (tc2 g)) d (atom (arg "edge") [v x, v y]) -> derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]).
+edgeFrom (given T I) = given T I.
+edgeFrom (fire here Ps (there ())).
+edgeFrom (fire (there here) Ps (there ())).
+
+(* every derivation in tc is one in tc2, and back *)
+toTc2 : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> tcPath g d x y -> tc2Path g d x y.
+toTc2 (given () I).
+toTc2 {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
+  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo {g := G} E) pnil) here.
+toTc2 {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) =
+  fire {xs := econs X (econs Z (econs Y enil))} (there here)
+    (ppos refl (fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo {g := G} E) pnil) here) (ppos refl (toTc2 {g := G} P) pnil)) here.
+
+toTc : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> tc2Path g d x y -> tcPath g d x y.
+toTc (given () I).
+toTc {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
+  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeFrom {g := G} E) pnil) here.
+toTc {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl P (ppos refl Q pnil)) here) =
+  tcTrans {g := G} (toTc {g := G} P) (toTc {g := G} Q).
+
+sameFacts : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> iff (tcPath g d x y) (tc2Path g d x y).
+sameFacts {g := G} = { to = toTc2 {g := G}, from = toTc {g := G} }.
+%opaque rules names strata pathOwn edgeIn tcTrans edgeTo edgeFrom toTc2 toTc sameFacts.
+
+(* an instance is the program of the application that made it; a bare functor a function of its parameters *)
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+instance : eq (programOf fast) (programOf (tc2 { node = city, edge = road })) = refl.
+functor : graph2 -> program = programOf tc.
+applied : eq (functor { node = city, edge = road }) (programOf (tc { node = city, edge = road })) = refl.
+%opaque instance applied.
+
+(* constructor terms (their nested facts are heads), arithmetic, comparisons, wildcards, a formula
+   function, `as`, a label, and a relation outside the module *)
+shape : type.
+circle : (r : int) -> shape.
+sized (g : graph2) = {
+  big : int -> rel.
+  drawn : shape -> rel.
+  linked : g.node -> rel.
+  outgoing : g.node -> prop.
+  outgoing X :- g.edge X _.
+  @grow big (X + 1) :- big X, X > 10.
+  drawn (circle R) :- big R.
+  linked X :- outgoing X.
+}.
+bodies : (g : graph2) -> eq (programOf (sized g)).rules
+  [{ head = 0, index = 1, label = some "grow", vars = [int],
+     heads = [cat (own 0) (tcons (carith oadd (cv here) (cc 1)) tnil)],
+     body = [cpos (cat (own 0) (tcons (cv here) tnil)), ccmp cgt (cv here) (cc 10)] },
+   { head = 1, index = 1, label = none, vars = [int],
+     heads = [cat (own 1) (tcons (capp ([e] <circle $(valueAt e here)>) (tcons (cv here) tnil)) tnil),
+              cat (ext '( circle )) (tcons (cv here) tnil)],
+     body = [cpos (cat (own 0) (tcons (cv here) tnil))] },
+   { head = 2, index = 1, label = none, vars = [g.node, g.node, g.node],
+     heads = [cat (own 2) (tcons (cv here) tnil)],
+     body = [ccmp ceq (cv here) (cv (there here)),
+             cpos (cat (arg "edge") (tcons (cv (there here)) (tcons (cv (there (there here))) tnil)))] }] = [g] refl.
+sizedStrata : (g : graph2) -> eq (programOf (sized g)).strata [[0], [1], [2]] = [g] refl.
+
+(* `as` binds the identity of the fact; a relation outside the module is an input *)
+more (g : graph2) = {
+  wide : g.node -> rel.
+  roads : g.node -> rel.
+  wide X :- (g.edge X _ as E), road berlin paris, E = E.
+  roads X :- wide X, road berlin paris.
+}.
+moreStrata : (g : graph2) -> eq (programOf (more g)).strata [[0], [1]] = [g] refl.
+roadIn : (g : graph2) -> eq ((programOf (more g)).input (ext '( road ))) true = [g] refl.
+%opaque bodies sizedStrata moreStrata roadIn.
+
+checked : string -> rel.
+checked "programOf".
+%output checked.
