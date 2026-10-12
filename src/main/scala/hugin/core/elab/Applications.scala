@@ -57,6 +57,93 @@ trait Applications:
     recordLocalDeclaration(cb, c.lvl)
     Tm.Lam(name, Icit.Expl, check(cb, body, inst(pi.cl, Val.local(c.lvl)), st))
 
+  /** The head of `c {x := e}… a₁ … aₙ` if it is a meta constructor applied to positional arguments, after
+   *  named implicit arguments that each name a different one of its leading implicit binders (#186 P5). */
+  def constructorHead(c: Cxt, t: Tree): Option[hugin.syntax.Trees.Ident] =
+    val (head, args) = TreeOps.flattenApp(t)
+    val (named, positional) = args.span(_.isInstanceOf[NamedArg])
+    head match
+      case id @ hugin.syntax.Trees.Ident(n)
+          if positional.nonEmpty && !positional.exists(_.isInstanceOf[NamedArg]) && c.scope.get(n).isEmpty &&
+            !state.bodyDeclared(n) && !state.unelaborated(n) =>
+        lookupGlobal(n).map(sharedAt(_, state.stage)).filter(isConstructor).flatMap { ctor =>
+          val leading = telescope(globals(ctor).ty)._1.takeWhile(_._2 == Icit.Impl).map(_._1)
+          val names = named.collect { case a: NamedArg => a.name }
+          Option.when(names.distinct.length == names.length && names.forall(leading.contains))(id)
+        }
+      case _ => None
+
+  /** A constructor application `c {x := e}… a₁ … aₙ` checked against `expected` (#186 P5): the
+   *  constructor's result type, after its leading implicit arguments (fresh unknowns) and the `n` explicit
+   *  ones, is unified with the expected type *before* the arguments are checked, so that they are checked
+   *  against types that the expected type determines. This is how Agda checks a constructor application
+   *  (`checkConstructorApplication` takes the parameters from the target type), and Lean 4 propagates an
+   *  expected type to an application whose result does not depend on its explicit arguments
+   *  (`ElabAppArgs.propagateExpectedType`). A derivation `fire M (ppos refl E pnil) H` of `std/semantics`
+   *  is so checked with its program and rule known, which none of its arguments determines alone. Only
+   *  when the result type does not depend on the explicit arguments and is a family applied, and only if
+   *  unification succeeds: otherwise it is undone, and the arguments are checked as without the expected
+   *  type. So it adds only solutions that unifying the application's type with the expected type adds
+   *  anyway, earlier. Then the named implicit arguments are checked against their binders, and the
+   *  explicit ones in order, as an application is elaborated otherwise. */
+  def checkConstructorApp(c: Cxt, t: Tree, head: hugin.syntax.Trees.Ident, expected: Val): (Tm, Val, Stage) =
+    val (_, args) = TreeOps.flattenApp(t)
+    val (named, positional) = args.span(_.isInstanceOf[NamedArg])
+    val namedArgs = named.collect { case a: NamedArg => a }
+    val (ht, hty, hs) = infer(c, head)
+    recordTyped(c, head.span, ht, hty, hs, checked = false)
+    // the leading implicit arguments: unknowns, also those given by name (solved by their arguments below)
+    var ft = ht
+    var fty = hty
+    val implicits = List.newBuilder[(Name, Val, Val)]
+    var more = true
+    while more do
+      force(fty) match
+        case Val.Pi(x, Icit.Impl, a, cl) =>
+          val m = freshMeta(c, a, Stage.S1, head.span, s"the implicit argument `$x`")
+          if !namedArgs.exists(_.name == x) then insertedImplicit(c, head.span, x, m)
+          val mv = ev(c, m)
+          implicits += ((x, a, mv))
+          ft = Tm.App(ft, m, Icit.Impl)
+          fty = inst(cl, mv)
+        case _ => more = false
+    // the result type after the explicit arguments (bound to fresh variables), if they are contiguous
+    val n = positional.length
+    def after(ty: Val, k: Int): Option[Val] =
+      if k == n then Some(ty)
+      else
+        force(ty) match
+          case Val.Pi(_, Icit.Expl, _, cl) => after(inst(cl, Val.local(c.lvl + k)), k + 1)
+          case _ => None
+    after(fty, 0).foreach { res =>
+      val body = quote(c.lvl + n, res)
+      val independent = (0 until n).forall(i => !occurs(i, body))
+      val familyApp = force(res) match
+        case Val.Rigid(Head.Glob(f), _) => isFamily(f)
+        case _ => false
+      if independent && familyApp then
+        try undoOnFailure(unify(c.lvl, res, expected))
+        catch case _: UnifyError => ()
+    }
+    val bound = implicits.result()
+    namedArgs.foreach { a =>
+      val (_, dom, mv) = bound.find(_._1 == a.name).get
+      val at = core.anonymously(check(c, a.value, dom, Stage.S1))
+      unifyAt(c, a.value.span, mv, ev(c, at))
+    }
+    var fs = hs
+    var f: Tree = named.foldLeft(head: Tree)((g, a) => Apply(g, a)(g.span.to(a.span)))
+    positional.zipWithIndex.foreach { (a, i) =>
+      if i > 0 then
+        val r = insertAll(c, f.span, (ft, fty, fs))
+        ft = r._1; fty = r._2; fs = r._3
+      val span = f.span.to(a.span)
+      val r = inferPositionalApp(c, f, a, span, ft, fty, fs)
+      ft = r._1; fty = r._2; fs = r._3
+      f = Apply(f, a)(span)
+    }
+    (ft, fty, fs)
+
   def inferApp(c: Cxt, f: Tree, a: Tree, span: Span): (Tm, Val, Stage) = a match
     case n: NamedArg => inferNamedApp(c, f, n, span)
     case _ => inferPlainApp(c, f, a, span)
@@ -145,7 +232,7 @@ trait Applications:
     case Val.Pi(_, _, _, cl) => inst(cl, Val.Wild)
     case other => other
 
-  private def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
+  private[elab] def inferPositionalApp(c: Cxt, f: Tree, a: Tree, span: Span, ft: Tm, fty: Val, fs: Stage): (Tm, Val, Stage) =
     force(fty) match
       case Val.Pi(_, Icit.Expl, dom, cl) =>
         // the argument's instances are anonymous ([[Modules.argument]]): checking it may evaluate it

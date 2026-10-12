@@ -65,8 +65,21 @@ trait Inductives:
     if resultSp.length != famTy._1.length then
       fail(ClauseProblem.PartialFamilyResult(globals(fam).name, d.tpe.span))
     binders.zipWithIndex.foreach { case ((x, _, a), l) =>
-      if !strictlyPositive(fam, l, a) then
+      if !strictlyPositive(Set(fam), l, a) then
         fail(ClauseProblem.NonPositive(globals(fam).name, l + 1, showVal(binders.take(l).map(_._1).reverse, a), d.tpe.span))
+    }
+    mutualViolation(fam, binders).foreach { (c, l, before, a, block) =>
+      val shown = block.find(g => familiesIn(l, a).contains(g)).getOrElse(fam)
+      fail(
+        ClauseProblem.NonPositive(
+          globals(shown).name,
+          l + 1,
+          showVal(before.map(_._1).reverse, a),
+          d.tpe.span,
+          block.filter(_ != shown).map(g => globals(g).name).toList,
+          c.map(globals(_).name)
+        )
+      )
     }
     val famLevel = force(famTy._2) match
       case Val.U1(k) => k
@@ -170,23 +183,80 @@ trait Inductives:
       (f != fam || as.lift(i).flatMap(localOf).contains(x)) && as.forall(keepsFixed(fam, i, x, l, _))
     case other => !mentions(fam, l, other)
 
-  /** `T` occurs strictly positively in `a` (over `l` variables): `a` does not mention `T`, or is
-   *  `(ȳ : B̄) -> T w̄` with `T` neither in `B̄` nor in `w̄`, or `T` occurs strictly positively in an argument
-   *  of another family that is positive in that argument (nested, `list term`). */
-  private def strictlyPositive(fam: Int, l: Int, a: Val): Boolean =
+  /** The families `fams` (a family, or a mutual block of them) occur strictly positively in `a` (over `l`
+   *  variables): `a` does not mention them, or is `(ȳ : B̄) -> T w̄` with `T` one of them and none of them
+   *  in `B̄` or `w̄`, or they occur strictly positively in an argument of another family that is positive in
+   *  that argument (nested, `list term`). */
+  private def strictlyPositive(fams: Set[Int], l: Int, a: Val): Boolean =
     force(a) match
-      case Val.Pi(_, _, b, cl) => !mentions(fam, l, b) && strictlyPositive(fam, l + 1, inst(cl, Val.local(l)))
-      case Val.Rigid(Head.Glob(f), sp) if f == fam =>
+      case Val.Pi(_, _, b, cl) => !mentionsAny(fams, l, b) && strictlyPositive(fams, l + 1, inst(cl, Val.local(l)))
+      case Val.Rigid(Head.Glob(f), sp) if fams(f) =>
         sp.forall {
-          case Elim.EApp(x, _) => !mentions(fam, l, x)
+          case Elim.EApp(x, _) => !mentionsAny(fams, l, x)
           case _ => false
         }
       case Val.Rigid(Head.Glob(f), sp) if isFamily(f) =>
         sp.reverse.zipWithIndex.forall {
-          case (Elim.EApp(x, _), j) => !mentions(fam, l, x) || positiveIn(f, j) && strictlyPositive(fam, l, x)
+          case (Elim.EApp(x, _), j) => !mentionsAny(fams, l, x) || positiveIn(f, j) && strictlyPositive(fams, l, x)
           case _ => false
         }
-      case other => !mentions(fam, l, other)
+      case other => !mentionsAny(fams, l, other)
+
+  /** Mutual families (#186 P5): families whose constructors refer to each other, directly or through
+   *  other families, form a *mutual block*, a strongly connected component of the graph "a constructor of
+   *  `F` mentions `G` in an argument type". Every family of a block must occur strictly positively in the
+   *  constructors of every family of the block, as in Agda (`Agda.TypeChecking.Positivity`, over the
+   *  occurrence graph of a mutual block), Lean 4 (the kernel's positivity check over all types of a
+   *  `mutual` block) and Coq. The check of a constructor against its own family alone would accept
+   *  `a : Type. b : Type. mkA : (b -> empty) -> a. mkB : a -> b.`, whose `loop (mkB (mkA f)) = f (mkB (mkA
+   *  f))` proves `empty`. Families need no `mutual` keyword: the block of a constructor's family is
+   *  recomputed when the constructor is declared (`binders`, not yet registered), and if it has other
+   *  members, every constructor of the block is checked against all of them. A constructor that closes a
+   *  cycle is so checked before any function can use it. `None`, or the first argument that is not
+   *  strictly positive: its constructor (`None` for the one declared), its index, its binders before it
+   *  and its type, and the block. */
+  private def mutualViolation(
+      fam: Int,
+      binders: List[(Name, Icit, Val)]
+  ): Option[(Option[Int], Int, List[(Name, Icit, Val)], Val, Vector[Int])] =
+    val known = scala.collection.mutable.Map.empty[Int, Set[Int]]
+    def mentioned(bs: List[(Name, Icit, Val)]): Set[Int] =
+      bs.zipWithIndex.flatMap { case ((_, _, a), l) => familiesIn(l, a) }.toSet
+    def edges(f: Int): Set[Int] =
+      known.getOrElseUpdate(
+        f,
+        constructors(f).flatMap(c => mentioned(telescope(globals(c).ty)._1)).toSet ++ (if f == fam then mentioned(binders) else Set.empty)
+      )
+    // the families from which `fam` is reachable, among those reachable from it
+    val reach = scala.collection.mutable.LinkedHashSet.empty[Int]
+    def forward(f: Int): Unit = if reach.add(f) then edges(f).foreach(forward)
+    forward(fam)
+    // those of them from which `fam` is reachable (a fixpoint over the reachable families)
+    var onCycle = Set(fam)
+    var grown = true
+    while grown do
+      val more = reach.filter(f => !onCycle(f) && edges(f).exists(onCycle))
+      grown = more.nonEmpty
+      onCycle ++= more
+    val block = reach.toVector.filter(onCycle)
+    if block.length < 2 then None
+    else
+      val members = block.toSet
+      val ctors = block.flatMap(f => constructors(f).map(c => (Option(c), telescope(globals(c).ty)._1))) :+ (None, binders)
+      ctors.iterator.flatMap { (c, bs) =>
+        bs.zipWithIndex.find { case ((_, _, a), l) => !strictlyPositive(members, l, a) }.map { case ((_, _, a), l) =>
+          (c, l, bs.take(l), a, block)
+        }
+      }.nextOption()
+
+  /** The inductive families that `a` (over `l` variables) mentions. */
+  private def familiesIn(l: Int, a: Val): Set[Int] =
+    var out = Set.empty[Int]
+    Tm.exists(quote(l, a)) {
+      case Tm.Global(g) if isFamily(g) => out += g; false
+      case _ => false
+    }
+    out
 
   /** Whether family `f` is strictly positive in its argument `j`: every constructor takes it as a forced
    *  binder, which its arguments use only strictly positively (as `A` or in `f … A …` at `j`). */
@@ -213,10 +283,10 @@ trait Inductives:
       }
     case other => !occurs(k - v - 1, quote(k, other))
 
-  private def mentions(fam: Int, l: Int, v: Val): Boolean = mentionsTm(fam, quote(l, v))
+  private def mentions(fam: Int, l: Int, v: Val): Boolean = mentionsAny(Set(fam), l, v)
 
-  private def mentionsTm(fam: Int, t: Tm): Boolean = Tm.exists(t) {
-    case Tm.Global(g) => g == fam
+  private def mentionsAny(fams: Set[Int], l: Int, v: Val): Boolean = Tm.exists(quote(l, v)) {
+    case Tm.Global(g) => fams(g)
     case _ => false
   }
 

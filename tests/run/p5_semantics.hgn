@@ -1,0 +1,117 @@
+(* #186 P5a: the positive fragment of `std/semantics` (reference: std/semantics). The transitive closure of
+   `std/graph` as a program value, over a node type `n`; derivations of its facts, built and matched with
+   `fire` and `given`; transitivity of its paths over `derives` (chapter 1, proof A, without the notation
+   of P7b); index unification on object code; the 64-bit arithmetic and comparisons. *)
+%use "std/reflect" (oadd, cgt).
+%use "std/eq" (eq, refl, empty, unit, tt).
+%use "std/decide" (so).
+%use "std/semantics".
+
+(* the rules of `tc`: `path X Y :- g.edge X Y.` and `path X Z :- g.edge X Y, path Y Z.` *)
+isArg : rref -> bool.
+isArg (arg S) = true.
+isArg (own N) = false.
+isArg (ext S) = false.
+
+path1 : ⇑type -> crule = [n] { head = 0, index = 1, label = none, vars = [n, n],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there here)) tnil))],
+  body = [cpos (cat (arg "edge") (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
+path2 : ⇑type -> crule = [n] { head = 0, index = 2, label = none, vars = [n, n, n],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there (there here))) tnil))],
+  body = [cpos (cat (arg "edge") (tcons (cv here) (tcons (cv (there here)) tnil))),
+          cpos (cat (own 0) (tcons (cv (there here)) (tcons (cv (there (there here))) tnil)))] }.
+tcP : ⇑type -> program = [n] { relations = ["path"], rules = [path1 n, path2 n], input = isArg, strata = [[0]] }.
+
+(* `tc ⊢[d] path x y` and `tc ⊢[d] g.edge x y`, written out *)
+path : {n : ⇑type} -> db -> ⇑n -> ⇑n -> Type.
+path {n := N} D X Y = derives (tcP N) D (atom (own 0) [v X, v Y]).
+edge : {n : ⇑type} -> db -> ⇑n -> ⇑n -> Type.
+edge {n := N} D X Y = derives (tcP N) D (atom (arg "edge") [v X, v Y]).
+
+(* the two rules as functions; the expected type determines the program and the rule of `fire` *)
+step : {n : ⇑type} -> {d : db} -> {x y : ⇑n} -> edge d x y -> path d x y.
+step {x := X} {y := Y} E = fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here.
+
+walk : {n : ⇑type} -> {d : db} -> {x y z : ⇑n} -> edge d x y -> path d y z -> path d x z.
+walk {x := X} {y := Y} {z := Z} E P = fire {xs := econs X (econs Y (econs Z enil))} (there here) (ppos refl E (ppos refl P pnil)) here.
+
+(* transitivity: `path` has rules, so `given` is refuted by its hidden argument `so false`; a rule's
+   variables are bound by matching its environment *)
+tcTrans : {n : ⇑type} -> {d : db} -> {x y z : ⇑n} -> path d x y -> path d y z -> path d x z.
+tcTrans (given () I) Q.
+tcTrans (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) Q = walk E Q.
+tcTrans (fire {xs := econs X (econs Y (econs Z enil))} (there here) (ppos refl E (ppos refl P pnil)) here) Q =
+  walk E (tcTrans P Q).
+%opaque tcTrans.
+
+(* without input facts there is no edge, hence no path: the rules' heads conflict with `arg "edge"` *)
+nothing : db = [a] empty.
+noEdge : {n : ⇑type} -> {x y : ⇑n} -> edge nothing x y -> empty.
+noEdge (given T ()).
+noEdge (fire here Ps (there ())).
+noEdge (fire (there here) Ps (there ())).
+noPath : {n : ⇑type} -> {x y : ⇑n} -> path nothing x y -> empty.
+noPath (given () I).
+noPath (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) = noEdge E.
+noPath (fire {xs := econs X (econs Y (econs Z enil))} (there here) (ppos refl E Ps) here) = noEdge E.
+
+(* a concrete database of input facts, and a derivation of a path of two edges from it *)
+city : type. berlin, paris, rome : city.
+roads : gatom -> Type.
+bp : roads (atom (arg "edge") [v (<berlin>), v (<paris>)]).
+pr : roads (atom (arg "edge") [v (<paris>), v (<rome>)]).
+viaParis : path roads (<berlin>) (<rome>) = walk {d := roads} (given tt bp) (step {d := roads} (given tt pr)).
+
+(* the first hop of a path from Berlin is Paris: the only input edge from Berlin *)
+fromBerlin : {y : ⇑city} -> edge roads (<berlin>) y -> eq y (<paris>).
+fromBerlin (given T bp) = refl.
+fromBerlin (fire here Ps (there ())).
+fromBerlin (fire (there here) Ps (there ())).
+
+(* index unification on object code: distinct constants and literals conflict, constructors are injective *)
+shape : type.
+circle : int -> shape.
+square : int -> shape.
+distinctCities : eq (v (<berlin>)) (v (<paris>)) -> empty.
+distinctCities ().
+distinctShapes : eq (v (<circle 1>)) (v (<square 1>)) -> empty.
+distinctShapes ().
+distinctRadii : eq (v (<circle 1>)) (v (<circle 2>)) -> empty.
+distinctRadii ().
+distinctTypes : eq (v (<berlin>)) (v (<1>)) -> empty.
+distinctTypes ().
+sameRadius : {x y : ⇑int} -> eq (v (<circle $x>)) (v (<circle $y>)) -> eq x y.
+sameRadius refl = refl.
+%opaque viaParis.
+
+(* the object level's 64-bit arithmetic: `none` outside 64 bits and on a division by zero *)
+added : eq (add64 2 40) (some 42) = refl.
+overflow : eq (add64 9223372036854775807 1) none = refl.
+lowest : eq (sub64 (-9223372036854775807) 1) (some (-9223372036854775808)) = refl.
+negOverflow : eq (neg64 (-9223372036854775808)) none = refl.
+truncated : eq (div64 (-7) 2) (some (-3)) = refl.
+byZero : eq (div64 7 0) none = refl.
+product : eq (mul64 4294967296 4294967296) none = refl.
+%opaque added overflow lowest negOverflow truncated byZero product.
+
+(* a rule with arithmetic and a comparison: `big Y :- num X, X > 10, Y = X + 1.` as `big (X + 1) :- …` *)
+bigRule : crule = { head = 0, index = 1, label = none, vars = [int],
+  heads = [cat (own 0) (tcons (carith oadd (cv here) (cc 1)) tnil)],
+  body = [cpos (cat (arg "num") (tcons (cv here) tnil)), ccmp cgt (cv here) (cc 10)] }.
+bigP : program = { relations = ["big"], rules = [bigRule], input = isArg, strata = [[0]] }.
+nums : gatom -> Type.
+twelve : nums (atom (arg "num") [v 12]).
+three : nums (atom (arg "num") [v 3]).
+big13 : derives bigP nums (atom (own 0) [v 13]) =
+  fire {xs := econs 12 enil} here (ppos refl (given tt twelve) (pcmp (cmpGt tt) pnil)) here.
+
+(* 4 is not derived: the only number it could come from is 3, which is not greater than 10 *)
+noBig4 : derives bigP nums (atom (own 0) [v 4]) -> empty.
+noBig4 (given () I).
+noBig4 (fire {xs := econs X enil} here (ppos refl (given T three) (pcmp (cmpGt ()) pnil)) here).
+noBig4 (fire {xs := econs X enil} here (ppos refl (given T twelve) Ps) (there ())).
+noBig4 (fire {xs := econs X enil} here (ppos refl (fire here Qs (there ())) Ps) H).
+%opaque big13 noBig4.
+
+checked : string -> rel.
+checked "semantics".

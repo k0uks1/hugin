@@ -37,6 +37,7 @@
     - [`std/int`](std/int.md)
     - [`std/eq`](std/eq.md)
     - [`std/decide`](std/decide.md)
+    - [`std/semantics`](std/semantics.md)
     - [`std/list`](std/list.md)
     - [`std/directives`](std/directives.md)
     - [`std/graph`](std/graph.md)

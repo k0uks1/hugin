@@ -354,6 +354,10 @@ trait Declarations:
       case PrimOp.Derive if doms.length == 2 && isSym(doms(0)) && isString(doms(1)) && isSym(result) => Some(Nil)
       case PrimOp.QAtom if binders.map(_._2) == List(Icit.Impl, Icit.Expl) => qatomCtors(doms(1), result)
       case PrimOp.SameTrue | PrimOp.Apart => sameLemmaCtors(op, ty)
+      case PrimOp.IntOf if binders.map(_._2) == List(Icit.Expl) && isMetaInt(forceData(result)) =>
+        forceData(doms.head) match
+          case Val.Lift(t) if forceData(t) == Val.Base(hugin.obj.BaseType.IntT, Stage.S0) => Some(Nil)
+          case _ => None
       case _ => None
     val expected = op match
       case PrimOp.Same => "A -> A -> bool"
@@ -363,6 +367,7 @@ trait Declarations:
       case PrimOp.QAtom => "quoted A -> formula"
       case PrimOp.SameTrue => "{A : Type} -> {a b : A} -> eq (same a b) true -> eq a b"
       case PrimOp.Apart => "{A : Type} -> {a b : A} -> eq (same a b) false -> eq a b -> empty"
+      case PrimOp.IntOf => "⇑int -> int"
     found.getOrElse(fail(ElabProblem.PrimitiveType(op.key, expected, span)))
 
   /** `eq` and `refl` for the lemmas on `same` of `std/eq`, if the type is exactly theirs: `sameTrue : {A :

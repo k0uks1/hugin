@@ -1,0 +1,27 @@
+(* #186 P5a, the worked example of the proofs note, 11.1: reachability is transitive, over a family
+   written by hand. The same theorem over `derives`, for the rules of `tc` as a program value, is
+   `tcTrans` in p5_semantics.hgn. *)
+model : Type = { node : Type, edge : node -> node -> Type }.   (* a model of `graph` *)
+
+path : (m : model) -> m.node -> m.node -> Type.
+step1 : {m : model} -> {x y : m.node} -> m.edge x y -> path m x y.
+step2 : {m : model} -> {x y z : m.node} -> m.edge x y -> path m y z -> path m x z.
+
+trans : {m : model} -> {x y z : m.node} -> path m x y -> path m y z -> path m x z.
+trans (step1 E) Q = step2 E Q.
+trans (step2 E P) Q = step2 E (trans P Q).
+
+(* an instance: three cities on a line *)
+city : Type.
+berlin : city.
+paris : city.
+rome : city.
+road : city -> city -> Type.
+bp : road berlin paris.
+pr : road paris rome.
+line : model = { node = city, edge = road }.
+far : path line berlin rome = trans {m := line} (step1 bp) (step1 pr).
+%opaque far.
+
+checked : string -> rel.
+checked "reachability".

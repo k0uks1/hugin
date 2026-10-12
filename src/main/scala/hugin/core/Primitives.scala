@@ -23,6 +23,10 @@ import scala.collection.mutable
  *    A} -> eq (same a b) false -> eq a b -> empty` of `std/eq`: what `same` means, as evidence (reference:
  *    std/eq, decidable equality of atoms). `sameTrue` is `refl` on two equal atoms; `apart` never
  *    reduces (its result type is empty).
+ *  - `intOf : ⇑int -> int` of `std/semantics`: the meta integer of an object integer literal, and the
+ *    meta integer a persisted one was persisted from (`intOf ⟨$n⟩` is `n`); stuck on other object code,
+ *    such as object arithmetic, which is not a value (#186 P5: the semantics computes the object level's
+ *    arithmetic on the meta integers, reference: std/semantics).
  *
  *  They reduce on closed arguments only (a symbol is closed when it is a quoted object constant); on
  *  anything else they are stuck, like a function on a neutral. */
@@ -34,10 +38,11 @@ enum PrimOp(val key: String):
   case QAtom extends PrimOp("qatom")
   case SameTrue extends PrimOp("sameTrue")
   case Apart extends PrimOp("apart")
+  case IntOf extends PrimOp("intOf")
 
   /** The arguments, implicit ones included. */
   def arity: Int = this match
-    case Labels | Derived => 1
+    case Labels | Derived | IntOf => 1
     case Derive | QAtom => 2
     case Same => 3
     case SameTrue => 4
@@ -83,6 +88,11 @@ trait Primitives:
       case (PrimOp.SameTrue, List(ty, a, b, _)) =>
         for x <- atomKey(a); y <- atomKey(b) if stripPositions(x) == stripPositions(y)
         yield Rigid(Head.Glob(ctors(1)), List(Elim.EApp(a, Icit.Impl), Elim.EApp(ty, Icit.Impl)))
+      case (PrimOp.IntOf, List(Quote(code))) =>
+        forceData(code) match
+          case Lit(Literal.IntL(n), Stage.S0) => Some(IntNum(BigInt(n)))
+          case Persist(t) => Some(t)
+          case _ => None
       case (PrimOp.QAtom, List(Rigid(Head.Glob(q), Elim.EApp(t, Icit.Expl) :: _))) if q == ctors(2) =>
         // `fatom` has the arguments of `tapp`; the positions of the quoted syntax are kept
         def atom(v: Val): Option[Val] = force(v) match
