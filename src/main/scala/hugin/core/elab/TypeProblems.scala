@@ -87,8 +87,10 @@ enum TypeProblem extends Problem:
 
   /** A relation (or struct) applied to arguments where a meta type is expected, also under an explicit
    *  `⇑`: the lift of an applied fact type, which has no closed inhabitants (#186 P9a). With `eta`, the
-   *  unapplied relation `shown` where a type family is expected, which would be such a type once applied. */
-  case AppliedRelation(shown: String, eta: Boolean, at: Span)
+   *  unapplied relation `shown` where a type family is expected, which would be such a type once applied.
+   *  A relation that a program owns is that program's judgment instead (#186 P9b), so the relation here
+   *  is owned by none, or it is under `⇑`, or `std/semantics` is not loaded (`owner`: the program). */
+  case AppliedRelation(shown: String, eta: Boolean, at: Span, owner: Option[String] = None)
 
   def code: Code = this match
     case _: ImplicitBinderAlone | _: UnknownOperator | _: NotAParameterName => Code.E0001
@@ -143,7 +145,7 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(_, _, _, _, s) => s
     case NoImplicitNamed(_, _, _, s) => s
     case NamedArgumentAlone(s) => s
-    case AppliedRelation(_, _, s) => s
+    case AppliedRelation(_, _, s, _) => s
 
   def message: Msg = this match
     case _: ImplicitBinderAlone => msg"implicit binders must be followed by `->`"
@@ -181,8 +183,8 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(n, _, _, _, _) => msg"unsolved goal ${Src("?" + n.getOrElse(""))}"
     case NoImplicitNamed(n, f, _, _) => msg"${Src(f)} has no implicit argument ${Src(n)} here"
     case _: NamedArgumentAlone => msg"an implicit argument by name outside an application"
-    case AppliedRelation(r, false, _) => msg"${Src(r)} is not a type: it applies a relation to arguments"
-    case AppliedRelation(r, true, _) => msg"${Src(r)} is not a type family: it is a relation, and its applications are not types"
+    case AppliedRelation(r, false, _, _) => msg"${Src(r)} is not a type: it applies a relation to arguments"
+    case AppliedRelation(r, true, _, _) => msg"${Src(r)} is not a type family: it is a relation, and its applications are not types"
 
   override def primaryLabel: Msg = this match
     case _: ImplicitBinderAlone => msg"expected `{A : T} -> B`"
@@ -218,8 +220,8 @@ enum TypeProblem extends Problem:
     case UnsolvedGoal(_, g, _, _, _) => msg"goal: ${Src(g)}"
     case _: NoImplicitNamed => msg"no implicit argument of this name"
     case _: NamedArgumentAlone => msg"expected an argument of an application"
-    case AppliedRelation(_, false, _) => msg"an applied relation"
-    case AppliedRelation(_, true, _) => msg"a relation where a type family is expected"
+    case AppliedRelation(_, false, _, _) => msg"an applied relation"
+    case AppliedRelation(_, true, _, _) => msg"a relation where a type family is expected"
     case _ => Msg.empty
 
   override def labels: List[(Span, Msg)] = this match
@@ -287,7 +289,7 @@ enum TypeProblem extends Problem:
     case _: AppliedRelation =>
       List(
         msg"as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone",
-        msg"an applied relation is a proposition of the program whose rules derive it"
+        msg"an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet"
       )
     case _ => Nil
 
@@ -299,5 +301,8 @@ enum TypeProblem extends Problem:
     case _: IntegerCrossing =>
       List(msg"test the value with `fits64` (std/int) where it may not fit, and use object code only in the branch where it does")
     case _: NoMetaInt => List(msg"compile the program with the prelude, or use object integers only")
-    case _: AppliedRelation => List(msg"name the program in a judgment of `std/semantics`: ${Src("P ⊢ r t̄")}")
+    case AppliedRelation(_, _, _, Some(p)) =>
+      List(msg"load `std/semantics` (${Src("%use \"std/semantics\".")}): an applied relation of ${Src(p)} is then its judgment ${Src(s"$p ⊢ r t̄")}")
+    case AppliedRelation(r, false, _, None) => List(msg"name the program with the turnstile: ${Src(s"P ⊢ $r")}")
+    case AppliedRelation(r, true, _, None) => List(msg"name the program with the turnstile, in a function: ${Src(s"[x̄] P ⊢ $r x̄")}")
     case _ => Nil

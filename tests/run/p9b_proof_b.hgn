@@ -1,0 +1,45 @@
+(* #186 P9b: proof B of the level 3.5 note (§1.2) as written there. The hypothesis `placed` is stated over
+   two meta relations instead of a database; the theorems pass `(coarse A).reached` by the η form (an
+   unapplied relation where `⇑A.node -> Type` is expected is `[x] coarse A ⊢ reached x`) and the input
+   relation `A.alpha` through a lambda with the turnstile. All judgments and coerced atoms of a theorem's
+   type are at its one anonymous database, so no database is named. *)
+%use "std/eq" (empty).
+%use "std/semantics".
+
+abstraction : Type = {
+  node : type, edge : node -> node -> rel, seed : node -> rel,
+  anode : type, alpha : node -> anode -> rel }.
+
+coarse (a : abstraction) = {
+  reached : a.node -> rel.
+  reached X :- a.seed X.
+  reached Y :- reached X, a.edge X Y.
+  aedge : a.anode -> a.anode -> rel.
+  aedge A B :- a.edge X Y, a.alpha X A, a.alpha Y B.
+  areached : a.anode -> rel.
+  areached A :- a.seed X, a.alpha X A.
+  areached B :- areached A, aedge A B.
+}.
+
+city : type. country : type.
+road : city -> city -> rel. start : city -> rel. located : city -> country -> rel.
+%input road. %input start. %input located.
+eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = located }.
+%output eu.areached.
+
+placed : (A : abstraction) -> (⇑A.node -> Type) -> (⇑A.node -> ⇑A.anode -> Type) -> Type.
+placed A Reached Alpha = (x : ⇑A.node) -> Reached x -> { b : ⇑A.anode, ok : Alpha x b }.
+
+sound : placed A (coarse A).reached ([x] [b] coarse A ⊢ A.alpha x b) -> {x : A.node} -> {b : A.anode} ->
+        (coarse A).reached x -> coarse A ⊢ A.alpha x b -> (coarse A).areached b.
+sound T (reached.1 S) H = areached.1 S H.
+sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
+
+safe : placed A (coarse A).reached ([x] [b] coarse A ⊢ A.alpha x b) -> {x : A.node} -> {b : A.anode} ->
+       ((coarse A).areached b -> empty) -> coarse A ⊢ A.alpha x b -> (coarse A).reached x -> empty.
+safe T N H R = N (sound T R H).
+%opaque sound safe.
+
+checked : string -> rel.
+checked "proof B, coerced".
+%output checked.

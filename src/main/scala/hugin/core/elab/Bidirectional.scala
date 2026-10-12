@@ -11,8 +11,15 @@ trait Bidirectional:
   self: Elaborator =>
   import core.*
 
-  /** Infers a term, its type and its stage. */
-  def infer(c: Cxt, t: Tree): (Tm, Val, Stage) = t match
+  /** Infers a term, its type and its stage. In a meta type position, an applied relation that a program
+   *  owns is that program's judgment ([[JudgmentCoercion]]). */
+  def infer(c: Cxt, t: Tree): (Tm, Val, Stage) =
+    val coerced = t match
+      case _: Apply if state.typePosition && state.stage == Stage.S1 => inferCoerced(c, t)
+      case _ => None
+    coerced.getOrElse(inferForm(c, t))
+
+  private def inferForm(c: Cxt, t: Tree): (Tm, Val, Stage) = t match
     case Parens(i) => infer(c, i)
     case Ident(n) => resolve(c, n, t.span)
     case VarRef("Type") if !c.scope.contains("Type") =>
@@ -155,8 +162,12 @@ trait Bidirectional:
   /** A rule name or `given` against a derivation of a judgment (reference: std/semantics, "Rule names"),
    *  else the term by its form. */
   private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
-    if st == Stage.S1 && mayBeRuleName(c, t) && !force(a).isInstanceOf[Val.Pi] then checkRuleName(c, t, a).getOrElse(checkForm(c, t, a, st))
-    else checkForm(c, t, a, st)
+    // an owned relation where a meta type or a family of them is expected: its program's judgment
+    val coerced = if st == Stage.S1 then checkCoerced(c, t, a) else None
+    coerced.getOrElse(
+      if st == Stage.S1 && mayBeRuleName(c, t) && !force(a).isInstanceOf[Val.Pi] then checkRuleName(c, t, a).getOrElse(checkForm(c, t, a, st))
+      else checkForm(c, t, a, st)
+    )
 
   private def checkForm(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined =>
