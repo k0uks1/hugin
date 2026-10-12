@@ -10,8 +10,10 @@ final class ElabError(val diag: Diagnostic, val unresolved: Option[Name] = None,
     extends Exception(diag.message, null, false, false)
 
 /** The module value of an imported file: a record of its declarations (closed terms); `dropped` are the
- *  names whose declarations were dropped for an error in the file (their uses are not reported again). */
-final case class ImportedModule(value: Tm, ty: Tm, dropped: Set[Name] = Set.empty)
+ *  names whose declarations were dropped for an error in the file (their uses are not reported again);
+ *  `operators` are its operators bound to meta functions (`%infix + plus.`), each symbol with the global
+ *  it denotes: a file in which that global is in scope may use the symbol for it ([[Overloading]]). */
+final case class ImportedModule(value: Tm, ty: Tm, dropped: Set[Name] = Set.empty, operators: List[(String, Int)] = Nil)
 
 /** Where the items of a file are elaborated: its path, the qualifier of its object constants' names
  *  (`shapes.dot` in the imported file `shapes.hgn`; none in the program and the prelude), the names of
@@ -53,9 +55,10 @@ final class ElabState(val scope: NameScope = NameScope()):
       Map[Name, List[(Int, hugin.util.Span)]],
       Option[(hugin.util.Span, ImportedModule)],
       Map[Name, hugin.syntax.Trees.RecordType],
-      Option[Option[Set[Name]]]
+      Option[Option[Set[Name]]],
+      List[(String, Name)]
   ) =
-    (opened0, exported0, signatures0, droppedUses0)
+    (opened0, exported0, signatures0, droppedUses0, operatorNames0)
 
   def observe(r: hugin.core.DeclarationReads | Null): Unit =
     reads = r
@@ -97,6 +100,14 @@ final class ElabState(val scope: NameScope = NameScope()):
   /** The names that the file's `%opaque` directives name (reference: meta/index): its definitions and
    *  functions of these names are opaque. */
   var opaque: Set[Name] = Set.empty
+
+  /** The file's operators bound to meta functions, `%infix op f.` (reference: lexical-structure): each
+   *  symbol with the name of the file's function it denotes, in source order ([[Overloading]]). */
+  def operatorNames: List[(String, Name)] =
+    readAll("operators")
+    operatorNames0
+  def operatorNames_=(o: List[(String, Name)]): Unit = operatorNames0 = o
+  private var operatorNames0: List[(String, Name)] = Nil
 
   /** The names defined by clauses in the module: their declarations declare functions. */
   val functionNames: Names = Names("functionNames")
@@ -185,6 +196,7 @@ final class ElabState(val scope: NameScope = NameScope()):
     s.functionNames.copyFrom(functionNames)
     s.declaredHere.copyFrom(declaredHere)
     s.opaque = opaque
+    s.operatorNames0 = operatorNames0
     s.opened0 = opened0
     s.exported0 = exported0
     s.signatures0 = signatures0
@@ -234,6 +246,7 @@ class Elaborator(
     with Applications
     with Records
     with Operators
+    with Overloading
     with Items
     with DependencyOrder
     with Declarations

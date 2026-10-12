@@ -9,6 +9,13 @@ nat : Type.
 zero : nat.
 suc : nat -> nat.
 
+(* The operators of the meta level that denote these functions (reference: std/nat, operators): `n + m`
+   is `plus n m`, `n - m` is `minus n m`, `n * m` is `times n m`. `N + 1`, with an integer literal on the
+   right, is the successor, which `plus` computes as well. *)
+%infix + plus.
+%infix - minus.
+%infix * times.
+
 (* The sum, by recursion on the second argument: `plus N 1` is `N + 1` *)
 plus : nat -> nat -> nat.
 plus N 0 = N.

@@ -48,7 +48,8 @@ trait DependencyOrder:
         rules,
         Option.when(shared.nonEmpty)(shared ++ constructors),
         implicitNeeds,
-        n => file.parent.contains(n) || file.builtinNames && builtinTypes.contains(n)
+        n => file.parent.contains(n) || file.builtinNames && builtinTypes.contains(n),
+        state.operatorNames.groupMap(_._1)(_._2)
       )
     )
     // without the clauses of functions, those that a declaration needs are elaborated all the same

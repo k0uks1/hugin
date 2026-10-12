@@ -44,6 +44,8 @@ trait Items:
       case Directive(_, _: DirArgs.Use | _: DirArgs.Export) => true
       // `%opaque x.` says how the declarations are elaborated ([[elabDeclarations]])
       case Directive("opaque", _) => true
+      // `%infix + plus.` binds an operator the declarations may use ([[Overloading]])
+      case Directive(_, _: DirArgs.Operator) => true
       case _: Query | _: Directive => false
       case _ => true
     }
@@ -65,8 +67,12 @@ trait Items:
     val (formulaClauses, meta0) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
     // `%use` first (the names it opens are retried for), `%export` after all declarations ([[Uses]])
     // `%opaque x.` (reference: meta/index): the definitions and functions it names are opaque
-    val (opaques, meta1) = meta0.partition(isOpaque)
+    val (opaques, meta1a) = meta0.partition(isOpaque)
     state.opaque = opaques.flatMap(opaqueNames).toSet
+    // `%infix op f.`: the operators bound to the file's functions, which the declarations may use; each is
+    // checked once the declarations are elaborated ([[Overloading]])
+    val (bindings, meta1) = meta1a.partition(isOperatorBinding)
+    state.operatorNames = bindings.collect { case Directive(_, DirArgs.Operator(op, _, f)) => (op, f.name) }
     val (exports, nonExports) = meta1.partition(isExport)
     val (uses, others) = nonExports.partition(isUse)
     val meta = uses ++ others
@@ -92,6 +98,7 @@ trait Items:
     checkObjectDeclarations(firstGlobal)
     if !file.signaturesOnly then exports.foreach(elabItemReporting)
     opaques.foreach(elabItemReporting)
+    bindings.foreach(elabItemReporting)
     flushTooling(success = true)
 
   /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */
@@ -131,6 +138,10 @@ trait Items:
                 fail(DirectiveProblem.NotOpaqueable(name, "not declared in this file", n.span))
           case other => fail(DirectiveProblem.OpaqueArgument(other.span))
     case _ => fail(DirectiveProblem.OpaqueArgument(d.span))
+
+  private def isOperatorBinding(item: Item): Boolean = item match
+    case Directive(_, _: DirArgs.Operator) => true
+    case _ => false
 
   private def isOpaque(item: Item): Boolean = item match
     case Directive("opaque", _) => true
@@ -376,6 +387,7 @@ trait Items:
     case d @ Directive(_, DirArgs.Use(m, ns)) => elabUse(d, m, ns)
     case d @ Directive(_, DirArgs.Export(s)) => elabExport(d, s)
     case d @ Directive("opaque", _) => elabOpaque(d)
+    case Directive(_, DirArgs.Operator(op, opSpan, f)) => elabOperatorBinding(op, opSpan, f)
     case d: Directive => items ++= directiveItems(Cxt.empty, d, inBody = false)
     case e: SubEdge => elabEdge(e)
     case cl: Clause => fail(ElabProblem.MalformedClause(cl.lhs.span))

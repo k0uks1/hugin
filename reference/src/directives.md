@@ -13,6 +13,7 @@ library and `%demand` in detail.
 Directive  ::= DIRECTIVE DirArg* "."                   (standalone)
              | DIRECTIVE DirArg* Declaration           (prefix form)
              | "%infix" ("left" | "right" | "none") INT NAME "."
+             | "%infix" OP NAME "."
              | "%assumptions" NAME "."
 DirArg     ::= Atom-like expression | ModeItem+
 ModeItem   ::= ("+" | "-") NAME?
@@ -26,8 +27,10 @@ In the *prefix form*, a directive without a period is followed by a declaration,
 its `:`. The directive applies to that declaration: `%output path : node -> node -> rel.` declares `path`
 and makes it an output relation.
 
-`%infix` has a syntax of its own and is handled by the parser ([Lexical
-structure](lexical-structure.md#user-defined-infix-operators)). `%builtin` and `%import` are expressions,
+`%infix` has a syntax of its own: `%infix assoc p op.` declares an operator and is handled by the parser
+([Lexical structure](lexical-structure.md#user-defined-infix-operators)), and `%infix op f.` binds a
+symbol of the meta level to a meta function of the file ([Operators bound to meta
+functions](lexical-structure.md#operators-bound-to-meta-functions)). `%builtin` and `%import` are expressions,
 not directives ([Object types](object/types.md#base-types), [Modules](modules.md#imports)). `%use` and
 `%export` are items of a file's scope, not directives ([Modules](modules.md#opening-modules)). `%opaque`
 is an item about the file's definitions, not a directive ([Opaque

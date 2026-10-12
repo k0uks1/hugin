@@ -32,6 +32,11 @@ object Parser:
   val LvlArrow = 30
   val LvlBar = 40
 
+  /** `≡` (ASCII `==`), the meta level's equality operator (non-associative): it binds looser than `::`
+   *  and the arithmetic operators, so that `x :: xs ≡ ys` and `n + m ≡ m + n` need no parentheses, and
+   *  tighter than `->` (`(n : nat) -> n + 0 ≡ n`). Below an `%infix` operator of precedence 4. */
+  val LvlEquiv = 42
+
   /** `::`, the meta level's list constructor (right associative). */
   val LvlCons = 45
   val LvlCmp = 50
@@ -40,6 +45,13 @@ object Parser:
   val LvlHead = 51
   val LvlAdd = 60
   val LvlMul = 70
+
+  /** The symbols that `%infix op f.` binds to meta functions (reference: lexical-structure, operators
+   *  bound to meta functions): their precedence and associativity are the table's. */
+  val bindableOperators: Set[Tok] = Set(Tok.Plus, Tok.Minus, Tok.Star, Tok.Slash, Tok.Caret, Tok.Equiv)
+
+  /** The operator a token is in trees: `≡` for both of its spellings. */
+  def operatorName(t: Token): String = if t.kind == Tok.Equiv then "≡" else t.text
 
   def parse(src: SourceFile, reporter: Reporter): Trees.Program = Parser(src, reporter).parseProgram()
 

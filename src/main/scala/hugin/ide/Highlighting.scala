@@ -35,7 +35,7 @@ object Highlighting:
     if pos < text.length then out += Run(text.substring(pos), Nil)
     out.toList
 
-  private val operators = Set(Tok.Turnstile, Tok.Query, Tok.Arrow, Tok.SubT, Tok.ColonColon, Tok.FatArrow)
+  private val operators = Set(Tok.Turnstile, Tok.Query, Tok.Arrow, Tok.SubT, Tok.ColonColon, Tok.FatArrow, Tok.Equiv)
   private val keywords =
     Set(
       Tok.KwType,
