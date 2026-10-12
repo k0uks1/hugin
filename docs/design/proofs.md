@@ -276,13 +276,20 @@ is proved by evaluation.
 city : type. berlin, paris, rome : city.
 demo : city -> city -> rel.
 demo berlin paris. demo paris rome.
-tiny = tc { node = city, edge = demo }.
-viaParis : here ⊢ tiny.path berlin rome = decide 3 tt.
+reach : city -> city -> rel.
+reach X Y :- demo X Y.
+reach X Z :- demo X Y, reach Y Z.
+viaParis : reach berlin rome = decide 3 tt.
 ```
 
-`decide n` is `std/semantics`'s lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when
-`p` has no input relations, and `holds n` is `n` rounds of naive evaluation. Here three rounds derive
-`tiny.path berlin rome`, `holds` evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
+`reach berlin rome` is written unqualified, as a relation of the file (the approved level 3.5 form,
+[proofs-level35.md](proofs-level35.md) §1.7, after P9f); `here ⊢ reach berlin rome`, the judgment of
+the file's program, is only its elaborated meaning and is never written. The instance form
+`tiny.path berlin rome` of `tiny = tc { node = city, edge = demo }` would not do here: it is `tiny ⊢
+path berlin rome`, whose input `demo` contributes no facts to `holds`. `decide n` is `std/semantics`'s
+lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when `p` has no input relations, and
+`holds n` is `n` rounds of naive evaluation. Here three rounds derive `reach berlin rome`, `holds`
+evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
 `decide`), **P5** (`holds` and its soundness), **P7b** (the notation).
 
 **One adequacy statement.** For every module `m` of a program and every run on the input facts `d`,
@@ -1560,6 +1567,15 @@ honest form. Open questions for its design: name resolution of `(f g).r` at the 
 today it denotes object code; display; and interaction with generativity, where an abbreviation over
 the functor, not an instance, avoids it.
 
+**Design (P9, approved):** [proofs-level35.md](proofs-level35.md). It answers these questions
+with one elaboration rule, a coercion: an applied relation that a program owns, written where a meta type
+is expected, is that program's judgment (`fast.path x y` is `fast ⊢ path x y`, `(tc2 G).path x y` is
+`tc2 G ⊢ path x y`), with no keyword, generated declaration, core rule or blessed name (L27). Revision 2 adds locale-style proofs
+inside a program's own body (unqualified relations, lemmas inherited by instances), after an elaboration
+phase that also delivers `programOf here`; in the file itself, a file relation is written unqualified
+(`trip x y`). It also proposes how to settle the flags that P7b left open
+(negation, multi-head rule names, the `decide` clash).
+
 ### 10.2 Level 4: every relation is an inductive predicate
 
 At level 4, an object relation *is* a meta inductive predicate: its rules are its constructors, and
@@ -1747,7 +1763,7 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 | **P7b** notation and rule names | `P ⊢[e] r t̄` with typed arguments, generalised `d` and functor parameters (7.3); automatic rule names `r.k`, optional labels, `given`, as patterns and expressions; `decide` with the notation; case splits and hovers in `⊢` notation; the adequacy statement in the reference | 1000–1500 | chapter 1's proofs, over ordinary code | name resolution of atoms in a program's scope; merging generalised parameters | no |
 | **P8a** proof-tree export | negative premises in `%derivations`; Tantow et al. JSON export | 300–500 | external verified checking of runs | format drift | **yes** |
 | **P8b** certified runs | `--certify`: reified output checked by a meta checker proven against `derives` | 800–1200 | per-run guarantees without a verified engine | meta evaluator speed on large outputs | no |
-| **P9** level 3.5, *design first* | after P7b: a detailed design of derived abbreviations `(f g).r x y := f g ⊢ r x y` and rule pattern synonyms (chapter 10); implementation approved subject to that design's approval | design, then 500–900 | relations read as propositions | name resolution of `(f g).r` at the meta level | no |
+| **P9** level 3.5, *design first* | after P7b: a detailed design of derived abbreviations `(f g).r x y := f g ⊢ r x y` and rule pattern synonyms (chapter 10); implementation approved subject to that design's approval; design: [proofs-level35.md](proofs-level35.md) (batches P9a–P9g) | design, then 500–900 | relations read as propositions | name resolution of `(f g).r` at the meta level | no |
 
 Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b → P9 (design first). P8a can go at any time. Compared with the previous
 version, P7 changes: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
