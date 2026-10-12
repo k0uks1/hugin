@@ -47,6 +47,12 @@ final class Handover(core: Core, reporter: Reporter, index: hugin.compiler.Seman
       (all.collect { case d: obj.Directive => d } ++ declData.familyDirectives()).toVector
     )
 
+  /** The globals of the object symbols of the program (by identity). */
+  def objectGlobals: java.util.IdentityHashMap[AnyRef, Integer] =
+    val m = java.util.IdentityHashMap[AnyRef, Integer]()
+    for (s, id) <- symbols.globalIds do m.put(s, id)
+    m
+
   /** The instances of families, for tooling (hover over a family's declaration). */
   private def recordInstances(): Unit =
     for id <- globals.indices; (fam, _) <- globals(id).instanceOf do index.instance(globals(fam).span, globals(id).name)

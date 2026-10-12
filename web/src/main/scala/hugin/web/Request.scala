@@ -20,7 +20,7 @@ object Request:
    *  - `printAfter` (string or array of strings): `--print-after`, phase names or `all`
    *  - `stopAfter` (string): `--stop-after`
    *  - `prelude` (boolean, default true): `false` is `--no-prelude`
-   *  - `explainTermination`, `allRelations`, `denyWarnings`, `safe` (booleans): the flags of the same names
+   *  - `explainTermination`, `allRelations`, `denyWarnings`, `safe`, `certify` (booleans): the flags of the same names
    *  - `printAssumptions` (string or array of strings): `--print-assumptions`, names of meta constants
    *  - `lints` (object): lint name or code to `"allow"`, `"warn"` or `"deny"` (`-A`, `-W`, `-D`)
    *  - `budgetMs` (number): evaluation stops at its next round after this many milliseconds
@@ -47,6 +47,7 @@ object Request:
         printAfter <- field("printAfter")(strings)
         assumptions <- field("printAssumptions")(strings)
         safe <- field("safe")(bool)
+        certify <- field("certify")(bool)
         stopAfter <- field("stopAfter")(str)
         prelude <- field("prelude")(bool)
         explain <- field("explainTermination")(bool)
@@ -72,7 +73,8 @@ object Request:
           prelude.getOrElse(true),
           explain.getOrElse(false),
           safe.getOrElse(false),
-          assumptions.getOrElse(Nil)
+          assumptions.getOrElse(Nil),
+          certify = certify.getOrElse(false)
         ),
         Display(lints = levels.copy(denyWarnings = deny.getOrElse(false))),
         all.getOrElse(false),

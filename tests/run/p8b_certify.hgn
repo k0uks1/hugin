@@ -1,0 +1,58 @@
+(* #186 P8b: a certified run (reference: std/certify). With `--certify`, the checker of `std/certify`
+   builds a derivation of every fact of the run, stratum by stratum with the negations read in the facts
+   of the strata below, and checks that each stratum's facts are closed under its rules, so the run's
+   facts are the perfect model. Below, the same checkers on certificates written by hand, accepted and
+   rejected, and `perfectHolds` and `perfectRefutes`, the `holds` of stratified programs: membership in
+   the perfect model decided by evaluation, both ways. *)
+%use "std/eq" (eq, refl, empty, tt).
+%use "std/semantics" (gatom, atom, own, v, crule, program, inputOf, cat, tcons, tnil, cv, here, there, cpos, cnot).
+%use "std/strata" (perfect).
+%use "std/certify".
+
+person : type. ann, bob, cyd, dan : person.
+parent : person -> person -> rel.
+%input parent.
+ancestor : person -> person -> rel.
+ancestor X Y :- parent X Y.
+ancestor X Z :- parent X Y, ancestor Y Z.
+childless : person -> rel.
+childless X :- parent _ X, not parent X _.
+distant : person -> person -> rel.
+distant X Y :- childless X, childless Y, X <> Y, not ancestor X Y.
+%output ancestor. %output childless. %output distant.
+
+(* the transitive closure as a reified program: `path` is `own 0`, `edge` the input relation `own 1`; the
+   premises are positions among the facts before, the input facts first, the last derived fact at 0 *)
+city : type. berlin, paris, rome : city.
+path1 : urule = urul 0 1 [city, city] [uat (own 0) [uvar 0, uvar 1]] [upos (uat (own 1) [uvar 0, uvar 1])].
+path2 : urule = urul 0 2 [city, city, city] [uat (own 0) [uvar 0, uvar 2]]
+  [upos (uat (own 1) [uvar 0, uvar 1]), upos (uat (own 0) [uvar 1, uvar 2])].
+tc : uprogram = uprog ["path", "edge"] [path1, path2] [1] [[1], [0]].
+e : ⇑city -> ⇑city -> gatom = [x] [y] atom (own 1) [v x, v y].
+p : ⇑city -> ⇑city -> gatom = [x] [y] atom (own 0) [v x, v y].
+edges : list gatom = [e (<berlin>) (<paris>), e (<paris>) (<rome>)].
+accepts : eq (certifyPositive tc edges [cf (p (<berlin>) (<paris>)) [0], cf (p (<paris>) (<rome>)) [2],
+                                        cf (p (<berlin>) (<rome>)) [2, 0]]) (accepted 5) = refl.
+notDerived : eq (certifyPositive tc edges [cf (p (<berlin>) (<paris>)) [0], cf (p (<rome>) (<paris>)) [2]])
+                (rejected (badFact (p (<rome>) (<paris>)))) = refl.
+notClosedRun : eq (certifyPositive tc edges [cf (p (<berlin>) (<paris>)) [0], cf (p (<paris>) (<rome>)) [2]])
+                  (rejected (notClosed 0)) = refl.
+
+(* a sink of a graph: a node with an edge in and none out *)
+sinkRule : crule = { head = 0, index = 1, label = none, vars = [city, city],
+  heads = [cat (own 0) (tcons (cv (there here)) tnil)],
+  body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil))),
+          cnot (city :: []) (cat (own 1) (tcons (cv (there (there here))) (tcons (cv here) tnil)))] }.
+sinks : program = { relations = ["sink", "edge"], rules = [sinkRule], input = inputOf [1], strata = [[1], [0]] }.
+s : ⇑city -> gatom = [x] atom (own 0) [v x].
+romeSink : perfect sinks (memOf edges) (s (<rome>)) = (perfectHolds 2 sinks edges).sound (s (<rome>)) tt.
+parisNot : perfect sinks (memOf edges) (s (<paris>)) -> empty = (perfectRefutes 2 sinks edges).sound (s (<paris>)) tt.
+
+(* the same program reified, and certificates stratum by stratum *)
+sinkU : urule = urul 0 1 [city, city] [uat (own 0) [uvar 1]]
+  [upos (uat (own 1) [uvar 0, uvar 1]), unot (city :: []) (uat (own 1) [uvar 2, uvar 0])].
+sinksU : uprogram = uprog ["sink", "edge"] (sinkU :: []) [1] [[1], [0]].
+strataAccept : eq (certifyStrata sinksU edges [[], [cf (s (<rome>)) [1]]]) (accepted 3) = refl.
+negationFails : eq (certifyStrata sinksU edges [[], [cf (s (<paris>)) [0]]]) (rejected (badFact (s (<paris>)))) = refl.
+missing : eq (certifyStrata sinksU edges [[], []]) (rejected (notClosed 2)) = refl.
+%opaque accepts notDerived notClosedRun romeSink parisNot strataAccept negationFails missing.

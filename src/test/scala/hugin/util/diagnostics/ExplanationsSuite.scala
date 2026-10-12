@@ -9,7 +9,8 @@ import scala.jdk.CollectionConverters.*
  *  A ` ```hugin fail=<id> ` block must report `<id>` as its first error; a plain ` ```hugin ` block (the fix) must compile
  *  without errors and without that code. A ` ```facts ` block right after a `hugin` block is loaded as its
  *  input facts. Blocks tagged `elaborate` are only elaborated and staged, without the prelude; blocks
- *  tagged `safe` are compiled with `--safe`, blocks tagged `no-prelude` with `--no-prelude`.
+ *  tagged `safe` are compiled with `--safe`, blocks tagged `no-prelude` with `--no-prelude`, and blocks
+ *  tagged `certify` are run with `--certify` (over their facts, or none).
  *  Blocks of retired codes are tagged `ignore` and skipped. */
 class ExplanationsSuite extends munit.FunSuite:
   /** A code block of an explanation: the program, its expected code (for a failing example) and facts. */
@@ -20,7 +21,8 @@ class ExplanationsSuite extends munit.FunSuite:
       ignored: Boolean,
       newMeta: Boolean,
       safe: Boolean = false,
-      noPrelude: Boolean = false
+      noPrelude: Boolean = false,
+      certify: Boolean = false
   )
 
   private val dir = Path.of("docs/errors")
@@ -33,7 +35,7 @@ class ExplanationsSuite extends munit.FunSuite:
         val facts = next.collect { case ("facts", _, f) => f }
         val fails = "fail=(\\S+)".r.findFirstMatchIn(attrs).map(_.group(1))
         val words = attrs.split("\\s+").toSet
-        Example(body, fails, facts, words("ignore"), words("elaborate"), words("safe"), words("no-prelude"))
+        Example(body, fails, facts, words("ignore"), words("elaborate"), words("safe"), words("no-prelude"), words("certify"))
     }
 
   /** Compiles a program (and loads its facts, if it compiles); the diagnostics reported. */
@@ -42,8 +44,15 @@ class ExplanationsSuite extends munit.FunSuite:
     else compiled(e)
 
   private def compiled(e: Example): List[Diagnostic] =
-    val c = TestSupport.compile(e.program, hugin.compiler.Settings(safe = e.safe, prelude = !e.noPrelude))
+    val c = TestSupport.compile(e.program, hugin.compiler.Settings(safe = e.safe, prelude = !e.noPrelude, certify = e.certify))
     val compiled = c.reporter.diagnostics
+    if e.certify && !c.reporter.hasErrors then
+      val prog = c.unit.core.nn
+      val obj = c.unit.prog.nn
+      val facts = e.facts.toList.map(f => hugin.runtime.Evaluation.parseFacts(SourceFile.virtual("test.facts", f)))
+      val fixpoint = hugin.runtime.Evaluation.fixpoint(prog, obj, hugin.obj.typing.TypeOps(obj), facts)
+      return compiled ++ fixpoint.diagnostics ++
+        (if fixpoint.evaluated then hugin.runtime.Certify(c.unit, prog, fixpoint.engine).diagnostics else Nil)
     e.facts match
       case Some(f) if !c.reporter.hasErrors =>
         compiled ++ hugin.runtime.Evaluation.run(c, List(SourceFile.virtual("test.facts", f))).diagnostics

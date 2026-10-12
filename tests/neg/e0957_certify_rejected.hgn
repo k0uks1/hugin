@@ -1,0 +1,6 @@
+(* --certify of a run that compares strings by their order, which the checker does not interpret *)
+%use "std/certify".
+word : string -> rel.
+%input word.
+early : string -> rel.
+early W :- word W, W < "m".

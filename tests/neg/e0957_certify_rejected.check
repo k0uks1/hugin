@@ -1,0 +1,9 @@
+error[E0957]: the run is not certified: `early "apple"` is not derived by a rule from the facts given as its premises
+ --> tests/neg/e0957_certify_rejected.hgn:5:1
+  |
+5 | early : string -> rel.
+  | ^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: the checker interprets the comparisons `<`, `<=`, `>`, `>=` on integers only; any other rejection is a fault of the engine
+
+1 error found

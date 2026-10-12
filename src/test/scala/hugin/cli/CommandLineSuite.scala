@@ -33,6 +33,12 @@ class CommandLineSuite extends munit.FunSuite:
     ))
   }
 
+  test("--certify (reference: std/certify)") {
+    assert(CommandLine.parse(List("run", "a.hgn", "--certify")).toOption.get.settings.certify)
+    assert(!CommandLine.parse(List("run", "a.hgn")).toOption.get.settings.certify)
+    assertEquals(CommandLine.parse(List("check", "a.hgn", "--certify")), Left("--certify needs the command `run`"))
+  }
+
   test("phase names are validated") {
     assert(CommandLine.parse(List("check", "a.hgn", "--print-after", "elaborate,derivations")).isRight)
     assertEquals(CommandLine.parse(List("check", "a.hgn", "--stop-after", "nope")), Left("unknown phase `nope`; see `hugin phases`"))

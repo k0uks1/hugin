@@ -186,6 +186,11 @@ A rule outside the exported fragment is left out with a warning. A fact that no 
 and that is not a fact of an input relation, is an *assumed fact*: a leaf of the proofs, listed under
 `hugin`, with a warning.
 
+The option `--certify` checks the same derivations in Hugin itself, against the semantics of
+[`std/semantics`](../std/semantics.md) and [`std/strata`](../std/strata.md), with the negated atoms and
+comparisons interpreted instead of assumed and with a model check that shows that the run has every
+derived fact ([`std/certify`](../std/certify.md)).
+
 The following program has a negated atom and a comparison. Its export has the rule
 `childless(X) :- age(X, _#1), "not parent"(X, "_")`, in the format's notation, and the leaf
 `"not parent"(carol, "_")` in the proof of `childless carol`.

@@ -31,6 +31,10 @@ final class CompilationUnit(val source: SourceFile):
   /** Typing contexts computed by object typing at the handover (`core/handover/StagedTyping`), keyed by rule/query identity. */
   val varTypes: java.util.IdentityHashMap[AnyRef, Map[String, OType]] = java.util.IdentityHashMap()
 
+  /** The meta global of every object symbol (type, relation, constructor) of `prog`, by identity (from
+   *  `stage` on), with which `--certify` builds object code (`hugin.runtime.Certify`). */
+  var objectGlobals: java.util.IdentityHashMap[AnyRef, Integer] = java.util.IdentityHashMap()
+
   /** Signature requirements (reference: modules) recorded by staging, checked by `directives`. */
   var requirements: List[RequirementCheck] = Nil
 

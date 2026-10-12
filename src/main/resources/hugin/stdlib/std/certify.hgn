@@ -1,0 +1,1097 @@
+(* std/certify: certified runs (reference: std/certify). `hugin run --certify` reifies the program it ran,
+   its input facts and its output with a derivation of every fact (the derivations of the proof export),
+   and evaluates a checker of this file on them. The checker is certifying: it builds the derivation of
+   every fact it accepts (`derives`, or `nderives` stratum by stratum), so its soundness is in its type;
+   and it checks that the facts are closed under the rules (a model check), whose soundness is proved
+   here from the completeness of matching, so the facts are all of them: the least model of a positive
+   program, the perfect model of a stratified one (Tantow et al.'s certificates; McConnell et al.'s
+   certifying algorithms). A certified run therefore does not trust the engine, only the reification of
+   the program and the facts. *)
+%use "std/reflect" (bool, true, false, if, list, nil, cons, append, option, none, some, cmp_op, ceq, cne, clt,
+  cle, cgt, cge).
+%use "std/nat" (nat).
+%use "std/int" (iless, ileq).
+%use "std/eq" (eq, refl, sym, cong, subst, empty, emptyElim, unit, tt, dec, yes, no, decEq, either, left, right).
+%use "std/decide" (so, decider).
+%use "std/list" (map, concat, size).
+%use "std/semantics".
+%use "std/strata".
+
+(* ---------------------------------------------------------------- lists *)
+
+noMember : {A B : Type} -> {x : A} -> member x [] -> B.
+noMember ().
+
+inAppL : {A : Type} -> {y : A} -> {ys : list A} -> member y ys -> (zs : list A) -> member y (append ys zs).
+inAppL here Zs = here.
+inAppL (there M) Zs = there (inAppL M Zs).
+
+inAppR : {A : Type} -> {y : A} -> (ys : list A) -> {zs : list A} -> member y zs -> member y (append ys zs).
+inAppR [] M = M.
+inAppR (Y :: Ys) M = there (inAppR Ys M).
+
+concatMapIn : {A B : Type} -> (f : A -> list B) -> {x : A} -> {y : B} -> (xs : list A) -> member x xs ->
+              member y (f x) -> member y (concat (map f xs)).
+concatMapIn F (X :: Xs) here M = inAppL M (concat (map F Xs)).
+concatMapIn F (X :: Xs) (there N) M = inAppR (F X) (concatMapIn F Xs N M).
+
+optListThere : {A : Type} -> (o : option A) -> {x : A} -> {xs : list A} -> member x xs -> member x (optList o xs).
+optListThere (some Y) M = there M.
+optListThere none M = M.
+
+(* a property of every element of a list, from one of its head and one of its tail *)
+consAll : {A : Type} -> {G : A -> Type} -> {x : A} -> {xs : list A} -> G x -> ((y : A) -> member y xs -> G y) ->
+          (y : A) -> member y (x :: xs) -> G y.
+consAll Gx Gs Y here = Gx.
+consAll Gx Gs Y (there M) = Gs Y M.
+
+(* ---------------------------------------------------------------- comparing a value with itself *)
+
+(* The comparisons of `std/semantics` decide closed code (literals, constants), so a value of a run
+   compares equal to itself; the certificate's facts are checked to, once each, and the completeness of
+   matching rests on it *)
+selfG : gatom -> Type = [g] so (isSome (eqGatom g g)).
+
+atomParts : {r s : rref} -> {vs ws : list value} -> (x : option (eq r s)) -> (y : option (eq vs ws)) ->
+            so (isSome (eqAtom2 x y)) -> both (so (isSome x)) (so (isSome y)).
+atomParts (some refl) (some refl) T = { fst = tt, snd = tt }.
+atomParts none Y ().
+atomParts (some refl) none ().
+
+consParts : {a b : value} -> {us ws : list value} -> (x : option (eq a b)) -> (y : option (eq us ws)) ->
+            so (isSome (eqCons x y)) -> both (so (isSome x)) (so (isSome y)).
+consParts (some refl) (some refl) T = { fst = tt, snd = tt }.
+consParts none Y ().
+consParts (some refl) none ().
+
+selfCast : {t : ⇑type} -> (o : option (eq t t)) -> (x : ⇑t) -> so (isSome (eqValueAt o x x)) -> eq (castTo o x) (some x).
+selfCast (some refl) X T = refl.
+selfCast none X ().
+
+keepSelf : {A B : Type} -> (o : option A) -> (y : B) -> so (isSome o) -> eq (keepIf o y) (some y).
+keepSelf (some X) Y T = refl.
+keepSelf none Y ().
+
+(* ---------------------------------------------------------------- matching, and its completeness *)
+
+(* A candidate valuation `p` agrees with the values `xs` if every variable it binds has its value there *)
+agree : {ts : list ⇑type} -> penv ts -> env ts -> Type.
+agree pend enil = unit.
+agree (pvar none P) (econs X Xs) = agree P Xs.
+agree (pvar (some Y) P) (econs X Xs) = both (eq Y X) (agree P Xs).
+
+unboundAgree : {ts : list ⇑type} -> (xs : env ts) -> agree (unbound ts) xs.
+unboundAgree enil = tt.
+unboundAgree (econs X Xs) = unboundAgree Xs.
+
+pgetAgree : {ts : list ⇑type} -> {t : ⇑type} -> (p : penv ts) -> (xs : env ts) -> (i : member t ts) -> agree p xs ->
+            (z : ⇑t) -> eq (pget p i) (some z) -> eq z (valueAt xs i).
+pgetAgree (pvar (some Y) P) (econs X Xs) here A Z refl = A.fst.
+pgetAgree (pvar none P) (econs X Xs) here A Z ().
+pgetAgree (pvar (some Y) P) (econs X Xs) (there I) A Z E = pgetAgree P Xs I A.snd Z E.
+pgetAgree (pvar none P) (econs X Xs) (there I) A Z E = pgetAgree P Xs I A Z E.
+
+psetAgree : {ts : list ⇑type} -> {t : ⇑type} -> (p : penv ts) -> (xs : env ts) -> (i : member t ts) -> agree p xs ->
+            eq (pget p i) none -> agree (pset p i (valueAt xs i)) xs.
+psetAgree (pvar none P) (econs X Xs) here A E = { fst = refl, snd = A }.
+psetAgree (pvar (some Y) P) (econs X Xs) here A ().
+psetAgree (pvar none P) (econs X Xs) (there I) A E = psetAgree P Xs I A E.
+psetAgree (pvar (some Y) P) (econs X Xs) (there I) A E = { fst = A.fst, snd = psetAgree P Xs I A.snd E }.
+
+completeStep : {t : ⇑type} -> {ts : list ⇑type} -> (y x : ⇑t) -> (xs : env ts) -> eq y x -> (o : option (env ts)) ->
+               ((zs : env ts) -> eq o (some zs) -> eq zs xs) -> (ys : env (t :: ts)) ->
+               eq (optCons (some y) o) (some ys) -> eq ys (econs x xs).
+completeStep Y X Xs refl (some Zs) H (econs W Ws) refl = cong (econs Y) (H Zs refl).
+completeStep Y X Xs E none H Ys ().
+
+(* a complete candidate that agrees with `xs` is `xs` *)
+completeAgree : {ts : list ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (ys : env ts) ->
+                eq (complete p) (some ys) -> eq ys xs.
+completeAgree pend enil A enil refl = refl.
+completeAgree (pvar none P) (econs X Xs) A Ys ().
+completeAgree (pvar (some Y) P) (econs X Xs) A Ys E = completeStep Y X Xs A.fst (complete P) (completeAgree P Xs A.snd) Ys E.
+
+(* Matching a body atom against a fact, as `matchAtom` of `std/semantics`, except that a term other than a
+   variable or a constant constrains nothing here (the body's check decides it): then every valuation
+   whose atom is a fact is found *)
+mterm : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> cterm ts t -> value -> option (penv ts).
+mterm P (cv I) W = matchVar P I (pget P I) W.
+mterm P (cc C) W = keepIf (eqValue (v C) W) P.
+mterm P (capp F As) W = some P.
+mterm P (carith O A B) W = some P.
+mterm P (cneg A) W = some P.
+
+margs : {ts ss : list ⇑type} -> penv ts -> cterms ts ss -> list value -> option (penv ts).
+mthen : {ts ss : list ⇑type} -> option (penv ts) -> cterms ts ss -> list value -> option (penv ts).
+margs P tnil [] = some P.
+margs P (tcons T Ts) (W :: Ws) = mthen (mterm P T W) Ts Ws.
+margs P Ts Ws = none.
+mthen (some P) Ts Ws = margs P Ts Ws.
+mthen none Ts Ws = none.
+
+matom : {ts : list ⇑type} -> penv ts -> catom ts -> gatom -> option (penv ts).
+matom P (cat R As) (atom S Ws) = mthen (keepIf (eqRref R S) P) As Ws.
+
+mext : {ts : list ⇑type} -> list gatom -> catom ts -> penv ts -> list (penv ts).
+mext [] B P = [].
+mext (G :: Gs) B P = optList (matom P B G) (mext Gs B P).
+
+(* the candidate valuations of a body: its positive atoms matched against the facts `gs` *)
+cands : {ts : list ⇑type} -> list gatom -> list (cbody ts) -> list (penv ts) -> list (penv ts).
+cands Gs [] Ps = Ps.
+cands Gs (cpos B :: Bs) Ps = cands Gs Bs (concat (map (mext Gs B) Ps)).
+cands Gs (ccmp O L R :: Bs) Ps = cands Gs Bs Ps.
+cands Gs (cnot Us B :: Bs) Ps = cands Gs Bs Ps.
+cands Gs (cagg Us O X T Cs :: Bs) Ps = cands Gs Bs Ps.
+
+okAt : {ts : list ⇑type} -> option (penv ts) -> env ts -> Type.
+okAt (some P) Xs = agree P Xs.
+okAt none Xs = empty.
+
+mvarOk : {ts : list ⇑type} -> {t : ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (i : member t ts) ->
+         (o : option ⇑t) -> eq (pget p i) o -> so (isSome (eqValue (v (valueAt xs i)) (v (valueAt xs i)))) ->
+         okAt (matchVar p i o (v (valueAt xs i))) xs.
+mvarOk {t := T} P Xs A I none E S =
+  rewrite selfCast (fromDec (decEq T T)) (valueAt Xs I) S in psetAgree P Xs I A E.
+mvarOk P Xs A I (some Z) E S =
+  rewrite pgetAgree P Xs I A Z E in rewrite keepSelf (eqValue (v (valueAt Xs I)) (v (valueAt Xs I))) P S in A.
+
+mtermOk : {ts : list ⇑type} -> {t : ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (c : cterm ts t) ->
+          (y : ⇑t) -> eq (instTerm xs c) (some y) -> so (isSome (eqValue (v y) (v y))) -> okAt (mterm p c (v y)) xs.
+mtermOk P Xs A (cv I) Y refl S = mvarOk P Xs A I (pget P I) refl S.
+mtermOk P Xs A (cc C) Y refl S = rewrite keepSelf (eqValue (v C) (v C)) P S in A.
+mtermOk P Xs A (capp F As) Y E S = A.
+mtermOk P Xs A (carith O L R) Y E S = A.
+mtermOk P Xs A (cneg L) Y E S = A.
+
+consInv : {t : ⇑type} -> {ts : list ⇑type} -> (a : option ⇑t) -> (b : option (env ts)) -> (x : ⇑t) -> (xs : env ts) ->
+          eq (optCons a b) (some (econs x xs)) -> both (eq a (some x)) (eq b (some xs)).
+consInv (some Y) (some Ys) X Xs refl = { fst = refl, snd = refl }.
+consInv none B X Xs ().
+consInv (some Y) none X Xs ().
+
+mthenOk : {ts ss : list ⇑type} -> (o : option (penv ts)) -> (xs : env ts) -> okAt o xs -> (cs : cterms ts ss) ->
+          (ws : list value) -> ((q : penv ts) -> agree q xs -> okAt (margs q cs ws) xs) -> okAt (mthen o cs ws) xs.
+mthenOk (some Q) Xs A Cs Ws K = K Q A.
+mthenOk none Xs () Cs Ws K.
+
+margsOk : {ts ss : list ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (cs : cterms ts ss) -> (es : env ss) ->
+          eq (instTerms xs cs) (some es) -> so (isSome (eqValues (values es) (values es))) ->
+          okAt (margs p cs (values es)) xs.
+margsOk P Xs A tnil enil refl S = A.
+margsOk P Xs A (tcons C Cs) (econs E Es) H S =
+  mthenOk (mterm P C (v E)) Xs
+    (mtermOk P Xs A C E (consInv (instTerm Xs C) (instTerms Xs Cs) E Es H).fst
+      (consParts (eqValue (v E) (v E)) (eqValues (values Es) (values Es)) S).fst)
+    Cs (values Es)
+    ([q] [a] margsOk q Xs a Cs Es (consInv (instTerm Xs C) (instTerms Xs Cs) E Es H).snd
+      (consParts (eqValue (v E) (v E)) (eqValues (values Es) (values Es)) S).snd).
+
+matomAt : {ts ss : list ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (r : rref) -> (cs : cterms ts ss) ->
+          (o : option (env ss)) -> eq (instTerms xs cs) o -> (s : rref) -> (vs : list value) ->
+          eq (pat r (optMap values o)) (pat s (some vs)) -> selfG (atom s vs) -> okAt (matom p (cat r cs) (atom s vs)) xs.
+matomAt P Xs A R Cs (some Es) E S Vs refl G =
+  rewrite keepSelf (eqRref R R) P (atomParts (eqRref R R) (eqValues (values Es) (values Es)) G).fst in
+    margsOk P Xs A Cs Es E (atomParts (eqRref R R) (eqValues (values Es) (values Es)) G).snd.
+matomAt P Xs A R Cs none E S Vs () G.
+
+matomOk : {ts : list ⇑type} -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (b : catom ts) -> (r : rref) ->
+          (vs : list value) -> eq (instAtom xs b) (pat r (some vs)) -> selfG (atom r vs) -> okAt (matom p b (atom r vs)) xs.
+matomOk P Xs A (cat R Cs) S Vs H G = matomAt P Xs A R Cs (instTerms Xs Cs) refl S Vs H G.
+
+(* some candidate in `ps` agrees with `xs` *)
+found : {ts : list ⇑type} -> list (penv ts) -> env ts -> Type.
+isFound : {ts : list ⇑type} -> {ps : list (penv ts)} -> {xs : env ts} -> (p : penv ts) -> member p ps -> agree p xs ->
+          found ps xs.
+
+foundHead : {ts : list ⇑type} -> (o : option (penv ts)) -> (ps : list (penv ts)) -> (xs : env ts) -> okAt o xs ->
+            found (optList o ps) xs.
+foundHead (some P) Ps Xs A = isFound P here A.
+foundHead none Ps Xs ().
+
+foundThere : {ts : list ⇑type} -> (o : option (penv ts)) -> {ps : list (penv ts)} -> {xs : env ts} -> found ps xs ->
+             found (optList o ps) xs.
+foundThere O (isFound P M A) = isFound P (optListThere O M) A.
+
+mextOk : {ts : list ⇑type} -> (gs : list gatom) -> (p : penv ts) -> (xs : env ts) -> agree p xs -> (b : catom ts) ->
+         (r : rref) -> (vs : list value) -> eq (instAtom xs b) (pat r (some vs)) -> member (atom r vs) gs ->
+         selfG (atom r vs) -> found (mext gs b p) xs.
+mextOk (G :: Gs) P Xs A B R Vs H here S = foundHead (matom P B (atom R Vs)) (mext Gs B P) Xs (matomOk P Xs A B R Vs H S).
+mextOk (G :: Gs) P Xs A B R Vs H (there M) S = foundThere (matom P B G) (mextOk Gs P Xs A B R Vs H M S).
+
+(* the facts of a list, as a database *)
+memOf : list gatom -> db = [gs] [a] member a gs.
+
+(* the positive atoms of a body are facts of `gs` *)
+posIn : list gatom -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+posIn Gs Xs [] = unit.
+posIn Gs Xs (cpos B :: Bs) = both (atomIn (memOf Gs) (instAtom Xs B)) (posIn Gs Xs Bs).
+posIn Gs Xs (ccmp O L R :: Bs) = posIn Gs Xs Bs.
+posIn Gs Xs (cnot Us B :: Bs) = posIn Gs Xs Bs.
+posIn Gs Xs (cagg Us O X T Cs :: Bs) = posIn Gs Xs Bs.
+
+selfAll : list gatom -> Type = [gs] (g : gatom) -> member g gs -> selfG g.
+
+extOk : {ts : list ⇑type} -> (gs : list gatom) -> selfAll gs -> (b : catom ts) -> (p : penv ts) -> (xs : env ts) ->
+        agree p xs -> (q : patom) -> eq (instAtom xs b) q -> atomIn (memOf gs) q -> found (mext gs b p) xs.
+extOk Gs S B P Xs A (pat R (some Vs)) E M = mextOk Gs P Xs A B R Vs E M (S (atom R Vs) M).
+extOk Gs S B P Xs A (pat R none) E ().
+
+liftFound : {ts : list ⇑type} -> (f : penv ts -> list (penv ts)) -> (ps : list (penv ts)) -> {p : penv ts} ->
+            {xs : env ts} -> member p ps -> found (f p) xs -> found (concat (map f ps)) xs.
+liftFound F Ps M (isFound Q N A) = isFound Q (concatMapIn F Ps M N) A.
+
+(* Completeness of the candidates: every valuation whose positive atoms are facts of `gs` agrees with
+   one of them *)
+candsOk : {ts : list ⇑type} -> (gs : list gatom) -> selfAll gs -> (bs : list (cbody ts)) -> (ps : list (penv ts)) ->
+          (xs : env ts) -> posIn gs xs bs -> found ps xs -> found (cands gs bs ps) xs.
+candsOk Gs S [] Ps Xs H F = F.
+candsOk Gs S (cpos B :: Bs) Ps Xs H (isFound P M A) =
+  candsOk Gs S Bs (concat (map (mext Gs B) Ps)) Xs H.snd
+    (liftFound (mext Gs B) Ps M (extOk Gs S B P Xs A (instAtom Xs B) refl H.fst)).
+candsOk Gs S (ccmp O L R :: Bs) Ps Xs H F = candsOk Gs S Bs Ps Xs H F.
+candsOk Gs S (cnot Us B :: Bs) Ps Xs H F = candsOk Gs S Bs Ps Xs H F.
+candsOk Gs S (cagg Us O X T Cs :: Bs) Ps Xs H F = candsOk Gs S Bs Ps Xs H F.
+
+(* ---------------------------------------------------------------- facts with their proofs *)
+
+(* a fact of the database `m`, with its proof and the check that it compares equal to itself *)
+pfact : db -> Type = [m] { fact : gatom, proof : m fact, self : selfG fact }.
+
+pfacts : {m : db} -> list (pfact m) -> list gatom.
+pfacts [] = [].
+pfacts (E :: Es) = E.fact :: pfacts Es.
+
+selfOf : {m : db} -> (es : list (pfact m)) -> (g : gatom) -> member g (pfacts es) -> selfG g.
+selfOf (E :: Es) G here = E.self.
+selfOf (E :: Es) G (there M) = selfOf Es G M.
+
+orElse : {A : Type} -> option A -> option A -> option A.
+orElse (some X) Y = some X.
+orElse none Y = Y.
+
+both2 : {A B C : Type} -> (A -> B -> C) -> option A -> option B -> option C.
+both2 F (some X) (some Y) = some (F X Y).
+both2 F X Y = none.
+
+bindO : {A B : Type} -> option A -> (A -> option B) -> option B.
+bindO (some X) F = F X.
+bindO none F = none.
+
+(* the position of a fact in a list: the search stops at the first match, and the membership in the whole
+   list is built once, by `k` *)
+findFrom : (all gs : list gatom) -> (a : gatom) -> ((b : gatom) -> member b gs -> member b all) -> option (member a all).
+hereAt : (all : list gatom) -> (g : gatom) -> (gs : list gatom) -> (a : gatom) ->
+         ((b : gatom) -> member b (g :: gs) -> member b all) -> option (eq g a) -> option (member a all).
+findFrom All [] A K = none.
+findFrom All (G :: Gs) A K = hereAt All G Gs A K (eqGatom G A).
+hereAt All G Gs A K (some refl) = some (K G here).
+hereAt All G Gs A K none = findFrom All Gs A ([b] [m] K b (there m)).
+
+findIn : (gs : list gatom) -> (a : gatom) -> option (member a gs).
+findIn Gs A = findFrom Gs Gs A ([b] [m] m).
+
+(* ---------------------------------------------------------------- the model check *)
+
+(* every defined head of a list is a fact of `m` *)
+allIn : db -> list patom -> Type = [m] [qs] (r : rref) -> (vs : list value) -> member (pat r (some vs)) qs -> m (atom r vs).
+
+allNil : {m : db} -> (r : rref) -> (vs : list value) -> member (pat r (some vs)) [] -> m (atom r vs).
+allNil R Vs ().
+
+allCons : {m : db} -> {r : rref} -> {vs : list value} -> {qs : list patom} -> m (atom r vs) -> allIn m qs ->
+          (s : rref) -> (ws : list value) -> member (pat s (some ws)) (pat r (some vs) :: qs) -> m (atom s ws).
+allCons H K S Ws here = H.
+allCons H K S Ws (there M) = K S Ws M.
+
+allSkip : {m : db} -> {r : rref} -> {qs : list patom} -> allIn m qs ->
+          (s : rref) -> (ws : list value) -> member (pat s (some ws)) (pat r none :: qs) -> m (atom s ws).
+allSkip K S Ws (there M) = K S Ws M.
+
+headsIn : (gs : list gatom) -> (qs : list patom) -> option (allIn (memOf gs) qs).
+headsIn Gs [] = some (allNil {m := memOf Gs}).
+headsIn Gs (pat R (some Vs) :: Qs) = both2 (allCons {m := memOf Gs}) (findIn Gs (atom R Vs)) (headsIn Gs Qs).
+headsIn Gs (pat R none :: Qs) = optMap (allSkip {m := memOf Gs}) (headsIn Gs Qs).
+
+(* refuting a comparison *)
+noLeft : {t : ⇑type} -> {o : cmp_op} -> {y : option ⇑t} -> holdsCmp o none y -> empty.
+noLeft ().
+
+noRight : {t : ⇑type} -> {o : cmp_op} -> {x : ⇑t} -> holdsCmp o (some x) none -> empty.
+noRight ().
+
+notEq : {t : ⇑type} -> {x y : ⇑t} -> (eq x y -> empty) -> holdsCmp ceq (some x) (some y) -> empty.
+notEq F cmpEq = F refl.
+
+notNe : {t : ⇑type} -> {x y : ⇑t} -> eq x y -> holdsCmp cne (some x) (some y) -> empty.
+notNe refl (cmpNe F) = F refl.
+
+soFalse : {b : bool} -> eq b false -> so b -> empty.
+soFalse refl S = S.
+
+notLt : {x y : ⇑int} -> eq (iless (intOf x) (intOf y)) false -> holdsCmp clt (some x) (some y) -> empty.
+notLt E (cmpLt S) = soFalse E S.
+
+notLe : {x y : ⇑int} -> eq (ileq (intOf x) (intOf y)) false -> holdsCmp cle (some x) (some y) -> empty.
+notLe E (cmpLe S) = soFalse E S.
+
+notGt : {x y : ⇑int} -> eq (iless (intOf y) (intOf x)) false -> holdsCmp cgt (some x) (some y) -> empty.
+notGt E (cmpGt S) = soFalse E S.
+
+notGe : {x y : ⇑int} -> eq (ileq (intOf y) (intOf x)) false -> holdsCmp cge (some x) (some y) -> empty.
+notGe E (cmpGe S) = soFalse E S.
+
+refuteEq : {t : ⇑type} -> (x y : ⇑t) -> dec (eq x y) -> option (holdsCmp ceq (some x) (some y) -> empty).
+refuteEq X Y (yes E) = none.
+refuteEq X Y (no F) = some (notEq F).
+
+refuteNe : {t : ⇑type} -> (x y : ⇑t) -> dec (eq x y) -> option (holdsCmp cne (some x) (some y) -> empty).
+refuteNe X Y (yes E) = some (notNe E).
+refuteNe X Y (no F) = none.
+
+refuteOrd : (o : cmp_op) -> (x y : ⇑int) -> option (holdsCmp o (some x) (some y) -> empty).
+refuteOrd ceq X Y = refuteEq X Y (decEq X Y).
+refuteOrd cne X Y = refuteNe X Y (decEq X Y).
+refuteOrd clt X Y = match E : iless (intOf X) (intOf Y) with
+  | true => none
+  | false => some (notLt E).
+refuteOrd cle X Y = match E : ileq (intOf X) (intOf Y) with
+  | true => none
+  | false => some (notLe E).
+refuteOrd cgt X Y = match E : iless (intOf Y) (intOf X) with
+  | true => none
+  | false => some (notGt E).
+refuteOrd cge X Y = match E : ileq (intOf Y) (intOf X) with
+  | true => none
+  | false => some (notGe E).
+
+refuteAt : {t : ⇑type} -> option (eq t int) -> (o : cmp_op) -> (x y : ⇑t) -> option (holdsCmp o (some x) (some y) -> empty).
+refuteAt (some refl) O X Y = refuteOrd O X Y.
+refuteAt none O X Y = none.
+
+refuteCmp : {t : ⇑type} -> (o : cmp_op) -> (x y : option ⇑t) -> option (holdsCmp o x y -> empty).
+refuteCmp O none Y = some noLeft.
+refuteCmp O (some X) none = some noRight.
+refuteCmp ceq (some X) (some Y) = refuteEq X Y (decEq X Y).
+refuteCmp cne (some X) (some Y) = refuteNe X Y (decEq X Y).
+refuteCmp {t := T} O (some X) (some Y) = refuteAt (fromDec (decEq T int)) O X Y.
+
+underFst : {A B : Type} -> (A -> empty) -> both A B -> empty.
+underFst F H = F H.fst.
+
+underSnd : {A B : Type} -> (B -> empty) -> both A B -> empty.
+underSnd F H = F H.snd.
+
+idEmpty : empty -> empty.
+idEmpty H = H.
+
+(* refuting a body in the positive fragment: a comparison that fails, or a negation or an aggregate, which
+   `derives` never satisfies *)
+refuteIn : (m : db) -> {ts : list ⇑type} -> (xs : env ts) -> (bs : list (cbody ts)) -> option (holdsIn m xs bs -> empty).
+refuteIn M Xs [] = none.
+refuteIn M Xs (cpos B :: Bs) = optMap underSnd (refuteIn M Xs Bs).
+refuteIn M Xs (ccmp O L R :: Bs) =
+  orElse (optMap underFst (refuteCmp O (instTerm Xs L) (instTerm Xs R))) (optMap underSnd (refuteIn M Xs Bs)).
+refuteIn M Xs (cnot Us B :: Bs) = some idEmpty.
+refuteIn M Xs (cagg Us O X T Cs :: Bs) = some idEmpty.
+
+(* What the model check shows of a rule and a valuation: if its body holds (`h`: in `derives`, or in a
+   stratum), the heads are facts of `gs` *)
+goalBy : ((c : crule) -> env c.vars -> Type) -> list gatom -> (c : crule) -> env c.vars -> Type =
+  [h] [gs] [c] [xs] h c xs -> allIn (memOf gs) (map (instAtom xs) c.heads).
+
+keepHeads : {A B : Type} -> B -> A -> B.
+keepHeads X H = X.
+
+absurdly : {A B : Type} -> (A -> empty) -> A -> B.
+absurdly F H = emptyElim (F H).
+
+moveTo : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) -> (p : penv c.vars) ->
+         (ys : env c.vars) -> eq (complete p) (some ys) -> goalBy h gs c ys -> (xs : env c.vars) -> agree p xs ->
+         goalBy h gs c xs.
+moveTo H Gs C P Ys E G Xs A = subst (goalBy H Gs C) (completeAgree P Xs A Ys E) G.
+
+candAt : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) ->
+         ((ys : env c.vars) -> option (goalBy h gs c ys)) -> (p : penv c.vars) -> (o : option (env c.vars)) ->
+         eq (complete p) o -> option ((xs : env c.vars) -> agree p xs -> goalBy h gs c xs).
+candAt H Gs C K P (some Ys) E = optMap (moveTo H Gs C P Ys E) (K Ys).
+candAt H Gs C K P none E = none.
+
+candCons : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) -> {p : penv c.vars} ->
+           {ps : list (penv c.vars)} -> ((xs : env c.vars) -> agree p xs -> goalBy h gs c xs) ->
+           ((q : penv c.vars) -> member q ps -> (xs : env c.vars) -> agree q xs -> goalBy h gs c xs) ->
+           (q : penv c.vars) -> member q (p :: ps) -> (xs : env c.vars) -> agree q xs -> goalBy h gs c xs.
+candCons H Gs C F K Q here = F.
+candCons H Gs C F K Q (there M) = K Q M.
+
+candNil : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) -> (q : penv c.vars) ->
+          member q [] -> (xs : env c.vars) -> agree q xs -> goalBy h gs c xs.
+candNil H Gs C Q ().
+
+candsAll : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) ->
+           ((ys : env c.vars) -> option (goalBy h gs c ys)) -> (ps : list (penv c.vars)) ->
+           option ((p : penv c.vars) -> member p ps -> (xs : env c.vars) -> agree p xs -> goalBy h gs c xs).
+candsAll H Gs C K [] = some (candNil H Gs C).
+candsAll H Gs C K (P :: Ps) = both2 (candCons H Gs C) (candAt H Gs C K P (complete P) refl) (candsAll H Gs C K Ps).
+
+foundGoal : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (c : crule) -> {ps : list (penv c.vars)} ->
+            (xs : env c.vars) -> ((p : penv c.vars) -> member p ps -> (ys : env c.vars) -> agree p ys -> goalBy h gs c ys) ->
+            found ps xs -> goalBy h gs c xs.
+foundGoal H Gs C Xs K (isFound P M A) = K P M Xs A.
+
+ruleFrom : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> selfAll gs ->
+           ((c : crule) -> (xs : env c.vars) -> h c xs -> posIn gs xs c.body) -> (c : crule) ->
+           ((p : penv c.vars) -> member p (cands gs c.body [unbound c.vars]) -> (ys : env c.vars) -> agree p ys ->
+            goalBy h gs c ys) ->
+           (xs : env c.vars) -> h c xs -> allIn (memOf gs) (map (instAtom xs) c.heads).
+ruleFrom H Gs S Po C K Xs Hx =
+  foundGoal H Gs C Xs K (candsOk Gs S C.body [unbound C.vars] Xs (Po C Xs Hx)
+    (isFound (unbound C.vars) here (unboundAgree Xs))) Hx.
+
+(* the model check of one rule: every candidate valuation is complete, and either its heads are facts
+   or its body is refuted; by the completeness of the candidates, this covers every valuation *)
+ruleIn : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> selfAll gs ->
+         ((c : crule) -> (xs : env c.vars) -> h c xs -> posIn gs xs c.body) ->
+         ((c : crule) -> (ys : env c.vars) -> option (goalBy h gs c ys)) -> (c : crule) ->
+         option ((xs : env c.vars) -> goalBy h gs c xs).
+ruleIn H Gs S Po K C = optMap (ruleFrom H Gs S Po C) (candsAll H Gs C (K C) (cands Gs C.body [unbound C.vars])).
+
+ruleCons : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> {c : crule} -> {cs : list crule} ->
+           ((xs : env c.vars) -> goalBy h gs c xs) -> ((e : crule) -> member e cs -> (xs : env e.vars) -> goalBy h gs e xs) ->
+           (e : crule) -> member e (c :: cs) -> (xs : env e.vars) -> goalBy h gs e xs.
+ruleCons H Gs F K E here = F.
+ruleCons H Gs F K E (there M) = K E M.
+
+ruleNil : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> (e : crule) -> member e [] ->
+          (xs : env e.vars) -> goalBy h gs e xs.
+ruleNil H Gs E ().
+
+rulesIn : (h : (c : crule) -> env c.vars -> Type) -> (gs : list gatom) -> selfAll gs ->
+          ((c : crule) -> (xs : env c.vars) -> h c xs -> posIn gs xs c.body) ->
+          ((c : crule) -> (ys : env c.vars) -> option (goalBy h gs c ys)) -> (cs : list crule) ->
+          option ((c : crule) -> member c cs -> (xs : env c.vars) -> goalBy h gs c xs).
+rulesIn H Gs S Po K [] = some (ruleNil H Gs).
+rulesIn H Gs S Po K (C :: Cs) = both2 (ruleCons H Gs) (ruleIn H Gs S Po K C) (rulesIn H Gs S Po K Cs).
+
+(* the positive fragment: bodies read in `derives`, where a negation or an aggregate never holds *)
+holdsP : list gatom -> (c : crule) -> env c.vars -> Type = [gs] [c] [xs] holdsIn (memOf gs) xs c.body.
+
+posOfIn : (gs : list gatom) -> {ts : list ⇑type} -> (xs : env ts) -> (bs : list (cbody ts)) -> holdsIn (memOf gs) xs bs ->
+          posIn gs xs bs.
+posOfIn Gs Xs [] H = tt.
+posOfIn Gs Xs (cpos B :: Bs) H = { fst = H.fst, snd = posOfIn Gs Xs Bs H.snd }.
+posOfIn Gs Xs (ccmp O L R :: Bs) H = posOfIn Gs Xs Bs H.snd.
+posOfIn Gs Xs (cnot Us B :: Bs) H = emptyElim H.
+posOfIn Gs Xs (cagg Us O X T Cs :: Bs) H = emptyElim H.
+
+envIn : (gs : list gatom) -> (c : crule) -> (ys : env c.vars) -> option (goalBy (holdsP gs) gs c ys).
+envIn Gs C Ys =
+  orElse (optMap keepHeads (headsIn Gs (map (instAtom Ys) C.heads))) (optMap absurdly (refuteIn (memOf Gs) Ys C.body)).
+
+(* a list that contains the input facts and passes the model check of every rule is a model *)
+modelOf : (p : program) -> (ins gs : list gatom) -> ((a : gatom) -> member a ins -> member a gs) ->
+          ((c : crule) -> member c p.rules -> (xs : env c.vars) -> goalBy (holdsP gs) gs c xs) -> model p (memOf ins) (memOf gs).
+modelOf P Ins Gs I K = isModel ([r] [vs] [t] [m] I (atom r vs) m) ([c] [m] [xs] [h] [r] [vs] [hm] K c m xs h r vs hm).
+
+(* ---------------------------------------------------------------- certificates *)
+
+(* A certificate lists the facts of a run in an order in which every fact comes after its premises: the
+   input facts, then the derived facts with the positions of their positive premises among the facts
+   before them (`0` the one just before) *)
+cfact : Type.
+cf : gatom -> list nat -> cfact.
+
+(* why a certificate is rejected *)
+failure : Type.
+badProgram : failure.
+badShape : failure.
+badInput : gatom -> failure.
+badFact : gatom -> failure.
+notClosed : nat -> failure.
+
+orFail : {A : Type} -> failure -> option A -> either failure A.
+orFail F (some X) = right X.
+orFail F none = left F.
+
+bindE : {A B : Type} -> either failure A -> (A -> either failure B) -> either failure B.
+bindE (left F) K = left F.
+bindE (right X) K = K X.
+
+at : {A : Type} -> nat -> list A -> option A.
+at N [] = none.
+at 0 (X :: Xs) = some X.
+at (N + 1) (X :: Xs) = at N Xs.
+
+atAll : {A : Type} -> list A -> list nat -> option (list A).
+atAll Xs [] = some [].
+atAll Xs (N :: Ns) = both2 cons (at N Xs) (atAll Xs Ns).
+
+(* a list of facts with their proofs that contains the facts `gs` *)
+stocked : db -> list gatom -> Type.
+stock : {m : db} -> {gs : list gatom} -> (es : list (pfact m)) -> ((a : gatom) -> member a gs -> member a (pfacts es)) ->
+        stocked m gs.
+
+incCons : {a : gatom} -> {gs hs : list gatom} -> ((b : gatom) -> member b gs -> member b hs) -> (b : gatom) ->
+          member b (a :: gs) -> member b (a :: hs).
+incCons I B here = here.
+incCons I B (there M) = there (I B M).
+
+stockAdd : {m : db} -> {gs : list gatom} -> {a : gatom} -> both (m a) (selfG a) -> stocked m gs -> stocked m (a :: gs).
+stockAdd {a := A} H (stock Es I) = stock ({ fact = A, proof = H.fst, self = H.snd } :: Es) (incCons I).
+
+stockPush : {m : db} -> {gs : list gatom} -> {a : gatom} -> both (m a) (selfG a) -> stocked m gs -> stocked m gs.
+stockPush {a := A} H (stock Es I) = stock ({ fact = A, proof = H.fst, self = H.snd } :: Es) ([b] [h] there (I b h)).
+
+pairUp : {A B : Type} -> A -> B -> both A B.
+pairUp X Y = { fst = X, snd = Y }.
+
+selfCheck : (a : gatom) -> option (selfG a).
+selfCheck A = soIf (isSome (eqGatom A A)).
+
+stockNil : {m : db} -> stocked m [].
+stockNil = stock [] ([a] [h] noMember h).
+
+(* the input facts, each with its proof `mk` in the database `m` *)
+givenBy : (p : program) -> (m : db) -> (ins : list gatom) ->
+          ((r : rref) -> (vs : list value) -> member (atom r vs) ins -> so (p.input r) -> m (atom r vs)) ->
+          (rs : list gatom) -> ((a : gatom) -> member a rs -> member a ins) -> either failure (stocked m rs).
+givenBy P M Ins Mk [] I = right stockNil.
+givenBy P M Ins Mk (atom R Vs :: Rs) I =
+  bindE (orFail (badInput (atom R Vs)) (both2 pairUp (optMap (Mk R Vs (I (atom R Vs) here)) (soIf (P.input R)))
+                                                    (selfCheck (atom R Vs))))
+    ([h] bindE (givenBy P M Ins Mk Rs ([a] [k] I a (there k))) ([s] right (stockAdd h s))).
+
+(* the facts of a database `m`, all of them *)
+level : db -> Type = [m] { facts : list (pfact m), complete : (a : gatom) -> m a -> member a (pfacts facts) }.
+
+(* ---------------------------------------------------------------- the positive checker *)
+
+toD : {p : program} -> {d : db} -> pfact (derives p d) -> dfact p d.
+toD E = { fact = E.fact, proof = E.proof }.
+
+(* a derived fact: a rule fires on its premises, as `holds` fires rules on the facts so far *)
+derivedOne : (p : program) -> {d : db} -> list (pfact (derives p d)) -> (a : gatom) -> list nat ->
+             option (both (derives p d a) (selfG a)).
+derivedOne P Es A Ns =
+  both2 pairUp (bindO (atAll Es Ns) ([cs] findFact A (fireAll (map toD cs) (positions P.rules)))) (selfCheck A).
+
+derivedIn : (p : program) -> {d : db} -> {gs : list gatom} -> stocked (derives p d) gs -> list cfact ->
+            either failure (stocked (derives p d) gs).
+derivedIn P S [] = right S.
+derivedIn P (stock Es I) (cf A Ns :: Fs) =
+  bindE (orFail (badFact A) (derivedOne P Es A Ns)) ([h] derivedIn P (stockPush h (stock Es I)) Fs).
+
+finishP : (p : program) -> (ins : list gatom) -> (es : list (pfact (derives p (memOf ins)))) ->
+          ((a : gatom) -> member a ins -> member a (pfacts es)) ->
+          ((c : crule) -> member c p.rules -> (xs : env c.vars) -> goalBy (holdsP (pfacts es)) (pfacts es) c xs) ->
+          level (derives p (memOf ins)).
+finishP P Ins Es I K = { facts = Es, complete = [a] [x] least (modelOf P Ins (pfacts Es) I K) x }.
+
+closeP : (p : program) -> (ins : list gatom) -> stocked (derives p (memOf ins)) ins -> either failure (level (derives p (memOf ins))).
+closeP P Ins (stock Es I) =
+  orFail (notClosed 0) (optMap (finishP P Ins Es I)
+    (rulesIn (holdsP (pfacts Es)) (pfacts Es) (selfOf Es) ([c] [xs] posOfIn (pfacts Es) xs c.body) (envIn (pfacts Es)) P.rules)).
+
+(* A positive program: the facts of the certificate are derived (each with its derivation), and every
+   derived fact is among them (the model check) *)
+checkPositive : (p : program) -> (ins : list gatom) -> list cfact -> either failure (level (derives p (memOf ins))).
+checkPositive P Ins Fs =
+  bindE (givenBy P (derives P (memOf Ins)) Ins ([r] [vs] [k] [t] given t k) Ins ([a] [k] k))
+    ([s] bindE (derivedIn P s Fs) (closeP P Ins)).
+
+(* ---------------------------------------------------------------- the stratified checker *)
+
+(* The facts of the strata below a stratum are its input facts: every relation is an input relation of a
+   stratum `q = layer p s`. The functions of a stratum take `q` as a value, computed once, since a term
+   `layer p s` would filter the rules again wherever a derivation mentions it *)
+allInput : program -> Type = [q] (r : rref) -> so (q.input r).
+
+liftProof : (q : program) -> allInput q -> {m : db} -> (a : gatom) -> m a -> nderives q m a.
+liftProof Q All (atom R Vs) H = ngiven (All R) H.
+
+liftAll : (q : program) -> allInput q -> {m : db} -> list (pfact m) -> list (pfact (nderives q m)).
+liftAll Q All [] = [].
+liftAll Q All {m := M} (E :: Es) = { fact = E.fact, proof = liftProof Q All {m := M} E.fact E.proof, self = E.self } :: liftAll Q All Es.
+
+liftKeeps : (q : program) -> (all : allInput q) -> {m : db} -> (es : list (pfact m)) -> (a : gatom) ->
+            member a (pfacts es) -> member a (pfacts (liftAll q all es)).
+liftKeeps Q All (E :: Es) A here = here.
+liftKeeps Q All (E :: Es) A (there M) = there (liftKeeps Q All Es A M).
+
+foundP : {m : db} -> {a b : gatom} -> option (eq a b) -> m a -> option (m b) -> option (m b).
+foundP (some refl) H R = some H.
+foundP none H R = R.
+
+findP : {m : db} -> (a : gatom) -> list (pfact m) -> option (m a).
+findPAt : {m : db} -> (a : gatom) -> (e : pfact m) -> list (pfact m) -> option (eq e.fact a) -> option (m a).
+findP A [] = none.
+findP {m := M} A (E :: Es) = findPAt {m := M} A E Es (eqGatom E.fact A).
+findPAt A E Es (some refl) = some E.proof.
+findPAt A E Es none = findP A Es.
+
+(* a negated atom without local variables bound by matching: no fact of the strata below matches it *)
+known : {ts : list ⇑type} -> env ts -> penv ts.
+known enil = pend.
+known (econs X Xs) = pvar (some X) (known Xs).
+
+pfix : (us : list ⇑type) -> {ts : list ⇑type} -> env ts -> penv (append us ts).
+pfix [] Xs = known Xs.
+pfix (U :: Us) Xs = pvar none (pfix Us Xs).
+
+knownAgree : {ts : list ⇑type} -> (xs : env ts) -> agree (known xs) xs.
+knownAgree enil = tt.
+knownAgree (econs X Xs) = { fst = refl, snd = knownAgree Xs }.
+
+fixAgree : (us : list ⇑type) -> {ts : list ⇑type} -> (ys : env us) -> (xs : env ts) -> agree (pfix us xs) (eappend ys xs).
+fixAgree [] enil Xs = knownAgree Xs.
+fixAgree (U :: Us) (econs Y Ys) Xs = fixAgree Us Ys Xs.
+
+simpleT : {ts : list ⇑type} -> {t : ⇑type} -> cterm ts t -> bool.
+simpleT (cv I) = true.
+simpleT (cc C) = true.
+simpleT (capp F As) = false.
+simpleT (carith O A B) = false.
+simpleT (cneg A) = false.
+
+simpleTs : {ts ss : list ⇑type} -> cterms ts ss -> bool.
+simpleTs tnil = true.
+simpleTs (tcons T Ts) = if (simpleT T) (simpleTs Ts) false.
+
+simpleA : {ts : list ⇑type} -> catom ts -> bool.
+simpleA (cat R As) = simpleTs As.
+
+isDef : {A : Type} -> option A -> Type.
+isDef (some X) = unit.
+isDef none = empty.
+
+consDef : {t : ⇑type} -> {ts : list ⇑type} -> (x : ⇑t) -> (o : option (env ts)) -> isDef o -> isDef (optCons (some x) o).
+consDef X (some Y) T = tt.
+consDef X none ().
+
+(* terms that are variables and constants are defined for all values *)
+definedTs : {ts ss : list ⇑type} -> (cs : cterms ts ss) -> so (simpleTs cs) -> (xs : env ts) -> isDef (instTerms xs cs).
+definedTs tnil T Xs = tt.
+definedTs (tcons (cv I) Cs) T Xs = consDef (valueAt Xs I) (instTerms Xs Cs) (definedTs Cs T Xs).
+definedTs (tcons (cc C) Cs) T Xs = consDef C (instTerms Xs Cs) (definedTs Cs T Xs).
+definedTs (tcons (capp F As) Cs) () Xs.
+definedTs (tcons (carith O A B) Cs) () Xs.
+definedTs (tcons (cneg A) Cs) () Xs.
+
+emptyFound : {ts : list ⇑type} -> {xs : env ts} -> found [] xs -> empty.
+emptyFound (isFound P M A) = noMember M.
+
+noneAt : {m : db} -> {ts ss : list ⇑type} -> (gs : list gatom) -> selfAll gs -> ((a : gatom) -> m a -> member a gs) ->
+         (p : penv ts) -> (zs : env ts) -> agree p zs -> (r : rref) -> (cs : cterms ts ss) -> (o : option (env ss)) ->
+         eq (instTerms zs cs) o -> isDef o -> eq (mext gs (cat r cs) p) [] -> notIn m (pat r (optMap values o)).
+noneAt Gs S C P Zs A R Cs (some Es) E D N = [h]
+  emptyFound (subst ([l] found l Zs) N
+    (mextOk Gs P Zs A (cat R Cs) R (values Es) (cong ([o] pat R (optMap values o)) E) (C (atom R (values Es)) h)
+      (S (atom R (values Es)) (C (atom R (values Es)) h)))).
+noneAt Gs S C P Zs A R Cs none E () N.
+
+absentOk : {m : db} -> {ts : list ⇑type} -> (gs : list gatom) -> selfAll gs -> ((a : gatom) -> m a -> member a gs) ->
+           (xs : env ts) -> (us : list ⇑type) -> (b : catom (append us ts)) -> so (simpleA b) ->
+           eq (mext gs b (pfix us xs)) [] -> absent m xs us b.
+absentOk Gs S C Xs Us (cat R Cs) D N Ys =
+  noneAt Gs S C (pfix Us Xs) (eappend Ys Xs) (fixAgree Us Ys Xs) R Cs (instTerms (eappend Ys Xs) Cs) refl
+    (definedTs Cs D (eappend Ys Xs)) N.
+
+nilEq : {A : Type} -> (l : list A) -> option (eq l []).
+nilEq [] = some refl.
+nilEq (X :: Xs) = none.
+
+absentIn : {m : db} -> {ts : list ⇑type} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+           (xs : env ts) -> (us : list ⇑type) -> (b : catom (append us ts)) -> option (absent m xs us b).
+absentIn Low C Xs Us B =
+  both2 (absentOk (pfacts Low) (selfOf Low) C Xs Us B) (soIf (simpleA B)) (nilEq (mext (pfacts Low) B (pfix Us Xs))).
+
+(* checking a valuation in a stratum: positive premises among the premises given, negations by absence *)
+nposAt : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> {bs : list (cbody ts)} ->
+         (q : patom) -> eq (instAtom xs b) q -> list (pfact (nderives p d)) -> option (npremises p d xs bs) ->
+         option (npremises p d xs (cpos b :: bs)).
+nposAt (pat R (some Vs)) E Cs Ps = both2 (npos E) (findP (atom R Vs) Cs) Ps.
+nposAt (pat R none) E Cs Ps = none.
+
+ncmpOpt : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {t : ⇑type} -> {o : cmp_op} ->
+          {l r : cterm ts t} -> {bs : list (cbody ts)} ->
+          option (holdsCmp o (instTerm xs l) (instTerm xs r)) -> option (npremises p d xs bs) ->
+          option (npremises p d xs (ccmp o l r :: bs)).
+ncmpOpt (some C) (some Ps) = some (ncmp C Ps).
+ncmpOpt X Y = none.
+
+nnegOpt : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {us : list ⇑type} ->
+          {b : catom (append us ts)} -> {bs : list (cbody ts)} ->
+          option (absent d xs us b) -> option (npremises p d xs bs) -> option (npremises p d xs (cnot us b :: bs)).
+nnegOpt (some N) (some Ps) = some (nneg N Ps).
+nnegOpt X Y = none.
+
+checkN : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+         list (pfact (nderives q m)) -> {ts : list ⇑type} -> (xs : env ts) -> (bs : list (cbody ts)) ->
+         option (npremises q m xs bs).
+checkN Q Low C Cs Xs [] = some nnil.
+checkN Q Low C Cs Xs (cpos B :: Bs) = nposAt {xs := Xs} {b := B} (instAtom Xs B) refl Cs (checkN Q Low C Cs Xs Bs).
+checkN Q Low C Cs Xs (ccmp O L R :: Bs) =
+  ncmpOpt {xs := Xs} {l := L} {r := R} (decideCmp O (instTerm Xs L) (instTerm Xs R)) (checkN Q Low C Cs Xs Bs).
+checkN Q Low C Cs Xs (cnot Us B :: Bs) = nnegOpt (absentIn Low C Xs Us B) (checkN Q Low C Cs Xs Bs).
+checkN Q Low C Cs Xs (cagg Us O X T Ds :: Bs) = none.
+
+nheadAt : {q : program} -> {m : db} -> {c : crule} -> {xs : env c.vars} -> member c q.rules -> npremises q m xs c.body ->
+          (h : patom) -> member h (map (instAtom xs) c.heads) -> (a : gatom) -> option (nderives q m a).
+nheadAt {q := Q} {m := M} K Ps (pat R (some Vs)) At A = foundP {m := nderives Q M} (eqGatom (atom R Vs) A) (nfire K Ps At) none.
+nheadAt M Ps (pat R none) At A = none.
+
+nheadsOf : {q : program} -> {m : db} -> {c : crule} -> {xs : env c.vars} -> member c q.rules -> npremises q m xs c.body ->
+           list { x : patom, at : member x (map (instAtom xs) c.heads) } -> (a : gatom) -> option (nderives q m a).
+nheadsOf M Ps [] A = none.
+nheadsOf M Ps (H :: Hs) A = orElse (nheadAt M Ps H.x H.at A) (nheadsOf M Ps Hs A).
+
+nfireAt : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+          list (pfact (nderives q m)) -> (c : crule) -> member c q.rules -> list (env c.vars) -> (a : gatom) ->
+          option (nderives q m a).
+nfireAt Q Low C Cs Cr M [] A = none.
+nfireAt Q Low C Cs Cr M (Xs :: Xss) A =
+  orElse (bindO (checkN Q Low C Cs Xs Cr.body) ([ps] nheadsOf {xs := Xs} M ps (positions (map (instAtom Xs) Cr.heads)) A))
+    (nfireAt Q Low C Cs Cr M Xss A).
+
+nfireOne : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+           list (pfact (nderives q m)) -> list { x : crule, at : member x q.rules } -> (a : gatom) -> option (nderives q m a).
+nfireOne Q Low C Cs [] A = none.
+nfireOne Q Low C Cs (R :: Rs) A =
+  orElse (nfireAt Q Low C Cs R.x R.at (completes (cands (pfacts Cs) R.x.body [unbound R.x.vars])) A) (nfireOne Q Low C Cs Rs A).
+
+derivedN : (q : program) -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> list { x : crule, at : member x q.rules } ->
+           stocked (nderives q m) (pfacts low) -> list cfact -> either failure (stocked (nderives q m) (pfacts low)).
+derivedN Q Low C Rs St [] = right St.
+derivedN Q Low C Rs (stock Es I) (cf A Ns :: Fs) =
+  bindE (orFail (badFact A) (both2 pairUp (bindO (atAll Es Ns) ([cs] nfireOne Q Low C cs Rs A)) (selfCheck A)))
+    ([h] derivedN Q Low C Rs (stockPush h (stock Es I)) Fs).
+
+(* the model check of a stratum: bodies read with the atoms in the stratum's facts and the negations in
+   the facts below; a negation is refuted by a fact below that matches it *)
+holdsW : db -> list gatom -> (c : crule) -> env c.vars -> Type = [m] [gs] [c] [xs] holdsWith m (memOf gs) xs c.body.
+
+posOfW : (m : db) -> (gs : list gatom) -> {ts : list ⇑type} -> (xs : env ts) -> (bs : list (cbody ts)) ->
+         holdsWith m (memOf gs) xs bs -> posIn gs xs bs.
+posOfW M Gs Xs [] H = tt.
+posOfW M Gs Xs (cpos B :: Bs) H = { fst = H.fst, snd = posOfW M Gs Xs Bs H.snd }.
+posOfW M Gs Xs (ccmp O L R :: Bs) H = posOfW M Gs Xs Bs H.snd.
+posOfW M Gs Xs (cnot Us B :: Bs) H = posOfW M Gs Xs Bs H.snd.
+posOfW M Gs Xs (cagg Us O X T Cs :: Bs) H = posOfW M Gs Xs Bs H.snd.
+
+etake : (us : list ⇑type) -> {ts : list ⇑type} -> env (append us ts) -> env us.
+etake [] Zs = enil.
+etake (U :: Us) (econs Z Zs) = econs Z (etake Us Zs).
+
+refuteBy : {m : db} -> {ts : list ⇑type} -> {us : list ⇑type} -> {xs : env ts} -> {b : catom (append us ts)} ->
+           {r : rref} -> {vs : list value} -> (ys : env us) -> eq (instAtom (eappend ys xs) b) (pat r (some vs)) ->
+           m (atom r vs) -> absent m xs us b -> empty.
+refuteBy {m := M} Ys E H F = subst (notIn M) E (F Ys) H.
+
+witnessAt : {m : db} -> {ts : list ⇑type} -> {us : list ⇑type} -> {xs : env ts} -> {b : catom (append us ts)} ->
+            (ys : env us) -> (q : patom) -> eq (instAtom (eappend ys xs) b) q -> list (pfact m) ->
+            option (absent m xs us b -> empty).
+witnessAt Ys (pat R (some Vs)) E Low = optMap (refuteBy Ys E) (findP (atom R Vs) Low).
+witnessAt Ys (pat R none) E Low = none.
+
+firstSome : {A B : Type} -> (A -> option B) -> list A -> option B.
+firstSome F [] = none.
+firstSome F (X :: Xs) = orElse (F X) (firstSome F Xs).
+
+refuteNeg : {m : db} -> {ts : list ⇑type} -> (low : list (pfact m)) -> (xs : env ts) -> (us : list ⇑type) ->
+            (b : catom (append us ts)) -> option (absent m xs us b -> empty).
+refuteNeg Low Xs Us B =
+  firstSome ([zs] witnessAt {xs := Xs} {b := B} (etake Us zs) (instAtom (eappend (etake Us zs) Xs) B) refl Low)
+    (completes (mext (pfacts Low) B (pfix Us Xs))).
+
+refuteWith : (m : db) -> (low : list (pfact m)) -> (n : db) -> {ts : list ⇑type} -> (xs : env ts) ->
+             (bs : list (cbody ts)) -> option (holdsWith m n xs bs -> empty).
+refuteWith M Low N Xs [] = none.
+refuteWith M Low N Xs (cpos B :: Bs) = optMap underSnd (refuteWith M Low N Xs Bs).
+refuteWith M Low N Xs (ccmp O L R :: Bs) =
+  orElse (optMap underFst (refuteCmp O (instTerm Xs L) (instTerm Xs R))) (optMap underSnd (refuteWith M Low N Xs Bs)).
+refuteWith M Low N Xs (cnot Us B :: Bs) =
+  orElse (optMap underFst (refuteNeg Low Xs Us B)) (optMap underSnd (refuteWith M Low N Xs Bs)).
+refuteWith M Low N Xs (cagg Us O X T Cs :: Bs) = optMap underSnd (refuteWith M Low N Xs Bs).
+
+envW : (m : db) -> (low : list (pfact m)) -> (gs : list gatom) -> (c : crule) -> (ys : env c.vars) ->
+       option (goalBy (holdsW m gs) gs c ys).
+envW M Low Gs C Ys =
+  orElse (optMap keepHeads (headsIn Gs (map (instAtom Ys) C.heads))) (optMap absurdly (refuteWith M Low (memOf Gs) Ys C.body)).
+
+nmodelOf : (q : program) -> (m : db) -> (gs : list gatom) -> ((a : gatom) -> m a -> member a gs) ->
+           ((c : crule) -> member c q.rules -> (xs : env c.vars) -> goalBy (holdsW m gs) gs c xs) -> nmodel q m (memOf gs).
+nmodelOf Q M Gs I K = isNModel ([r] [vs] [t] [h] I (atom r vs) h) ([c] [k] [xs] [h] [r] [vs] [hm] K c k xs h r vs hm).
+
+finishN : (q : program) -> (m : db) -> (es : list (pfact (nderives q m))) -> ((a : gatom) -> m a -> member a (pfacts es)) ->
+          ((c : crule) -> member c q.rules -> (xs : env c.vars) -> goalBy (holdsW m (pfacts es)) (pfacts es) c xs) ->
+          level (nderives q m).
+finishN Q M Es I K = { facts = Es, complete = [a] [x] nleast (nmodelOf Q M (pfacts Es) I K) x }.
+
+closeN : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) -> nat ->
+         stocked (nderives q m) (pfacts low) -> either failure (level (nderives q m)).
+closeN Q {m := M} Low C K (stock Es I) =
+  orFail (notClosed K) (optMap (finishN Q M Es ([a] [h] I a (C a h)))
+    (rulesIn (holdsW M (pfacts Es)) (pfacts Es) (selfOf Es) ([c] [xs] posOfW M (pfacts Es) xs c.body) (envW M Low (pfacts Es))
+      Q.rules)).
+
+stratumQ : (q : program) -> allInput q -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> list cfact -> either failure (level (nderives q m)).
+stratumQ Q All Low C K Fs =
+  bindE (derivedN Q Low C (positions Q.rules) (stock (liftAll Q All Low) (liftKeeps Q All Low)) Fs) (closeN Q Low C K).
+
+stratumN : (p : program) -> (s : list nat) -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> list cfact -> either failure (level (nderives (layer p s) m)).
+stratumN P S Low C K Fs = stratumQ (layer P S) ([r] tt) Low C K Fs.
+
+layersN : (p : program) -> (ss : list (list nat)) -> {m : db} -> (low : list (pfact m)) ->
+          ((a : gatom) -> m a -> member a (pfacts low)) -> list (list cfact) -> nat -> either failure (level (layers p ss m)).
+layersN P [] Low C [] K = right { facts = Low, complete = C }.
+layersN P (S :: Ss) Low C (B :: Bs) K = bindE (stratumN P S Low C K B) ([l] layersN P Ss l.facts l.complete Bs (K + 1)).
+layersN P Ss Low C Bs K = left badShape.
+
+inputsCover : (p : program) -> (ins : list gatom) -> {es : list (pfact (inputs p (memOf ins)))} ->
+              ((a : gatom) -> member a ins -> member a (pfacts es)) -> (a : gatom) -> inputs p (memOf ins) a ->
+              member a (pfacts es).
+inputsCover P Ins I (atom R Vs) H = I (atom R Vs) H.snd.
+
+startN : (p : program) -> (ins : list gatom) -> stocked (inputs p (memOf ins)) ins -> list (list cfact) ->
+         either failure (level (perfect p (memOf ins))).
+startN P Ins (stock Es I) Bs = layersN P P.strata Es (inputsCover P Ins I) Bs 1.
+
+(* A stratified program: stratum by stratum, the facts of the certificate are derived in the stratum,
+   with negations read in the facts below, and the stratum's facts pass the model check, so they are all
+   of them (`nleast`); a negation is then decided by the facts below. The facts are the perfect model *)
+checkStrata : (p : program) -> (ins : list gatom) -> list (list cfact) -> either failure (level (perfect p (memOf ins))).
+checkStrata P Ins Bs =
+  bindE (givenBy P (inputs P (memOf Ins)) Ins ([r] [vs] [k] [t] { fst = t, snd = k }) Ins ([a] [k] k)) ([s] startN P Ins s Bs).
+
+(* ---------------------------------------------------------------- deciding the perfect model by evaluation *)
+
+(* `holds` for stratified programs (P6 left it to the model check): `n` rounds of naive evaluation per
+   stratum, with negations decided by the facts below, then the model check of the stratum, so that its
+   facts are complete before the next stratum reads them. The facts found are then exactly the perfect
+   model, and membership in it is decided both ways *)
+entryList : {m : db} -> (a : gatom) -> m a -> option (selfG a) -> list (pfact m).
+entryList A H (some S) = [{ fact = A, proof = H, self = S }].
+entryList A H none = [].
+
+nheadFact : {q : program} -> {m : db} -> {c : crule} -> {xs : env c.vars} -> member c q.rules -> npremises q m xs c.body ->
+            (h : patom) -> member h (map (instAtom xs) c.heads) -> list (pfact (nderives q m)).
+nheadFact M Ps (pat R (some Vs)) At = entryList (atom R Vs) (nfire M Ps At) (selfCheck (atom R Vs)).
+nheadFact M Ps (pat R none) At = [].
+
+nheadFacts : {q : program} -> {m : db} -> {c : crule} -> {xs : env c.vars} -> member c q.rules -> npremises q m xs c.body ->
+             list { x : patom, at : member x (map (instAtom xs) c.heads) } -> list (pfact (nderives q m)).
+nheadFacts M Ps [] = [].
+nheadFacts M Ps (H :: Hs) = append (nheadFact M Ps H.x H.at) (nheadFacts M Ps Hs).
+
+optFacts : {m : db} -> option (list (pfact m)) -> list (pfact m).
+optFacts (some Fs) = Fs.
+optFacts none = [].
+
+nfireEnvs : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+            list (pfact (nderives q m)) -> (c : crule) -> member c q.rules -> list (env c.vars) -> list (pfact (nderives q m)).
+nfireEnvs Q Low C Cs Cr M [] = [].
+nfireEnvs Q Low C Cs Cr M (Xs :: Xss) =
+  append (optFacts (optMap ([ps] nheadFacts {xs := Xs} M ps (positions (map (instAtom Xs) Cr.heads))) (checkN Q Low C Cs Xs Cr.body)))
+    (nfireEnvs Q Low C Cs Cr M Xss).
+
+nfireAll : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+           list (pfact (nderives q m)) -> list { x : crule, at : member x q.rules } -> list (pfact (nderives q m)).
+nfireAll Q Low C Cs [] = [].
+nfireAll Q Low C Cs (R :: Rs) =
+  append (nfireEnvs Q Low C Cs R.x R.at (completes (cands (pfacts Cs) R.x.body [unbound R.x.vars]))) (nfireAll Q Low C Cs Rs).
+
+addNew : {m : db} -> {gs : list gatom} -> stocked m gs -> list (pfact m) -> stocked m gs.
+addNew S [] = S.
+addNew (stock Es I) (N :: Ns) =
+  addNew (if (isSome (findIn (pfacts Es) N.fact)) (stock Es I) (stockPush {a := N.fact} { fst = N.proof, snd = N.self } (stock Es I))) Ns.
+
+roundN : (q : program) -> {m : db} -> (low : list (pfact m)) -> ((a : gatom) -> m a -> member a (pfacts low)) ->
+         list { x : crule, at : member x q.rules } -> stocked (nderives q m) (pfacts low) -> stocked (nderives q m) (pfacts low).
+roundN Q Low C Rs (stock Es I) = addNew (stock Es I) (nfireAll Q Low C Es Rs).
+
+stratumR : nat -> (q : program) -> allInput q -> {m : db} -> (low : list (pfact m)) ->
+           ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> either failure (level (nderives q m)).
+stratumR N Q All Low C K =
+  closeN Q Low C K (rounds2 N (roundN Q Low C (positions Q.rules)) (stock (liftAll Q All Low) (liftKeeps Q All Low))).
+
+rounds2 : {A : Type} -> nat -> (A -> A) -> A -> A.
+rounds2 0 F X = X.
+rounds2 (N + 1) F X = rounds2 N F (F X).
+
+layersR : nat -> (p : program) -> (ss : list (list nat)) -> {m : db} -> (low : list (pfact m)) ->
+          ((a : gatom) -> m a -> member a (pfacts low)) -> nat -> either failure (level (layers p ss m)).
+layersR N P [] Low C K = right { facts = Low, complete = C }.
+layersR N P (S :: Ss) Low C K =
+  bindE (stratumR N (layer P S) ([r] tt) Low C K) ([l] layersR N P Ss l.facts l.complete (K + 1)).
+
+startR : nat -> (p : program) -> (ins : list gatom) -> stocked (inputs p (memOf ins)) ins -> either failure (level (perfect p (memOf ins))).
+startR N P Ins (stock Es I) = layersR N P P.strata Es (inputsCover P Ins I) 1.
+
+(* the perfect model of a program from the input facts `ins`, by `n` rounds per stratum *)
+perfectFacts : nat -> (p : program) -> (ins : list gatom) -> either failure (level (perfect p (memOf ins))).
+perfectFacts N P Ins =
+  bindE (givenBy P (inputs P (memOf Ins)) Ins ([r] [vs] [k] [t] { fst = t, snd = k }) Ins ([a] [k] k)) ([s] startR N P Ins s).
+
+findAtSome : {m : db} -> (a : gatom) -> (e : pfact m) -> (es : list (pfact m)) -> (o : option (eq e.fact a)) ->
+             so (isSome o) -> so (isSome (findPAt {m := m} a e es o)).
+findAtSome A E Es (some refl) T = tt.
+findAtSome A E Es none ().
+
+findAtAfter : {m : db} -> (a : gatom) -> (e : pfact m) -> (es : list (pfact m)) -> (o : option (eq e.fact a)) ->
+              so (isSome (findP a es)) -> so (isSome (findPAt {m := m} a e es o)).
+findAtAfter A E Es (some refl) T = tt.
+findAtAfter A E Es none T = T.
+
+findPSome : {m : db} -> (a : gatom) -> (es : list (pfact m)) -> member a (pfacts es) -> so (isSome (findP a es)).
+findPSome {m := M} A (E :: Es) here = findAtSome {m := M} E.fact E Es (eqGatom E.fact E.fact) E.self.
+findPSome {m := M} A (E :: Es) (there K) = findAtAfter {m := M} A E Es (eqGatom E.fact A) (findPSome A Es K).
+
+decideWith : {m : db} -> (a : gatom) -> (l : level m) -> (o : option (m a)) -> eq (findP a l.facts) o -> dec (m a).
+decideWith A L (some H) E = yes H.
+decideWith {m := M} A L none E = no ([h] subst ([o] so (isSome o)) E (findPSome A L.facts (L.complete A h))).
+
+decideIn : {m : db} -> (a : gatom) -> either failure (level m) -> option (dec (m a)).
+decideIn A (left F) = none.
+decideIn A (right L) = some (decideWith A L (findP A L.facts) refl).
+
+decidePerfect : nat -> (p : program) -> (ins : list gatom) -> (a : gatom) -> option (dec (perfect p (memOf ins) a)).
+decidePerfect N P Ins A = decideIn A (perfectFacts N P Ins).
+
+isYes : {A : Type} -> option (dec A) -> bool.
+isYes (some (yes X)) = true.
+isYes D = false.
+
+isNo : {A : Type} -> option (dec A) -> bool.
+isNo (some (no F)) = true.
+isNo D = false.
+
+yesOf : {A : Type} -> (d : option (dec A)) -> so (isYes d) -> A.
+yesOf (some (yes X)) T = X.
+yesOf (some (no F)) ().
+yesOf none ().
+
+noOf : {A : Type} -> (d : option (dec A)) -> so (isNo d) -> A -> empty.
+noOf (some (no F)) T = F.
+noOf (some (yes X)) ().
+noOf none ().
+
+(* deciders for `decide` of `std/decide`: a fact is in the perfect model, or it is not *)
+perfectHolds : nat -> (p : program) -> (ins : list gatom) -> decider gatom (perfect p (memOf ins)) =
+  [n] [p] [ins] { check = [a] isYes (decidePerfect n p ins a), sound = [a] yesOf (decidePerfect n p ins a) }.
+
+perfectRefutes : nat -> (p : program) -> (ins : list gatom) -> decider gatom ([a] perfect p (memOf ins) a -> empty) =
+  [n] [p] [ins] { check = [a] isNo (decidePerfect n p ins a), sound = [a] noOf (decidePerfect n p ins a) }.
+
+(* ---------------------------------------------------------------- programs as the driver reifies them *)
+
+(* The program of a run, as `--certify` reifies it: rules over untyped terms, a variable by its position
+   (from 0) and a constant by its value. `typeProgram` types it into a `program` of `std/semantics`, with
+   the rule's variable types; it fails if a comparison compares terms of different types *)
+uterm : Type.
+uvar : nat -> uterm.
+ucon : value -> uterm.
+
+uatom : Type.
+uat : rref -> list uterm -> uatom.
+
+(* a negated atom has its local variables first, then the rule's *)
+ulit : Type.
+upos : uatom -> ulit.
+ucmp : cmp_op -> uterm -> uterm -> ulit.
+unot : list ⇑type -> uatom -> ulit.
+
+(* the head relation and the rule's position among its rules, the variable types, the heads, the body *)
+urule : Type.
+urul : nat -> nat -> list ⇑type -> list uatom -> list ulit -> urule.
+
+(* the relation names, the rules, the input relations and the strata *)
+uprogram : Type.
+uprog : list string -> list urule -> list nat -> list (list nat) -> uprogram.
+
+tvar : list ⇑type -> Type = [ts] { ty : ⇑type, at : member ty ts }.
+
+laterVar : {t : ⇑type} -> {ts : list ⇑type} -> tvar ts -> tvar (t :: ts).
+laterVar E = { ty = E.ty, at = there E.at }.
+
+varOf : (ts : list ⇑type) -> nat -> option (tvar ts).
+varOf [] N = none.
+varOf (T :: Ts) 0 = some { ty = T, at = here }.
+varOf (T :: Ts) (N + 1) = optMap laterVar (varOf Ts N).
+
+tterm : list ⇑type -> Type = [ts] { ty : ⇑type, tm : cterm ts ty }.
+tterms : list ⇑type -> Type = [ts] { tys : list ⇑type, tms : cterms ts tys }.
+
+varTerm : {ts : list ⇑type} -> tvar ts -> tterm ts.
+varTerm E = { ty = E.ty, tm = cv E.at }.
+
+typeTerm : (ts : list ⇑type) -> uterm -> option (tterm ts).
+typeTerm Ts (uvar N) = optMap varTerm (varOf Ts N).
+typeTerm Ts (ucon (v {t := T} C)) = some { ty = T, tm = cc C }.
+
+consTerms : {ts : list ⇑type} -> tterm ts -> tterms ts -> tterms ts.
+consTerms X Xs = { tys = X.ty :: Xs.tys, tms = tcons X.tm Xs.tms }.
+
+typeTerms : (ts : list ⇑type) -> list uterm -> option (tterms ts).
+typeTerms Ts [] = some { tys = [], tms = tnil }.
+typeTerms Ts (U :: Us) = both2 consTerms (typeTerm Ts U) (typeTerms Ts Us).
+
+atomOf : {ts : list ⇑type} -> rref -> tterms ts -> catom ts.
+atomOf R Xs = cat R Xs.tms.
+
+typeAtom : (ts : list ⇑type) -> uatom -> option (catom ts).
+typeAtom Ts (uat R Us) = optMap (atomOf R) (typeTerms Ts Us).
+
+cmpAt : {ts : list ⇑type} -> {s t : ⇑type} -> cmp_op -> cterm ts s -> cterm ts t -> option (eq t s) -> option (cbody ts).
+cmpAt O L R (some refl) = some (ccmp O L R).
+cmpAt O L R none = none.
+
+cmpOf : {ts : list ⇑type} -> cmp_op -> tterm ts -> tterm ts -> option (cbody ts).
+cmpOf O L R = cmpAt O L.tm R.tm (fromDec (decEq R.ty L.ty)).
+
+typeLit : (ts : list ⇑type) -> ulit -> option (cbody ts).
+typeLit Ts (upos A) = optMap cpos (typeAtom Ts A).
+typeLit Ts (ucmp O L R) = bindO (typeTerm Ts L) ([l] bindO (typeTerm Ts R) (cmpOf O l)).
+typeLit Ts (unot Us A) = optMap (cnot Us) (typeAtom (append Us Ts) A).
+
+optAll : {A B : Type} -> (A -> option B) -> list A -> option (list B).
+optAll F [] = some [].
+optAll F (X :: Xs) = both2 cons (F X) (optAll F Xs).
+
+ruleOf : nat -> nat -> (ts : list ⇑type) -> list (catom ts) -> list (cbody ts) -> crule.
+ruleOf H I Ts Hs Bs = { head = H, index = I, label = none, vars = Ts, heads = Hs, body = Bs }.
+
+typeRule : urule -> option crule.
+typeRule (urul H I Ts Hs Bs) = both2 (ruleOf H I Ts) (optAll (typeAtom Ts) Hs) (optAll (typeLit Ts) Bs).
+
+programOfRules : list string -> list nat -> list (list nat) -> list crule -> program.
+programOfRules Rs Is Ss Cs = { relations = Rs, rules = Cs, input = inputOf Is, strata = Ss }.
+
+typeProgram : uprogram -> option program.
+typeProgram (uprog Rs Us Is Ss) = optMap (programOfRules Rs Is Ss) (optAll typeRule Us).
+
+(* ---------------------------------------------------------------- the verdict of `--certify` *)
+
+(* accepted with the number of facts, or rejected *)
+verdict : Type.
+accepted : nat -> verdict.
+rejected : failure -> verdict.
+
+verdictOf : {m : db} -> either failure (level m) -> verdict.
+verdictOf (left F) = rejected F.
+verdictOf (right L) = accepted (size L.facts).
+
+certifyPositive : uprogram -> list gatom -> list cfact -> verdict.
+certifyPositive U Ins Fs = verdictWith (typeProgram U) ([p] verdictOf (checkPositive p Ins Fs)).
+
+certifyStrata : uprogram -> list gatom -> list (list cfact) -> verdict.
+certifyStrata U Ins Bs = verdictWith (typeProgram U) ([p] verdictOf (checkStrata p Ins Bs)).
+
+verdictWith : option program -> (program -> verdict) -> verdict.
+verdictWith (some P) K = K P.
+verdictWith none K = rejected badProgram.
+
+(* the type of the codes of object types, for the driver that builds the reified data *)
+codeType : Type = ⇑type.

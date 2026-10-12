@@ -50,4 +50,5 @@ final class StagePhase extends ObjProgramPhase:
     u.varTypes.putAll(h.varTypes)
     u.staged = (u.prog.nn.rules, u.prog.nn.queries)
     u.requirements = h.requirements
+    u.objectGlobals = h.objectGlobals
     reporter.diagnostics.foreach(ctx.report)

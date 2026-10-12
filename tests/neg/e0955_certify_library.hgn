@@ -1,0 +1,6 @@
+(* --certify without std/certify: the checker is its meta code *)
+edge : int -> int -> rel.
+%input edge.
+path : int -> int -> rel.
+path X Y :- edge X Y.
+path X Z :- edge X Y, path Y Z.
