@@ -1,0 +1,51 @@
+(* #186 P5b: proof by evaluation with `holds` (certifying naive evaluation), monotonicity, and the least
+   model of `std/semantics` (reference: std/semantics). *)
+%use "std/reflect" (oadd, clt).
+%use "std/eq" (eq, refl, empty, emptyElim, tt).
+%use "std/decide" (so, decide).
+%use "std/semantics".
+
+noInputs : rref -> bool.
+noInputs R = false.
+
+city : type. berlin, paris, rome : city.
+
+(* `edge berlin paris. edge paris rome.` and the rules of `tc` over them, in one program without inputs *)
+edgeFact : ⇑city -> ⇑city -> crule = [x] [y] { head = 1, index = 1, label = none, vars = [],
+  heads = [cat (own 1) (tcons (cc x) (tcons (cc y) tnil))], body = [] }.
+path1 : crule = { head = 0, index = 1, label = none, vars = [city, city],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there here)) tnil))],
+  body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
+path2 : crule = { head = 0, index = 2, label = none, vars = [city, city, city],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there (there here))) tnil))],
+  body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil))),
+          cpos (cat (own 0) (tcons (cv (there here)) (tcons (cv (there (there here))) tnil)))] }.
+tiny : program = { relations = ["path", "edge"], rules = [edgeFact (<berlin>) (<paris>), edgeFact (<paris>) (<rome>), path1, path2],
+  input = noInputs, strata = [[1], [0]] }.
+
+goal : gatom = atom (own 0) [v (<berlin>), v (<rome>)].
+twoRounds : eq (holds 2 tiny goal) false = refl.
+threeRounds : eq (holds 3 tiny goal) true = refl.
+noWayBack : eq (holds 5 tiny (atom (own 0) [v (<rome>), v (<berlin>)])) false = refl.
+
+(* `decide`: three rounds derive the path; the derivation is valid for every database *)
+viaParis : {d : db} -> derives tiny d goal = decide (derivable 3 tiny) goal tt.
+
+(* a comparison and arithmetic: `next (X + 1) :- start X, X < 3.` with `start 0.` *)
+startFact : crule = { head = 1, index = 1, label = none, vars = [], heads = [cat (own 1) (tcons (cc 0) tnil)], body = [] }.
+nextRule : crule = { head = 0, index = 1, label = none, vars = [int],
+  heads = [cat (own 1) (tcons (carith oadd (cv here) (cc 1)) tnil)],
+  body = [cpos (cat (own 1) (tcons (cv here) tnil)), ccmp clt (cv here) (cc 3)] }.
+counting : program = { relations = ["next", "start"], rules = [startFact, nextRule], input = noInputs, strata = [[1, 0]] }.
+three : {d : db} -> derives counting d (atom (own 1) [v 3]) = decide (derivable 4 counting) (atom (own 1) [v 3]) tt.
+noFour : eq (holds 8 counting (atom (own 1) [v 4])) false = refl.
+
+(* the least model: what is derived is in every model, and the derived facts are a model *)
+inEveryModel : {d m : db} -> model tiny d m -> m goal = [mm] least mm viaParis.
+%opaque viaParis three inEveryModel twoRounds threeRounds noWayBack noFour more.
+
+(* monotonicity in the database *)
+more : {d e : db} -> included d e -> derives tiny d goal -> derives tiny e goal = [i] [x] monotone i x.
+
+checked : string -> rel.
+checked "holds".

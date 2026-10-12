@@ -8,8 +8,8 @@ import scala.collection.mutable
  *  to know about object constants that their data does not say (reflection is untyped, Q5).
  *
  *  - `same : A -> A -> bool`: whether two atoms (meta literals, symbols: the values with decidable
- *    equality that clauses split on) are equal (the first constructor of `bool` if so, the second
- *    otherwise); stuck on other values;
+ *    equality that clauses split on), or two closed object terms in canonical form (#186 P5), are equal
+ *    (the first constructor of `bool` if so, the second otherwise); stuck on other values;
  *  - `labels : sym -> list string`: the labels of a constant's columns (`""` for a column without one), the
  *    index of the typed modes of `%demand` (`modes (labels r)`);
  *  - `derive : sym -> string -> sym`: the object constant `r.l` *derived* from `r` (`typed.check`),
@@ -93,7 +93,7 @@ trait Primitives:
   private def reduceOtherPrimitive(op: PrimOp, ctors: List[Int], args: List[Val]): Option[Val] =
     (op, args.map(forceData)) match
       case (PrimOp.Same, List(a, b)) =>
-        for x <- atomKey(a); y <- atomKey(b)
+        for x <- sameKey(a); y <- sameKey(b)
         yield Rigid(Head.Glob(if stripPositions(x) == stripPositions(y) then ctors(0) else ctors(1)), Nil)
       case (PrimOp.Derived, List(a)) =>
         symbolId(a).map(id => Rigid(Head.Glob(if derivedFrom(id).isDefined then ctors(0) else ctors(1)), Nil))
@@ -103,7 +103,7 @@ trait Primitives:
         symbolId(a).map(id => Quote(Rigid(Head.Glob(derive(id, l)), Nil)))
       // `sameTrue {A} {a} {b} e` on two equal atoms: `refl {A} {a}` (`ctors` are `eq` and `refl`)
       case (PrimOp.SameTrue, List(ty, a, b, _)) =>
-        for x <- atomKey(a); y <- atomKey(b) if stripPositions(x) == stripPositions(y)
+        for x <- sameKey(a); y <- sameKey(b) if stripPositions(x) == stripPositions(y)
         yield Rigid(Head.Glob(ctors(1)), List(Elim.EApp(a, Icit.Impl), Elim.EApp(ty, Icit.Impl)))
       case (PrimOp.IntOf, List(Quote(code))) =>
         forceData(code) match
@@ -118,6 +118,26 @@ trait Primitives:
           case _ => None
         atom(t)
       case _ => None
+
+  /** What `same` compares (#186 P5): an atom ([[Matching.atomKey]]), or closed object code in canonical
+   *  form, quoted: an object literal, a base type, or an object constant applied to such code. Its
+   *  equality is syntactic, as conversion's and index unification's on object code, so `same` decides
+   *  the values of `std/semantics`, and `sameTrue` and `apart` stay sound. Object arithmetic and persisted
+   *  meta values are not canonical: `same` is stuck on them. */
+  private def sameKey(v: Val): Option[Tm] =
+    atomKey(v).orElse(v match
+      case Quote(t) if canonicalCode(t) => Some(Tm.Quote(stripPositions(quote(0, t))))
+      case _ => None
+    )
+
+  private def canonicalCode(t: Val): Boolean = forceData(t) match
+    case Lit(_, Stage.S0) | Base(_, Stage.S0) => true
+    case Rigid(Head.Glob(c), sp) =>
+      globals(c).kind.isInstanceOf[GlobalKind.Object] && sp.forall {
+        case Elim.EApp(a, _) => canonicalCode(a)
+        case _ => false
+      }
+    case _ => false
 
   private def symbolId(v: Val): Option[Int] = v match
     case Quote(t) =>

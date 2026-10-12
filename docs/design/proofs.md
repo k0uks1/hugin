@@ -2027,6 +2027,39 @@ Decisions made during implementation are listed here with their PR.
 - *Names.* `member`/`here`/`there` as in 11.3 (clashes with `std/list`'s relation `member` only if both
   are opened unselectively, E0109 at the use).
 
+**P5b (`holds`, monotonicity, the least model).**
+
+- *Certifying `holds`.* Naive evaluation carries a derivation with every fact (`dfact p d`): a round
+  matches body atoms against the facts (unchecked candidate valuations: variables bound by casting a
+  value to the variable's type with `decEq` on `⇑type`, other terms compared by value), then checks each
+  candidate with proofs (`checkBody`: `ppos` with the derivation found among the facts, `pcmp` by a
+  decision of `holdsCmp`) and builds `fire`. So `holdsSound` is `fromSome`; there is no proof of the
+  search. The rounds run at the empty database, and `monotone` carries the derivations to every `d`, so
+  `holds : nat -> program -> gatom -> bool` takes no database, and it is sound for programs with input
+  relations too (they contribute nothing). `derivable n p : decider gatom (derives p d)` is the `decide`
+  of 1.1. Certifying evaluation rather than a verified one follows the proof-producing approach of
+  Tantow et al.'s certificates and of Lean's `decide` by kernel evaluation.
+- *`same` on closed object code.* `same` (and with it `sameTrue`, `apart`, `decEq`) compares closed object
+  code in canonical form (literals, base types, object constants applied to such code) syntactically, as
+  index unification and conversion do; stuck on object arithmetic. Quoted patterns keep `atomKey`.
+- *Monotonicity* in the database (`monotone`, `included d e`) and in the program (`grow`, `extends p q`:
+  rules and input relations mapped). *Least model:* `model p d m` is a family with the one constructor
+  `isModel` (a record type made the implicit arguments of `least` unsolvable: a record type unifies field
+  by field against unknowns applied to bound variables); `least`, `derivesModel`, and `leastModel a`, a
+  record of both directions of "derived iff in every model" (Tantow et al.'s
+  `modelAndProofTreeSemanticsEquivalent`), in place of `iff`, whose `Type` arguments are in `Type₀`.
+- *Expected type for all meta constants.* The P5a propagation now applies to functions, definitions and
+  postulates as well as constructors (Lean 4's `propagateExpectedType` is for any first-order
+  application), still only for results that are family applications: 11.2's `lstep2 (lcons E P) F`
+  needs it.
+- *Memo keys.* Values of `std/semantics` carry types in implicit arguments (`here {A := crule}`), so the
+  memo of closed applications read them back at every call although such keys are never closed: a
+  `Pi`, `Lam`, `⇑A` or record type is now read back once per value object (its key is never used), and a
+  function by clauses applied below its arity is stable data. p5_holds went from 22 s to 4 s; memo hits
+  and misses are unchanged.
+- *11.3* uses `premAcc` over `foldl` (std/list's `reverse` is a `foldl`) instead of `premSnoc`; `complete`
+  is not in the test.
+
 **P7a (the code bridge and `programOf`).**
 
 - *Module.* `std/quote` holds the bridge: `quote`, `unquote`, `quoteF`, `unquoteF` and `symOf` are `%builtin`

@@ -8,9 +8,9 @@
   odiv, ocat, cmp_op, ceq, cne, clt, cle, cgt, cge).
 %use "std/nat" (nat).
 %use "std/int" (iequal, iless, ileq, fits64).
-%use "std/eq" (eq, empty).
-%use "std/decide" (so).
-%use "std/list" (map).
+%use "std/eq" (eq, refl, cong, subst, empty, emptyElim, unit, tt, dec, yes, no, decEq).
+%use "std/decide" (so, decider).
+%use "std/list" (map, concat).
 
 (* Values: closed object code of any object type. A literal is a value (`v ⟨3⟩`), and so is the identity
    of a fact, its object term (`v ⟨edge berlin paris⟩`): two values are equal exactly if they are the same
@@ -173,3 +173,348 @@ ppos : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b :
 pcmp : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {t : ⇑type} -> {o : cmp_op} ->
        {l r : cterm ts t} -> {bs : list (cbody ts)} ->
        holdsCmp o (instTerm xs l) (instTerm xs r) -> premises p d xs bs -> premises p d xs (ccmp o l r :: bs).
+
+(* Monotonicity: a program derives more facts from more input facts, and a program with more rules (and
+   more input relations) derives more facts *)
+included : db -> db -> Type = [d] [e] (a : gatom) -> d a -> e a.
+
+monotone : {p : program} -> {d e : db} -> included d e -> {a : gatom} -> derives p d a -> derives p e a.
+monotonePremises : {p : program} -> {d e : db} -> included d e -> {ts : list ⇑type} -> {xs : env ts} ->
+                   {bs : list (cbody ts)} -> premises p d xs bs -> premises p e xs bs.
+monotone I (given T F) = given T (I _ F).
+monotone I (fire M Ps H) = fire M (monotonePremises I Ps) H.
+monotonePremises I pnil = pnil.
+monotonePremises I (ppos E D Ps) = ppos E (monotone I D) (monotonePremises I Ps).
+monotonePremises I (pcmp C Ps) = pcmp C (monotonePremises I Ps).
+
+extends : program -> program -> Type = [p] [q] {
+  rules : (c : crule) -> member c p.rules -> member c q.rules,
+  inputs : (r : rref) -> so (p.input r) -> so (q.input r) }.
+
+grow : {p q : program} -> {d : db} -> extends p q -> {a : gatom} -> derives p d a -> derives q d a.
+growPremises : {p q : program} -> {d : db} -> extends p q -> {ts : list ⇑type} -> {xs : env ts} ->
+               {bs : list (cbody ts)} -> premises p d xs bs -> premises q d xs bs.
+grow X (given {r := R} T F) = given (X.inputs R T) F.
+grow X (fire {c := C} M Ps H) = fire (X.rules C M) (growPremises X Ps) H.
+growPremises X pnil = pnil.
+growPremises X (ppos E D Ps) = ppos E (grow X D) (growPremises X Ps).
+growPremises X (pcmp C Ps) = pcmp C (growPremises X Ps).
+
+(* Models: a database that contains the input facts and is closed under the rules. The facts that
+   `derives p d` holds of form the least model (Tantow et al.'s `modelAndProofTreeSemanticsEquivalent`) *)
+both : Type -> Type -> Type = [a] [b] { fst : a, snd : b }.
+
+atomIn : db -> patom -> Type.
+atomIn M (pat R (some Vs)) = M (atom R Vs).
+atomIn M (pat R none) = empty.
+
+holdsIn : db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+holdsIn M Xs [] = unit.
+holdsIn M Xs (cpos B :: Bs) = both (atomIn M (instAtom Xs B)) (holdsIn M Xs Bs).
+holdsIn M Xs (ccmp O L R :: Bs) = both (holdsCmp O (instTerm Xs L) (instTerm Xs R)) (holdsIn M Xs Bs).
+
+model : program -> db -> db -> Type.
+isModel : {p : program} -> {d m : db} ->
+          ((r : rref) -> (vs : list value) -> so (p.input r) -> d (atom r vs) -> m (atom r vs)) ->
+          ((c : crule) -> member c p.rules -> (xs : env c.vars) -> holdsIn m xs c.body -> (r : rref) ->
+           (vs : list value) -> member (pat r (some vs)) (map (instAtom xs) c.heads) -> m (atom r vs)) ->
+          model p d m.
+
+eqBack : {A : Type} -> {x y : A} -> eq x y -> eq y x.
+eqBack refl = refl.
+
+(* every model contains the derived facts *)
+least : {p : program} -> {d m : db} -> model p d m -> {a : gatom} -> derives p d a -> m a.
+leastPremises : {p : program} -> {d m : db} -> model p d m -> {ts : list ⇑type} -> {xs : env ts} ->
+                {bs : list (cbody ts)} -> premises p d xs bs -> holdsIn m xs bs.
+least (isModel In Ru) (given {r := R} {vs := Vs} T F) = In R Vs T F.
+least {d := D} {m := Mo} (isModel In Ru) (fire {r := R} {vs := Vs} {c := C} {xs := Xs} I Ps H) =
+  Ru C I Xs (leastPremises {d := D} {m := Mo} (isModel In Ru) Ps) R Vs H.
+leastPremises M pnil = tt.
+leastPremises {m := Mo} M (ppos E D Ps) = { fst = subst (atomIn Mo) (eqBack E) (least M D), snd = leastPremises M Ps }.
+leastPremises M (pcmp C Ps) = { fst = C, snd = leastPremises M Ps }.
+
+(* the derived facts are a model *)
+pposFrom : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} ->
+           {bs : list (cbody ts)} -> (q : patom) -> eq (instAtom xs b) q -> atomIn (derives p d) q ->
+           premises p d xs bs -> premises p d xs (cpos b :: bs).
+pposFrom (pat R (some Vs)) E D Ps = ppos E D Ps.
+pposFrom (pat R none) E () Ps.
+
+fromHolds : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> (bs : list (cbody ts)) ->
+            holdsIn (derives p d) xs bs -> premises p d xs bs.
+fromHolds [] H = pnil.
+fromHolds {xs := Xs} (cpos B :: Bs) H = pposFrom {xs := Xs} {b := B} (instAtom Xs B) refl H.fst (fromHolds Bs H.snd).
+fromHolds (ccmp O L R :: Bs) H = pcmp H.fst (fromHolds Bs H.snd).
+
+derivesModel : {p : program} -> {d : db} -> model p d (derives p d) =
+  isModel ([r] [vs] [t] [f] given t f) ([c] [i] [xs] [h] [r] [vs] [m] fire {xs := xs} i (fromHolds c.body h) m).
+
+(* the least model: a fact is derived exactly if it is in every model *)
+leastModel : {p : program} -> {d : db} -> (a : gatom) ->
+             { to : derives p d a -> (m : db) -> model p d m -> m a,
+               from : ((m : db) -> model p d m -> m a) -> derives p d a }.
+leastModel {p := P} {d := D} A = { to = [x] [m] [mm] least mm x, from = [f] f (derives P D) derivesModel }.
+
+(* Proof by evaluation: `holds n p a` is `true` if `n` rounds of naive evaluation of `p`'s rules, from no
+   input facts, derive `a`. The evaluation is certifying: each fact it finds carries its derivation, built
+   with `fire` and checked by the type of `derives`, so its soundness is reading the derivation off. The
+   valuations of a rule are found by matching its body atoms against the facts, unchecked; each is then
+   checked, with proofs, by evaluating the rule's body. *)
+fromDec : {A : Type} -> dec A -> option A.
+fromDec (yes X) = some X.
+fromDec (no F) = none.
+
+isSome : {A : Type} -> option A -> bool.
+isSome (some X) = true.
+isSome none = false.
+
+fromSome : {A : Type} -> (o : option A) -> so (isSome o) -> A.
+fromSome (some X) T = X.
+fromSome none ().
+
+soIf : (b : bool) -> option (so b).
+soIf true = some tt.
+soIf false = none.
+
+(* equations of relations, values and facts, decided; `same` decides atoms and closed object code *)
+eqRref : (r s : rref) -> option (eq r s).
+eqRref (own M) (own N) = optMap (cong own) (fromDec (decEq M N)).
+eqRref (arg A) (arg B) = optMap (cong arg) (fromDec (decEq A B)).
+eqRref (ext A) (ext B) = optMap (cong ext) (fromDec (decEq A B)).
+eqRref R S = none.
+
+eqValueAt : {s t : ⇑type} -> option (eq s t) -> (x : ⇑s) -> (y : ⇑t) -> option (eq (v x) (v y)).
+eqValueAt (some refl) X Y = optMap (cong v) (fromDec (decEq X Y)).
+eqValueAt none X Y = none.
+
+eqValue : (a b : value) -> option (eq a b).
+eqValue (v {t := S} X) (v {t := T} Y) = eqValueAt (fromDec (decEq S T)) X Y.
+
+eqCons : {a b : value} -> {us ws : list value} -> option (eq a b) -> option (eq us ws) -> option (eq (a :: us) (b :: ws)).
+eqCons (some refl) (some refl) = some refl.
+eqCons X Y = none.
+
+eqValues : (us ws : list value) -> option (eq us ws).
+eqValues [] [] = some refl.
+eqValues (A :: As) (B :: Bs) = eqCons (eqValue A B) (eqValues As Bs).
+eqValues As Bs = none.
+
+eqAtom2 : {r s : rref} -> {vs ws : list value} -> option (eq r s) -> option (eq vs ws) -> option (eq (atom r vs) (atom s ws)).
+eqAtom2 (some refl) (some refl) = some refl.
+eqAtom2 X Y = none.
+
+eqGatom : (a b : gatom) -> option (eq a b).
+eqGatom (atom R Vs) (atom S Ws) = eqAtom2 (eqRref R S) (eqValues Vs Ws).
+
+(* facts with their derivations *)
+dfact : program -> db -> Type = [p] [d] { fact : gatom, proof : derives p d fact }.
+
+found : {p : program} -> {d : db} -> {a b : gatom} -> option (eq a b) -> derives p d a -> option (derives p d b) ->
+        option (derives p d b).
+found (some refl) D R = some D.
+found none D R = R.
+
+findFact : {p : program} -> {d : db} -> (a : gatom) -> list (dfact p d) -> option (derives p d a).
+findFact A [] = none.
+findFact A (F :: Fs) = found (eqGatom F.fact A) F.proof (findFact A Fs).
+
+factsOf : {p : program} -> {d : db} -> list (dfact p d) -> list gatom.
+factsOf [] = [].
+factsOf (F :: Fs) = F.fact :: factsOf Fs.
+
+(* candidate valuations: the variables bound so far, by matching body atoms against facts *)
+penv : list ⇑type -> Type.
+pend : penv [].
+pvar : {t : ⇑type} -> {ts : list ⇑type} -> option ⇑t -> penv ts -> penv (t :: ts).
+
+unbound : (ts : list ⇑type) -> penv ts.
+unbound [] = pend.
+unbound (T :: Ts) = pvar none (unbound Ts).
+
+pget : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> member t ts -> option ⇑t.
+pget (pvar X Xs) here = X.
+pget (pvar X Xs) (there I) = pget Xs I.
+
+pset : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> member t ts -> ⇑t -> penv ts.
+pset (pvar X Xs) here Y = pvar (some Y) Xs.
+pset (pvar X Xs) (there I) Y = pvar X (pset Xs I Y).
+
+complete : {ts : list ⇑type} -> penv ts -> option (env ts).
+complete pend = some enil.
+complete (pvar X Xs) = optCons X (complete Xs).
+
+castTo : {s t : ⇑type} -> option (eq s t) -> ⇑s -> option ⇑t.
+castTo (some refl) X = some X.
+castTo none X = none.
+
+codeAs : (t : ⇑type) -> value -> option ⇑t.
+codeAs T (v {t := S} X) = castTo (fromDec (decEq S T)) X.
+
+keepIf : {A B : Type} -> option A -> B -> option B.
+keepIf (some X) Y = some Y.
+keepIf none Y = none.
+
+pinst : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> cterm ts t -> option ⇑t.
+pinsts : {ts ss : list ⇑type} -> penv ts -> cterms ts ss -> option (env ss).
+pinst P (cv I) = pget P I.
+pinst P (cc C) = some C.
+pinst P (capp F As) = optMap F (pinsts P As).
+pinst P (carith O A B) = optArith O (pinst P A) (pinst P B).
+pinst P (cneg A) = optNeg (pinst P A).
+pinsts P tnil = some enil.
+pinsts P (tcons T Ts) = optCons (pinst P T) (pinsts P Ts).
+
+matchCode : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> option ⇑t -> value -> option (penv ts).
+matchCode P (some X) W = keepIf (eqValue (v X) W) P.
+matchCode P none W = none.
+
+matchVar : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> member t ts -> option ⇑t -> value -> option (penv ts).
+matchVar {t := T} P I none W = optMap (pset P I) (codeAs T W).
+matchVar P I (some X) W = matchCode P (some X) W.
+
+matchTerm : {ts : list ⇑type} -> {t : ⇑type} -> penv ts -> cterm ts t -> value -> option (penv ts).
+matchTerm P (cv I) W = matchVar P I (pget P I) W.
+matchTerm P T W = matchCode P (pinst P T) W.
+
+matchArgs : {ts ss : list ⇑type} -> penv ts -> cterms ts ss -> list value -> option (penv ts).
+thenMatch : {ts ss : list ⇑type} -> option (penv ts) -> cterms ts ss -> list value -> option (penv ts).
+matchArgs P tnil [] = some P.
+matchArgs P (tcons T Ts) (W :: Ws) = thenMatch (matchTerm P T W) Ts Ws.
+matchArgs P Ts Ws = none.
+thenMatch (some P) Ts Ws = matchArgs P Ts Ws.
+thenMatch none Ts Ws = none.
+
+matchAtom : {ts : list ⇑type} -> penv ts -> catom ts -> gatom -> option (penv ts).
+matchAtom P (cat R As) (atom S Ws) = thenMatch (keepIf (eqRref R S) P) As Ws.
+
+optList : {A : Type} -> option A -> list A -> list A.
+optList (some X) Xs = X :: Xs.
+optList none Xs = Xs.
+
+extend : {ts : list ⇑type} -> list gatom -> catom ts -> penv ts -> list (penv ts).
+extend [] B P = [].
+extend (G :: Gs) B P = optList (matchAtom P B G) (extend Gs B P).
+
+search : {ts : list ⇑type} -> list gatom -> list (cbody ts) -> list (penv ts) -> list (penv ts).
+search Gs [] Ps = Ps.
+search Gs (cpos B :: Bs) Ps = search Gs Bs (concat (map (extend Gs B) Ps)).
+search Gs (ccmp O L R :: Bs) Ps = search Gs Bs Ps.
+
+completes : {ts : list ⇑type} -> list (penv ts) -> list (env ts).
+completes [] = [].
+completes (P :: Ps) = optList (complete P) (completes Ps).
+
+(* checking a valuation: the body's premises, with their derivations among the facts *)
+eqCmp : {t : ⇑type} -> {x y : ⇑t} -> option (eq x y) -> option (holdsCmp ceq (some x) (some y)).
+eqCmp (some refl) = some cmpEq.
+eqCmp none = none.
+
+neCmp : {t : ⇑type} -> {x y : ⇑t} -> dec (eq x y) -> option (holdsCmp cne (some x) (some y)).
+neCmp (yes E) = none.
+neCmp (no F) = some (cmpNe F).
+
+ordInt : (o : cmp_op) -> (x y : ⇑int) -> option (holdsCmp o (some x) (some y)).
+ordInt ceq X Y = eqCmp (fromDec (decEq X Y)).
+ordInt cne X Y = neCmp (decEq X Y).
+ordInt clt X Y = optMap (cmpLt {x := X} {y := Y}) (soIf (iless (intOf X) (intOf Y))).
+ordInt cle X Y = optMap (cmpLe {x := X} {y := Y}) (soIf (ileq (intOf X) (intOf Y))).
+ordInt cgt X Y = optMap (cmpGt {x := X} {y := Y}) (soIf (iless (intOf Y) (intOf X))).
+ordInt cge X Y = optMap (cmpGe {x := X} {y := Y}) (soIf (ileq (intOf Y) (intOf X))).
+
+orderAt : {t : ⇑type} -> option (eq t int) -> (o : cmp_op) -> (x y : ⇑t) -> option (holdsCmp o (some x) (some y)).
+orderAt (some refl) O X Y = ordInt O X Y.
+orderAt none O X Y = none.
+
+decideCmp : {t : ⇑type} -> (o : cmp_op) -> (x y : option ⇑t) -> option (holdsCmp o x y).
+decideCmp ceq (some X) (some Y) = eqCmp (fromDec (decEq X Y)).
+decideCmp cne (some X) (some Y) = neCmp (decEq X Y).
+decideCmp {t := T} O (some X) (some Y) = orderAt (fromDec (decEq T int)) O X Y.
+decideCmp O X Y = none.
+
+pposOpt : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> {r : rref} ->
+          {vs : list value} -> {bs : list (cbody ts)} ->
+          eq (instAtom xs b) (pat r (some vs)) -> option (derives p d (atom r vs)) -> option (premises p d xs bs) ->
+          option (premises p d xs (cpos b :: bs)).
+pposOpt E (some D) (some Ps) = some (ppos E D Ps).
+pposOpt E X Y = none.
+
+checkPos : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> {bs : list (cbody ts)} ->
+           (q : patom) -> eq (instAtom xs b) q -> list (dfact p d) -> option (premises p d xs bs) ->
+           option (premises p d xs (cpos b :: bs)).
+checkPos (pat R (some Vs)) E Fs Ps = pposOpt E (findFact (atom R Vs) Fs) Ps.
+checkPos (pat R none) E Fs Ps = none.
+
+pcmpOpt : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {t : ⇑type} -> {o : cmp_op} ->
+          {l r : cterm ts t} -> {bs : list (cbody ts)} ->
+          option (holdsCmp o (instTerm xs l) (instTerm xs r)) -> option (premises p d xs bs) ->
+          option (premises p d xs (ccmp o l r :: bs)).
+pcmpOpt (some C) (some Ps) = some (pcmp C Ps).
+pcmpOpt X Y = none.
+
+checkBody : {p : program} -> {d : db} -> {ts : list ⇑type} -> list (dfact p d) -> (xs : env ts) ->
+            (bs : list (cbody ts)) -> option (premises p d xs bs).
+checkBody Fs Xs [] = some pnil.
+checkBody Fs Xs (cpos B :: Bs) = checkPos {xs := Xs} {b := B} (instAtom Xs B) refl Fs (checkBody Fs Xs Bs).
+checkBody Fs Xs (ccmp O L R :: Bs) =
+  pcmpOpt {xs := Xs} {l := L} {r := R} (decideCmp O (instTerm Xs L) (instTerm Xs R)) (checkBody Fs Xs Bs).
+
+(* firing a rule: every instantiated head of a checked valuation, with its derivation *)
+positions : {A : Type} -> (xs : list A) -> list { x : A, at : member x xs }.
+positions [] = [].
+positions (X :: Xs) = { x = X, at = here } :: later (positions Xs).
+
+later : {A : Type} -> {y : A} -> {xs : list A} -> list { x : A, at : member x xs } -> list { x : A, at : member x (y :: xs) }.
+later [] = [].
+later (E :: Es) = { x = E.x, at = there E.at } :: later Es.
+
+headFact : {p : program} -> {d : db} -> {c : crule} -> {xs : env c.vars} -> member c p.rules ->
+           premises p d xs c.body -> (q : patom) -> member q (map (instAtom xs) c.heads) -> list (dfact p d).
+headFact M Ps (pat R (some Vs)) At = [{ fact = atom R Vs, proof = fire M Ps At }].
+headFact M Ps (pat R none) At = [].
+
+headFacts : {p : program} -> {d : db} -> {c : crule} -> {xs : env c.vars} -> member c p.rules ->
+            premises p d xs c.body -> list { x : patom, at : member x (map (instAtom xs) c.heads) } -> list (dfact p d).
+headFacts M Ps [] = [].
+headFacts M Ps (H :: Hs) = append (headFact M Ps H.x H.at) (headFacts M Ps Hs).
+
+fromPremises : {p : program} -> {d : db} -> {c : crule} -> {xs : env c.vars} -> member c p.rules ->
+               option (premises p d xs c.body) -> list (dfact p d).
+fromPremises {c := C} {xs := Xs} M (some Ps) = headFacts M Ps (positions (map (instAtom Xs) C.heads)).
+fromPremises M none = [].
+
+fireAt : {p : program} -> {d : db} -> list (dfact p d) -> (c : crule) -> member c p.rules -> list (env c.vars) ->
+         list (dfact p d).
+fireAt Fs C M [] = [].
+fireAt Fs C M (Xs :: Xss) = append (fromPremises {xs := Xs} M (checkBody Fs Xs C.body)) (fireAt Fs C M Xss).
+
+fireRule : {p : program} -> {d : db} -> list (dfact p d) -> (c : crule) -> member c p.rules -> list (dfact p d).
+fireRule Fs C M = fireAt Fs C M (completes (search (factsOf Fs) C.body [unbound C.vars])).
+
+fireAll : {p : program} -> {d : db} -> list (dfact p d) -> list { x : crule, at : member x p.rules } -> list (dfact p d).
+fireAll Fs [] = [].
+fireAll Fs (R :: Rs) = append (fireRule Fs R.x R.at) (fireAll Fs Rs).
+
+(* one round of naive evaluation: the facts so far, and the new ones that the rules derive from them *)
+addFacts : {p : program} -> {d : db} -> list (dfact p d) -> list (dfact p d) -> list (dfact p d).
+addFacts Fs [] = Fs.
+addFacts Fs (N :: Ns) = addFacts (if (isSome (findFact N.fact Fs)) Fs (N :: Fs)) Ns.
+
+nextRound : (p : program) -> {d : db} -> list (dfact p d) -> list (dfact p d).
+nextRound P Fs = addFacts Fs (fireAll Fs (positions P.rules)).
+
+rounds : (p : program) -> {d : db} -> nat -> list (dfact p d).
+rounds P 0 = [].
+rounds P (N + 1) = nextRound P (rounds P N).
+
+(* `holds n p a`: `n` rounds of naive evaluation derive `a`, from no input facts. Sound for every
+   database, by monotonicity *)
+nothing : db = [a] empty.
+
+holds : nat -> program -> gatom -> bool = [n] [p] [a] isSome (findFact a (rounds p {d := nothing} n)).
+
+holdsSound : {d : db} -> (n : nat) -> (p : program) -> (a : gatom) -> so (holds n p a) -> derives p d a.
+holdsSound N P A T = monotone ([b] [e] emptyElim e) (fromSome (findFact A (rounds P {d := nothing} N)) T).
+
+derivable : {d : db} -> nat -> (p : program) -> decider gatom (derives p d).
+derivable {d := D} N P = { check = holds N P, sound = holdsSound {d := D} N P }.
