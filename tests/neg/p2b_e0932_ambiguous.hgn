@@ -1,0 +1,8 @@
+(* #186 P2b: `+` denotes `plus` (`std/nat`) and `iplus` (`std/int`); where neither the expected type nor
+   an operand decides between them, the operator is ambiguous (E0932) *)
+%use "std/nat".
+%use "std/int".
+fine : int = toInt (2 + 3) + 1.
+add = [x] [y] x + y. (*~ E0932 *)
+r : int -> rel.
+r fine.

@@ -42,6 +42,8 @@ trait Directives:
   /** The items of a directive at the top level (`c` empty) or in a module body. */
   def directiveItems(c: Cxt, d: Directive, inBody: Boolean): List[CoreItem] = d.args match
     case DirArgs.Infix(_, _, _) => Nil
+    // at the top level it is a declaration item ([[Overloading]]); only a module body gets here
+    case DirArgs.Operator(op, _, _) => unsupportedAt(d.span, s"`%infix $op` in module bodies")
     // at the top level they are scope items ([[Uses]]); only a module body gets here
     case DirArgs.Use(_, _) => unsupportedAt(d.span, "`%use` in module bodies")
     case DirArgs.Export(_) => fail(ElabProblem.MisplacedExport(d.span, None))

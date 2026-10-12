@@ -76,7 +76,7 @@ final class DeclarationsSummary(decls: ElaboratedDeclarations):
     val state = decls.elaborator.state
     val canon = Canonical(key)
     lazy val (bodyIds, anonymous, prefixes, fileRanks, memo) = core.moduleTables
-    lazy val (opened, exported, signatures, droppedUses) = state.tables
+    lazy val (opened, exported, signatures, droppedUses, operators) = state.tables
     channel match
       case "scope" => Some(state.scope.snapshot.toVector.map((n, id) => (n, key(id))))
       case "erroneous" => Some(state.erroneous.unobserved)
@@ -87,6 +87,7 @@ final class DeclarationsSummary(decls: ElaboratedDeclarations):
       case "exported" => Some(exported.map((sp, m) => (sp, canon.value(m))))
       case "signatures" => Some(signatures)
       case "droppedUses" => Some(droppedUses)
+      case "operators" => Some(operators)
       case "instances" => Some(core.familyTable.map { case ((fam, args), id) => (key(fam), args.map(canon.tm), key(id)) })
       case "derived" => Some(core.derivedTable.map { case ((id, label), d) => (key(id), label, key(d)) })
       case "objEdges" => Some(core.edgesTable.map((sub, sup) => (canon.tm(core.quote(0, sub)), key(sup))))

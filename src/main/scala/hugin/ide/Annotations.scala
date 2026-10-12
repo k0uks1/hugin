@@ -40,11 +40,18 @@ object Annotations:
       try compute(key, path)
       catch case NonFatal(_) => empty
 
+  /** The spellings of the operators that `%infix op f.` binds to meta functions (reference:
+   *  lexical-structure). */
+  private val operatorSymbols = Set("+", "-", "*", "/", "^", "≡", "==")
+
   private def compute(key: CompileKey, path: String)(using db: Database): Annotations =
     val ix = db(Compile, key).index
     def inFile(sp: Span) = sp.exists && sp.source.path == path
     val decls = ix.symbols.filter(s => inFile(s.span) && s.span.text == s.name).map(s => Name.Symbol(s.span, s, true))
-    val uses = ix.references.filter(r => inFile(r.span) && r.span.text == r.sym.name).map(r => Name.Symbol(r.span, r.sym, false))
+    // an operator bound to a meta function (`%infix + plus.`) refers to the function where it is written
+    val uses = ix.references
+      .filter(r => inFile(r.span) && (r.span.text == r.sym.name || operatorSymbols(r.span.text)))
+      .map(r => Name.Symbol(r.span, r.sym, false))
     val vars = ix.variables.filter(v => inFile(v.span) && v.span.text == v.display).map(Name.Variable(_))
     def declFirst(n: Name) = n match
       case Name.Symbol(_, _, true) => 0

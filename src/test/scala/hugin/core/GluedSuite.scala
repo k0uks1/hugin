@@ -40,8 +40,15 @@ class GluedSuite extends munit.FunSuite:
   }
 
   test("a mismatch names the types as written") {
+    val text = firstError(vecs + "bad : vec2 = vnil.\n")
+    assert(text.contains("expected `vec2`, found `vec ?0 0`"), text)
+  }
+
+  test("a constructor's arguments are checked against the expected type (#186 P5)") {
+    // the result type `vec ?A (suc ?n)` of `vcons` is unified with `vec2` first, so `vnil` is checked
+    // against `vec int 1`, the type the expected type gives it (Agda, Lean 4)
     val text = firstError(vecs + "bad : vec2 = vcons 1 vnil.\n")
-    assert(text.contains("expected `vec2`, found `vec ?0 1`"), text)
+    assert(text.contains("expected `vec int 1`, found `vec ?2 0`"), text)
   }
 
   test("types that look the same folded are shown unfolded") {

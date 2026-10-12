@@ -1,0 +1,51 @@
+error[E0933]: no meta function that `+` denotes fits here
+ --> tests/neg/p2b_e0933_no_binding.hgn:6:20
+  |
+6 | both : bool = true + false. (*~ E0933 *)
+  |                    ^ expected `bool`
+  |
+  = note: `+` denotes `plus : nat -> nat -> nat`
+
+error[E0933]: the operator `≡` denotes no meta function here
+ --> tests/neg/p2b_e0933_no_binding.hgn:7:23
+  |
+7 | same : (n : nat) -> n ≡ n. (*~ E0933 *)
+  |                       ^ not bound
+  |
+  = note: an operator symbol denotes the meta functions that `%infix` binds it to in the files whose names are in scope; object code compares with `=`
+  = help: add `%use "std/eq".` to the file for `≡`, the equality `eq`
+
+error[E0933]: the operator `≡` denotes no meta function here
+  --> tests/neg/p2b_e0933_no_binding.hgn:11:15
+   |
+11 | q X :- p X, X ≡ 1. (*~ E0933 *)
+   |               ^ not bound
+   |
+   = note: an operator symbol denotes the meta functions that `%infix` binds it to in the files whose names are in scope; object code compares with `=`
+   = help: add `%use "std/eq".` to the file for `≡`, the equality `eq`
+
+error[E0915]: the operator `+` in a pattern denotes no constructor
+  --> tests/neg/p2b_e0933_no_binding.hgn:13:9
+   |
+13 | half (N + M) = N. (*~ E0915 *)
+   |         ^ denotes `plus`, not a constructor
+   |
+   = note: a pattern is built from constructors and variables, so an operator in a pattern must denote a constructor
+
+error[E0701]: the operator `*` cannot denote `three`
+  --> tests/neg/p2b_e0933_no_binding.hgn:17:10
+   |
+17 | %infix * three. (*~ E0701 *)
+   |          ^^^^^ it takes fewer than two explicit arguments
+   |
+   = note: `%infix op f.` makes the symbol `op` denote `f`, a meta constant of this file applied to two explicit arguments: `a op b` is `f a b`
+
+error[E0701]: the operator `-` cannot denote `plus`
+  --> tests/neg/p2b_e0933_no_binding.hgn:18:10
+   |
+18 | %infix - plus. (*~ E0701 *)
+   |          ^^^^ not declared in this file
+   |
+   = note: `%infix op f.` makes the symbol `op` denote `f`, a meta constant of this file applied to two explicit arguments: `a op b` is `f a b`
+
+6 errors found

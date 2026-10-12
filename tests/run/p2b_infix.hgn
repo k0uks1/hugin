@@ -1,0 +1,50 @@
+(* #186 P2b: symbolic operators of the meta level bound to meta functions by `%infix` (reference:
+   lexical-structure, operators bound to meta functions): `+` for `nat` (`std/nat`) and for `int`
+   (`std/int`), chosen by the types, and `≡` (ASCII `==`) for `eq` (`std/eq`), in types and terms, with
+   `match`, `rewrite` and `decide` *)
+%use "std/eq".
+%use "std/nat".
+%use "std/int".
+%use "std/decide".
+(* `+` on `nat` is `plus`, `N + 1` the successor *)
+zeroPlus : (n : nat) -> 0 + n ≡ n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+plusSuc : (m n : nat) -> m + (n + 1) == (m + n) + 1.
+plusSuc M N = refl.
+sucPlus : (m n : nat) -> (m + 1) + n ≡ (m + n) + 1.
+sucPlus M 0 = refl.
+sucPlus M (N + 1) = cong suc (sucPlus M N).
+plusComm : (m n : nat) -> m + n ≡ n + m.
+plusComm M 0 = sym (zeroPlus M).
+plusComm M (N + 1) = trans (cong suc (plusComm M N)) (sym (sucPlus N M)).
+(* `rewrite` with an equation stated with `≡` *)
+twice : (n : nat) -> 0 + (0 + n) ≡ n.
+twice N = rewrite zeroPlus N in zeroPlus N.
+(* `match` with the equation, whose type prints as `eq` *)
+maxN : nat -> nat -> nat = [m] [n] if (less m n) n m.
+below : (m n : nat) -> less m n ≡ true -> maxN m n ≡ n.
+below M N H = match E : less M N with
+  | true => refl
+  | false => absurdBool (trans (sym E) H).
+(* `-` and `*` on `nat`; `+` on `int`, chosen by the type of an operand or the expected type *)
+seven : nat = 2 * 3 + 1.
+four : nat = seven - 3.
+small : 2 + (-5) ≡ -3 = refl.
+mixed : int = toInt seven + (-10).
+(* `decide` with a goal written with operators *)
+lt : nat -> nat -> Type.
+ltz : {n : nat} -> lt 0 (n + 1).
+lts : {m n : nat} -> lt m n -> lt (m + 1) (n + 1).
+lessSound : (m n : nat) -> so (less m n) -> lt m n.
+lessSound M 0 ().
+lessSound 0 (N + 1) T = ltz.
+lessSound (M + 1) (N + 1) T = lts (lessSound M N T).
+pair : Type = { fst : nat, snd : nat }.
+ltDec : decider pair ([p] lt p.fst p.snd) = { check = [p] less p.fst p.snd, sound = [p] lessSound p.fst p.snd }.
+big : lt (3 * 4) (1000 + 1) = decide ltDec { fst = 3 * 4, snd = 1000 + 1 } tt.
+(* theorems, not used by the program *)
+%opaque small big.
+answer : int -> rel.
+answer (toInt (seven + four)).
+answer mixed.

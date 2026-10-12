@@ -4,14 +4,15 @@ Editor support for [Hugin](https://github.com/k0uks1/hugin) programs (`.hgn`) an
 
 - syntax highlighting (TextMate grammar `syntaxes/hugin.tmLanguage.json`): nested `(* *)` comments,
   keywords (also `Type`, `data`, `where`), directives (`%output`), rule names (`@r`), variables, strings
-  with `\u{...}` escapes, numbers, operators (`:-`, `?-`, `->`, `<:`, `|`), and the meta level's syntax:
+  with `\u{...}` escapes, numbers, operators (`:-`, `?-`, `->`, `<:`, `|`, `≡`), and the meta level's syntax:
   reflection quotes `'( … )`, splices and quote holes `$x`, `$..xs`, the lift `⇑` and typed holes
   `?`, `?name`;
 - comment toggling, bracket matching and auto-closing;
 - the Hugin language server (`hugin lsp`): diagnostics, hover (types; on the meta level the elaborated
   type and stage of the expression, the goal of a typed hole, a directive's footprint, the two stages of
-  a shared type; how meta code was staged and which family instance a use resolved to), go to
-  definition, find references (also of pattern variables, lambda parameters and `where` bindings),
+  a shared type; how meta code was staged and which family instance a use resolved to; on an operator
+  such as `+` or `≡`, the meta function it denotes there), go to definition (also from an operator),
+  find references (also of pattern variables, lambda parameters and `where` bindings),
   outline, completion (type-directed and quote-aware on the meta level), semantic tokens (meta and object
   names tell apart by the modifiers `meta` and `object`), inlay hints (inferred quotes, splices and
   implicit arguments), quick fixes (the compiler's suggested edits, the missing clauses of a function),

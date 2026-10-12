@@ -1,0 +1,43 @@
+names:
+  4:1-4:7 `double`  group 0  declaration  hover 0  -> 4:1
+  4:10-4:13 `nat`  group 1  hover 1  -> std/nat.nat
+  4:17-4:20 `nat`  group 1  hover 1  -> std/nat.nat
+  5:1-5:7 `double`  group 0  hover 0  -> 4:1
+  5:8-5:9 `N`  group 2  declaration  hover 2  -> 5:8
+  5:12-5:13 `N`  group 2  hover 3  -> 5:8
+  5:14-5:15 `+`  group 3  hover 4  -> std/nat.plus
+  5:16-5:17 `N`  group 2  hover 3  -> 5:8
+  6:1-6:6 `twice`  group 4  declaration  hover 5  -> 6:1
+  6:14-6:17 `nat`  group 1  hover 1  -> std/nat.nat
+  6:22-6:28 `double`  group 0  hover 6  -> 4:1
+  6:31-6:32 `≡`  group 5  hover 7  -> std/eq.eq
+  6:35-6:36 `+`  group 3  hover 4  -> std/nat.plus
+  7:1-7:6 `twice`  group 4  hover 5  -> 6:1
+  7:7-7:8 `N`  group 6  declaration  hover 2  -> 7:7
+  7:11-7:15 `refl`  group 7  hover 8  -> std/eq.refl
+hovers:
+  0   meta definition double : nat -> nat
+  1   meta definition nat : Type
+  2   pattern variable N : nat
+  3   pattern variable N : nat
+      `N` : `nat`
+      stage: meta
+  4   meta definition plus : nat -> nat -> nat
+      (native: add)
+      `+` : `nat -> nat -> nat`
+      stage: meta
+  5   meta definition twice : (n : nat) -> (double n ≡ (n + n))
+  6   meta definition double : nat -> nat
+      `double` : `nat -> nat`
+      stage: meta
+  7   meta definition eq : {A : Type} -> (A -> (A -> Type))
+      `≡` : `{A : Type} -> A -> A -> Type`
+      stage: meta
+  8   meta definition refl : {A : Type} -> {x : A} -> eq x x
+      `refl` : `eq {nat} (plus N N) (plus N N)`
+      stage: meta
+      elaborated: `refl {nat} {plus N N}`
+hints:
+  6:32 `{nat}` (Implicit)
+  7:15 `{nat}` (Implicit)
+  7:15 `{plus N N}` (Implicit)

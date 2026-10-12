@@ -44,7 +44,9 @@ object ElabOrder:
       rules: List[(Name, List[Item], Int)],
       derived: Option[Set[Name]],
       implicitNeeds: Set[Name],
-      outside: Name => Boolean
+      outside: Name => Boolean,
+      /** The file's operators bound to its functions (`%infix + plus.`): an operator mentions them. */
+      operators: Map[String, List[Name]] = Map.empty
   )
 
   /** The nodes, the dependencies of each (indices), and the components in elaboration order. */
@@ -93,7 +95,7 @@ object ElabOrder:
       val declared = node.kind match
         case Kind.Plain => in.plain(i)._2.toSet
         case _ => Set.empty[Name]
-      val mentioned = node.items.flatMap(it => mentions(it) -- declared).flatMap(target)
+      val mentioned = node.items.flatMap(it => mentions(it, in.operators) -- declared).flatMap(target)
       (own ++ mentioned) - i
     }.toVector
     val order = nodes.indices.sortBy(i => (nodes(i).pos, i))
@@ -123,8 +125,9 @@ object ElabOrder:
   }.toSet
 
   /** The names an item mentions: its identifiers (also in patterns, local definitions and quotes) and its
-   *  paths `T.f`, except its own name and record labels. */
-  def mentions(item: Item): Set[Name] =
+   *  paths `T.f`, except its own name and record labels; an operator that the file binds to its functions
+   *  (`operators`) mentions them. */
+  def mentions(item: Item, operators: Map[String, List[Name]] = Map.empty): Set[Name] =
     val out = mutable.Set.empty[Name]
     val todo = mutable.ArrayBuffer[Any](item match
       case d: Decl => (d.params, d.tpe, d.sup, d.defn)
@@ -134,6 +137,10 @@ object ElabOrder:
     while todo.nonEmpty do
       todo.remove(todo.length - 1) match
         case Ident(n) => out += n
+        case Infix(op, l, r) =>
+          out ++= operators.getOrElse(op, Nil)
+          todo += l
+          todo += r
         case s @ Select(q, n) =>
           todo += q
           rootPath(s).foreach(out += _)

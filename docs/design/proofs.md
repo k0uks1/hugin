@@ -59,7 +59,7 @@ what a definition rests on.
 
 ```hugin
 boom : (A : Type) -> A.                                            (* now E0911 *)
-plusComm : (m n : nat) -> eq (plus m n) (plus n m) = %postulate.
+plusComm : (m n : nat) -> m + n ≡ n + m = %postulate.
 %assumptions sameFacts.
 ```
 
@@ -81,6 +81,7 @@ matching on `refl`, with K (D9).
 ```hugin
 %use "std/eq".
 eq : {A : Type} -> A -> A -> Type.                 (* (proposal) an implicit binder in a family's type *)
+%infix ≡ eq.                                       (* P2b: `x ≡ y` (ASCII `x == y`) is `eq x y` *)
 refl : {A : Type} -> {x : A} -> eq x x.
 sym : {A : Type} -> {x y : A} -> eq x y -> eq y x.
 sym refl = refl.
@@ -99,7 +100,7 @@ iff : Type -> Type -> Type = [a] [b] { to : a -> b, from : b -> a }.
 A user lemma about `std/nat`, whose `plus` recurses on its second argument:
 
 ```hugin
-zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus : (n : nat) -> 0 + n ≡ n.                 (* `+` is `plus` of std/nat (P2b) *)
 zeroPlus 0 = refl.
 zeroPlus (N + 1) = cong suc (zeroPlus N).
 ```
@@ -111,8 +112,8 @@ has the goal's type. The family is closed in `std/eq`, so no program can add a c
 a constructor's implicit argument can be bound in a pattern.
 
 ```hugin
-three : eq (plus 0 3) 3 = zeroPlus 3.
-viaTrans : eq (plus 0 (plus 0 3)) 3 = trans {y := plus 0 3} (zeroPlus (plus 0 3)) three.
+three : plus 0 3 ≡ 3 = zeroPlus 3.                 (* `0 + 3` alone would add integers *)
+viaTrans : plus 0 (plus 0 3) ≡ 3 = trans {y := plus 0 3} (zeroPlus (plus 0 3)) three.
 vec : Type -> nat -> Type.
 vnil : vec A 0.
 vcons : A -> vec A N -> vec A (N + 1).
@@ -142,21 +143,21 @@ is known, it abstracts the scrutinee's occurrences in the goal, and it can name 
 
 ```hugin
 maxN : nat -> nat -> nat = [m] [n] if (less m n) n m.
-maxIs : (m n : nat) -> either (eq (maxN m n) m) (eq (maxN m n) n).
+maxIs : (m n : nat) -> either (maxN m n ≡ m) (maxN m n ≡ n).
 maxIs M N = match less M N with                     (* (proposal) syntax *)
   | true => right refl
   | false => left refl.
 
-below : (m n : nat) -> eq (less m n) true -> eq (maxN m n) n.
+below : (m n : nat) -> less m n ≡ true -> maxN m n ≡ n.
 below M N H = match E : less M N with
   | true => refl
-  | false => absurdBool (trans (sym E) H).         (* E : eq (less M N) false here *)
+  | false => absurdBool (trans (sym E) H).         (* E : less M N ≡ false here *)
 
-twice : (n : nat) -> eq (plus 0 (plus 0 n)) n.
+twice : (n : nat) -> 0 + (0 + n) ≡ n.
 twice N = rewrite zeroPlus N in zeroPlus N.          (* (proposal) syntax *)
 ```
 
-Here `absurdBool : {A : Type} -> eq false true -> A` is the `std/eq` lemma with the single absurd
+Here `absurdBool : {A : Type} -> false ≡ true -> A` is the `std/eq` lemma with the single absurd
 clause `absurdBool ().`. The goal of `maxIs M N` is normalised first, unfolding definitions such as
 `maxN` but not functions by clauses: `either (eq (if (less M N) N M) M) (eq (if (less M N) N M) N)`.
 Then `less M N` is abstracted. In the branch `true`, `if true N M` evaluates to `N`, so `right refl`
@@ -172,7 +173,7 @@ arithmetic checked against its clauses, as #184 did for `nat`.
 int : Type.
 ofNat : nat -> int.           (* 0, 1, 2, … *)
 negSucc : nat -> int.         (* -1, -2, … *)
-small : eq (2 + (-5)) (-3) = refl.           (* -3 is negSucc 2; native, one step *)
+small : 2 + (-5) ≡ -3 = refl.                (* -3 is negSucc 2; native, one step *)
 fits64 : int -> bool.                        (* within the object level's 64 bits *)
 add64 : int -> int -> option int.            (* the object level's +: none if the sum does not fit *)
 add64 A B = if (fits64 (A + B)) (some (A + B)) none.
@@ -1926,6 +1927,62 @@ Decisions made during implementation are listed here with their PR.
   first call of the clause, which for a `match` was its scrutinee's).
 - *Codes.* E0927 (ill-typed abstraction), E0928 (cannot rewrite: not an equation, no occurrence, no
   expected type), E0929 (equality library not loaded).
+
+**P2b (operators of the meta level).**
+
+- *Syntax.* `%infix op f.` binds a symbol to a meta function; it has no associativity or precedence,
+  since the symbol keeps its place in the one operator table (`+ -` 6 left, `* /` 7 left, `≡` between
+  `|` and `::`, non-associative). A binding therefore never changes how a file parses, and parsing stays
+  independent of imports (the `%infix` prescan and slices are unchanged). Lean 4's `infixl:65 " + " =>
+  HAdd.hAdd` also binds a notation to a function in one command; fixing the fixity per symbol is OCaml's
+  rule (an operator's precedence is given by its first character). The name form `%infix assoc p name.`
+  is unchanged.
+- *Symbols.* `+ - * / ^ ≡`, with `==` as the ASCII spelling of `≡` (a new token; `=` stays the sign of
+  definitions and object comparisons). The comparisons `< <= > >= <>` are not bindable: they are object
+  formulas. `≡` sits at internal level 42, below `::` (45) and arithmetic and above `->` and `|`, so
+  `x :: xs ≡ ys` and `(n m : nat) -> n + m ≡ m + n` need no parentheses: Agda's `infix 4 _≡_` below
+  `infixr 5 _∷_`. In the user-level table it is in the column of level 4 with `|`.
+- *`^`.* It stays at level 6, left, where the object level has it as string concatenation; Agda's
+  `infixr 8 _^_` would change the object grammar. `^` is bindable, and the library binds it to nothing
+  (`std/nat` has no power function).
+- *Where a binding may be declared.* In the file that declares the function (Haskell's rule for fixity
+  declarations, Agda's for operators); the function is a meta constant with at least two explicit
+  arguments. Otherwise E0701, as for `%opaque`. In a module body it is E0907.
+- *Scope.* A binding travels with its function: it is in effect wherever the function's name denotes
+  the function (declared in the file, opened by `%use`, opened by the prelude), as an Agda operator is
+  its name. `%use "std/nat" (minus).` brings `-` and not `+`. Module values carry their file's bindings
+  (`ImportedModule.operators`).
+- *Overloading.* Idris 2's type-directed choice among alternatives, without classes. Idris prunes the
+  alternatives by the target's head and then elaborates each and keeps those that succeed
+  (`TTImp.Elab.Ambiguity`); here the candidates are compared by the heads of their types only: results
+  against the expected type, then, if several remain, the first explicit domain against the type of the
+  left operand (the right one if the left one is a literal), which is inferred once and passed on as
+  the argument. Each operand is elaborated exactly once, so nested operators are linear and nothing is
+  backtracked or undone. An unknown head (an unsolved type, a stuck type-level application) fits every
+  candidate; a type variable of the context is rigid and fits only a generic domain. Several fit:
+  E0932; none fits and no built-in meaning applies: E0933, listing the candidates.
+- *Built-in meanings.* A fitting binding is preferred; the built-in operators remain the fallback where
+  none fits (meta `int` via `std/int`, meta floats and strings). The successor `e + k` on a nat-like
+  type comes first, also where `+` is bound. An integer literal next to an operand of unknown type still
+  makes it an `int`, and literals alone are integers (`1 + 1 ≡ 2` is about `int`): the literal default is
+  not changed by bindings. Object code never applies bindings; `≡` there is E0933.
+- *Patterns.* `p op q` is a constructor pattern if `op` denotes a constructor of the expected type (the
+  infix constructors of Agda and Haskell); a binding to a function is not a pattern (E0915, naming the
+  function), since clause heads stay constructor patterns (D11). `std/nat`'s `plus` is a function, so
+  `N + M` is not a pattern; `N + k` stays the successor pattern.
+- *`std/int`.* It binds `+ - * /` to `iplus`, `iminus`, `itimes`, `idiv`, the functions the built-in
+  operators apply anyway, so that the editor shows them at the operator and the two `+` are told apart
+  by types.
+- *Printing.* Types and goals still print in prefix form (`eq {nat} (plus 0 n) n`); printing bound
+  functions as operators is left open, since printing does not depend on the scope of a file and every
+  stored output that shows `plus` or `eq` would change. The arithmetic of `std/int` already prints as
+  operators.
+- *Tooling.* The operator's position refers to the function: hover shows it with its type, go to
+  definition goes to it, and the annotation table of the web editor lists operators. The TextMate
+  grammar and the playground colour `≡` and `==` as operators. The inlay hint of the implicit type
+  argument of `eq` is shown after `≡` (`≡{nat}`), as after any applied name.
+- *Codes.* E0932 (ambiguous operator), E0933 (no binding of the operator fits); E0701 for an invalid
+  binding.
 
 **P5a (`std/semantics`: values, programs, `derives`).**
 

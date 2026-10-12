@@ -49,7 +49,11 @@ integer literal stands for constructor patterns: `5` is `ofNat 5` and `-3`, writ
 
 The operators `+`, `-`, `*` and `/` on meta integers, and the negation `-x`, apply `iplus`, `iminus`,
 `itimes`, `idiv` and `ineg` of the file `std/int`, whatever the names in scope of the program; types and
-diagnostics show these applications as the operators. The functions are defined by clauses, as Lean
+diagnostics show these applications as the operators. The file also binds the four operators to these
+functions, `%infix + iplus.` and so on ([Operators bound to meta
+functions](../lexical-structure.md#operators-bound-to-meta-functions)): in a file that opens `std/int`,
+the editor shows the function at the operator, and `+` on `int` is told apart from `+` on `nat` of
+[`std/nat`](nat.md#operators) by the types. The functions are defined by clauses, as Lean
 defines them (`src/Init/Data/Int/Basic.lean`), over the functions of `std/nat`:
 
 ```hugin,ignore
