@@ -128,10 +128,10 @@ application of a function that does not reduce:
 vec : Type -> nat -> Type.
 vnil : vec A 0.
 vcons : A -> vec A N -> vec A (N + 1).
-zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus : (n : nat) -> 0 + n ≡ n.
 zeroPlus 0 = refl.
 zeroPlus (N + 1) = cong suc (zeroPlus N).
-cast : {n : nat} -> vec int (plus 0 n) -> vec int n.
+cast : {n : nat} -> vec int (0 + n) -> vec int n.
 cast {n := N} V = subst (vec int) (zeroPlus N) V.
 addAll : vec int N -> int.
 addAll vnil = 0.
@@ -323,10 +323,13 @@ shown 4.
 > object integers, and a default must not change the stage of a term: a nat-like type has no lifting to
 > object code.
 
-The arithmetic operators `+`, `-`, `*`, `/` and the negation `-x` apply to meta integers as the functions
-`iplus`, `iminus`, `itimes`, `idiv` and `ineg` of [`std/int`](../std/int.md#arithmetic), which are defined
-by clauses and computed natively on integers: unbounded, with division rounded toward zero and `x / 0`
-equal to `0`. On meta floats and strings, `+`, `-`, `*`, `/` and `^` are computed at compile time as they
+An operator that `%infix op f.` binds to meta functions applies the binding whose types fit, such as
+`plus` for `+` on `nat` ([Operators bound to meta
+functions](../lexical-structure.md#operators-bound-to-meta-functions)); the meanings below apply where
+no binding fits. The arithmetic operators `+`, `-`, `*`, `/` and the negation `-x` apply to meta
+integers as the functions `iplus`, `iminus`, `itimes`, `idiv` and `ineg` of
+[`std/int`](../std/int.md#arithmetic), which are defined by clauses and computed natively on integers:
+unbounded, with division rounded toward zero and `x / 0` equal to `0`. On meta floats and strings, `+`, `-`, `*`, `/` and `^` are computed at compile time as they
 are on object values ([Arithmetic and comparisons](../object/arithmetic.md)); a result that is undefined
 (a division by zero) is stuck. A literal operand takes the type and stage of the other operand.
 Comparisons written with operators are always object formulas; meta integers are compared with the

@@ -63,6 +63,23 @@ div N (D + 1) = divSucAux 0 D N D.
 Since `plus` splits on its second argument, `plus N k` for a numeral `k` evaluates to `N + k` also when
 `N` is not known.
 
+## Operators
+
+The file binds three operators of the meta level to its functions ([Operators bound to meta
+functions](../lexical-structure.md#operators-bound-to-meta-functions)):
+
+```hugin,ignore
+%infix + plus.
+%infix - minus.
+%infix * times.
+```
+
+In a file that opens these functions, `n + m` is `plus n m`, `n - m` is `minus n m` and `n * m` is
+`times n m` wherever the types say that they are natural numbers. `N + k` with an integer literal `k` is
+the successor applied `k` times, as before, which `plus N k` evaluates to. Integer literals alone are
+integers: `2 + 3` is a sum of `int`s unless the expected type is `nat`. The operators may be used in
+types: `(m n : nat) -> m + n ≡ n + m` is the statement of `plusComm` of [`std/decide`](decide.md).
+
 ## Native arithmetic
 
 The clauses are the definition of the functions, but the compiler computes them directly on numbers

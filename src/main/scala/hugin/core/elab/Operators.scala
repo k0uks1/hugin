@@ -24,33 +24,46 @@ trait Operators:
     case Neg(i) => isLit(i)
     case _ => false
 
-  private def isIntLit(t: Tree): Boolean = t match
+  def isIntLit(t: Tree): Boolean = t match
     case Lit(hugin.syntax.Literal.IntL(_)) => true
     case Parens(i) => isIntLit(i)
     case Neg(i) => isIntLit(i)
     case _ => false
 
   /** The operand to infer first (not a literal, if possible) and the other one; `true` if swapped. */
-  private def order(l: Tree, r: Tree): (Tree, Tree, Boolean) =
+  def order(l: Tree, r: Tree): (Tree, Tree, Boolean) =
     if isLit(l) && !isLit(r) then (r, l, true) else (l, r, false)
 
-  def inferInfix(c: Cxt, op: String, l: Tree, r: Tree, span: Span, st: Option[Stage]): (Tm, Val, Stage) =
+  /** `l op r` inferred, at stage `st` if known. `first` is the operand inferred first ([[order]]) if it was
+   *  already, to choose between the bindings of the operator ([[Overloading]]). */
+  def inferInfix(
+      c: Cxt,
+      op: String,
+      l: Tree,
+      r: Tree,
+      span: Span,
+      st: Option[Stage],
+      first: Option[(Tm, Val, Stage)] = None
+  ): (Tm, Val, Stage) =
     (arithOps.get(op), cmpOps.get(op)) match
-      case (Some(aop), _) => inferArith(c, aop, l, r, st)
+      case (Some(aop), _) => inferArith(c, aop, l, r, st, first)
       case (_, Some(cop)) => inferComparison(c, cop, l, r)
+      // `≡` outside the meta level, where no binding applies
+      case _ if op == "≡" => fail(OperatorProblem.NoneFits(op, Nil, None, None, span))
       case _ => fail(TypeProblem.UnknownOperator(op, span))
 
-  private def inferArith(c: Cxt, op: ArithOp, l: Tree, r: Tree, st: Option[Stage]): (Tm, Val, Stage) =
+  private def inferArith(c: Cxt, op: ArithOp, l: Tree, r: Tree, st: Option[Stage], inferred: Option[(Tm, Val, Stage)]): (Tm, Val, Stage) =
     if st.contains(Stage.S0) then
       val (tm, ty) = objectArith(c, op, l, r)
       (tm, ty, Stage.S0)
     else
       val (first, second, swapped) = order(l, r)
-      val (ft, fty, s) = st match
-        case Some(s) =>
+      val (ft, fty, s) = (inferred, st) match
+        case (Some(done), _) => done
+        case (None, Some(s)) =>
           val (t1, ty1) = inferS(c, first, s)
           (t1, ty1, s)
-        case None => infer(c, first)
+        case (None, None) => infer(c, first)
       (natType(fty), successorCount(second)) match
         case (Some((_, suc)), Some(k)) if s == Stage.S1 && op == ArithOp.Add && !swapped =>
           // `e + k` on a nat-like type: the successor applied `k` times (reference: meta/families)

@@ -15,6 +15,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
     case Tok.Comma => Some((",", LvlComma, Assoc.Left))
     case Tok.Arrow => Some(("->", LvlArrow, Assoc.Right))
     case Tok.ColonColon => Some(("::", LvlCons, Assoc.Right))
+    // `≡` and its ASCII spelling `==` are one operator, `≡` in the tree
+    case Tok.Equiv => Some(("≡", LvlEquiv, Assoc.NonAssoc))
     // in a branch of a `match`, `|` starts the next branch
     case Tok.Bar => if barEnds then None else Some(("|", LvlBar, Assoc.Left))
     case Tok.Eq => Some(("=", LvlCmp, Assoc.NonAssoc))

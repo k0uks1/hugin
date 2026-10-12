@@ -56,6 +56,10 @@ trait Bidirectional:
         val av = ev(c, at)
         (check(c, e, av, s), av, s)
     case Lambda(param, ann, body) => inferLambda(c, param, ann, body)
+    // an operator bound to meta functions ([[Overloading]]); object code never uses bindings
+    case i @ Infix(op, _, _) if state.stage == Stage.S1 && overloaded(op) => inferOperator(c, i, None)
+    // in object code `≡` denotes nothing (object code compares with `=`)
+    case i @ Infix("≡", _, _) => fail(OperatorProblem.NoneFits(i.op, Nil, None, None, i.opSpan))
     case Infix(op, l, r) => inferInfix(c, op, l, r, t.span, None)
     case Neg(_) | Not(_) | Conj(_, _) | Disj(_, _) => inferFormulaOrNegation(c, t)
     case Wildcard() =>
@@ -106,6 +110,9 @@ trait Bidirectional:
     case Wildcard() =>
       val a = ev(c, freshType(c, st, t.span, "the type of `_`"))
       (freshMeta(c, a, st, t.span, "`_`"), a)
+    case i @ Infix(op, _, _) if st == Stage.S1 && overloaded(op) =>
+      val (tm, ty, _) = inferOperator(c, i, Some(st))
+      (tm, ty)
     case Infix(op, l, r) if arithOps.contains(op) =>
       val (tm, ty, _) = inferInfix(c, op, l, r, t.span, Some(st))
       (tm, ty)
@@ -187,6 +194,8 @@ trait Bidirectional:
     case (Wildcard(), _) => if st == Stage.S0 then Tm.Wild else freshMeta(c, a, Stage.S1, t.span, "`_`")
     case (Infix("+", l, r), ty) if st == Stage.S1 && natType(ty).isDefined && successorCount(r).isDefined =>
       natSuccessor(natType(ty).get._2, check(c, l, a, st), successorCount(r).get, t.span)
+    // after the successor `e + k`, which a binding of `+` does not change ([[Overloading]])
+    case (i @ Infix(op, _, _), _) if st == Stage.S1 && overloaded(op) => checkOperator(c, i, a)
     case (Lit(Literal.IntL(_)), Val.Flex(_, _)) if st == Stage.S1 => postponeLiteral(c, t, a)
     case (Infix(op, l, r), ty) if arithOps.contains(op) && !ty.isInstanceOf[Val.Flex] => checkArith(c, op, l, r, ty, st, t.span)
     case (_, Val.Flex(_, _)) =>

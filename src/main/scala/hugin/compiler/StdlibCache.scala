@@ -73,7 +73,7 @@ object StdlibCache:
       val plain = file.program.items.forall {
         case d: Decl => d.sup.isEmpty
         case _: Clause | _: Def => true
-        case Directive(_, DirArgs.Use(_: Import, _) | _: DirArgs.Infix | _: DirArgs.Export) => true
+        case Directive(_, DirArgs.Use(_: Import, _) | _: DirArgs.Infix | _: DirArgs.Operator | _: DirArgs.Export) => true
         case _ => false
       }
       !plain || {

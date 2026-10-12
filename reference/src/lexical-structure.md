@@ -123,7 +123,7 @@ The remaining tokens are:
 
 ```text
 :-   ?-   ->   =>   <:   <>   <=   >=   ..   ::   .   ,   ;   :   |   =   <   >
-+    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '
++    -    *    /    ^    (    )    {    }    [    ]    $    ⇑    '    ≡    ==
 ```
 
 A prime `'` is a token only at the start of a token and directly before `(`: `'(` opens a
@@ -141,6 +141,10 @@ Parentheses `( )`, brackets `[ ]`, braces `{ }` and quotes `'( )` are pairs. It 
 spelling: `^int` is `⇑int`. `$` starts a splice, or inside a quote a [hole](reflection.md#holes). A `<`
 where an operand starts opens a [staging quote](meta/staging.md#explicit-quotes) `<t>`, which the next
 `>` closes.
+
+`≡` (U+2261) is the equality operator of the meta level, and `==` is its ASCII spelling: `n == m` is
+`n ≡ m`. `=` itself is not an operator of the meta level: it defines (`x = e.`) and compares in object
+formulas (see [Operators bound to meta functions](#operators-bound-to-meta-functions)).
 
 A question mark `?` that is not followed by `-` is a [typed hole](meta/functions.md#typed-holes),
 together with the name characters directly after it: `?`, `?rest`.
@@ -228,6 +232,7 @@ the tightest binding:
 | `,` | left | conjunction of formulas |
 | `->` | right | function, relation and constructor types |
 | `\|` | left | union of object types |
+| `≡` (`==`) | none | equality (meta level) |
 | `::` | right | a list with a first element (meta level) |
 | `=` `<>` `<` `<=` `>` `>=` | none | comparisons |
 | `+` `-` `^` | left | addition, subtraction, string concatenation |
@@ -235,8 +240,9 @@ the tightest binding:
 
 Application by juxtaposition (`edge X Y`) binds tighter than every binary operator, and selection
 `e.l` binds tighter than application. The prefix operators `not` and unary `-` apply to an application:
-`not edge X Y` is `not (edge X Y)`. Comparison operators do not associate: `A < B < C` is an error
-([E0001](errors/E0001.md)).
+`not edge X Y` is `not (edge X Y)`. Comparison operators and `≡` do not associate: `A < B < C` is an
+error ([E0001](errors/E0001.md)). `≡` binds looser than `::` and the arithmetic operators and tighter
+than `->`, so `(n m : nat) -> n + m ≡ m + n` needs no parentheses.
 
 On a nat-like meta type, `+` with an integer literal as its right operand is the successor applied that
 many times, in expressions and in patterns: `N + 2` is `suc (suc N)`
@@ -267,7 +273,7 @@ and looser than those of level *p* + 1. `a op b` is the application `op a b`.
 
 | level | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 |---|---|---|---|---|---|---|---|
-| operators | `;` | `,` | `->` | `\|` | comparisons | `+` `-` `^` | `*` `/` |
+| operators | `;` | `,` | `->` | `\|` `≡` | comparisons | `+` `-` `^` | `*` `/` |
 
 The operator is in effect in the whole file, also before the directive. A rule head is parsed above
 the comparison level, so an operator of precedence 5 or more may appear in a head. Like an argument, the
@@ -301,3 +307,89 @@ person : type.  ann : person.  bob : person
 likes : person -> person -> rel.
 ann likes bob.
 ```
+
+### Operators bound to meta functions
+
+```text
+Binding   ::= "%infix" OP NAME "."
+OP        ::= "+" | "-" | "*" | "/" | "^" | "≡" | "=="
+```
+
+The directive `%infix op f.` makes the symbol `op` denote the meta function `f` at the meta level: `a op
+b` is the application `f a b`. The symbol keeps its place in the table above, so a binding never
+changes how a file is parsed. `f` is a meta constant of the same file (a function, a definition, a
+family or a constructor) that takes at least two explicit arguments; it is an error
+([E0701](errors/E0701.md)) to bind another constant. Like an `%infix` operator, the binding is in effect
+in the whole file, also before the directive. The standard library binds `+`, `-` and `*` to the
+arithmetic of [`std/nat`](std/nat.md#operators), `+`, `-`, `*` and `/` to that of
+[`std/int`](std/int.md#arithmetic), and `≡` to the equality `eq` of [`std/eq`](std/eq.md#equality).
+
+A binding is in effect in every file in which the name of its function denotes that function: the
+file that declares it, a file that opens it with `%use`, and every file if the prelude opens it. So
+`%use "std/nat".` brings `+` on natural numbers, and `%use "std/nat" (minus).` only `-`. A
+declaration of the file that shadows the name hides the binding.
+
+Several bindings of one symbol may be in effect, such as `+` for `nat` and for `int`. Which one `a op b`
+applies is decided by the types, without type classes:
+
+1. The bindings whose result type has a head other than the expected type's are left out. The head of
+   a type is its family or base type, or that it is a universe, a function type, a record type or
+   object code `⇑A`. A type whose head is not known yet (an unknown, a type-level function application
+   that does not compute yet) fits every binding.
+2. If several bindings remain, or the expected type is not known, the left operand is inferred (the
+   right one if the left one is a literal), and the bindings whose argument type there has another head
+   are left out. A type variable of the context fits only a binding whose argument type is a variable
+   of its own.
+3. If one binding remains, `a op b` is its application. It is an error
+   ([E0932](errors/E0932.md)) if several remain, and ([E0933](errors/E0933.md)) if none does, unless the
+   operator has a built-in meaning for the type.
+
+The arithmetic operators keep their built-in meanings, which apply where no binding fits: on a nat-like
+type, `e + k` with an integer literal `k` is the successor, also where `+` is bound; on the meta `int`
+the operators apply the functions of [`std/int`](std/int.md#arithmetic); on meta floats and strings
+they are computed at compile time ([Functions](meta/functions.md#literals-and-primitive-operations)).
+An integer literal next to an operand of unknown type makes it an `int`, as without bindings. Object
+code never applies a binding, and `≡` there is an error ([E0933](errors/E0933.md)): object formulas
+compare with `=`.
+
+In a pattern, `p op q` is a constructor pattern if `op` denotes a constructor of the expected type, as
+an infix constructor is in Agda and Haskell. It is an error ([E0915](errors/E0915.md)) if `op` denotes
+only functions, since a pattern is built from constructors and variables; the successor `p + k` is a
+pattern as before.
+
+Each operand is elaborated once, so the time to resolve nested operators grows linearly with their
+number. On an operator, the editor shows the function it denotes, and go to definition goes to it.
+
+The following program states and proves that `0` is a left unit of `+` on `nat`, and uses `-`, `*` and
+the `+` of `int`.
+
+```hugin,run
+%use "std/eq".
+%use "std/nat".
+%use "std/int".
+zeroPlus : (n : nat) -> 0 + n ≡ n.
+zeroPlus 0 = refl.
+zeroPlus (N + 1) = cong suc (zeroPlus N).
+six : nat = 2 * 3.
+shown : int -> rel.
+shown (toInt (six - 1) + 10).
+```
+
+```output
+shown 15.
+```
+
+In the following program both bindings of `+` fit, since the types of `x` and `y` are not known.
+
+```hugin,compile_fail,E0932
+%use "std/nat".
+%use "std/int".
+add = [x] [y] x + y.
+```
+
+> **Rationale.** The symbols of the meta level are overloaded as names are in Idris 2: by the types,
+> without type classes, so that `std/nat` and `std/int` can both bind `+` without a class hierarchy.
+> Idris elaborates each alternative and keeps those that succeed; comparing the heads of the types
+> first, as Idris prunes its alternatives, and inferring each operand once keeps the resolution linear
+> and free of backtracking. `=` stays the sign of definitions and object comparisons, as `≡` is
+> Agda's identity type.

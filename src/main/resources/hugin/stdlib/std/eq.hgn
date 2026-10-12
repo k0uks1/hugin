@@ -5,7 +5,9 @@
    constructor to them. *)
 %use "std/reflect" (bool, true, false, same).
 
-(* `eq x y`: `x` and `y` are equal; `refl` is the only proof, of `eq x x` *)
+(* `eq x y`: `x` and `y` are equal; `refl` is the only proof, of `eq x x`. `x ≡ y` (ASCII `x == y`) is
+   `eq x y` (reference: std/eq, the operator `≡`) *)
+%infix ≡ eq.
 eq : {A : Type} -> A -> A -> Type.
 refl : {A : Type} -> {x : A} -> eq x x.
 

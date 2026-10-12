@@ -40,6 +40,16 @@ same name, so a program that uses both opens only the names it needs from one of
 
 ## Equality
 
+`x ≡ y`, or `x == y` in ASCII, is `eq x y`: the file binds the operator `≡` to the family
+([Operators bound to meta functions](../lexical-structure.md#operators-bound-to-meta-functions)),
+
+```hugin,ignore
+%infix ≡ eq.
+```
+
+so a file that opens `eq` writes `(n : nat) -> 0 + n ≡ n` for `(n : nat) -> eq (plus 0 n) n`. Types are
+shown with `eq`. `=` is not the equality: it defines and compares object values.
+
 The lemmas are ordinary functions by clauses. Matching on `refl` unifies the two sides of the equation
 ([Index unification](../meta/coverage.md#index-unification)), so each of them has a single clause:
 
@@ -58,25 +68,26 @@ absurdBool ().
 2018](../notation.md#references)). `uip` holds since index unification deletes an equation `x = x` (axiom
 K): any two proofs of the same equation are equal. On `refl`, the lemmas compute: `subst P refl H` is
 `H`. An equation that holds by evaluation is proved by `refl` itself: `plus 2 2` evaluates to `4`, so
-`refl` proves `eq (plus 2 2) 4`.
+`refl` proves `plus 2 2 ≡ 4`.
 
 The equation of [`match H : e`](../meta/match.md#the-equation) is `eq`, and
 [`rewrite h in e`](../meta/match.md#rewrite) elaborates to `subst` and `sym`; both need a program that
 loads `std/eq`.
 
-The following program proves that `0` is a left unit of `plus` of [`std/nat`](nat.md), which recurses on
-its second argument, by induction with `cong`, and uses the proof to transport a vector.
+The following program proves that `0` is a left unit of `+` on `nat`, which is `plus` of
+[`std/nat`](nat.md) and recurses on its second argument, by induction with `cong`, and uses the proof to
+transport a vector.
 
 ```hugin,run
 %use "std/eq".
 %use "std/nat".
-zeroPlus : (n : nat) -> eq (plus 0 n) n.
+zeroPlus : (n : nat) -> 0 + n ≡ n.
 zeroPlus 0 = refl.
 zeroPlus (N + 1) = cong suc (zeroPlus N).
 vec : Type -> nat -> Type.
 vnil : vec A 0.
 vcons : A -> vec A N -> vec A (N + 1).
-cast : {n : nat} -> vec int (plus 0 n) -> vec int n.
+cast : {n : nat} -> vec int (0 + n) -> vec int n.
 cast {n := N} V = subst (vec int) (zeroPlus N) V.
 size : vec int N -> int.
 size vnil = 0.

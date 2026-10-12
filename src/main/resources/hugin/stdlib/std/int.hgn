@@ -8,6 +8,13 @@
 %use "std/reflect" (bool, true, false).
 %use "std/nat".
 
+(* The operators on meta integers, as bindings (reference: std/int, operators): they denote the functions
+   that the operators apply anyway, and make the functions visible to the editor at the operator *)
+%infix + iplus.
+%infix - iminus.
+%infix * itimes.
+%infix / idiv.
+
 (* The negation of a natural number *)
 negOfNat : nat -> int.
 negOfNat 0 = 0.
