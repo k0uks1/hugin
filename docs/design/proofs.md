@@ -2433,6 +2433,36 @@ generalisations (7.3, step 3) as action at a distance: names the user never wrot
   database), e0945_parameter_relation (`g.edge` unbound; two parameters by position; an argument that is
   not a variable).
 
+**P9d (a name for every head).** Level 3.5's §6.2 and decision 7 ([proofs-level35.md](proofs-level35.md)),
+replacing P7b's "a multi-head rule is named by its first head".
+
+- *Names per (rule, head) pair.* `r.k` is the `k`-th head atom of relation `r` in program order and,
+  within a rule, in the order of `crule.heads` (the written heads, each followed by the nested facts of its
+  constructor terms). `both`'s `edge X Y, edge Y X :- g.edge X Y.` is `edge.1` and `edge.2`; heads of
+  different relations count separately (`@ends from X, to Y :- …` is `from.k` and `to.k'`). `crule.index`
+  keeps P7a's first-head numbering: names are computed by the elaborator (`ProgramData.headNames`), and
+  agree with `index` only for single-head rules; a later single-head rule after a rule with two heads of
+  its relation is numbered after both (`edge.3`).
+- *Nested facts of file constructors.* A constructor term's nested fact is `ext` of the file's constructor
+  (a body cannot declare one with code), so `r.k` also names heads of an `ext` relation by the constant's
+  name: `drawn (circle R) :- big R.` is `circle.1`, against `sized ⊢ circle r`. A relation of the program
+  takes precedence over a file constant of the same name. Heads of a parameter relation (`arg`) get no
+  name; none are produced today.
+- *Head proofs.* As a pattern and as an expression, the head proof is `there^j here` for the head's
+  position `j` in `crule.heads`. Coverage already put `there` chains as long as the longest head list in
+  Π (P7b), so the clauses `edge.1`, `edge.2` cover with no further change.
+- *Labels.* A label names its rule's head of the goal's relation; E0948 (the design's code, a new problem
+  `LabelHeads`, "which head?") if the rule has several heads of it, with the help naming the `r.k`
+  alternatives. Without a known goal relation, the rule's first head. Inside a rule pattern, a premise's
+  goal is not yet known (`Val.Wild`); the premise's relation from the rule's body is passed as a hint, so a
+  label in a nested premise picks the right head and a mismatching `r.k` there is reported as E0948 rather
+  than as a later type error.
+- *Splits* offer every (rule, head) name of the goal's relation, by the rule's label where it names that
+  head alone.
+- *Tests.* run `p9d_heads` (`flip` with `edge.1`/`edge.2`; `twice` with the label `ends` as `from` and
+  `to` head and `to.1`, `to.2`; `circle.1` for a constructor term in a head, beside `given`); neg
+  `e0948_label_heads` (pattern and expression); LSP split of `both` and `twice`.
+
 **P9b (the judgment coercion, level 3.5's alternative A).** Design: [proofs-level35.md](proofs-level35.md)
 §2.1–2.5; reference `std/semantics.md`, "Relations as propositions".
 

@@ -223,8 +223,9 @@ evaluate, Π also holds the positions below it of `fire`'s rule and head proofs 
 explicit arguments) and of their `there` chains, as many as the program has rules and as a rule has heads.
 So a derivation is split into the program's rules: a rule whose head conflicts with the goal's fact is
 refuted by index unification, and `given` is refuted for a relation with rules, since `so false` is the
-empty family. Clauses for the rules of the goal's relation, and `given` if it is an input relation, cover a
-function on derivations, without absurd clauses for the others.
+empty family. Clauses for the rule names of the goal's relation (one for each head of that relation, so a
+rule with two heads of it needs two clauses), and `given` if it is an input relation, cover a function on
+derivations, without absurd clauses for the others.
 
 ## Absurd clauses
 
