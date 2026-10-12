@@ -22,11 +22,12 @@ import scala.collection.mutable
  *    subterms (other fields as they are), cached per term object, so equal terms get the same id and
  *    different terms different ids, and comparing or hashing a key costs its number of arguments.
  *
- *  - **Types and functions** (`Pi`, `Lam`, `⇑A`, record types) are read back once per value object too,
- *    although their read-back may change (a meta solved inside): a key that contains one is never closed
- *    ([[closedId]]), so it is never used, and caching it only saves reading back again and again the
- *    data around it, such as the derivations of `std/semantics`, whose constructors carry types in their
- *    implicit arguments (#186 P5).
+ *  - **Types and functions** (`Pi`, `Lam`, `⇑A`, record types) are not read back at all: a key that
+ *    contains one is never closed ([[closedId]]), so it is never used, and its read-back would only cost
+ *    time (reading back a function evaluates its body, and the closures of a proof by evaluation hold
+ *    each other, #186 P8b). They stand for the placeholder [[Unused]], cached per value object, so the
+ *    data around them, such as the derivations of `std/semantics`, whose constructors carry types in their
+ *    implicit arguments (#186 P5), is read back once.
  *
  *  So a key is a list of ids that are equal exactly when the normal forms are: the memo hits and misses
  *  as before, and evaluation (including the fresh object variables it creates) is unchanged. */
@@ -34,6 +35,9 @@ trait MemoKeys:
   self: Core =>
 
   private val readBack = java.util.IdentityHashMap[Val, Tm]()
+
+  /** What a type or a function stands for in a key: a term that is never closed, as a function is not. */
+  private val Unused: Tm = Tm.Meta(-1)
   private val termIds = java.util.IdentityHashMap[Tm, Integer]()
   private val nodeIds = mutable.HashMap.empty[Any, Int]
   private val closedIds = mutable.HashMap.empty[Int, Boolean]
@@ -106,10 +110,24 @@ trait MemoKeys:
         case Val.Rec(fs) =>
           val qs = fs.map((l, x) => (l, quoteKeyAt(x, d)))
           (Tm.Rec(qs.map((l, q) => (l, q._1))), qs.forall(_._2._2))
-        case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (quote(0, v), true)
+        case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (Unused, true)
+        // a variable or an unsolved meta at the head: never closed, so not worth reading back (uncached:
+        // the meta may be solved later)
+        case Val.Rigid(Head.Local(_), _) | Val.Flex(_, _) if openHead(v) => (Unused, false)
+        // a stuck application with an argument that is never closed is never closed either
+        case Val.Rigid(Head.Glob(_), sp) if sp.exists {
+              case Elim.EApp(a, _) => quoteKeyAt(a, d)._1 eq Unused
+              case _ => false
+            } =>
+          (Unused, false)
         case other => (quote(0, other), false)
       if stable then readBack.put(v, t)
       (t, stable)
+
+  /** Whether `v` is, after forcing, an application of a variable or of an unsolved meta. */
+  private def openHead(v: Val): Boolean = Val.unloc(force(v)) match
+    case Val.Rigid(Head.Local(_), _) | Val.Flex(_, _) => true
+    case _ => false
 
   /** The hash-consed id of a term: equal for equal terms. */
   private def termId(t: Tm): Int = termIdAt(t, 0)
@@ -253,7 +271,7 @@ trait MemoKeys:
           case Val.Rec(fs) =>
             val qs = fs.map((l, x) => (l, result(x)))
             (Tm.Rec(qs.map((l, q) => (l, q._1))), qs.forall(_._2._2))
-          case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (quote(0, v), true)
+          case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (Unused, true)
           case other => (quote(0, other), false)
         if stable then readBack.put(v, t) else local.put(v, (t, false))
       }

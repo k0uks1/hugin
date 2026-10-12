@@ -6,7 +6,7 @@ import hugin.compiler.*
 import hugin.query.*
 import hugin.repl.{Repl, Session}
 import hugin.lsp.HuginLanguageServer
-import hugin.runtime.{Evaluation, ProofExport}
+import hugin.runtime.{Certify, Evaluation, ProofExport}
 import java.nio.file.{Files, Path}
 
 /** Process exit codes. */
@@ -136,7 +136,17 @@ object Main:
         res.output.foreach(out)
         if opts.run.stats then res.statistics.foreach(err)
         val exported = opts.run.exportProofs.forall(exportProofs(_, key, compiled, facts, opts, err))
-        if errors || !exported then ExitCode.Errors else ExitCode.Ok
+        val certified = !opts.settings.certify || certify(key, compiled, facts, opts, err)
+        if errors || !exported || !certified then ExitCode.Errors else ExitCode.Ok
+
+  /** `--certify`: checks the run with `std/certify` and prints the verdict; false if it is not certified. */
+  private def certify(key: CompileKey, compiled: Compiled, facts: List[String], opts: Options, err: String => Unit)(using
+      db: Database
+  ): Boolean =
+    val fixpoint = db(Fixpoint, FixpointKey(key, facts)).get
+    val outcome = Certify(compiled.context.unit, compiled.context.unit.core.nn, fixpoint.engine)
+    outcome.summary.foreach(err)
+    !render(outcome.diagnostics, opts.display, err)
 
   /** `--export-proofs`: writes the proofs of the evaluated program to `file` and prints the warnings of the
    *  export; false if the file could not be written. */

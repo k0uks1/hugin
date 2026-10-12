@@ -1,0 +1,10 @@
+error[E0955]: `--certify` needs the library `std/certify`
+ --> tests/neg/e0955_certify_library.hgn:1:1
+  |
+1 | (* --certify without std/certify: the checker is its meta code *)
+  | ^
+  |
+  = note: the checker of a certified run is the meta code of `std/certify`, which the program loads
+  = help: add `%use "std/certify".` to the program
+
+1 error found

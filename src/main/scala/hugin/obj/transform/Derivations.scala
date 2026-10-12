@@ -17,7 +17,7 @@ final class DerivationsPhase extends ObjProgramPhase:
   def run(using Context): Unit =
     val p = ctx.unit.prog
     if p == null then return
-    val proofs = if ctx.settings.exportProofs then proofRelations(p) else Vector.empty
+    val proofs = if ctx.settings.exportProofs || ctx.settings.certify then proofRelations(p) else Vector.empty
     val names = ctx.unit.derivationRules
     val facts = ctx.unit.facts
     def baseName(n: String): String = n.indexOf('[') match

@@ -200,6 +200,9 @@ object CommandLine:
           else failure(s"unknown proof format `$f`; expected trees or ordered-graph")
         )
         .action((f, o) => o.copy(run = o.run.copy(proofFormat = hugin.runtime.ProofExport.Format.parse(f)))),
+      opt[Unit]("certify")
+        .text("with run: check the output with the verified checker of std/certify, which the program loads")
+        .action((_, o) => o.copy(settings = o.settings.copy(certify = true))),
       opt[Unit]("color")
         .text("colour diagnostics")
         .action((_, o) => o.copy(display = o.display.copy(color = true))),
@@ -238,6 +241,7 @@ object CommandLine:
           case Command.Query(_, r, None) if positional(r) => failure(s"`$r` needs a position `line:column`")
           case c if o.run.exportProofs.isDefined && !c.isInstanceOf[Command.Run] => failure("--export-proofs needs the command `run`")
           case _ if o.run.proofFormat.isDefined && o.run.exportProofs.isEmpty => failure("--proof-format needs --export-proofs")
+          case c if o.settings.certify && !c.isInstanceOf[Command.Run] => failure("--certify needs the command `run`")
           case _ => success
       )
     )

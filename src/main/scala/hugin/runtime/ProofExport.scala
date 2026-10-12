@@ -39,25 +39,35 @@ object ProofExport:
   /** The version of the `hugin` member of the certificate. */
   val Version = 1
 
-  private final case class Atom(symbol: String, terms: List[String])
+  private[runtime] final case class Atom(symbol: String, terms: List[String])
 
   /** A child in a proof: a fact of the run, or an atom of an assumption relation. */
-  private enum Node:
+  private[runtime] enum Node:
     case Fact(id: Id)
     case Leaf(atom: Atom)
 
   /** One recorded rule instance: the derived fact and the children in the order of the rule's body. */
-  private final class Instance(val head: Id, val children: Vector[Node]):
+  private[runtime] final class Instance(val head: Id, val children: Vector[Node]):
     val facts: Vector[Id] = children.collect { case Node.Fact(id) => id }.distinct
 
-  def apply(unit: CompilationUnit, prog: CoreProgram, engine: Engine, format: Format): Export =
-    def factAtom(id: Id): Atom =
-      val r = engine.store(id.rel)
-      Atom(r.sym.name, r.tuples(id.n).toList.map(engine.show(_)))
-    def constant(t: Term, env: Map[String, Any]): String = t match
-      case Term.Var(n) => env.get(n).fold(Var.display(n))(engine.show(_))
-      case Term.App(c, Nil) => c.sym.displayName
-      case other => engine.value(other, env).fold(ObjPrinter.term(other))(engine.show(_))
+  /** The derivations of a run: for every fact of the exported relations and every fact a proof uses, the
+   *  instance it is proved by (`None`: a leaf), in the order the facts were settled, in which every fact
+   *  comes after the facts its proof uses. */
+  private[runtime] final class Derivations(
+      val roots: Vector[Id],
+      val proof: collection.Map[Id, Option[Instance]],
+      val order: Vector[Id],
+      val rules: Vector[ExportedRule]
+  )
+
+  private def constant(engine: Engine, t: Term, env: Map[String, Any]): String = t match
+    case Term.Var(n) => env.get(n).fold(Var.display(n))(engine.show(_))
+    case Term.App(c, Nil) => c.sym.displayName
+    case other => engine.value(other, env).fold(ObjPrinter.term(other))(engine.show(_))
+
+  /** The derivations of the exported rules of a run (shared with `--certify`, [[Certify]]). */
+  private[runtime] def derivations(unit: CompilationUnit, prog: CoreProgram, engine: Engine): Derivations =
+    def constant(t: Term, env: Map[String, Any]): String = ProofExport.constant(engine, t, env)
 
     // the recorded instances of the exported rules
     val instances = mutable.ArrayBuffer.empty[Instance]
@@ -123,9 +133,11 @@ object ProofExport:
     val proof = mutable.HashMap.empty[Id, Option[Instance]] // None: a leaf
     val missing = mutable.HashMap.from(instances.map(d => d -> d.facts.length))
     val queue = mutable.Queue.empty[Id]
+    val settled = mutable.ArrayBuffer.empty[Id]
     def settle(f: Id, by: Option[Instance]): Unit =
       if !proof.contains(f) then
         proof(f) = by
+        settled += f
         queue.enqueue(f)
     def propagate(): Unit =
       while queue.nonEmpty do
@@ -140,6 +152,14 @@ object ProofExport:
     for f <- universe if !proof.contains(f) do
       settle(f, None)
       propagate()
+    Derivations(roots, proof, settled.toVector, rules)
+
+  def apply(unit: CompilationUnit, prog: CoreProgram, engine: Engine, format: Format): Export =
+    def factAtom(id: Id): Atom =
+      val r = engine.store(id.rel)
+      Atom(r.sym.name, r.tuples(id.n).toList.map(engine.show(_)))
+    val ds = derivations(unit, prog, engine)
+    val (roots, proof, rules) = (ds.roots, ds.proof, ds.rules)
 
     // the certificate
     val order = roots.sortBy(id => (engine.show(id), id.rel))
@@ -207,17 +227,17 @@ object ProofExport:
     Export(json, warnings)
 
   /** A term of an exported rule. */
-  private enum RTerm:
+  private[runtime] enum RTerm:
     case Variable(name: String)
     case Constant(text: String)
     def json: Json = this match
       case Variable(n) => Json.obj("variable" -> Json.str(n))
       case Constant(c) => Json.obj("constant" -> Json.str(c))
 
-  private final case class RAtom(symbol: String, terms: List[RTerm], assumption: Boolean = false):
+  private[runtime] final case class RAtom(symbol: String, terms: List[RTerm], assumption: Boolean = false):
     def json: Json = Json.obj("symbol" -> Json.str(symbol), "terms" -> Json.Arr(terms.map(_.json)))
 
-  private final case class ExportedRule(head: RAtom, body: List[RAtom]):
+  private[runtime] final case class ExportedRule(head: RAtom, body: List[RAtom]):
     def json: Json = Json.obj("head" -> head.json, "body" -> Json.Arr(body.map(_.json)))
 
   private object ExportedRule:

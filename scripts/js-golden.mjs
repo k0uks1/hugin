@@ -47,6 +47,7 @@ function options(flags, file) {
     else if (a === '--all-relations') o.allRelations = true;
     else if (a === '--explain-termination') o.explainTermination = true;
     else if (a === '--safe') o.safe = true;
+    else if (a === '--certify') o.certify = true;
     else if (a === '--print-assumptions') (o.printAssumptions ??= []).push(args[++i]);
     else if (a === '-A' || a === '-W' || a === '-D') o.lints[args[++i]] = { '-A': 'allow', '-W': 'warn', '-D': 'deny' }[a];
     else throw new Error(`${file}: flag ${a} has no option in scripts/js-golden.mjs`);
@@ -84,7 +85,8 @@ for (const file of programs('tests/run')) {
   run++;
   try {
     const result = call('run', file, read(base + '.flags') ?? '');
-    const actual = comments(result.diagnostics) + result.output.map((l) => l + '\n').join('');
+    const certified = result.certified ? '// ' + result.certified + '\n' : '';
+    const actual = comments(result.diagnostics) + certified + result.output.map((l) => l + '\n').join('');
     if (!result.ok) fail(file, 'not ok:\n' + result.diagnostics.map((d) => d.rendered).join('\n'));
     else if (actual !== read(base + '.check')) fail(file, 'output differs from ' + path.basename(base) + '.check:\n' + actual);
   } catch (e) { fail(file, String(e)); }

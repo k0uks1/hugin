@@ -27,6 +27,9 @@ final class ObjectSymbols(core: Core, reporter: Reporter, val index: hugin.compi
   def declare(ids: List[Int]): Unit = ids.foreach(symbolOf)
 
   def allTypes: Vector[TypeSym] = types.values.toVector
+
+  /** The global of every object symbol created so far (`--certify` builds the code of values with them). */
+  def globalIds: Iterable[(TypeSym | RelSym, Int)] = types.map((id, t) => t -> id) ++ rels.map((id, r) => r -> id)
   def allRelations: Vector[RelSym] = rels.values.toVector
 
   /** The instances of family `fam` that the staged program uses so far, in the order of first use. */

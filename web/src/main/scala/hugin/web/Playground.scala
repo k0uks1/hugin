@@ -159,12 +159,18 @@ object Playground:
     var diagnostics = compiled.diagnostics
     var evaluation: Option[Evaluation.Result] = None
     var cancelled = false
+    var summary: Option[String] = None
     if evaluate && !denied && request.settings.stopAfter.isEmpty then
       Platform.deadline = request.budgetMs.fold(Double.PositiveInfinity)(start + _)
       try
         val outcome = db(Evaluate, EvaluateKey(key, Nil, request.allRelations))
         diagnostics = diagnostics ++ outcome.diagnostics
         evaluation = outcome.result
+        // `--certify`: the verdict of std/certify on the run
+        if request.settings.certify && evaluation.isDefined then
+          val certified = hugin.runtime.Certify(compiled.context.unit, compiled.context.unit.core.nn, db(Fixpoint, FixpointKey(key, Nil)).get.engine)
+          diagnostics = diagnostics ++ certified.diagnostics
+          summary = certified.summary
       catch case _: InterruptedException => cancelled = true
       finally Platform.deadline = Double.PositiveInfinity
     val shown = request.display.shown(diagnostics)
@@ -176,6 +182,7 @@ object Playground:
       "diagnostics" -> Json.Arr(shown.map(encode)),
       "printed" -> (if compiled.printed.isEmpty then Json.Null else Json.str(compiled.printed.mkString("\n"))),
       "evaluated" -> Json.Bool(evaluation.isDefined),
+      "certified" -> summary.fold(Json.Null)(Json.str),
       "cancelled" -> Json.Bool(cancelled),
       "facts" -> strings(evaluation.fold(Nil)(_.facts)),
       "answers" -> Json.Arr(evaluation.fold(Nil)(_.answers).map { a =>

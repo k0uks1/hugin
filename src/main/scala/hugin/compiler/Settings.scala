@@ -20,7 +20,10 @@ final case class Settings(
      *  (`--print-assumptions`). */
     printAssumptions: List[String] = Nil,
     /** Record the instances of the rules for a proof export (`--export-proofs`, `hugin.runtime.ProofExport`). */
-    exportProofs: Boolean = false
+    exportProofs: Boolean = false,
+    /** Certify the run (`--certify`, `hugin.runtime.Certify`): record the instances of the rules as for a
+     *  proof export, and check them with `std/certify` after the run. */
+    certify: Boolean = false
 )
 
 /** How diagnostics are shown. Compilation always produces all diagnostics; clients filter and render

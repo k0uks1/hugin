@@ -1,0 +1,9 @@
+// certified: the 11 facts of the run are the least model of the program (3 rules, 3 strata) from its 3 input facts
+long berlin paris.
+long paris rome.
+reach berlin oslo.
+reach berlin paris.
+reach berlin rome.
+reach paris oslo.
+reach paris rome.
+reach rome oslo.
