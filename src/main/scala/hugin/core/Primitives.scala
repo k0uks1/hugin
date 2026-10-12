@@ -110,7 +110,8 @@ trait Primitives:
   private def sameKey(v: Val): Option[Tm] =
     atomKey(v).orElse(v match
       case Quote(t) if canonicalCode(t) => Some(Tm.Quote(stripPositions(quote(0, t))))
-      case _ => None)
+      case _ => None
+    )
 
   private def canonicalCode(t: Val): Boolean = forceData(t) match
     case Lit(_, Stage.S0) | Base(_, Stage.S0) => true
