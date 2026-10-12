@@ -224,12 +224,12 @@ value, `r` is one of the names its `relations` list, and the arguments' types ar
 ([E0945](../errors/E0945.md)) if `r` is none of these, or if the atom has a different number of arguments
 than `r` has columns.
 
-The notation covers programs without negation and aggregates, the positive fragment of this page: a
-rule with a negated atom or an aggregate in its body never fires in `derives`, so a judgment over a program
-with such a rule would state facts about a different program than the one that runs. It is an error
-([E0961](../errors/E0961.md)) if a rule of `P` has a negation or an aggregate in its body (when the rules
-of `P` are known: a module body, a functor applied, or a program value that evaluates).
-Such a program's facts are stated with `nderives` and `perfect` of [`std/strata`](strata.md).
+If a rule of `P` has a negation or an aggregate in its body (when the rules of `P` are known: a module
+body, a functor applied, or a program value that evaluates), the judgment is not `derives`, in which such
+a rule never fires, but the *stratum-local judgment* of `r` of [`std/strata`](strata.md#the-stratum-local-judgment):
+`nderives (layer p sₖ) (upTo p k e) (atom ρ vs)`, the derivations of the last stratum `k` with a rule that
+has a head of `r`, read with the facts of the strata before it. It is an error
+([E0961](../errors/E0961.md)) if the file does not load `std/strata` then.
 
 The database `e` is written in brackets directly after the turnstile. Without it, a judgment in the type
 of a declaration is at the declaration's anonymous database ([Generalisation](#generalisation)).
@@ -414,9 +414,23 @@ comparisons are proved by evaluation, `fromSome (decideCmp o x y) tt`, so they m
 `given I` is `given t I`, where `t` is `tt` if the goal's relation is an input of the program, that is,
 if `so (p.input r)` evaluates to `unit`.
 
+Against a stratum-local judgment ([`std/strata`](strata.md#the-stratum-local-judgment)), a rule name stands
+for `nfire` with the membership proof in the rules of the stratum's layer, after `ngiven tt`, once for
+each stratum, down to the last stratum at or below the judgment's whose layer has the rule. Its premises
+are written for each atom, negated atom and aggregate of the body, in body order (the comparisons are
+not written, `ncmp _`); `ok X :- node X, not bad X.` is `ok.1 B N`. The derivation of an atom of a lower
+stratum is lifted by `ngiven` from the stratum of its relation's judgment, so that the premise has that
+judgment's type. As a pattern, a negated atom's premise binds `absent …` and an aggregate's its witness,
+`aggHolds …`. As an expression, a negated atom without local variables takes a refutation `P ⊢ q t̄ ->
+empty` of its relation's judgment (or the premise `absent …` itself), and one with local variables, and
+an aggregate, the premise. `given I` derives a fact of an input relation from the input facts, `{ fst =
+tt, snd = I }` below all strata (a pattern binds that record), and, for a relation with rules, lifts a
+judgment `I` of a lower stratum.
+
 It is an error ([E0948](../errors/E0948.md)) if a rule name names no rule of the program, names a rule
 whose head relation is not the goal's, has a different number of premises than the rule has atoms in its
-body, names a variable that the rule does not have, has a comparison that does not evaluate to true, or is
+body, names a variable that the rule does not have, has a comparison that does not evaluate to true, names a
+rule that fires only in a later stratum than the judgment's, or is
 used where no judgment of a program with known rules is expected, or if a label is used against a goal of
 a relation of which its rule has several heads (the label would name each of them: `edge.1` and `edge.2`
 must be written); and ([E0949](../errors/E0949.md)) if
@@ -598,9 +612,12 @@ The judgment is about the program that the engine runs, by one statement for all
 > `m`: for `arg l`, the relation that the arguments of `m`'s functor application give the parameter's
 > field `l`; for `ext s`, the relation `s`; for `own i`, the input relation `i` of `m`'s body.
 
-The statement holds for the positive fragment of this page, which is the scope of the notation
-([E0961](../errors/E0961.md)). It is trusted: the engine is not verified
-against `derives`, but tested against it, as the reference semantics. A theorem about a functor applies to
+The statement holds for every program of the notation. For a program with negations or aggregates,
+`m ⊢[d] r t̄` is the stratum-local judgment, and the statement is that the run derives exactly the facts
+of the perfect model `perfect p d` ([`std/strata`](strata.md)): `adequate` proves, in the library, that a
+fact is in the perfect model exactly if the stratum-local judgment of its relation derives it. The
+statement is trusted: the engine is not verified against `derives` and `perfect`, but tested against
+them, as the reference semantics. A theorem about a functor applies to
 each of its instances, since `programOf m` is the program of the application that made `m`
 ([`std/quote`](quote.md#programs-as-values)): `iff (tc G ⊢ path x y) (tc2 G ⊢ path x y)` at `G := { node
 = city, edge = road }` is about the run of `fast = tc2 { node = city, edge = road }`.

@@ -1,0 +1,47 @@
+(* #186 P9c: judgments over a program with an aggregate (reference: std/strata, "The stratum-local
+   judgment"). The rule `size.1` takes the aggregate's witness as its premise: the valuations of the
+   counted variable, each sound and complete for the body read in the facts below `size`'s stratum,
+   listed once, and their count. A rule pattern binds the witness. *)
+%use "std/semantics".
+%use "std/strata".
+%use "std/eq" (empty, emptyElim, unit, tt).
+city : type. berlin, paris : city.
+n = {
+  node : city -> rel.
+  node berlin. node paris.
+  size : int -> rel.
+  size N :- N = count { X | node X }.
+}.
+
+(* the counted valuations, and the value of `X` in each, after the rule's variable `N` *)
+nodes : list (env [city]) = [econs (<berlin>) enil, econs (<paris>) enil].
+
+soundAt : (ys : env [city]) -> member ys nodes -> n ⊢[D] node (valueAt (eappend ys (econs {t := int} 2 enil)) here).
+soundAt (econs Y enil) here = node.1.
+soundAt (econs Y enil) (there here) = node.2.
+soundAt (econs Y enil) (there (there ())).
+
+completeAt : (ys : env [city]) -> n ⊢[D] node (valueAt (eappend ys (econs {t := int} 2 enil)) here) -> member ys nodes.
+completeAt (econs Y enil) node.1 = here.
+completeAt (econs Y enil) node.2 = there here.
+completeAt (econs Y enil) (given I) = emptyElim I.fst.
+
+apartBP : member (econs (<berlin>) enil) [econs (<paris>) enil] -> empty.
+apartBP (there ()).
+
+noMember : {x : env [city]} -> member x [] -> empty.
+noMember ().
+
+sizeTwo : n ⊢[D] size 2 =
+  size.1 { all = nodes, sound = [ys] [i] { fst = soundAt ys i, snd = tt }, complete = [ys] [s] completeAt ys s.fst,
+           once = { fst = apartBP, snd = { fst = noMember, snd = tt } }, value = cmpEq }.
+
+(* a rule pattern binds the witness; `size` is not an input *)
+witnessed : {k : int} -> n ⊢ size k -> unit.
+witnessed (size.1 W) = tt.
+witnessed (given I) = emptyElim I.fst.
+%opaque soundAt completeAt sizeTwo witnessed.
+
+checked : string -> rel.
+checked "aggregate".
+%output checked.

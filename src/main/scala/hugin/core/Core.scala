@@ -109,6 +109,12 @@ final class GlobalEntry(
    *  applications are unified by their arguments first ([[Unification.unify]]). */
   var program: ProgramDisplay | Null = null
 
+  /** `layer` and `upTo` of the library `std/strata`, the parts of a stratum-local judgment `nderives (layer p
+   *  s) (upTo p k d) a` (#186 P9c): they stay folded in normal forms, as a program does, so that the
+   *  judgment prints as such ([[Readback]], [[Printing]]). */
+  lazy val judgmentPart: Boolean =
+    (name == "layer" || name == "upTo") && span.origin.path.endsWith("std/strata.hgn")
+
   /** A deliberate axiom `x : A = %postulate.` (a [[GlobalKind.Postulate]]): rejected by `--safe` and
    *  listed by `--print-assumptions` (reference: meta/functions, "Postulates"). */
   var axiom: Boolean = false

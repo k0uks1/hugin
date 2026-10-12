@@ -985,6 +985,12 @@ perfectHolds : nat -> (p : program) -> (ins : list gatom) -> decider gatom (perf
 perfectRefutes : nat -> (p : program) -> (ins : list gatom) -> decider gatom ([a] perfect p (memOf ins) a -> empty) =
   [n] [p] [ins] { check = [a] isNo (decidePerfect n p ins a), sound = [a] noOf (decidePerfect n p ins a) }.
 
+(* proof by evaluation of a stratum-local judgment (#186 P9c), at the database of the input facts `ins`:
+   `perfectHolds`, and the adequacy of `judged` at the stratum `k` *)
+judgedHolds : (n : nat) -> (p : program) -> (ins : list gatom) -> (r : rref) -> (vs : list value) -> (k : nat) ->
+              so (lastIn p r p.strata k) -> so ((perfectHolds n p ins).check (atom r vs)) -> judged p k (memOf ins) (atom r vs) =
+  [n] [p] [ins] [r] [vs] [k] [l] [t] (adequate {p := p} {d := memOf ins} {r := r} {vs := vs} k l).to ((perfectHolds n p ins).sound (atom r vs) t).
+
 (* ---------------------------------------------------------------- programs as the driver reifies them *)
 
 (* The program of a run, as `--certify` reifies it: rules over untyped terms, a variable by its position
