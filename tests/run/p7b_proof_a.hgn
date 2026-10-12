@@ -1,0 +1,53 @@
+(* #186 P7b: proof A of the proofs note (chapter 1, 1.2) as written there, in the judgment notation
+   (reference: std/semantics, "The judgment notation", "Rule names"). The standard library's transitive
+   closure `tc` and the doubling variant `tc2`, two ordinary functors, derive the same paths for every graph
+   and every input. No quote, no program value and no rule label is written: `tc ⊢ path x y` generalises
+   the functors' parameter `g` and the database `d`, and the rules are `path.1` and `path.2`. *)
+%use "std/graph".
+%use "std/eq" (iff).
+%use "std/semantics".
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+%output fast.path.
+
+(* an input edge is an input edge in either program *)
+edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn (given I) = given I.
+edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut (given I) = given I.
+
+(* tc's paths are transitive *)
+tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+
+(* every derivation in tc is one in tc2 *)
+toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 (path.1 E) = path.1 (edgeIn E).
+toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+
+(* every derivation in tc2 is one in tc *)
+toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc (path.1 E) = path.1 (edgeOut E).
+toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
+
+sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
+%opaque sameFacts.
+
+(* the guarantee for the instance: `fast` derives exactly the paths of the standard closure of `road`,
+   `sameFacts` at `g := { node = city, edge = road }` (the program of `fast` is that of its application) *)
+forFast : {x y : city} -> iff (tc { node = city, edge = road } ⊢ path x y) (fast ⊢ path x y) = sameFacts.
+%opaque forFast.
+
+checked : string -> rel.
+checked "proof A".
+%output checked.

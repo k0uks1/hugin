@@ -1,0 +1,11 @@
+(* The parameters of a functor written alone before `⊢` are generalised by their names; two functors whose
+   parameters have the same name but different types cannot share it (E0946), and outside the type of a
+   declaration the parameter must be in scope. *)
+%use "std/graph".
+%use "std/semantics".
+weights (g : weighted) = { (*~ W0003 *)
+  heavy : g.node -> rel.
+  heavy X :- g.edge X X 9.
+}.
+clash : {x : g.node} -> tc ⊢ path x x -> weights ⊢ heavy x. (*~ E0946 *)
+inside (h : graph) (x : h.node) : Type = tc ⊢ g.edge x x. (*~ E0946 *)

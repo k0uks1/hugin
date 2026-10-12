@@ -215,6 +215,17 @@ splitting `n` first would decide it.
 A clause whose own constructors cannot occur, such as a `vnil` clause for `head`, is an error
 ([E0915](../errors/E0915.md), [Checking a clause](clauses.md#checking-a-clause)).
 
+## Derivations
+
+At a position where a clause has a derivation of [`std/semantics`](../std/semantics.md#derivations),
+`given …` or `fire …` (also as a [rule name](../std/semantics.md#rule-names)), of a program whose rules
+evaluate, Π also holds the positions below it of `fire`'s rule and head proofs (its first and third
+explicit arguments) and of their `there` chains, as many as the program has rules and as a rule has heads.
+So a derivation is split into the program's rules: a rule whose head conflicts with the goal's fact is
+refuted by index unification, and `given` is refuted for a relation with rules, since `so false` is the
+empty family. Clauses for the rules of the goal's relation, and `given` if it is an input relation, cover a
+function on derivations, without absurd clauses for the others.
+
 ## Absurd clauses
 
 An [absurd clause](clauses.md#checking-a-clause) `f p̄.` takes part in the case tree like any clause, but

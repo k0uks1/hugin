@@ -128,7 +128,8 @@ cannot be inspected. It is a name only in this position, unless the program decl
 It is an error ([E0940](../errors/E0940.md)) if the program does not load `std/quote` and
 `std/semantics`, and
 ([E0941](../errors/E0941.md)) if `P` is none of these. `programOf here`, the program of the current file,
-is not available yet ([E0941](../errors/E0941.md)).
+is not available yet ([E0941](../errors/E0941.md)). A [judgment](semantics.md#the-judgment-notation)
+`P ⊢ r t̄` of `std/semantics` stands for `derives (programOf P) d …` and needs only `std/semantics`.
 
 The program value is built as follows. No code is generated, and no instance of the module is created.
 

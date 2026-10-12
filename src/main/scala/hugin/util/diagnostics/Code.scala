@@ -155,6 +155,11 @@ enum Code(
   case E0940 extends Code(940, Phase.Elaboration, "`programOf` without its libraries")
   case E0941 extends Code(941, Phase.Elaboration, "`programOf` of something that is not a module")
   case E0942 extends Code(942, Phase.Elaboration, "rule that `programOf` cannot reify")
+  case E0945 extends Code(945, Phase.Elaboration, "atom of a judgment that does not fit its program")
+  case E0946 extends Code(946, Phase.Elaboration, "functor parameter that cannot be generalised")
+  case E0947 extends Code(947, Phase.Elaboration, "judgment without a database")
+  case E0948 extends Code(948, Phase.Elaboration, "rule name that does not fit")
+  case E0949 extends Code(949, Phase.Elaboration, "`given` for a relation that is not an input")
   case E0950 extends Code(950, Phase.Elaboration, "module that `programOf` cannot stratify")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")

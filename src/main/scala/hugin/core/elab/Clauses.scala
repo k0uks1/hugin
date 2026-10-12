@@ -197,10 +197,11 @@ trait Clauses:
         val pat =
           if i == Icit.Impl then
             named.get(l) match
-              case Some(na) => pattern(na.value, closedType(a, l))
+              case Some(na) => rulePattern(na.value, a).getOrElse(pattern(na.value, closedType(a, l)))
               case None => Pat.PVar(x, cl.name.span, implicitBinder = true)
           else
-            val q = pattern(pats.head, closedType(a, l))
+            // a rule name against a derivation (reference: std/semantics, "Rule names"), at its open type
+            val q = rulePattern(pats.head, a).getOrElse(pattern(pats.head, closedType(a, l)))
             pats = pats.tail
             q
         Eqn(Val.local(l), pat, a)
@@ -784,7 +785,11 @@ trait Clauses:
       val base = c.lvl
       for (n, ty, v) <- f.prelude(args) do c = define(c, n, ty, v)
       val preludeEnd = c.lvl
-      for (v, value, ty) <- binds do
+      // an implicit binder's name (of the function's type, or a rule's variable bound by a rule name) is in
+      // scope unless a pattern variable or an implicit binder before it has the name
+      val explicitNames = binds.collect { case (v, _, _) if !v.implicitBinder => v.name }.toSet
+      val implicitSeen = mutable.Set.empty[Name]
+      for (v, value, ty) <- binds if !v.implicitBinder || !explicitNames(v.name) && implicitSeen.add(v.name) do
         val site = Option.when(!v.implicitBinder)(Site(v.span, "pattern variable"))
         value match
           case Val.Rigid(Head.Local(l), Nil) =>
@@ -1027,13 +1032,16 @@ trait Clauses:
         case Val.Rigid(Head.Local(x), Nil) if p.isFree(x) =>
           force(p.types(x)) match
             case Val.Rigid(Head.Glob(fam), famSp) if isFamily(fam) =>
-              val patterns = constructors(fam).filter(c => canApply(p, famSp, c)).map { c =>
+              // a derivation of a judgment splits into its rule names ([[Judgments.ruleSplits]])
+              val patterns = ruleSplits(p.types(x), cl.binds.map(_._1.name).filter(_ != v.name)).getOrElse(constructors(fam).filter(c =>
+                canApply(p, famSp, c)
+              ).map { c =>
                 val binders = explicitBinders.getOrElseUpdate(c, telescope(globals(c).ty)._1.collect { case (x, Icit.Expl, _) => x })
                 val args = binders.map { x =>
                   fresh(if x == "_" || x.isEmpty || !x.head.isLetter then v.name else x.capitalize)
                 }
                 if args.isEmpty then globals(c).name else (globals(c).name :: args).mkString("(", " ", ")")
-              }
+              })
               val split = MetaIndex.Split(v.span, v.name, cl.source.span, patterns)
               later(_ => index.meta.split(split))
             case _ =>
@@ -1080,7 +1088,10 @@ trait Clauses:
               natChain(n) match
                 case Left(m) => point(path, Some(m), None)
                 case Right((i, _)) => if i > 0 then point(path, None, Some(i))
-            case Val.Rigid(Head.Glob(c), _) if isConstructor(c) => f.pi += path
+            case Val.Rigid(Head.Glob(c), sp) if isConstructor(c) =>
+              f.pi += path
+              // a derivation of `std/semantics`: its cases are the program's rules (reference: meta/coverage)
+              derivationPositions(c, sp).foreach(ps => f.pi ++= ps.map(_ ++ path))
             case Val.Rigid(Head.Local(x), Nil) if absurdVars(x) => f.pi += path
             case other => if atomKey(other).isDefined then f.pi += path
       )

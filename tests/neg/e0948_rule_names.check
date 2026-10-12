@@ -1,0 +1,45 @@
+error[E0948]: `path.3` is not a rule of `tc`: `path` has 2 rule(s), `path.1` to `path.2`
+ --> tests/neg/e0948_rule_names.hgn:6:11
+  |
+6 | third E = path.3 E. (*~ E0948 *)
+  |           ^^^^^^ unknown rule
+  |
+  = note: the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program; a label `@n` adds the name `n`
+
+error[E0948]: the rule `path.1` derives facts of `path`, but the goal is a fact of `g.edge`
+ --> tests/neg/e0948_rule_names.hgn:8:23
+  |
+8 | mismatch (path.1 E) = path.1 E. (*~ E0948 *)
+  |                       ^^^^^^ the rule's head does not match the goal
+
+error[E0948]: the rule `path.1` has 1 premise(s), but 2 are given
+  --> tests/neg/e0948_rule_names.hgn:10:14
+   |
+10 | premises E = path.1 E E. (*~ E0948 *)
+   |              ^^^^^^^^^^ wrong number of premises
+
+error[E0948]: the rule `path.1` has no variable `W`
+  --> tests/neg/e0948_rule_names.hgn:12:22
+   |
+12 | variable E = path.1 {W := x} E. (*~ E0948 *)
+   |                      ^ unknown variable
+   |
+   = note: the rule's variables: `X`, `Y`
+
+error[E0948]: the rule name `path.1` is used where no derivation of a known program is expected
+  --> tests/neg/e0948_rule_names.hgn:13:17
+   |
+13 | nowhere : int = path.1. (*~ E0948 *)
+   |                 ^^^^^^ no derivation expected here
+   |
+   = note: a rule name `r.k` is a derivation of a judgment `P ⊢ r t̄`, so its expected type must be one, with `P` a module body
+
+error[E0948]: cannot prove a comparison of the rule `big.1` by evaluation: `holdsCmp {⟨int⟩} cgt (some {⇑int} ⟨3⟩) (some {⇑int} ⟨10⟩)`
+  --> tests/neg/e0948_rule_names.hgn:20:30
+   |
+20 | tooSmall : counter ⊢ big 3 = big.1 small.1. (*~ E0948 *)
+   |                              ^^^^^ comparison not proved
+   |
+   = note: in an expression, a rule name proves its comparisons by evaluating them; one with unknown values needs `fire` and `pcmp` written out
+
+6 errors found

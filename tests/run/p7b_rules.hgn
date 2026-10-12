@@ -1,0 +1,52 @@
+(* #186 P7b: rule names (reference: std/semantics, "Rule names"): a rule's variables bound by name in
+   patterns and given by name in expressions, labels, comparisons in a body (not written in patterns, proved
+   by evaluation in expressions), and `decide` with the judgment notation, for a module whose facts are part
+   of its program. *)
+%use "std/graph".
+%use "std/semantics".
+%use "std/eq" (tt).
+
+(* rule variables bound by name: the first hop of a path *)
+firstHop : {x z : g.node} -> tc ⊢ path x z -> g.node.
+firstHop (path.1 E) = z.
+firstHop (path.2 {Y := W} E P) = W.
+
+(* labels name rules as well; a variable given by name in an expression *)
+walks (g : graph) = {
+  walk : g.node -> g.node -> rel.
+  @base walk X Y :- g.edge X Y.
+  @step walk X Z :- walk X Y, g.edge Y Z.
+}.
+extend : {x y z : g.node} -> walks ⊢ walk x y -> walks ⊢ g.edge y z -> walks ⊢ walk x z.
+extend W E = step {Y := y} W E.
+start : {x y : g.node} -> walks ⊢ walk x y -> g.node.
+start (base E) = x.
+start (step W E) = start W.
+
+(* comparisons in a body: not written in patterns, proved by evaluation in expressions *)
+counter = {
+  small : int -> rel.
+  big : int -> rel.
+  small 11.
+  big X :- small X, X > 10.
+}.
+eleven : counter ⊢ big 11 = big.1 small.1.
+bigSmall : {n : ⇑int} -> counter ⊢ big n -> counter ⊢ small n.
+bigSmall (big.1 S) = S.
+
+(* `decide` with the notation: three rounds of evaluation derive the fact *)
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+viaParis : trip ⊢ path berlin rome = decide 3 tt.
+%opaque firstHop extend start eleven bigSmall viaParis.
+
+checked : string -> rel.
+checked "rule names".
+%output checked.

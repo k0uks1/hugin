@@ -99,6 +99,21 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assertEquals(edit(split), (Range(pos(text, "| N"), pos(text, "N.", 1)), "| zero => suc zero\n  | (suc N1) => suc (suc N1)"))
   }
 
+  test("#186 P7b: split a derivation into the rules of its relation; the goal in the judgment notation") {
+    val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
+      "toTc : {x y : g.node} -> tc ⊢ path x y -> tc ⊢ path x y.\ntoTc P = ?.\n" +
+      "edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ g.edge x y.\nedgeIn E = ?.\n"
+    val (s, _) = server(text)
+    val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
+    // the rules of `path` by their names, not `given` (`path` has rules); premises named by their relations
+    assertEquals(edit(split)._2, "toTc (path.1 E) = ?.\ntoTc (path.2 E P) = ?.")
+    // a relation without rules: only `given`
+    val edge = actions(s, pos(text, "E = ?")).find(_.getTitle == "Split on `E`").get
+    assertEquals(edit(edge)._2, "edgeIn (given I) = ?.")
+    val goal = hover(s, pos(text, "?.\nedgeIn"))
+    assert(goal.contains("`tc g ⊢ path x y`"), goal)
+  }
+
   test("#186 P3: add the missing branches of a `match`, and hover in a branch") {
     val text = nat + "isZero : nat -> nat.\nisZero M = match M with\n  | zero => suc zero.\n"
     val (s, c) = server(text)

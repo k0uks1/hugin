@@ -3,7 +3,9 @@
 %use "std/reflect" (oadd, clt).
 %use "std/eq" (eq, refl, empty, emptyElim, tt).
 %use "std/decide" (so, decide).
-%use "std/semantics".
+(* not std/semantics's own `decide` for judgments (P7b): this program uses the generic one of std/decide *)
+%use "std/semantics" (rref, crule, cat, own, tcons, cc, tnil, cv, here, there, cpos, program, gatom, atom, v,
+  holds, db, derives, derivable, carith, ccmp, model, least, included, monotone).
 
 noInputs : rref -> bool.
 noInputs R = false.

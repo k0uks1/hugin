@@ -35,6 +35,11 @@ defined by [`std/strata`](strata.md). A program writes `%use "std/semantics".`; 
 | `holds : nat -> program -> gatom -> bool.` | `n` rounds of naive evaluation derive a fact |
 | `holdsSound : {d : db} -> (n : nat) -> (p : program) -> (a : gatom) -> so (holds n p a) -> derives p d a.` | `holds` is sound |
 | `derivable : {d : db} -> nat -> (p : program) -> decider gatom (derives p d).` | a decider for `decide` of [`std/decide`](decide.md) |
+| `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives p d a.` | proof by evaluation of a [judgment](#the-judgment-notation) |
+
+A property of an ordinary program is stated in the [judgment notation](#the-judgment-notation), `tc ⊢
+path x y`, which elaborates to `derives`, and proved with [rule names](#rule-names), `path.1 E`, which
+elaborate to its constructors.
 
 ## Values and relations
 
@@ -171,6 +176,171 @@ the rule's variables. In `noWayBack`, the second clause has the input fact `road
 premise, which `roads` does not hold, and the third a rule deriving `road`, whose head `linked` has
 another relation: in both, an absurd pattern refutes the case.
 
+## The judgment notation
+
+```text
+Judgment ::= Expr ("⊢" | "|-") ("[" Expr "]")? Atom
+Atom     ::= Path Expr*
+```
+
+A *judgment* `P ⊢[e] r t₁ … tₙ` is the type `derives (programOf P) e (atom ρ [v t₁, …, v tₙ])`: the
+derivations of the fact `r t₁ … tₙ` by the program `P` from the database `e`. It is notation, and adds no
+rule to the core. It is an error ([E0945](../errors/E0945.md)) if the program does not load
+`std/semantics`; it needs neither `std/quote` nor a `programOf` of its own.
+
+The program `P` is one of the following:
+
+- a functor applied to arguments, or a module: its program is `programOf P`
+  ([`std/quote`](quote.md#programs-as-values));
+- a functor written alone, `tc`: the functor applied to its parameters by their names, `tc g`, where `g`
+  is a variable in scope, which [generalisation](#generalisation) binds in the type of a declaration;
+- a value of type `program`: the program as it is.
+
+The atom's relation `r` is resolved as the rules of `P`'s body name relations, so that a judgment speaks
+of the program as `programOf` reads it: a relation that the body declares is `own i`, a relation of a
+parameter by its path, `g.edge`, is `arg l`, and an object relation of the file is `ext s`. Each argument
+`tᵢ` is checked as code `⇑τᵢ` of the relation's column type `τᵢ`
+([Object code](../meta/staging.md#object-code)), and is the value `v tᵢ`. So the variables of a statement
+are typed nodes: `x : g.node` is object code of the parameter's type `g.node`. For a program given as a
+value, `r` is one of the names its `relations` list, and the arguments' types are inferred. It is an error
+([E0945](../errors/E0945.md)) if `r` is none of these, or if the atom has a different number of arguments
+than `r` has columns.
+
+The database `e` is written in brackets directly after the turnstile. Without it, a judgment uses the
+variable `d`: in the type of a declaration, the database that generalisation binds, and elsewhere the `d`
+in scope. It is an error ([E0947](../errors/E0947.md)) if there is none.
+
+Diagnostics and hovers show `derives (programOf (f ā)) d (atom ρ vs)` as the judgment `f ā ⊢ r t̄` that
+it elaborates from, without `[d]` for the database named `d`: the goal of `toTc` below is shown as
+`tc g ⊢ path x y`.
+
+### Generalisation
+
+In the type of a declaration, and in the types of its parameters, two kinds of names in judgments are
+*generalised*: they become the declaration's first implicit binders, before those of its free uppercase
+variables ([Implicit arguments](../meta/functions.md#implicit-arguments)).
+
+- If a judgment has no database, the database `d`, as `{d : db}`.
+- For each functor written alone before `⊢`, its parameters, by the names and types of its declaration,
+  in order: `tc ⊢ path x y` with `tc (g : graph)` adds `{g : graph}`. Parameters of the same name are one
+  binder, so `tc ⊢` and `tc2 ⊢` share `g`.
+
+A name that is a parameter of the declaration or already in scope is not bound again: the judgments use
+it. It is an error ([E0946](../errors/E0946.md)) if two functors' parameters of the same name have
+different types, if a parameter has no name, or if a functor is written alone where its parameter is not
+in scope. The binders are those of `x : A.` and `x : A = e.`; a clause of the declaration may match them by
+name, `{g := G}`.
+
+The following program states that an edge is a path, for every graph and every database, and proves it by
+the first rule of `path` of the transitive closure of [`std/graph`](graph.md).
+
+```hugin,run
+%use "std/graph".
+%use "std/semantics".
+oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.
+oneStep E = path.1 E.
+%opaque oneStep.
+proved : string -> rel.
+proved "oneStep".
+```
+
+```output
+proved "oneStep".
+```
+
+The type of `oneStep` is `{d : db} -> {g : graph} -> {x y : ⇑g.node} -> derives (programOf (tc g)) d
+(atom (arg "edge") [v x, v y]) -> derives (programOf (tc g)) d (atom (own 0) [v x, v y])`.
+
+> **Rationale.** Generalisation is Agda's generalisation of declared variables and Lean's auto-bound
+> implicits, for the two names a judgment leaves open: the parameter that a theorem about a functor
+> quantifies over, and the database of input facts. A theorem about `tc` applies to each of its
+> instances, since the program of an instance is the program of the functor at the instance's arguments.
+
+## Rule names
+
+The rules of a relation `r` of a program are named `r.1`, `r.2`, … in the order of the program's rules, a
+rule by the relation of its first head (its `index`, [Programs](#programs)); a rule's label `@n` adds the
+name `n`, where `n` does not denote anything else. A *rule name* is a derivation by its rule, both as a
+pattern and as an expression, against a judgment whose program's rules evaluate. `given` is the
+derivation of a fact of an input relation.
+
+As a pattern against `P ⊢[e] a`, the rule name of a rule with the variables `X₁ … Xₖ`, applied to the
+patterns `p₁ … pₘ`, stands for
+
+```hugin,ignore
+fire {xs := econs X₁ (… (econs Xₖ enil))} M (ppos refl p₁ (… (ppos refl pₘ pnil))) here
+```
+
+where `M` is the membership proof of the rule in the program's rules. The patterns `p₁ … pₘ` are the
+premises, one for each atom of the rule's body, in body order; the body's comparisons are not written
+(`pcmp _` stands for them). The rule's variables are bound as implicit patterns under their names in the
+rule: in the clause, `Y` is in scope as the value of the rule's variable `Y`, unless a pattern variable of
+the clause or an earlier rule name has that name. `{X := p}` matches the rule's variable `X` with the
+pattern `p`. Index unification determines the variables of the head from the goal, and coverage considers
+the program's rules ([Derivations](../meta/coverage.md#derivations)): a clause for each rule of the goal's
+relation covers a derivation, and `given I`, `given _ I`, is refuted for a relation with rules.
+
+As an expression of a judgment's type, a rule name builds the same derivation. The rule's variables are
+determined by the goal's fact, then by the premises; `{X := e}` gives the variable `X`. The body's
+comparisons are proved by evaluation, `fromSome (decideCmp o x y) tt`, so they must evaluate to true.
+`given I` is `given t I`, where `t` is `tt` if the goal's relation is an input of the program, that is,
+if `so (p.input r)` evaluates to `unit`.
+
+It is an error ([E0948](../errors/E0948.md)) if a rule name names no rule of the program, names a rule
+whose head relation is not the goal's, has a different number of premises than the rule has atoms in its
+body, names a variable that the rule does not have, has a comparison that does not evaluate to true, or is
+used where no judgment of a program with known rules is expected; and ([E0949](../errors/E0949.md)) if
+`given` derives a fact of a relation that is not an input of the program.
+
+In the editor, splitting a pattern variable of a judgment's type offers the rule names of the goal's
+relation, with a variable for each premise named after the premise's relation, and `given` if the goal's
+relation is an input: `toTc P = ?.` splits into `toTc (path.1 E) = ?.` and `toTc (path.2 E P) = ?.`.
+
+The following program proves that the transitive closure `tc` and the variant `tc2` with the doubling rule
+derive the same paths, for every graph and every input database. `given` derives the input edges, and
+`path.1` and `path.2` are the rules of `path` in each program.
+
+```hugin,run
+%use "std/graph".
+%use "std/eq" (iff).
+%use "std/semantics".
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+}.
+edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn (given I) = given I.
+edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut (given I) = given I.
+tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 (path.1 E) = path.1 (edgeIn E).
+toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc (path.1 E) = path.1 (edgeOut E).
+toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
+sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
+%opaque sameFacts.
+proved : string -> rel.
+proved "sameFacts".
+```
+
+```output
+proved "sameFacts".
+```
+
+In `tcTrans (path.2 E P) Q`, the rule `path X Z :- g.edge X Y, path Y Z.` binds `X` and `Z` to `x` and
+`y`, and its variable `Y` is a node in scope: `E : tc g ⊢ g.edge x Y` and `P : tc g ⊢ path Y y`. The
+recursive call is on the premise `P`, so it terminates ([Termination](../meta/termination.md)).
+
+> **Rationale.** Rule names are pattern synonyms computed from the program value (Agda's pattern
+> synonyms), named as Isabelle's `inductive` package names the introduction rules of a predicate
+> (`tc.intros(1)`); matching on them is Abella's `case` on a specification judgment `{P |- A}`. No family,
+> constructor or lemma is generated per relation, so the one judgment `derives` keeps one meaning.
+
 ## Monotonicity and the least model
 
 A program derives more facts from more input facts: `monotone` maps a derivation from `d` to one from `e`
@@ -200,8 +370,8 @@ program value without input relations, and proves `linked berlin paris` by evalu
 
 ```hugin,run
 %use "std/eq" (tt).
-%use "std/decide" (decide).
 %use "std/semantics".
+checker = %import "std/decide".
 city : type. berlin, paris : city.
 noInputs : rref -> bool.
 noInputs R = false.
@@ -212,7 +382,7 @@ linkedRule : crule = { head = 0, index = 1, label = none, vars = [city, city],
   body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
 roads : program = { relations = ["linked", "road"], rules = [roadFact, linkedRule], input = noInputs, strata = [[1], [0]] }.
 onward : {d : db} -> derives roads d (atom (own 0) [v (<berlin>), v (<paris>)]) =
-  decide (derivable 2 roads) (atom (own 0) [v (<berlin>), v (<paris>)]) tt.
+  checker.decide (derivable 2 roads) (atom (own 0) [v (<berlin>), v (<paris>)]) tt.
 %opaque onward.
 proved : string -> rel.
 proved "linked".
@@ -230,9 +400,57 @@ a variable only in a comparison or a constructor term, or that has a negation or
 nothing in `holds`, so `holds` may be
 `false` for a derived fact, but never `true` for a fact that is not derived.
 
-> **Note.** The rules and derivations are written out here. A later batch of the proofs note (#186)
-> adds `programOf`, which builds the program value of a functor or module, and the notation `P ⊢ r t̄`
-> with rule names, which elaborates to `derives` and `fire`.
+The example uses the generic `decide` of `std/decide` through its module value, since `std/semantics`
+declares a `decide` of its own: `decide n t` is `holdsSound n p a t` with the program and the fact taken
+from the expected type, for judgments: a fact of a module whose facts are part of its program is proved by `decide n tt` for enough
+rounds `n`. The following program proves by evaluation that a module derives a path through Paris, for
+every database.
+
+```hugin,run
+%use "std/eq" (tt).
+%use "std/semantics".
+city : type. berlin, paris, rome : city.
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris.
+  hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+}.
+viaParis : trip ⊢ path berlin rome = decide 3 tt.
+%opaque viaParis.
+proved : string -> rel.
+proved "viaParis".
+%output proved.
+```
+
+```output
+proved "viaParis".
+```
+
+The first round derives the two facts of `hop`, the second `path berlin paris` and `path paris rome`, and
+the third `path berlin rome`. The input relations of a program contribute no facts to `holds`, so a fact
+that depends on the facts of a functor's parameter is not proved by evaluation.
+
+## Adequacy
+
+The judgment is about the program that the engine runs, by one statement for all programs and relations:
+
+> For every module `m` of a program and every run of the program, the run derives the fact `m.r t̄` (and
+> prints it if `m.r` is an output relation) exactly if `m ⊢[d] r t̄` has a derivation, where the database
+> `d` holds `atom ρ vs` exactly if the run has the fact `s vs` of the relation `s` that `ρ` denotes for
+> `m`: for `arg l`, the relation that the arguments of `m`'s functor application give the parameter's
+> field `l`; for `ext s`, the relation `s`; for `own i`, the input relation `i` of `m`'s body.
+
+The statement holds for the positive fragment of this page. It is trusted: the engine is not verified
+against `derives`, but tested against it, as the reference semantics. A theorem about a functor applies to
+each of its instances, since `programOf m` is the program of the application that made `m`
+([`std/quote`](quote.md#programs-as-values)): `iff (tc g ⊢ path x y) (tc2 g ⊢ path x y)` at `g := { node
+= city, edge = road }` is about the run of `fast = tc2 { node = city, edge = road }`.
+
+> **Note.** The proofs note (#186) plans a run mode that checks the statement for each run, by checking
+> the run's derivations against `derives`.
 
 > **Rationale.** The judgment is an inductive family of the library, not a rule of the core calculus:
 > its consistency is that of inductive families, and a proof about a program is an ordinary meta

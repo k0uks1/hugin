@@ -150,6 +150,10 @@ object Trees:
    *  replaced by its right side (reference: meta/match). `kwSpan` is the span of `rewrite h`. */
   final case class Rewrite(eqn: Tree, body: Tree)(val span: Span, val kwSpan: Span) extends Tree
 
+  /** `P ⊢[e] r t̄` (ASCII `|-`): the program `P` derives the fact `r t̄` from the database `e` (reference:
+   *  std/semantics, "The judgment notation"); `opSpan` is the span of the turnstile. */
+  final case class Judgment(program: Tree, db: Option[Tree], atom: Tree)(val span: Span, val opSpan: Span) extends Tree
+
   // ---- reflection (reference: reflection)
 
   /** `[e₁, …, eₙ]`: a meta list (`[]` is the empty one). */

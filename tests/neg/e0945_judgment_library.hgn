@@ -1,0 +1,3 @@
+(* The judgment notation needs `std/semantics` (E0945). *)
+%use "std/graph".
+oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y. (*~ E0945 *)

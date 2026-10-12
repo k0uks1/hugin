@@ -27,7 +27,17 @@ trait Bidirectional:
     case Lit(Literal.IntL(_)) if noMetaInt => fail(TypeProblem.NoMetaInt(t.span))
     case Lit(l) => (Tm.Lit(l, Stage.S1), Val.Base(BaseType.of(l), Stage.S1), Stage.S1)
     case Apply(_, _) if isProgramOf(c, t) => inferProgramOf(c, t)
+    case Apply(_, _) if TreeOps.flattenApp(t)._1 match
+          case Select(Ident(_), k) => k.nonEmpty && k.forall(_.isDigit)
+          case _ => false
+        =>
+      val head = TreeOps.flattenApp(t)._1
+      fail(JudgmentProblem.RuleNameWithoutJudgment(hugin.syntax.Printer.show(head), head.span))
     case Apply(f, a) => inferApp(c, f, a, t.span)
+    // a rule name is a derivation of a judgment: it needs the judgment as its expected type
+    case Select(Ident(_), k) if k.nonEmpty && k.forall(_.isDigit) =>
+      fail(JudgmentProblem.RuleNameWithoutJudgment(hugin.syntax.Printer.show(t), t.span))
+    case j: Judgment => inferJudgment(c, j)
     case s: Select => inferSelect(c, s)
     case Arrow(_, _, _) if endsInRel(t) => (objectArrow(c, t), Val.U0, Stage.S0)
     case Arrow(label, dom, cod) => inferArrow(c, label, dom, cod, t.span)
@@ -142,7 +152,13 @@ trait Bidirectional:
       out
     finally state.typePosition = saved
 
-  private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
+  /** A rule name or `given` against a derivation of a judgment (reference: std/semantics, "Rule names"),
+   *  else the term by its form. */
+  private def checkAt(c: Cxt, t: Tree, a: Val, st: Stage): Tm =
+    if st == Stage.S1 && mayBeRuleName(c, t) && !force(a).isInstanceOf[Val.Pi] then checkRuleName(c, t, a).getOrElse(checkForm(c, t, a, st))
+    else checkForm(c, t, a, st)
+
+  private def checkForm(c: Cxt, t: Tree, a: Val, st: Stage): Tm = (t, force(a)) match
     case (_, ty) if st == Stage.S1 && implicitQuote(t, ty).isDefined =>
       quotedIndex(ty) match
         case Some(a) => qtermOf(c, a, reify(c, t, RKind.Term, Some(a)))

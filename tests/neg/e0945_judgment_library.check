@@ -1,0 +1,10 @@
+error[E0945]: the judgment `⊢` needs the library `std/semantics`
+ --> tests/neg/e0945_judgment_library.hgn:3:32
+  |
+3 | oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y. (*~ E0945 *)
+  |                                ^ judgment here
+  |
+  = note: `P ⊢[d] r t̄` stands for `derives (programOf P) d (atom ρ [v t̄])` of `std/semantics`
+  = help: add `%use "std/semantics".` to the file
+
+1 error found

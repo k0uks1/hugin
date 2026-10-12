@@ -194,6 +194,13 @@ trait Unification:
       case (Top(f, sp, uf), Top(g, sp2, ug)) =>
         if f == g then
           if cs == ConvState.Flex then unifySp(l, sp, sp2, ConvState.Flex)
+          else if globals(f).program != null then
+            // the program of a module body (reference: std/semantics): its arguments are unified first,
+            // solving unknowns (Lean 4's lazy delta reduction tries the arguments of the same constant
+            // first): `programOf (tc ?g)` against `programOf (tc g)` solves `?g`, which the unfolded
+            // program (it mentions `g` only in variable types, `g.node`) cannot
+            try undoOnFailure(unifySp(l, sp, sp2, ConvState.Rigid))
+            catch case _: UnifyError => unify(l, uf.value, ug.value, ConvState.Full)
           else
             try unifySp(l, sp, sp2, ConvState.Flex)
             catch case _: UnifyError => unify(l, uf.value, ug.value, ConvState.Full)

@@ -2144,6 +2144,80 @@ Decisions made during implementation are listed here with their PR.
   `programOf (tc g)` mentions `g` only in variable types, so unification does not determine it, which is
   what P7b's generalised parameters address.
 
+**P7b (the judgment notation and rule names).**
+
+- *Syntax.* `⊢` and its ASCII spelling `|-` are one new token; `P ⊢[e] r t̄` sits between `->` and `|`/`≡`
+  (non-associative), so `tc ⊢ path x y -> tc ⊢ path y x` needs no parentheses; `[e]` follows the turnstile
+  directly, and the atom is an application. Abella writes `{L |- A}`, Iris `P ⊢ Q`, Lean formalisations a
+  `notation`; here it is a tree of its own (`Judgment`), elaborated to `derives` with no core rule.
+- *Rule names lex after a name.* `.` directly after a name and directly before a digit makes `path.1` (a
+  `Select` with digits), as Isabelle names `tc.intros(1)`; every other `.` before a digit still ends an item.
+- *Only `std/semantics`.* The notation inserts `programOf` but needs neither `std/quote` nor its name
+  (E0945 without `std/semantics`): it is notation for the library judgment, as Lean's `quote` is internal
+  syntax of its elaborator.
+- *The program.* A functor written alone is generalised; an application or a module gets `programOf`; a
+  value of type `program` is used as it is (its relations by the names it lists, its argument types
+  inferred). Which one is decided from the head's declared type, so that a functor application is never
+  evaluated for it (that would create an instance, D10).
+- *Atoms resolve as `programOf` reads bodies.* The body's own relations by their member names, numbered in
+  source order as `programOf` numbers them; a parameter's relation by its path (`g.edge`), with the same
+  label rule (`arg "edge"`, or `arg "g.edge"` with several parameters); any other name in the scope of the
+  judgment, as `ext s`. A symbol is the relation itself, so the file's name denotes the constant the body
+  uses wherever both see it (Abella resolves atoms in the specification's signature the same way). The
+  arguments are checked against the column types evaluated at the application's arguments.
+- *Generalisation.* In a declaration's type and its parameters' types: `{d : db}` first if a judgment has
+  no `[e]`, then each alone-written functor's parameters by name and type, in order of occurrence, then the
+  free uppercase variables. Parameters of one name are one binder if their types unify (E0946 otherwise);
+  a declaration's own parameter or a name in scope is used, not rebound. Elsewhere the names must be in
+  scope (E0946, E0947), as Agda generalises declared variables only in signatures and Lean auto-binds only
+  in a declaration's header.
+- *Folded programs, unified by their arguments.* The generated program of a body stays folded in normal
+  forms and in index-unification solutions, and two applications of it unify their arguments first, solving
+  unknowns, before unfolding (Lean 4's lazy delta reduction tries the arguments of the same constant first).
+  The unfolded program mentions `g` only in variable types (`g.node`), so this is what determines `g`: P7a's
+  `{g := G}` is gone from p7a_program. The argument solution may be less general than another one (the
+  program is not injective in `g`), never unsound.
+- *Rule names are pattern synonyms computed from the program value* (Agda's pattern synonyms), not
+  generated constructors. `r.k` is the rule with `head` `r` and `index` `k`, P7a's numbering by the first
+  head: a rule with several written heads is named by its first, and its other heads are derived with
+  `fire` (a deviation from 7.3's "a name for each", which would disagree with `crule.index`). A label `@n`
+  names its rule where `n` denotes nothing else: globals and variables win, so a label never shadows.
+- *Patterns.* `r.k p̄` is `fire {xs := econs X₁ …} (there^j here) (ppos refl p₁ … pnil) here`, comparisons as
+  `pcmp _`. The rule's variables are implicit-binder pattern variables under their names: in scope unless
+  a pattern variable or an earlier (outer, left) rule variable has the name, Agda's hidden arguments bound
+  by name. This also fixes a latent order bug: an explicit pattern variable now always shadows an implicit
+  binder of the same name. `{X := p}` binds by name; a rule name elsewhere than at a known derivation type
+  is E0948. Chapter 1's `{X := w}` is written `{X := W}`: pattern variables are uppercase.
+- *Expressions.* `fire` is checked against the goal, then the rule (its member proof), the variables as
+  unknowns (or `{X := e}`), the head (which determines its variables from the goal), the premises in body
+  order, and the comparisons last, proved by evaluation, `fromSome (decideCmp o x y) tt` (E0948 if they do
+  not evaluate to true), as Lean's `decide` proves by evaluation. `given I` with one argument is `given t I`,
+  `t` the constructor of `so true` when the input test evaluates to `true`, E0949 when to `false`; with two
+  arguments it is the constructor.
+- *Coverage splits a derivation into the program's rules.* Below a `given` or `fire` of a program whose
+  rules evaluate, Π holds the positions of `fire`'s member and head proofs and their `there` chains (as many
+  as rules and heads), so clauses for the goal relation's rules cover, and other relations' rules and
+  `given` for a relation with rules are refuted: 7.3's "coverage over the cases rule names produce". Agda
+  would need the absurd clauses, Lean's match compiler closes them by `contradiction`; extending Π only for
+  derivations keeps the one-level emptiness rule for everything else.
+- *Splits and hovers.* A split of a derivation offers the goal relation's rule names, premises named by the
+  initials of their relations (fresh per case, the split variable's name reusable), and `given` if the
+  relation is an input; `derives (programOf (f ā)) d (atom ρ vs)` prints as `f ā ⊢ r t̄`, without `[d]` for
+  the database named `d`. The functor's name is recorded at its first use as a functor; a body reached only
+  through an instance prints as `programOf m ā`. Binder types in a hole's context still print unfolded
+  (`g : { node : type, … }`), as for any record type alias.
+- *`decide`.* `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives
+  p d a`, appended to `std/semantics` (additive). It shares its name with `std/decide`'s generic `decide`,
+  kept because chapter 1 writes `decide 3 tt`; p5_holds opens `std/semantics` selectively, and the
+  reference's `holds` example reaches the generic one through `%import "std/decide"`. With `programOf here` deferred (P7a), the example proves
+  `trip ⊢ path berlin rome` of a module whose facts are in its body: input relations contribute nothing to
+  `holds`, so chapter 1's `tiny` over the input relation `demo` would not evaluate.
+- *Adequacy.* Stated in the reference (std/semantics, "Adequacy") for the positive fragment: a run derives
+  `m.r t̄` exactly if `m ⊢[d] r t̄`, with `d` the run's facts of the relations that `arg l`, `ext s` and the
+  input `own i` denote for `m`; trusted, to be checked per run by P8b.
+- *Codes.* E0945 (atom: unknown relation, arity, not an atom, no `std/semantics`), E0946 (generalisation),
+  E0947 (no database), E0948 (rule names), E0949 (`given` for a relation with rules).
+
 **P6 (stratified negation and aggregates).**
 
 - *Formulation.* `derives` is unchanged and stays the positive fragment, monotone in the database and the

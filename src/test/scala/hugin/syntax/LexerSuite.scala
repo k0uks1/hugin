@@ -22,6 +22,14 @@ class LexerSuite extends munit.FunSuite:
     assertEquals(kinds("a.B"), List(Tok.Name, Tok.Period, Tok.Var))
   }
 
+  test("#186 P7b: the turnstile `⊢` (`|-`) and rule names `path.1`, only directly after a name") {
+    assertEquals(kinds("tc ⊢ path"), List(Tok.Name, Tok.Entails, Tok.Name))
+    assertEquals(kinds("tc |- path"), List(Tok.Name, Tok.Entails, Tok.Name))
+    assertEquals(kinds("path.1 E"), List(Tok.Name, Tok.Select, Tok.IntLit, Tok.Var))
+    assertEquals(kinds("p a. 1"), List(Tok.Name, Tok.Name, Tok.Period, Tok.IntLit))
+    assertEquals(kinds("X.1"), List(Tok.Var, Tok.Period, Tok.IntLit))
+  }
+
   test("`..` and floats") {
     assertEquals(kinds("{ .. }"), List(Tok.LBrace, Tok.DotDot, Tok.RBrace))
     assertEquals(kinds("1.5e3"), List(Tok.FloatLit))

@@ -1,0 +1,9 @@
+error[E0949]: `path` is not an input of the program: it has rules, so `given` cannot derive its facts
+ --> tests/neg/e0949_given.hgn:5:15
+  |
+5 | fromInput F = given F. (*~ E0949 *)
+  |               ^^^^^ not an input
+  |
+  = note: `given` derives the facts of an input relation: one without rules, of a parameter, or outside the program
+
+1 error found

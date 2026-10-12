@@ -37,6 +37,10 @@ object Parser:
    *  tighter than `->` (`(n : nat) -> n + 0 ≡ n`). Below an `%infix` operator of precedence 4. */
   val LvlEquiv = 42
 
+  /** `⊢` (ASCII `|-`), the judgment `P ⊢ r t̄` (non-associative): looser than `|` and `≡`, tighter than `->`,
+   *  so that `tc ⊢ path x y -> tc ⊢ path y x` needs no parentheses. */
+  val LvlEntails = 35
+
   /** `::`, the meta level's list constructor (right associative). */
   val LvlCons = 45
   val LvlCmp = 50

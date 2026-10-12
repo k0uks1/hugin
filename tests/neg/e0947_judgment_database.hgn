@@ -1,0 +1,6 @@
+(* A judgment without `[e]` uses the database `d`: generalised in the type of a declaration, otherwise the
+   `d` in scope (E0947 if there is none). *)
+%use "std/graph".
+%use "std/semantics".
+pathOf (g : graph) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
+withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ W0003 *)

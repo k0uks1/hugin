@@ -1,0 +1,8 @@
+(* The atom of a judgment `P ⊢ r t̄` must be a relation of the program, of its parameters or of the file,
+   applied to as many arguments as it has columns (E0945). *)
+%use "std/graph".
+%use "std/semantics".
+city : type. berlin : city.
+unknown : {x y : g.node} -> tc ⊢ road x y. (*~ E0945 *)
+arity : {x : g.node} -> tc ⊢ path x. (*~ E0945 *)
+notAtom : tc ⊢ 3. (*~ E0945 *)

@@ -60,7 +60,7 @@ trait Applications:
   /** The head of `f {x := e}… a₁ … aₙ` if it is a meta constant (a constructor, function, definition or
    *  postulate, not a family) applied to positional arguments, after named implicit arguments that each
    *  name a different one of its leading implicit binders (#186 P5). */
-  def expectedTypeHead(c: Cxt, t: Tree): Option[hugin.syntax.Trees.Ident] =
+  def expectedTypeHead(c: Cxt, t: Tree): Option[Tree] =
     val (head, args) = TreeOps.flattenApp(t)
     val (named, positional) = args.span(_.isInstanceOf[NamedArg])
     head match
@@ -72,6 +72,9 @@ trait Applications:
           val names = named.collect { case a: NamedArg => a.name }
           Option.when(names.distinct.length == names.length && names.forall(leading.contains))(id)
         }
+      // a resolved constant in generated code (the rule names of the judgment notation, [[Judgments]])
+      case ref @ hugin.syntax.Trees.SymRef(g, _) if positional.nonEmpty && named.isEmpty && globals(g).stage == Stage.S1 && !isFamily(g) =>
+        Some(ref)
       case _ => None
 
   /** An application `f {x := e}… a₁ … aₙ` of a meta constant checked against `expected` (#186 P5): the
@@ -88,7 +91,7 @@ trait Applications:
    *  unifying the application's type with the expected type adds anyway, earlier. Then the named implicit
    *  arguments are checked against their binders, and the explicit ones in order, as an application is
    *  elaborated otherwise. */
-  def checkAppWithExpected(c: Cxt, t: Tree, head: hugin.syntax.Trees.Ident, expected: Val): (Tm, Val, Stage) =
+  def checkAppWithExpected(c: Cxt, t: Tree, head: Tree, expected: Val): (Tm, Val, Stage) =
     val (_, args) = TreeOps.flattenApp(t)
     val (named, positional) = args.span(_.isInstanceOf[NamedArg])
     val namedArgs = named.collect { case a: NamedArg => a }

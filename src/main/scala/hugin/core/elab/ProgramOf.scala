@@ -41,20 +41,36 @@ trait ProgramOf:
   /** The globals `programOf` builds its data with. */
   private final case class Vocabulary(sem: Map[Name, Int], inputOf: Int, nat: Int, nil: Int, cons: Int, some: Int, none: Int)
 
-  private def vocabulary(span: Span): Vocabulary =
-    def module(n: String): Map[Name, Int] =
-      val path = hugin.compiler.SourceLoader.resolve(file.path, n)
-      file.imports.get(path).map(_.value).collect { case Tm.Rec(fs) => fs }.toList.flatten.collect { case (k, Tm.Global(id)) => k -> id }.toMap
-    val quoteLib = module("std/quote")
-    val sem = module("std/semantics")
+  /** The globals of a loaded library file, by name (its module value). */
+  def libraryModule(n: String): Map[Name, Int] =
+    val path = hugin.compiler.SourceLoader.resolve(file.path, n)
+    file.imports.get(path).map(_.value).collect { case Tm.Rec(fs) => fs }.toList.flatten.collect { case (k, Tm.Global(id)) => k -> id }.toMap
+
+  /** The vocabulary, or `None` if `std/semantics` (and, with `quoteLib`, `std/quote`) is not loaded. */
+  private def vocabularyOpt(quoteLib: Boolean): Option[Vocabulary] =
+    val sem = libraryModule("std/semantics")
     val r = reflectiveGlobals
     (sem.get("inputOf"), sem.get("own"), r, coreName("some"), coreName("none")) match
-      case (Some(inputOf), Some(own), Some(rg), Some(some), Some(none)) if sem.contains("program") && quoteLib.contains("quote") =>
+      case (Some(inputOf), Some(own), Some(rg), Some(some), Some(none))
+          if sem.contains("program") && (!quoteLib || libraryModule("std/quote").contains("quote")) =>
         val nat = telescope(globals(own).ty)._1.collectFirst { case (_, Icit.Expl, d) => d }.map(forceData) match
           case Some(Val.Rigid(Head.Glob(id), Nil)) => id
           case other => throw Impossible(s"own over $other")
-        Vocabulary(sem, inputOf, nat, rg.nil, rg.cons, some, none)
-      case _ => fail(ProgramOfProblem.NoLibrary(span))
+        Some(Vocabulary(sem, inputOf, nat, rg.nil, rg.cons, some, none))
+      case _ => None
+
+  private def vocabulary(span: Span): Vocabulary = vocabularyOpt(quoteLib = true).getOrElse(fail(ProgramOfProblem.NoLibrary(span)))
+
+  /** The globals of `std/semantics`, if it is loaded (the judgment notation needs only it). */
+  def semanticsGlobals: Option[Map[Name, Int]] =
+    if semanticsCache == null then semanticsCache = vocabularyOpt(quoteLib = false).map(_.sem)
+    semanticsCache.nn
+
+  private var semanticsCache: Option[Map[Name, Int]] | Null = null
+
+  /** The judgment vocabulary of the loaded `std/semantics`. */
+  private def judgmentVocab(voc: Vocabulary): JudgmentVocab =
+    JudgmentVocab(voc.sem("derives"), voc.sem("atom"), voc.sem("v"), voc.sem("own"), voc.sem("arg"), voc.sem("ext"), voc.nil, voc.cons)
 
   // ---------------------------------------------------------------- the forms of `programOf P`
 
@@ -62,6 +78,22 @@ trait ProgramOf:
     val (_, args) = TreeOps.flattenApp(t)
     val p = args.tail.foldLeft(args.head)((f, a) => Apply(f, a)(f.span.to(a.span)))
     val voc = vocabulary(t.span)
+    val (tm, ty, st, _) = programOfTree(c, p, voc)
+    (tm, ty, st)
+
+  /** What a judgment `P ⊢ r t̄` resolves the atom's relation in (reference: std/semantics, "The judgment
+   *  notation"), for `P` a module body: its own relations, by name, with their indices and types (in the
+   *  context of the judgment; `None` if the type mentions a type the module declares), and the relations
+   *  of its environment by their paths (`g.edge`), with the label of their reference and their types. */
+  final case class ProgramScope(own: Map[Name, (Int, Option[Val])], param: List[Name] => Option[(String, Option[Val])], context: List[Name])
+
+  /** `programOf P` as a judgment needs it: the program, and the scope of its body if `P` is a module body. */
+  def judgmentProgram(c: Cxt, p: Tree, span: Span): (Tm, Option[ProgramScope]) =
+    val voc = vocabularyOpt(quoteLib = false).getOrElse(fail(ProgramOfProblem.NoLibrary(span)))
+    val (tm, _, _, scope) = programOfTree(c, p, voc)
+    (tm, scope)
+
+  private def programOfTree(c: Cxt, p: Tree, voc: Vocabulary): (Tm, Val, Stage, Option[ProgramScope]) =
     val programTy = eval(Nil, Tm.Global(voc.sem("program")))
     def notAModule(shown: Tree): Nothing =
       val here = shown match
@@ -85,7 +117,8 @@ trait ProgramOf:
             tm
           case _ => notAModule(p)
       }
-      (applied(c, voc, hTm, argTms, p), programTy, Stage.S1)
+      val (tm, scope) = applied(c, voc, hTm, argTms, p)
+      (tm, programTy, Stage.S1, Some(scope))
     else
       force(hTy) match
         case Val.Pi(_, Icit.Expl, _, _) =>
@@ -102,29 +135,107 @@ trait ProgramOf:
                 ty = inst(cl, Val.local(cx.lvl - 1))
               case _ => more = false
           val k = doms.length
-          val inner = applied(cx, voc, Tm.shift(hTm, k), (0 until k).map(j => Tm.Var(k - 1 - j)).toList, p)
+          val inner = applied(cx, voc, Tm.shift(hTm, k), (0 until k).map(j => Tm.Var(k - 1 - j)).toList, p)._1
           val tm = doms.foldRight(inner)((d, acc) => Tm.Lam(d._1, Icit.Expl, acc))
           val tyTm = doms.foldRight(Tm.Global(voc.sem("program")): Tm)((d, acc) => Tm.Pi(d._1, Icit.Expl, d._2, acc))
-          (tm, eval(c.env, tyTm), Stage.S1)
+          (tm, eval(c.env, tyTm), Stage.S1, None)
         case _ =>
           moduleOf(ev(c, hTm)) match
             case Some((body, env)) =>
               val fn = programFunction(voc, body, env.length, head, p.span)
-              (Tm.apps(fn, env.reverse.map(v => (quote(c.lvl, v), Icit.Expl))), programTy, Stage.S1)
+              val envTms = env.reverse.map(v => quote(c.lvl, v))
+              val scope = scopeOf(body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))))
+              (Tm.apps(fn, envTms.map((_, Icit.Expl))), programTy, Stage.S1, Some(scope))
             case None => notAModule(p)
 
   /** The program of the functor `f` applied to `args` (terms in `c`): the body is found by applying `f` to
    *  fresh variables, so that no instance is created. */
-  private def applied(c: Cxt, voc: Vocabulary, f: Tm, args: List[Tm], p: Tree): Tm =
+  private def applied(c: Cxt, voc: Vocabulary, f: Tm, args: List[Tm], p: Tree): (Tm, ProgramScope) =
     val k = args.length
     val probes = (0 until k).map(j => Val.local(c.lvl + j)).toList
     val v = probes.foldLeft(ev(c, f))((g, a) => app(g, a, Icit.Expl))
     force(v) match
       case Val.Rigid(Head.Module(body, env), Nil) =>
-        val fn = programFunction(voc, body, env.length, TreeOps.flattenApp(p)._1, p.span)
-        val inner = Tm.apps(fn, env.reverse.map(e => (quote(c.lvl + k, e), Icit.Expl)))
-        Tm.apps(lams(k, inner), args.map((_, Icit.Expl)))
+        val head = TreeOps.flattenApp(p)._1
+        val fn = programFunction(voc, body, env.length, head, p.span)
+        // the functor's name, for printing judgments ([[ProgramDisplay]])
+        fn match
+          case Tm.Global(id) if globals(id).program != null =>
+            head match
+              case _: Ident | _: hugin.syntax.Trees.Select => globals(id).program.nn.functor = Some(hugin.syntax.Printer.show(head))
+              case _ =>
+          case _ =>
+        val envTms = env.reverse.map(e => quote(c.lvl + k, e))
+        val inner = Tm.apps(fn, envTms.map((_, Icit.Expl)))
+        def inC(tm: Tm): Val =
+          eval(c.env, Tm.apps(lams(k, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), args.map((_, Icit.Expl))))
+        (Tm.apps(lams(k, inner), args.map((_, Icit.Expl))), scopeOf(body, env.length, inC))
       case _ => fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(p), false, p.span))
+
+  /** The scope of `body` in an environment of `n` variables; `inC` turns a term over them into a value in
+   *  the context of the judgment. */
+  private def scopeOf(body: ModuleBody, n: Int, inC: Tm => Val): ProgramScope =
+    val (ctxTypes, ctxNames) = contextOf(body, n)
+    var e = (0 until n).reverse.map(Val.local).toList
+    var level = n
+    val tys = mutable.ListBuffer.empty[(Member, Val)]
+    for m <- body.members do
+      val v = m.kind match
+        case MemberKind.Object(_) =>
+          tys += ((m, eval(e, m.ty)))
+          level += 1
+          Val.local(level - 1)
+        case MemberKind.Defined(t) => eval(e, t)
+      e = v :: e
+    val total = level
+    val own = relationMembers(body).zipWithIndex.map { (m, i) =>
+      val ty = tys.find(_._1 eq m).map(_._2).get
+      m.name -> (i, strengthen(quote(total, ty), n, total).map(inC))
+    }.toMap
+    def param(path: List[Name]): Option[(String, Option[Val])] = path match
+      case x :: projs if ctxNames.exists(_._2 == x) =>
+        val l = ctxNames.find(_._2 == x).get._1
+        val label = if n == 1 && projs.nonEmpty then projs.mkString(".") else (x :: projs).mkString(".")
+        Some((label, typeAlong(ctxTypes, l, projs).map(t => inC(quote(n, t)))))
+      case _ => None
+    ProgramScope(own, param, ctxNames.toList.sortBy(_._1).map(_._2))
+
+  /** The types (over the environment's variables) and names of a body's environment, where it records them. */
+  private def contextOf(body: ModuleBody, n: Int): (Map[Int, Val], Map[Int, Name]) =
+    if body.context.length != n then (Map.empty, Map.empty)
+    else
+      var e = List.empty[Val]
+      val types = body.context.zipWithIndex.map { case ((_, ty), i) =>
+        val v = eval(e, ty)
+        e = Val.local(i) :: e
+        i -> v
+      }.toMap
+      (types, body.context.map(_._1).zipWithIndex.map(_.swap).toMap)
+
+  /** The object type of the relation at the path `projs` of the environment's variable `l`. */
+  private def typeAlong(ctxTypes: Map[Int, Val], l: Int, projs: List[Name]): Option[Val] =
+    var v = Val.local(l)
+    var ty = ctxTypes.get(l)
+    for lb <- projs do
+      ty = ty.flatMap(t =>
+        force(t) match
+          case rt: Val.RecTy => fieldType(rt, v, lb)
+          case _ => None
+      )
+      v = proj(v, lb)
+    ty.map(t =>
+      force(t) match
+        case Val.Lift(a) => a
+        case other => other
+    )
+
+  /** The own relations of a body (relations, structs, constructors), in source order: `own 0`, `own 1`, …. */
+  private def relationMembers(body: ModuleBody): List[Member] =
+    body.members.filter { m =>
+      m.kind match
+        case MemberKind.Object(ObjDecl.Relation | ObjDecl.Struct | ObjDecl.Constructor) => true
+        case _ => false
+    }.sortBy(_.span.start)
 
   /** The programs of the module bodies reified so far, as generated definitions. */
   private val programFunctions = mutable.HashMap.empty[Int, Int]
@@ -135,15 +246,17 @@ trait ProgramOf:
    *  compare its arguments, and applications to closed arguments are memoised. Without the types of the
    *  environment (not recorded), the function itself. */
   private def programFunction(voc: Vocabulary, body: ModuleBody, n: Int, head: Tree, span: Span): Tm =
-    def fn = lams(n, reify(voc, body, n, span))
-    if body.context.length != n then fn
+    if body.context.length != n then lams(n, reify(voc, body, n, span)._1)
     else
       val id = programFunctions.getOrElseUpdate(
         body.id, {
-          val tm = zonk(Nil, 0, fn)
+          val (program, relations, varNames) = reify(voc, body, n, span)
+          val tm = zonk(Nil, 0, lams(n, program))
           val tyTm = body.context.foldRight(Tm.Global(voc.sem("program")): Tm)((b, acc) => Tm.Pi(b._1, Icit.Expl, b._2, acc))
           val name = s"programOf ${hugin.syntax.Printer.show(head)}"
-          addGlobal(GlobalEntry(name, eval(Nil, tyTm), tyTm, Stage.S1, GlobalKind.Definition(tm, eval(Nil, tm)), span, span))
+          val id = addGlobal(GlobalEntry(name, eval(Nil, tyTm), tyTm, Stage.S1, GlobalKind.Definition(tm, eval(Nil, tm)), span, span))
+          globals(id).program = ProgramDisplay(judgmentVocab(voc), relations, body.context.map(_._1), varNames)
+          id
         }
       )
       Tm.Global(id)
@@ -215,7 +328,8 @@ trait ProgramOf:
       vars: List[Int],
       heads: List[RA],
       body: List[RB],
-      span: Span
+      span: Span,
+      names: List[Name]
   )
 
   private def termVars(t: RT): Set[Int] = t match
@@ -261,8 +375,9 @@ trait ProgramOf:
     case RB.Agg(_, _, _, body, ls) => ls ++ body.flatMap(localVars)
     case _ => Nil
 
-  /** The program of `body` in an environment of `n` variables, as a term in that environment. */
-  private def reify(voc: Vocabulary, body: ModuleBody, n: Int, span: Span): Tm =
+  /** The program of `body` in an environment of `n` variables, as a term in that environment, with the
+   *  names of its own relations and of each rule's variables. */
+  private def reify(voc: Vocabulary, body: ModuleBody, n: Int, span: Span): (Tm, List[Name], List[List[Name]]) =
     val ctxVals = (0 until n).reverse.map(Val.local).toList
     // the types of the environment's variables, where the body records them
     val ctxTypes: Map[Int, Val] =
@@ -297,7 +412,8 @@ trait ProgramOf:
     val ownIndex: Map[Int, Int] = relationLike.map(_._1).zipWithIndex.toMap
     val reader = BodyReader(n, total, e, ctxTypes, ctxNames, memberAt.toMap, ownIndex, span)
     val rules = body.items.collect { case r: CoreItem.RuleItem => r }.map(reader.rule)
-    emit(voc, n, total, relationLike.map(_._2._1.name), rules, span)
+    val relations = relationLike.map(_._2._1.name)
+    (emit(voc, n, total, relations, rules, span), relations, rules.map(_.names))
 
   /** Reads the rules of a body: `n` variables of the environment, `total` with the object members, `env`
    *  the body's environment with its members. */
@@ -353,7 +469,8 @@ trait ProgramOf:
         case (None, x) => no(s"the type of the variable `${x.takeWhile(_ != '#')}` is not known")
       }
       val locals = body.flatMap(localVars).toSet
-      ReadRule(first, r.name, tys, tys.indices.filterNot(locals).toList, heads, body, r.span)
+      val ruleVars = tys.indices.filterNot(locals).toList
+      ReadRule(first, r.name, tys, ruleVars, heads, body, r.span, ruleVars.map(shown(_)))
 
     /** The relation, type and code of an applied head, with its arguments; a relation with a bound column
      *  keeps the best value per key, which `std/semantics` does not model. */

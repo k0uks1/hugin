@@ -269,7 +269,13 @@ trait IndexUnifier:
    *  cycle under constructors is a conflict). The occurs check reads `t` back only if `x` is in it as it
    *  is ([[Core.mentions]]). */
   private def solveVar(p: SplitProblem, x: Int, t: Val, shown: Val): Either[IndexUnification, SplitProblem] =
-    if !mentions(x, t) || !occurs(p.size - x - 1, quote(p.size, t)) then Right(p.solve(core, x, t))
+    if !mentions(x, t) || !occurs(p.size - x - 1, quote(p.size, t)) then
+      // the program of a module body stays folded (reference: std/semantics): judgments print as such, and
+      // its applications unify by their arguments ([[Core.unify]])
+      val solution = shown match
+        case Val.Top(id, _, _) if globals(id).program != null => shown
+        case _ => t
+      Right(p.solve(core, x, solution))
     else if constructorTerm(t) then Left(IndexUnification.Conflict(Val.local(x), shown))
     else Left(IndexUnification.Stuck(Val.local(x), shown))
 
