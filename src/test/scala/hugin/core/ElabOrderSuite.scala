@@ -141,4 +141,3 @@ class ElabOrderSuite extends munit.FunSuite:
     assertEquals(later, Nil)
     assertEquals(chains, Map.empty[String, List[String]])
   }
-
