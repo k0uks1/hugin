@@ -1,0 +1,54 @@
+(* #186 P9g: proof B of the level 3.5 note inside `coarse`'s body (§1.6). The input relation `a.alpha` of
+   the functor's parameter is a proposition of the body's program there, applied and in the η form, so the
+   hypothesis takes the two relations by name. The variant with a named database writes the prefix
+   turnstile `⊢[D] r t̄`. `eu.sound` is the theorem for the run's instance. *)
+%use "std/eq" (empty).
+%use "std/semantics".
+
+abstraction : Type = {
+  node : type, edge : node -> node -> rel, seed : node -> rel,
+  anode : type, alpha : node -> anode -> rel }.
+
+coarse (a : abstraction) = {
+  reached : a.node -> rel.
+  reached X :- a.seed X.
+  reached Y :- reached X, a.edge X Y.
+  aedge : a.anode -> a.anode -> rel.
+  aedge A B :- a.edge X Y, a.alpha X A, a.alpha Y B.
+  areached : a.anode -> rel.
+  areached A :- a.seed X, a.alpha X A.
+  areached B :- areached A, aedge A B.
+
+  placed : (⇑a.node -> Type) -> (⇑a.node -> ⇑a.anode -> Type) -> Type.
+  placed Reached Alpha = (x : ⇑a.node) -> Reached x -> { b : ⇑a.anode, ok : Alpha x b }.
+  sound : placed reached a.alpha -> {x : a.node} -> {b : a.anode} -> reached x -> a.alpha x b -> areached b.
+  sound T (reached.1 S) H = areached.1 S H.
+  sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
+  safe : placed reached a.alpha -> {x : a.node} -> {b : a.anode} ->
+         (areached b -> empty) -> a.alpha x b -> reached x -> empty.
+  safe T N H R = N (sound T R H).
+
+  (* the variant over a named database *)
+  placedAt (D : db) : Type = (x : ⇑a.node) -> ⊢[D] reached x -> { b : ⇑a.anode, ok : ⊢[D] a.alpha x b }.
+  soundAt : {D : db} -> placedAt D -> {x : a.node} -> {b : a.anode} ->
+            ⊢[D] reached x -> ⊢[D] a.alpha x b -> ⊢[D] areached b.
+  soundAt T (reached.1 S) H = areached.1 S H.
+  soundAt T (reached.2 {X := W} R E) H = areached.2 (soundAt T R (T W R).ok) (aedge.1 E (T W R).ok H).
+  %opaque sound safe soundAt.
+}.
+
+city : type. country : type.
+road : city -> city -> rel. start : city -> rel. located : city -> country -> rel.
+%input road. %input start. %input located.
+eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = located }.
+%output eu.areached.
+
+(* eu.sound and eu.safe are the theorems for the run's instance (its input relation is `located`, read
+   through the parameter: the statements keep the instance's program) *)
+euSafe = eu.safe.
+euSound = eu.sound.
+%opaque euSafe euSound.
+
+checked : string -> rel.
+checked "proof B, in the body".
+%output checked.

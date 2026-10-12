@@ -44,21 +44,36 @@ trait ModuleBodies:
     def declares(n: Name): Boolean = members.exists(memberName(_).contains(n))
 
   def inferModuleBody(c: Cxt, body: Trees.ModuleBody): (Tm, Val, Stage) =
-    val all = bodyItems(body.items)
+    val all0 = bodyItems(body.items)
+    // `%opaque m.` names members of the body (#186 P9g): known before they are elaborated
+    val (opaques, others) = all0.objects.partition {
+      case Directive("opaque", _) => true
+      case _ => false
+    }
+    val all = all0.copy(objects = others)
     // the program-dependent members, elaborated after the body's object items (#186 P9f)
-    val (parts, later) = programPhase(all)
+    val (parts, later) = programPhase(c, all)
     // the names that items with syntax errors might declare: their uses are not reported (`docs/PARSER.md`, §5)
     state.erroneous ++= body.items.filter(TreeOps.hasSyntaxErrors).flatMap(mightDeclare)
     val saved = state.bodyDeclared
     val savedLeftOut = state.leftOutMembers
     val savedHere = hereState
+    val savedAmbient = ambient
     val savedDependent = state.programDependent
+    val savedUses = bodyUses
+    val savedOpaque = opaqueMembers
     val memberNames = all.members.flatMap(memberName)
     state.bodyDeclared = saved ++ memberNames
     // the members shadow the enclosing scope's program-dependent names; `here` is the body's program
     state.programDependent =
       savedDependent -- memberNames ++ later.fold(Map.empty)(_._2.chains.map((n, ch) => n -> ProgramPhase.Dependence(ch, true)))
     hereState = HereState.Unavailable(true)
+    ambient = None
+    bodyUses = mutable.HashMap.empty
+    opaqueMembers = opaques.flatMap {
+      case Directive(_, DirArgs.Apply(args, None)) => args.collect { case Ident(n) => n }
+      case _ => Nil
+    }.toSet
     try
       val functions = mutable.LinkedHashMap.empty[Name, MemberFunction]
       val (cb0, members0) = elabMembers(c, parts, functions)
@@ -71,12 +86,16 @@ trait ModuleBodies:
         case Some((deferred, _)) =>
           val name = Option.when(hint.nonEmpty && !inMemberDefinition)(hint)
           hereState = bodyHere(hugin.core.ModuleBody(id, body.span, members0, items, context), c.lvl, name)
+          // its own relations and its context's relations, written unqualified, are its propositions (#186 P9g)
+          ambient = Some(bodyAmbient(c, all))
           state.programDependent = savedDependent -- memberNames
           val (cb1, members1) = elabMembers(cb0, deferred, functions)
           // the object items see the members after them as well: their variables are shifted past them
           (cb1, members0 ++ members1, items.map(shiftItem(_, members1.length)))
       if later.isDefined then recordBody(c, cb, body.span, members, all.members)
-      val mb = hugin.core.ModuleBody(id, body.span, members, shifted, context)
+      opaques.foreach { case d: Directive => reportingErrors(checkOpaqueMembers(d, members)); case _ => }
+      val free = freeMembers(members, bodyUses.view.mapValues(_.toSet).toMap)
+      val mb = hugin.core.ModuleBody(id, body.span, members, shifted, context, free)
       val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
       (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)
     finally
@@ -84,6 +103,9 @@ trait ModuleBodies:
       state.leftOutMembers = savedLeftOut
       state.programDependent = savedDependent
       hereState = savedHere
+      ambient = savedAmbient
+      bodyUses = savedUses
+      opaqueMembers = savedOpaque
 
   /** An object item of a body, elaborated in the context of its members so far, in a context with `by`
    *  more members (a rule's and a query's variables bind in its terms). */
@@ -101,13 +123,20 @@ trait ModuleBodies:
   /** The items of a body split into those elaborated before its object items and its program-dependent
    *  members with their clauses and rules ([[ProgramPhase]]), with why each is program-dependent. An object
    *  constant stays before: if it needs a program-dependent member, that is a cycle (E0962). */
-  private def programPhase(parts: BodyItems): (BodyItems, Option[(BodyItems, ProgramPhase.Deferred)]) =
+  private def programPhase(c: Cxt, parts: BodyItems): (BodyItems, Option[(BodyItems, ProgramPhase.Deferred)]) =
     def isObjectConstant(item: Item) = item match
       case d: Decl => !parts.lifted(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
       case _ => false
     val programOfFree = !parts.members.flatMap(memberName).contains("programOf")
+    // the relations its members may write unqualified as its propositions (#186 P9g)
+    val context = contextVariables(c)
+    val own = ProgramPhase.OwnRelations(
+      ownRelationNames(parts),
+      (x, r) => context(x) && c.scope.get(x).exists(relationField(c, _, r)),
+      context.nonEmpty
+    )
     val (_, deferred) =
-      ProgramPhase.classify(parts.members ++ parts.clauses ++ parts.rules, programOfFree, i => !isObjectConstant(i))
+      ProgramPhase.classify(parts.members ++ parts.clauses ++ parts.rules, programOfFree, i => !isObjectConstant(i), own)
     if deferred.isEmpty then (parts, None)
     else
       val later = deferred.items.toSet
@@ -190,7 +219,7 @@ trait ModuleBodies:
       case d: Decl => !parts.lifted(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
       case _ => false
     def attempt(item: Item): Unit =
-      val (next, m, f) = undoOnFailure(member(cb, item, parts))
+      val (next, m, f) = collectingUses(memberName(item).getOrElse("_"))(undoOnFailure(member(cb, item, parts)))
       members.find(_.name == m.name).foreach(first => duplicate(m, first))
       cb = next
       members += m
@@ -279,10 +308,11 @@ trait ModuleBodies:
     try
       val formulas = if file.signaturesOnly then Nil
       else
-        for case ElabOrder.Node(ElabOrder.Kind.Clauses(f), group, _) <- nodes do memberClauseGroup(cb, f, group, members, parts, functions)
+        for case ElabOrder.Node(ElabOrder.Kind.Clauses(f), group, _) <- nodes do
+          collectingUses(f)(memberClauseGroup(cb, f, group, members, parts, functions))
         nodes.flatMap {
           case ElabOrder.Node(ElabOrder.Kind.Rules(f), rules, _) =>
-            memberFormula(cb, f, rules.collect { case r: Rule => r }, parts, functions)
+            collectingUses(f)(memberFormula(cb, f, rules.collect { case r: Rule => r }, parts, functions))
           case _ => None
         }
       checkTermination()
@@ -326,12 +356,23 @@ trait ModuleBodies:
     case Decl(_, _, _, _, Some(p: Postulate)) => unsupportedAt(p.span, "postulates (`%postulate`) in module bodies")
     case d: Decl if d.defn.isDefined && !isStructDecl(d) =>
       val (ty, tm) = inMember(d.name.name)(declDefinition(c, d, d.defn.get))
-      defined(c, d.name, ty, tm, d.span)
+      definedMember(c, d.name, ty, tm, d.span)
     case d: Def =>
       val (ty, tm) = inMember(d.name.name)(definition(c, d.params, d.rhs))
-      defined(c, d.name, ty, tm, d.span)
+      definedMember(c, d.name, ty, tm, d.span)
     case d: Decl => objectMember(c, d)
     case other => throw Impossible(s"not a member: $other")
+
+  /** A member definition; an opaque one (`%opaque m.` in the body, #186 P9g) is lifted to a global
+   *  without a value, as a member function is lifted ([[MemberFunctions]]), so that it never unfolds. */
+  private def definedMember(c: Cxt, name: Ident, ty: Tm, tm: Tm, span: Span): (Cxt, Member) =
+    if !opaqueMembers(name.name) then defined(c, name, ty, tm, span)
+    else
+      resolveLiterals(blockStart)
+      val zty = zonk(c.env, c.lvl, ty)
+      val ztm = zonk(c.env, c.lvl, tm)
+      val (_, value) = liftedFunction(c, pathOf(name.name), zty, name.span, span, GlobalKind.Opaque(Some(closeTerm(c, ztm)), None))
+      defined(c, name, zty, quote(c.lvl, value), span)
 
   def defined(c: Cxt, name: Ident, ty: Tm, tm: Tm, span: Span): (Cxt, Member) =
     resolveLiterals(blockStart)
@@ -373,3 +414,92 @@ trait ModuleBodies:
     case d: Directive => directiveItems(c, d, inBody = true)
     case e: SubEdge => List(edgeItem(c, e))
     case other => throw Impossible(s"not an object item: $other")
+
+  // ---------------------------------------------------------------- locale-style members (#186 P9g)
+
+  /** The members named by the body's `%opaque` items, while it is elaborated; the lifted globals of the
+   *  member functions they name. */
+  var opaqueMembers: Set[Name] = Set.empty
+  val opaqueLifted: mutable.Set[Int] = mutable.HashSet.empty
+
+  /** The local names that each member of the body being elaborated resolves (its declaration, definition,
+   *  clauses or rules), for [[freeMembers]]; and those of the member being elaborated. */
+  private var bodyUses: mutable.Map[Name, mutable.Set[Name]] = mutable.HashMap.empty
+  private var memberUses: mutable.Set[Name] | Null = null
+
+  /** A local name resolved ([[Names.resolve]]): a use of the member being elaborated. */
+  def noteLocalUse(n: Name): Unit =
+    val u = memberUses
+    if u != null then u += n
+
+  private def collectingUses[A](n: Name)(f: => A): A =
+    val saved = memberUses
+    val mine = mutable.HashSet.empty[Name]
+    memberUses = mine
+    try f
+    finally
+      memberUses = saved
+      bodyUses.getOrElseUpdate(n, mutable.HashSet.empty) ++= mine
+      if saved != null then saved ++= mine
+
+  /** The meta members that mention no object constant of the body, directly or through other members,
+   *  with the members each mentions: the greatest set closed under the members' uses. A use is a local
+   *  name resolved while the member was elaborated, so a binder named like an object constant counts as
+   *  a mention (a member is then read through an instance, as before). */
+  private def freeMembers(members: List[Member], uses: Map[Name, Set[Name]]): Map[Name, Set[Name]] =
+    val objects = members.collect { case m if m.kind.isInstanceOf[MemberKind.Object] => m.name }.toSet
+    val defined = members.collect { case m if m.kind.isInstanceOf[MemberKind.Defined] => m.name }.toSet
+    def usesOf(n: Name) = uses.getOrElse(n, Set.empty)
+    var free = defined.filterNot(n => usesOf(n).exists(objects))
+    var changed = true
+    while changed do
+      val next = free.filter(n => usesOf(n).forall(u => !defined(u) || free(u)))
+      changed = next.size != free.size
+      free = next
+    free.map { n =>
+      // the members it needs, transitively
+      val seen = mutable.LinkedHashSet(n)
+      val todo = mutable.Stack(n)
+      while todo.nonEmpty do for u <- usesOf(todo.pop()) if defined(u) && seen.add(u) do todo.push(u)
+      n -> (seen.toSet - n)
+    }.toMap
+
+  /** `%opaque m₁ … mₙ.` in a body: every `mᵢ` must be a member definition or member function of it. */
+  private def checkOpaqueMembers(d: Directive, members: List[Member]): Unit = d.args match
+    case DirArgs.Apply(args, None) if args.nonEmpty =>
+      for a <- args do
+        a match
+          case n @ Ident(name) =>
+            members.find(_.name == name) match
+              case Some(m) =>
+                m.kind match
+                  case MemberKind.Defined(_) =>
+                  case MemberKind.Object(_) => fail(DirectiveProblem.NotOpaqueable(name, "an object constant of the body", n.span))
+              // its declaration failed (reported there)
+              case None if state.erroneous(name) =>
+              case None => fail(DirectiveProblem.NotOpaqueable(name, "not a member of this module body", n.span))
+          case other => fail(DirectiveProblem.OpaqueArgument(other.span))
+    case _ => fail(DirectiveProblem.OpaqueArgument(d.span))
+
+  /** The names of the body's own relations (and structs), which its members write unqualified. */
+  private def ownRelationNames(parts: BodyItems): Set[Name] =
+    parts.members.collect { case d: Decl if !parts.lifted(d.name.name) && ProgramPhase.declaresRelation(d) => d.name.name }.toSet
+
+  /** The variables of the body's context that it may read relations of (a functor's parameters). */
+  private def contextVariables(c: Cxt): Set[Name] =
+    c.binders.filter(b => b.defn.isEmpty && c.scope.get(b.name).exists(c.binder(_) eq b)).map(_.name).toSet
+
+  /** What a coerced atom written unqualified in the body's program-dependent members names (#186 P9g): an
+   *  own relation, a member bound in the body (or, in a member function's clauses, re-bound for them);
+   *  or a relation `x.r` of a variable `x` of the body's context `c0`. A local variable of the same name
+   *  shadows them. */
+  private def bodyAmbient(c0: Cxt, parts: BodyItems): Ambient =
+    val own = ownRelationNames(parts)
+    val context = contextVariables(c0)
+    def member(b: Binder) = b.origin == BinderOrigin.Member || b.defn.isDefined && b.site.isEmpty
+    Ambient(
+      (c, n) => own(n) && c.scope.get(n).exists(l => member(c.binder(l))),
+      (c, x, r) => context(x) && c.scope.get(x).exists(l => c.binder(l).site.isEmpty && relationField(c, l, r)),
+      body = true
+    )
+

@@ -80,6 +80,11 @@ enum ElabProblem extends Problem:
   case TypeFunction(name: String, at: Span)
   case NotAModule(name: String, tpe: String, at: Span)
 
+  /** `(f ā).m` with variables in `ā` (`app`), for a meta member `m` that mentions an object constant of
+   *  the body (`objects` are the body's): it needs an instance, which an application to variables does
+   *  not have (#186 P9g). */
+  case NeedsInstance(app: String, member: String, objects: List[String], at: Span)
+
   /** A family's type argument (`what`: "type argument `A` of family `nil`") that nothing determines. */
   case UndeterminedTypeArgument(what: String, at: Span)
 
@@ -129,7 +134,7 @@ enum ElabProblem extends Problem:
     case _: Unclassifiable | _: TypeFunction | _: UnknownBaseType | _: MisplacedBuiltin | _: MisplacedPostulate | _: PrimitiveType =>
       Code.E0103
     case _: PostulateInSafeMode => Code.E0925
-    case _: NotAModule => Code.E0107
+    case _: NotAModule | _: NeedsInstance => Code.E0107
     case _: UndeterminedTypeArgument => Code.E0206
     case _: SignatureMismatch | _: MissingSignatureField => Code.E0204
     case _: CyclicRefinement => Code.E0404
@@ -176,6 +181,7 @@ enum ElabProblem extends Problem:
     case PostulateInSafeMode(_, s) => s
     case PrimitiveType(_, _, s) => s
     case NotAModule(_, _, s) => s
+    case NeedsInstance(_, _, _, s) => s
     case UndeterminedTypeArgument(_, s) => s
     case SignatureMismatch(_, _, s) => s
     case MissingSignatureField(_, _, s) => s
@@ -225,6 +231,7 @@ enum ElabProblem extends Problem:
     case PostulateInSafeMode(n, _) => msg"postulate ${Src(n)} is not allowed with --safe"
     case PrimitiveType(n, e, _) => msg"the primitive ${Src(s"%builtin $n")} has type ${Src(e)}"
     case NotAModule(n, _, _) => msg"${Src(n)} is not a module"
+    case NeedsInstance(a, _, _, _) => msg"${Src(a)} is not a module here: it has no instance"
     case UndeterminedTypeArgument(w, _) => Msg.text(s"cannot infer $w")
     case _: SignatureMismatch => msg"signature mismatch"
     case MissingSignatureField(l, _, _) => msg"signature mismatch: missing field ${Src(l)}"
@@ -265,6 +272,7 @@ enum ElabProblem extends Problem:
     case _: PostulateInSafeMode => msg"an axiom: a constant without a value"
     case _: PrimitiveType => msg"declared with another type"
     case NotAModule(_, t, _) => msg"has meta type ${Src(t)}"
+    case NeedsInstance(_, m, _, _) => msg"the member ${Src(m)} needs an instance"
     case _: UndeterminedTypeArgument => msg"type not determined"
     case SignatureMismatch(e, _, _) => msg"expected ${Src(e)}"
     case MissingSignatureField(l, _, _) => msg"field ${Src(l)} is required"
@@ -312,6 +320,14 @@ enum ElabProblem extends Problem:
     case _: Unclassifiable =>
       List(msg"a declaration `c : A -> ... -> R.` declares a relation if R is `rel` and a constructor if R is an open type")
     case _: NotAModule => List(msg"a path `m.x` requires `m` to be module-valued")
+    case NeedsInstance(a, m, objects, _) =>
+      val shown = objects.take(3).map(o => s"`$o`").mkString(", ") + (if objects.length > 3 then ", …" else "")
+      List(
+        Msg.text(
+          s"a meta member that mentions no object constant of the body is read from a functor applied without an instance; `$m` mentions one of its object constants ($shown), directly or through other members"
+        ),
+        Msg.text(s"an instance is created where a module is evaluated with closed arguments; `$a` has variables as arguments")
+      )
     case MisplacedExport(_, None) =>
       List(msg"`%export` states the signature of a file; a module body is ascribed where it is defined, `m : S = { … }.`")
     case SignatureMismatch(_, n, _) => List(Msg.text(n))
@@ -323,6 +339,7 @@ enum ElabProblem extends Problem:
     case _ => Nil
 
   override def helps: List[Msg] = this match
+    case NeedsInstance(_, m, _, _) => List(Msg.text(s"apply the functor to closed arguments in a definition, `i = f …`, and use `i.$m`"))
     case MissingLabels(_, ms, head, _, _) =>
       List(
         if head then Msg.text("add " + ms.map(l => s"`$l = ...`").mkString(", "))

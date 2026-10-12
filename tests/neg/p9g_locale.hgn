@@ -1,0 +1,42 @@
+(* #186 P9g: what locale-style proofs do not cover. A declaration that writes a relation of its file as a
+   proposition is about the file's program, so a rule cannot use it (E0962, also through other
+   declarations); a nullary relation used as a type is its fact type (the proposition is `⊢ done`); a
+   relation of the file inside a module body belongs to no program there (E0960); a meta member that
+   mentions an object constant of its body needs an instance, which a functor applied to variables does not
+   have (E0107); `%opaque` in a body names its member definitions and functions (E0701). *)
+%use "std/graph".
+%use "std/semantics".
+%use "std/eq" (tt).
+
+city : type. berlin, paris, rome : city.
+hop : city -> city -> rel.
+hop berlin paris.
+done : rel.
+done.
+
+(* a rule that uses a declaration about the file's own relations *)
+proof : hop berlin paris = hop.1. (*~ W0003 *)
+pick : hop berlin paris -> ⇑city.
+pick _ = <rome>.
+far : city -> rel.
+far X :- X = $(pick proof). (*~ E0962 *)
+
+(* the fact type of a nullary relation, and the proposition *)
+flagged : done -> ⊢ done.
+flagged F = F. (*~ E0901 *)
+proved : ⊢ done = done.1.
+
+tc3 (g : graph) = { (*~ W0003 *)
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  (* the file's relation is not the body's *)
+  inside : {x y : city} -> hop x y -> path x y -> Type. (*~ E0960 *)
+  inside _ _ = Type.
+  (* a definition that mentions the object constant `path` *)
+  relation : ⇑(g.node -> g.node -> rel) = path.
+  %opaque path. (*~ E0701 *)
+}.
+
+needs : (G : graph) -> ⇑(G.node -> G.node -> rel).
+needs G = (tc3 G).relation. (*~ E0107 *)
+%opaque proved.

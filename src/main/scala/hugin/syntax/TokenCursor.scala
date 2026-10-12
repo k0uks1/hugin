@@ -305,7 +305,7 @@ private[syntax] abstract class TokenCursor(protected val src: SourceFile, protec
     case Tok.Var | Tok.Name | Tok.IntLit | Tok.FloatLit | Tok.StrLit | Tok.LParen | Tok.LBrace | Tok.LBrack | Tok.Dollar | Tok.Up | Tok
           .Quote | Tok.Hole |
         Tok.KwNot | Tok.Minus | Tok.Lt | Tok.Caret | Tok.KwCount | Tok.KwSum | Tok.KwMin | Tok.KwMax | Tok.KwType | Tok.KwRel | Tok.KwProp |
-        Tok.Directive | Tok.RuleName | Tok.Error | Tok.KwMatch | Tok.KwRewrite =>
+        Tok.Directive | Tok.RuleName | Tok.Error | Tok.KwMatch | Tok.KwRewrite | Tok.Entails =>
       true
     case _ => false
 

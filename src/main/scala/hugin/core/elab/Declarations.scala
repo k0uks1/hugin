@@ -270,9 +270,10 @@ trait Declarations:
     else GlobalKind.Definition(tm, eval(Nil, tm))
 
   /** Whether the global `id` named `name` is made opaque by a directive `%opaque name.` of the file: a
-   *  definition or function that the file declares at its level (not a member of a module body). */
+   *  definition or function that the file declares at its level; or a member function of a module body
+   *  that the body's `%opaque` names (#186 P9g). */
   def opaqueHere(name: Name, id: Int): Boolean =
-    state.opaque(name) && state.bodyDeclared.isEmpty && scope.get(name).contains(id)
+    state.opaque(name) && state.bodyDeclared.isEmpty && scope.get(name).contains(id) || opaqueLifted(id)
 
   /** `x : A = e.` declared with its type alone, a postulate until its value is elaborated. */
   def declareSignature(d: Decl): Unit =

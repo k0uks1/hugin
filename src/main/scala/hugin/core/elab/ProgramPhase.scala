@@ -1,7 +1,7 @@
 package hugin.core
 package elab
 
-import hugin.syntax.TreeOps
+import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 
 import scala.collection.mutable
@@ -53,8 +53,16 @@ object ProgramPhase:
    *  `deferrable`: whether a program-dependent item can be elaborated after the object items (`%use`, a
    *  subtyping edge, an object constant of a body cannot: they are elaborated before, where the use of a
    *  program-dependent name is E0962). */
-  def classify(items: List[Item], programOfFree: Boolean, deferrable: Item => Boolean): (List[Item], Deferred) =
-    val direct = items.zipWithIndex.flatMap((it, i) => if mayMentionHere(it) then usesHere(it, programOfFree).map(i -> _) else None)
+  def classify(
+      items: List[Item],
+      programOfFree: Boolean,
+      deferrable: Item => Boolean,
+      own: OwnRelations = OwnRelations.none
+  ): (List[Item], Deferred) =
+    val direct = items.zipWithIndex.flatMap { (it, i) =>
+      val named = if mayNameProgram(it) then usesHere(it, programOfFree) else None
+      named.orElse(if own.isEmpty then None else usesOwn(it, own)).map(i -> _)
+    }
     if direct.isEmpty then (items, Deferred.empty)
     else
       val owners = items.map(owner).toVector
@@ -98,19 +106,23 @@ object ProgramPhase:
     case r: Rule => r.heads.headOption.flatMap(TreeOps.headName).map(_.name)
     case _ => None
 
-  /** Whether the text of an item has the word `here` (an item without a position is walked). */
-  private def mayMentionHere(item: Item): Boolean =
+  /** Whether the text of an item has the word `here` or a turnstile, `⊢` or `|-` (the prefix judgment
+   *  `⊢ r t̄`, #186 P9g); an item without a position is walked. */
+  private def mayNameProgram(item: Item): Boolean =
     val sp = item.span
     if !sp.exists then true
     else
       // within the item's text only (an item without a slice of its own has the whole file as its origin)
       val s = sp.origin.content
-      val end = sp.until.min(s.length) - 4
+      val until = sp.until.min(s.length)
+      val end = until - 4
       def ident(ch: Char) = ch.isLetterOrDigit || ch == '_' || ch == '\''
       var i = sp.from.max(0)
       var found = false
-      while !found && i <= end do
-        if s.charAt(i) == 'h' && s.startsWith("here", i) && (i == 0 || !ident(s.charAt(i - 1))) &&
+      while !found && i < until do
+        val ch = s.charAt(i)
+        if ch == '⊢' || ch == '|' && i + 1 < until && s.charAt(i + 1) == '-' then found = true
+        else if ch == 'h' && i <= end && s.startsWith("here", i) && (i == 0 || !ident(s.charAt(i - 1))) &&
           (i + 4 >= s.length || !ident(s.charAt(i + 4)))
         then found = true
         i += 1
@@ -128,8 +140,8 @@ object ProgramPhase:
     while found.isEmpty && todo.nonEmpty do
       todo.remove(todo.length - 1) match
         case _: ModuleBody =>
-        case Judgment(p, db, atom) =>
-          if isHere(p) then found = Some("here ⊢ …")
+        case j @ Judgment(p, db, atom) =>
+          if isHere(p) then found = Some(if TreeOps.isPrefixJudgment(j) then "⊢ …" else "here ⊢ …")
           else
             todo += p
             todo ++= db
@@ -139,3 +151,112 @@ object ProgramPhase:
         case it: Iterable[?] => todo ++= it
         case _ =>
     found
+
+  // ---------------------------------------------------------------- relations as propositions (#186 P9g)
+
+  /** The relations that the declarations of a scope write unqualified as propositions of the scope's
+   *  program (C3, reference: std/semantics, "Relations as propositions"): its own relations by name
+   *  (`path x y`), and in a module body the relations of the variables of its context, `param(g, edge)`
+   *  for `g.edge x y` (a functor's parameter). */
+  final case class OwnRelations(names: Set[Name], param: (Name, Name) => Boolean, hasParams: Boolean):
+    def isEmpty: Boolean = names.isEmpty && !hasParams
+
+  object OwnRelations:
+    val none: OwnRelations = OwnRelations(Set.empty, (_, _) => false, false)
+
+  /** Whether a declaration's type is a relation type, `τ₁ -> … -> rel` (or a struct, `s : type = { … }`):
+   *  an object constant that a scope's program owns as a relation. Syntactic: the declared type ends in
+   *  `rel`. */
+  def declaresRelation(d: Decl): Boolean =
+    def endsInRel(t: Tree): Boolean = t match
+      case Arrow(_, _, cod) => endsInRel(cod)
+      case Parens(i) => endsInRel(i)
+      case Keyword(Kw.Rel) => true
+      case _ => false
+    d.params.isEmpty && d.sup.isEmpty && (d.defn match
+      case None => endsInRel(d.tpe)
+      case Some(_: RecordType) => d.tpe.isInstanceOf[Keyword] && d.tpe.asInstanceOf[Keyword].kw == Kw.Type
+      case Some(_) => false
+    )
+
+  /** The form in which an item writes a relation of its scope as a proposition: an applied own relation
+   *  (or parameter relation) in a *syntactic type position*, the candidates of the coercion's pre-pass
+   *  (#186 P9b, [[JudgmentCoercion.coercionCandidates]]): a declared type, a parameter's type, an arrow's
+   *  domain and codomain, a binder's type, a field type, and the arguments of an application in a type
+   *  position (`iff (path x y) …`, whose parameter types are not known before elaboration: a superset),
+   *  and an unapplied relation as such an argument (the η form, `symmetric reach`).
+   *  Not in object code (quotes, `⇑`, rules, a judgment's atom) nor in the bodies it contains. The value
+   *  of a definition is a type position if its declared type is `Type`. Binders are ignored, as for the
+   *  other forms: a local variable named like a relation may defer a declaration that did not need it. */
+  def usesOwn(item: Item, own: OwnRelations): Option[String] =
+    var found: Option[String] = None
+    def shown(t: Tree): String =
+      if t.span.exists && t.span.until > t.span.from then t.span.text else hugin.syntax.Printer.show(t)
+    def relation(head: Tree): Boolean = head match
+      case Parens(i) => relation(i)
+      case Ident(n) => own.names(n)
+      case Select(Ident(p), r) => own.param(p, r)
+      case Select(VarRef(p), r) => own.param(p, r)
+      case _ => false
+    def atom(t: Tree): Boolean =
+      val (head, args) = TreeOps.flattenApp(t)
+      args.nonEmpty && !args.exists(_.isInstanceOf[NamedArg]) && relation(head)
+    def ty(t: Tree): Unit = if found.isEmpty then
+      t match
+        case Parens(i) => ty(i)
+        case Arrow(_, d, c) =>
+          ty(d)
+          ty(c)
+        case ImplicitPi(_, d, c) =>
+          ty(d)
+          ty(c)
+        case ImplicitBinder(_, tp) => ty(tp)
+        case Ascribe(_, tp) => ty(tp)
+        case RecordType(es) => es.foreach { case SigEntry.FieldDecl(_, tp) => ty(tp); case _ => }
+        case a: Apply =>
+          if atom(a) then found = Some(shown(a))
+          else
+            val (head, args) = TreeOps.flattenApp(a)
+            expr(head)
+            // an unapplied relation as an argument: the η form (`symmetric reach`)
+            args.find(relation) match
+              case Some(r) => found = Some(shown(r))
+              case None => args.foreach(ty)
+        case other => expr(other)
+    def expr(t: Any): Unit = if found.isEmpty then
+      t match
+        case _: ModuleBody | _: Quote | _: CodeQuote | _: LiftE | _: Rule | _: Query | _: Directive => ()
+        case Judgment(p, db, _) =>
+          expr(p)
+          db.foreach(expr)
+        case a @ (_: Arrow | _: ImplicitPi | _: RecordType) => ty(a.asInstanceOf[Tree])
+        case Lambda(_, tp, body) =>
+          tp.foreach(ty)
+          expr(body)
+        case Ascribe(x, tp) =>
+          expr(x)
+          ty(tp)
+        case Param.Typed(_, tp, _) => ty(tp)
+        case p: Product => p.productIterator.foreach(expr)
+        case it: Iterable[?] => it.foreach(expr)
+        case _ =>
+    def isUniverse(t: Tree): Boolean = t match
+      case Parens(i) => isUniverse(i)
+      case VarRef("Type") => true
+      case Apply(VarRef("Type"), _) => true
+      case _ => false
+    def walk(it: Item): Unit = it match
+      case d: Decl =>
+        d.params.foreach(expr)
+        ty(d.tpe)
+        d.defn.foreach(v => if isUniverse(d.tpe) then ty(v) else expr(v))
+      case d: Def =>
+        d.params.foreach(expr)
+        expr(d.rhs)
+      case c: Clause =>
+        expr(c.rhs)
+        c.where.foreach(walk)
+      case _ =>
+    walk(item)
+    found
+
