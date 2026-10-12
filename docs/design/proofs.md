@@ -2208,8 +2208,8 @@ Decisions made during implementation are listed here with their PR.
   (`g : { node : type, … }`), as for any record type alias.
 - *`decide`.* `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives
   p d a`, appended to `std/semantics` (additive). It shares its name with `std/decide`'s generic `decide`,
-  kept because chapter 1 writes `decide 3 tt`; p5_holds and the reference's `holds` example now reach the
-  generic one through `%import "std/decide"`. With `programOf here` deferred (P7a), the example proves
+  kept because chapter 1 writes `decide 3 tt`; p5_holds opens `std/semantics` selectively, and the
+  reference's `holds` example reaches the generic one through `%import "std/decide"`. With `programOf here` deferred (P7a), the example proves
   `trip ⊢ path berlin rome` of a module whose facts are in its body: input relations contribute nothing to
   `holds`, so chapter 1's `tiny` over the input relation `demo` would not evaluate.
 - *Adequacy.* Stated in the reference (std/semantics, "Adequacy") for the positive fragment: a run derives
