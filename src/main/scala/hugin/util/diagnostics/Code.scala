@@ -164,6 +164,8 @@ enum Code(
   case E0955 extends Code(955, Phase.Elaboration, "`--certify` without its library")
   case E0956 extends Code(956, Phase.Elaboration, "run outside the certified fragment")
   case E0957 extends Code(957, Phase.Elaboration, "run whose certificate is rejected")
+  case E0960 extends Code(960, Phase.Elaboration, "applied relation used as a meta type")
+  case E0961 extends Code(961, Phase.Elaboration, "judgment over a program with negation or aggregates")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
   case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")

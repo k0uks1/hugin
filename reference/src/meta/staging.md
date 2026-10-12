@@ -43,6 +43,23 @@ conversion ([Kovács 2022](../notation.md#references)):
   converted by its [lifting](#lifting);
 - `⇑` is inserted where an object type is used as a meta type.
 
+A relation, struct or constructor used as a type is its [fact type](../object/types.md#fact-types), also
+where a meta type is expected: `w : road = <road berlin paris>.` is the identity of a fact, of type
+`⇑road`, and so is a value of a nullary relation's fact type. A relation *applied* to arguments is not an
+object type: under `⇑` it would be the fact type of an application, which no object term has. It is an
+error ([E0960](../errors/E0960.md)) if an applied relation or struct is used where a meta type is expected
+(checked against a universe, or as the domain, codomain or binder type of a meta function type), if it is
+written under an explicit lift, `⇑(r t̄)`, or if a relation is used unapplied where a family of meta types
+is expected (`⇑A -> Type`), which eta-expansion would apply. The proposition that a program derives an
+atom is a judgment of [`std/semantics`](../std/semantics.md#the-judgment-notation), `P ⊢ r t̄`.
+
+```hugin,compile_fail,E0960
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+same : {x y : city} -> road x y -> road x y.
+same P = P.
+```
+
 Functions are converted by eta-expansion: a relation of type `⇑(A -> rel)` can be passed where a formula
 function `⇑A -> ⇑prop` is expected. `--print-after elaborate` shows the inserted quotes and splices.
 

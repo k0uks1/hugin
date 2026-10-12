@@ -137,7 +137,7 @@ trait Declarations:
         else (checkType(c2, d.tpe, Stage.S1), Stage.S1)
       if imps.isEmpty && ps.isEmpty then (body, st)
       else
-        val body1 = if st == Stage.S0 then liftType(c2, body) else body
+        val body1 = if st == Stage.S0 then liftType(c2, body, d.tpe.span) else body
         (pis(imps, Icit.Impl, pis(ps, Icit.Expl, body1)), Stage.S1)
     finally state.unknownTypesAre = Stage.S1
 

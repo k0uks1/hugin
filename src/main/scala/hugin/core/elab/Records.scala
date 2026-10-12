@@ -50,7 +50,9 @@ trait Records:
       try Some(undoOnFailure(inferU(c, tpe)))
       catch case _: ElabError => None
     inferred match
-      case Some((t, Stage.S0, _)) if isObjectConstantType(ev(c, t)) => Tm.Lift(t)
+      case Some((t, Stage.S0, _)) if isObjectConstantType(ev(c, t)) =>
+        requireNoAppliedFact(c, t, tpe.span)
+        Tm.Lift(t)
       case _ => check(c, tpe, Val.U1(l), Stage.S1)
 
   private def requirement(labels: List[Name])(e: SigEntry): Option[SigReq] = e match

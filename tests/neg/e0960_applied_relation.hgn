@@ -1,0 +1,34 @@
+(* An applied relation of an object program is not a meta type (E0960): under `⇑` it would be the fact
+   type of an application, which no object term has. The proposition that a program derives it is the
+   judgment `P ⊢ r t̄`. Rejected for an instance, a functor application, a parameter's relation, an explicit
+   `⇑` and a relation where a type family is expected (the eta form). The unapplied relation and a nullary
+   relation stay fact types. *)
+%use "std/graph".
+%use "std/semantics".
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+  done : rel.
+}.
+
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+%output fast.path.
+
+instance : {x y : city} -> fast.path x y -> fast.path x y. (*~ E0960 *)
+instance P = P.
+applied (g : graph) : {x y : g.node} -> (tc g).path x y -> Type = [_] Type. (*~ E0960 *)
+param (g : graph) (x : g.node) (y : g.node) : Type = g.edge x y. (*~ E0960 *)
+explicit : {x y : city} -> ⇑(fast.path x y) -> Type. (*~ E0960 *)
+explicit _ = Type.
+eta : ⇑city -> ⇑city -> Type = fast.path. (*~ E0960 *)
+
+(* the fact identities of a relation and of a nullary relation, as before *)
+identity : fast.path = <fast.path berlin paris>. (*~ W0003 *)
+flag : fast.done -> Type.
+flag _ = Type.
+used : Type = { a : fast.path -> Type, b : Type }.
