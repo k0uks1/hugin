@@ -1,0 +1,223 @@
+(* std/strata: the meaning of stratified programs with negation and aggregates (reference: std/strata),
+   over the program values of `std/semantics`. A stratum is read with the facts of the strata below it
+   as its database `d`: a negated atom holds if no values of its local variables make it a fact of `d`,
+   and an aggregate ranges over the values for which its body holds in `d`, given as a list that is
+   shown to be all of them, each once. `nderives` is `derives` with these two premises; since they read
+   `d`, not the derivations, the families stay strictly positive. The perfect model iterates `nderives`
+   over the strata (Apt, Blair and Walker 1988; Przymusinski 1988). A separate file, so that the many
+   programs that load `std/semantics` for the positive fragment do not elaborate it. *)
+%use "std/reflect" (bool, true, false, if, list, nil, cons, append, option, none, some, agg_op, acount, asum, amin,
+  amax, ceq, cmp_op).
+%use "std/nat" (nat, equal).
+%use "std/int" (iless).
+%use "std/eq" (eq, refl, subst, empty, unit, tt).
+%use "std/decide" (so).
+%use "std/list" (map, any, filter, length).
+%use "std/semantics".
+
+(* the values of a literal's local variables before those of the rule *)
+eappend : {us ts : list ⇑type} -> env us -> env ts -> env (append us ts).
+eappend enil Xs = Xs.
+eappend (econs Y Ys) Xs = econs Y (eappend Ys Xs).
+
+(* an instantiated atom that is defined and not a fact of `m`: a formula with an undefined operation does
+   not hold (reference: object/arithmetic) *)
+notIn : db -> patom -> Type.
+notIn M (pat R (some Vs)) = M (atom R Vs) -> empty.
+notIn M (pat R none) = empty.
+
+(* no values of the local variables `us` make the atom a fact of `m` *)
+absent : db -> {ts : list ⇑type} -> env ts -> (us : list ⇑type) -> catom (append us ts) -> Type.
+absent M Xs Us B = (ys : env Us) -> notIn M (instAtom (eappend ys Xs) B).
+
+(* a list without repetitions *)
+distinct : {A : Type} -> list A -> Type.
+distinct [] = unit.
+distinct (X :: Xs) = both (member X Xs -> empty) (distinct Xs).
+
+(* the value of an aggregate over the values of its term, `none` if one is undefined or if `min` or `max`
+   range over nothing; computed on meta integers, so that it does not depend on the order *)
+intsOf : list (option ⇑int) -> option (list int).
+intsOf [] = some [].
+intsOf (some X :: Ws) = optMap ([ns] intOf X :: ns) (intsOf Ws).
+intsOf (none :: Ws) = none.
+
+sumInts : list int -> int.
+sumInts [] = 0.
+sumInts (N :: Ns) = N + sumInts Ns.
+
+pickInt : (int -> int -> bool) -> int -> list int -> int.
+pickInt F N [] = N.
+pickInt F N (M :: Ms) = pickInt F (if (F M N) M N) Ms.
+
+aggInts : agg_op -> list int -> option int.
+aggInts acount Ns = some (length Ns).
+aggInts asum Ns = some (sumInts Ns).
+aggInts amin [] = none.
+aggInts amin (N :: Ns) = some (pickInt iless N Ns).
+aggInts amax [] = none.
+aggInts amax (N :: Ns) = some (pickInt ([a] [b] iless b a) N Ns).
+
+optBind : {A B : Type} -> option A -> (A -> option B) -> option B.
+optBind (some X) F = F X.
+optBind none F = none.
+
+aggOf : agg_op -> list (option ⇑int) -> option ⇑int.
+aggOf O Ws = optBind (intsOf Ws) ([ns] optBind (aggInts O ns) within64).
+
+(* the body of a negation or an aggregate, read in the database `m` of the strata below *)
+sat : db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+aggHolds : db -> {ts : list ⇑type} -> env ts -> (us : list ⇑type) -> agg_op -> cterm ts int ->
+           cterm (append us ts) int -> list (cbody (append us ts)) -> Type.
+sat M Xs [] = unit.
+sat M Xs (cpos B :: Bs) = both (atomIn M (instAtom Xs B)) (sat M Xs Bs).
+sat M Xs (ccmp O L R :: Bs) = both (holdsCmp O (instTerm Xs L) (instTerm Xs R)) (sat M Xs Bs).
+sat M Xs (cnot Us B :: Bs) = both (absent M Xs Us B) (sat M Xs Bs).
+sat M Xs (cagg Us O R T Cs :: Bs) = both (aggHolds M Xs Us O R T Cs) (sat M Xs Bs).
+
+(* an aggregate's finite witness: the values of its local variables for which its body holds, all of
+   them and each once, and the aggregate of its term over them is the value of `x` *)
+aggHolds M Xs Us O X T Bs = {
+  all : list (env Us),
+  sound : (ys : env Us) -> member ys all -> sat M (eappend ys Xs) Bs,
+  complete : (ys : env Us) -> sat M (eappend ys Xs) Bs -> member ys all,
+  once : distinct all,
+  value : holdsCmp ceq (aggOf O (map ([ys] instTerm (eappend ys Xs) T) all)) (instTerm Xs X) }.
+
+(* Derivations in a stratum: `derives` with negated atoms (`nneg`) and aggregates (`nagg`), which read
+   the database `d` *)
+nderives : program -> db -> gatom -> Type.
+npremises : program -> db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+ngiven : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} ->
+         so (p.input r) -> d (atom r vs) -> nderives p d (atom r vs).
+nfire : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} -> {c : crule} -> {xs : env c.vars} ->
+        member c p.rules -> npremises p d xs c.body -> member (pat r (some vs)) (map (instAtom xs) c.heads) ->
+        nderives p d (atom r vs).
+nnil : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> npremises p d xs [].
+npos : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> {r : rref} ->
+       {vs : list value} -> {bs : list (cbody ts)} ->
+       eq (instAtom xs b) (pat r (some vs)) -> nderives p d (atom r vs) -> npremises p d xs bs ->
+       npremises p d xs (cpos b :: bs).
+ncmp : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {t : ⇑type} -> {o : cmp_op} ->
+       {l r : cterm ts t} -> {bs : list (cbody ts)} ->
+       holdsCmp o (instTerm xs l) (instTerm xs r) -> npremises p d xs bs -> npremises p d xs (ccmp o l r :: bs).
+nneg : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {us : list ⇑type} ->
+       {b : catom (append us ts)} -> {bs : list (cbody ts)} ->
+       absent d xs us b -> npremises p d xs bs -> npremises p d xs (cnot us b :: bs).
+nagg : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {us : list ⇑type} -> {o : agg_op} ->
+       {x : cterm ts int} -> {t : cterm (append us ts) int} -> {cs : list (cbody (append us ts))} ->
+       {bs : list (cbody ts)} ->
+       aggHolds d xs us o x t cs -> npremises p d xs bs -> npremises p d xs (cagg us o x t cs :: bs).
+
+(* the strata: the stratum `s` of `p` has the rules with a head in `s` (a rule that builds a fact of an
+   earlier stratum belongs to it as well, reference: object/facts), and every fact of the strata below as
+   input. The perfect model starts from the input facts of `d` *)
+ownIn : list nat -> rref -> bool.
+ownIn S (own I) = any ([j] equal I j) S.
+ownIn S (arg L) = false.
+ownIn S (ext X) = false.
+
+relOf : {ts : list ⇑type} -> catom ts -> rref.
+relOf (cat R As) = R.
+
+headIn : list nat -> crule -> bool = [s] [c] any ([a] ownIn s (relOf a)) c.heads.
+
+anything : rref -> bool.
+anything R = true.
+
+layer : program -> list nat -> program =
+  [p] [s] { relations = p.relations, rules = filter (headIn s) p.rules, input = anything, strata = [s] }.
+
+inputs : program -> db -> gatom -> Type.
+inputs P D (atom R Vs) = both (so (P.input R)) (D (atom R Vs)).
+
+layers : program -> list (list nat) -> db -> gatom -> Type.
+layers P [] M A = M A.
+layers P (S :: Ss) M A = layers P Ss (nderives (layer P S) M) A.
+
+perfect : program -> db -> gatom -> Type = [p] [d] layers p p.strata (inputs p d).
+
+(* the facts of a stratum stay facts of the strata above it, and an input fact is in the perfect model *)
+kept : {p : program} -> (ss : list (list nat)) -> {m : db} -> {a : gatom} -> m a -> layers p ss m a.
+kept [] F = F.
+kept {p := P} (S :: Ss) {m := M} {a := atom R Vs} F =
+  kept {p := P} Ss {m := nderives (layer P S) M} {a := atom R Vs} (ngiven {p := layer P S} tt F).
+
+perfectInput : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} -> so (p.input r) -> d (atom r vs) ->
+               perfect p d (atom r vs).
+perfectInput {p := P} {d := D} {r := R} {vs := Vs} T F = kept {p := P} P.strata {m := inputs P D} {a := atom R Vs} { fst = T, snd = F }.
+
+(* a derivation of the positive fragment is one in a stratum *)
+toN : {p : program} -> {d : db} -> {a : gatom} -> derives p d a -> nderives p d a.
+toNPremises : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs : list (cbody ts)} ->
+              premises p d xs bs -> npremises p d xs bs.
+toN (given T F) = ngiven T F.
+toN (fire M Ps H) = nfire M (toNPremises Ps) H.
+toNPremises pnil = nnil.
+toNPremises (ppos E D Ps) = npos E (toN D) (toNPremises Ps).
+toNPremises (pcmp C Ps) = ncmp C (toNPremises Ps).
+
+(* Monotonicity in a stratum: more rules and input relations derive more facts, as in `grow`. More facts
+   in `d` do not: a negation or an aggregate that held may fail *)
+ngrow : {p q : program} -> {d : db} -> extends p q -> {a : gatom} -> nderives p d a -> nderives q d a.
+ngrowPremises : {p q : program} -> {d : db} -> extends p q -> {ts : list ⇑type} -> {xs : env ts} ->
+                {bs : list (cbody ts)} -> npremises p d xs bs -> npremises q d xs bs.
+ngrow X (ngiven {r := R} T F) = ngiven (X.inputs R T) F.
+ngrow X (nfire {c := C} M Ps H) = nfire (X.rules C M) (ngrowPremises X Ps) H.
+ngrowPremises X nnil = nnil.
+ngrowPremises X (npos E D Ps) = npos E (ngrow X D) (ngrowPremises X Ps).
+ngrowPremises X (ncmp C Ps) = ncmp C (ngrowPremises X Ps).
+ngrowPremises X (nneg N Ps) = nneg N (ngrowPremises X Ps).
+ngrowPremises X (nagg G Ps) = nagg G (ngrowPremises X Ps).
+
+(* The least model of a stratum: its derived facts are the least database that contains the input facts
+   of `d` and is closed under its rules, read with the atoms in it and the negations and aggregates in
+   `d` *)
+holdsWith : db -> db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
+holdsWith D M Xs [] = unit.
+holdsWith D M Xs (cpos B :: Bs) = both (atomIn M (instAtom Xs B)) (holdsWith D M Xs Bs).
+holdsWith D M Xs (ccmp O L R :: Bs) = both (holdsCmp O (instTerm Xs L) (instTerm Xs R)) (holdsWith D M Xs Bs).
+holdsWith D M Xs (cnot Us B :: Bs) = both (absent D Xs Us B) (holdsWith D M Xs Bs).
+holdsWith D M Xs (cagg Us O R T Cs :: Bs) = both (aggHolds D Xs Us O R T Cs) (holdsWith D M Xs Bs).
+
+nmodel : program -> db -> db -> Type.
+isNModel : {p : program} -> {d m : db} ->
+           ((r : rref) -> (vs : list value) -> so (p.input r) -> d (atom r vs) -> m (atom r vs)) ->
+           ((c : crule) -> member c p.rules -> (xs : env c.vars) -> holdsWith d m xs c.body -> (r : rref) ->
+            (vs : list value) -> member (pat r (some vs)) (map (instAtom xs) c.heads) -> m (atom r vs)) ->
+           nmodel p d m.
+
+nleast : {p : program} -> {d m : db} -> nmodel p d m -> {a : gatom} -> nderives p d a -> m a.
+nleastPremises : {p : program} -> {d m : db} -> nmodel p d m -> {ts : list ⇑type} -> {xs : env ts} ->
+                 {bs : list (cbody ts)} -> npremises p d xs bs -> holdsWith d m xs bs.
+nleast (isNModel In Ru) (ngiven {r := R} {vs := Vs} T F) = In R Vs T F.
+nleast {d := D} {m := Mo} (isNModel In Ru) (nfire {r := R} {vs := Vs} {c := C} {xs := Xs} I Ps H) =
+  Ru C I Xs (nleastPremises {d := D} {m := Mo} (isNModel In Ru) Ps) R Vs H.
+nleastPremises M nnil = tt.
+nleastPremises {m := Mo} M (npos E D Ps) = { fst = subst (atomIn Mo) (eqBack E) (nleast M D), snd = nleastPremises M Ps }.
+nleastPremises M (ncmp C Ps) = { fst = C, snd = nleastPremises M Ps }.
+nleastPremises M (nneg N Ps) = { fst = N, snd = nleastPremises M Ps }.
+nleastPremises M (nagg G Ps) = { fst = G, snd = nleastPremises M Ps }.
+
+nposFrom : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} ->
+           {bs : list (cbody ts)} -> (q : patom) -> eq (instAtom xs b) q -> atomIn (nderives p d) q ->
+           npremises p d xs bs -> npremises p d xs (cpos b :: bs).
+nposFrom (pat R (some Vs)) E D Ps = npos E D Ps.
+nposFrom (pat R none) E () Ps.
+
+fromHoldsWith : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> (bs : list (cbody ts)) ->
+                holdsWith d (nderives p d) xs bs -> npremises p d xs bs.
+fromHoldsWith [] H = nnil.
+fromHoldsWith {xs := Xs} (cpos B :: Bs) H =
+  nposFrom {xs := Xs} {b := B} (instAtom Xs B) refl H.fst (fromHoldsWith Bs H.snd).
+fromHoldsWith (ccmp O L R :: Bs) H = ncmp H.fst (fromHoldsWith Bs H.snd).
+fromHoldsWith (cnot Us B :: Bs) H = nneg H.fst (fromHoldsWith Bs H.snd).
+fromHoldsWith (cagg Us O R T Cs :: Bs) H = nagg H.fst (fromHoldsWith Bs H.snd).
+
+nderivesModel : {p : program} -> {d : db} -> nmodel p d (nderives p d) =
+  isNModel ([r] [vs] [t] [f] ngiven t f) ([c] [i] [xs] [h] [r] [vs] [m] nfire {xs := xs} i (fromHoldsWith c.body h) m).
+
+nleastModel : {p : program} -> {d : db} -> (a : gatom) ->
+              { to : nderives p d a -> (m : db) -> nmodel p d m -> m a,
+                from : ((m : db) -> nmodel p d m -> m a) -> nderives p d a }.
+nleastModel {p := P} {d := D} A = { to = [x] [m] [mm] nleast mm x, from = [f] f (nderives P D) nderivesModel }.

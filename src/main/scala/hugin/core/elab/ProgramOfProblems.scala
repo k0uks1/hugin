@@ -7,7 +7,8 @@ import scala.language.implicitConversions
 
 /** The problems of `programOf` (reference: std/quote, "Programs as values"): the libraries it builds on
  *  are not loaded (E0940), its argument is not a functor, a functor application or a module (E0941), or a
- *  rule of the module is outside what `std/semantics` models (E0942). Terms are given as shown to users. */
+ *  rule of the module is outside what `std/semantics` models (E0942), or the module is not stratified
+ *  (E0950). Terms are given as shown to users. */
 enum ProgramOfProblem extends Problem:
   /** `programOf` in a program that does not load `std/quote` and `std/semantics`. */
   case NoLibrary(at: Span)
@@ -19,28 +20,39 @@ enum ProgramOfProblem extends Problem:
   /** A rule of the module at `rule` that `programOf` cannot reify, for `reason`. */
   case CannotReify(reason: String, rule: Span, at: Span)
 
+  /** The relation `relation` of the module depends on `read` through a negation or an aggregate of the
+   *  rule at `rule`, and `read` depends on `relation`: the module has no strata. */
+  case NotStratified(relation: String, read: String, rule: Span, at: Span)
+
   def code: Code = this match
     case _: NoLibrary => Code.E0940
     case _: NotAModule => Code.E0941
     case _: CannotReify => Code.E0942
+    case _: NotStratified => Code.E0950
 
   def primary: Span = this match
     case NoLibrary(s) => s
     case NotAModule(_, _, s) => s
     case CannotReify(_, _, s) => s
+    case NotStratified(_, _, _, s) => s
 
   def message: Msg = this match
     case _: NoLibrary => msg"`programOf` needs the libraries `std/quote` and `std/semantics`"
     case NotAModule(p, _, _) => msg"${Src(p)} is not a functor, a functor application or a module"
     case CannotReify(reason, _, _) => msg"cannot reify a rule as a program value: " ++ Msg.text(reason)
+    case NotStratified(r, s, _, _) =>
+      if r == s then msg"the module is not stratified: ${Src(r)} depends on itself through a negation or an aggregate"
+      else
+        msg"the module is not stratified: ${Src(r)} reads ${Src(s)} through a negation or an aggregate, and ${Src(s)} depends on ${Src(r)}"
 
   override def primaryLabel: Msg = this match
     case _: NoLibrary => msg"`programOf` is used here"
     case _: NotAModule => msg"expected a module"
-    case _: CannotReify => msg"in the program of this module"
+    case _: CannotReify | _: NotStratified => msg"in the program of this module"
 
   override def labels: List[(Span, Msg)] = this match
     case CannotReify(_, rule, at) if rule.exists && rule != at => List(rule -> msg"this rule")
+    case NotStratified(_, _, rule, at) if rule.exists && rule != at => List(rule -> msg"this rule")
     case _ => Nil
 
   override def notes: List[Msg] = this match
@@ -53,7 +65,11 @@ enum ProgramOfProblem extends Problem:
       List(msg"`programOf` reifies the rules of a module body: of a functor, of a functor applied to arguments, or of a module")
     case CannotReify(_, _, _) =>
       List(
-        msg"`std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module"
+        msg"`std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module"
+      )
+    case NotStratified(_, _, _, _) =>
+      List(
+        msg"a negation or an aggregate reads the facts of an earlier stratum, which are complete when it is read (reference: object/negation); the perfect model of `std/strata` needs these strata"
       )
 
   override def helps: List[Msg] = this match

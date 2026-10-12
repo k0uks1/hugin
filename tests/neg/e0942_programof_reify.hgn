@@ -1,12 +1,13 @@
-(* Rules outside the positive fragment of `std/semantics` cannot be reified by `programOf` (E0942):
-   negation, string concatenation, and a constructor term of a constructor the module declares. *)
+(* Rules outside what `std/semantics` models cannot be reified by `programOf` (E0942): disjunction,
+   string concatenation, a constructor term of a constructor the module declares, the minimum of
+   strings, and a relation with a bound column. *)
 %use "std/semantics".
 %use "std/quote".
 graph2 : Type = { node : type, edge : node -> node -> rel }.
 lonely (g : graph2) = {
   isolated : g.node -> rel.
   marked : g.node -> rel.
-  isolated X :- g.edge X X, not marked X.
+  isolated X :- g.edge X X, (marked X ; g.edge X _).
 }.
 p : graph2 -> program = programOf lonely. (*~ E0942 *)
 names (g : graph2) = {
@@ -23,3 +24,15 @@ local (g : graph2) = {
   drawn (dot N) :- size N.
 }.
 r : graph2 -> program = programOf local. (*~ E0942 *)
+first (g : graph2) = {
+  name : string -> rel.
+  earliest : string -> rel.
+  earliest M :- M = min { N | name N }.
+}.
+t : graph2 -> program = programOf first. (*~ E0942 *)
+wg : Type = { node : type, edge : node -> node -> int -> rel }.
+nearest (g : wg) = {
+  dist : (v : g.node) -> (d : min int) -> rel.
+  dist V D :- g.edge _ V D.
+}.
+u : wg -> program = programOf nearest. (*~ E0942 *)

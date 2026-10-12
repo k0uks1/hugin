@@ -38,6 +38,7 @@
     - [`std/eq`](std/eq.md)
     - [`std/decide`](std/decide.md)
     - [`std/semantics`](std/semantics.md)
+    - [`std/strata`](std/strata.md)
     - [`std/quote`](std/quote.md)
     - [`std/list`](std/list.md)
     - [`std/directives`](std/directives.md)
