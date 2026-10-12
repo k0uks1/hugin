@@ -1,5 +1,6 @@
-(* #186 P2: `%opaque` names definitions and functions by clauses of the file (E0701), at the level of
-   the file (E0907) *)
+(* #186 P2: `%opaque` names definitions and functions by clauses of the file (E0701); in a module body
+   (#186 P9g) it names the body's member definitions and functions: `four` is accepted, the object
+   constant `hop` is not (E0701) *)
 %use "std/eq".
 city : type.
 road : city -> city -> rel.
@@ -10,5 +11,6 @@ road : city -> city -> rel.
 %opaque (road). (*~ E0701 *)
 m = {
   four : nat = 4.
-  %opaque four. (*~ E0907 *)
+  hop : city -> city -> rel.
+  %opaque four hop. (*~ E0701 *)
 }.

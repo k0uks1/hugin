@@ -1,47 +1,47 @@
 error[E0701]: `road` cannot be made opaque
- --> tests/neg/pf_opaque_directive.hgn:6:9
+ --> tests/neg/pf_opaque_directive.hgn:7:9
   |
-6 | %opaque road. (*~ E0701 *)
+7 | %opaque road. (*~ E0701 *)
   |         ^^^^ an object constant
   |
   = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
 
 error[E0701]: `refl` cannot be made opaque
- --> tests/neg/pf_opaque_directive.hgn:7:9
+ --> tests/neg/pf_opaque_directive.hgn:8:9
   |
-7 | %opaque refl. (*~ E0701 *)
+8 | %opaque refl. (*~ E0701 *)
   |         ^^^^ not declared in this file
   |
   = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
 
 error[E0701]: `eq` cannot be made opaque
- --> tests/neg/pf_opaque_directive.hgn:8:9
+ --> tests/neg/pf_opaque_directive.hgn:9:9
   |
-8 | %opaque eq. (*~ E0701 *)
+9 | %opaque eq. (*~ E0701 *)
   |         ^^ not declared in this file
   |
   = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
 
 error[E0101]: unresolved name `nowhere`
- --> tests/neg/pf_opaque_directive.hgn:9:9
-  |
-9 | %opaque nowhere. (*~ E0101 *)
-  |         ^^^^^^^ not found in this scope
-
-error[E0701]: `%opaque` expects the names of definitions or functions
   --> tests/neg/pf_opaque_directive.hgn:10:9
    |
-10 | %opaque (road). (*~ E0701 *)
+10 | %opaque nowhere. (*~ E0101 *)
+   |         ^^^^^^^ not found in this scope
+
+error[E0701]: `%opaque` expects the names of definitions or functions
+  --> tests/neg/pf_opaque_directive.hgn:11:9
+   |
+11 | %opaque (road). (*~ E0701 *)
    |         ^^^^^^ expected names
    |
    = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
 
-error[E0907]: `%opaque` in module bodies are not supported by the meta level
-  --> tests/neg/pf_opaque_directive.hgn:13:3
+error[E0701]: `hop` cannot be made opaque
+  --> tests/neg/pf_opaque_directive.hgn:15:16
    |
-13 |   %opaque four. (*~ E0907 *)
-   |   ^^^^^^^^^^^^^ not supported
+15 |   %opaque four hop. (*~ E0701 *)
+   |                ^^^ an object constant of the body
    |
-   = note: see the open issues of the redesign in docs/NOTES.md
+   = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
 
 6 errors found
