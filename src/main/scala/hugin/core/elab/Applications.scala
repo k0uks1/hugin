@@ -93,7 +93,9 @@ trait Applications:
     val (named, positional) = args.span(_.isInstanceOf[NamedArg])
     val namedArgs = named.collect { case a: NamedArg => a }
     val (ht, hty, hs) = infer(c, head)
-    recordTyped(c, head.span, ht, hty, hs, checked = false)
+    // the head is recorded for tooling as an application without the expected type records it: with its
+    // implicit arguments inserted (`ident {int}`), or as inferred if an implicit argument is named
+    if namedArgs.nonEmpty then recordTyped(c, head.span, ht, hty, hs, checked = false)
     // the leading implicit arguments: unknowns, also those given by name (solved by their arguments below)
     var ft = ht
     var fty = hty
@@ -109,6 +111,7 @@ trait Applications:
           ft = Tm.App(ft, m, Icit.Impl)
           fty = inst(cl, mv)
         case _ => more = false
+    if namedArgs.isEmpty then recordTyped(c, head.span, ft, fty, hs, checked = false)
     // the result type after the explicit arguments (bound to fresh variables), if they are contiguous
     val n = positional.length
     def after(ty: Val, k: Int): Option[Val] =
