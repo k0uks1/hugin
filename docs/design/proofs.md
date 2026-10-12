@@ -2399,11 +2399,15 @@ generalisations (7.3, step 3) as action at a distance: names the user never wrot
   parameter, `arg "g.edge"`, the body's label, for several), with arguments mapped to parameters by
   position through the environment the application builds. The functor's own name `g` is not in scope in
   the statement: `tc G ⊢ g.edge x y` is E0945 (unknown relation). Corner cases: an argument that is not
-  a variable names no relation, so in `tc { node = city, edge = road } ⊢ road x y` the name `road` is the
-  file's relation `ext road`, not the program's `arg "edge"`; the two are different atoms of `derives`
-  (the adequacy statement relates `arg "edge"` facts to `road`'s run facts, but the notation does not
-  identify them), so a statement about the parameter's relation needs a variable argument. A module
-  value, such as an instance `fast`, writes no argument and names none of its functor's parameters.
+  a variable (a global relation written as the argument included) names no relation. In
+  `tc { node = city, edge = road } ⊢ road x y`, `road` would be the file's `ext road`, a different atom
+  of `derives` than the program's `arg "edge"`. Following P9a's precedent that a silently different
+  meaning is an error (lead's decision), an atom whose relation of the file is, by its resolved constant
+  and syntactically (no evaluation), the value of a non-variable argument or of a field of a record
+  literal written as one is E0945, with the help "`road` is the argument for the parameter relation
+  `edge`; state it through a variable argument (`tc G ⊢ G.edge …`) or through an instance". Relations
+  of the file that are no argument's value stay `ext s`. A module value, such as an instance `fast`,
+  writes no argument and names none of its functor's parameters.
   Displays show `arg l` through the argument (`tc G ⊢ G.edge x Y`), as do diagnostics where the
   judgment's context is known (E0948's head mismatch, E0949).
 - *Tests.* The P7b goldens, the reference examples, the error pages and the LSP suite are rewritten in the

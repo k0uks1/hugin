@@ -16,8 +16,18 @@ looped : {x : A.node} -> {y z : B.node} -> join A B ⊢ A.edge x x -> join A B �
 looped E F = loop.1 E F.
 %opaque looped.
 
-(* an argument that is not a variable names no relation: `road` is the file's relation, not `arg "edge"` *)
+(* an argument that is not a variable: a relation of the file written as its value (a field of a record
+   literal, or the whole argument) is the parameter's relation for the program, `arg l`, so naming it in
+   the atom is an error rather than the different relation `ext s`; a relation of the file that is no
+   argument's value is `ext s`, as before *)
 city : type.
 road : city -> city -> rel.
-fileRoad : {x y : city} -> tc { node = city, edge = road } ⊢ road x y -> Type.
-fileRoad _ = Type.
+rail : city -> city -> rel.
+fieldValue : {x y : city} -> tc { node = city, edge = road } ⊢ road x y -> Type. (*~ E0945 *)
+other : {x y : city} -> tc { node = city, edge = road } ⊢ rail x y -> Type.
+other _ = Type.
+hops (r : city -> city -> rel) = {
+  hop : city -> city -> rel.
+  hop X Y :- r X Y.
+}.
+wholeValue : {x y : city} -> hops road ⊢ road x y -> Type. (*~ E0945 *)

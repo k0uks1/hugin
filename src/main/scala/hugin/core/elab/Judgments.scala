@@ -63,6 +63,14 @@ trait Judgments:
     val relShown = path.mkString(".")
     val (ref, relTy) =
       relationRef(c, sem, prog, scope, path).getOrElse(fail(JudgmentProblem.UnknownRelation(relShown, programShown, head.span)))
+    // a relation of the file that is the value of an argument written out names that argument, which the
+    // program reads as its parameter's relation `arg l`, not as `ext s`: an error, not another meaning
+    ref match
+      case Tm.App(Tm.Global(e), _, _) if e == sem("ext") && path.length == 1 =>
+        argumentRelation(c, j.program, path.head).foreach { (functor, param, label) =>
+          fail(JudgmentProblem.ArgumentRelation(relShown, functor, param, label, head.span))
+        }
+      case _ =>
     val columns = relTy.map(t => objectColumns(t).map(_._2))
     columns.foreach { cs =>
       if cs.length != args.length then fail(JudgmentProblem.AtomArity(relShown, cs.length, args.length, j.atom.span))
@@ -90,6 +98,33 @@ trait Judgments:
         case Val.Pi(_, _, _, cl) => ty = inst(cl, ev(c, a))
         case _ => throw Impossible("derives over three arguments")
     (tm, ty, Stage.S1)
+
+  /** If the program is a functor applied to arguments and the relation `rel` of the file (by its resolved
+   *  constant, compared syntactically, without evaluation) is the value of an argument that is not a
+   *  variable, or of a field of a record literal written as one: the functor, the parameter and the
+   *  field (#186 P7c). */
+  private def argumentRelation(c: Cxt, program: Tree, rel: Name): Option[(String, Name, Option[Name])] =
+    def constant(t: Tree): Option[Int] = t match
+      case Parens(i) => constant(i)
+      case Ident(n) if !c.scope.contains(n) => lookupGlobal(n).map(sharedAt(_, Stage.S0))
+      case _ => None
+    val target = constant(Ident(rel)(Span.NoSpan))
+    val (head, written) = TreeOps.flattenApp(program)
+    def unwrap(t: Tree): Tree = t match
+      case Parens(i) => unwrap(i)
+      case other => other
+    (head, target) match
+      case (Ident(f), Some(id)) if !c.scope.contains(f) && lookupGlobal(f).isDefined =>
+        val params = telescope(globals(lookupGlobal(f).get).ty)._1.filter(_._2 == Icit.Expl).map(_._1)
+        written.filterNot(_.isInstanceOf[NamedArg]).zipWithIndex.iterator.flatMap { (a, i) =>
+          val param = params.lift(i).getOrElse("_")
+          unwrap(a) match
+            case VarRef(n) if c.scope.contains(n) => None
+            case Ident(n) if c.scope.contains(n) => None
+            case r: RecordLit => r.fields.find(fl => constant(fl.value).contains(id)).map(fl => (f, param, Some(fl.label.name)))
+            case other => Option.when(constant(other).contains(id))((f, param, None))
+        }.nextOption()
+      case _ => None
 
   /** `a.b.c` as a path of names. */
   private def namePath(t: Tree): Option[List[Name]] = t match

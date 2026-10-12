@@ -204,10 +204,14 @@ functor's parameter is `arg l`, and an object relation of the file is `ext s`. A
 named through the argument that the judgment writes for the parameter, which must be a variable:
 `G.edge` in `tc G ⊢ G.edge x y`, for `tc (g : graph)`'s `g.edge`; with several parameters, each
 argument names the relations of the parameter at its position. The functor's own name of the parameter,
-`g`, is not in scope in the judgment. An argument that is not a variable names no relation: in
-`tc { node = city, edge = road } ⊢ road x y`, `road` is the relation `ext s` of the file, not the
-parameter's `arg "edge"` that the program's rules read, and a module value, such as an instance `fast`,
-names none of its functor's parameters. Each argument
+`g`, is not in scope in the judgment. An argument that is not a variable names no relation. A relation
+of the file that is written as such an argument, or as the value of a field of a record written as one,
+is the parameter's relation `arg l` for the program's rules, not the file's `ext s`: naming it in the
+atom is an error ([E0945](../errors/E0945.md)), so `tc { node = city, edge = road } ⊢ road x y` is
+rejected and is stated through a variable argument, `tc G ⊢ G.edge x y`, or an instance. The comparison is
+by the constant the name resolves to, as written, without evaluation; a relation of the file that is no
+argument's value is `ext s`. A module value, such as an instance `fast`, names none of its functor's
+parameters. Each argument
 `tᵢ` is checked as code `⇑τᵢ` of the relation's column type `τᵢ`
 ([Object code](../meta/staging.md#object-code)), and is the value `v tᵢ`. So the variables of a statement
 are typed nodes: `x : G.node` is object code of the parameter's type `G.node`. For a program given as a

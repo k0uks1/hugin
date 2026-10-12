@@ -16,6 +16,10 @@ enum JudgmentProblem extends Problem:
   /** The atom's relation `rel` is not a relation of the program, of its parameters or of the file. */
   case UnknownRelation(rel: String, program: String, at: Span)
 
+  /** The atom's relation `rel`, of the file, is written as the value of the argument for the parameter
+   *  `param` of `functor` (its field `field`), which the program reads as the parameter's relation. */
+  case ArgumentRelation(rel: String, functor: String, param: String, field: Option[String], at: Span)
+
   /** The atom is not a relation applied to arguments. */
   case NotAnAtom(shown: String, at: Span)
 
@@ -60,7 +64,7 @@ enum JudgmentProblem extends Problem:
   case NotPositive(program: String, rel: Option[String], aggregate: Boolean, at: Span)
 
   def code: Code = this match
-    case _: NoLibrary | _: UnknownRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
+    case _: NoLibrary | _: UnknownRelation | _: ArgumentRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
     case _: FunctorAlone => Code.E0946
     case _: NoDatabase => Code.E0947
     case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
@@ -71,6 +75,7 @@ enum JudgmentProblem extends Problem:
   def primary: Span = this match
     case NoLibrary(s) => s
     case UnknownRelation(_, _, s) => s
+    case ArgumentRelation(_, _, _, _, s) => s
     case NotAnAtom(_, s) => s
     case AtomArity(_, _, _, s) => s
     case UntypedArgument(_, s) => s
@@ -88,6 +93,9 @@ enum JudgmentProblem extends Problem:
   def message: Msg = this match
     case _: NoLibrary => msg"the judgment `⊢` needs the library `std/semantics`"
     case UnknownRelation(r, p, _) => msg"${Src(r)} is not a relation of ${Src(p)}"
+    case ArgumentRelation(r, f, p, field, _) =>
+      val what = field.fold(s"the parameter `$p`")(l => s"the parameter relation `$l`")
+      msg"${Src(r)} is the argument of ${Src(f)} for " ++ Msg.text(what) ++ msg", which the program reads as its parameter's relation"
     case NotAnAtom(t, _) => msg"${Src(t)} is not an atom: a relation applied to arguments"
     case AtomArity(r, e, f, _) => msg"${Src(r)} has $e column(s), but the atom gives $f argument(s)"
     case UntypedArgument(r, _) => msg"cannot infer the object type of this argument of ${Src(r)}"
@@ -106,6 +114,7 @@ enum JudgmentProblem extends Problem:
   override def primaryLabel: Msg = this match
     case _: NoLibrary => msg"judgment here"
     case _: UnknownRelation => msg"unknown relation"
+    case _: ArgumentRelation => msg"an argument of the program"
     case _: NotAnAtom => msg"expected an atom"
     case _: AtomArity => msg"wrong number of arguments"
     case _: UntypedArgument => msg"type unknown"
@@ -126,6 +135,10 @@ enum JudgmentProblem extends Problem:
     case _: UnknownRelation =>
       List(
         msg"the atom of `P ⊢ r t̄` names a relation of `P`'s body, of a parameter through the functor's argument (`G.edge` in `tc G ⊢ …`) or of the file, as the body's rules do"
+      )
+    case _: ArgumentRelation =>
+      List(
+        msg"the atom would name the file's relation `ext s`, a different relation of `derives` than the parameter's `arg l` that the program's rules read"
       )
     case _: UntypedArgument => List(msg"a program given as a value has no column types; write the argument as code of a known type")
     case _: FunctorAlone =>
@@ -163,6 +176,13 @@ enum JudgmentProblem extends Problem:
   override def helps: List[Msg] = this match
     case _: NoLibrary => List(msg"add ${Src("%use \"std/semantics\".")} to the file")
     case FunctorAlone(_, applied, _) => List(msg"apply the functor to its arguments: write ${Src(s"$applied ⊢ …")}")
+    case ArgumentRelation(r, f, p, field, _) =>
+      val x = if p.headOption.exists(_.isLetter) then p.capitalize else "X"
+      val through = field.fold(x)(l => s"$x.$l")
+      val name = field.getOrElse(p)
+      List(
+        msg"${Src(r)} is the argument for the parameter relation ${Src(name)}; state it through a variable argument (${Src(s"$f $x ⊢ $through …")}) or through an instance"
+      )
     case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}, with a database `e` in scope")
     case _: NotPositive =>
       List(

@@ -175,8 +175,8 @@ trait ProgramOf:
         val written = TreeOps.flattenApp(p)._2.filterNot(_.isInstanceOf[NamedArg])
         def variable(t: Tree): Option[Name] = t match
           case Parens(i) => variable(i)
-          case VarRef(x) => Some(x)
-          case Ident(x) => Some(x)
+          case VarRef(x) if c.scope.contains(x) => Some(x)
+          case Ident(x) if c.scope.contains(x) => Some(x)
           case _ => None
         val byArgument = env.reverse.zipWithIndex.flatMap { (e, i) =>
           force(e) match
