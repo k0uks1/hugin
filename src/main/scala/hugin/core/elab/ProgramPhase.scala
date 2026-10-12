@@ -59,9 +59,10 @@ object ProgramPhase:
       deferrable: Item => Boolean,
       own: OwnRelations = OwnRelations.none
   ): (List[Item], Deferred) =
+    lazy val families = familyParameters(items)
     val direct = items.zipWithIndex.flatMap { (it, i) =>
       val named = if mayNameProgram(it) then usesHere(it, programOfFree) else None
-      named.orElse(if own.isEmpty then None else usesOwn(it, own)).map(i -> _)
+      named.orElse(if own.isEmpty then None else usesOwn(it, own, families)).map(i -> _)
     }
     if direct.isEmpty then (items, Deferred.empty)
     else
@@ -158,7 +159,12 @@ object ProgramPhase:
    *  program (C3, reference: std/semantics, "Relations as propositions"): its own relations by name
    *  (`path x y`), and in a module body the relations of the variables of its context, `param(g, edge)`
    *  for `g.edge x y` (a functor's parameter). */
-  final case class OwnRelations(names: Set[Name], param: (Name, Name) => Boolean, hasParams: Boolean):
+  final case class OwnRelations(
+      names: Set[Name],
+      param: (Name, Name) => Boolean,
+      hasParams: Boolean,
+      family: (Name, Int) => Boolean = (_, _) => false
+  ):
     def isEmpty: Boolean = names.isEmpty && !hasParams
 
   object OwnRelations:
@@ -184,11 +190,13 @@ object ProgramPhase:
    *  (#186 P9b, [[JudgmentCoercion.coercionCandidates]]): a declared type, a parameter's type, an arrow's
    *  domain and codomain, a binder's type, a field type, and the arguments of an application in a type
    *  position (`iff (path x y) …`, whose parameter types are not known before elaboration: a superset),
-   *  and an unapplied relation as such an argument (the η form, `symmetric reach`).
+   *  and an unapplied relation as such an argument where a function of the scope ([[familyParameters]])
+   *  or of an enclosing one (`own.family`) takes a family of types, `(A -> … -> Type)`, there (the η form,
+   *  `symmetric reach`).
    *  Not in object code (quotes, `⇑`, rules, a judgment's atom) nor in the bodies it contains. The value
    *  of a definition is a type position if its declared type is `Type`. Binders are ignored, as for the
    *  other forms: a local variable named like a relation may defer a declaration that did not need it. */
-  def usesOwn(item: Item, own: OwnRelations): Option[String] =
+  def usesOwn(item: Item, own: OwnRelations, families: Map[Name, Set[Int]] = Map.empty): Option[String] =
     var found: Option[String] = None
     def shown(t: Tree): String =
       if t.span.exists && t.span.until > t.span.from then t.span.text else hugin.syntax.Printer.show(t)
@@ -218,9 +226,13 @@ object ProgramPhase:
           else
             val (head, args) = TreeOps.flattenApp(a)
             expr(head)
-            // an unapplied relation as an argument: the η form (`symmetric reach`)
-            args.find(relation) match
-              case Some(r) => found = Some(shown(r))
+            // an unapplied relation as an argument where the scope's function declares a family of types
+            // (`symmetric reach`): the η form; elsewhere (`quoted edge`) it is its fact type
+            def etaAt(k: Int) = head match
+              case Ident(f) => families.get(f).fold(own.family(f, k))(_(k))
+              case _ => false
+            args.filterNot(_.isInstanceOf[NamedArg]).zipWithIndex.find((x, k) => relation(x) && etaAt(k)) match
+              case Some((r, _)) => found = Some(shown(r))
               case None => args.foreach(ty)
         case other => expr(other)
     def expr(t: Any): Unit = if found.isEmpty then
@@ -259,3 +271,35 @@ object ProgramPhase:
       case _ =>
     walk(item)
     found
+
+  /** The functions that the items of a scope declare, with the positions of their explicit parameters
+   *  whose declared types are families of meta types, `τ₁ -> … -> Type` (`symmetric : {A : Type} -> (A ->
+   *  A -> Type) -> Type` has position 0): syntactic, from the declared types and typed parameters. */
+  def familyParameters(items: List[Item]): Map[Name, Set[Int]] =
+    def family(t: Tree): Boolean = t match
+      case Parens(i) => family(i)
+      case Arrow(_, _, cod) => endsInType(cod)
+      case _ => false
+    def endsInType(t: Tree): Boolean = t match
+      case Parens(i) => endsInType(i)
+      case Arrow(_, _, cod) => endsInType(cod)
+      case VarRef("Type") => true
+      case Apply(VarRef("Type"), _) => true
+      case _ => false
+    def explicit(t: Tree): List[Tree] = t match
+      case Parens(i) => explicit(i)
+      case ImplicitPi(_, _, cod) => explicit(cod)
+      case Arrow(_, Ascribe(_, d), cod) => d :: explicit(cod)
+      case Arrow(_, d, cod) => d :: explicit(cod)
+      case _ => Nil
+    items.flatMap {
+      case d: Decl =>
+        val params = d.params.map {
+          case Param.Typed(_, tp, _) => Some(tp)
+          case _ => None
+        }
+        val doms = params ++ explicit(d.tpe).map(Some(_))
+        val at = doms.zipWithIndex.collect { case (Some(tp), k) if family(tp) => k }.toSet
+        Option.when(at.nonEmpty)(d.name.name -> at)
+      case _ => None
+    }.toMap

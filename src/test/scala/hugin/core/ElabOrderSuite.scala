@@ -136,7 +136,10 @@ class ElabOrderSuite extends munit.FunSuite:
         |flag : rel.
         |viaOne : trip 1 2 = proof.
         |both : iff (trip 1 2) (trip 1 2).
+        |symmetric : {A : Type} -> (A -> A -> Type) -> Type.
         |sym : symmetric trip.
+        |(* an unapplied relation is the η form only where the function takes a family of types *)
+        |typed : quoted trip -> int.
         |open : ⊢ flag = flag.1.
         |uses : int = count viaOne.
         |(* object code, a quote and a judgment's atom are not propositions of the file *)

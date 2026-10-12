@@ -1,8 +1,8 @@
 package hugin.core
 package elab
 
-import hugin.syntax.{Printer, Tree, TreeOps}
-import hugin.syntax.Trees.{Ident, NamedArg, Select, VarRef}
+import hugin.syntax.{Tree, TreeOps}
+import hugin.syntax.Trees.{Ident, NamedArg, Select}
 
 /** A member of a functor applied, read without an instance (reference: modules, "Members without an
  *  instance"; #186 P9g, the locale-style proofs of level 3.5). Selecting a member of an application
@@ -16,8 +16,8 @@ import hugin.syntax.Trees.{Ident, NamedArg, Select, VarRef}
  *  The member's definition is in the context of the body's environment and the members before it; the
  *  members it mentions are let-bound, and the others (object constants included, which member functions
  *  are lifted over without using them) are bound to fresh object variables, which nothing reads. A meta
- *  member that mentions an object constant needs an instance: at closed arguments it is read through one,
- *  as before; at arguments with variables there is none (E0107). */
+ *  member that mentions an object constant is read through an instance, exactly as before (one is created
+ *  where the application is evaluated with closed arguments). */
 trait LocaleMembers:
   self: Elaborator =>
   import core.*
@@ -37,9 +37,7 @@ trait LocaleMembers:
               case MemberKind.Defined(value) =>
                 body.free.get(sel.name) match
                   case Some(needed) => Some(atStage(Stage.S1)(read(c, head, args, body, env, i, value, needed)))
-                  case None if args.exists(mentionsLocal(c, _)) =>
-                    val objects = body.members.collect { case m if m.kind.isInstanceOf[MemberKind.Object] => m.name }
-                    fail(ElabProblem.NeedsInstance(Printer.show(sel.qual), sel.name, objects, sel.span))
+                  // a member that mentions an object constant: read through an instance, exactly as before
                   case None => None
         }
       case _ => None
@@ -55,15 +53,6 @@ trait LocaleMembers:
     globals(id).kind match
       case GlobalKind.Definition(tm, _) => under(tm, k)
       case _ => None
-
-  /** Whether `t` mentions a variable of `c` (by name: the arguments of an application in a function or
-   *  a declaration's type, where no instance exists). */
-  private def mentionsLocal(c: Cxt, t: Tree): Boolean =
-    TreeOps.nodes(t).exists {
-      case Ident(n) => c.scope.contains(n)
-      case VarRef(n) => c.scope.contains(n)
-      case _ => false
-    }
 
   /** The member `i` of `body` (its definition `value`) at the arguments `args` of the functor `head`, with
    *  the members `needed` let-bound. */

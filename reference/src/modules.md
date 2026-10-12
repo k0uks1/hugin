@@ -270,8 +270,8 @@ at the arguments, read from the functor's body without evaluating it, so no inst
 about the body's relations is such a member, since a judgment names the relations of its program by their
 positions, not by their constants: `(walks G).walkTrans`, with `G` a variable, is the lemma at any graph,
 and the same at a written graph creates no relation `walk`. A meta member that mentions an object
-constant is read through an instance: at closed arguments one is created, as before; at arguments with
-variables there is none, and it is an error ([E0107](errors/E0107.md)).
+constant is read through an instance, as any member of an application is: one is created where the
+application is evaluated with closed arguments.
 
 ## Signatures
 

@@ -2668,9 +2668,10 @@ without an instance", `meta/index.md`.
   the local names each member resolves (`Names.resolve` → `noteLocalUse`, collected per member, its
   clauses and rules, nested bodies included): the greatest set of meta members that resolve no object
   member and only free meta members. A binder named like an object constant makes a member non-free
-  (conservative: it is then read through an instance, as before). A non-free member with arguments that
-  mention variables is E0107 (`NeedsInstance`), with a note and help; at closed arguments it creates an
-  instance as before.
+  (conservative: it is then read through an instance, as before). A non-free member keeps the old reading
+  exactly, also at arguments with variables in a function body, which create an instance at each call
+  with closed arguments (`run/p9g_functor_member`). An earlier version made that E0107; no test covered
+  `(f G).m` with a variable `G` in a function body, and the coordinator caught the regression.
 - *`%opaque` in bodies.* Its directives are taken out of the body's object items before the members
   (`opaqueMembers`): a member function's lifted global becomes opaque after its clauses (`opaqueLifted`,
   read by `opaqueHere`), a member definition is lifted to an opaque global (`definedMember`); a name that
@@ -2685,7 +2686,8 @@ without an instance", `meta/index.md`.
   `p9g_proof_b` (§1.6 Proof B in `coarse`, both `placed` variants, `eu.sound`), `p9g_file` (§1.7, `⊢ open`
   for a nullary relation, `|-`, `⊢[D]`), `p9g_relations` (§4.3.4's `undirected` with `symmetric reach`,
   `trip` module, `(undirected roads).reachSym`); neg `p9g_locale` (E0962 through `trip`-typed
-  declaration, nullary without prefix E0901, file relation in a body E0960, E0701, E0107), updated
+  declaration, nullary without prefix E0901, file relation in a body E0960, E0701), `run/p9g_functor_member` (a member that needs an instance, read
+  through one in a function body), updated
   `e0960_unowned_relation`, `e0960_applied_relation`, `e0962_program_cycle` (note text); ElabOrderSuite
   (classification); LSP: hover and goal `tc2 g ⊢ path x y` inside a body, split, `here ⊢ trip …` at the top
   level.

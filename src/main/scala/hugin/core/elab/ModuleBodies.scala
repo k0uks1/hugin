@@ -133,7 +133,8 @@ trait ModuleBodies:
     val own = ProgramPhase.OwnRelations(
       ownRelationNames(parts),
       (x, r) => context(x) && c.scope.get(x).exists(relationField(c, _, r)),
-      context.nonEmpty
+      context.nonEmpty,
+      (f, k) => familyParameter(c, f, k)
     )
     val (_, deferred) =
       ProgramPhase.classify(parts.members ++ parts.clauses ++ parts.rules, programOfFree, i => !isObjectConstant(i), own)
@@ -480,6 +481,28 @@ trait ModuleBodies:
               case None => fail(DirectiveProblem.NotOpaqueable(name, "not a member of this module body", n.span))
           case other => fail(DirectiveProblem.OpaqueArgument(other.span))
     case _ => fail(DirectiveProblem.OpaqueArgument(d.span))
+
+  /** Whether the `k`-th explicit parameter of `f`, a global meta constant or a variable of `c` (a function
+   *  of the scope around the body), is a family of meta types `(x̄ : Ā) -> Type`: its declared type, under
+   *  fresh variables. */
+  private def familyParameter(c: Cxt, f: Name, k: Int): Boolean =
+    val ty =
+      if c.scope.contains(f) then Some((c.binder(c.scope(f)).ty, c.lvl))
+      else lookupGlobal(f).filter(globals(_).stage == Stage.S1).map(id => (globals(id).ty, 0))
+    def endsInType(t: Val, l: Int): Boolean = force(t) match
+      case Val.U1(_) => true
+      case Val.Pi(_, _, _, cl) => endsInType(inst(cl, Val.local(l)), l + 1)
+      case _ => false
+    try
+      ty.exists { (t, from) =>
+        val (params, _) = telescope(t, from)
+        params.filter(_._2 == Icit.Expl).lift(k).exists(p =>
+          force(p._3) match
+            case pi: Val.Pi => endsInType(pi, from + params.length)
+            case _ => false
+        )
+      }
+    catch case _: Impossible => false
 
   /** The names of the body's own relations (and structs), which its members write unqualified. */
   private def ownRelationNames(parts: BodyItems): Set[Name] =
