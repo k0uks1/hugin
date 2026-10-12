@@ -91,7 +91,7 @@ syntax are meta lists (`list term`, `list formula`, `module = list item`).
 
 | declaration | meaning |
 |---|---|
-| `same : A -> A -> bool` | equality of symbols and literals |
+| `same : A -> A -> bool` | equality of symbols, literals and closed object code ([atomic values](eq.md#decidable-equality-of-atomic-values)) |
 | `labels : sym -> list string` | the labels of a constant's columns |
 | `derive : sym -> string -> sym` | the derived constant `r.l` |
 | `derived : sym -> bool` | whether a constant is derived |

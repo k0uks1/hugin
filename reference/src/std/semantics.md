@@ -24,6 +24,15 @@ arithmetic. A program writes `%use "std/semantics".`; it builds on [`std/eq`](eq
 | `holdsCmp : {t : ⇑type} -> cmp_op -> option ⇑t -> option ⇑t -> Type.` | when a comparison holds |
 | `derives : program -> db -> gatom -> Type.` | the derivations of a fact |
 | `premises : program -> db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.` | the proofs that a body holds |
+| `monotone : {p : program} -> {d e : db} -> included d e -> {a : gatom} -> derives p d a -> derives p e a.` | more input facts derive more facts |
+| `grow : {p q : program} -> {d : db} -> extends p q -> {a : gatom} -> derives p d a -> derives q d a.` | more rules derive more facts |
+| `model : program -> db -> db -> Type.`, `isModel` | a database closed under the rules that contains the input facts |
+| `least : {p : program} -> {d m : db} -> model p d m -> {a : gatom} -> derives p d a -> m a.` | every model contains the derived facts |
+| `derivesModel : {p : program} -> {d : db} -> model p d (derives p d).` | the derived facts are a model |
+| `leastModel` | a fact is derived exactly if it is in every model |
+| `holds : nat -> program -> gatom -> bool.` | `n` rounds of naive evaluation derive a fact |
+| `holdsSound : {d : db} -> (n : nat) -> (p : program) -> (a : gatom) -> so (holds n p a) -> derives p d a.` | `holds` is sound |
+| `derivable : {d : db} -> nat -> (p : program) -> decider gatom (derives p d).` | a decider for `decide` of [`std/decide`](decide.md) |
 
 ## Values and relations
 
@@ -151,6 +160,64 @@ In `onward`, the expected type determines the program and the rule of `fire`
 the rule's variables. In `noWayBack`, the second clause has the input fact `road paris berlin` as its
 premise, which `roads` does not hold, and the third a rule deriving `road`, whose head `linked` has
 another relation: in both, an absurd pattern refutes the case.
+
+## Monotonicity and the least model
+
+A program derives more facts from more input facts: `monotone` maps a derivation from `d` to one from `e`
+if `included d e`, that is, if every fact of `d` is a fact of `e`. A program with more rules and more input
+relations derives more facts: `grow` maps a derivation by `p` to one by `q` if `extends p q`, a record of
+a map of the rules of `p` into those of `q` and of the input relations of `p` into those of `q`.
+
+A *model* of a program from the input facts `d` is a database `m` that contains the facts of `d` in the
+input relations, and the instantiated heads of every rule whose body holds in `m` (`holdsIn m xs bs`).
+`model p d m` is the family with the one constructor `isModel`, which takes these two closure conditions.
+The derived facts form the least model: `least` maps a derivation into every model, by induction on the
+derivation, and `derivesModel` shows that `derives p d` is a model. `leastModel a` combines the two: a
+record of the two directions of "`a` is derived exactly if `a` is in every model".
+
+## Proof by evaluation
+
+`holds n p a` is `true` if `n` rounds of naive evaluation of the rules of `p` derive `a` from no input
+facts. Each round matches the body atoms of every rule against the facts so far, which gives candidate
+values of the rule's variables, and checks each candidate by evaluating the rule's body. The evaluation is
+*certifying*: every fact it finds carries its derivation, built with `fire` from the derivations of the
+facts its body uses, so `holdsSound` reads the derivation off the result. The derivations use no input
+fact, so they hold for every database, by `monotone`. `derivable n p` is a decider for `decide`
+([`std/decide`](decide.md)): a fact that `n` rounds derive is proved by `tt`.
+
+The following program states the fact `road berlin paris` and the rule `linked X Y :- road X Y.` as a
+program value without input relations, and proves `linked berlin paris` by evaluation, for every database.
+
+```hugin,run
+%use "std/eq" (tt).
+%use "std/decide" (decide).
+%use "std/semantics".
+city : type. berlin, paris : city.
+noInputs : rref -> bool.
+noInputs R = false.
+roadFact : crule = { head = 1, index = 1, label = none, vars = [],
+  heads = [cat (own 1) (tcons (cc (<berlin>)) (tcons (cc (<paris>)) tnil))], body = [] }.
+linkedRule : crule = { head = 0, index = 1, label = none, vars = [city, city],
+  heads = [cat (own 0) (tcons (cv here) (tcons (cv (there here)) tnil))],
+  body = [cpos (cat (own 1) (tcons (cv here) (tcons (cv (there here)) tnil)))] }.
+roads : program = { relations = ["linked", "road"], rules = [roadFact, linkedRule], input = noInputs, strata = [[1], [0]] }.
+onward : {d : db} -> derives roads d (atom (own 0) [v (<berlin>), v (<paris>)]) =
+  decide (derivable 2 roads) (atom (own 0) [v (<berlin>), v (<paris>)]) tt.
+%opaque onward.
+proved : string -> rel.
+proved "linked".
+```
+
+```output
+proved "linked".
+```
+
+Two rounds are needed: the first derives `road berlin paris`, the second `linked berlin paris`. With
+`derivable 1 roads`, `holds` is `false`, `so false` is the empty type, and `tt` is rejected
+([E0901](../errors/E0901.md)). Matching a body atom binds a variable to a value of the variable's type,
+compares the other terms by their values, and leaves the comparisons to the check. A rule whose body binds
+a variable only in a comparison or a constructor term derives nothing in `holds`, so `holds` may be
+`false` for a derived fact, but never `true` for a fact that is not derived.
 
 > **Note.** The rules and derivations are written out here. A later batch of the proofs note (#186)
 > adds `programOf`, which builds the program value of a functor or module, and the notation `P ⊢ r t̄`
