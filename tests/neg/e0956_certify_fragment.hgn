@@ -1,5 +1,4 @@
 (* --certify of a run with an aggregate, which the certified fragment (the proof export's) leaves out *)
-%use "std/certify".
 edge : int -> int -> rel.
 %input edge.
 degree : int -> int -> rel.

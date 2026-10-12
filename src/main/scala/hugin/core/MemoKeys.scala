@@ -124,12 +124,6 @@ trait MemoKeys:
         // a variable or an unsolved meta at the head: never closed, so not worth reading back (uncached:
         // the meta may be solved later)
         case Val.Rigid(Head.Local(_), _) | Val.Flex(_, _) if openHead(v) => (Unused, false)
-        // a stuck application with an argument that is never closed is never closed either
-        case Val.Rigid(Head.Glob(_), sp) if sp.exists {
-              case Elim.EApp(a, _) => quoteKeyAt(a, d)._1 eq Unused
-              case _ => false
-            } =>
-          (Unused, false)
         case other => (quote(0, other), false)
       if stable then readBack.put(v, t)
       (t, stable)

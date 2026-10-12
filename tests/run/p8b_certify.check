@@ -1,9 +1,9 @@
-// certified: the 11 facts of the run are the least model of the program (3 rules, 3 strata) from its 3 input facts
-long berlin paris.
-long paris rome.
-reach berlin oslo.
-reach berlin paris.
-reach berlin rome.
-reach paris oslo.
-reach paris rome.
-reach rome oslo.
+// certified: the 11 facts of the run are the perfect model of the program (4 rules, 4 strata) from its 3 input facts
+ancestor ann bob.
+ancestor ann cyd.
+ancestor ann dan.
+ancestor bob cyd.
+childless cyd.
+childless dan.
+distant cyd dan.
+distant dan cyd.

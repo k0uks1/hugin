@@ -2334,4 +2334,9 @@ Decisions made during implementation are listed here with their PR.
   and the stratified variant failed. After them (single diagnostic runs): 209 facts 3.6 s CPU in the
   checker, 819 facts about 60 s, 56 stratified facts 1.5 s. The cost is quadratic (premise lookup by
   position in a list, the model check's naive join); a certified run is an audit mode for small and
-  medium runs. Goldens: p8b_certify 1.5 s, p8b_strata 1.5 s in the test JVM.
+  medium runs. One run golden (p8b_certify, stratified, with the checkers' meta tests) and the neg tests;
+  ClosureCrossCheckSuite compiles every `.hgn` of `tests/`, and each file that loads `std/certify` costs
+  about 1.5 s there, so the goldens are few and E0956 is reported before the library is required.
+- *Fault found by CI.* An earlier short-cut in `MemoKeys` (a stuck application whose argument is never
+  closed) walked the arguments without caching; on shared values that is exponential, and it hung the
+  test JVM. It was removed; the remaining short-cuts are at the head of a value or an argument only.

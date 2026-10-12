@@ -1,3 +1,3 @@
-road berlin paris 1100.
-road paris rome 1400.
-road rome oslo 900.
+parent ann bob.
+parent bob cyd.
+parent ann dan.

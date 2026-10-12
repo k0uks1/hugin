@@ -35,12 +35,13 @@ object Certify:
   def apply(unit: CompilationUnit, prog: CoreProgram, engine: Engine): Outcome =
     val elaborated = unit.elaborated
     val at = Span(unit.source, 0, 0)
-    if elaborated == null || !unit.libraries.contains(LibraryPath) then
-      return Outcome(List(CertifyProblem.NoLibrary(at).toDiagnostic), None)
+    // the fragment first: a rule outside it is reported whether or not the checker is loaded
     val omitted = unit.proofOmitted.toList.map((r, why) =>
       CertifyProblem.OutsideFragment(s"this rule is outside the certified fragment, because $why", r.span)
     )
     if omitted.nonEmpty then return Outcome(omitted.map(_.toDiagnostic), None)
+    if elaborated == null || !unit.libraries.contains(LibraryPath) then
+      return Outcome(List(CertifyProblem.NoLibrary(at).toDiagnostic), None)
     val core = elaborated.nn.core
     // the checker reads no declarations of the program that a later edit could change: no observer
     val observer = core.reads

@@ -1,7 +1,7 @@
 error[E0956]: cannot certify the run: this rule is outside the certified fragment, because it has an aggregate
- --> tests/neg/e0956_certify_fragment.hgn:6:1
+ --> tests/neg/e0956_certify_fragment.hgn:5:1
   |
-6 | degree X N :- edge X _, N = count { Y | edge X Y }.
+5 | degree X N :- edge X _, N = count { Y | edge X Y }.
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: a certified run is checked for function-free rules with negated atoms and comparisons, the fragment of the proof export
