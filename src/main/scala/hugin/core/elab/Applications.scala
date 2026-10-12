@@ -57,41 +57,45 @@ trait Applications:
     recordLocalDeclaration(cb, c.lvl)
     Tm.Lam(name, Icit.Expl, check(cb, body, inst(pi.cl, Val.local(c.lvl)), st))
 
-  /** The head of `c {x := e}… a₁ … aₙ` if it is a meta constructor applied to positional arguments, after
-   *  named implicit arguments that each name a different one of its leading implicit binders (#186 P5). */
-  def constructorHead(c: Cxt, t: Tree): Option[hugin.syntax.Trees.Ident] =
+  /** The head of `f {x := e}… a₁ … aₙ` if it is a meta constant (a constructor, function, definition or
+   *  postulate, not a family) applied to positional arguments, after named implicit arguments that each
+   *  name a different one of its leading implicit binders (#186 P5). */
+  def expectedTypeHead(c: Cxt, t: Tree): Option[hugin.syntax.Trees.Ident] =
     val (head, args) = TreeOps.flattenApp(t)
     val (named, positional) = args.span(_.isInstanceOf[NamedArg])
     head match
       case id @ hugin.syntax.Trees.Ident(n)
           if positional.nonEmpty && !positional.exists(_.isInstanceOf[NamedArg]) && c.scope.get(n).isEmpty &&
             !state.bodyDeclared(n) && !state.unelaborated(n) =>
-        lookupGlobal(n).map(sharedAt(_, state.stage)).filter(isConstructor).flatMap { ctor =>
-          val leading = telescope(globals(ctor).ty)._1.takeWhile(_._2 == Icit.Impl).map(_._1)
+        lookupGlobal(n).map(sharedAt(_, state.stage)).filter(g => globals(g).stage == Stage.S1 && !isFamily(g)).flatMap { g =>
+          val leading = telescope(globals(g).ty)._1.takeWhile(_._2 == Icit.Impl).map(_._1)
           val names = named.collect { case a: NamedArg => a.name }
           Option.when(names.distinct.length == names.length && names.forall(leading.contains))(id)
         }
       case _ => None
 
-  /** A constructor application `c {x := e}… a₁ … aₙ` checked against `expected` (#186 P5): the
-   *  constructor's result type, after its leading implicit arguments (fresh unknowns) and the `n` explicit
-   *  ones, is unified with the expected type *before* the arguments are checked, so that they are checked
-   *  against types that the expected type determines. This is how Agda checks a constructor application
-   *  (`checkConstructorApplication` takes the parameters from the target type), and Lean 4 propagates an
-   *  expected type to an application whose result does not depend on its explicit arguments
-   *  (`ElabAppArgs.propagateExpectedType`). A derivation `fire M (ppos refl E pnil) H` of `std/semantics`
-   *  is so checked with its program and rule known, which none of its arguments determines alone. Only
-   *  when the result type does not depend on the explicit arguments and is a family applied, and only if
-   *  unification succeeds: otherwise it is undone, and the arguments are checked as without the expected
-   *  type. So it adds only solutions that unifying the application's type with the expected type adds
-   *  anyway, earlier. Then the named implicit arguments are checked against their binders, and the
-   *  explicit ones in order, as an application is elaborated otherwise. */
-  def checkConstructorApp(c: Cxt, t: Tree, head: hugin.syntax.Trees.Ident, expected: Val): (Tm, Val, Stage) =
+  /** An application `f {x := e}… a₁ … aₙ` of a meta constant checked against `expected` (#186 P5): the
+   *  result type of `f`, after its leading implicit arguments (fresh unknowns) and the `n` explicit ones, is
+   *  unified with the expected type *before* the arguments are checked, so that they are checked against
+   *  types that the expected type determines. Lean 4 propagates an expected type so to an application
+   *  whose result does not depend on its explicit arguments (`ElabAppArgs.propagateExpectedType`), and
+   *  Agda checks a constructor application by taking the parameters from the target type
+   *  (`checkConstructorApplication`). A derivation `fire M (ppos refl E pnil) H` of `std/semantics` is so
+   *  checked with its program and rule known, which none of its arguments determines alone. Only when the
+   *  result type does not depend on the explicit arguments and is a family applied (where checking against
+   *  the expected type is unification, not a coercion), and only if unification succeeds: otherwise it is
+   *  undone, and the arguments are checked as without the expected type. So it adds only solutions that
+   *  unifying the application's type with the expected type adds anyway, earlier. Then the named implicit
+   *  arguments are checked against their binders, and the explicit ones in order, as an application is
+   *  elaborated otherwise. */
+  def checkAppWithExpected(c: Cxt, t: Tree, head: hugin.syntax.Trees.Ident, expected: Val): (Tm, Val, Stage) =
     val (_, args) = TreeOps.flattenApp(t)
     val (named, positional) = args.span(_.isInstanceOf[NamedArg])
     val namedArgs = named.collect { case a: NamedArg => a }
     val (ht, hty, hs) = infer(c, head)
-    recordTyped(c, head.span, ht, hty, hs, checked = false)
+    // the head is recorded for tooling as an application without the expected type records it: with its
+    // implicit arguments inserted (`ident {int}`), or as inferred if an implicit argument is named
+    if namedArgs.nonEmpty then recordTyped(c, head.span, ht, hty, hs, checked = false)
     // the leading implicit arguments: unknowns, also those given by name (solved by their arguments below)
     var ft = ht
     var fty = hty
@@ -107,6 +111,7 @@ trait Applications:
           ft = Tm.App(ft, m, Icit.Impl)
           fty = inst(cl, mv)
         case _ => more = false
+    if namedArgs.isEmpty then recordTyped(c, head.span, ft, fty, hs, checked = false)
     // the result type after the explicit arguments (bound to fresh variables), if they are contiguous
     val n = positional.length
     def after(ty: Val, k: Int): Option[Val] =

@@ -12,7 +12,8 @@ import scala.collection.mutable
  *
  *  - **Read-back cached per value object** for *stable data*: a value whose normal form cannot change
  *    while the core lives — literals, base types and sorts, applications of heads that never reduce
- *    ([[stableHead]]: constructors, inductive types, object constants, partially applied families) to
+ *    ([[stableHead]]: constructors, inductive types, object constants, partially applied families and
+ *    functions by clauses) to
  *    stable data, object code over stable data, and records and quotes of it. No forcing is involved in
  *    reading them back (no metas, whose solutions may be undone, no function or definition that a later
  *    declaration may make reduce), so the cached term is exactly what `quote(0, v)` gives at any time. Any other value is read back with `quote` as
@@ -20,6 +21,12 @@ import scala.collection.mutable
  *  - **Hash-consed ids** of the normal forms: a term gets an id from its case and the ids of its
  *    subterms (other fields as they are), cached per term object, so equal terms get the same id and
  *    different terms different ids, and comparing or hashing a key costs its number of arguments.
+ *
+ *  - **Types and functions** (`Pi`, `Lam`, `⇑A`, record types) are read back once per value object too,
+ *    although their read-back may change (a meta solved inside): a key that contains one is never closed
+ *    ([[closedId]]), so it is never used, and caching it only saves reading back again and again the
+ *    data around it, such as the derivations of `std/semantics`, whose constructors carry types in their
+ *    implicit arguments (#186 P5).
  *
  *  So a key is a list of ids that are equal exactly when the normal forms are: the memo hits and misses
  *  as before, and evaluation (including the fresh object variables it creates) is unchanged. */
@@ -51,6 +58,9 @@ trait MemoKeys:
       case _: GlobalKind.Constructor | _: GlobalKind.Inductive | GlobalKind.Symbols => true
       case _: GlobalKind.Object => !g.pending || n == 0
       case GlobalKind.Family(_, arity) => n < arity
+      // a function by clauses applied to fewer arguments than its case tree splits: it never reduces, as
+      // a program value of `std/semantics` holds its input relations as such a function (#186 P5)
+      case GlobalKind.Function(arity, Some(_)) => n < arity
       case _ => false
 
   /** The depth of recursion after which the walks below continue with an explicit stack: a long list is
@@ -96,6 +106,7 @@ trait MemoKeys:
         case Val.Rec(fs) =>
           val qs = fs.map((l, x) => (l, quoteKeyAt(x, d)))
           (Tm.Rec(qs.map((l, q) => (l, q._1))), qs.forall(_._2._2))
+        case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (quote(0, v), true)
         case other => (quote(0, other), false)
       if stable then readBack.put(v, t)
       (t, stable)
@@ -242,6 +253,7 @@ trait MemoKeys:
           case Val.Rec(fs) =>
             val qs = fs.map((l, x) => (l, result(x)))
             (Tm.Rec(qs.map((l, q) => (l, q._1))), qs.forall(_._2._2))
+          case _: Val.Pi | _: Val.Lam | _: Val.Lift | _: Val.RecTy => (quote(0, v), true)
           case other => (quote(0, other), false)
         if stable then readBack.put(v, t) else local.put(v, (t, false))
       }

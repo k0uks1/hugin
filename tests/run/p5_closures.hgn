@@ -1,0 +1,35 @@
+(* #186 P5b, the worked example of the proofs note, 11.2: two closure programs derive the same facts,
+   over families written by hand: the right-linear rule `path X Z :- g.edge X Y, path Y Z.` and the
+   left-linear rule `path X Z :- path X Y, g.edge Y Z.` *)
+model : Type = { node : Type, edge : node -> node -> Type }.
+
+path : (m : model) -> m.node -> m.node -> Type.
+step1 : {m : model} -> {x y : m.node} -> m.edge x y -> path m x y.
+step2 : {m : model} -> {x y z : m.node} -> m.edge x y -> path m y z -> path m x z.
+
+trans : {m : model} -> {x y z : m.node} -> path m x y -> path m y z -> path m x z.
+trans (step1 E) Q = step2 E Q.
+trans (step2 E P) Q = step2 E (trans P Q).
+
+lpath : (m : model) -> m.node -> m.node -> Type.
+lstep1 : {m : model} -> {x y : m.node} -> m.edge x y -> lpath m x y.
+lstep2 : {m : model} -> {x y z : m.node} -> lpath m x y -> m.edge y z -> lpath m x z.
+
+lcons : {m : model} -> {x y z : m.node} -> m.edge x y -> lpath m y z -> lpath m x z.
+lcons E (lstep1 F) = lstep2 (lstep1 E) F.
+lcons E (lstep2 P F) = lstep2 (lcons E P) F.
+
+toL : {m : model} -> {x y : m.node} -> path m x y -> lpath m x y.
+toL (step1 E) = lstep1 E.
+toL (step2 E P) = lcons E (toL P).
+
+toR : {m : model} -> {x y : m.node} -> lpath m x y -> path m x y.
+toR (lstep1 E) = step1 E.
+toR (lstep2 P F) = trans (toR P) (step1 F).
+
+iff : Type -> Type -> Type = [a] [b] { to : a -> b, from : b -> a }.
+sameFacts : {m : model} -> {x y : m.node} -> iff (path m x y) (lpath m x y) = { to = toL, from = toR }.
+%opaque sameFacts.
+
+checked : string -> rel.
+checked "closures".

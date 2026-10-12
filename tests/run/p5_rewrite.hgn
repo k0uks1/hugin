@@ -1,0 +1,37 @@
+(* #186 P5b, the worked example of the proofs note, 11.3: a module-wide rewrite that reverses the body of
+   every rule preserves the derived facts, for every program and every input (a generic theorem, which
+   matches `fire` and `given` directly). *)
+%use "std/list" (map, reverse, foldl).
+%use "std/eq" (eq, refl).
+%use "std/semantics".
+
+revC : crule -> crule = [c] (c with { body = reverse c.body }).
+revP : program -> program = [p] (p with { rules = map revC p.rules }).
+
+memberMap : {c : crule} -> {cs : list crule} -> member c cs -> member (revC c) (map revC cs).
+memberMap here = here.
+memberMap (there M) = there (memberMap M).
+
+(* premises do not depend on the order of the body: `reverse` is a `foldl` with an accumulator *)
+premAcc : {q : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs acc : list (cbody ts)} ->
+          premises q d xs bs -> premises q d xs acc -> premises q d xs (foldl ([a] [x] x :: a) acc bs).
+premAcc pnil A = A.
+premAcc (ppos E D Ps) A = premAcc Ps (ppos E D A).
+premAcc (pcmp C Ps) A = premAcc Ps (pcmp C A).
+
+premRev : {q : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs : list (cbody ts)} ->
+          premises q d xs bs -> premises q d xs (reverse bs).
+premRev Ps = premAcc Ps pnil.
+
+sound : {p : program} -> {d : db} -> {a : gatom} -> derives p d a -> derives (revP p) d a.
+premMap : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {bs : list (cbody ts)} ->
+          premises p d xs bs -> premises (revP p) d xs bs.
+sound (given T I) = given T I.
+sound (fire M Ps H) = fire (memberMap M) (premRev (premMap Ps)) H.
+premMap pnil = pnil.
+premMap (ppos E D Ps) = ppos E (sound D) (premMap Ps).
+premMap (pcmp C Ps) = pcmp C (premMap Ps).
+%opaque sound.
+
+checked : string -> rel.
+checked "rewrite".
