@@ -1,0 +1,15 @@
+error[E0933]: none of the declarations that `%use` opens `decide` for fits here
+ --> tests/neg/p9e_e0933_none_fits.hgn:6:15
+  |
+4 | %use "std/decide".
+  | ------------------ opens `decide`
+5 | %use "std/semantics".
+  | --------------------- opens `decide`
+6 | wrong : nat = decide 3 tt. (*~ E0933 *)
+  |               ^^^^^^ expected `nat`
+  |
+  = note: `decide` denotes `decide : {A : Type} -> {P : A -> Type} -> (d : decider A P) -> (x : A) -> so (d.check x) -> P x`
+  = note: `decide` denotes `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives p d a`
+  = help: apply `decide` as the type of one of its declarations says, or open only the one meant, `%use m (…)` with a list of names
+
+1 error found

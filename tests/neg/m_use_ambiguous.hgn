@@ -1,5 +1,6 @@
-(* two `%use` items open `double` for different functions *)
+(* two `%use` items open `double` for a meta function and an object relation: an object constant is never
+   chosen by the types (#186 P9e) *)
 %use "lib/twice_a".
-%use "lib/twice_b".
+%use "lib/twice_rel".
 n : int -> rel.
 n (double 4). (*~ E0109 *)
