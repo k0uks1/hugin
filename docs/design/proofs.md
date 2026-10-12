@@ -1562,8 +1562,8 @@ the functor, not an instance, avoids it.
 
 **Design (P9, awaiting approval):** [proofs-level35.md](proofs-level35.md). It answers these questions
 with one elaboration rule, a coercion: an applied relation that a program owns, written where a meta type
-is expected, is that program's judgment at `d` (`fast.path x y` is `fast ⊢ path x y`, `tc2.path x y` is
-`tc2 ⊢ path x y`), with no keyword, generated declaration or core rule. Revision 2 adds locale-style proofs
+is expected, is that program's judgment (`fast.path x y` is `fast ⊢ path x y`, `(tc2 G).path x y` is
+`tc2 G ⊢ path x y`), with no keyword, generated declaration, core rule or blessed name (L27). Revision 2 adds locale-style proofs
 inside a program's own body (unqualified relations, lemmas inherited by instances), after an elaboration
 phase that also delivers `programOf here`. It also proposes how to settle the flags that P7b left open
 (negation, multi-head rule names, the `decide` clash).

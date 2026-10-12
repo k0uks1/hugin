@@ -12,15 +12,24 @@ phase that blocks the locale-style variant C3, and what C3 gains and loses. The 
 A and C3 are complementary, not alternatives (§4.3.5), and the plan is now A first, then the phase, then C3
 (§4.6, §7, §8). The end state of the combination is §1.6.
 
+Revision 3 (designer decision L27, approved: no blessed names in judgments; implemented by P7c before
+P9b): a functor is no longer generalised by its parameters' names, so every example writes `tc G` with `G`
+a free variable; an omitted database is P7c's anonymous binder in a declaration's type and a metavariable
+elsewhere, and `d` means nothing special. A's form `f.r` for a functor written alone is dropped (§2.3), so
+is the functor-parameter part of its generalisation (§2.5), and §2.4 is restated. With `tc.path` gone, A
+no longer shortens Proofs A and B (§1.1); its gains are the η form and instance names, and C3 carries the
+gain for proofs about one program. Costs, comparison, batches and decisions are recomputed.
+
 The note is a file of its own, linked from the proofs note's chapter 10, for three reasons. It is a
 separate design round with its own approval, as chapter 10 recorded. The proofs note has about 2300 lines, and its
 chapters 1–9 describe a plan that is now implemented, so a new end state belongs in a new chapter 1. And
 §15 of the proofs note keeps recording implementation decisions, which this note does not touch until it
 is approved.
 
-**What was compiled.** The "today" programs in §1 and the probes in §2.2 were checked with today's
-compiler (`hugin check`/`run` at 1db9441); the level 3.5 programs were not, because level 3.5 does not
-exist yet. Probes with surprising results are listed in §2.2 and quoted in full in §6.2 and §6.3.
+**What was compiled.** The probes in §2.2, §4.3, §6.2 and §6.3 and the P7b versions of the "before"
+programs in §1 were checked with the compiler at 1db9441 (`hugin check`/`run`). The "before" programs are
+shown in P7c's notation, which is not merged yet, and the level 3.5 programs do not exist yet; neither was
+compiled. Probes with surprising results are listed in §2.2 and quoted in full in §6.2 and §6.3.
 
 **Keywords.** Level 3.5 adds **no keyword, no token and no directive**. The words that matter in the
 examples are: the token `⊢` (ASCII `|-`, P7b); the contextual names `given` and `programOf` (P7a, P7b),
@@ -35,125 +44,138 @@ multi-head rules, negation), 7 batches, 8 decisions for the designer, 9 sources.
 ## 1. The end state
 
 **The rule in one sentence.** *An atom whose relation belongs to a program, written where a meta type is
-expected, is that program's judgment at the database `d`.* For example, `fast.path x y` is `fast ⊢ path x
-y`, `(tc2 g).path x y` is `tc2 g ⊢ path x y`, and `tc2.path x y` is `tc2 ⊢ path x y`, with `g` and `d`
-generalised as P7b generalises them. The rule is a coercion that elaboration inserts by the expected type,
-as stage inference inserts `⇑`, quotes and splices today. It generates no declaration, no family and no
-lemma.
+expected, is that program's judgment, at the database that the turnstile would use if it were written
+without `[…]`.* For example, `fast.path x y` is `fast ⊢ path x y` and `(tc2 G).path x y` is `tc2 G ⊢ path
+x y`. `G` is an ordinary free uppercase variable, bound by the existing implicit-argument mechanism, and
+the database is P7c's: in a declaration's type, the one anonymous binder that all judgments without `[…]`
+share; elsewhere, a metavariable solved by unification (§2.4). The rule is a coercion that elaboration
+inserts by the expected type, as stage inference inserts `⇑`, quotes and splices today. It generates no
+declaration, no family and no lemma, and it gives no name a special meaning.
 
-So `path x y` alone does **not** mean `tc ⊢ path x y`: `tc` and `tc2` both have a relation `path`, and the
-name alone does not say which program is meant. A bare name is a proposition only if it names a relation
-of one module instance, for example after `%use trip (path).` (§2.3).
+So `path x y` alone does **not** mean `tc G ⊢ path x y`: `tc` and `tc2` both have a relation `path`, and
+the name alone does not say which program is meant. A bare name is a proposition only if it names a
+relation of one module instance, for example after `%use trip (path).` (§2.3), or, with C3, a relation of
+the body that the statement is written in (§1.6).
+
+**The baseline is P7c.** After L27, the turnstile has no blessed names: `tc G ⊢ path x y` with `G` free,
+`⊢[D]` to name a database. P7c implements that before P9b. The "before" programs below are written in
+P7c's notation; their P7b versions (`tc ⊢ path x y`, with `g` and `d` generalised by name) compile at
+1db9441 (`tests/run/p7b_*.hgn`), and the P7c versions follow by the rewriting L27 prescribes. One
+assumption: an atom's parameter relation is still written by the path the body uses (`g.edge`, reference
+`std/semantics.md`, "The judgment notation"), so `tc G ⊢ g.edge x y` mixes the user's `G` and the body's
+`g`. If P7c resolves it through the argument instead (`tc G ⊢ G.edge x y`), the examples change only in
+that letter.
 
 ### 1.1 Proof A: the doubling closure derives the same paths
 
-Today (P7b, `tests/run/p7b_proof_a.hgn`, which compiles and runs):
+Before (the turnstile, P7c):
 
 ```hugin
-edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn : {x y : G.node} -> tc G ⊢ g.edge x y -> tc2 G ⊢ g.edge x y.
 edgeIn (given I) = given I.
-edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut : {x y : G.node} -> tc2 G ⊢ g.edge x y -> tc G ⊢ g.edge x y.
 edgeOut (given I) = given I.
 
-tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
-toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 : {x y : G.node} -> tc G ⊢ path x y -> tc2 G ⊢ path x y.
 toTc2 (path.1 E) = path.1 (edgeIn E).
 toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
 
-toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc : {x y : G.node} -> tc2 G ⊢ path x y -> tc G ⊢ path x y.
 toTc (path.1 E) = path.1 (edgeOut E).
 toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
 
-sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
+sameFacts : {x y : G.node} -> iff (tc G ⊢ path x y) (tc2 G ⊢ path x y) = { to = toTc2, from = toTc }.
 forFast : {x y : city} -> iff (tc { node = city, edge = road } ⊢ path x y) (fast ⊢ path x y) = sameFacts.
 %opaque sameFacts forFast.
 ```
 
-With level 3.5 (proposal):
+With level 3.5, A alone (proposal):
 
 ```hugin
-edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.      (* unchanged: g.edge is a parameter *)
+edgeIn : {x y : G.node} -> tc G ⊢ g.edge x y -> tc2 G ⊢ g.edge x y.   (* unchanged: g.edge is a parameter *)
 edgeIn (given I) = given I.
-edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut : {x y : G.node} -> tc2 G ⊢ g.edge x y -> tc G ⊢ g.edge x y.
 edgeOut (given I) = given I.
 
-tcTrans : {x y z : g.node} -> tc.path x y -> tc.path y z -> tc.path x z.
+tcTrans : {x y z : G.node} -> (tc G).path x y -> (tc G).path y z -> (tc G).path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
-toTc2 : {x y : g.node} -> tc.path x y -> tc2.path x y.
-toTc2 (path.1 E) = path.1 (edgeIn E).
-toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+toTc2 : {x y : G.node} -> (tc G).path x y -> (tc2 G).path x y.
+(* clauses unchanged *)
+toTc : {x y : G.node} -> (tc2 G).path x y -> (tc G).path x y.
+(* clauses unchanged *)
 
-toTc : {x y : g.node} -> tc2.path x y -> tc.path x y.
-toTc (path.1 E) = path.1 (edgeOut E).
-toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
-
-sameFacts : {x y : g.node} -> iff (tc.path x y) (tc2.path x y) = { to = toTc2, from = toTc }.
+sameFacts : {x y : G.node} -> iff ((tc G).path x y) ((tc2 G).path x y) = { to = toTc2, from = toTc }.
 forFast : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y) = sameFacts.
 %opaque sameFacts forFast.
 ```
 
-What changed: the statements about the programs' own relations drop the turnstile; `tc.path x y` reads
-"the relation `path` of `tc` holds of `x` and `y`". What did not change: every clause, every rule name,
-the generalised binders (`{d : db} -> {g : graph}`, from `tc` and `tc2` written alone), and the elaborated
-types, which are the same `derives (programOf (tc g)) d (atom (own 0) [v x, v y])` as today. `edgeIn` and
-`edgeOut` keep the turnstile, because `g.edge` is the parameter's relation and belongs to no program
-(§2.3). `forFast` shows the two other forms: a functor application, `(tc { … }).path`, and an instance,
-`fast.path`.
+What changed: nothing of substance. `(tc G).path x y` reads "the relation `path` of `tc G`", but it is as
+long as `tc G ⊢ path x y`; the clauses, the rule names, the binders (`{G : graph}`, the anonymous database)
+and the elaborated types are the same. Before L27, A's proposed form `tc.path x y` was shorter than `tc ⊢
+path x y` because both generalised `g` by name; L27 removes that generalisation, revision 3 drops the form
+(§2.3), and with it A's gain on Proof A. The gains of
+A that remain are in §1.3 (relations passed to meta combinators) and §1.4 (instances and opened names);
+the gain on Proofs A and B comes from C3 (§1.6).
 
 ### 1.2 Proof B: the analysis over-approximates
 
-Today (P7b, `tests/run/p7b_proof_b.hgn`, which compiles):
+Before (the turnstile, P7c). The hypothesis `placed` is a definition, so its databases are named; the
+theorems must then name the same database, `⊢[D]` with `D` free, since the anonymous binder cannot be
+referenced:
 
 ```hugin
 placed (d : db) (a : abstraction) : Type =
   (x : a.node) -> coarse a ⊢[d] reached x -> { b : a.anode, ok : coarse a ⊢[d] a.alpha x b }.
 
-sound : placed d a -> {x : a.node} -> {b : a.anode} ->
-        coarse ⊢ reached x -> coarse ⊢ a.alpha x b -> coarse ⊢ areached b.
+sound : placed D A -> {x : A.node} -> {b : A.anode} ->
+        coarse A ⊢[D] reached x -> coarse A ⊢[D] a.alpha x b -> coarse A ⊢[D] areached b.
 sound T (reached.1 S) H = areached.1 S H.
 sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
-safe : placed d a -> {x : a.node} -> {b : a.anode} ->
-       (coarse ⊢ areached b -> empty) -> coarse ⊢ a.alpha x b -> coarse ⊢ reached x -> empty.
+safe : placed D A -> {x : A.node} -> {b : A.anode} ->
+       (coarse A ⊢[D] areached b -> empty) -> coarse A ⊢[D] a.alpha x b -> coarse A ⊢[D] reached x -> empty.
 safe T N H R = N (sound T R H).
 %opaque sound safe.
 ```
 
-With level 3.5 (proposal):
+A coerced atom has no `[…]`, so with a named database it does not apply: this version stays as it is. With
+level 3.5 the hypothesis can instead be stated over *relations*, passed by the η form, so that no database
+is named and all of them are the declaration's anonymous binder (proposal):
 
 ```hugin
-placed (d : db) (a : abstraction) : Type =
-  (x : a.node) -> (coarse a).reached x -> { b : a.anode, ok : coarse a ⊢ a.alpha x b }.
+placed : (A : abstraction) -> (⇑A.node -> Type) -> (⇑A.node -> ⇑A.anode -> Type) -> Type.
+placed A Reached Alpha = (x : ⇑A.node) -> Reached x -> { b : ⇑A.anode, ok : Alpha x b }.
 
-sound : placed d a -> {x : a.node} -> {b : a.anode} ->
-        coarse.reached x -> coarse ⊢ a.alpha x b -> coarse.areached b.
+sound : placed A (coarse A).reached ([x] [b] coarse A ⊢ a.alpha x b) -> {x : A.node} -> {b : A.anode} ->
+        (coarse A).reached x -> coarse A ⊢ a.alpha x b -> (coarse A).areached b.
 sound T (reached.1 S) H = areached.1 S H.
 sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
-safe : placed d a -> {x : a.node} -> {b : a.anode} ->
-       (coarse.areached b -> empty) -> coarse ⊢ a.alpha x b -> coarse.reached x -> empty.
+safe : placed A (coarse A).reached ([x] [b] coarse A ⊢ a.alpha x b) -> {x : A.node} -> {b : A.anode} ->
+       ((coarse A).areached b -> empty) -> coarse A ⊢ a.alpha x b -> (coarse A).reached x -> empty.
 safe T N H R = N (sound T R H).
 %opaque sound safe.
 ```
 
-In `placed`, `(coarse a).reached x` uses the parameter `d` of `placed`, because a coerced atom, like a
-judgment without `[e]`, uses the `d` in scope (§2.4); `[d]` was never needed there. The input relation
-`a.alpha` keeps the turnstile. In `sound` and `safe`, `coarse.reached` generalises `a` and `d` as `coarse ⊢`
-does, so `placed d a` refers to the same binders.
+`placed` no longer mentions `derives` or a database: it is a property of two meta relations. In `sound`'s
+type, the η-coerced `(coarse A).reached`, the judgment in the lambda and the three atoms have no `[…]`, so
+they all use the one anonymous database binder of the declaration. The input relation `a.alpha` keeps the
+turnstile (§2.3). This version is not shorter; its point is that the database disappears from the
+statement. In C3 (§1.6) it becomes `placed reached a.alpha`.
 
 ### 1.3 A relation passed to a generic combinator: an undirected graph is symmetric
 
-The two proofs above only shorten statements. This example shows what the abbreviation adds: a relation
-can be passed, unapplied, where a meta relation `A -> A -> Type` is expected, as stage inference already
-passes an object relation where a formula function is expected (reference `meta/staging.md`, "Stage
-inference": "Functions are converted by eta-expansion").
+This is A's clearest gain: a relation can be passed, unapplied, where a meta relation `A -> A -> Type` is
+expected, as stage inference already passes an object relation where a formula function is expected
+(reference `meta/staging.md`, "Stage inference": "Functions are converted by eta-expansion").
 
-Today (checked: compiles and runs at 1db9441):
+Before (the turnstile, P7c; the P7b version compiles and runs at 1db9441):
 
 ```hugin
 %use "std/graph" (graph).
@@ -171,15 +193,16 @@ undirected (g : graph) = {
   reach X Z :- link X Y, reach Y Z.
 }.
 
-linkSym : {x y : g.node} -> undirected ⊢ link x y -> undirected ⊢ link y x.
+linkSym : {x y : G.node} -> undirected G ⊢ link x y -> undirected G ⊢ link y x.
 linkSym (link.1 E) = link.2 E.
 linkSym (link.2 E) = link.1 E.
 
-reachTrans : {x y z : g.node} -> undirected ⊢ reach x y -> undirected ⊢ reach y z -> undirected ⊢ reach x z.
+reachTrans : {x y z : G.node} -> undirected G ⊢ reach x y -> undirected G ⊢ reach y z ->
+             undirected G ⊢ reach x z.
 reachTrans (reach.1 L) Q = reach.2 L Q.
 reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
 
-reachSym : symmetric ([x] [y] undirected ⊢ reach x y).
+reachSym : symmetric ([x] [y] undirected G ⊢ reach x y).
 reachSym X Y (reach.1 L) = reach.1 (linkSym L).
 reachSym X Y (reach.2 {Y := W} L R) = reachTrans (reachSym W Y R) (reach.1 (linkSym L)).
 %opaque linkSym reachTrans reachSym.
@@ -188,31 +211,31 @@ reachSym X Y (reach.2 {Y := W} L R) = reachTrans (reachSym W Y R) (reach.1 (link
 With level 3.5 (proposal), only the statements change:
 
 ```hugin
-linkSym : symmetric undirected.link.
+linkSym : symmetric (undirected G).link.
 linkSym X Y (link.1 E) = link.2 E.
 linkSym X Y (link.2 E) = link.1 E.
 
-reachTrans : {x y z : g.node} -> undirected.reach x y -> undirected.reach y z -> undirected.reach x z.
+reachTrans : {x y z : G.node} -> (undirected G).reach x y -> (undirected G).reach y z ->
+             (undirected G).reach x z.
 reachTrans (reach.1 L) Q = reach.2 L Q.
 reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
 
-reachSym : symmetric undirected.reach.
+reachSym : symmetric (undirected G).reach.
 reachSym X Y (reach.1 L) = reach.1 (linkSym _ _ L).
 reachSym X Y (reach.2 {Y := W} L R) = reachTrans (reachSym W Y R) (reach.1 (linkSym _ _ L)).
 %opaque linkSym reachTrans reachSym.
 ```
 
-`symmetric undirected.reach` elaborates to `{d : db} -> {g : graph} -> symmetric {⇑g.node} ([x] [y]
-undirected g ⊢ reach x y)`, the type that today's version has (its `--print-after elaborate` output is
-`symmetric {⇑$(g.node)} ([x] [y] derives (([x0] programOf undirected x0) g) d (atom (own 1) …))`). The
-combinator is an ordinary meta function: a library of relation properties (`symmetric`, `transitive`,
-`included`, `sameRel`) applies to object relations without a lambda per use. `linkSym` now takes the two
-nodes explicitly, because `symmetric` quantifies them explicitly.
+`symmetric (undirected G).reach` elaborates to `symmetric {⇑G.node} ([x] [y] undirected G ⊢ reach x y)`
+under the implicit binders `{G : graph}` (a free variable) and the anonymous database, the type of the
+turnstile version. The combinator is an ordinary meta function: a library of relation properties
+(`symmetric`, `transitive`, `included`, `sameRel`) applies to object relations without a lambda per use.
+`linkSym` now takes the two nodes explicitly, because `symmetric` quantifies them explicitly.
 
 ### 1.4 An instance opened by `%use`, proved by evaluation
 
-Today (P7b, `tests/run/p7b_rules.hgn`): `viaParis : trip ⊢ path berlin rome = decide 3 tt.` With level 3.5,
-both of the following are the same declaration (proposal):
+Before (P7b and P7c alike, `tests/run/p7b_rules.hgn`): `viaParis : trip ⊢ path berlin rome = decide 3 tt.`
+With level 3.5, both of the following are the same declaration (proposal):
 
 ```hugin
 viaParis : trip.path berlin rome = decide 3 tt.
@@ -227,43 +250,44 @@ coercion finds its program from the instance the constant belongs to. Today the 
 
 ### 1.5 What the editor shows
 
-Hovers and goals print the elaborated judgment, as today: the hole in
+Hovers and goals print the elaborated judgment, as for the turnstile: the hole in
 
 ```hugin
-toTc : {x y : g.node} -> tc2.path x y -> tc.path x y.
+toTc : {x y : G.node} -> (tc2 G).path x y -> (tc G).path x y.
 toTc (path.2 P Q) = ?.
 ```
 
-shows `goal: tc g ⊢ path x y` and `P : tc2 g ⊢ path x Y`, exactly the output that P7b gives for the
-turnstile form (checked for `tc ⊢ path x y -> tc ⊢ path y x`: `goal: tc g ⊢ path y x`). Case splits offer
-`path.1 E` and `path.2 P Q` as today. A relation that belongs to no program is an error with a help that
-names the fix (proposal: code and text):
+shows `goal: tc G ⊢ path x y` and `P : tc2 G ⊢ path x Y` (P7b prints `tc g ⊢ path y x` for the turnstile
+form, checked; P7c prints the program with the user's variable). Case splits offer `path.1 E` and `path.2 P
+Q` as for the turnstile. A relation that belongs to no program is an error with a help that names the fix
+(proposal: code and text):
 
 ```text
-error[E0960]: `g.edge x y` is not a type: no program declares the relation `g.edge`
+error[E0960]: `G.edge x y` is not a type: no program declares the relation `G.edge`
  --> closure.hgn:3:28
   |
-3 | edgeIn : {x y : g.node} -> g.edge x y -> tc2 ⊢ g.edge x y.
-  |                            ^^^^^^^^^^ a relation of the parameter `g`
+3 | edgeIn : {x y : G.node} -> G.edge x y -> tc2 G ⊢ g.edge x y.
+  |                            ^^^^^^^^^^ a relation of the variable `G`
   |
   = note: an applied relation is a proposition of the program that declares it
-  = help: name the program: `tc ⊢ g.edge x y`
+  = help: name the program: `tc G ⊢ g.edge x y`
 ```
 
 ### 1.6 With locale-style proofs (C3, after the phase of §4.3.6)
 
-The recommended plan adds, after A, proofs written inside the program's own body (§4.3.4). There a
-relation of the body *and a relation of its parameter* is a proposition of that body's program,
-unqualified, and every instance inherits the lemmas, as Isabelle's `interpretation` instantiates a
-locale's theorems. Proof A then reads (proposal):
+The recommended plan adds proofs written inside the program's own body (§4.3.4). There a relation of the
+body *and a relation of its parameter* is a proposition of that body's program, unqualified, and every
+instance inherits the lemmas, as Isabelle's `interpretation` instantiates a locale's theorems. The body's
+parameter `g` is in scope by its own binder, `tc2 (g : graph)`: a declared name, not a blessed one, so C3
+is consistent with L27. Proof A then reads (proposal):
 
 ```hugin
 %use "std/graph".
 %use "std/eq" (iff).
 %use "std/semantics".
 
-(* tc belongs to std/graph: its body cannot take lemmas, so its lemma is stated outside, with A *)
-tcTrans : {x y z : g.node} -> tc.path x y -> tc.path y z -> tc.path x z.
+(* tc belongs to std/graph: its body cannot take lemmas, so its lemma is stated outside *)
+tcTrans : {x y z : G.node} -> (tc G).path x y -> (tc G).path y z -> (tc G).path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
@@ -292,21 +316,23 @@ road : city -> city -> rel.
 %input road.
 fast = tc2 { node = city, edge = road }.
 %output fast.path.
-(* no forFast: fast.sameFacts : {d : db} -> {x y : city} ->
-     iff ((tc { node = city, edge = road }).path x y) (fast.path x y) *)
+(* no forFast: fast.sameFacts : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y),
+   under the anonymous database binder *)
 ```
 
-Proof B moves into `coarse`'s body entirely, since it is about one program, and `a.alpha x b` loses its
-turnstile:
+Proof B moves into `coarse`'s body, since it is about one program. The parameter relation `a.alpha` is
+coerced there too, also in the η form, so the hypothesis takes the two relations by name:
 
 ```hugin
 coarse (a : abstraction) = {
   (* … the rules of reached, aedge and areached as in §1.2 … *)
-  placed (d : db) : Type = (x : a.node) -> reached x -> { b : a.anode, ok : a.alpha x b }.
-  sound : placed d -> {x : a.node} -> {b : a.anode} -> reached x -> a.alpha x b -> areached b.
+  placed : (⇑a.node -> Type) -> (⇑a.node -> ⇑a.anode -> Type) -> Type.
+  placed Reached Alpha = (x : ⇑a.node) -> Reached x -> { b : ⇑a.anode, ok : Alpha x b }.
+  sound : placed reached a.alpha -> {x : a.node} -> {b : a.anode} -> reached x -> a.alpha x b -> areached b.
   sound T (reached.1 S) H = areached.1 S H.
   sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
-  safe : placed d -> {x : a.node} -> {b : a.anode} -> (areached b -> empty) -> a.alpha x b -> reached x -> empty.
+  safe : placed reached a.alpha -> {x : a.node} -> {b : a.anode} ->
+         (areached b -> empty) -> a.alpha x b -> reached x -> empty.
   safe T N H R = N (sound T R H).
   %opaque sound safe.
 }.
@@ -314,8 +340,11 @@ eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = l
 (* eu.sound and eu.safe are the theorems for the run's instance *)
 ```
 
-The statements about one program are shorter than with A alone, and `forFast` disappears; the statement
-that compares `tc` with `tc2` still qualifies `tc`, with A's `(tc g).path` or the turnstile.
+The variant that keeps P7c's named database inside the body writes C2's prefix turnstile (§4.3.3):
+`placed (D : db) : Type = (x : a.node) -> ⊢[D] reached x -> { b : a.anode, ok : ⊢[D] a.alpha x b }` and
+`⊢[D]` in `sound` and `safe`. Both read better than any top-level version: the statements about one program
+lose the program, the parameter relation loses its turnstile, and `forFast` disappears. The statement that
+compares `tc` with `tc2` still qualifies `tc`, with A's `(tc g).path` or the turnstile.
 
 ## 2. What level 3.5 is
 
@@ -326,9 +355,9 @@ bidirectional elaborator (`⇐` checks against a type, `⇝` is the elaborated t
 
 ```text
   r is a relation, struct or constructor owned by the program P   (§2.3)
-  r has the columns τ₁ … τₙ, n ≥ 1        Γ ⊢ tᵢ ⇐ ⇑τᵢ  ⇝  uᵢ        d : db in Γ
+  r has the columns τ₁ … τₙ, n ≥ 1        Γ ⊢ tᵢ ⇐ ⇑τᵢ  ⇝  uᵢ        δ the omitted database (§2.4)
   ------------------------------------------------------------------------------------- (coerce)
-  Γ ⊢ r t₁ … tₙ ⇐ Type ℓ   ⇝   derives (programOf P) d (atom ρ [v u₁, …, v uₙ])
+  Γ ⊢ r t₁ … tₙ ⇐ Type ℓ   ⇝   derives (programOf P) δ (atom ρ [v u₁, …, v uₙ])
 
   the same premises, with the arguments missing
   ------------------------------------------------------------------------------------- (coerce-η)
@@ -338,7 +367,7 @@ bidirectional elaborator (`⇐` checks against a type, `⇝` is the elaborated t
 `ρ` is the reference that P7b's atom resolution gives `r` in `P` (`own i` for the program's own
 relations). The right-hand sides are exactly the terms that `P ⊢ r t̄` elaborates to: the implementation
 builds the `Judgment` tree and calls P7b's `inferJudgment`, so column typing, `⇑` covariance, arity
-errors, and generalisation behave as for the turnstile. "Where a meta type is expected" means both
+errors and the omitted database behave as for the turnstile written without `[…]`. "Where a meta type is expected" means both
 checking against a universe (`check` with `isUniverse(a)`, which sets `state.typePosition`) and inferring a
 type (`inferU`, used for arrow domains and codomains, binder types and declared types), the two places
 where `⇑` is inserted for object types today.
@@ -362,7 +391,6 @@ because a type under `⇑` is not checked until it is staged, and a meta type ne
 | `g.edge x y` (parameter relation) | `⇑($(g.edge) $x $y)` | none |
 | `fast.path` at `⇑city -> ⇑city -> Type` | `[_] [_] ⇑($(fast.path) $_ $_)` | none |
 | `path x y` after `%use trip (path).` | E0905, "not a function type" | |
-| `tc.path x y` (functor alone, `g` bound) | E0107, "`tc` is not a module" | |
 
 A declaration such as `t : {x y : city} -> fast.path x y -> fast.path x y. t P = P.` is accepted today and
 proves nothing. Level 3.5 therefore changes the meaning of accepted programs, but only of programs whose
@@ -377,26 +405,32 @@ The program is the one that *declares* the relation, found from the head of the 
 anything (so no functor application creates an instance; D10, P7b's "program kind from the head's declared
 type"):
 
-| written | the relation belongs to | elaborates to | generalised |
-|---|---|---|---|
-| `fast.path x y`, `fast` an instance (`fast = tc2 { … }`) | the instance `fast` | `fast ⊢ path x y` | `d` |
-| `trip.path berlin rome`, `trip` a module value (`trip = { … }`) | the module `trip` | `trip ⊢ path berlin rome` | `d` |
-| `weak.v.vertex x`, a member instance (reference `modules.md`, "Instances") | the instance `weak.v` | `weak.v ⊢ vertex x` | `d` |
-| `path x y` after `%use fast.` or `%use trip (path).` | the instance whose constant `path` denotes | `fast ⊢ path x y` | `d` |
-| `(tc2 g).path x y`, any functor application | the application | `tc2 g ⊢ path x y` | `d` |
-| `tc2.path x y`, a functor written alone | the functor at its parameters | `tc2 ⊢ path x y`, that is `tc2 g ⊢ path x y` | `d`, `g` |
-| `fast.path` where `⇑city -> ⇑city -> Type` is expected | the instance `fast` | `[x] [y] fast ⊢ path x y` | `d` |
+| written | the relation belongs to | elaborates to |
+|---|---|---|
+| `fast.path x y`, `fast` an instance (`fast = tc2 { … }`) | the instance `fast` | `fast ⊢ path x y` |
+| `trip.path berlin rome`, `trip` a module value (`trip = { … }`) | the module `trip` | `trip ⊢ path berlin rome` |
+| `weak.v.vertex x`, a member instance (reference `modules.md`, "Instances") | the instance `weak.v` | `weak.v ⊢ vertex x` |
+| `path x y` after `%use fast.` or `%use trip (path).` | the instance whose constant `path` denotes | `fast ⊢ path x y` |
+| `(tc2 G).path x y`, any functor application (`G` a free variable, a parameter, or any argument) | the application | `tc2 G ⊢ path x y` |
+| `fast.path` where `⇑city -> ⇑city -> Type` is expected | the instance `fast` | `[x] [y] fast ⊢ path x y` |
+| with C3: `path x y` or `g.edge x y` inside the body of `tc2 (g : graph)` | the enclosing body at its parameter | `tc2 g ⊢ path x y` |
+
+Each row uses the omitted database of §2.4. A functor written alone, `tc2.path x y`, is **not** a form: it
+would bind the functor's parameter under its declared name, which L27 rules out for the turnstile
+(`tc2 ⊢ …` is no longer generalised), and it stays the error it is today (E0107, "`tc2` is not a module",
+checked).
 
 The following are **not** coerced; they are E0960 with a help that names the turnstile form:
 
-- *A parameter's relation*, `g.edge x y` or `a.alpha x b`. Its reference `arg l` is relative to the program
-  (P7a: `arg "edge"`, or `arg "g.edge"` when the body has several environment variables), every program
-  over `g` reads it, and the same text would denote a different judgment in `tc` and in `tc2`. Write `tc ⊢
-  g.edge x y`. Inside a body the program is known, and C3 covers it (§4.3.4).
+- *A relation of a variable or of a functor's parameter*, `G.edge x y` or `A.alpha x b` at the top level.
+  Its reference `arg l` is relative to the program (P7a: `arg "edge"`, or `arg "g.edge"` when the body has
+  several environment variables), every program over `G` reads it, and the same text would denote a
+  different judgment in `tc G` and in `tc2 G`. Write `tc G ⊢ g.edge x y`. Inside a body the program is
+  known, and C3 covers the body's parameter relations (§4.3.4).
 - *A relation of the file*, `road x y`. Its program is the file's, `programOf here`, which P7a deferred.
   When `here` lands, the coercion covers it with no new rule: `road x y` is `here ⊢ road x y`.
-- *A relation of the body a proof is written in.* A member function of `tc2`'s body that states `path x
-  y` would mean `tc2 g ⊢ path x y` with the functor's own parameter, as a lemma inside an Isabelle
+- *A relation of the body a proof is written in,* until C3. A member function of `tc2`'s body that states
+  `path x y` would mean `tc2 g ⊢ path x y` with the functor's own parameter, as a lemma inside an Isabelle
   `context tc begin … end` block sees the locale's predicates unqualified. Reading the enclosing body's
   rules from inside it needs the same elaboration phase as `programOf here` (the body's object items are
   elaborated after its meta members). This is variant C3 of §4.3, planned after that phase (P9f, P9g).
@@ -408,32 +442,46 @@ The following are **not** coerced; they are E0960 with a help that names the tur
 
 ### 2.4 Which database
 
-Always the variable `d`: in a declaration's type the generalised `{d : db}`, elsewhere the `d` in scope (a
-parameter named `d`, as in `placed`, or a generalised binder in a clause). No `d` is E0947, as for the
-turnstile. A judgment at another database is written `P ⊢[e] r t̄`; level 3.5 has no form for it, by design:
-the abbreviation exists for the common case, and `[e]` keeps the explicit database visible, as Beluga's
-contextual types `[Ψ ⊢ M]` keep their context visible.
+The coercion uses exactly the database that P7c gives a turnstile written without `[…]` at the same
+place:
 
-### 2.5 Generalisation
+- **In a declaration's type** (and its parameters' types): the one anonymous implicit binder that all such
+  judgments of the declaration share, coerced atoms included. It has no name, so it cannot be referenced
+  or matched. A statement that must relate it to another term, such as a hypothesis `placed D A` defined
+  over a database, names the database with `⊢[D]` (`D` a free variable) and keeps the turnstile, or states
+  the hypothesis over relations instead (§1.2).
+- **Elsewhere** (a definition's value, a clause, a lambda outside a declaration's type): a metavariable
+  solved by unification. If it stays unsolved, E0947 asks for `⊢[e]`. In `placed (d : db) (a :
+  abstraction) : Type = (x : a.node) -> (coarse a).reached x -> …` nothing determines it, so that
+  definition keeps `coarse a ⊢[d] reached x`.
+- **A named database has no coerced form.** `P ⊢[D] r t̄` is written with the turnstile; inside a body,
+  with C3, as the prefix `⊢[D] r t̄` (§4.3.3). This is by design: the abbreviation is for the common case,
+  and `[…]` keeps an explicit database visible, as Beluga's contextual types `[Ψ ⊢ M]` keep their
+  context visible.
 
-P7b collects the `Judgment` nodes of a declaration's type and parameter types before elaborating them
-(`Judgments.generalisedBinders`). P9b extends the collection with the coercion's candidates, also
-syntactically, so that no type is elaborated twice:
+The identifier `d` has no special meaning, in the coercion as anywhere (L27).
 
-- `f.r`, applied or not, with `f` a functor, is always a candidate, since it has no other meaning: it
-  generalises `f`'s parameters by name, merged with other functors' parameters of the same name and type,
-  exactly as `f ⊢` does (E0946 on a type clash).
-- Any candidate (`f.r`, `m.r`, `(f ā).r`, an opened instance relation) applied to at least one argument and
-  standing in a *syntactic type position* asks for `{d : db}`. The syntactic type positions are: the
-  declared type itself, an arrow's domain and codomain, a binder's type, and an argument of a global
-  constant whose parameter type is a universe or a Π type ending in one (`iff`, `symmetric`), read from the
-  constant's declared type.
+### 2.5 Binders
 
-A coercion that happens elsewhere (an argument of a local function variable `F (fast.path x y)`) needs a
-`d` in scope, and is E0947 otherwise, with the help to write `⊢[e]` or to bind `{d : db}`. Lean 4 solves
-the same problem differently: an auto-bound implicit is found by an "unknown identifier" during elaboration,
-and the header is elaborated again with the binder added (`Lean.Elab.Term.withAutoBoundImplicit`). The
-syntactic rule is chosen because it keeps P7b's single pass and gives a predictable error.
+Nothing is bound by a declared name. Two things need care:
+
+- *Free variables in a coerced atom.* `G` in `(tc2 G).path x y` is a free uppercase variable of the
+  declaration's type like any other, bound by the existing implicit-argument mechanism (reference
+  `meta/functions.md`, "Implicit arguments"); the atom is ordinary syntax, so the existing collection of
+  free variables sees it. `(tc G).path` and `(tc2 G).path` share `G` because they are the same variable;
+  no merging rule is involved.
+- *The anonymous database binder.* P7c creates it when a declaration's type contains a judgment without
+  `[…]`, which it finds syntactically (`Judgment` nodes, as P7b did). A coerced atom is not a `Judgment`
+  node, so P9b's pre-pass adds the coercion's *candidates*: an owned relation path (`m.r`, `(f ā).r`, an
+  opened instance relation), applied or not, in a *syntactic type position*: the declared type itself, an
+  arrow's domain and codomain, a binder's type, and an argument of a global constant whose parameter type
+  is a universe or a Π type ending in one (`iff`, `symmetric`), read from the constant's declared type.
+
+A coercion in a type position that the pre-pass does not see (an argument of a local function variable,
+`F (fast.path x y)`) gets a metavariable as "elsewhere" does, and E0947 if nothing solves it. Lean 4 avoids
+the pre-pass: an unknown identifier in a header aborts elaboration, the binder is added and the header is
+elaborated again (`Lean.Elab.Term.withAutoBoundImplicit`). The syntactic rule keeps P7c's single pass and
+gives a predictable error.
 
 ### 2.6 Rule names, `given`, `match`, `rewrite`, `decide`
 
@@ -441,21 +489,21 @@ All unchanged, because the elaborated types are identical to the turnstile's:
 
 - *Rule names* `r.k`, labels and `given` are resolved against the expected derivation type (P7b), so they
   work below coerced types without qualification. The per-relation pattern synonyms that chapter 10.1 of
-  the proofs note sketched, `pattern (tc2 g).path.base E = path.1 E`, are not needed: a label `@base` on
+  the proofs note sketched, `pattern (tc2 G).path.base E = path.1 E`, are not needed: a label `@base` on
   the rule already names it (P7b, `tests/run/p7b_rules.hgn`).
 - *`match` and `rewrite`* abstract over normal forms (P3), which are `derives …`; a variable `x` of the goal
-  is found inside `v {g.node} ⟨$x⟩` as today.
+  is found inside `v {G.node} ⟨$x⟩` as for the turnstile.
 - *`decide n tt`* proves `trip.path berlin rome` as it proves `trip ⊢ path berlin rome`: its type is
-  `so (holds n p a) -> derives p d a`, unified with the coerced goal.
+  `so (holds n p a) -> derives p d a`, unified with the coerced goal, whose database is the omitted one.
 - *Coverage and case splits* see `derives` and split into the program's rules (P7b's Π extension).
 - *Termination*: premises are below `fire`, as before.
 
 ### 2.7 Hovers and printing
 
 The printer is independent of the scope of a file (P2b's decision for operators), so it cannot know
-whether a judgment was written with a turnstile or as an atom. It keeps printing the canonical form `tc g ⊢
-path x y`. This also shows the program and, when it is not `d`, the database, which the atom form cannot
-show. Hover on the relation name of a coerced atom shows the relation (go to definition goes to its
+whether a judgment was written with a turnstile or as an atom. It keeps printing the canonical form `tc G ⊢
+path x y`. This also shows the program and, when it is named, the database (`⊢[D]`), which the atom form
+cannot show. Hover on the relation name of a coerced atom shows the relation (go to definition goes to its
 declaration), and hover on the atom shows the judgment, as Lean shows an inserted coercion (`↥s`) instead
 of hiding it.
 
@@ -474,15 +522,15 @@ program owns is the coercion inserted. So:
 - A meta function named like an object relation keeps whatever meaning it has today: if the head
   resolves to the meta function, nothing is coerced.
 - A local variable or a pattern variable named like a relation shadows it, as everywhere.
-- A record of relations that is not a module, such as a functor parameter `g : graph`, owns nothing:
-  `g.edge x y` is E0960, never a judgment of some guessed program.
+- A record of relations that is not a module, such as a variable `G : graph` or a functor's parameter seen
+  from outside its body, owns nothing: `G.edge x y` is E0960, never a judgment of some guessed program.
 - Object positions are not affected: in a rule, a query, a formula function or under an explicit quote
   `<…>`, an atom is object code as today. The coercion applies only where a *meta type* is expected.
 
 ### 2.10 What level 3.5 is not
 
-It is not level 4. `tc2.path` is not a family: it has no constructors of its own, it is not injective for
-unification (`?R x y =?= tc2 g ⊢ path x y` is a higher-order problem, solved only when `?R` is given), and
+It is not level 4. `(tc2 G).path` is not a family: it has no constructors of its own, it is not injective
+for unification (`?R x y =?= tc2 G ⊢ path x y` is a higher-order problem, solved only when `?R` is given), and
 a derivation is a `derives` value. Meta functions that walk derivations (`route`, chapter 10.2 of the
 proofs note) are written over `derives` as today. Per-relation adequacy does not arise: the coerced atom
 is the judgment, and the one adequacy statement (reference `std/semantics.md`, "Adequacy") covers it.
@@ -496,8 +544,8 @@ is the judgment, and the one adequacy statement (reference `std/semantics.md`, "
 | eta form for unapplied relations | Hugin's stage inference eta-expands an object relation to a formula function | the same rule, with `Type` in place of `⇑prop` |
 | the abbreviated judgment hides the program | Abella's `{A}` for `{nil \|- A}`, with the one specification fixed by `Specification "file".` | Abella hides the program but keeps the braces that mark an object judgment; A drops the marker and takes the program from the relation's owner |
 | the relation *is* the proposition | Isabelle's `inductive` predicates, Lean 4's `inductive … : α → α → Prop`, Twelf's type families | the surface only: level 3.5 keeps one judgment, level 4 would make the relation a family |
-| explicit context stays visible | Beluga's contextual types `[Ψ ⊢ M]` | `⊢[e]` stays the form for a database other than `d` |
-| "which program" for a functor's relation | Isabelle locales (`locale … fixes`, `context … begin`, `interpretation fast: tc road`); Agda parameterised modules and `variable`; Lean `section`/`variable`; Rocq `Section`/`Context` | the functor parameter is the locale's `fixes`, generalisation its abstraction at the end of the block, `forFast` its `interpretation`; in-body proofs (the `context` block) are deferred with `here` |
+| explicit context stays visible | Beluga's contextual types `[Ψ ⊢ M]` | `⊢[e]` stays the form for a named database |
+| "which program" for a functor's relation | Isabelle locales (`locale … fixes`, `context … begin`, `interpretation fast: tc road`); Agda parameterised modules and `variable`; Lean `section`/`variable`; Rocq `Section`/`Context` | at the top level, the functor's argument is a variable the user writes (`tc G`), so the abstraction is the ordinary one over free variables; in C3 the body's own parameter is the locale's `fixes` and an instance's lemmas its `interpretation` |
 | a user-level notation instead | Agda `syntax` declarations, Rocq `Notation`, Lean `notation`/`macro` | not usable: a user notation needs a fixed head symbol and cannot compute the owner of a relation |
 | an implicit program found by search | Agda instance arguments `{{p : P}}`, Lean instance implicits `[…]`, Rocq `Hint`s and type classes | rejected (alternative C): several programs in one statement, no type classes in Hugin |
 
@@ -527,9 +575,10 @@ type already says that a proposition is meant.
 **Isabelle's locales** answer the "which program" question for parameterised specifications. A `locale tc
 = fixes edge :: "'a ⇒ 'a ⇒ bool"` with an `inductive path` inside a `context tc begin … end` block states
 lemmas about `path` unqualified, with `edge` fixed; after `end`, they are abstracted over `edge`, and
-`interpretation fast: tc road` instantiates them as `fast.lemma`. Hugin's functor parameter plus
-generalisation is the same abstraction, written per declaration instead of per block: `tc2.path x y` in a
-declaration's type abstracts over `g`, and `forFast` is the interpretation. Isabelle's `inductive` package
+`interpretation fast: tc road` instantiates them as `fast.lemma`. At the top level Hugin makes the same
+abstraction per declaration, with a variable the user writes: `(tc2 G).path x y` abstracts over `G`, and
+`forFast` is the interpretation. Inside a body (C3) it is the locale's own: the parameter `g` of `tc2 (g :
+graph)` is fixed, and the instance inherits the lemmas. Isabelle's `inductive` package
 also gives the relation's rules the names `path.intros(1)`, which P7b followed with `path.1`.
 
 **Agda** offers two mechanisms that could implement parts of this by hand. A `syntax` declaration
@@ -537,15 +586,21 @@ also gives the relation's rules the names `path.intros(1)`, which P7b followed w
 derives P d a = P ⊢[ d ] a`, but only for a fixed function symbol, and the atom `path x y` has no such
 symbol: the program depends on where `path` is declared. Instance arguments
 (`doc/user-manual/language/instance-arguments.lagda.rst`) could supply an implicit program `{{p :
-Program}}`, which is alternative C below. Parameterised modules and `variable`
-(`doc/user-manual/language/generalization-of-declared-variables.lagda.rst`) are the precedent for P7b's
-generalisation, which level 3.5 reuses.
+Program}}`, which is alternative C below. Parameterised modules are the precedent for C3.
+
+**Generalisation binds only written names.** Agda's `variable` declarations
+(`doc/user-manual/language/generalization-of-declared-variables.lagda.rst`) generalise a name only where
+the user writes it in a signature, and Lean 4's auto-bound implicits bind only an unbound identifier that
+occurs in the header (`Lean.Elab.Term.withAutoBoundImplicit`). Neither invents a binder from another
+declaration's parameter names, which is what P7b's generalisation of `tc ⊢` did and L27 removed. Level 3.5
+follows the same rule: `G` in `(tc G).path` is bound because it is written, and the anonymous database is
+P7c's, which cannot be referenced by any name.
 
 **Twelf and Beluga.** In Twelf a relation is an LF type family (`path : node -> node -> type.`), so
 "relations as propositions" is the starting point, and meta-theorems are total relations over it (`%total`).
 That is level 4, with the program as the signature. Beluga reasons about LF objects in explicit contexts,
-`[Ψ ⊢ M]`, and does not abbreviate the context away; Hugin follows it in keeping `⊢[e]` for databases other
-than `d`.
+`[Ψ ⊢ M]`, and does not abbreviate the context away; Hugin follows it in keeping `⊢[e]` for a named
+database.
 
 ## 4. Alternatives
 
@@ -557,18 +612,18 @@ applied relation that a program owns, where a meta type is expected.
 ### 4.2 B: derived meta members per relation
 
 Chapter 10.1 of the proofs note sketched this: for each relation `r` of a body, the compiler derives a meta
-member `(tc2 g).path : g.node -> g.node -> Type = [x] [y] tc2 g ⊢ path x y`, and rule pattern synonyms.
+member `(tc2 G).path : G.node -> G.node -> Type = [x] [y] tc2 G ⊢ path x y`, and rule pattern synonyms.
 
 - The module field `path` is already the object relation (`fast : { path : ⇑(city -> city -> rel) }`, from
   `--print-after elaborate`). A second field of the same name needs names overloaded by stage, as shared
   data has them (reference `meta/families.md`, "Names and stages"), but for relations, which are not data:
   the "crack in 2LTT's separation" that chapter 10.2 of the proofs note lists as a cost of level 4.
-- `(tc2 g).path` as a member of an application evaluates `tc2 g`, which creates an instance (generativity,
+- `(tc2 G).path` as a member of an application evaluates `tc2 G`, which creates an instance (generativity,
   D10). To avoid it, the member must be recognised syntactically, at which point it is alternative A with
   an extra generated declaration.
 - A member per relation of every body costs compile time and incrementality (a rule edit changes a
   member's type), and the pattern synonyms duplicate P7b's rule names.
-- Gain over A: none that A's eta form does not give (`symmetric undirected.reach`).
+- Gain over A: none that A's eta form does not give (`symmetric (undirected G).reach`).
 
 ### 4.3 C: an ambient program
 
@@ -602,37 +657,41 @@ below, each with its end state, and §4.3.5 relates them to A.
 All four elaborate in textual order: the relation or inductive family is defined before the lemmas about
 it (§4.3.6).
 
-#### 4.3.2 C1: a directive, `%program tc.`
+#### 4.3.2 C1: a directive, `%program tc G.`
 
 A directive sets the ambient program for the declarations after it, until the next `%program`. Bare atoms,
-including parameter relations, are judgments of it; another program is qualified. End state of Proof A
-(proposal):
+including parameter relations, are judgments of it; another program is qualified. After L27 the directive
+must name the functor's argument too, and `G` is then a variable that every following declaration binds
+for itself, as Agda's `variable G : graph` is generalised separately in each signature that uses it. End
+state of Proof A (proposal):
 
 ```hugin
-%program tc.
-tcTrans : {x y z : g.node} -> path x y -> path y z -> path x z.
+%program tc G.
+tcTrans : {x y z : G.node} -> path x y -> path y z -> path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
-%program tc2.
-edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> g.edge x y.
+%program tc2 G.
+edgeIn : {x y : G.node} -> tc G ⊢ g.edge x y -> g.edge x y.
 edgeIn (given I) = given I.
-toTc2 : {x y : g.node} -> tc.path x y -> path x y.
+toTc2 : {x y : G.node} -> (tc G).path x y -> path x y.
 toTc2 (path.1 E) = path.1 (edgeIn E).
 toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
 (* edgeOut and toTc likewise *)
-sameFacts : {x y : g.node} -> iff (tc.path x y) (path x y) = { to = toTc2, from = toTc }.
+sameFacts : {x y : G.node} -> iff ((tc G).path x y) (path x y) = { to = toTc2, from = toTc }.
 ```
 
-Proof B: `%program coarse.` before `placed`, `sound`, `safe`, which then read as in §1.6 but at the top
-level. §1.3: `%program undirected.` and `reachSym : symmetric reach.`. §1.4: `%program trip.` and
+Proof B: `%program coarse A.` before `placed`, `sound`, `safe`, which then read as in §1.6 but at the top
+level. §1.3: `%program undirected G.` and `reachSym : symmetric reach.`. §1.4: `%program trip.` and
 `viaParis : path berlin rome = decide 3 tt.`. The cross-program statement `sameFacts` sits under one of the
 two programs and qualifies the other, with A's form or the turnstile.
 
 Assessment. Hugin's items are unordered: a name may be used before its declaration, the compiler orders
 items by dependency (reference `meta/index.md`, "Order of elaboration"), and moving an item elaborates
 nothing (`docs/INCREMENTALITY.md`, step 9). A region directive is the first construct whose meaning depends
-on an item's position, and moving `toTc2` above `%program tc2.` silently changes the program it is about.
+on an item's position, and moving `toTc2` above `%program tc2 G.` silently changes the program it is about.
+The `G` of the directive is a variable declared once and bound in each declaration, which is the kind of
+name across declarations that L27 removed from the turnstile.
 The bare name `path` would also resolve in `tc2`'s body scope instead of the file's, a second scope rule
 that the reader must apply by position. A block instead of a region (`%program tc2 { … }`, Isabelle's
 reopenable `context`) fixes the position problem, but it is new syntax that duplicates what a module body
@@ -698,7 +757,7 @@ trip = {
 Every instance has the lemmas as fields: `fast.sameFacts`, `eu.sound`, `(undirected roads).reachSym`. This
 already works mechanically today for lemmas about *another* program: a member function of a functor body
 stating `tc g ⊢ path x y` compiles, and `fast.lem` is used at the instance's type `tc { node = city, edge =
-road } ⊢ path x y` (checked, with `d` generalised inside the body). What does not work is a lemma about the
+road } ⊢ path x y` (checked at 1db9441, with P7b's database generalised inside the body). What does not work is a lemma about the
 body's *own* program: naming the functor inside its body is E0105 ("`tc3` refers to itself", checked), and
 there is no `programOf` of the enclosing body, because of the phase in §4.3.6.
 
@@ -713,11 +772,11 @@ also stays outside, since its body is closed; Isabelle reopens the locale for th
 the lemma must not create an instance: selecting a member of a functor application in meta code evaluates
 the application, which is generative. Checked: `use : … = (tc3 { node = city, edge = road }).lem.` creates
 an instance named `use` and the run prints `use.path berlin paris`. C3 therefore needs **member access
-without an instance**: `f.m` and `(f ā).m`, for a meta member `m` that mentions no object constant of the
-body (a lemma mentions the body's relations only through program references, `own i`), is the member
-function at the arguments, read from the functor without evaluating its body, with the functor's
-parameters implicit for `f.m` (Isabelle's `tc.lemma` with the locale's parameters as arguments). P7b's
-argument-first unification of folded programs solves them from the derivation types. A member that
+without an instance**: `(f ā).m`, for a meta member `m` that mentions no object constant of the body (a
+lemma mentions the body's relations only through program references, `own i`), is the member function at
+the arguments, read from the functor without evaluating its body (Isabelle's `tc.lemma` with the locale's
+parameters as arguments). The arguments are written, `(tc2 G).sameFacts` with `G` free in a declaration's
+type; a functor alone, `tc2.sameFacts`, is not a form, for the reason that `tc2.path` is not (§2.3). A member that
 mentions an object constant still needs an instance (E0107 with a note, otherwise).
 
 #### 4.3.5 The key observation: C3 is A's rule with one more owner
@@ -731,7 +790,7 @@ enclosing body, at its own parameters". This is the row that §2.3 deferred.
 A and C3 are therefore **complementary, not alternatives**. A gives the qualified forms, which are needed
 wherever no body encloses the statement: cross-program statements, statements about instances, lemmas about
 library functors. C3 gives the unqualified forms where one body encloses the statement. Both elaborate to the
-same `derives` term, print the same way, and share rule names, generalisation of `d`, coverage and the
+same `derives` term, print the same way, and share rule names, the omitted database, coverage and the
 implementation of the coercion. C1 and C2 are different: C1 is an alternative source of the ambient
 program (rejected, §4.3.2), C2 an orthogonal choice of marking (adopted as a complement, §4.3.3).
 
@@ -757,7 +816,7 @@ order has to follow from dependencies: a lemma depends on the rules it is about.
 1. Classify the meta members. A member is *program-dependent* if, syntactically, it mentions the
    enclosing scope's program: an own or parameter relation applied in a type position (the candidates of
    §2.5), a prefix judgment `⊢ r t̄`, `programOf here`, or another program-dependent member. The test is
-   the name-resolution pre-pass that P9b adds for generalisation, so it costs no elaboration.
+   the name-resolution pre-pass that P9b adds for the database binder (§2.5), so it costs no elaboration.
 2. Elaborate the other members as today, then the object items (rules, queries).
 3. Build the scope's program value from the elaborated rules, as `programOf` reads a body (P7a): for a
    functor body, P7b's folded program constant applied to the body's environment variables (`g`); for a
@@ -801,7 +860,8 @@ Gains:
   `forFast` written; Isabelle's `interpretation`, Agda's module application.
 - **Proofs next to the program.** A rule edit and the lemma it breaks are in one body; the body's
   signature can export the lemmas with the relations.
-- **Generalisation shrinks.** `g` is the body's parameter, in scope; only `d` is generalised.
+- **No variable for the program's argument.** `g` is the body's own parameter, in scope by its binder `tc2
+  (g : graph)`, so the lemmas need no free `G`; only the anonymous database is implicit.
 
 Losses and confusions:
 
@@ -851,43 +911,49 @@ reachTrans (path.2 E P) Q = path.2 E (reachTrans P Q).
 | depends on item order | no | no | **yes** | no | no | no | no |
 | elaboration phase needed | no | no | no (yes for in-body) | with C3 | **yes** (P9f) | yes, for the C3 part | no |
 | unapplied relation (η) | yes | yes | yes | no | yes | yes | yes |
-| lines (§5) | 650–1050 with P9a | 1100–1600 | 900–1300 | +100–200 on C1 or C3 | 1200–2100 with the phase | 1850–3150 | 0 |
+| shorter than `tc G ⊢ path x y` at the top level | no (`(tc G).path x y`); yes for instances, opened names, η | no | yes | slightly (`⊢ path x y`) | n/a | as A | no |
+| lines (§5) | 550–900 with P9a | 1000–1500 | 800–1200 | +100–200 on C1 or C3 | 1150–2050 with the phase | 1700–2950 | 0 |
 
 ### 4.6 Recommendation (revised)
 
-The first version recommended A alone and dismissed C in ten lines. That dismissal was wrong for C3. The
-honest comparison:
+Revision 1 recommended A alone and dismissed C in ten lines; revision 2 found that dismissal wrong for
+C3. L27 moves the balance further: with `tc.path` gone, A's forms at the top level are no shorter than the
+turnstile (`(tc G).path x y` against `tc G ⊢ path x y`, §1.1). The honest comparison now:
 
-- **C3 is the better form for theorems about one program.** It gives three things that A cannot:
-  parameter relations without the turnstile, lemmas that every instance inherits (no `forFast`), and
-  proofs next to the rules. It is the established design: Isabelle's locales with `interpretation`, Agda's
-  parameterised modules with module application.
-- **C3 cannot replace A.** Statements about two programs, about instances, and about library functors have
-  no enclosing body, and need qualified forms. And C3 *is* A's rule with the enclosing body as owner
-  (§4.3.5), so building A builds most of C3's elaboration.
-- **C3 is blocked by the phase of §4.3.6**, which is also `programOf here`'s blocker. The phase is the
-  larger and riskier part (elaboration order, a new cycle error, a file-level incrementality cost), and it
-  is worth doing once, for both.
-- **C1 is rejected**: an order-dependent region in an unordered language. Its block form, reopening a
-  library functor, is recorded as an option.
-- **C2 is adopted as a complement**: the prefix `⊢ r t̄` for nullary relations and explicit databases
-  inside an ambient scope, where A must refuse.
+- **C3 carries most of the value.** It gives what neither the turnstile nor A can: parameter relations
+  without the turnstile, lemmas that every instance inherits (no `forFast`), proofs next to the rules, and
+  no variable for the program's argument (the body's `g` is declared). It is the established design:
+  Isabelle's locales with `interpretation`, Agda's parameterised modules with module application.
+- **A's remaining gains are real but small:** the η form (§1.3: `symmetric (undirected G).reach`, and
+  database-free hypotheses, §1.2), instance and opened names (§1.4), and E0960's help instead of today's
+  meaningless `⇑(r t̄)`. Its implementation is also C3's: C3 is A's rule with the enclosing body as owner
+  (§4.3.5).
+- **C3 cannot replace A or the turnstile.** Statements about two programs, about instances, and about
+  library functors have no enclosing body.
+- **C3 is blocked by the phase of §4.3.6**, which is also `programOf here`'s blocker; it is the larger and
+  riskier step, worth doing once for both.
+- **C1 is rejected**: an order-dependent region in an unordered language, and after L27 a directive-wide
+  variable `G`. Its block form, reopening a library functor, is recorded as an option.
+- **C2 is adopted as a complement**: the prefix `⊢ r t̄` and `⊢[D] r t̄` inside an ambient scope, for
+  nullary relations and named databases (§1.6's Proof B variant), where A must refuse.
 
-**Recommendation: A now (P9a, P9b); then the phase (P9f), which also delivers `programOf here`; then C3
-(P9g) with C2's prefix and member access without instance.** C3 first would leave A's cheap, independent
-gain waiting on the riskiest step, and C3's own examples (`(tc g).path` inside `tc2`) use A's rule. If only
-one of the two were ever built, C3 would be the more valuable; the plan builds both, the cheap one first.
-B and D are rejected as before (D stays possible).
+**Recommendation: P7c, then P9a; then P9b (A) and P9f (the phase, with `programOf here`) in parallel; then
+P9g (C3, with C2's prefix and member access without instance).** The priority is now the phase, because C3
+is where the gain is; P9b is kept because it is cheap (400–650 lines), independent of the phase, gives the
+η form now, and is the mechanism P9g extends. If the designer prefers to spend nothing on top-level forms,
+P9b can be folded into P9g (the coercion built only for in-body atoms and η), at the cost of the η form and
+instance names waiting for the phase. B and D are rejected as before (D stays possible).
 
 ## 5. Costs
 
-**Lines (estimate).** Scala, Hugin library, reference and tests together: P9a 150–250, P9b 500–800, so
-level 3.5 itself is 650–1050 (the proofs note budgeted 500–900 for P9 in chapter 12). The open flags add
-P9c 900–1400, P9d 150–300 and P9e 200–350 (§7). Most of P9b's Scala is the owner lookup and the
-generalisation pre-pass; the judgment itself is P7b's `inferJudgment`. The locale-style part adds P9f, the
-phase, 700–1200 (it also delivers `programOf here`), and P9g, C3's surface, 500–900: together 1200–2100,
-so A with C3 is 1850–3150 lines, about twice the level 3.5 budget of chapter 12, because it includes the
-`here` phase that P7a deferred.
+**Lines (estimate).** Scala, Hugin library, reference and tests together: P9a 150–250, P9b 400–650, so A
+is 550–900 (the proofs note budgeted 500–900 for P9 in chapter 12). P9b shrank with L27: no functor
+written alone, no generalisation of its parameters, no merging; most of its Scala is the owner lookup and
+the pre-pass that joins coerced atoms to P7c's anonymous database binder; the judgment itself is
+`inferJudgment`. The open flags add P9c 900–1400, P9d 150–300 and P9e 200–350 (§7). The locale-style part
+adds P9f, the phase, 700–1200 (it also delivers `programOf here`), and P9g, C3's surface, 450–850:
+together 1150–2050, so A with C3 is 1700–2950 lines, about twice the level 3.5 budget of chapter 12,
+because it includes the `here` phase that P7a deferred. P7c itself is not counted here.
 
 **Risks.**
 
@@ -896,13 +962,13 @@ so A with C3 is 1850–3150 lines, about twice the level 3.5 budget of chapter 1
   so the map is that record inverted, built once per file. An anonymous instance (`%use (tc { … }).`) has
   an owner too, `_m1`, and prints as `programOf _m1 …` (P7b's printing of bodies reached through an
   instance).
-- *Ambiguity between object relations and meta names.* None is introduced (§2.9). The one new reading is
-  of the text `f.r` for a functor `f`, which is an error today in every position.
+- *Ambiguity between object relations and meta names.* None is introduced (§2.9), and no new reading of
+  any text that is an error today other than the applied relation in a meta type (§2.2).
 - *A meaning change for accepted programs* (§2.2), limited to types without closed inhabitants; P9a turns
   them into errors first, so a program that relied on them fails loudly before P9b gives them a meaning.
 - *Performance.* The coercion is syntax-directed: one name lookup per applied path in a type position, and
   the elaboration of a judgment, which the turnstile form costs anyway. No evaluation, no new unification
-  problem. The generalisation pre-pass walks a declaration's type trees once, as P7b's does.
+  problem. The pre-pass for the database binder walks a declaration's type trees once, as P7c's does.
 - *Error messages.* A failing coercion must say that the atom was read as a proposition: arity and column
   errors reuse E0945's text with "the atom `fast.path x`, read as `fast ⊢ path x`". An applied relation
   that no program owns is E0960, naming the turnstile form (§1.5).
@@ -918,12 +984,12 @@ so A with C3 is 1850–3150 lines, about twice the level 3.5 budget of chapter 1
 
 1. `fast.path` (unapplied, at `Type`) is the fact type, while `fast.path x y` is a proposition: one name,
    two readings by application. Lean has the same split (`↥s` against `s x`); the hover shows which one.
-2. `tc.path x y` looks like a member selection on `tc`, a function; it hides the generalisation of `g`, as
-   `tc ⊢` does.
-3. The program's own relations lose the turnstile while parameter and file relations keep it (Proof A's
-   `edgeIn`). The rule is principled (only an owned relation has one program) but visible.
-4. A nullary relation needs the turnstile (`fast ⊢ flag`), because `fast.flag` at `Type` is the fact type.
-5. Printing shows `tc g ⊢ path x y` where the user wrote `tc.path x y`.
+2. The program's own relations may drop the turnstile while parameter and file relations keep it (Proof
+   A's `edgeIn`). The rule is principled (only an owned relation has one program) but visible.
+3. A nullary relation needs the turnstile (`fast ⊢ flag`), because `fast.flag` at `Type` is the fact type.
+4. Printing shows `tc G ⊢ path x y` where the user wrote `(tc G).path x y`.
+5. A named database has no coerced form, so a declaration that names it (`⊢[D]`) mixes forms or keeps the
+   turnstile throughout (§1.2).
 6. With C3, the same text `path x y` means `tc2 g ⊢ path x y` inside `tc2`'s body and is an error (or
    another instance's relation, if opened) outside it; the losses of §4.3.7 apply.
 
@@ -965,7 +1031,8 @@ projections and pattern synonyms. The alternative is a rename of the semantics' 
 
 P7b names a rule by its first head only (`r.k` = `crule.head`/`crule.index`). A rule's other heads, its
 written heads after the first and the constructor terms of its heads (P5a's "no `sub`"), have no name. The
-gap is a coverage gap, not only a cosmetic one. Checked at 1db9441:
+gap is a coverage gap, not only a cosmetic one. Checked at 1db9441, in P7b's notation (with P7c: `{x y :
+G.node} -> both G ⊢ edge x y -> both G ⊢ edge y x`):
 
 ```hugin
 both (g : graph) = {
@@ -1063,58 +1130,63 @@ because P7b treats every non-atom literal as a comparison.
 
 ### 6.4 Other flags that level 3.5 touches
 
-- *L17, `programOf f : graph -> program`* for a bare functor. Level 3.5 never uses the bare form: `tc.path`
-  generalises to `programOf (tc g)`, as `tc ⊢` does. Recommendation: accept L17 as implemented. P7a's D12
+- *L17, `programOf f : graph -> program`* for a bare functor. Level 3.5 never uses the bare form: a coerced
+  atom always has an application (`(tc G).path`) or an instance, and in C3 the body's program at its own
+  parameter. Recommendation: accept L17 as implemented. P7a's D12
   realisation (the converse round trip proved on the image of `quote` instead of trusted) is not touched.
 - *L22c, `{X := W}`.* Pattern variables are uppercase, so chapter 1 of the proofs note should write
   `{X := W}`, as the test does. Recommendation: correct chapter 1 (text only) with P9a's documentation.
 
 ## 7. Batches
 
-Each batch is one PR, after approval; each needs only the batches before it in its column. Error codes:
+Each batch is one PR, after approval. P7c (L27, no blessed names in judgments) is implemented first, on
+`fix/proofs-p7c-explicit-generalisation`; every batch below builds on its notation. Error codes:
 E0960–E0962, provisional (the block after P8b's E0955+).
 
 | batch | content | lines | tests | enables |
 |---|---|---|---|---|
-| **P9a** honest types | an applied relation under `⇑` in a meta type is E0960 (also written `⇑(r t̄)`); a judgment over a program with negation or aggregates is E0961; reference: `meta/staging.md` (stage inference), `std/semantics.md` (scope of the notation); E0960, E0961 explanations; chapter 1's `{X := W}` | 150–250 | neg: `e0960_applied_relation` (instance, functor application, parameter relation, explicit `⇑`, η), `e0961_judgment_negation` (`not`, `count`); the corpus run shows that no test relied on `⇑(r t̄)` | correctness on its own; the slot for P9b |
-| **P9b** the judgment coercion | the coercion and its η form (§2.1), the owner lookup (§2.3), the generalisation pre-pass (§2.5), E0960 for unowned relations, E0945 texts for coerced atoms; reference: `std/semantics.md` "Relations as propositions", `meta/functions.md` (generalisation) | 500–800 | run: `p9b_proof_a`, `p9b_proof_b` (§1.1, §1.2 as written), `p9b_relations` (§1.3, §1.4, `weak.v.vertex`, `(f ā).r`); neg: parameter relation, file relation, nullary relation, `d` missing outside a type position; LSP: hover on `tc.path x y` shows `tc g ⊢ path x y`, a split below it | statements without the turnstile; relations passed to meta combinators |
+| **P9a** honest types (after P7c) | an applied relation under `⇑` in a meta type is E0960 (also written `⇑(r t̄)`); a judgment over a program with negation or aggregates is E0961; reference: `meta/staging.md` (stage inference), `std/semantics.md` (scope of the notation); E0960, E0961 explanations; chapter 1's `{X := W}` | 150–250 | neg: `e0960_applied_relation` (instance, functor application, parameter relation, explicit `⇑`, η), `e0961_judgment_negation` (`not`, `count`); the corpus run shows that no test relied on `⇑(r t̄)` | correctness on its own; the slot for P9b |
+| **P9b** the judgment coercion | the coercion and its η form (§2.1), the owner lookup (§2.3), the pre-pass that joins coerced atoms to P7c's anonymous database binder (§2.5), E0960 for unowned relations, E0945 texts for coerced atoms; reference: `std/semantics.md` "Relations as propositions" | 400–650 | run: `p9b_proof_a`, `p9b_proof_b` (§1.1, §1.2 as written, including the relation-valued `placed`), `p9b_relations` (§1.3, §1.4, `weak.v.vertex`, `(f ā).r`); neg: a variable's relation `G.edge`, file relation, nullary relation, a functor written alone (`tc.path`, E0107), a coercion outside a type position with an unsolved database (E0947); LSP: hover on `(tc G).path x y` shows `tc G ⊢ path x y`, a split below it | relations passed to meta combinators; instance and opened names |
 | **P9c** stratified judgments | §6.3 step 2: the stratum-local reading, `upTo` and the adequacy lemma in `std/strata`, rule names over `nfire`/`npos`/`ncmp`/`nneg`/`nagg`, `ngiven` chains; E0961 lifted; the reference's adequacy statement extended to stratified programs | 900–1400 | run: `p9c_negation` (`ok.1` proves `m ⊢ ok berlin`; `never` no longer provable), `p9c_aggregate`; neg: rule name with a missing negated premise | proofs about programs with negation in the notation |
 | **P9d** multi-head names | §6.2: names per (rule, head) pair, head proof `there^j here`, splits offer them, labels against later heads | 150–300 | run: `p9d_heads` (`flip` with `edge.1`, `edge.2`; a constructor term in a head); neg: label naming two heads of the goal's relation | coverage of multi-head rules with rule names |
 | **P9e** overloaded opened names | §6.1: E0109 among meta constants resolved by P2b's head rule; hover and go to definition show the chosen constant; E0932/E0933 for names | 200–350 | run: `p9e_overload` (both `decide`s in one file); neg: no expected type (E0932) | chapter 1's `decide 3 tt` with `std/decide` open |
-| **P9f** the proof phase | §4.3.6: program-dependent members of a body or file classified by the P9b pre-pass and elaborated after its object items; the scope's program value (P7b's folded constant for a functor body); `programOf here`; E0962 for a rule that uses a program-dependent member; the file-level query after `ElabItem` with early cut-off on the program value; reference `meta/index.md` ("Order of elaboration"), `modules.md` | 700–1200 | run: `p9f_here` (`programOf here`, `here ⊢ road x y`, file relations coerced); neg: `e0962_program_cycle` (a formula function about the body's rules used by a rule; a program-dependent module-wide directive); incremental: a rule edit re-checks only `here`-dependent declarations, a moved rule nothing | `programOf here`; the order C3 needs |
-| **P9g** locale-style proofs (C3) | §4.3.4: the enclosing body as owner of own and parameter relations; the prefix `⊢ r t̄` and `⊢[e] r t̄` with the ambient program (C2's complement); `%opaque` in bodies; member access without instance, `f.m` and `(f ā).m`, with the check that `m` mentions no object constant of the body | 500–900 | run: `p9g_proof_a`, `p9g_proof_b` (§1.6 as written, `fast.sameFacts`, `eu.sound` used at the instance), `p9g_relations` (§4.3.4's `undirected` and `trip`, `tc2.sameFacts` from outside without an instance: the run prints no extra relation); neg: member access to a member that mentions an object constant; LSP: a hole inside a body shows `tc2 g ⊢ path x y` | proofs inside programs, inherited by instances |
+| **P9f** the proof phase | §4.3.6: program-dependent members of a body or file classified by a name-resolution pre-pass (shared with P9b's) and elaborated after its object items; the scope's program value (P7b's folded constant for a functor body); `programOf here`; E0962 for a rule that uses a program-dependent member; the file-level query after `ElabItem` with early cut-off on the program value; reference `meta/index.md` ("Order of elaboration"), `modules.md` | 700–1200 | run: `p9f_here` (`programOf here`, `here ⊢ road x y`, file relations coerced); neg: `e0962_program_cycle` (a formula function about the body's rules used by a rule; a program-dependent module-wide directive); incremental: a rule edit re-checks only `here`-dependent declarations, a moved rule nothing | `programOf here`; the order C3 needs |
+| **P9g** locale-style proofs (C3) | §4.3.4: the enclosing body as owner of own and parameter relations; the prefix `⊢ r t̄` and `⊢[e] r t̄` with the ambient program (C2's complement); `%opaque` in bodies; member access without instance, `(f ā).m`, with the check that `m` mentions no object constant of the body | 450–850 | run: `p9g_proof_a`, `p9g_proof_b` (§1.6 as written, both variants of `placed`, `fast.sameFacts`, `eu.sound` used at the instance), `p9g_relations` (§4.3.4's `undirected` and `trip`, `(tc2 G).sameFacts` from outside without an instance: the run prints no extra relation); neg: member access to a member that mentions an object constant; LSP: a hole inside a body shows `tc2 g ⊢ path x y` | proofs inside programs, inherited by instances |
 
-Order: P9a → P9b → P9f → P9g. P9f needs only P9b's pre-pass (it could start after P9a with that pre-pass
-moved into it); P9g needs P9b and P9f. P9d and P9e are independent of P9b and of each other. P9c needs P9a
+Order: P7c → P9a → (P9b ∥ P9f) → P9g. P9b and P9f are independent of each other and share only a
+name-resolution pre-pass, which the first to land provides; P9g needs both. P9a follows P7c because both
+change `Judgments.scala`. P9d and P9e are independent of P9b and of each other. P9c needs P9a
 (it replaces E0961) and is independent of P9b, since the coercion inherits whatever the turnstile
-elaborates to. Following the
-house rule (L10), each batch's agent runs only the tests it adds or changes; CI runs the suite.
+elaborates to. Following the house rule (L10), each batch's agent runs only the tests it adds or changes; CI runs the suite.
 
 ## 8. Decisions for the designer
 
 1. **Where the design lives.** A separate note, `docs/design/proofs-level35.md`, linked from chapter 10 of
    the proofs note. *Recommended.*
 2. **The mechanism.** Alternative A, the judgment coercion (an applied relation that a program owns,
-   where a meta type is expected, is that program's judgment at `d`; no keyword, token, directive, core
-   rule or generated declaration), *combined with* C3, locale-style proofs inside bodies, which is A's rule
-   with the enclosing body as owner (§4.3.5). A first, C3 after the phase (decisions 18, 20). Rejected: B
-   (derived members), C1 (a directive), D (by hand only, which stays possible). *Recommended: A + C3.*
+   where a meta type is expected, is that program's judgment at the omitted database of P7c; no keyword,
+   token, directive, core rule, generated declaration or blessed name), *combined with* C3, locale-style
+   proofs inside bodies, which is A's rule with the enclosing body as owner (§4.3.5). After L27, C3 carries
+   most of the gain (§4.6). Rejected: B (derived members), C1 (a directive), D (by hand only, which stays
+   possible). *Recommended: A + C3.*
 3. **The forms covered.** Instance paths `m.r t̄`, module values, member instances `m.v.r t̄`, names opened
-   from an instance by `%use`, functor applications `(f ā).r t̄`, and functors written alone `f.r t̄`
-   (generalised as `f ⊢`). *Recommended.*
+   from an instance by `%use`, and functor applications `(f ā).r t̄` with written arguments (`(tc G).path`,
+   `G` free). A functor written alone, `f.r t̄`, is not a form (L27), and stays E0107. *Recommended.*
 4. **The η form.** An unapplied owned relation where `⇑τ₁ -> … -> ⇑τₙ -> Type` is expected is `[x̄] P ⊢ r
    x̄` (§1.3). *Recommended.*
 5. **Not covered by A, kept in the turnstile form:** parameter relations outside a body, file relations
    (until P9f), relations of the enclosing body (until P9g), relations computed by meta functions, nullary
-   relations and databases other than `d` (inside an ambient scope: the prefix of decision 19). E0960 names
+   relations and named databases `⊢[D]` (inside an ambient scope: the prefix of decision 19). E0960 names
    the turnstile form. *Recommended.*
 6. **Today's `⇑(r t̄)`** (an applied fact type under the lift, accepted with no closed inhabitants) becomes
    an error in P9a, before P9b gives the slot its meaning. *Recommended.*
-7. **Generalisation** of coerced atoms is collected syntactically, in syntactic type positions (§2.5), not
-   by re-elaborating the header as Lean does. *Recommended.*
+7. **The database of a coerced atom** is P7c's omitted database: the declaration's one anonymous binder
+   in its type, a metavariable elsewhere (E0947 if unsolved). Coerced atoms join the anonymous binder by a
+   syntactic pre-pass over type positions (§2.4, §2.5), not by re-elaborating the header as Lean does; free
+   variables such as `G` are bound by the existing mechanism. *Recommended.*
 8. **Printing.** Hovers and diagnostics keep the canonical `P ⊢ r t̄`, also for atoms written without the
    turnstile. *Recommended.*
-9. **Rule names** are unchanged; the per-relation synonyms of chapter 10.1 (`(tc2 g).path.base`) are dropped,
+9. **Rule names** are unchanged; the per-relation synonyms of chapter 10.1 (`(tc2 G).path.base`) are dropped,
    since labels already name rules. *Recommended.*
 10. **File relations.** Once P9f delivers `programOf here`, the coercion covers the file's relations
     (`road x y` is `here ⊢ road x y`) with no new rule. *Recommended.*
@@ -1130,25 +1202,27 @@ house rule (L10), each batch's agent runs only the tests it adds or changes; CI 
 15. **L17**, `programOf f : graph -> program`: accept as implemented; level 3.5 does not need a closed
     program of a bare functor. *Recommended.*
 16. **L22c**: chapter 1 of the proofs note writes `{X := W}` (text correction in P9a). *Recommended.*
-17. **Batches and order:** P9a → P9b → P9f → P9g; P9c after P9a; P9d, P9e independent; codes
-    E0960–E0962. *Recommended.*
+17. **Batches and order:** P7c → P9a → (P9b ∥ P9f) → P9g; P9c after P9a; P9d, P9e independent; codes
+    E0960–E0962. Alternative: fold P9b into P9g (§4.6). *Recommended.*
 18. **C3, locale-style proofs (P9g).** Inside a functor or module body, an applied own relation *or
     parameter relation* in a type position is the body's judgment at its own parameters, unqualified;
     lemmas are members, so every instance inherits them (`fast.sameFacts`, Isabelle's `interpretation`).
     Cross-program statements live in one program's body with the other qualified, or at the top level.
     *Recommended.*
 19. **C2's prefix turnstile.** `⊢ r t̄` and `⊢[e] r t̄` (ASCII `|-`), with no program, mean the ambient
-    program's judgment inside a body (and the file's, after P9f): the form for nullary relations and explicit
-    databases. Abella's braces `{r t̄}` are not used: `{` already opens binders, records and named
+    program's judgment inside a body (and the file's, after P9f): the form for nullary relations and named
+    databases (`⊢[D] reached x`, §1.6). Abella's braces `{r t̄}` are not used: `{` already opens binders, records and named
     arguments. *Recommended,* in P9g.
 20. **The phase (P9f).** Program-dependent members of a body or file, found by the P9b pre-pass, are
     elaborated after its object items; a rule that uses one is E0962; at the file level a query after the
-    object items, cut off on the program value. It also delivers `programOf here`. *Recommended.*
-21. **C1, the directive `%program tc.`,** is rejected: it makes meaning depend on item order, which Hugin
-    has nowhere else. Its block form (Isabelle's reopenable `context`, for lemmas about library functors) is
+    object items, cut off on the program value. It also delivers `programOf here`. It runs in parallel with
+    P9b and has priority, since C3 carries most of the gain. *Recommended.*
+21. **C1, the directive `%program tc G.`,** is rejected: it makes meaning depend on item order, which Hugin
+    has nowhere else, and needs a variable `G` shared by the declarations after it, the kind of name L27
+    removed. Its block form (Isabelle's reopenable `context`, for lemmas about library functors) is
     recorded as an option, not planned. *Recommended.*
-22. **Member access without instance and `%opaque` in bodies (P9g).** `f.m` and `(f ā).m` for a meta
-    member that mentions no object constant of the body read the member without creating an instance (today
+22. **Member access without instance and `%opaque` in bodies (P9g).** `(f ā).m` for a meta
+    member that mentions no object constant of the body reads the member without creating an instance (today
     `(tc3 { … }).lem` creates one, checked); `%opaque` is allowed for members of a body. *Recommended.*
 
 ## 9. Sources
@@ -1179,6 +1253,7 @@ The sources of the proofs note (chapter 14) apply; in addition:
 - Agda: parameterised modules and module application (`doc/user-manual/language/module-system.lagda.rst`),
   interleaved `mutual` blocks (`mutual-recursion.lagda.rst`), agda/agda a3f41e8.
 - Hugin incrementality: `docs/INCREMENTALITY.md`, `docs/design/incrementality-2.md` (§2, §4.1).
+- Hugin decision L27 (no blessed names in judgments) and batch P7c, `fix/proofs-p7c-explicit-generalisation`.
 - Hugin 1db9441: `core/elab/{Judgments,Universes,Bidirectional,Declarations}.scala` (`inferJudgment`,
   `generalisedBinders`, `inferU`, `check`), `stdlib/std/{semantics,strata,decide}.hgn`,
   `tests/run/p7b_{proof_a,proof_b,rules}.hgn`, `reference/src/{modules,meta/staging,meta/families,object/types,object/rules,std/semantics}.md`.
