@@ -140,6 +140,7 @@ trait Printing:
       val y = fresh(ns, x)
       val bind = if i == Icit.Impl then s"{$y}" else y
       par(p, 0, s"[$bind] ${go(y :: ns, b, 0)}")
+    case Tm.App(_, _, Icit.Expl) if judgmentView(ns, t).isDefined => par(p, 1, judgmentView(ns, t).get)
     case Tm.App(f, a, i) =>
       liftedApp(t) match
         case Some((id, args)) if globals(id).matchFunction && args.headOption.exists(_._2 == Icit.Expl) =>
@@ -197,6 +198,69 @@ trait Printing:
     case Tm.Fresh(xs, b) => par(p, 0, s"fresh ${xs.mkString(" ")}. ${go(xs.reverse ++ ns, b, 0)}")
     case Tm.Persist(a) => go(ns, a, p)
     case Tm.FactTy(r) => go(ns, r, p)
+
+  private def appSpine(t: Tm, acc: List[(Tm, Icit)] = Nil): (Tm, List[(Tm, Icit)]) = t match
+    case Tm.App(f, a, i) => appSpine(f, (a, i) :: acc)
+    case Tm.Trace(_, a) if acc.isEmpty => appSpine(a, acc)
+    case other => (other, acc)
+
+  /** `derives P d (atom ρ [v t₁, …])` with `P` the program of a module body as the judgment `f ā ⊢[d] r t̄`
+   *  that it elaborates (reference: std/semantics, "The judgment notation"); `[d]` is left out for the
+   *  database named `d`. */
+  private def judgmentView(ns: List[Name], t: Tm): Option[String] =
+    def explicit(args: List[(Tm, Icit)]) = args.collect { case (a, Icit.Expl) => a }
+    appSpine(t) match
+      case (Tm.Global(der), args) if explicit(args).length == 3 && args.length == 3 =>
+        val List(prog, db, at) = explicit(args): @unchecked
+        appSpine(prog) match
+          case (Tm.Global(pf), pargs)
+              if pf < globals.length && globals(pf).program != null && globals(pf).program.nn.vocab.derives == der =>
+            val info = globals(pf).program.nn
+            val voc = info.vocab
+            def elems(l: Tm): Option[List[Tm]] = appSpine(l) match
+              case (Tm.Global(`voc`.nil), _) => Some(Nil)
+              case (Tm.Global(`voc`.cons), as) =>
+                explicit(as) match
+                  case List(x, rest) => elems(rest).map(x :: _)
+                  case _ => None
+              case _ => None
+            def value(x: Tm): Option[String] = appSpine(x) match
+              case (Tm.Global(`voc`.v), as) =>
+                explicit(as) match
+                  case List(code) =>
+                    Some(Tm.unloc(code) match
+                      case Tm.Quote(inner) => go(ns, inner, 6)
+                      case other => go(ns, other, 6)
+                    )
+                  case _ => None
+              case _ => None
+            def relation(r: Tm): Option[String] = appSpine(r) match
+              case (Tm.Global(`voc`.own), List((n, Icit.Expl))) =>
+                numeralView(n).collect { case (None, k) => k.toInt }.flatMap(info.relations.lift)
+              case (Tm.Global(`voc`.arg), List((Tm.Lit(hugin.syntax.Literal.StrL(l), _), Icit.Expl))) =>
+                Some(if info.context.length == 1 && !l.contains('.') then s"${info.context.head}.$l" else l)
+              case (Tm.Global(`voc`.ext), List((q, Icit.Expl))) =>
+                Tm.unloc(q) match
+                  case Tm.Quote(Tm.Global(id)) => Some(globals(id).name)
+                  case _ => None
+              case _ => None
+            appSpine(at) match
+              case (Tm.Global(voc.atom), List((r, Icit.Expl), (vs, Icit.Expl))) =>
+                for
+                  rel <- relation(r)
+                  xs <- elems(vs)
+                  shown <- xs.foldRight(Option(List.empty[String]))((x, acc) => acc.flatMap(a => value(x).map(_ :: a)))
+                yield
+                  val program = info.functor match
+                    case Some(f) => (f :: explicit(pargs).map(go(ns, _, 6))).mkString(" ")
+                    case None => go(ns, prog, 5)
+                  val database = db match
+                    case Tm.Var(ix) if ns.lift(ix).contains("d") => ""
+                    case other => s"[${go(ns, other, 0)}]"
+                  s"$program ⊢$database ${(rel :: shown).mkString(" ")}"
+              case _ => None
+          case _ => None
+      case _ => None
 
   /** An application of a lifted function (one with hidden arguments): the function and the arguments
    *  after the hidden ones. */

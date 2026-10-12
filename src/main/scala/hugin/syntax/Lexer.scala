@@ -26,6 +26,9 @@ enum Tok:
   // `≡` (ASCII `==`): the meta level's equality operator, bound by `%infix ≡ eq.` (reference:
   // lexical-structure, operators bound to meta functions)
   case Equiv
+  // `⊢` (ASCII `|-`): the judgment `P ⊢ r t̄` of `std/semantics` (reference: std/semantics, "The judgment
+  // notation")
+  case Entails
   case EOF, Error
 
 final case class Token(kind: Tok, text: String, span: Span, spaceBefore: Boolean):
@@ -109,7 +112,8 @@ object Lexer:
     Tok.KwMatch -> "match",
     Tok.KwRewrite -> "rewrite",
     Tok.FatArrow -> "=>",
-    Tok.Equiv -> "≡"
+    Tok.Equiv -> "≡",
+    Tok.Entails -> "⊢"
   )
 
 /** Hand-written lexer (Section 2.1). Errors are reported and lexing continues. */
@@ -232,9 +236,13 @@ final class Lexer(src: SourceFile, reporter: Reporter):
           val prevIdent = !space && out.nonEmpty && out.last.span.end == start &&
             (out.last.kind == Tok.Var || out.last.kind == Tok.Name || out.last.kind == Tok.RParen)
           val nextLower = peek(1).isLetter && peek(1).isLower && peek(1) < 128
-          if prevIdent && nextLower then sym(Tok.Select, 1) else sym(Tok.Period, 1)
+          // `path.1`: a rule name, the position of a rule among those of its relation (reference:
+          // std/semantics, "Rule names"); only directly after a name
+          val ruleIndex = !space && out.nonEmpty && out.last.span.end == start && out.last.kind == Tok.Name && peek(1).isDigit
+          if prevIdent && nextLower || ruleIndex then sym(Tok.Select, 1) else sym(Tok.Period, 1)
         case ',' => sym(Tok.Comma, 1)
         case ';' => sym(Tok.Semi, 1)
+        case '|' if peek(1) == '-' => sym(Tok.Entails, 2)
         case '|' => sym(Tok.Bar, 1)
         case '=' if peek(1) == '>' => sym(Tok.FatArrow, 2)
         case '=' if peek(1) == '=' => sym(Tok.Equiv, 2)
@@ -258,6 +266,7 @@ final class Lexer(src: SourceFile, reporter: Reporter):
           sym(Tok.Quote, 1)
         case '⇑' => sym(Tok.Up, 1)
         case '≡' => sym(Tok.Equiv, 1)
+        case '⊢' => sym(Tok.Entails, 1)
         case _ =>
           val cp = s.codePointAt(pos)
           pos += Character.charCount(cp)

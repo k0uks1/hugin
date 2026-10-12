@@ -1,0 +1,27 @@
+warning[W0003]: unused definition `weights`
+ --> tests/neg/e0946_generalise.hgn:6:1
+  |
+6 | weights (g : weighted) = { (*~ W0003 *)
+  | ^^^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+error[E0946]: cannot generalise the parameter `g` of `weights`: another functor's parameter `g` has the type `graph`, this one `weighted`
+  --> tests/neg/e0946_generalise.hgn:10:42
+   |
+10 | clash : {x : g.node} -> tc ⊢ path x x -> weights ⊢ heavy x. (*~ E0946 *)
+   |                                          ^^^^^^^ in this judgment
+   |
+   = note: in the type of a declaration, the parameters of a functor written alone before `⊢` become implicit binders named as in the functor (here `g`), shared by all its judgments
+   = help: apply the functor to its arguments: `weights a ⊢ …`
+
+error[E0946]: cannot generalise the parameter `g` of `tc`: `g` is not in scope here (generalisation applies in the type of a declaration)
+  --> tests/neg/e0946_generalise.hgn:11:42
+   |
+11 | inside (h : graph) (x : h.node) : Type = tc ⊢ g.edge x x. (*~ E0946 *)
+   |                                          ^^ in this judgment
+   |
+   = note: in the type of a declaration, the parameters of a functor written alone before `⊢` become implicit binders named as in the functor (here `g`), shared by all its judgments
+   = help: apply the functor to its arguments: `tc a ⊢ …`
+
+2 errors, 1 warning found

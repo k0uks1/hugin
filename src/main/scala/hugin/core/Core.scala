@@ -104,6 +104,11 @@ final class GlobalEntry(
    *  needs no test. */
   var inCycle: Boolean = false
 
+  /** For the program of a module body that `programOf` generates ([[elab.ProgramOf]]): what printing in
+   *  the judgment notation and rule names need (reference: std/semantics, "The judgment notation"). Its
+   *  applications are unified by their arguments first ([[Unification.unify]]). */
+  var program: ProgramDisplay | Null = null
+
   /** A deliberate axiom `x : A = %postulate.` (a [[GlobalKind.Postulate]]): rejected by `--safe` and
    *  listed by `--print-assumptions` (reference: meta/functions, "Postulates"). */
   var axiom: Boolean = false
@@ -112,6 +117,15 @@ final class GlobalEntry(
    *  parameters (reference: meta/families, "Parameters"); -1 while it has no constructors (then all its
    *  arguments are). */
   var parameters: Int = -1
+
+/** The globals of `std/semantics` that a judgment `P ⊢[d] r t̄` elaborates to (reference: std/semantics). */
+final case class JudgmentVocab(derives: Int, atom: Int, v: Int, own: Int, arg: Int, ext: Int, nil: Int, cons: Int)
+
+/** The program of a module body as `programOf` reads it, for the judgment notation: the names of its own
+ *  relations (`own i`), the names of its environment's variables, the names of each rule's variables, and
+ *  the functor whose body it is, once a use names it. */
+final class ProgramDisplay(val vocab: JudgmentVocab, val relations: List[Name], val context: List[Name], val varNames: List[List[Name]]):
+  var functor: Option[String] = None
 
 /** The link between the two constants a shared data declaration declares under one name (reference:
  *  meta/families, shared data): the meta inductive family (or meta constructor) at `side` S1, the

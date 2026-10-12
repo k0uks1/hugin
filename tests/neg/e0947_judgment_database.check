@@ -1,0 +1,18 @@
+error[E0947]: no database for the judgment: no `d` in scope
+ --> tests/neg/e0947_judgment_database.hgn:5:60
+  |
+5 | pathOf (g : graph) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
+  |                                                            ^ which database?
+  |
+  = note: in the type of a declaration, a judgment without `[e]` generalises the database `d`; elsewhere it uses the `d` in scope
+  = help: give the database: `P ⊢[e] r t̄`
+
+warning[W0003]: unused definition `withDb`
+ --> tests/neg/e0947_judgment_database.hgn:6:1
+  |
+6 | withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ W0003 *)
+  | ^^^^^^ never referenced
+  |
+  = note: `-W unused_definitions` is on by default
+
+1 error, 1 warning found

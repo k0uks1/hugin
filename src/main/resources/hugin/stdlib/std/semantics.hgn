@@ -525,3 +525,9 @@ holdsSound N P A T = monotone ([b] [e] emptyElim e) (fromSome (findFact A (round
 
 derivable : {d : db} -> nat -> (p : program) -> decider gatom (derives p d).
 derivable {d := D} N P = { check = holds N P, sound = holdsSound {d := D} N P }.
+
+(* `decide n`: a derivation by `n` rounds of naive evaluation, for a goal in the judgment notation
+   (`trip ⊢ path berlin rome = decide 3 tt`, reference: std/semantics): `holdsSound` with the program and
+   the fact taken from the goal *)
+decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives p d a.
+decide {d := D} {p := P} {a := A} N T = holdsSound {d := D} N P A T.

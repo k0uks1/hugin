@@ -40,39 +40,55 @@ private[syntax] trait ExprSyntax extends ParserBase:
     var lastNonAssoc = -1
     var chained = false
     while continue do
-      infixAt(tok) match
-        // a user-defined operator in column 0 starts the next item (its declaration `op : …`, say), as an
-        // argument there would
-        case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) && !(tok.kind == Tok.Name && atColumn0(i)) =>
-          if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
-            error(SyntaxError.NonAssociativeChain(op, tok.span))
-            chained = true
-          val opTok = advance()
-          // a separator of a rule body: the conjuncts and disjuncts are recovery regions
-          if opTok.kind == Tok.Comma || opTok.kind == Tok.Semi then resync()
-          val rhsMin = assoc match
-            case Assoc.Right => lvl
-            case _ => lvl + 1
-          val rhs = parseExpr(rhsMin)
-          val sp = lhs.span.to(rhs.span)
-          lhs = op match
-            case ";" => Disj(lhs, rhs)(sp)
-            case "," => Conj(lhs, rhs)(sp)
-            case "|" => Union(lhs, rhs)(sp)
-            case "::" => ConsE(lhs, rhs)(sp)
-            case "->" =>
-              lhs match
-                case ImplicitBinder(ns, t) => ImplicitPi(ns, t, rhs)(sp)
-                case RecordType(List(SigEntry.FieldDecl(l, t))) => ImplicitPi(List(l), t, rhs)(sp)
-                case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
-                case _ => Arrow(None, lhs, rhs)(sp)
-            case _ if opTok.kind == Tok.Name =>
-              // `%infix` operators are resolved into applications (Section 2.2)
-              Apply(Apply(Ident(op)(opTok.span), lhs)(lhs.span.to(opTok.span)), rhs)(sp)
-            case _ => Infix(op, lhs, rhs)(sp, opTok.span)
-          lastNonAssoc = if assoc == Assoc.NonAssoc then lvl else -1
-        case _ => continue = false
+      if at(Tok.Entails) && LvlEntails >= minLevel then lhs = judgment(lhs)
+      else
+        infixAt(tok) match
+          // a user-defined operator in column 0 starts the next item (its declaration `op : …`, say), as an
+          // argument there would
+          case Some((op, lvl, assoc)) if lvl >= minLevel && !(inType && lvl == LvlCmp) && !(tok.kind == Tok.Name && atColumn0(i)) =>
+            if assoc == Assoc.NonAssoc && lastNonAssoc == lvl then
+              error(SyntaxError.NonAssociativeChain(op, tok.span))
+              chained = true
+            val opTok = advance()
+            // a separator of a rule body: the conjuncts and disjuncts are recovery regions
+            if opTok.kind == Tok.Comma || opTok.kind == Tok.Semi then resync()
+            val rhsMin = assoc match
+              case Assoc.Right => lvl
+              case _ => lvl + 1
+            val rhs = parseExpr(rhsMin)
+            val sp = lhs.span.to(rhs.span)
+            lhs = op match
+              case ";" => Disj(lhs, rhs)(sp)
+              case "," => Conj(lhs, rhs)(sp)
+              case "|" => Union(lhs, rhs)(sp)
+              case "::" => ConsE(lhs, rhs)(sp)
+              case "->" =>
+                lhs match
+                  case ImplicitBinder(ns, t) => ImplicitPi(ns, t, rhs)(sp)
+                  case RecordType(List(SigEntry.FieldDecl(l, t))) => ImplicitPi(List(l), t, rhs)(sp)
+                  case Ascribe(l: Ident, t) => Arrow(Some(l), t, rhs)(sp)
+                  case _ => Arrow(None, lhs, rhs)(sp)
+              case _ if opTok.kind == Tok.Name =>
+                // `%infix` operators are resolved into applications (Section 2.2)
+                Apply(Apply(Ident(op)(opTok.span), lhs)(lhs.span.to(opTok.span)), rhs)(sp)
+              case _ => Infix(op, lhs, rhs)(sp, opTok.span)
+            lastNonAssoc = if assoc == Assoc.NonAssoc then lvl else -1
+          case _ => continue = false
     checked(lhs, !chained)
+
+  /** `P ⊢[e] r t̄` after `P`, at `⊢` (reference: std/semantics, "The judgment notation"): the database `[e]`
+   *  directly after the turnstile is optional, and the atom is an application. */
+  private def judgment(program: Tree): Tree =
+    val op = advance()
+    val db =
+      if at(Tok.LBrack) && !tok.spaceBefore then
+        val open = advance()
+        val e = inside(parseExpr(LvlSemi))
+        close(open, Tok.RBrack)
+        Some(e)
+      else None
+    val atom = if atColumn0(position) then missing(Expect.expression) else parseApp()
+    Judgment(program, db, atom)(program.span.to(atom.span), op.span)
 
   private def parsePrefix(minLevel: Int): Tree =
     val start = tok.span.start
@@ -192,6 +208,10 @@ private[syntax] trait ExprSyntax extends ParserBase:
       // the lexer makes `.` a selector only before a lowercase letter: a name or a keyword
       t =
         if at(Tok.Name) then
+          val n = advance()
+          Select(t, n.text)(t.span.to(n.span), n.span)
+        else if at(Tok.IntLit) && t.isInstanceOf[Ident] then
+          // `path.1`: a rule name (reference: std/semantics, "Rule names")
           val n = advance()
           Select(t, n.text)(t.span.to(n.span), n.span)
         else

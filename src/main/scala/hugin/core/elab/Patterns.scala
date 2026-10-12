@@ -94,6 +94,9 @@ trait Patterns:
     case i: Infix if bindableOperators(i.op) && visibleOperators(i.op).nonEmpty => pattern(operatorPattern(i, expected), expected)
     case _ =>
       TreeOps.flattenApp(t) match
+        // a rule name where no derivation type is known ([[Judgments.rulePattern]] handles the others)
+        case (h @ Select(Ident(_), k), _) if k.nonEmpty && k.forall(_.isDigit) =>
+          fail(JudgmentProblem.RuleNameWithoutJudgment(hugin.syntax.Printer.show(h), h.span))
         case (h @ (_: Ident | _: SymRef), allArgs) =>
           val (c, n) = h match
             case SymRef(id, n) if isConstructor(id) => (id, n) // a generated pattern ([[DerivedFunctions]])

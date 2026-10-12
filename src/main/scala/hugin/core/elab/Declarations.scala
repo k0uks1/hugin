@@ -78,14 +78,16 @@ trait Declarations:
     }
     (c, out)
 
-  /** The context of a declaration's type: its implicit binders, then its parameters (an untyped one is
-   *  typed by `untyped`). */
+  /** The context of a declaration's type: its implicit binders (the generalised binders of its judgments
+   *  first, [[Judgments.generalisedBinders]], then its free uppercase variables), then its parameters (an
+   *  untyped one is typed by `untyped`). */
   private def declContext(d: Decl, base: Cxt, untyped: (Cxt, VarRef) => Tm = objectTypeParam): (Cxt, List[(Name, Tm)], List[(Name, Tm)]) =
     val paramNames = d.params.map(_.nameString).toSet
     val paramTypes = d.params.collect { case Param.Typed(_, t, _) => t }
-    val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)), base)
+    val (c0, generalised) = generalisedBinders(d.tpe :: paramTypes, base, paramNames)
+    val (c, imps) = bindImplicits((d.tpe :: paramTypes).flatMap(freeVars(_, paramNames)), c0)
     val (c2, ps) = bindParams(c, d.params, untyped)
-    (c2, imps, ps)
+    (c2, generalised ++ imps, ps)
 
   /** An untyped parameter of a definition `f X : A = e.` has an unknown type, inferred from its uses (as
    *  in `f X = e.`); of a type definition `t X : type = τ.` it ranges over object types. */

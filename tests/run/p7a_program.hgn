@@ -48,9 +48,9 @@ walk {x := X} {y := Y} {z := Z} E P = fire {xs := econs X (econs Z (econs Y enil
 
 tcTrans : {g : graph2} -> {d : db} -> {x y z : ⇑g.node} -> tcPath g d x y -> tcPath g d y z -> tcPath g d x z.
 tcTrans (given () I) Q.
-tcTrans {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) Q = walk {g := G} E Q.
-tcTrans {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) Q =
-  walk {g := G} E (tcTrans {g := G} P Q).
+tcTrans (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) Q = walk E Q.
+tcTrans (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) Q =
+  walk E (tcTrans P Q).
 
 (* an input edge is an input edge in either program *)
 edgeTo : {g : graph2} -> {d : db} -> {x y : ⇑g.node} ->
@@ -68,21 +68,21 @@ edgeFrom (fire (there here) Ps (there ())).
 (* every derivation in tc is one in tc2, and back *)
 toTc2 : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> tcPath g d x y -> tc2Path g d x y.
 toTc2 (given () I).
-toTc2 {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
-  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo {g := G} E) pnil) here.
-toTc2 {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) =
+toTc2 (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
+  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo E) pnil) here.
+toTc2 (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl E (ppos refl P pnil)) here) =
   fire {xs := econs X (econs Z (econs Y enil))} (there here)
-    (ppos refl (fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo {g := G} E) pnil) here) (ppos refl (toTc2 {g := G} P) pnil)) here.
+    (ppos refl (fire {xs := econs X (econs Y enil)} here (ppos refl (edgeTo E) pnil) here) (ppos refl (toTc2 P) pnil)) here.
 
 toTc : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> tc2Path g d x y -> tcPath g d x y.
 toTc (given () I).
-toTc {g := G} (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
-  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeFrom {g := G} E) pnil) here.
-toTc {g := G} (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl P (ppos refl Q pnil)) here) =
-  tcTrans {g := G} (toTc {g := G} P) (toTc {g := G} Q).
+toTc (fire {xs := econs X (econs Y enil)} here (ppos refl E pnil) here) =
+  fire {xs := econs X (econs Y enil)} here (ppos refl (edgeFrom E) pnil) here.
+toTc (fire {xs := econs X (econs Z (econs Y enil))} (there here) (ppos refl P (ppos refl Q pnil)) here) =
+  tcTrans (toTc P) (toTc Q).
 
 sameFacts : {g : graph2} -> {d : db} -> {x y : ⇑g.node} -> iff (tcPath g d x y) (tc2Path g d x y).
-sameFacts {g := G} = { to = toTc2 {g := G}, from = toTc {g := G} }.
+sameFacts = { to = toTc2, from = toTc }.
 %opaque rules names strata pathOwn edgeIn tcTrans edgeTo edgeFrom toTc2 toTc sameFacts.
 
 (* an instance is the program of the application that made it; a bare functor a function of its parameters *)
