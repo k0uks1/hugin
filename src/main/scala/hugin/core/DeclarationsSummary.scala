@@ -63,6 +63,7 @@ final class DeclarationsSummary(decls: ElaboratedDeclarations):
       case "unelaborated" => state.unelaborated.unobserved(n)
       case "functionNames" => state.functionNames.unobserved(n)
       case "declaredHere" => state.declaredHere.unobserved(n)
+      case "programDependent" => state.programDependent0.get(n)
       case other => Opaque(other) // an unknown table: never equal
 
   /** The whole table `channel`, comparable (`None` for a table an item may not depend on as a whole:
@@ -83,6 +84,7 @@ final class DeclarationsSummary(decls: ElaboratedDeclarations):
       case "unelaborated" => Some(state.unelaborated.unobserved)
       case "functionNames" => Some(state.functionNames.unobserved)
       case "declaredHere" => Some(state.declaredHere.unobserved)
+      case "programDependent" => Some(state.programDependent0)
       case "opened" => Some(opened.toVector.map((n, ds) => (n, ds.map((id, sp) => (key(id), sp)))))
       case "exported" => Some(exported.map((sp, m) => (sp, canon.value(m))))
       case "signatures" => Some(signatures)

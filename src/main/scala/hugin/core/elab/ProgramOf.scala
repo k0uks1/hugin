@@ -78,8 +78,111 @@ trait ProgramOf:
     val (_, args) = TreeOps.flattenApp(t)
     val p = args.tail.foldLeft(args.head)((f, a) => Apply(f, a)(f.span.to(a.span)))
     val voc = vocabulary(t.span)
-    val (tm, ty, st, _) = programOfTree(c, p, voc)
+    val (tm, ty, st, _) = withHereForm("programOf here")(programOfTree(c, p, voc))
     (tm, ty, st)
+
+  // ---------------------------------------------------------------- `here` (#186 P9f)
+
+  /** What `here` denotes where it is elaborated: the program of the enclosing body or file once its object
+   *  items are elaborated ([[ProgramPhase]]); before, it is a cycle (E0962); `Failed` if the program cannot
+   *  be built (its problem, at the use). */
+  enum HereState:
+    case Unavailable(body: Boolean)
+    case Available(program: Val, scope: ProgramScope)
+    case Failed(problem: Span => ProgramOfProblem)
+
+  var hereState: HereState = HereState.Unavailable(false)
+
+  /** How the program is named in the item being elaborated, for E0962. */
+  private var hereForm = "here"
+
+  private def withHereForm[A](form: String)(a: => A): A =
+    val saved = hereForm
+    hereForm = form
+    try a
+    finally hereForm = saved
+
+  /** A problem of reifying a scope's program, raised while the program of a file or a body is built
+   *  before any use: it is reported at the uses of `here` ([[HereState.Failed]]). */
+  private final class ReifyFailure(val problem: Span => ProgramOfProblem) extends Exception(null, null, false, false)
+
+  private var collecting = false
+
+  private def failReify(problem: Span => ProgramOfProblem, use: Span): Nothing =
+    if collecting then throw ReifyFailure(problem) else fail(problem(use))
+
+  private def collectingFailures[A](a: => A): Either[Span => ProgramOfProblem, A] =
+    val saved = collecting
+    collecting = true
+    try Right(a)
+    catch case f: ReifyFailure => Left(f.problem)
+    finally collecting = saved
+
+  /** The program of a module body being elaborated, for its program-dependent members: its members so far
+   *  (`members`, all its object constants), its object items, in an environment of `n` variables (the
+   *  body's context, bound at levels `0 … n-1`), named after `name` (the definition it is the value of). */
+  def bodyHere(body: ModuleBody, n: Int, name: Option[String]): HereState =
+    vocabularyOpt(quoteLib = false) match
+      case None => HereState.Failed(ProgramOfProblem.NoLibrary(_))
+      case Some(voc) =>
+        collectingFailures {
+          val head = Ident(name.getOrElse("here"))(body.span)
+          val fn = programFunction(voc, body, n, head, body.span)
+          fn match
+            case Tm.Global(id) if globals(id).program != null && name.isDefined && globals(id).program.nn.functor.isEmpty =>
+              globals(id).program.nn.functor = name
+            case _ =>
+          val env = (0 until n).reverse.map(Val.local).toList
+          val v = eval(env, Tm.apps(fn, (0 until n).map(i => (Tm.Var(n - 1 - i), Icit.Expl)).toList))
+          // inside the body, its parameters are in scope by their own names: `g.edge` is `arg "edge"`
+          HereState.Available(v, scopeOf(body, n, tm => eval(env, tm), body.context.map(_._1).zipWithIndex.toMap))
+        } match
+          case Right(h) => h
+          case Left(p) => HereState.Failed(p)
+
+  /** The program of a file (`programOf here`): its relations, structs and constructors (`relations`, globals
+   *  in source order) are `own i`, its rules are `rules`. The program as a closed term, with the names of
+   *  each rule's variables, or the problem that prevents it. */
+  def fileProgram(
+      relations: List[Int],
+      rules: List[CoreItem.RuleItem],
+      span: Span
+  ): Either[Span => ProgramOfProblem, (Tm, List[List[Name]])] =
+    vocabularyOpt(quoteLib = false) match
+      case None => Left(ProgramOfProblem.NoLibrary(_))
+      case Some(voc) =>
+        collectingFailures {
+          val ownGlobal = relations.zipWithIndex.toMap
+          val reader = BodyReader(0, 0, Nil, Map.empty, Map.empty, Map.empty, Map.empty, span, ownGlobal)
+          val read = rules.map(reader.rule)
+          (zonk(Nil, 0, emit(voc, 0, 0, declaredNames(relations), read, span)), read.map(_.names))
+        }
+
+  /** The file's program as `here` denotes it in its program-dependent declarations: the generated
+   *  definition `program` (or the problem of building it), its relations `relations` with their types. */
+  def useFileProgram(program: Either[Span => ProgramOfProblem, Int], relations: List[Int]): Unit =
+    hereState = program match
+      case Left(p) => HereState.Failed(p)
+      case Right(id) =>
+        val own = declaredNames(relations).zip(relations).zipWithIndex.map { case ((n, r), i) => n -> (i, Some(globals(r).ty)) }.toMap
+        HereState.Available(Val.Rigid(Head.Glob(id), Nil), ProgramScope(own, _ => None, Nil))
+
+  /** The names the file declares the globals `ids` by (an imported file's constants are qualified). */
+  private def declaredNames(ids: List[Int]): List[Name] =
+    val byId = scope.iterator.map(_.swap).toMap
+    ids.map(id => byId.getOrElse(id, globals(id).name))
+
+  /** The generated definition of a file's program `tm` (closed), displayed as `here` in judgments (an
+   *  imported file's by its qualifier). */
+  def fileProgramGlobal(tm: Tm, relations: List[Int], varNames: List[List[Name]], span: Span): Int =
+    val voc = vocabularyOpt(quoteLib = false).get
+    val tyTm = Tm.Global(voc.sem("program"))
+    val id = addGlobal(GlobalEntry("programOf here", eval(Nil, tyTm), tyTm, Stage.S1, GlobalKind.Definition(tm, eval(Nil, tm)), span, span))
+    val display = ProgramDisplay(judgmentVocab(voc), declaredNames(relations), Nil, varNames)
+    // an imported file's program is shown by the file's qualifier, as its constants are
+    display.functor = Some(if file.qualifier.isEmpty then "here" else file.qualifier)
+    globals(id).program = display
+    id
 
   /** What a judgment `P ⊢ r t̄` resolves the atom's relation in (reference: std/semantics, "The judgment
    *  notation"), for `P` a module body: its own relations, by name, with their indices and types (in the
@@ -90,7 +193,7 @@ trait ProgramOf:
   /** `programOf P` as a judgment needs it: the program, and the scope of its body if `P` is a module body. */
   def judgmentProgram(c: Cxt, p: Tree, span: Span): (Tm, Option[ProgramScope]) =
     val voc = vocabularyOpt(quoteLib = false).getOrElse(fail(ProgramOfProblem.NoLibrary(span)))
-    val (tm, _, _, scope) = programOfTree(c, p, voc)
+    val (tm, _, _, scope) = withHereForm("here ⊢ …")(programOfTree(c, p, voc))
     (tm, scope)
 
   /** The body of the program written `p`, found from its syntax without evaluating an application (#186
@@ -158,13 +261,14 @@ trait ProgramOf:
 
   private def programOfTree(c: Cxt, p: Tree, voc: Vocabulary): (Tm, Val, Stage, Option[ProgramScope]) =
     val programTy = eval(Nil, Tm.Global(voc.sem("program")))
-    def notAModule(shown: Tree): Nothing =
-      val here = shown match
-        case Ident("here") | Parens(Ident("here")) => true
-        case _ => false
-      fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(shown), here, shown.span))
+    def notAModule(shown: Tree): Nothing = fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(shown), shown.span))
     p match
-      case Ident("here") | Parens(Ident("here")) => notAModule(p)
+      case Ident("here") | Parens(Ident("here")) =>
+        // the program of the enclosing body or file (#186 P9f)
+        return hereState match
+          case HereState.Available(v, scope) => (quote(c.lvl, v), programTy, Stage.S1, Some(scope))
+          case HereState.Failed(problem) => fail(problem(p.span))
+          case HereState.Unavailable(body) => fail(ProgramOfProblem.ProgramCycle(hereForm, Nil, body, p.span))
       case _ =>
     val (head, written) = TreeOps.flattenApp(p)
     val (hTm, hTy, hSt) = infer(c, head)
@@ -258,7 +362,7 @@ trait ProgramOf:
             case _ => None
         }.toMap
         (Tm.apps(lams(k, inner), args.map((_, Icit.Expl))), scopeOf(body, env.length, inC, byArgument))
-      case _ => fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(p), false, p.span))
+      case _ => fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(p), p.span))
 
   /** The scope of `body` in an environment of `n` variables; `inC` turns a term over them into a value in
    *  the context of the judgment. A parameter relation is named through `byArgument`, the names of the
@@ -515,10 +619,13 @@ trait ProgramOf:
       ctxNames: Map[Int, Name],
       memberAt: Map[Int, (Member, Val)],
       ownIndex: Map[Int, Int],
-      use: Span
+      use: Span,
+      ownGlobal: Map[Int, Int] = Map.empty
   ):
     private var current: CoreItem.RuleItem = null.asInstanceOf[CoreItem.RuleItem]
-    private def no(reason: String): Nothing = fail(ProgramOfProblem.CannotReify(reason, current.span, use))
+    private def no(reason: String): Nothing =
+      val rule = current.span
+      failReify(ProgramOfProblem.CannotReify(reason, rule, _), use)
 
     // the variables of the rule being read: their names (markers of the rule's own, the names of a formula
     // function's variables, wildcards) and types
@@ -578,7 +685,8 @@ trait ProgramOf:
 
     private def headOf0(v: Val): Option[(HeadInfo, List[Val])] = v match
       case Val.Rigid(Head.Glob(id), sp) if globals(id).stage == Stage.S0 && globals(id).kind.isInstanceOf[GlobalKind.Object] =>
-        applications(sp).map(as => (HeadInfo(Ref.Ext(id), globals(id).ty, Some(Val.Rigid(Head.Glob(id), Nil))), as))
+        val ref = ownGlobal.get(id).fold(Ref.Ext(id))(Ref.Own(_))
+        applications(sp).map(as => (HeadInfo(ref, globals(id).ty, Some(Val.Rigid(Head.Glob(id), Nil))), as))
       case Val.Rigid(Head.Local(l), sp) =>
         val rs = sp.reverse
         val projs = rs.takeWhile(_.isInstanceOf[Elim.EProj]).collect { case Elim.EProj(lb) => lb }
@@ -809,7 +917,7 @@ trait ProgramOf:
     val stringT = Tm.Base(BaseType.StringT, Stage.S1)
     val codeT = Tm.Lift(Tm.U0) // ⇑type
     val natT = Tm.Global(voc.nat)
-    def fail0(reason: String, rule: Span): Nothing = fail(ProgramOfProblem.CannotReify(reason, rule, span))
+    def fail0(reason: String, rule: Span): Nothing = failReify(ProgramOfProblem.CannotReify(reason, rule, _), span)
     var at = span
     def closed(t: Tm, what: => String): Tm = strengthen(t, n, total).getOrElse(fail0(what, at))
     def typeTm(ty: Val): Tm = closed(quote(total, ty), "a variable of a type that the module declares")
@@ -922,7 +1030,7 @@ trait ProgramOf:
     val component = strata.zipWithIndex.flatMap((c, k) => c.map(_ -> k)).toMap
     for (i, es) <- edges.toList.sortBy(_._1); ((j, negative), rule) <- es do
       if negative && component(i) == component(j) then
-        fail(ProgramOfProblem.NotStratified(relations(i).toString, relations(j).toString, rule, span))
+        failReify(ProgramOfProblem.NotStratified(relations(i).toString, relations(j).toString, rule, _), span)
     Tm.Rec(
       List(
         "relations" -> list(stringT, relations.map(str)),

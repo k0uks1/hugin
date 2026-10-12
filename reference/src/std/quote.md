@@ -123,12 +123,18 @@ cannot be inspected. It is a name only in this position, unless the program decl
 - a functor `f`: the function `[x̄] programOf (f x̄)` from its parameters to programs, of type
   `graph -> program` for a functor over `graph`;
 - a module `m` made by a functor application: the program of that application, so that
-  `programOf fast` is `programOf (tc2 { node = city, edge = road })` for `fast = tc2 { … }`.
+  `programOf fast` is `programOf (tc2 { node = city, edge = road })` for `fast = tc2 { … }`;
+- `here`: the program of the current file, or inside a module body the program of that body at the
+  parameters of the enclosing functor. The file's relations, structs and constructors (its constants of
+  object types among them) are `own i` in the order they are written, its rules the rules of the file
+  (after its [module-wide directives](../directives.md#module-wide-directives)). A declaration that uses
+  `programOf here` is elaborated after the rules of its file or body ([Declarations about the file's
+  program](../meta/index.md#declarations-about-the-files-program)); a rule, query or directive that uses
+  it, directly or through other declarations, is an error ([E0962](../errors/E0962.md)).
 
 It is an error ([E0940](../errors/E0940.md)) if the program does not load `std/quote` and
 `std/semantics`, and
-([E0941](../errors/E0941.md)) if `P` is none of these. `programOf here`, the program of the current file,
-is not available yet ([E0941](../errors/E0941.md)). A [judgment](semantics.md#the-judgment-notation)
+([E0941](../errors/E0941.md)) if `P` is none of these. A [judgment](semantics.md#the-judgment-notation)
 `P ⊢[e] r t̄` of `std/semantics` stands for `derives (programOf P) e …` and needs only `std/semantics`.
 
 The program value is built as follows. No code is generated, and no instance of the module is created.

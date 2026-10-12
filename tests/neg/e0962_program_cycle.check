@@ -1,0 +1,48 @@
+warning[W0003]: unused definition `fromStart`
+  --> tests/neg/e0962_program_cycle.hgn:14:1
+   |
+14 | fromStart : city -> prop. (*~ W0003 *)
+   | ^^^^^^^^^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0962]: this item uses `fromStart`, which states a property of the program of this file
+  --> tests/neg/e0962_program_cycle.hgn:17:14
+   |
+17 | reached X :- fromStart X. (*~ E0962 *)
+   |              ^^^^^^^^^ needed to build the program
+   |
+   = note: `fromStart` uses `fileP`, `fileP` uses `programOf here`
+   = note: the declarations that use the program of their file (`programOf here`, `here ⊢ r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them
+   = help: keep the property out of the rules, or state it about a module of its own, with `programOf m`
+
+error[E0962]: `programOf here`, the program of this file, is used by an item of its program
+  --> tests/neg/e0962_program_cycle.hgn:20:36
+   |
+20 | ?- road X Y, X = $(pick (programOf here)). (*~ E0962 *)
+   |                                    ^^^^ the program is built from this item
+   |
+   = note: the declarations that use the program of their file (`programOf here`, `here ⊢ r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them
+   = help: keep the property out of the rules, or state it about a module of its own, with `programOf m`
+
+error[E0962]: this item uses `keep`, which states a property of the program of this file
+  --> tests/neg/e0962_program_cycle.hgn:25:1
+   |
+25 | %keep. (*~ E0962 *)
+   | ^^^^^ needed to build the program
+   |
+   = note: `keep` uses `fileP`, `fileP` uses `programOf here`
+   = note: the declarations that use the program of their file (`programOf here`, `here ⊢ r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them
+   = help: keep the property out of the rules, or state it about a module of its own, with `programOf m`
+
+error[E0962]: this item uses `far`, which states a property of the program of this module body
+  --> tests/neg/e0962_program_cycle.hgn:34:16
+   |
+34 |   arrived X :- far X. (*~ E0962 *)
+   |                ^^^ needed to build the program
+   |
+   = note: `far` uses `programOf here`
+   = note: the declarations that use the program of their module body (`programOf here`, `here ⊢ r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them
+   = help: keep the property out of the rules, or state it about a module of its own, with `programOf m`
+
+4 errors, 1 warning found

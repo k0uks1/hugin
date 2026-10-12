@@ -2176,7 +2176,7 @@ Decisions made during implementation are listed here with their PR.
   `meta/index`, "Order of elaboration"), so `programOf here` needs a new phase after the object items, with
   the items that use it and everything that depends on them moved there, and a rule that splices such a
   value rejected as a cycle. That is the risk 12 names; it is left to a follow-up, and `programOf here` is
-  E0941 with a note.
+  E0941 with a note. (Delivered by P9f, below.)
 - *Proof A over `programOf`.* `tests/run/p7a_program.hgn` proves `sameFacts` for `tc` and `tc2` over
   `programOf (tc g)` and `programOf (tc2 g)` with `fire`/`given`. `g` must be passed (`{g := G}`):
   `programOf (tc g)` mentions `g` only in variable types, so unification does not determine it, which is
@@ -2462,6 +2462,70 @@ replacing P7b's "a multi-head rule is named by its first head".
 - *Tests.* run `p9d_heads` (`flip` with `edge.1`/`edge.2`; `twice` with the label `ends` as `from` and
   `to` head and `to.1`, `to.2`; `circle.1` for a constructor term in a head, beside `given`); neg
   `e0948_label_heads` (pattern and expression); LSP split of `both` and `twice`.
+
+**P9f (the proof phase, `programOf here`; design: `proofs-level35.md` §4.3.6).**
+
+- *Prior art.* Lean 4, Isabelle and Agda elaborate in textual order, so an inductive definition is complete
+  before the lemmas written after it. Hugin's items are unordered and elaborated in dependency order (#91,
+  `ElabOrder`); the same order follows from the dependencies: a declaration about its scope's program
+  depends on all of the scope's rules. So the phase is a split by dependencies, not by position.
+- *Classification* (`ProgramPhase`). A declaration (or a body's member) is program-dependent if it
+  mentions `programOf here` or a judgment `here ⊢ r t̄` outside the module bodies it contains (their
+  `here` is their own), or the name of a program-dependent declaration of the same scope, by
+  `ElabOrder.mentions`, the names the dependency order already uses. A function's signature and clauses,
+  and a formula function's declaration and rules, go together; so do a `%opaque` and an `%export` that name
+  one. It is decided before elaboration, from syntax only. Mentions ignore binders (as for the dependency
+  order), so a local variable named like a program-dependent declaration may defer a declaration that did
+  not need it; that is harmless unless a rule uses it. P9b's coerced own relations (P9g) will add one more
+  direct form.
+- *Not the membership proof.* `here` is also `std/semantics`' membership constructor (`there^j here` in
+  rule-name patterns and proofs). The word scan is only a pre-filter; an item is program-dependent only
+  for the forms `programOf here` and a judgment whose program is `here`, so a proof that matches on
+  `there here` is neither deferred nor an E0962 (ElabOrderSuite, run/p9f_here).
+- *Cost for ordinary files.* The only new work is a scan of each declaration's text (and of each body's
+  items) for the word `here` (`where` and `there` do not count); a file that fails it is elaborated
+  exactly as before, with no tree walk and no reordering. Items that mention `here` as a name (the member
+  proofs of `std/semantics`) are walked, those only.
+- *Order.* A file: its other declarations (by components, as before), its object items and the expansion of
+  its module-wide directives, then its program-dependent declarations (`Items.elabDeferred`), against a
+  forked state in which their names come into scope. The first phase knows their names: they shadow the
+  prelude's (`declaredHere`), functions and `%opaque` names are known, and each name's chain to `here`
+  is recorded. A body: its object constants and other members, its object items, then its
+  program-dependent members, appended to the members (they are fields, so instances inherit them; the
+  object items' terms are shifted past them). `%use`, `%infix` and subtyping edges of a file, and the
+  object constants of a body, are never deferred: if they need a program-dependent name, that is the
+  cycle. A deferred object constant of a file is reported after the phase.
+- *E0962* is reported where the name is used: name resolution (`Names.unresolved`) and directive lookup
+  find the name among the program-dependent ones (a read of the declarations, channel
+  `programDependent`), and the note gives the chain (`fromStart` uses `fileP`, `fileP` uses `programOf
+  here`); `here` itself in an object item is E0962 with no chain. It replaces E0941 for `here`.
+- *The program.* For a file: its relations, structs and constructors in source order (its constants of
+  object types too, as P7a numbers a body's constructors) are `own i`, by their declared names (an imported
+  file's constants are qualified), and its rules are the assembled object items' rules after module-wide
+  directives; a rule whose head is not the file's is E0942 at the use of `here`, as for a body. It is a
+  generated definition `programOf here` with P7b's display, printed `here ⊢ r t̄` (an imported file's by
+  its qualifier). For a body: P7b's folded program constant of the body applied to the body's context
+  (`programOf tc2 g`), generated from the body before its program-dependent members with the same body id,
+  so `programOf tc2` from outside reuses it; it is printed with the enclosing definition's name. Inside the
+  body its parameters are in scope by their own names, so a parameter's relation is named `g.edge` there
+  (P7c names it through the written argument, `tc G ⊢ G.edge x y`, outside a body). A failure
+  to build the program (no `std/semantics`, a rule outside the fragment) is reported at each use of
+  `here`, not where the program is built. `Judgments` is unchanged: `here ⊢` reaches `programOfTree`
+  through `judgmentProgram`.
+- *Incrementality* (#126). The file-level phase is queries after `ElabItem`: `PhasesOf` splits the items
+  (compared by identity, since trees compare without positions), `DeclarationsOf` keeps the deferred
+  declarations' names in its equality (not their text), `DeferredOf` holds them with their
+  fingerprints, `HereProgramOf` assembles the object items once more and reifies the program into a fork of
+  the declarations' core (family instances recreated, as assembly moves items), compared by the
+  declarations' identity and the program data, not positions; `ElabDeferred` elaborates the deferred
+  declarations against it; `ElabProgram` assembles into a fork of their core and lints all names. Measured
+  in `ProgramPhaseSuite`: editing a proof elaborates neither `Signatures` nor any `ElabItem`; editing a rule
+  elaborates that rule and the proofs; a comment before a rule (the rule moves) elaborates nothing. No
+  object item depends on the proofs (the cycle rule), so nothing after them is invalidated. A body's phase
+  is inside its declaration's item, as the design note says: no new invalidation.
+- *Limits.* A file with program-dependent declarations assembles its object items twice (once for the
+  program, once for the result). Only `here` is a form; `programOf` of an enclosing body by name is still
+  E0105 (P9g's concern).
 
 **P9b (the judgment coercion, level 3.5's alternative A).** Design: [proofs-level35.md](proofs-level35.md)
 §2.1–2.5; reference `std/semantics.md`, "Relations as propositions".

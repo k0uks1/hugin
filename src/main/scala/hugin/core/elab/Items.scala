@@ -3,6 +3,7 @@ package elab
 
 import hugin.syntax.Trees.*
 import hugin.syntax.TreeOps.hasSyntaxErrors
+import hugin.util.Span
 
 /** The items of a program: elaborated one by one, each with error recovery (an item with an error is
  *  reported and dropped). The program's *declarations* (declarations, definitions, the clauses of
@@ -18,8 +19,9 @@ trait Items:
   import core.*
 
   def elabProgram(prog: List[Item]): Unit =
-    val (declarations, objectItems) = splitItems(prog)
-    elabDeclarations(declarations)
+    val (all, objectItems) = splitItems(prog)
+    val (declarations, deferred) = programPhase(all)
+    elabDeclarations(declarations, deferred)
     objectItems.foreach(elabItemReporting)
     if rewrites(state.parts) then
       // module-wide directives: the rules and queries are those of the expansion
@@ -28,7 +30,39 @@ trait Items:
         case _ => true
       }
       items ++= expandModule(state.parts.toList)
+    if !deferred.isEmpty then
+      // the program-dependent declarations, once the file's rules are known (#186 P9f)
+      val relations = fileRelations
+      val program = fileProgram(relations, items.toList.collect { case r: CoreItem.RuleItem => r }, Span.NoSpan)
+        .map((tm, names) => fileProgramGlobal(tm, relations, names, Span.NoSpan))
+      useFileProgram(program, relations)
+      elabDeferred(deferred)
     finish()
+
+  /** A file's declarations split into those elaborated before its object items and its program-dependent
+   *  declarations ([[ProgramPhase]]). `%use`, `%infix` and subtyping edges are always elaborated before:
+   *  the names they give the whole file cannot wait for its program. */
+  def programPhase(declarations: List[Item]): (List[Item], ProgramPhase.Deferred) =
+    val programOfFree = !declarations.exists(declares(_).contains("programOf"))
+    ProgramPhase.classify(
+      declarations,
+      programOfFree,
+      {
+        case Directive(_, _: DirArgs.Use | _: DirArgs.Operator) | _: SubEdge => false
+        case _ => true
+      }
+    )
+
+  /** The relations, structs and constructors the file declares, in source order: `own 0`, `own 1`, … of
+   *  `programOf here`. */
+  def fileRelations: List[Int] =
+    scope.toList.map(_._2).distinct.filter { id =>
+      val g = globals(id)
+      g.stage == Stage.S0 && g.instanceOf.isEmpty && (g.kind match
+        case GlobalKind.Object(ObjDecl.Relation | ObjDecl.Struct | ObjDecl.Constructor) => true
+        case _ => false
+      )
+    }.sortBy(id => (globals(id).span.source.path, globals(id).span.start))
 
   /** A program's declarations (declarations, definitions, clauses of functions and formula functions,
    *  subtyping edges) and its object items (rules, queries, directives), each in source order. */
@@ -50,11 +84,14 @@ trait Items:
       case _ => true
     }
 
-  /** Elaborates a program's declarations ([[splitItems]]). */
-  def elabDeclarations(prog: List[Item]): Unit =
+  /** Elaborates a program's declarations ([[splitItems]]), without its program-dependent ones (`deferred`),
+   *  which are elaborated after its object items ([[elabDeferred]]): their names are declared here, and
+   *  their uses are cycles (E0962). */
+  def elabDeclarations(prog: List[Item], deferred: ProgramPhase.Deferred = ProgramPhase.Deferred.empty): Unit =
     val declared = prog.collect { case d: Decl => d.name.name }.toSet
-    state.functionNames.set(prog.flatMap(clauseName(_, declared)).toSet)
-    state.declaredHere.set(prog.flatMap(declares).toSet)
+    state.functionNames.set(prog.flatMap(clauseName(_, declared)).toSet ++ deferred.functions)
+    state.declaredHere.set(prog.flatMap(declares).toSet ++ deferred.declared)
+    state.programDependent = deferred.chains.map((n, chain) => n -> ProgramPhase.Dependence(chain, false))
     state.signatures = prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }.toMap
     val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
     val formulaFunctions = formulaFunctionNames(rest)
@@ -68,7 +105,7 @@ trait Items:
     // `%use` first (the names it opens are retried for), `%export` after all declarations ([[Uses]])
     // `%opaque x.` (reference: meta/index): the definitions and functions it names are opaque
     val (opaques, meta1a) = meta0.partition(isOpaque)
-    state.opaque = opaques.flatMap(opaqueNames).toSet
+    state.opaque = opaques.flatMap(opaqueNames).toSet ++ deferred.opaque
     // `%infix op f.`: the operators bound to the file's functions, which the declarations may use; each is
     // checked once the declarations are elaborated ([[Overloading]])
     val (bindings, meta1) = meta1a.partition(isOperatorBinding)
@@ -99,6 +136,46 @@ trait Items:
     if !file.signaturesOnly then exports.foreach(elabItemReporting)
     opaques.foreach(elabItemReporting)
     bindings.foreach(elabItemReporting)
+    flushTooling(success = true)
+
+  /** Elaborates the program-dependent declarations of a file (#186 P9f), after its object items, with
+   *  `here` its program ([[ProgramOf.useFileProgram]]): as [[elabDeclarations]] does, against the
+   *  declarations elaborated before. An object constant among them is part of the program, so it cannot
+   *  depend on it (E0962). */
+  def elabDeferred(deferred: ProgramPhase.Deferred): Unit =
+    val prog = deferred.items
+    state.programDependent = Map.empty
+    val declared = prog.collect { case d: Decl => d.name.name }.toSet
+    state.signatures = state.signatures ++ prog.collect { case d @ Decl(n, Nil, _, None, Some(rt: RecordType)) => n.name -> rt }
+    val (clauses, rest) = prog.partition(clauseName(_, declared).isDefined)
+    val formulaFunctions = formulaFunctionNames(rest)
+    state.clauseless = prog.collect {
+      case d: Decl
+          if d.defn.isEmpty && d.sup.isEmpty && !isDataDecl(d) && !isStructDecl(d) && !state.functionNames(d.name.name) &&
+            !formulaFunctions(d.name.name) =>
+        d.name.name
+    }.toSet
+    val (formulaClauses, meta0) = rest.partition(clauseOf(formulaFunctions)(_).isDefined)
+    val (opaques, meta1) = meta0.partition(isOpaque)
+    val (exports, meta) = meta1.partition(isExport)
+    state.erroneous ++= prog.filter(hasSyntaxErrors).flatMap(mightDeclare)
+    state.unelaborated ++= clauses.filter(hasSyntaxErrors).flatMap(clauseName(_, declared)) ++
+      formulaClauses.filter(hasSyntaxErrors).flatMap(clauseOf(formulaFunctions))
+    val firstGlobal = globals.length
+    predeclare(meta)
+    val groups = scala.collection.mutable.LinkedHashMap.empty[Name, List[Item]]
+    for item <- clauses; n <- clauseName(item, state.functionNames.toSet) do groups(n) = groups.getOrElse(n, Nil) :+ item
+    def clausesOf(f: Name) = formulaClauses.collect { case r: Rule if clauseOf(Set(f))(r).isDefined => r }
+    val rules = meta.collect { case d: Decl if formulaFunctions(d.name.name) => (d.name.name, clausesOf(d.name.name), d.span.start) }
+    elabByComponents(meta, groups.toList, rules.distinctBy(_._1))
+    checkClauseless()
+    dropPending()
+    checkObjectDeclarations(firstGlobal)
+    for case d: Decl <- meta; id <- scope.get(d.name.name) if id >= firstGlobal && globals(id).stage == Stage.S0 do
+      val chain = deferred.chains.getOrElse(d.name.name, Nil).drop(1)
+      if chain.nonEmpty then reporter.report(ProgramOfProblem.ProgramCycle(chain.head, chain.tail, false, d.name.span).toDiagnostic)
+    if !file.signaturesOnly then exports.foreach(elabItemReporting)
+    opaques.foreach(elabItemReporting)
     flushTooling(success = true)
 
   /** Records what a dropped `%use` might have opened ([[ElabState.droppedUses]]). */

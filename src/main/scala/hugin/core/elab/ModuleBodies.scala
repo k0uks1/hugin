@@ -44,23 +44,85 @@ trait ModuleBodies:
     def declares(n: Name): Boolean = members.exists(memberName(_).contains(n))
 
   def inferModuleBody(c: Cxt, body: Trees.ModuleBody): (Tm, Val, Stage) =
-    val parts = bodyItems(body.items)
+    val all = bodyItems(body.items)
+    // the program-dependent members, elaborated after the body's object items (#186 P9f)
+    val (parts, later) = programPhase(all)
     // the names that items with syntax errors might declare: their uses are not reported (`docs/PARSER.md`, §5)
     state.erroneous ++= body.items.filter(TreeOps.hasSyntaxErrors).flatMap(mightDeclare)
     val saved = state.bodyDeclared
     val savedLeftOut = state.leftOutMembers
-    state.bodyDeclared = saved ++ parts.members.flatMap(memberName)
+    val savedHere = hereState
+    val savedDependent = state.programDependent
+    val memberNames = all.members.flatMap(memberName)
+    state.bodyDeclared = saved ++ memberNames
+    // the members shadow the enclosing scope's program-dependent names; `here` is the body's program
+    state.programDependent =
+      savedDependent -- memberNames ++ later.fold(Map.empty)(_._2.chains.map((n, ch) => n -> ProgramPhase.Dependence(ch, true)))
+    hereState = HereState.Unavailable(true)
     try
       val functions = mutable.LinkedHashMap.empty[Name, MemberFunction]
-      val (cb, members) = elabMembers(c, parts, functions)
-      recordBody(c, cb, body.span, members, parts.members)
-      val items = objectItems(cb, parts.objects)
-      val mb = hugin.core.ModuleBody(nextBodyId(), body.span, members, items, c.binders.reverse.map(b => (b.name, b.tyTm)))
+      val (cb0, members0) = elabMembers(c, parts, functions)
+      if later.isEmpty then recordBody(c, cb0, body.span, members0, all.members)
+      val items = objectItems(cb0, parts.objects)
+      val context = c.binders.reverse.map(b => (b.name, b.tyTm))
+      val id = nextBodyId()
+      val (cb, members, shifted) = later match
+        case None => (cb0, members0, items)
+        case Some((deferred, _)) =>
+          val name = Option.when(hint.nonEmpty && !inMemberDefinition)(hint)
+          hereState = bodyHere(hugin.core.ModuleBody(id, body.span, members0, items, context), c.lvl, name)
+          state.programDependent = savedDependent -- memberNames
+          val (cb1, members1) = elabMembers(cb0, deferred, functions)
+          // the object items see the members after them as well: their variables are shifted past them
+          (cb1, members0 ++ members1, items.map(shiftItem(_, members1.length)))
+      if later.isDefined then recordBody(c, cb, body.span, members, all.members)
+      val mb = hugin.core.ModuleBody(id, body.span, members, shifted, context)
       val ty = Tm.RecTy(members.map(m => (m.name, m.ty)), Nil, members.map(m => (m.span, m.declSpan)))
       (Tm.Module(mb, (0 until c.lvl).map(Tm.Var(_)).toList), ev(c, ty), Stage.S1)
     finally
       state.bodyDeclared = saved
       state.leftOutMembers = savedLeftOut
+      state.programDependent = savedDependent
+      hereState = savedHere
+
+  /** An object item of a body, elaborated in the context of its members so far, in a context with `by`
+   *  more members (a rule's and a query's variables bind in its terms). */
+  private def shiftItem(item: CoreItem, by: Int): CoreItem =
+    def vars(vs: List[(Name, Tm)]) = vs.zipWithIndex.map { case ((x, t), i) => (x, Tm.shift(t, by, i)) }
+    item match
+      case r: CoreItem.RuleItem =>
+        val n = r.vars.length
+        r.copy(vars = vars(r.vars), heads = r.heads.map(Tm.shift(_, by, n)), body = r.body.map(Tm.shift(_, by, n)))
+      case q: CoreItem.QueryItem => q.copy(vars = vars(q.vars), body = Tm.shift(q.body, by, q.vars.length))
+      case e: CoreItem.EdgeItem => e.copy(sub = Tm.shift(e.sub, by), sup = Tm.shift(e.sup, by))
+      case d: CoreItem.DeclItem => d.copy(decl = Tm.shift(d.decl, by), attached = d.attached.map(Tm.shift(_, by)))
+      case g: CoreItem.GlobalItem => g
+
+  /** The items of a body split into those elaborated before its object items and its program-dependent
+   *  members with their clauses and rules ([[ProgramPhase]]), with why each is program-dependent. An object
+   *  constant stays before: if it needs a program-dependent member, that is a cycle (E0962). */
+  private def programPhase(parts: BodyItems): (BodyItems, Option[(BodyItems, ProgramPhase.Deferred)]) =
+    def isObjectConstant(item: Item) = item match
+      case d: Decl => !parts.lifted(d.name.name) && (d.defn.isEmpty || isStructDecl(d))
+      case _ => false
+    val programOfFree = !parts.members.flatMap(memberName).contains("programOf")
+    val (_, deferred) =
+      ProgramPhase.classify(parts.members ++ parts.clauses ++ parts.rules, programOfFree, i => !isObjectConstant(i))
+    if deferred.isEmpty then (parts, None)
+    else
+      val later = deferred.items.toSet
+      val now = parts.copy(
+        members = parts.members.filterNot(later),
+        clauses = parts.clauses.filterNot(later),
+        rules = parts.rules.filterNot(later)
+      )
+      val after = parts.copy(
+        members = parts.members.filter(later),
+        clauses = parts.clauses.filter(later),
+        rules = parts.rules.filter(later),
+        objects = Nil
+      )
+      (now, Some((after, deferred)))
 
   private def bodyItems(items: List[Item]): BodyItems =
     val declared = items.collect { case d: Decl => d.name.name }.toSet
