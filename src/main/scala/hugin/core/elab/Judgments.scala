@@ -280,8 +280,10 @@ trait Judgments:
   // ---------------------------------------------------------------- program data
 
   /** A rule of a program, as rule names need it: its position in the program's rules, its head relation
-   *  and index among that relation's rules, its label, its variables' number and names, and which of its
-   *  body literals are atoms (premises) rather than comparisons. */
+   *  and index among that relation's rules (`crule.head`, `crule.index`: by its first head), its label, its
+   *  variables' number and names, which of its body literals are atoms (premises) rather than comparisons,
+   *  the relation of each of its head atoms (`crule.heads`, nested facts included) and of each premise
+   *  (`None` for a relation of a parameter). */
   final case class RuleData(
       position: Int,
       head: Int,
@@ -290,8 +292,18 @@ trait Judgments:
       vars: Int,
       names: List[Name],
       body: List[Boolean],
-      heads: Int
-  )
+      headRels: List[Option[RelKey]],
+      premiseRels: List[Option[RelKey]] = Nil
+  ):
+    def heads: Int = headRels.length
+
+  /** A relation of a rule's atom: `Left(i)` for `own i`, `Right(s)` for `ext` of the file's constant `s` (the
+   *  constructor of a nested fact, say), as [[goalRelation]] gives a goal's. */
+  type RelKey = Either[Int, String]
+
+  /** A (rule, head) pair that a rule name names: the head at position `j` of `rule`'s head atoms, of the
+   *  relation `rel`, the `k`-th such pair of `rel` in program and head order (`rel.k`, #186 P9d). */
+  final case class HeadName(rule: RuleData, j: Int, rel: RelKey, k: Int)
 
   /** `arguments`: the values of the program's environment variables (its functor's arguments), if known. */
   final case class ProgramData(
@@ -300,7 +312,21 @@ trait Judgments:
       display: Option[ProgramDisplay],
       context: List[Name],
       arguments: List[Val] = Nil
-  )
+  ):
+    /** The names of the program's (rule, head) pairs, numbered per head relation (reference: std/semantics,
+     *  "Rule names"). `crule.index` keeps numbering rules by their first head; rule names need not agree. */
+    lazy val headNames: List[HeadName] =
+      val seen = mutable.Map.empty[RelKey, Int].withDefaultValue(0)
+      for
+        r <- rules
+        (rel, j) <- r.headRels.zipWithIndex
+        i <- rel
+      yield
+        seen(i) += 1
+        HeadName(r, j, i, seen(i))
+
+    /** The heads of `rule` of the relation `rel`. */
+    def headsOf(rule: RuleData, rel: RelKey): List[HeadName] = headNames.filter(h => h.rule.position == rule.position && h.rel == rel)
 
   /** The rules of a program value, if they evaluate (a program of a module body, possibly in parameters). */
   def programData(p: Val): Option[ProgramData] =
@@ -335,7 +361,13 @@ trait Judgments:
                         case _ => true
                     )
                     val names = display.flatMap(_.varNames.lift(pos)).filter(_.length == vars.length).getOrElse(Nil)
-                    RuleData(pos, head.toInt, index.toInt, label, vars.length, names, isPos, heads.length)
+                    val premiseRels = body.flatMap(b =>
+                      forceData(b) match
+                        case Val.Rigid(Head.Glob(id), bsp) if id == sem("cpos") =>
+                          List(bsp.reverse.collectFirst { case Elim.EApp(a, Icit.Expl) => a }.flatMap(relOf(sem, _)))
+                        case _ => Nil
+                    )
+                    RuleData(pos, head.toInt, index.toInt, label, vars.length, names, isPos, heads.map(relOf(sem, _)), premiseRels)
                 case _ => None
             })
             for
@@ -349,6 +381,21 @@ trait Judgments:
           case _ => None
       catch case _: Impossible => None
     }
+
+  /** The relation of an atom `cat ρ ts` of a rule: `own i` or `ext` of a constant. */
+  private def relOf(sem: Map[Name, Int], atom: Val): Option[RelKey] = forceData(atom) match
+    case Val.Rigid(Head.Glob(_), sp) =>
+      sp.reverse.collectFirst { case Elim.EApp(r, Icit.Expl) => forceData(r) } match
+        case Some(Val.Rigid(Head.Glob(k), rsp)) =>
+          val arg = rsp.collectFirst { case Elim.EApp(x, Icit.Expl) => x }
+          if k == sem("own") then arg.flatMap(natValue).map(n => Left(n.toInt))
+          else if k == sem("ext") then
+            arg.map(forceData).collect { case Val.Quote(q) => forceData(q) }.collect { case Val.Rigid(Head.Glob(id), Nil) =>
+              Right(globals(id).name)
+            }
+          else None
+        case _ => None
+    case _ => None
 
   private def natValue(v: Val): Option[BigInt] = forceData(v) match
     case Val.Nat(_, n) => Some(n)
@@ -469,8 +516,11 @@ trait Judgments:
   private def givenIsSemantics: Boolean =
     semanticsGlobals.exists(sem => lookupGlobal("given").forall(_ == sem("given")))
 
-  /** The rule a form names in the program, checked against the goal; `None` for a label the program does
-   *  not have (the name is then elaborated as usual). */
+  /** The (rule, head) pair a form names in the program, checked against the goal; `None` for a label the
+   *  program does not have (the name is then elaborated as usual). `r.k` names the `k`-th head of `r`; a
+   *  label names the head of its rule whose relation is the goal's (E0948 if there are several), the first
+   *  head where the goal's relation is not known. `hint` is the goal's relation where the goal is not
+   *  known yet (a premise of a rule pattern). */
   private def namedRule(
       sem: Map[Name, Int],
       form: RuleForm,
@@ -478,31 +528,50 @@ trait Judgments:
       goal: Val,
       shown: String,
       at: Span,
-      names: List[Name] = Nil
-  ): Option[RuleData] =
+      names: List[Name] = Nil,
+      hint: Option[RelKey] = None
+  ): Option[HeadName] =
     val programShown = data.display.flatMap(_.functor).getOrElse("the program")
-    val rule = form match
+    val goalRel = goalRelation(sem, goal, data, names).orElse(hint)
+    def relShown(k: RelKey) = k.fold(data.relations.lift(_).getOrElse("?"), identity)
+    val named = form match
       case RuleForm.Indexed(r, k) =>
+        // a relation of the program, or a constant of the file that a head builds (a nested fact's)
         val i = data.relations.indexOf(r)
-        if i < 0 then fail(JudgmentProblem.UnknownRule(shown, programShown, s"it has no relation `$r`", at))
-        val ofR = data.rules.filter(_.head == i)
-        Some(ofR.find(_.index == k).getOrElse {
+        val key: RelKey = if i >= 0 then Left(i) else Right(r)
+        if i < 0 && !data.headNames.exists(_.rel == key) then
+          fail(JudgmentProblem.UnknownRule(shown, programShown, s"it has no relation `$r`", at))
+        val ofR = data.headNames.filter(_.rel == key)
+        Some(ofR.find(_.k == k).getOrElse {
           val why = if ofR.isEmpty then s"`$r` has no rules" else s"`$r` has ${ofR.length} rule(s), `$r.1` to `$r.${ofR.length}`"
           fail(JudgmentProblem.UnknownRule(shown, programShown, why, at))
         })
-      case RuleForm.Label(l) => data.rules.find(_.label.contains(l))
+      case RuleForm.Label(l) =>
+        data.rules.find(_.label.contains(l)).map { rd =>
+          val first = data.headNames.find(_.rule.position == rd.position).getOrElse(HeadName(rd, 0, Left(rd.head), rd.index))
+          goalRel match
+            case Some(i) =>
+              data.headsOf(rd, i) match
+                case List(h) => h
+                case Nil => first
+                case hs => fail(JudgmentProblem.LabelHeads(l, relShown(i), hs.map(h => s"${relShown(i)}.${h.k}"), at))
+            case _ => first
+        }
       case RuleForm.Given => None
-    rule.foreach { rd =>
-      goalRelation(sem, goal, data, names).foreach {
-        case Left(i) if i == rd.head =>
+    named.foreach { h =>
+      goalRel.foreach {
+        case k if k == h.rel =>
         case other =>
           val goalShown = other match
             case Left(i) => data.relations.lift(i).getOrElse(s"own $i")
             case Right(s) => s
-          fail(JudgmentProblem.RuleHeadMismatch(shown, data.relations.lift(rd.head).getOrElse("?"), goalShown, at))
+          fail(JudgmentProblem.RuleHeadMismatch(shown, relShown(h.rel), goalShown, at))
       }
     }
-    rule
+    named
+
+  /** The proof `there^j here` that a rule's `j`-th head atom is the goal's. */
+  private def headProof[A](j: Int, here: A, there: A => A): A = (0 until j).foldLeft(here)((acc, _) => there(acc))
 
   /** The globals rule names elaborate to. */
   private final case class RuleGlobals(
@@ -558,8 +627,8 @@ trait Judgments:
               programData(p) match
                 case None => without
                 case Some(data) =>
-                  namedRule(sem, form, data, goal, shown, head.span, c.names).map(rule =>
-                    checkRule(c, g, rule, shown, head, named.collect { case n: NamedArg => n }, positional, a)
+                  namedRule(sem, form, data, goal, shown, head.span, c.names).map(h =>
+                    checkRule(c, g, h, shown, head, named.collect { case n: NamedArg => n }, positional, a)
                   )
     }
 
@@ -567,13 +636,14 @@ trait Judgments:
   private def checkRule(
       c: Cxt,
       g: RuleGlobals,
-      rule: RuleData,
+      named: HeadName,
       shown: String,
       head: Tree,
-      named: List[NamedArg],
+      byName: List[NamedArg],
       premises: List[Tree],
       expected: Val
   ): Tm =
+    val rule = named.rule
     val sp = head.span
     val premiseCount = rule.body.count(identity)
     if premises.length != premiseCount then
@@ -583,7 +653,7 @@ trait Judgments:
         premises.length,
         Span(sp.origin, sp.from, premises.lastOption.map(_.span.until).getOrElse(sp.until))
       ))
-    for n <- named if !rule.names.contains(n.name) do
+    for n <- byName if !rule.names.contains(n.name) do
       fail(JudgmentProblem.NoRuleVariable(shown, n.name, rule.names.filter(isVariableName), n.nameSpan))
     def ref(id: Int) = SymRef(id, globals(id).name)(sp)
     val sem = semanticsGlobals.get
@@ -594,10 +664,11 @@ trait Judgments:
     val member = (0 until rule.position).foldLeft(ref(g.here): Tree)((acc, _) => Apply(ref(g.there), acc)(sp))
     val m = check(c, member, fireArgs.dom(Nil), Stage.S1)
     val (xsDom, xsMeta) = fireArgs.implicits("xs")
-    val supplied = (0 until rule.vars).map(i => rule.names.lift(i).flatMap(x => named.find(_.name == x)).map(_.value)).toList
+    val supplied = (0 until rule.vars).map(i => rule.names.lift(i).flatMap(x => byName.find(_.name == x)).map(_.value)).toList
     unifyAt(c, sp, xsMeta, ev(c, ruleEnv(c, g, xsDom, supplied, shown, rule.names, sp)))
     val psMeta = freshMeta(c, fireArgs.dom(List(m)), Stage.S1, sp, s"the premises of `$shown`")
-    val h = check(c, ref(g.here), fireArgs.dom(List(m, psMeta)), Stage.S1)
+    // the head: `there^j here` for the rule's `j`-th head atom (#186 P9d)
+    val h = check(c, headProof[Tree](named.j, ref(g.here), Apply(ref(g.there), _)(sp)), fireArgs.dom(List(m, psMeta)), Stage.S1)
     val comparisons = mutable.ListBuffer.empty[(Val, Tm)]
     var remaining = premises
     def premisesTm(lits: List[Boolean], ty: Val): Tm = lits match
@@ -761,14 +832,14 @@ trait Judgments:
     else
       ruleForm(Cxt.empty, head, positional).flatMap { form =>
         derivationType(ty) match
-          case Some((p, _, goal)) => rulePatternIn(t, form, p, goal)
+          case Some((p, _, goal)) => rulePatternIn(t, form, p, goal, None)
           case None =>
             form match
               case RuleForm.Indexed(_, _) => fail(JudgmentProblem.RuleNameWithoutJudgment(ruleShown(head), head.span))
               case _ => None
       }
 
-  private def rulePatternIn(t: Tree, form: RuleForm, p: Val, goal: Val): Option[Pat] =
+  private def rulePatternIn(t: Tree, form: RuleForm, p: Val, goal: Val, hint: Option[RelKey]): Option[Pat] =
     val sem = semanticsGlobals.get
     val g = ruleGlobals(sem)
     val (head, args) = TreeOps.flattenApp(t)
@@ -776,14 +847,17 @@ trait Judgments:
     val positional = args.filterNot(_.isInstanceOf[NamedArg])
     val sp = t.span
     val shown = ruleShown(head)
-    // a premise: a rule name of the same program, or any pattern
-    def premise(e: Tree): Pat =
+    // a premise: a rule name of the same program (of the premise's relation `rel`, if own), or any pattern
+    def premise(e: Tree, rel: Option[RelKey]): Pat =
       val (h, as) = TreeOps.flattenApp(e)
-      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild)).getOrElse(pattern(e, None))
+      ruleForm(Cxt.empty, h, as.count(!_.isInstanceOf[NamedArg])).flatMap(f => rulePatternIn(e, f, p, Val.Wild, rel)).getOrElse(pattern(
+        e,
+        None
+      ))
     form match
       case RuleForm.Given =>
         if named.nonEmpty then None
-        else Some(Pat.PCon(g.givenC, List(Pat.PWild(sp), premise(positional.head)), sp))
+        else Some(Pat.PCon(g.givenC, List(Pat.PWild(sp), premise(positional.head, None)), sp))
       case _ =>
         val data = programData(p) match
           case Some(d) => d
@@ -791,7 +865,8 @@ trait Judgments:
             form match
               case RuleForm.Indexed(_, _) => fail(JudgmentProblem.RuleNameWithoutJudgment(shown, head.span))
               case _ => ProgramData(Nil, Nil, None, Nil)
-        namedRule(sem, form, data, goal, shown, head.span).map { rule =>
+        namedRule(sem, form, data, goal, shown, head.span, hint = hint).map { hn =>
+          val rule = hn.rule
           val premiseCount = rule.body.count(identity)
           if positional.length != premiseCount then fail(JudgmentProblem.PremiseCount(shown, premiseCount, positional.length, sp))
           for n <- named if !rule.names.contains(n.name) do
@@ -805,14 +880,18 @@ trait Judgments:
             Pat.PCon(g.econs, List(pat, acc), sp)
           }
           var rest = positional
+          var rels = rule.premiseRels
           def prems(lits: List[Boolean]): Pat = lits match
             case Nil => Pat.PCon(g.pnil, Nil, sp)
             case true :: more =>
-              val e = premise(rest.head)
+              val e = premise(rest.head, rels.headOption.flatten)
               rest = rest.tail
+              rels = rels.drop(1)
               Pat.PCon(g.ppos, List(Pat.PCon(g.refl, Nil, sp), e, prems(more)), sp)
             case false :: more => Pat.PCon(g.pcmp, List(Pat.PWild(sp), prems(more)), sp)
-          Pat.PCon(g.fire, List(member, prems(rule.body), Pat.PCon(g.here, Nil, sp)), sp, List("xs" -> env))
+          // the head: `there^j here` for the rule's `j`-th head atom (#186 P9d)
+          val headPat = headProof[Pat](hn.j, Pat.PCon(g.here, Nil, sp), q => Pat.PCon(g.there, List(q), sp))
+          Pat.PCon(g.fire, List(member, prems(rule.body), headPat), sp, List("xs" -> env))
         }
 
   // ---------------------------------------------------------------- coverage
@@ -841,10 +920,14 @@ trait Judgments:
       val sem = semanticsGlobals.get
       programData(p).map { data =>
         val rel = goalRelation(sem, goal, data)
-        val rules = data.rules.filter(r => rel.forall(_ == Left(r.head)))
+        // every (rule, head) pair of the goal's relation, by its label if it names that head alone
+        val heads = data.headNames.filter(h => rel.forall(_ == h.rel))
         val premiseNames = premiseInitials(p, sem, data)
-        val ruleCases = rules.map { r =>
-          val name = r.label.getOrElse(s"${data.relations.lift(r.head).getOrElse("?")}.${r.index}")
+        val ruleCases = heads.map { h =>
+          val r = h.rule
+          val byLabel =
+            data.headsOf(r, h.rel).length == 1 && (rel.isDefined || data.headNames.find(_.rule.position == r.position).contains(h))
+          val name = r.label.filter(_ => byLabel).getOrElse(s"${h.rel.fold(data.relations.lift(_).getOrElse("?"), identity)}.${h.k}")
           val fresh = FreshNames(taken)
           val ps = premiseNames.lift(r.position).getOrElse(Nil).map(fresh(_))
           if ps.isEmpty then name else (name :: ps).mkString("(", " ", ")")

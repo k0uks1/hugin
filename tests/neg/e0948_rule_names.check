@@ -4,7 +4,7 @@ error[E0948]: `path.3` is not a rule of `tc`: `path` has 2 rule(s), `path.1` to 
 6 | third E = path.3 E. (*~ E0948 *)
   |           ^^^^^^ unknown rule
   |
-  = note: the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program; a label `@n` adds the name `n`
+  = note: the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program, one name for each head of `r`; a label `@n` adds the name `n`
 
 error[E0948]: the rule `path.1` derives facts of `path`, but the goal is a fact of `G.edge`
  --> tests/neg/e0948_rule_names.hgn:8:23
