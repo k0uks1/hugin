@@ -2,7 +2,7 @@ package hugin.core
 package elab
 
 import hugin.obj.BaseType
-import hugin.syntax.Tree
+import hugin.syntax.{Tree, TreeOps}
 import hugin.syntax.Trees.*
 import hugin.util.*
 
@@ -222,6 +222,133 @@ trait Overloading:
         case other => throw Impossible(s"the binding ${g.name} of ${t.op} takes no explicit argument at ${show(c, other)}")
     val left = argument((ht, hty), t.lhs, operand.collect { case (false, tm, ty) => (tm, ty) })
     argument(left, t.rhs, operand.collect { case (true, tm, ty) => (tm, ty) })
+
+  // ------------------------------------------------------------------ overloaded opened names
+
+  /** The head of an application (or a name alone) if it is a name that `%use` items open for several meta
+   *  constants ([[overloadedName]]) and nothing nearer binds it: with its candidates and their `%use`s. */
+  def overloadedHead(c: Cxt, t: Tree): Option[(Ident, List[(Int, Span)])] =
+    def head(t: Tree): Tree = t match
+      case Apply(f, _) => head(f)
+      case other => other
+    if state.opened.isEmpty then None
+    else
+      head(t) match
+        case id @ Ident(n) if !c.scope.contains(n) && !state.bodyDeclared(n) => overloadedName(n).map(id -> _)
+        case _ => None
+
+  /** The head of the type of `id` after `k` explicit arguments and the implicit arguments around them:
+   *  `None` if `id` takes fewer than `k` explicit arguments (its type ends in a known head that is not a
+   *  function), else the head (unknown if the type stops at an unknown head, which may still be one). */
+  private def resultAfter(id: Int, k: Int): Option[Option[Shape]] =
+    var ty = globals(id).ty
+    var l = 0
+    var left = k
+    var out: Option[Option[Shape]] = None
+    var more = true
+    while more do
+      force(ty) match
+        case Val.Pi(_, i, _, cl) if i == Icit.Impl || left > 0 =>
+          if i == Icit.Expl then left -= 1
+          ty = inst(cl, Val.local(l))
+          l += 1
+        case other =>
+          val s = bindingShape(other)
+          // meta code of an object function (`⇑(A -> rel)`) is applied too (spliced)
+          out = if left == 0 then Some(s) else if s.isEmpty || s.contains(Shape.Code) then Some(None) else None
+          more = false
+    out
+
+  /** The head of the first explicit domain of `id`'s type. */
+  private def firstDomain(id: Int): Option[Shape] =
+    var ty = globals(id).ty
+    var l = 0
+    while true do
+      force(ty) match
+        case Val.Pi(_, Icit.Impl, _, cl) =>
+          ty = inst(cl, Val.local(l))
+          l += 1
+        case Val.Pi(_, _, a, _) => return bindingShape(a)
+        case _ => return None
+    None
+
+  /** A use of an overloaded opened name ([[overloadedHead]]), `n` or `n a₁ … aₖ`, with the expected type
+   *  if known (#186 P9e): the candidate is chosen as an operator's binding is (P2b), by the heads of the
+   *  types alone. First the head of each candidate's result after the `k` explicit arguments is compared
+   *  with the expected type's (a candidate that takes fewer explicit arguments never fits); if several
+   *  remain, the first argument is inferred, once, and the head of its type compared with each one's first
+   *  explicit domain. It is an error if several fit (E0932) or none does (E0933). The result is the
+   *  application with the chosen constant at its head, still to be elaborated (`Left`), or, if the first
+   *  argument was inferred to choose, elaborated with that argument (`Right`). The name's position refers
+   *  to the chosen constant (hover, definition). */
+  def resolveOpened(c: Cxt, t: Tree, expected: Option[Val]): Either[Tree, (Tm, Val, Stage)] =
+    val (head, all) = overloadedHead(c, t).getOrElse(throw Impossible(s"not an overloaded name: $t"))
+    val n = head.name
+    val (_, args) = TreeOps.flattenApp(t)
+    val positional = args.filterNot(_.isInstanceOf[NamedArg])
+    val ids = all.map(_._1)
+    val uses = all.map(_._2)
+    val exp = expected.flatMap(shape)
+    val byResult = ids.filter(id => resultAfter(id, positional.length).exists(r => fits(r, exp)))
+    def noneFits(operand: Option[Val]): Nothing =
+      fail(OperatorProblem.NoNameFits(
+        n,
+        candidates(ids),
+        operand.map(show(c, _)),
+        expected.map(show(c, _)),
+        positional.length,
+        head.span,
+        uses
+      ))
+    def ambiguous(fitting: List[Int], operand: Option[String]): Nothing =
+      fail(OperatorProblem.AmbiguousName(n, candidates(fitting), operand, head.span, uses))
+    def choose(id: Int): Tree =
+      state.used += id
+      recordUse(head.span, id)
+      SymRef(id, n)(head.span)
+    byResult match
+      case List(id) =>
+        val ref = choose(id)
+        Left(args.foldLeft(ref: Tree)((f, a) => Apply(f, a)(f.span.to(a.span))))
+      case Nil => noneFits(None)
+      case several =>
+        positional.headOption match
+          case None => ambiguous(several, None)
+          case Some(first) =>
+            // the first argument decides: inferred once, and passed on to what it chooses
+            val (ft, fty) = inferS(c, first, Stage.S1)
+            val (at, aty, _) = insert(c, first.span, (ft, fty, Stage.S1))
+            val s = shape(aty)
+            several.filter(id => fits(firstDomain(id), s)) match
+              case List(id) => Right(applyOpened(c, choose(id), args, at, aty))
+              case Nil => noneFits(Some(aty))
+              case more => ambiguous(more, s.map(_ => show(c, aty)))
+
+  /** `f {x := e}… a₁ … aₖ` for the chosen constant `f`, with `a₁` already elaborated as `(at, aty)`. */
+  private def applyOpened(c: Cxt, ref: Tree, args: List[Tree], at: Tm, aty: Val): (Tm, Val, Stage) =
+    val (named, positional) = args.span(_.isInstanceOf[NamedArg])
+    val f0 = named.foldLeft(ref)((f, a) => Apply(f, a)(f.span.to(a.span)))
+    var (ft, fty, fs) = insertAll(c, f0.span, infer(c, f0))
+    recordTyped(c, ref.span, ft, fty, fs, checked = false)
+    val first = positional.head
+    force(fty) match
+      case Val.Pi(_, Icit.Expl, dom, cl) =>
+        val (a, av) = core.anonymously {
+          val a = coe(c, first.span, at, aty, Stage.S1, dom, Stage.S1)
+          (a, ev(c, a))
+        }
+        ft = Tm.App(ft, a, Icit.Expl)
+        fty = inst(cl, av)
+      case other => throw Impossible(s"the chosen ${hugin.syntax.Printer.show(ref)} takes no explicit argument at ${show(c, other)}")
+    var f: Tree = Apply(f0, first)(f0.span.to(first.span))
+    positional.tail.foreach { a =>
+      val r = insertAll(c, f.span, (ft, fty, fs))
+      val span = f.span.to(a.span)
+      val r2 = inferPositionalApp(c, f, a, span, r._1, r._2, r._3)
+      ft = r2._1; fty = r2._2; fs = r2._3
+      f = Apply(f, a)(span)
+    }
+    (ft, fty, fs)
 
   // ------------------------------------------------------------------ patterns
 

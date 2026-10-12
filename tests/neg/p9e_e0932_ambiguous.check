@@ -1,0 +1,15 @@
+error[E0932]: ambiguous name `decide`: several of the declarations that `%use` opens it for fit
+ --> tests/neg/p9e_e0932_ambiguous.hgn:5:9
+  |
+3 | %use "std/decide".
+  | ------------------ opens `decide`
+4 | %use "std/semantics".
+  | --------------------- opens `decide`
+5 | which = decide. (*~ E0932 *)
+  |         ^^^^^^ 2 declarations fit
+  |
+  = note: `decide` denotes `decide : {A : Type} -> {P : A -> Type} -> (d : decider A P) -> (x : A) -> so (d.check x) -> P x`
+  = note: `decide` denotes `decide : {d : db} -> {p : program} -> {a : gatom} -> (n : nat) -> so (holds n p a) -> derives p d a`
+  = help: give the expected type, `(e : T)`, or the type of the first argument, or open only one of them, `%use m (…)` with a list of names
+
+1 error found
