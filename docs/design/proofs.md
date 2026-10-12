@@ -276,13 +276,20 @@ is proved by evaluation.
 city : type. berlin, paris, rome : city.
 demo : city -> city -> rel.
 demo berlin paris. demo paris rome.
-tiny = tc { node = city, edge = demo }.
-viaParis : here ⊢ tiny.path berlin rome = decide 3 tt.
+reach : city -> city -> rel.
+reach X Y :- demo X Y.
+reach X Z :- demo X Y, reach Y Z.
+viaParis : reach berlin rome = decide 3 tt.
 ```
 
-`decide n` is `std/semantics`'s lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when
-`p` has no input relations, and `holds n` is `n` rounds of naive evaluation. Here three rounds derive
-`tiny.path berlin rome`, `holds` evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
+`reach berlin rome` is written unqualified, as a relation of the file (the approved level 3.5 form,
+[proofs-level35.md](proofs-level35.md) §1.7, after P9f); `here ⊢ reach berlin rome`, the judgment of
+the file's program, is only its elaborated meaning and is never written. The instance form
+`tiny.path berlin rome` of `tiny = tc { node = city, edge = demo }` would not do here: it is `tiny ⊢
+path berlin rome`, whose input `demo` contributes no facts to `holds`. `decide n` is `std/semantics`'s
+lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when `p` has no input relations, and
+`holds n` is `n` rounds of naive evaluation. Here three rounds derive `reach berlin rome`, `holds`
+evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
 `decide`), **P5** (`holds` and its soundness), **P7b** (the notation).
 
 **One adequacy statement.** For every module `m` of a program and every run on the input facts `d`,
