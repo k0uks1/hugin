@@ -44,13 +44,16 @@ trait Items:
    *  the names they give the whole file cannot wait for its program. */
   def programPhase(declarations: List[Item]): (List[Item], ProgramPhase.Deferred) =
     val programOfFree = !declarations.exists(declares(_).contains("programOf"))
+    // the file's relations, which its declarations write unqualified as its propositions (#186 P9g)
+    val own = declarations.collect { case d: Decl if ProgramPhase.declaresRelation(d) => d.name.name }.toSet
     ProgramPhase.classify(
       declarations,
       programOfFree,
       {
         case Directive(_, _: DirArgs.Use | _: DirArgs.Operator) | _: SubEdge => false
         case _ => true
-      }
+      },
+      ProgramPhase.OwnRelations(own, (_, _) => false, false)
     )
 
   /** The relations, structs and constructors the file declares, in source order: `own 0`, `own 1`, … of

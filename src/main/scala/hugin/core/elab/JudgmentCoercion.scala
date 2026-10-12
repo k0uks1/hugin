@@ -33,6 +33,9 @@ trait JudgmentCoercion:
     case Written(program: Tree)
     case Opened(instance: ModuleInstance, alias: Int)
 
+    /** The enclosing body or file, for an own or parameter relation written unqualified (C3, #186 P9g). */
+    case Here(body: Boolean)
+
   /** An owned atom: its owner, its relation's name in the owner's body, its head (`fast.path`, `path`) and
    *  its arguments. */
   private final case class OwnedAtom(owner: Owner, rel: Name, head: Tree, args: List[Tree]):
@@ -43,20 +46,32 @@ trait JudgmentCoercion:
     case Parens(i) => unparen(i)
     case other => other
 
-  /** `t` as an atom (applied or not) whose relation a program owns, `local` the names bound around it. */
-  private def ownedAtom(c: Cxt, t: Tree, local: Name => Boolean): Option[OwnedAtom] =
+  /** `t` as an atom (applied or not) whose relation a program owns, `bound` the names bound around it that
+   *  `c` does not bind yet. Inside the program-dependent declarations of a body or file ([[ambient]]), an
+   *  own relation written unqualified (`path`) and a body's parameter relation (`g.edge`) belong to the
+   *  enclosing program (C3, #186 P9g). */
+  private def ownedAtom(c: Cxt, t: Tree, bound: Name => Boolean): Option[OwnedAtom] =
     val (h, args) = TreeOps.flattenApp(unparen(t))
     val head = unparen(h)
+    val local = (n: Name) => bound(n) || c.scope.contains(n)
     if args.exists(_.isInstanceOf[NamedArg]) then None
     else
-      head match
-        case Select(q, r) if r.headOption.exists(_.isLetter) =>
-          writtenBody(c, q, local).filter(ownsRelation(_, r)).map(_ => OwnedAtom(Owner.Written(unparen(q)), r, head, args))
-        case Ident(n) if !local(n) && !state.bodyDeclared(n) =>
-          lookupGlobal(n).flatMap(id => openedRelation(id).map((_, id))).flatMap { (rel, alias) =>
-            instanceOwning(rel).map((inst, m) => OwnedAtom(Owner.Opened(inst, alias), m.name, head, args))
-          }
-        case _ => None
+      val enclosing = ambient.flatMap { a =>
+        head match
+          case Ident(n) if !bound(n) && a.own(c, n) => Some(OwnedAtom(Owner.Here(a.body), n, head, args))
+          case Select(Ident(x), r) if !bound(x) && a.param(c, x, r) => Some(OwnedAtom(Owner.Here(a.body), r, head, args))
+          case _ => None
+      }
+      if enclosing.isDefined then enclosing
+      else
+        head match
+          case Select(q, r) if r.headOption.exists(_.isLetter) =>
+            writtenBody(c, q, local).filter(ownsRelation(_, r)).map(_ => OwnedAtom(Owner.Written(unparen(q)), r, head, args))
+          case Ident(n) if !local(n) && !state.bodyDeclared(n) =>
+            lookupGlobal(n).flatMap(id => openedRelation(id).map((_, id))).flatMap { (rel, alias) =>
+              instanceOwning(rel).map((inst, m) => OwnedAtom(Owner.Opened(inst, alias), m.name, head, args))
+            }
+          case _ => None
 
   /** The object relation a global denotes: itself, or the relation an opened name (a definition of type
    *  `⇑τ`, the projection of an instance's field) is. Decided from the type first, so that no other
@@ -93,7 +108,7 @@ trait JudgmentCoercion:
         case _: Select | _: Ident =>
           force(a) match
             case pi @ Val.Pi(_, Icit.Expl, _, _) if familyArity(pi, c.lvl) > 0 =>
-              ownedAtom(c, t, c.scope.contains).map(atom => checkEta(c, atom, pi))
+              ownedAtom(c, t, _ => false).map(atom => checkEta(c, atom, pi))
             case _ => None
         case _ => None
 
@@ -105,19 +120,22 @@ trait JudgmentCoercion:
     else
       unparen(t) match
         case _: Apply =>
-          ownedAtom(c, t, c.scope.contains).filter(_.args.nonEmpty).map { atom =>
+          ownedAtom(c, t, _ => false).filter(_.args.nonEmpty).map { atom =>
             val (program, judgmentTree) = judgmentOf(atom, t.span)
             val resolved = atom.owner match
               case Owner.Opened(inst, alias) =>
                 state.used += alias
                 recordUse(atom.head.span, alias)
                 Some(instanceProgram(c, inst, program, atom.head.span))
-              case Owner.Written(_) => None
+              case Owner.Written(_) | Owner.Here(_) => None
             try inferJudgmentOf(c, judgmentTree, resolved)
             catch
               case e: ElabError if e.diag.code == hugin.util.diagnostics.Code.E0945 || e.diag.code == hugin.util.diagnostics.Code.E0961 =>
                 val judgment = Printer.show(judgmentTree).stripPrefix("(").stripSuffix(")")
-                val note = s"`${Printer.show(t)}` is read as the judgment `$judgment`: its relation belongs to `${Printer.show(program)}`"
+                val owner = atom.owner match
+                  case Owner.Here(body) => s"the program of this ${if body then "module body" else "file"}"
+                  case _ => s"`${Printer.show(program)}`"
+                val note = s"`${Printer.show(t)}` is read as the judgment `$judgment`: its relation belongs to $owner"
                 throw ElabError(e.diag.withNote(note), e.unresolved, e.silent)
           }
         case _ => None
@@ -130,7 +148,13 @@ trait JudgmentCoercion:
     val program = atom.owner match
       case Owner.Written(p) => p
       case Owner.Opened(inst, _) => Ident(inst.prefix)(atom.head.span)
-    val rel = atom.args.foldLeft(Ident(atom.rel)(relSpan): Tree)((f, x) => Apply(f, x)(f.span.to(x.span)))
+      // the ambient program, as the prefix judgment `⊢ r t̄` names it
+      case Owner.Here(_) => Ident("here")(atom.head.span.startPoint)
+    // a parameter relation keeps its path (`g.edge`), which the enclosing program resolves
+    val relHead = atom.owner match
+      case Owner.Here(_) => atom.head
+      case _ => Ident(atom.rel)(relSpan)
+    val rel = atom.args.foldLeft(relHead)((f, x) => Apply(f, x)(f.span.to(x.span)))
     (program, Judgment(program, None, rel)(span, atom.at))
 
   /** The number of explicit binders of a family of meta types `(x₁ : A₁) -> … -> Type`, or 0; `lvl` is the
@@ -206,21 +230,29 @@ trait JudgmentCoercion:
           }
         case app: Apply =>
           val local = (n: Name) => bound(n) || c.scope.contains(n)
-          ownedAtom(c, app, local) match
+          ownedAtom(c, app, bound) match
             case Some(a) if a.args.nonEmpty => add(a)
             case _ => arguments(app, bound, local)
         case _ =>
-      def family(t: Tree, bound: Set[Name], local: Name => Boolean): Unit = unparen(t) match
+      def family(t: Tree, bound: Set[Name]): Unit = unparen(t) match
         case Lambda(p, _, body) => typePos(body, bound ++ names(p))
-        case other => ownedAtom(c, other, local).filter(_.args.isEmpty).foreach(add)
+        case other => ownedAtom(c, other, bound).filter(_.args.isEmpty).foreach(add)
       def arguments(t: Tree, bound: Set[Name], local: Name => Boolean): Unit =
         val (head, args) = TreeOps.flattenApp(t)
-        unparen(head) match
+        // the type of the head: a global meta constant's, or (in a module body, #186 P9g) a member's of `c`
+        val headType = unparen(head) match
           case Ident(f) if !local(f) && !state.bodyDeclared(f) =>
-            lookupGlobal(f).filter(globals(_).stage == Stage.S1).foreach { id =>
+            lookupGlobal(f).filter(globals(_).stage == Stage.S1).map(id => (globals(id).ty, 0))
+          case Ident(f) if !bound(f) && c.scope.contains(f) =>
+            val b = c.binder(c.scope(f))
+            Option.when(b.origin == BinderOrigin.Member || b.defn.isDefined)((b.ty, c.lvl))
+          case _ => None
+        headType match
+          case Some((fTy, from)) =>
+            locally {
               // the parameter types, under fresh variables (a type that does not evaluate: none)
               val all =
-                try telescope(globals(id).ty)._1
+                try telescope(fTy, from)._1
                 catch case _: Impossible => Nil
               val params = all.filter(_._2 == Icit.Expl)
               args.filterNot(_.isInstanceOf[NamedArg]).zip(params).foreach { (a, p) =>
@@ -228,7 +260,7 @@ trait JudgmentCoercion:
                 unparen(a) match
                   case _: Lambda | _: Select | _: Ident =>
                     force(p._3) match
-                      case pi: Val.Pi if familyArity(pi, all.length) > 0 => family(a, bound, local)
+                      case pi: Val.Pi if familyArity(pi, from + all.length) > 0 => family(a, bound)
                       case Val.U1(_) => typePos(a, bound)
                       case _ =>
                   case _: Apply | _: Arrow | _: ImplicitPi | _: RecordType =>

@@ -1,0 +1,28 @@
+(* #186 P9g: the file itself is the outermost body (reference: std/semantics, "Relations as propositions";
+   level 3.5 note §1.7). A relation that the file declares, applied where a meta type is expected at its
+   top level, is a judgment of the file's program, `here ⊢ trip x y`, written unqualified. The prefix
+   turnstile `⊢ r t̄` (ASCII `|- r t̄`) is the same judgment, also for a nullary relation, and `⊢[D] r t̄`
+   names a database. *)
+%use "std/semantics".
+%use "std/eq" (tt).
+city : type. berlin, paris, rome : city.
+hop : city -> city -> rel.
+hop berlin paris. hop paris rome.
+trip : city -> city -> rel.
+trip X Y :- hop X Y.
+trip X Z :- hop X Y, trip Y Z.
+open : rel.
+open.
+%output trip.
+
+viaParis : trip berlin rome = decide 3 tt.
+tripTrans : {x y z : city} -> trip x y -> trip y z -> trip x z.
+tripTrans (trip.1 H) Q = trip.2 H Q.
+tripTrans (trip.2 H P) Q = trip.2 H (tripTrans P Q).
+
+(* the prefix forms: a nullary relation, a named database *)
+isOpen : ⊢ open = open.1.
+direct : |- trip berlin paris = trip.1 hop.1.
+named : {D : db} -> ⊢[D] trip berlin paris -> ⊢[D] trip paris rome -> ⊢[D] trip berlin rome.
+named P Q = tripTrans P Q.
+%opaque viaParis tripTrans isOpen direct named.

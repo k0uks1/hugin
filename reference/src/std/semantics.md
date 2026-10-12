@@ -304,6 +304,8 @@ evaluating anything:
 | `weak.v.vertex x`, a member instance ([Instances](../modules.md#instances)) | `weak.v` | `weak.v ⊢ vertex x` |
 | `(tc2 G).path x y`, a functor applied to its arguments | `tc2 G` | `tc2 G ⊢ path x y` |
 | `path x y` after `%use trip (path).` | the instance `trip` | `trip ⊢ path x y` |
+| `path x y` or `g.edge x y` in the body of `tc2 (g : graph)` | the body, at its parameter | `tc2 g ⊢ path x y` |
+| `trip x y` at the top level of the file that declares `trip` | the file | `here ⊢ trip x y` |
 
 The judgment is the one that the turnstile without `[e]` denotes at the same place, at the same database:
 in the type of a declaration the anonymous one ([Generalisation](#generalisation)), elsewhere an unknown
@@ -320,9 +322,9 @@ is expected is the function `[x₁] … [xₙ] P ⊢ r x₁ … xₙ`, as a rela
 is expected is eta-expanded ([Stage inference](../meta/staging.md#stage-inference)). A combinator over meta
 relations then takes an object relation: `symmetric (undirected G).reach` below.
 
-Not coerced are: a relation of a variable or of a functor's parameter, `G.edge x y`, which every program
-over `G` reads (the judgment names the program, `tc G ⊢ G.edge x y`); a relation of the file and of the
-body the statement is written in; a relation used unapplied where a type is expected, which is its fact
+Not coerced are: a relation of a variable or of a functor's parameter outside the functor's body,
+`G.edge x y`, which every program over `G` reads (the judgment names the program, `tc G ⊢ G.edge x y`); a
+relation of the file inside a module body, whose program does not declare it; a relation used unapplied where a type is expected, which is its fact
 type ([Fact types](../object/types.md#fact-types)), so a nullary relation's judgment is written `fast ⊢
 flag`; a relation of a functor written alone, `tc.path x y`, which names no program
 ([E0107](../errors/E0107.md)); and an atom with a named database, which keeps the turnstile, `P ⊢[e] r t̄`.
@@ -376,6 +378,81 @@ The type of `linkSym` is `{_ : db} -> {G : graph} -> symmetric ([x] [y] undirect
 > needs no declaration: a relation is a proposition of the one program that declares it, so the owner is
 > read off the atom. A relation of a variable has no such program, and the same text would denote
 > different judgments in `tc G` and `tc2 G`, so it keeps the turnstile.
+
+### Inside bodies and files
+
+A module body and the file itself are programs, and the statements about one of them can be written
+inside it, as members of the body or declarations of the file, as Isabelle states the theorems of a locale
+inside it. There a relation that the body or file declares, and in a body also a relation of a variable
+of its context (a functor's parameter, `g.edge`), is written *unqualified*: applied where a meta type is
+expected, `path x y` is the judgment of the enclosing program, `here ⊢ path x y`, at the body's own
+parameters (`tc2 g ⊢ path x y`, which is how diagnostics and hovers show it); unapplied where a family of
+meta types is expected, it is the η form, `symmetric reach`. The user never writes `here ⊢`; it is only the
+elaborated meaning. Other programs' relations are qualified as above.
+
+Such declarations are about the program of their scope, so they are elaborated after its rules
+([Declarations about the file's program](../meta/index.md#declarations-about-the-files-program)): the
+compiler finds them from their syntax, by an own relation (or a context variable's) applied in a declared
+type, a parameter's or binder's type, an arrow, a field type or an argument of an application there, or
+written unapplied as such an argument. A rule that uses one of them, directly or through other
+declarations, is an error ([E0962](../errors/E0962.md)). In other declarations, which are elaborated
+before the rules, the atom is [E0960](../errors/E0960.md), as is a relation of the file under an explicit
+`⇑`.
+
+The members of a body are fields of every instance, so an instance has the lemmas: `fast.sameFacts` below
+is the theorem about `fast`'s program. A functor applied, `(tc2 G).sameFacts`, gives a lemma at any
+argument without creating an instance ([Members without an instance](../modules.md#members-without-an-instance)).
+
+*The prefix turnstile.* `⊢ r t̄` and `⊢[e] r t̄` (ASCII `|- r t̄`), a judgment without a program, are the
+judgment of the enclosing body or file, as `here ⊢ r t̄`. It is the form for a nullary relation, whose
+name alone is its fact type (`⊢ flag`), and for a named database (`⊢[D] reached x`).
+
+```hugin,run
+%use "std/graph".
+%use "std/eq" (iff, tt).
+%use "std/semantics".
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+  edgeIn : {x y : g.node} -> tc g ⊢ g.edge x y -> g.edge x y.
+  edgeIn (given I) = given I.
+  toTc2 : {x y : g.node} -> (tc g).path x y -> path x y.
+  toTc2 (path.1 E) = path.1 (edgeIn E).
+  toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+  trans : {x y z : g.node} -> ⊢ path x y -> ⊢ path y z -> ⊢ path x z.
+  trans P Q = path.2 P Q.
+  %opaque toTc2 trans.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+fast = tc2 { node = city, edge = road }.
+fastTrans : {x y z : city} -> fast.path x y -> fast.path y z -> fast.path x z = fast.trans.
+anyTrans : {x y z : G.node} -> (tc2 G).path x y -> (tc2 G).path y z -> (tc2 G).path x z.
+anyTrans {G := H} = (tc2 H).trans.
+
+trip : city -> city -> rel.
+trip X Y :- road X Y.
+trip X Z :- road X Y, trip Y Z.
+viaParis : trip berlin rome = decide 3 tt.
+%opaque fastTrans anyTrans viaParis.
+%output trip.
+```
+
+```output
+trip berlin paris.
+trip berlin rome.
+trip paris rome.
+```
+
+> **Rationale.** Inside a body the program is known, so a relation of the body or of its parameter has
+> one program, and the qualification says nothing; outside it, the same text would not say which
+> application of the functor is meant. Every instance inheriting the lemmas is Isabelle's
+> `interpretation` of a locale and Agda's module application. The prefix turnstile is Abella's marked
+> judgment `{A}` of its one specification, for the cases that the unmarked atom cannot express.
 
 ## Rule names
 

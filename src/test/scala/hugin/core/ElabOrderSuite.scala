@@ -89,7 +89,13 @@ class ElabOrderSuite extends munit.FunSuite:
       {
         case Directive(_, _: DirArgs.Use) => false
         case _ => true
-      }
+      },
+      // the file's relations, written unqualified as propositions (#186 P9g)
+      hugin.core.elab.ProgramPhase.OwnRelations(
+        items.collect { case d: Decl if hugin.core.elab.ProgramPhase.declaresRelation(d) => d.name.name }.toSet,
+        (_, _) => false,
+        false
+      )
     )
     def name(i: Item): String = i match
       case d: Decl => d.name.name
@@ -121,6 +127,33 @@ class ElabOrderSuite extends munit.FunSuite:
       chains,
       Map("p" -> List("p", "programOf here"), "size" -> List("size", "p", "programOf here"), "lemma" -> List("lemma", "here ⊢ …"))
     )
+  }
+
+  test("the file's relations as propositions and the prefix turnstile are program-dependent (#186 P9g)") {
+    val (later, chains) = phase(
+      """trip : int -> int -> rel.
+        |trip 1 2.
+        |flag : rel.
+        |viaOne : trip 1 2 = proof.
+        |both : iff (trip 1 2) (trip 1 2).
+        |symmetric : {A : Type} -> (A -> A -> Type) -> Type.
+        |sym : symmetric trip.
+        |(* an unapplied relation is the η form only where the function takes a family of types *)
+        |typed : quoted trip -> int.
+        |open : ⊢ flag = flag.1.
+        |uses : int = count viaOne.
+        |(* object code, a quote and a judgment's atom are not propositions of the file *)
+        |quoted : ⇑prop = <trip 1 2>.
+        |formula : int -> prop.
+        |formula X :- trip X 2.
+        |other : m ⊢ trip 1 2 -> Type.
+        |""".stripMargin
+    )
+    assertEquals(later, List("viaOne", "both", "sym", "open", "uses"))
+    assertEquals(chains("viaOne"), List("viaOne", "trip 1 2"))
+    assertEquals(chains("sym"), List("sym", "trip"))
+    assertEquals(chains("open"), List("open", "⊢ …"))
+    assertEquals(chains("uses"), List("uses", "viaOne", "trip 1 2"))
   }
 
   test("a file without `here` has no program-dependent declarations; `where` and `there` are not `here`") {

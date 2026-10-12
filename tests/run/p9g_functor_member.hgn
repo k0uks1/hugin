@@ -1,0 +1,30 @@
+(* #186 P9g: a meta member of a functor applied that mentions an object constant of the body is read
+   through an instance, as before locale-style proofs: `pathOf G` applies `tc3` to a variable, and each
+   call with a closed graph creates an instance whose relation `path` it returns. Only a member that
+   mentions no object constant (a lemma) is read without one. *)
+%use "std/graph".
+%use "std/reflect".
+city : type. berlin, paris : city.
+road : city -> city -> rel.
+road berlin paris.
+
+tc3 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  relation : ⇑(g.node -> g.node -> rel) = path.
+}.
+pathOf : (G : graph) -> ⇑(G.node -> G.node -> rel).
+pathOf G = (tc3 G).relation.
+
+out : city -> city -> rel.
+emit : (r : ⇑(city -> city -> rel)) -> list item.
+emit R = '( out X Y :- R X Y. ).
+%emit (pathOf { node = city, edge = road }).
+
+(* the same through a definition whose body applies the functor to its record argument *)
+again : city -> city -> rel.
+via (g : graph) : ⇑(g.node -> g.node -> rel) = (tc3 g).relation.
+emitAgain : (r : ⇑(city -> city -> rel)) -> list item.
+emitAgain R = '( again X Y :- R X Y. ).
+%emitAgain (via { node = city, edge = road }).
+%output out. %output again.

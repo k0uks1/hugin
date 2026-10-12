@@ -93,6 +93,14 @@ trait ProgramOf:
 
   var hereState: HereState = HereState.Unavailable(false)
 
+  /** The relations that an atom written unqualified in a type position names as a proposition of the
+   *  enclosing scope's program (C3, #186 P9g): set while the scope's program-dependent declarations are
+   *  elaborated ([[ProgramPhase]]), `None` elsewhere. `own(c, r)`: `r`, resolved in `c`, is a relation of
+   *  the scope; `param(c, x, r)`: `x.r` is a relation of a variable of a body's context (`g.edge`). */
+  final case class Ambient(own: (Cxt, Name) => Boolean, param: (Cxt, Name, Name) => Boolean, body: Boolean)
+
+  var ambient: Option[Ambient] = None
+
   /** How the program is named in the item being elaborated, for E0962. */
   private var hereForm = "here"
 
@@ -161,6 +169,19 @@ trait ProgramOf:
   /** The file's program as `here` denotes it in its program-dependent declarations: the generated
    *  definition `program` (or the problem of building it), its relations `relations` with their types. */
   def useFileProgram(program: Either[Span => ProgramOfProblem, Int], relations: List[Int]): Unit =
+    // the file's relations written unqualified are its propositions (#186 P9g)
+    val own = relations.filter(id =>
+      globals(id).kind match
+        case GlobalKind.Object(ObjDecl.Relation | ObjDecl.Struct) => true
+        case _ => false
+    ).toSet
+    ambient = Some(
+      Ambient(
+        (c, n) => !c.scope.contains(n) && !state.bodyDeclared(n) && lookupGlobal(n).exists(own),
+        (_, _, _) => false,
+        body = false
+      )
+    )
     hereState = program match
       case Left(p) => HereState.Failed(p)
       case Right(id) =>
@@ -233,6 +254,25 @@ trait ProgramOf:
           }
         case _ => None
     catch case _: Impossible => None
+
+  /** Whether the variable at level `l` of `c` has a relation `r`: its type is a record type whose field `r`
+   *  is a relation type `⇑(τ₁ -> … -> rel)` (`g.edge` of a functor's parameter `g : graph`; #186 P9g). Only
+   *  the variable's type is looked at, under fresh variables. */
+  def relationField(c: Cxt, l: Int, r: Name): Boolean =
+    def relationType(t: Val, k: Int): Boolean = force(t) match
+      case Val.RelT => k > 0
+      case Val.Pi(_, _, _, cl) => relationType(inst(cl, Val.local(c.lvl + k)), k + 1)
+      case _ => false
+    try
+      force(c.binder(l).ty) match
+        case rt: Val.RecTy =>
+          rt.labels.contains(r) && fieldType(rt, Val.local(l), r).exists(ft =>
+            force(ft) match
+              case Val.Lift(a) => relationType(a, 0)
+              case _ => false
+          )
+        case _ => false
+    catch case _: Impossible => false
 
   /** Whether `body` declares the relation (struct, constructor) `r`, which a judgment over it names `own i`. */
   def ownsRelation(body: ModuleBody, r: Name): Boolean = relationMembers(body).exists(_.name == r)

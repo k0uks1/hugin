@@ -128,6 +128,24 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assertEquals(edit(split)._2, "toTc (path.1 E) = ?.\ntoTc (path.2 E P) = ?.")
   }
 
+  test("#186 P9g: inside a body, an unqualified own relation shows the body's judgment; a split offers its rules") {
+    val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
+      "tc2 (g : graph) = {\n  path : g.node -> g.node -> rel.\n  path X Y :- g.edge X Y.\n" +
+      "  path X Z :- path X Y, path Y Z.\n  back : {x y : g.node} -> path x y -> path x y.\n  back P = ?.\n}.\n" +
+      "trip : string -> string -> rel.\ntrip \"a\" \"b\".\nab : trip \"a\" \"b\" -> ⊢ trip \"a\" \"b\".\nab T = ?.\n"
+    val (s, _) = server(text)
+    val atom = hover(s, pos(text, "path x y ->"))
+    assert(atom.contains("tc2 g ⊢ path x y"), atom)
+    val goal = hover(s, pos(text, "?.\n}"))
+    assert(goal.contains("`tc2 g ⊢ path x y`"), goal)
+    val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
+    // the clauses stay in the body; `P` is taken by the clause's own pattern
+    assertEquals(edit(split)._2, "back (path.1 E) = ?.\n  back (path.2 P P1) = ?.")
+    // the file's relation at the top level, and the prefix form: the file's program, `here`
+    val file = hover(s, pos(text, "ab T = ?", 7))
+    assert(file.contains("`here ⊢ trip \"a\" \"b\"`"), file)
+  }
+
   test("#186 P9d: a split offers every head of a rule: `edge.1`, `edge.2`; a label for its rule's one head") {
     val text = "%use \"std/graph\".\n%use \"std/semantics\".\n" +
       "both (g : graph) = {\n  edge : g.node -> g.node -> rel.\n  edge X Y, edge Y X :- g.edge X Y.\n}.\n" +

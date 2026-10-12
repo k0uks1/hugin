@@ -1,0 +1,54 @@
+(* #186 P9g: relations as propositions inside module bodies (reference: std/semantics, "Relations as
+   propositions"; level 3.5 note §4.3.4). In a functor's body, an unapplied own relation where a family
+   of meta types is expected is the function over its judgment (the η form, `symmetric reach`); in a
+   module without parameters, `path berlin rome` is the module's judgment, proved by evaluation. Every
+   instance has the lemmas (`(undirected roads).reachSym` is read without an instance). *)
+%use "std/graph" (graph).
+%use "std/semantics".
+%use "std/eq" (tt).
+
+symmetric : {A : Type} -> (A -> A -> Type) -> Type.
+symmetric {A := T} R = (x : T) -> (y : T) -> R x y -> R y x.
+
+undirected (g : graph) = {
+  link : g.node -> g.node -> rel.
+  link X Y :- g.edge X Y.
+  link Y X :- g.edge X Y.
+  reach : g.node -> g.node -> rel.
+  reach X Y :- link X Y.
+  reach X Z :- link X Y, reach Y Z.
+  linkSym : symmetric link.
+  linkSym X Y (link.1 E) = link.2 E.
+  linkSym X Y (link.2 E) = link.1 E.
+  reachTrans : {x y z : g.node} -> reach x y -> reach y z -> reach x z.
+  reachTrans (reach.1 L) Q = reach.2 L Q.
+  reachTrans (reach.2 L P) Q = reach.2 L (reachTrans P Q).
+  reachSym : symmetric reach.
+  reachSym X Y (reach.1 L) = reach.1 (linkSym X Y L).
+  reachSym X Y (reach.2 {Y := W} L R) = reachTrans (reachSym W Y R) (reach.1 (linkSym X W L)).
+  %opaque linkSym reachTrans reachSym.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+roads : graph = { node = city, edge = road }.
+both = undirected roads.
+%output both.reach.
+
+(* the instance's lemma, and the functor's at the same graph: the latter creates no instance *)
+back : symmetric both.reach = both.reachSym.
+anyBack : symmetric (undirected roads).reach = (undirected roads).reachSym.
+
+trip = {
+  hop : city -> city -> rel.
+  hop berlin paris. hop paris rome.
+  path : city -> city -> rel.
+  path X Y :- hop X Y.
+  path X Z :- hop X Y, path Y Z.
+  viaParis : path berlin rome = decide 3 tt.
+  %opaque viaParis.
+}.
+%output trip.path.
+used : trip.path berlin rome = trip.viaParis.
+%opaque back anyBack used.

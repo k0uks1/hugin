@@ -47,6 +47,12 @@ object TreeOps:
       case other => (other, acc)
     go(t, Nil)
 
+  /** Whether a judgment is written in the prefix form `⊢[e] r t̄`, without a program (#186 P9g): its program
+   *  is `here`, the ambient program, with an empty span (a written `here` has its own). */
+  def isPrefixJudgment(j: Judgment): Boolean = j.program match
+    case p @ Ident("here") => p.span.from == p.span.until
+    case _ => false
+
   /** The name an application `c a1 ... an` applies, if its head is a name. */
   def headName(t: Tree): Option[Ident] = t match
     case id: Ident => Some(id)

@@ -48,7 +48,9 @@ object Printer:
       val branches = bs.map(b => s" | ${show(b.pat)}" + (if b.rhs.isInstanceOf[Absent] then "" else s" => ${show(b.rhs)}"))
       s"(match ${h.map(v => v.name + " : ").getOrElse("")}${show(e)} with${branches.mkString})"
     case Rewrite(h, e) => s"(rewrite ${show(h)} in ${show(e)})"
-    case Judgment(p, db, a) => s"(${show(p)} ⊢${db.map(e => s"[${show(e)}]").getOrElse("")} ${show(a)})"
+    case j @ Judgment(p, db, a) =>
+      val program = if TreeOps.isPrefixJudgment(j) then "" else s"${show(p)} "
+      s"($program⊢${db.map(e => s"[${show(e)}]").getOrElse("")} ${show(a)})"
     case ListLit(es) => es.map(show).mkString("[", ", ", "]")
     case ConsE(h, t) => s"(${show(h)} :: ${show(t)})"
     case Quote(es, terminated) =>

@@ -38,7 +38,7 @@ trait MemberFunctions:
     finally memberPath = saved
 
   /** The path of the member `n` of the body being elaborated, after the definition that contains it. */
-  private def pathOf(n: Name): Name =
+  def pathOf(n: Name): Name =
     val top = if hint.nonEmpty then hint else "_"
     (top :: memberPath.reverse ::: List(n)).mkString(".")
 
@@ -61,6 +61,8 @@ trait MemberFunctions:
       // a formula function is a postulate until its rules define it
       val kind = if parts.formulas(d.name.name) then GlobalKind.Postulate else GlobalKind.Function(-1, None)
       val (id, value) = liftedFunction(c, pathOf(d.name.name), zty, d.name.span, d.span, kind)
+      // `%opaque f.` in the body (#186 P9g): neutral once its clauses are checked ([[Clauses]])
+      if opaqueMembers(d.name.name) && !parts.formulas(d.name.name) then opaqueLifted += id
       val (cx, m) = defined(c, d.name, zty, quote(c.lvl, value), d.span)
       (cx, m, Some(MemberFunction(d.name.name, id, c)))
 

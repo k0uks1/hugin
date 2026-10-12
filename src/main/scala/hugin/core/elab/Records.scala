@@ -150,6 +150,10 @@ trait Records:
     )
 
   private def inferProjection(c: Cxt, sel: Select): (Tm, Val, Stage) =
+    // `(f ā).m` for a member that needs no instance (#186 P9g)
+    memberWithoutInstance(c, sel).getOrElse(inferInstanceProjection(c, sel))
+
+  private def inferInstanceProjection(c: Cxt, sel: Select): (Tm, Val, Stage) =
     val inferred = insertAll(c, sel.qual.span, infer(c, sel.qual))
     val (qt, qty, qs) = spliceIfLifted(sel.qual.span, inferred)
     // the record type as written (a signature's name), unless the qualifier was object code

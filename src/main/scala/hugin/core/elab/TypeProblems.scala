@@ -289,7 +289,7 @@ enum TypeProblem extends Problem:
     case _: AppliedRelation =>
       List(
         msg"as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone",
-        msg"an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet"
+        msg"an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it; a relation of the file, of a module body or of a functor's parameter is a proposition, written alone, in the declarations of that file or body"
       )
     case _ => Nil
 

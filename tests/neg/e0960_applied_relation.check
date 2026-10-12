@@ -13,7 +13,7 @@ error[E0960]: `g.edge x y` is not a type: it applies a relation to arguments
    |                                                      ^^^^^^^^^^ an applied relation
    |
    = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
-   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it; a relation of the file, of a module body or of a functor's parameter is a proposition, written alone, in the declarations of that file or body
    = help: name the program with the turnstile: `P ⊢ g.edge x y`
 
 error[E0960]: `fast.path x y` is not a type: it applies a relation to arguments
@@ -23,7 +23,7 @@ error[E0960]: `fast.path x y` is not a type: it applies a relation to arguments
    |                              ^^^^^^^^^^^^^ an applied relation
    |
    = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
-   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it; a relation of the file, of a module body or of a functor's parameter is a proposition, written alone, in the declarations of that file or body
    = help: without the `⇑`, an applied relation that a program owns is its judgment; for another relation, name the program with the turnstile: `P ⊢ fast.path x y`
 
 error[E0947]: cannot determine the database of this judgment

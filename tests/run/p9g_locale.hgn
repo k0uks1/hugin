@@ -1,0 +1,55 @@
+(* #186 P9g: locale-style proofs (reference: std/semantics, "Relations as propositions"; level 3.5 note
+   §1.6). Inside a module body, an applied relation of the body (`path x y`) and of its functor's parameter
+   (`g.edge x y`), written where a meta type is expected, is a judgment of the body's program at its own
+   parameters, `tc2 g ⊢ path x y`, unqualified. The lemmas are members, elaborated after the body's rules,
+   so every instance has them (`fast.sameFacts`, no `forFast`); a functor applied, `(tc2 G).sameFacts`,
+   reads one without creating an instance, since it mentions no object constant of the body. `%opaque`
+   names members of the body. *)
+%use "std/graph".
+%use "std/eq" (iff).
+%use "std/semantics".
+
+(* tc belongs to std/graph: its body cannot take lemmas, so its lemma is stated outside *)
+tcTrans : {x y z : G.node} -> (tc G).path x y -> (tc G).path y z -> (tc G).path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+%opaque tcTrans.
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+
+  (* inside the body, `path` and `g.edge` are tc2's own propositions; tc's are qualified *)
+  edgeIn : {x y : g.node} -> tc g ⊢ g.edge x y -> g.edge x y.
+  edgeIn (given I) = given I.
+  edgeOut : {x y : g.node} -> g.edge x y -> tc g ⊢ g.edge x y.
+  edgeOut (given I) = given I.
+  toTc2 : {x y : g.node} -> (tc g).path x y -> path x y.
+  toTc2 (path.1 E) = path.1 (edgeIn E).
+  toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+  toTc : {x y : g.node} -> path x y -> (tc g).path x y.
+  toTc (path.1 E) = path.1 (edgeOut E).
+  toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
+  sameFacts : {x y : g.node} -> iff ((tc g).path x y) (path x y) = { to = toTc2, from = toTc }.
+  (* the prefix turnstile, the same proposition *)
+  twoSteps : {x y z : g.node} -> ⊢ path x y -> ⊢ path y z -> ⊢ path x z.
+  twoSteps P Q = path.2 P Q.
+  %opaque sameFacts twoSteps.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+road berlin paris. road paris rome.
+fast = tc2 { node = city, edge = road }.
+
+(* the instance's lemma, at the instance's program: `fast.sameFacts` replaces `forFast` *)
+forFast : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y) = fast.sameFacts.
+
+(* the functor's lemma at any graph, and at a written one: no instance is created (the run prints no
+   relation of one) *)
+general : {x y : G.node} -> iff ((tc G).path x y) ((tc2 G).path x y).
+general {G := H} = (tc2 H).sameFacts.
+closed : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) ((tc2 { node = city, edge = road }).path x y) =
+  (tc2 { node = city, edge = road }).sameFacts.
+%opaque forFast general closed.

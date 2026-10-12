@@ -84,7 +84,7 @@ enum ProgramOfProblem extends Problem:
       val through =
         if chain.isEmpty then Nil
         else List(Msg.text(path.sliding(2).map(p => s"${p(0)} uses ${p(1)}").mkString(", ")))
-      through :+ msg"the declarations that use the program of their ${scopeOf(body)} (`programOf here`, `here ⊢ r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them"
+      through :+ msg"the declarations that use the program of their ${scopeOf(body)} (`programOf here`, `here ⊢ r t̄`, `⊢ r t̄`, or its relations as propositions, `r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them"
 
   override def helps: List[Msg] = this match
     case _: NoLibrary => List(msg"add ${Src("%use \"std/quote\".")} and ${Src("%use \"std/semantics\".")} to the file")

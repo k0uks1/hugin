@@ -78,7 +78,12 @@ private[syntax] trait ExprSyntax extends ParserBase:
 
   /** `P ⊢[e] r t̄` after `P`, at `⊢` (reference: std/semantics, "The judgment notation"): the database `[e]`
    *  directly after the turnstile is optional, and the atom is an application. */
-  private def judgment(program: Tree): Tree =
+  private def judgment(program: Tree): Tree = judgmentAt(Some(program))
+
+  /** `P ⊢[e] r t̄` after `P` (`program`), or the prefix `⊢[e] r t̄` without one, at `⊢`: the judgment of the
+   *  ambient program, the enclosing module body's or the file's (#186 P9g), whose program is `here` with an
+   *  empty span ([[TreeOps.isPrefixJudgment]]). */
+  private def judgmentAt(program: Option[Tree]): Tree =
     val op = advance()
     val db =
       if at(Tok.LBrack) && !tok.spaceBefore then
@@ -88,7 +93,8 @@ private[syntax] trait ExprSyntax extends ParserBase:
         Some(e)
       else None
     val atom = if atColumn0(position) then missing(Expect.expression) else parseApp()
-    Judgment(program, db, atom)(program.span.to(atom.span), op.span)
+    val p = program.getOrElse(Ident("here")(op.span.startPoint))
+    Judgment(p, db, atom)(program.getOrElse(p).span.to(atom.span), op.span)
 
   private def parsePrefix(minLevel: Int): Tree =
     val start = tok.span.start
@@ -115,6 +121,7 @@ private[syntax] trait ExprSyntax extends ParserBase:
         val ok = close(open, Tok.RBrack)
         val body = parseExpr(minLevel.max(LvlSemi))
         checked(Lambda(param, tpe, body)(spanFrom(start)), ok)
+      case Tok.Entails => judgmentAt(None)
       case Tok.KwMatch => parseMatch(minLevel)
       case Tok.KwRewrite => parseRewrite(minLevel)
       case _ => parseApp()
