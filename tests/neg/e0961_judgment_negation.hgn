@@ -1,7 +1,7 @@
-(* The judgment notation reads a program in `derives`, the positive fragment, in which a rule with a
-   negation or an aggregate never fires: a judgment over such a program is E0961 (`nderives` of
-   `std/strata` reads it stratum by stratum). Without the error, `never` would be accepted although the
-   run derives `m.ok berlin`. *)
+(* A judgment over a program with a negation or an aggregate is its stratum-local judgment, `nderives` of
+   `std/strata` (#186 P9c): in a file that does not load `std/strata`, it is E0961, never `derives`, the
+   positive fragment in which such a rule never fires. Read as `derives`, `never` would be accepted
+   although the run derives `m.ok berlin` (with `std/strata`, tests/neg/p9c_never.hgn). *)
 %use "std/semantics".
 %use "std/eq" (empty).
 city : type. berlin, paris : city.
@@ -25,7 +25,7 @@ n = {
 counted : {k : int} -> n ⊢ size k -> Type. (*~ E0961 *)
 counted _ = Type.
 
-(* a positive program keeps the notation *)
+(* a positive program keeps the notation, `derives`, without `std/strata` *)
 p = { node : city -> rel. node berlin. }.
 same : p ⊢ node berlin -> p ⊢ node berlin.
 same P = P.

@@ -7,11 +7,11 @@
    over the strata (Apt, Blair and Walker 1988; Przymusinski 1988). A separate file, so that the many
    programs that load `std/semantics` for the positive fragment do not elaborate it. *)
 %use "std/reflect" (bool, true, false, if, list, nil, cons, append, option, none, some, agg_op, acount, asum, amin,
-  amax, ceq, cmp_op).
+  amax, ceq, cmp_op, same).
 %use "std/nat" (nat, equal).
 %use "std/int" (iless).
-%use "std/eq" (eq, refl, subst, empty, unit, tt).
-%use "std/decide" (so).
+%use "std/eq" (eq, refl, subst, empty, emptyElim, unit, tt, iff, apart).
+%use "std/decide" (so, equalRefl).
 %use "std/list" (map, any, filter, length).
 %use "std/semantics".
 
@@ -221,3 +221,177 @@ nleastModel : {p : program} -> {d : db} -> (a : gatom) ->
               { to : nderives p d a -> (m : db) -> nmodel p d m -> m a,
                 from : ((m : db) -> nmodel p d m -> m a) -> nderives p d a }.
 nleastModel {p := P} {d := D} A = { to = [x] [m] [mm] nleast mm x, from = [f] f (nderives P D) nderivesModel }.
+
+(* The stratum-local judgment (#186 P9c; reference: std/strata, "The stratum-local judgment"). The facts of
+   a relation `r` are those of the last stratum `k` with a rule that has a head of `r`: `judged p k d` is
+   that stratum's derivations, read with the facts of the strata before it, `upTo p k d`. `P ⊢ r t̄` over a
+   program with negations or aggregates elaborates to it. *)
+take : nat -> list A -> list A.
+take 0 Xs = [].
+take (K + 1) [] = [].
+take (K + 1) (X :: Xs) = X :: take K Xs.
+
+stratumAt : list (list nat) -> nat -> list nat.
+stratumAt [] K = [].
+stratumAt (S :: Ss) 0 = S.
+stratumAt (S :: Ss) (K + 1) = stratumAt Ss K.
+
+upTo : program -> nat -> db -> db = [p] [k] [d] [a] layers p (take k p.strata) (inputs p d) a.
+
+judged : program -> nat -> db -> db = [p] [k] [d] nderives (layer p (stratumAt p.strata k)) (upTo p k d).
+
+(* `diffRef r s`: the relations differ, decided *)
+diffRef : rref -> rref -> bool.
+diffRef (own M) (own N) = if (equal M N) false true.
+diffRef (arg A) (arg B) = if (same A B) false true.
+diffRef (ext A) (ext B) = if (same A B) false true.
+diffRef R S = true.
+
+notTrue : (b : bool) -> so (if b false true) -> eq b false.
+notTrue true ().
+notTrue false T = refl.
+
+bothNot : (b : bool) -> so b -> so (if b false true) -> empty.
+bothNot true T ().
+bothNot false () U.
+
+diffSound : (r s : rref) -> so (diffRef r s) -> eq r s -> empty.
+diffSound (own M) (own N) T refl = bothNot (equal M M) (equalRefl M) T.
+diffSound (arg A) (arg B) T refl = apart (notTrue (same A A) T) refl.
+diffSound (ext A) (ext B) T refl = apart (notTrue (same A A) T) refl.
+diffSound (own M) (arg B) T ().
+diffSound (own M) (ext B) T ().
+diffSound (arg A) (own N) T ().
+diffSound (arg A) (ext B) T ().
+diffSound (ext A) (own N) T ().
+diffSound (ext A) (arg B) T ().
+
+andL : (b c : bool) -> so (if b c false) -> so b.
+andL true C T = tt.
+andL false C ().
+
+andR : (b c : bool) -> so (if b c false) -> so c.
+andR true C T = T.
+andR false C ().
+
+(* no head atom of the rules `cs` is of the relation `r` *)
+headsFree : rref -> {ts : list ⇑type} -> list (catom ts) -> bool.
+headsFree R [] = true.
+headsFree R (A :: As) = if (diffRef R (relOf A)) (headsFree R As) false.
+
+freeOf : rref -> list crule -> bool.
+freeOf R [] = true.
+freeOf R (C :: Cs) = if (headsFree R C.heads) (freeOf R Cs) false.
+
+patRel : patom -> rref.
+patRel (pat R O) = R.
+
+notHead : {r : rref} -> {ts : list ⇑type} -> {xs : env ts} -> (hs : list (catom ts)) -> so (headsFree r hs) ->
+          {q : patom} -> member q (map (instAtom xs) hs) -> eq r (patRel q) -> empty.
+notHead [] F () E.
+notHead {r := R} (cat S Ts :: As) F here E = diffSound R S (andL (diffRef R S) (headsFree R As) F) E.
+notHead {r := R} (A :: As) F (there M) E = notHead As (andR (diffRef R (relOf A)) (headsFree R As) F) M E.
+
+noRule : {r : rref} -> (cs : list crule) -> so (freeOf r cs) -> {c : crule} -> member c cs -> so (headsFree r c.heads).
+noRule [] F ().
+noRule {r := R} (C :: Cs) F here = andL (headsFree R C.heads) (freeOf R Cs) F.
+noRule {r := R} (C :: Cs) F (there M) = noRule Cs (andR (headsFree R C.heads) (freeOf R Cs) F) M.
+
+(* a stratum without a rule that has a head of `r` derives only the facts of `r` that it is given *)
+onlyGiven : {p : program} -> {m : db} -> {r : rref} -> {vs : list value} -> so (freeOf r p.rules) ->
+            nderives p m (atom r vs) -> m (atom r vs).
+onlyGiven F (ngiven T X) = X.
+onlyGiven {p := P} {r := R} F (nfire {xs := Xs} {c := C} M Ps H) =
+  emptyElim (notHead {xs := Xs} C.heads (noRule {r := R} P.rules F M) H refl).
+
+(* no stratum of `ss` has a rule with a head of `r` *)
+freeAfter : program -> rref -> list (list nat) -> bool.
+freeAfter P R [] = true.
+freeAfter P R (S :: Ss) = if (freeOf R (layer P S).rules) (freeAfter P R Ss) false.
+
+stays : {p : program} -> {r : rref} -> {vs : list value} -> (ss : list (list nat)) -> {m : db} ->
+        so (freeAfter p r ss) -> layers p ss m (atom r vs) -> m (atom r vs).
+stays [] F X = X.
+stays {p := P} {r := R} {vs := Vs} (S :: Ss) {m := M} F X =
+  onlyGiven {p := layer P S} {m := M} {r := R} {vs := Vs} (andL (freeOf R (layer P S).rules) (freeAfter P R Ss) F)
+    (stays {p := P} {r := R} {vs := Vs} Ss {m := nderives (layer P S) M} (andR (freeOf R (layer P S).rules) (freeAfter P R Ss) F) X).
+
+(* `k` is a stratum of `ss`, and no stratum after it has a rule with a head of `r` *)
+lastIn : program -> rref -> list (list nat) -> nat -> bool.
+lastIn P R [] K = false.
+lastIn P R (S :: Ss) 0 = freeAfter P R Ss.
+lastIn P R (S :: Ss) (K + 1) = lastIn P R Ss K.
+
+toStratum : {p : program} -> {r : rref} -> {vs : list value} -> (ss : list (list nat)) -> (k : nat) -> {m : db} ->
+            so (lastIn p r ss k) -> layers p ss m (atom r vs) ->
+            nderives (layer p (stratumAt ss k)) ([b] layers p (take k ss) m b) (atom r vs).
+toStratum [] K () X.
+toStratum {p := P} {r := R} {vs := Vs} (S :: Ss) 0 {m := M} F X = stays {p := P} {r := R} {vs := Vs} Ss {m := nderives (layer P S) M} F X.
+toStratum {p := P} {r := R} {vs := Vs} (S :: Ss) (K + 1) {m := M} F X =
+  toStratum {p := P} {r := R} {vs := Vs} Ss K {m := nderives (layer P S) M} F X.
+
+fromStratum : {p : program} -> {r : rref} -> {vs : list value} -> (ss : list (list nat)) -> (k : nat) -> {m : db} ->
+              so (lastIn p r ss k) -> nderives (layer p (stratumAt ss k)) ([b] layers p (take k ss) m b) (atom r vs) ->
+              layers p ss m (atom r vs).
+fromStratum [] K () X.
+fromStratum {p := P} {r := R} {vs := Vs} (S :: Ss) 0 {m := M} F X = kept {p := P} Ss {m := nderives (layer P S) M} {a := atom R Vs} X.
+fromStratum {p := P} {r := R} {vs := Vs} (S :: Ss) (K + 1) {m := M} F X =
+  fromStratum {p := P} {r := R} {vs := Vs} Ss K {m := nderives (layer P S) M} F X.
+
+(* Adequacy of the stratum-local judgment: a fact of `r` is in the perfect model exactly if the last
+   stratum with a rule that has a head of `r` derives it *)
+adequate : {p : program} -> {d : db} -> {r : rref} -> {vs : list value} -> (k : nat) -> so (lastIn p r p.strata k) ->
+           iff (perfect p d (atom r vs)) (judged p k d (atom r vs)).
+adequate {p := P} {d := D} {r := R} {vs := Vs} K F =
+  { to = toStratum {p := P} {r := R} {vs := Vs} P.strata K {m := inputs P D} F,
+    from = fromStratum {p := P} {r := R} {vs := Vs} P.strata K {m := inputs P D} F }.
+
+(* between the strata `k` and `j`, after `k` and before `j`, no rule has a head of `r` *)
+staysFor : program -> rref -> list (list nat) -> nat -> nat -> bool.
+staysFor P R (S :: Ss) 0 (J + 1) = freeAfter P R (take J Ss).
+staysFor P R (S :: Ss) (K + 1) (J + 1) = staysFor P R Ss K J.
+staysFor P R Ss K J = false.
+
+lower : {p : program} -> {r : rref} -> {vs : list value} -> (ss : list (list nat)) -> (k j : nat) -> {m : db} ->
+        so (staysFor p r ss k j) -> layers p (take j ss) m (atom r vs) ->
+        nderives (layer p (stratumAt ss k)) ([b] layers p (take k ss) m b) (atom r vs).
+lower [] K J () X.
+lower (S :: Ss) 0 0 () X.
+lower (S :: Ss) (K + 1) 0 () X.
+lower {p := P} {r := R} {vs := Vs} (S :: Ss) 0 (J + 1) {m := M} F X =
+  stays {p := P} {r := R} {vs := Vs} (take J Ss) {m := nderives (layer P S) M} F X.
+lower {p := P} {r := R} {vs := Vs} (S :: Ss) (K + 1) (J + 1) {m := M} F X =
+  lower {p := P} {r := R} {vs := Vs} Ss K J {m := nderives (layer P S) M} F X.
+
+raise : {p : program} -> {r : rref} -> {vs : list value} -> (ss : list (list nat)) -> (k j : nat) -> {m : db} ->
+        so (staysFor p r ss k j) -> nderives (layer p (stratumAt ss k)) ([b] layers p (take k ss) m b) (atom r vs) ->
+        layers p (take j ss) m (atom r vs).
+raise [] K J () X.
+raise (S :: Ss) 0 0 () X.
+raise (S :: Ss) (K + 1) 0 () X.
+raise {p := P} {r := R} {vs := Vs} (S :: Ss) 0 (J + 1) {m := M} F X =
+  kept {p := P} (take J Ss) {m := nderives (layer P S) M} {a := atom R Vs} X.
+raise {p := P} {r := R} {vs := Vs} (S :: Ss) (K + 1) (J + 1) {m := M} F X =
+  raise {p := P} {r := R} {vs := Vs} Ss K J {m := nderives (layer P S) M} F X.
+
+(* A negated atom without local variables, in a rule of the stratum `j`, and the judgment of its relation
+   at its stratum `k`: `absentOf` builds the premise from a refutation, `refuted` reads one from it *)
+lowerNot : {p : program} -> {d : db} -> {r : rref} -> (k j : nat) -> so (staysFor p r p.strata k j) ->
+           (o : option (list value)) -> notIn (judged p k d) (pat r o) -> notIn (upTo p j d) (pat r o).
+lowerNot {p := P} {d := D} {r := R} K J F (some Vs) N = [x] N (lower {p := P} {r := R} {vs := Vs} P.strata K J {m := inputs P D} F x).
+lowerNot K J F none N = N.
+
+raiseNot : {p : program} -> {d : db} -> {r : rref} -> (k j : nat) -> so (staysFor p r p.strata k j) ->
+           (o : option (list value)) -> notIn (upTo p j d) (pat r o) -> notIn (judged p k d) (pat r o).
+raiseNot {p := P} {d := D} {r := R} K J F (some Vs) N = [x] N (raise {p := P} {r := R} {vs := Vs} P.strata K J {m := inputs P D} F x).
+raiseNot K J F none N = N.
+
+absentOf : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> (k j : nat) ->
+           so (staysFor p (relOf b) p.strata k j) -> notIn (judged p k d) (instAtom xs b) -> absent (upTo p j d) xs [] b.
+absentOf {p := P} {d := D} {xs := Xs} {b := cat R As} K J F N enil =
+  lowerNot {p := P} {d := D} {r := R} K J F (optMap values (instTerms Xs As)) N.
+
+refuted : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} -> {b : catom ts} -> (k j : nat) ->
+          so (staysFor p (relOf b) p.strata k j) -> absent (upTo p j d) xs [] b -> notIn (judged p k d) (instAtom xs b).
+refuted {p := P} {d := D} {xs := Xs} {b := cat R As} K J F N =
+  raiseNot {p := P} {d := D} {r := R} K J F (optMap values (instTerms Xs As)) (N enil).

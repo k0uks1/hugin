@@ -131,6 +131,18 @@ class MetaLanguageServerSuite extends munit.FunSuite:
     assertEquals(edit(to)._2, "arrives (ends E) = ?.\narrives (to.2 F) = ?.")
   }
 
+  test("#186 P9c: a stratum-local split names the negated premise and offers `given`; the goal in the notation") {
+    val text = "%use \"std/semantics\".\n%use \"std/strata\".\ncity : type. berlin, paris : city.\n" +
+      "m = {\n  node : city -> rel.\n  bad : city -> rel.\n  node berlin. bad paris.\n  ok : city -> rel.\n" +
+      "  ok X :- node X, not bad X.\n}.\n" +
+      "same : {x : city} -> m ⊢ ok x -> m ⊢ ok x.\nsame P = ?.\n"
+    val (s, _) = server(text)
+    val split = actions(s, pos(text, "P = ?")).find(_.getTitle == "Split on `P`").get
+    assertEquals(edit(split)._2, "same (ok.1 N N1) = ?.\nsame (given I) = ?.")
+    val goal = hover(s, pos(text, "?."))
+    assert(goal.contains("⊢ ok x`"), goal)
+  }
+
   test("#186 P3: add the missing branches of a `match`, and hover in a branch") {
     val text = nat + "isZero : nat -> nat.\nisZero M = match M with\n  | zero => suc zero.\n"
     val (s, c) = server(text)

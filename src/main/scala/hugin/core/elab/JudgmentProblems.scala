@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 /** The problems of the judgment notation `P ⊢[e] r t̄` and of rule names (reference: std/semantics, "The
  *  judgment notation", "Rule names"): the atom of a judgment (E0945), a functor written alone (E0946),
  *  the database (E0947), a rule name (E0948), `given` (E0949) and a program with negation or
- *  aggregates (E0961). Terms are given as shown to users. */
+ *  aggregates without `std/strata` (E0961). Terms are given as shown to users. */
 enum JudgmentProblem extends Problem:
   /** A judgment in a program that does not load `std/semantics`. */
   case NoLibrary(at: Span)
@@ -49,6 +49,9 @@ enum JudgmentProblem extends Problem:
   /** A label `label` against a goal of `rel`, of which its rule has several heads (`names`, #186 P9d). */
   case LabelHeads(label: String, rel: String, names: List[String], at: Span)
 
+  /** The rule `name` fires only in strata after the one of the stratum-local derivation expected (#186 P9c). */
+  case LaterStratum(name: String, at: Span)
+
   /** The rule `name` has `expected` premises (atoms of its body), and `found` are given. */
   case PremiseCount(name: String, expected: Int, found: Int, at: Span)
 
@@ -63,14 +66,15 @@ enum JudgmentProblem extends Problem:
   case NotAnInput(rel: String, decided: Boolean, at: Span)
 
   /** A judgment over the program `program`, a rule of which (with a head of `rel`, if known) has a negation
-   *  or (`aggregate`) an aggregate: the notation reads programs in the positive `derives` (#186 P9a). */
+   *  or (`aggregate`) an aggregate, in a file that does not load `std/strata`, which reads such programs
+   *  (#186 P9a, P9c). */
   case NotPositive(program: String, rel: Option[String], aggregate: Boolean, at: Span)
 
   def code: Code = this match
     case _: NoLibrary | _: UnknownRelation | _: ArgumentRelation | _: NotAnAtom | _: AtomArity | _: UntypedArgument => Code.E0945
     case _: FunctorAlone => Code.E0946
     case _: NoDatabase => Code.E0947
-    case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: LabelHeads | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
+    case _: RuleNameWithoutJudgment | _: UnknownRule | _: RuleHeadMismatch | _: LabelHeads | _: LaterStratum | _: PremiseCount | _: NoRuleVariable | _: ComparisonUndecided =>
       Code.E0948
     case _: NotAnInput => Code.E0949
     case _: NotPositive => Code.E0961
@@ -88,6 +92,7 @@ enum JudgmentProblem extends Problem:
     case UnknownRule(_, _, _, s) => s
     case RuleHeadMismatch(_, _, _, s) => s
     case LabelHeads(_, _, _, s) => s
+    case LaterStratum(_, s) => s
     case PremiseCount(_, _, _, s) => s
     case NoRuleVariable(_, _, _, s) => s
     case ComparisonUndecided(_, _, s) => s
@@ -110,12 +115,13 @@ enum JudgmentProblem extends Problem:
     case RuleHeadMismatch(n, d, g, _) => msg"the rule ${Src(n)} derives facts of ${Src(d)}, but the goal is a fact of ${Src(g)}"
     case LabelHeads(l, r, hs, _) =>
       msg"the label ${Src(l)} names ${hs.length} heads of ${Src(r)}: " ++ Msg.join(hs.map(h => msg"${Src(h)}"), ", ")
+    case LaterStratum(n, _) => msg"the rule ${Src(n)} fires in a later stratum than the derivation expected here"
     case PremiseCount(n, e, f, _) => msg"the rule ${Src(n)} has $e premise(s), but $f are given"
     case NoRuleVariable(n, x, _, _) => msg"the rule ${Src(n)} has no variable ${Src(x)}"
     case ComparisonUndecided(n, cmp, _) => msg"cannot prove a comparison of the rule ${Src(n)} by evaluation: ${Src(cmp)}"
     case NotAnInput(r, true, _) => msg"${Src(r)} is not an input of the program: it has rules, so `given` cannot derive its facts"
     case NotAnInput(r, false, _) => msg"cannot decide whether ${Src(r)} is an input of the program"
-    case _: NotPositive => msg"the judgment notation covers programs without negation and aggregates; use `nderives` of `std/strata`"
+    case _: NotPositive => msg"a judgment over a program with negation or aggregates needs the library `std/strata`"
 
   override def primaryLabel: Msg = this match
     case _: NoLibrary => msg"judgment here"
@@ -130,6 +136,7 @@ enum JudgmentProblem extends Problem:
     case _: UnknownRule => msg"unknown rule"
     case _: RuleHeadMismatch => msg"the rule's head does not match the goal"
     case _: LabelHeads => msg"which head?"
+    case _: LaterStratum => msg"a rule of a later stratum"
     case _: PremiseCount => msg"wrong number of premises"
     case _: NoRuleVariable => msg"unknown variable"
     case _: ComparisonUndecided => msg"comparison not proved"
@@ -164,6 +171,8 @@ enum JudgmentProblem extends Problem:
       List(
         msg"the rules of a relation `r` are `r.1`, `r.2`, … in the order of the program, one name for each head of `r`; a label `@n` adds the name `n`"
       )
+    case _: LaterStratum =>
+      List(msg"a derivation of a stratum's judgment derives the facts of the strata below it with `ngiven`, not by their rules")
     case _: LabelHeads =>
       List(msg"a label names its rule; a rule with several heads of the goal's relation has a name `r.k` for each of them")
     case NoRuleVariable(_, _, vs, _) =>
@@ -180,7 +189,7 @@ enum JudgmentProblem extends Problem:
       val rule = rel.fold(msg"a rule of ${Src(p)}")(r => msg"a rule of ${Src(r)} in ${Src(p)}")
       List(
         rule ++ Msg.text(s" has $what in its body"),
-        msg"`P ⊢ r t̄` is `derives`, the positive fragment, in which such a rule never fires: a judgment over this program could contradict its run"
+        msg"`P ⊢ r t̄` over such a program is the stratum-local judgment `nderives` of `std/strata`, which reads negations and aggregates in the strata below"
       )
     case _ => Nil
 
@@ -196,8 +205,5 @@ enum JudgmentProblem extends Problem:
       )
     case LabelHeads(_, _, hs, _) => List(msg"name the head by its rule name: " ++ Msg.join(hs.map(h => msg"${Src(h)}"), " or "))
     case _: NoDatabase => List(msg"give the database: ${Src("P ⊢[e] r t̄")}, with a database `e` in scope")
-    case _: NotPositive =>
-      List(
-        msg"state it with ${Src("nderives")} or ${Src("perfect")} of `std/strata`, which read negations and aggregates stratum by stratum"
-      )
+    case _: NotPositive => List(msg"add ${Src("%use \"std/strata\".")} to the file")
     case _ => Nil

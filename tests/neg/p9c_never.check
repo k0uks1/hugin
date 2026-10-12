@@ -1,0 +1,15 @@
+error[E0915]: the case for `fire` is impossible here
+  --> tests/neg/p9c_never.hgn:19:8
+   |
+19 | never (fire {xs := econs X enil} (there (there (there here))) (ppos _ _ ()) here). (*~ E0915 *)
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not a constructor of `programOf m ⊢[_] ok berlin`
+   |
+   = note: a clause is checked in its own context: no argument can match its patterns, so the clause can never apply
+
+error[E0948]: the rule `ok.1` has 2 premise(s), but 1 are given
+  --> tests/neg/p9c_never.hgn:22:11
+   |
+22 | alsoNever (ok.1 B) = B. (*~ E0948 *)
+   |           ^^^^^^^^ wrong number of premises
+
+2 errors found

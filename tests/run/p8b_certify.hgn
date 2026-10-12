@@ -6,7 +6,7 @@
    the perfect model decided by evaluation, both ways. *)
 %use "std/eq" (eq, refl, empty, tt).
 %use "std/semantics" (gatom, atom, own, v, crule, program, inputOf, cat, tcons, tnil, cv, here, there, cpos, cnot).
-%use "std/strata" (perfect).
+%use "std/strata" (perfect, judged).
 %use "std/certify".
 
 person : type. ann, bob, cyd, dan : person.
@@ -47,6 +47,8 @@ sinks : program = { relations = ["sink", "edge"], rules = [sinkRule], input = in
 s : ⇑city -> gatom = [x] atom (own 0) [v x].
 romeSink : perfect sinks (memOf edges) (s (<rome>)) = (perfectHolds 2 sinks edges).sound (s (<rome>)) tt.
 parisNot : perfect sinks (memOf edges) (s (<paris>)) -> empty = (perfectRefutes 2 sinks edges).sound (s (<paris>)) tt.
+(* the stratum-local judgment of `sink`, at its stratum 1, by evaluation (#186 P9c) *)
+romeJudged : judged sinks 1 (memOf edges) (s (<rome>)) = judgedHolds 2 sinks edges (own 0) [v (<rome>)] 1 tt tt.
 
 (* the same program reified, and certificates stratum by stratum *)
 sinkU : urule = urul 0 1 [city, city] [uat (own 0) [uvar 1]]
@@ -55,4 +57,4 @@ sinksU : uprogram = uprog ["sink", "edge"] (sinkU :: []) [1] [[1], [0]].
 strataAccept : eq (certifyStrata sinksU edges [[], [cf (s (<rome>)) [1]]]) (accepted 3) = refl.
 negationFails : eq (certifyStrata sinksU edges [[], [cf (s (<paris>)) [0]]]) (rejected (badFact (s (<paris>)))) = refl.
 missing : eq (certifyStrata sinksU edges [[], []]) (rejected (notClosed 2)) = refl.
-%opaque accepts notDerived notClosedRun romeSink parisNot strataAccept negationFails missing.
+%opaque accepts notDerived notClosedRun romeSink parisNot romeJudged strataAccept negationFails missing.

@@ -1,0 +1,40 @@
+(* #186 P9c: judgments over a program with negation (reference: std/strata, "The stratum-local judgment").
+   `m ⊢ ok berlin` is the stratum-local judgment of `ok`, read with the facts of the strata below it: the
+   rule `ok.1` proves it, with the derivation of `node berlin` and a refutation of `bad berlin`, and the
+   negated premise of a rule pattern refutes `bad`. The statement that contradicted the run (`never`,
+   which the positive reading accepted) is no longer provable (tests/neg/p9c_never.hgn). *)
+%use "std/semantics".
+%use "std/strata".
+%use "std/eq" (empty, emptyElim, tt).
+city : type. berlin, paris : city.
+m = {
+  node : city -> rel.
+  bad : city -> rel.
+  node berlin. node paris. bad paris.
+  ok : city -> rel.
+  ok X :- node X, not bad X.
+}.
+
+(* `bad berlin` has no derivation: its one rule derives `bad paris`, and `bad` is not an input *)
+noBad : m ⊢ bad berlin -> empty.
+noBad (given I) = emptyElim I.fst.
+
+(* the negated premise is a refutation of the judgment of `bad`; `node.1` derives `node berlin` *)
+okBerlin : m ⊢ ok berlin = ok.1 node.1 noBad.
+
+(* a rule pattern binds the negated premise, `absent …`, whose instance `N enil` refutes the facts of `bad x`
+   below `ok`'s stratum, which `given` lifts `F` to; `ok` is not an input, and `given I` reaches no input
+   fact *)
+okNotBad : {x : city} -> m ⊢ ok x -> m ⊢ bad x -> empty.
+okNotBad (ok.1 B N) F = N enil (given F).
+okNotBad (given I) F = emptyElim I.fst.
+
+(* the judgment is the perfect model's fact (adequacy) *)
+%use "std/quote".
+inPerfect : (d : db) -> perfect (programOf m) d (atom (own 2) [v (<berlin>)]) =
+  [d] (adequate {p := programOf m} {d := d} {r := own 2} {vs := [v (<berlin>)]} 2 tt).from okBerlin.
+%opaque noBad okBerlin okNotBad inPerfect.
+
+checked : string -> rel.
+checked "negation".
+%output checked.

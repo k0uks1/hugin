@@ -58,11 +58,12 @@ trait Readback:
       readBackDepth += 1
       try
         // the program of a module body stays folded also in a normal form (reference: std/semantics): it is
-        // compared by its arguments ([[Unification.unify]]), and judgments print as such
+        // compared by its arguments ([[Unification.unify]]), and judgments print as such; so do the layer
+        // and the database of a stratum-local judgment (#186 P9c)
         val fv = if folded then forceMetas(v)
         else
           forceMetas(v) match
-            case t @ Top(id, _, _) if globals(id).program != null => t
+            case t @ Top(id, _, _) if globals(id).program != null || globals(id).judgmentPart => t
             case _ => force(v)
         // from the first stuck application on, before its parts are read back
         if shared == null && stuckApplication(fv) then shared = java.util.IdentityHashMap()
