@@ -262,6 +262,7 @@ class Elaborator(
     with Items
     with ProgramOf
     with Judgments
+    with JudgmentCoercion
     with DependencyOrder
     with Declarations
     with Inductives

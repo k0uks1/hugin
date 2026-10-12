@@ -1,0 +1,52 @@
+(* #186 P9b: proof A of the level 3.5 note (§1.1) as written there, with the judgment coercion (reference:
+   std/semantics, "Relations as propositions"). `(tc G).path x y`, an applied relation of a functor
+   application written where a meta type is expected, is the judgment `tc G ⊢ path x y`: `G` is a free
+   uppercase variable as in the turnstile form, and every coerced atom of a declaration's type is at its one
+   anonymous database. An instance's relation, `fast.path x y`, is `fast ⊢ path x y`. The parameter relation
+   `G.edge` keeps the turnstile: no program owns it. *)
+%use "std/graph".
+%use "std/eq" (iff).
+%use "std/semantics".
+
+tc2 (g : graph) = {
+  path : g.node -> g.node -> rel.
+  path X Y :- g.edge X Y.
+  path X Z :- path X Y, path Y Z.
+}.
+
+city : type. berlin, paris, rome : city.
+road : city -> city -> rel.
+%input road.
+fast = tc2 { node = city, edge = road }.
+%output fast.path.
+
+(* unchanged: `G.edge` is a parameter's relation *)
+edgeIn : {x y : G.node} -> tc G ⊢ G.edge x y -> tc2 G ⊢ G.edge x y.
+edgeIn (given I) = given I.
+edgeOut : {x y : G.node} -> tc2 G ⊢ G.edge x y -> tc G ⊢ G.edge x y.
+edgeOut (given I) = given I.
+
+tcTrans : {x y z : G.node} -> (tc G).path x y -> (tc G).path y z -> (tc G).path x z.
+tcTrans (path.1 E) Q = path.2 E Q.
+tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
+
+toTc2 : {x y : G.node} -> (tc G).path x y -> (tc2 G).path x y.
+toTc2 (path.1 E) = path.1 (edgeIn E).
+toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
+
+toTc : {x y : G.node} -> (tc2 G).path x y -> (tc G).path x y.
+toTc (path.1 E) = path.1 (edgeOut E).
+toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
+
+sameFacts : {x y : G.node} -> iff ((tc G).path x y) ((tc2 G).path x y) = { to = toTc2, from = toTc }.
+forFast : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y) = sameFacts.
+%opaque sameFacts forFast.
+
+(* the coerced statement and the turnstile statement are the same type *)
+same : {x y : G.node} -> (tc G).path x y -> tc G ⊢ path x y.
+same P = P.
+%opaque same.
+
+checked : string -> rel.
+checked "proof A, coerced".
+%output checked.

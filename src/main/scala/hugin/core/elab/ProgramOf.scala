@@ -196,6 +196,74 @@ trait ProgramOf:
     val (tm, _, _, scope) = withHereForm("here ⊢ …")(programOfTree(c, p, voc))
     (tm, scope)
 
+  /** The body of the program written `p`, found from its syntax without evaluating an application (#186
+   *  P9b, the owner of a coerced atom): a module or an instance by its path (`fast`, `weak.v`), or a global
+   *  functor applied to explicit arguments (`tc G`), whose body is found by applying it to fresh variables
+   *  as [[applied]] does, so that no instance is created. A name that `local` binds, a functor written
+   *  alone and anything else have none. */
+  def writtenBody(c: Cxt, p: Tree, local: Name => Boolean): Option[ModuleBody] =
+    def unparen(t: Tree): Tree = t match
+      case Parens(i) => unparen(i)
+      case other => other
+    def global(n: Name): Option[Int] =
+      if local(n) || state.bodyDeclared(n) then None else lookupGlobal(n).filter(globals(_).stage == Stage.S1)
+    def path(t: Tree): Option[Val] = unparen(t) match
+      // a module value: a global whose type is a record type (no other definition is unfolded)
+      case Ident(n) => global(n).filter(id => force(globals(id).ty).isInstanceOf[Val.RecTy]).map(id => eval(Nil, Tm.Global(id)))
+      case hugin.syntax.Trees.Select(q, l) if l.headOption.exists(_.isLetter) =>
+        path(q).flatMap(v =>
+          forceData(v) match
+            case _: Val.Rec => Some(proj(v, l))
+            case _ => None
+        )
+      case _ => None
+    try
+      TreeOps.flattenApp(unparen(p)) match
+        case (head, Nil) => path(head).flatMap(moduleOf).map(_._1)
+        case (Ident(f), args) if !args.exists(_.isInstanceOf[NamedArg]) =>
+          // a functor: a global whose type takes the arguments explicitly and returns a record type
+          global(f).filter { id =>
+            val (params, result) = telescope(globals(id).ty)
+            params.length == args.length && params.forall(_._2 == Icit.Expl) && force(result).isInstanceOf[Val.RecTy]
+          }.flatMap { id =>
+            val v = args.indices.foldLeft(eval(Nil, Tm.Global(id)))((g, j) => app(g, Val.local(c.lvl + j), Icit.Expl))
+            force(v) match
+              case Val.Rigid(Head.Module(body, _), Nil) => Some(body)
+              case _ => None
+          }
+        case _ => None
+    catch case _: Impossible => None
+
+  /** Whether `body` declares the relation (struct, constructor) `r`, which a judgment over it names `own i`. */
+  def ownsRelation(body: ModuleBody, r: Name): Boolean = relationMembers(body).exists(_.name == r)
+
+  /** The module instance whose object member is the global `rel`, and that member (#186 P9b: the owner of
+   *  a relation opened from an instance by `%use`). */
+  def instanceOwning(rel: Int): Option[(ModuleInstance, Member)] =
+    moduleInstances.iterator.flatMap { i =>
+      val members = i.body.members
+      members.zip(i.env.take(members.length).reverse).collectFirst {
+        case (m, mv) if m.kind.isInstanceOf[MemberKind.Object] && (forceData(mv) match
+              case Val.Quote(code) =>
+                forceData(code) match
+                  case Val.Rigid(Head.Glob(id), Nil) => id == rel
+                  case _ => false
+              case _ => false
+            ) => (i, m)
+      }
+    }.nextOption()
+
+  /** `programOf` of a module instance, as a judgment needs it (the program and its scope; #186 P9b), as for
+   *  a module value written by its name: no argument is written, so no parameter relation is named. */
+  def instanceProgram(c: Cxt, inst: ModuleInstance, head: Tree, span: Span): (Tm, ProgramScope) =
+    val voc = vocabularyOpt(quoteLib = false).getOrElse(fail(ProgramOfProblem.NoLibrary(span)))
+    val env = inst.env.drop(inst.body.members.length)
+    val fn = programFunction(voc, inst.body, env.length, head, span)
+    if env.isEmpty then displayAs(fn, head)
+    val envTms = env.reverse.map(v => quote(c.lvl, v))
+    val scope = scopeOf(inst.body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), Map.empty)
+    (Tm.apps(fn, envTms.map((_, Icit.Expl))), scope)
+
   private def programOfTree(c: Cxt, p: Tree, voc: Vocabulary): (Tm, Val, Stage, Option[ProgramScope]) =
     val programTy = eval(Nil, Tm.Global(voc.sem("program")))
     def notAModule(shown: Tree): Nothing = fail(ProgramOfProblem.NotAModule(hugin.syntax.Printer.show(shown), shown.span))
@@ -247,11 +315,21 @@ trait ProgramOf:
           moduleOf(ev(c, hTm)) match
             case Some((body, env)) =>
               val fn = programFunction(voc, body, env.length, head, p.span)
+              // a module without environment is shown by its name, `trip ⊢ path x y` (#186 P9b)
+              if env.isEmpty then displayAs(fn, head)
               val envTms = env.reverse.map(v => quote(c.lvl, v))
               // a module value: no argument is written, so no parameter relation is named (#186 P7c)
               val scope = scopeOf(body, env.length, tm => eval(c.env, Tm.apps(lams(env.length, tm), envTms.map((_, Icit.Expl)))), Map.empty)
               (Tm.apps(fn, envTms.map((_, Icit.Expl))), programTy, Stage.S1, Some(scope))
             case None => notAModule(p)
+
+  /** Judgments over the program function `fn` show their program as `head` (a name or a path). */
+  private def displayAs(fn: Tm, head: Tree): Unit = fn match
+    case Tm.Global(id) if globals(id).program != null =>
+      head match
+        case _: Ident | _: hugin.syntax.Trees.Select => globals(id).program.nn.functor = Some(hugin.syntax.Printer.show(head))
+        case _ =>
+    case _ =>
 
   /** The program of the functor `f` applied to `args` (terms in `c`): the body is found by applying `f` to
    *  fresh variables, so that no instance is created. */

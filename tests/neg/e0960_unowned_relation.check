@@ -1,0 +1,39 @@
+error[E0960]: `G.edge x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_unowned_relation.hgn:11:28
+   |
+11 | edgeIn : {x y : G.node} -> G.edge x y -> tc G ⊢ G.edge x y. (*~ E0960 *)
+   |                            ^^^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+   = help: name the program with the turnstile: `P ⊢ G.edge x y`
+
+error[E0960]: `road x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_unowned_relation.hgn:14:24
+   |
+14 | file : {x y : city} -> road x y -> Type. (*~ E0960 *)
+   |                        ^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+   = help: name the program with the turnstile: `P ⊢ road x y`
+
+warning[W0003]: unused definition `tc3`
+  --> tests/neg/e0960_unowned_relation.hgn:17:1
+   |
+17 | tc3 (g : graph) = { (*~ W0003 *)
+   | ^^^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0960]: `path x y` is not a type: it applies a relation to arguments
+  --> tests/neg/e0960_unowned_relation.hgn:20:30
+   |
+20 |   inside : {x y : g.node} -> path x y -> Type. (*~ E0960 *)
+   |                              ^^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it, and a relation of the file or of the enclosing body is not owned yet
+   = help: name the program with the turnstile: `P ⊢ path x y`
+
+3 errors, 1 warning found
