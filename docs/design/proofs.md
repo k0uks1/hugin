@@ -38,7 +38,7 @@ propositions (levels 3.5 and 4), 11 worked examples against hand-written familie
 > meta logic and proofs about it need nothing new (P2, P3). Its Datalog is "the other language", run by
 > a different engine with a least-fixpoint semantics. So Datalog needs a semantics in the meta logic,
 > and it is defined once, in `std/semantics` (P5–P6). Users never write semantics. They write
-> ordinary rules, and state theorems in the notation `tc ⊢ path x y`, which elaborates to that one
+> ordinary rules, and state theorems in the notation `tc G ⊢ path x y`, which elaborates to that one
 > judgment.
 
 ## 1. The end state: proving with Hugin
@@ -211,31 +211,40 @@ big : lt 3 100000 = decide ltDec { fst = 3, snd = 100000 } tt.
 and `so false` is the empty type. → **P4**.
 
 **The judgment notation.** `P ⊢ r t̄` (ASCII `|-`) states that the program `P` derives the fact
-`r t̄`. `P` is a functor, a module, or a functor applied to arguments. The atom is written in object
+`r t̄`. `P` is a module or a functor applied to arguments (a functor written alone is an error, P7c).
+The atom is written in object
 syntax. Its arguments are checked against the relation's declared column types, so statements range
 over typed nodes.
 
 ```hugin
 %use "std/graph".            (* tc: path X Y :- g.edge X Y.   path X Z :- g.edge X Y, path Y Z. *)
 %use "std/semantics".
-oneStep : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.      (* (proposal) syntax *)
+oneStep : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
 oneStep E = path.1 E.
 ```
 
-The statement says: in the transitive closure of any graph `g`, from any input, an edge from `x` to `y`
+The statement says: in the transitive closure of any graph `G`, from any input, an edge from `x` to `y`
 gives a path. It elaborates to
 
 ```hugin
-oneStep : {d : db} -> {g : graph} -> {x y : ⇑g.node} ->
-          derives (programOf (tc g)) d (atom (arg "edge") [v x, v y]) ->
-          derives (programOf (tc g)) d (atom (own 0) [v x, v y]).
+oneStep : {D : db} -> {G : graph} -> {x y : ⇑G.node} ->
+          derives (programOf (tc G)) D (atom (arg "edge") [v x, v y]) ->
+          derives (programOf (tc G)) D (atom (own 0) [v x, v y]).
 ```
 
-- The functor `tc`'s parameter `g` and the input database `d` are *generalised*: they become implicit
-  binders of the declaration. This is how free uppercase variables already become implicit binders
-  (reference `meta/functions.md`), and how Agda's `variable` and Lean's auto-bound implicits work. The
-  binders are shared by all judgments of the declaration, and `⊢[e]` gives a database explicitly.
-- `x y : g.node` is object code of type `g.node`, so `x` and `y` are typed nodes, abstract in `g`.
+(with `D` anonymous: it is written `_` in displays).
+
+- The graph `G` is a free uppercase variable, so it becomes an implicit binder as such variables already
+  do (reference `meta/functions.md`), typed by `tc`'s parameter. Only written names are bound, as with
+  Agda's `variable` and Lean's auto-bound implicits; `G` is shared by every judgment that writes it.
+- The judgments without `[e]` share the declaration's one anonymous database, its first implicit binder
+  (one database per statement, as Abella's ambient specification); `⊢[D]` names a database, `D` a free
+  uppercase variable. Outside a declaration's type, an omitted database is an unknown that unification
+  must determine (E0947 otherwise). (P7c; P7b generalised the functor's parameter `g` and a database
+  named `d`, names the statement did not write.)
+- The parameter's relation is named through the written argument, `G.edge`; `tc`'s own name `g` is not
+  in scope in the statement.
+- `x y : G.node` is object code of type `G.node`, so `x` and `y` are typed nodes, abstract in `G`.
 - `v` injects object code into the semantics' values (7.2).
 - `arg "edge"` and `own 0` are program-relative references to relations (7.2).
 
@@ -250,7 +259,7 @@ fileP : program = programOf here.              (* (proposal) `here`: this file's
 
 `programOf` is a meta function that produces `std/semantics`'s `program` value: names resolved to
 relation references, rules numbered, variables typed, inputs and strata computed. It generates no code.
-The notation inserts it wherever a functor or module stands before `⊢`. It is built on the code bridge
+The notation inserts it wherever an applied functor or a module stands before `⊢`. It is built on the code bridge
 between `⇑A` and the reflective syntax (7.7). → **P7a**.
 
 **Automatic rule names and case analysis.** The rules of a relation `r` are `r.1`, `r.2`, … in the
@@ -260,12 +269,12 @@ rule's body atoms in order, and the rule's variables can be bound by name. An op
 (`@step path X Z :- …`) adds a second name; labels are never required.
 
 ```hugin
-firstHop : {x z : g.node} -> tc ⊢ path x z -> g.node.
+firstHop : {x z : G.node} -> tc G ⊢ path x z -> G.node.
 firstHop (path.1 E) = z.
-firstHop (path.2 {Y := W} E P) = W.            (* W : ⇑g.node, typed by the rule *)
+firstHop (path.2 {Y := W} E P) = W.            (* W : ⇑G.node, typed by the rule *)
 ```
 
-In the editor, splitting a hypothesis `P : tc ⊢ path x z` offers exactly the rules whose head can match:
+In the editor, splitting a hypothesis `P : tc G ⊢ path x z` offers exactly the rules whose head can match:
 `path.1` and `path.2`, but not `given`, since `path` has rules, and no rule of another relation. This
 is Abella's `case`, with the rule's variables bound. Hovers show goals in `⊢` notation. → **P7b**.
 
@@ -276,13 +285,20 @@ is proved by evaluation.
 city : type. berlin, paris, rome : city.
 demo : city -> city -> rel.
 demo berlin paris. demo paris rome.
-tiny = tc { node = city, edge = demo }.
-viaParis : here ⊢ tiny.path berlin rome = decide 3 tt.
+reach : city -> city -> rel.
+reach X Y :- demo X Y.
+reach X Z :- demo X Y, reach Y Z.
+viaParis : reach berlin rome = decide 3 tt.
 ```
 
-`decide n` is `std/semantics`'s lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when
-`p` has no input relations, and `holds n` is `n` rounds of naive evaluation. Here three rounds derive
-`tiny.path berlin rome`, `holds` evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
+`reach berlin rome` is written unqualified, as a relation of the file (the approved level 3.5 form,
+[proofs-level35.md](proofs-level35.md) §1.7, after P9f); `here ⊢ reach berlin rome`, the judgment of
+the file's program, is only its elaborated meaning and is never written. The instance form
+`tiny.path berlin rome` of `tiny = tc { node = city, edge = demo }` would not do here: it is `tiny ⊢
+path berlin rome`, whose input `demo` contributes no facts to `holds`. `decide n` is `std/semantics`'s
+lemma `so (holds n p a) -> p ⊢ a`. It is valid for any database when `p` has no input relations, and
+`holds n` is `n` rounds of naive evaluation. Here three rounds derive `reach berlin rome`, `holds`
+evaluates to `true`, and `so true` is `unit`. → **P4** (`so`,
 `decide`), **P5** (`holds` and its soundness), **P7b** (the notation).
 
 **One adequacy statement.** For every module `m` of a program and every run on the input facts `d`,
@@ -336,54 +352,57 @@ fast = tc2 { node = city, edge = road }.
 **The statement.** For every graph and every input, `tc` and `tc2` derive the same paths:
 
 ```hugin
-sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y).
+sameFacts : {x y : G.node} -> iff (tc G ⊢ path x y) (tc2 G ⊢ path x y).
 ```
 
-Both functors name their parameter `g`, of signature `graph`, so generalisation gives one `{g : graph}`
-(and one `{d : db}`). Their parameter relation `g.edge` is the same reference, `arg "edge"`, in both
-programs, so both read the same input edges.
+Both judgments write the graph `G`, a free uppercase variable, so it is one implicit binder `{G :
+graph}`, and the judgments without `[e]` share the declaration's one anonymous database. The parameter
+relation `G.edge` is the same reference, `arg "edge"`, in both programs, so both read the same input
+edges. (P7c; in P7b, `tc ⊢` generalised `tc`'s parameter `g`, merged with `tc2`'s `g` by name, and a
+database named `d`.)
 
 **The proof**, with every lemma:
 
 ```hugin
 (* an input edge is an input edge in either program *)
-edgeIn : {x y : g.node} -> tc ⊢ g.edge x y -> tc2 ⊢ g.edge x y.
+edgeIn : {x y : G.node} -> tc G ⊢ G.edge x y -> tc2 G ⊢ G.edge x y.
 edgeIn (given I) = given I.
-edgeOut : {x y : g.node} -> tc2 ⊢ g.edge x y -> tc ⊢ g.edge x y.
+edgeOut : {x y : G.node} -> tc2 G ⊢ G.edge x y -> tc G ⊢ G.edge x y.
 edgeOut (given I) = given I.
 
 (* tc's paths are transitive *)
-tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
 (* every derivation in tc is one in tc2 *)
-toTc2 : {x y : g.node} -> tc ⊢ path x y -> tc2 ⊢ path x y.
+toTc2 : {x y : G.node} -> tc G ⊢ path x y -> tc2 G ⊢ path x y.
 toTc2 (path.1 E) = path.1 (edgeIn E).
 toTc2 (path.2 E P) = path.2 (path.1 (edgeIn E)) (toTc2 P).
 
 (* every derivation in tc2 is one in tc *)
-toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc : {x y : G.node} -> tc2 G ⊢ path x y -> tc G ⊢ path x y.
 toTc (path.1 E) = path.1 (edgeOut E).
 toTc (path.2 P Q) = tcTrans (toTc P) (toTc Q).
 
-sameFacts : {x y : g.node} -> iff (tc ⊢ path x y) (tc2 ⊢ path x y) = { to = toTc2, from = toTc }.
+sameFacts : {x y : G.node} -> iff (tc G ⊢ path x y) (tc2 G ⊢ path x y) = { to = toTc2, from = toTc }.
 %opaque sameFacts.
 ```
 
 Each case, checked by hand. Rule variables are bound by unifying the rule's head with the goal atom.
 
-- `edgeIn (given I)`: `I : d (atom (arg "edge") [v x, v y])`. `g.edge` has no rules in either program,
+- `edgeIn (given I)`: `I : _ (atom (arg "edge") [v x, v y])`, at the anonymous database. `G.edge` has
+  no rules in either program,
   so `given` is its only case, and `given I` builds the derivation in `tc2`. Its hidden argument says
-  that `arg "edge"` is an input of `programOf (tc2 g)`; that evaluates to `unit` and is filled by `tt`.
-- `tcTrans (path.1 E) Q`: `path.1` binds `X := x` and `Y := y`, so `E : tc ⊢ g.edge x y`.
+  that `arg "edge"` is an input of `programOf (tc2 G)`; that evaluates to `unit` and is filled by `tt`.
+- `tcTrans (path.1 E) Q`: `path.1` binds `X := x` and `Y := y`, so `E : tc G ⊢ G.edge x y`.
   `path.2 E Q`, with `X := x`, `Y := y`, `Z := z`, derives `path x z`.
-- `tcTrans (path.2 E P) Q`: `X := x`, `Z := y`, and `Y` is a fresh node `Y : g.node`.
-  `E : tc ⊢ g.edge x Y` and `P : tc ⊢ path Y y`. The call `tcTrans P Q : tc ⊢ path Y z`, and
+- `tcTrans (path.2 E P) Q`: `X := x`, `Z := y`, and `Y` is a fresh node `Y : G.node`.
+  `E : tc G ⊢ G.edge x Y` and `P : tc G ⊢ path Y y`. The call `tcTrans P Q : tc G ⊢ path Y z`, and
   `path.2 E (…)` derives `path x z`.
-- `toTc2 (path.2 E P)`: `path.1 (edgeIn E) : tc2 ⊢ path x Y` and `toTc2 P : tc2 ⊢ path Y y`, joined by
+- `toTc2 (path.2 E P)`: `path.1 (edgeIn E) : tc2 G ⊢ path x Y` and `toTc2 P : tc2 G ⊢ path Y y`, joined by
   `tc2`'s `path.2`.
-- `toTc (path.2 P Q)`: in `tc2`, `P : tc2 ⊢ path x Y` and `Q : tc2 ⊢ path Y y`, so `tcTrans` joins
+- `toTc (path.2 P Q)`: in `tc2`, `P : tc2 G ⊢ path x Y` and `Q : tc2 G ⊢ path Y y`, so `tcTrans` joins
   their translations.
 - No clause handles `given` for `path`: `path` has rules, so the hidden argument "`own 0` is an input"
   evaluates to `so false`, which is `empty`. Coverage refutes the case (reference `meta/coverage.md`,
@@ -410,7 +429,7 @@ note: assumptions of `sameFacts`: none
 **What the editor shows.** The user writes the statement and a hole, and splits `P`:
 
 ```hugin
-toTc : {x y : g.node} -> tc2 ⊢ path x y -> tc ⊢ path x y.
+toTc : {x y : G.node} -> tc2 G ⊢ path x y -> tc G ⊢ path x y.
 toTc P = ?.
 ```
 
@@ -423,12 +442,12 @@ error[E0924]: unsolved goal `?`
   --> closure.hgn:38:20
    |
 38 | toTc (path.2 P Q) = ?.
-   |                     ^ goal: `tc g ⊢ path x y`
+   |                     ^ goal: `tc G ⊢ path x y`
    |
-   = note: the hole stands for a meta value of type `tc g ⊢ path x y`
-   = note: in scope: `g : graph`, `x : g.node`, `y : g.node`, `Y : g.node`,
-           `P : tc2 g ⊢ path x Y`, `Q : tc2 g ⊢ path Y y`
-   = help: replace the hole with an expression of type `tc g ⊢ path x y`
+   = note: the hole stands for a meta value of type `tc G ⊢ path x y`
+   = note: in scope: `G : graph`, `x : G.node`, `y : G.node`, `Y : G.node`,
+           `P : tc2 G ⊢ path x Y`, `Q : tc2 G ⊢ path Y y`
+   = help: replace the hole with an expression of type `tc G ⊢ path x y`
 ```
 
 A mistake gives an ordinary type error. `toTc2 (path.2 E P) = path.2 (toTc2 P) (path.1 (edgeIn E)).` is
@@ -436,7 +455,7 @@ E0901: `path.1 (edgeIn E)` derives `path x Y` where `path y ?Z` is expected, and
 recursive call that does not decrease, such as `toTc (path.2 P Q) = toTc (path.2 P Q)`, is E0912.
 
 **The guarantee.** For every input of `road`, `fast.path` prints exactly the pairs that the standard
-transitive closure of `road` contains: instantiate `sameFacts` at `g := { node = city, edge = road }`,
+transitive closure of `road` contains: instantiate `sameFacts` at `G := { node = city, edge = road }`,
 and apply the adequacy statement to the instance `fast`.
 
 | link | status |
@@ -489,7 +508,9 @@ eu = coarse { node = city, edge = road, seed = start, anode = country, alpha = l
 The rule names are `reached.1`, `reached.2`, `aedge.1`, `areached.1` and `areached.2`.
 
 **The hypothesis.** Every reached node has an abstraction. It is a property of the *input*, so it is a
-hypothesis of the theorem, stated with an explicit database and parameter, since it is a definition:
+hypothesis of the theorem, stated with an explicit database and parameter: in a definition's body, a
+judgment without `[e]` has an unknown database that unification must determine, and the parameter `d`
+is not taken by its name (P7c), so `⊢[d]` is written:
 
 ```hugin
 placed (d : db) (a : abstraction) : Type =
@@ -500,29 +521,32 @@ placed (d : db) (a : abstraction) : Type =
 
 ```hugin
 (* every abstraction of a reached node is reached by the analysis *)
-sound : placed d a -> {x : a.node} -> {b : a.anode} ->
-        coarse ⊢ reached x -> coarse ⊢ a.alpha x b -> coarse ⊢ areached b.
+sound : placed D A -> {x : A.node} -> {b : A.anode} ->
+        coarse A ⊢[D] reached x -> coarse A ⊢[D] A.alpha x b -> coarse A ⊢[D] areached b.
 sound T (reached.1 S) H = areached.1 S H.
 sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
 (* so an abstract node reported unreached contains no reached node *)
-safe : placed d a -> {x : a.node} -> {b : a.anode} ->
-       (coarse ⊢ areached b -> empty) -> coarse ⊢ a.alpha x b -> coarse ⊢ reached x -> empty.
+safe : placed D A -> {x : A.node} -> {b : A.anode} ->
+       (coarse A ⊢[D] areached b -> empty) -> coarse A ⊢[D] A.alpha x b -> coarse A ⊢[D] reached x -> empty.
 safe T N H R = N (sound T R H).
 %opaque sound. %opaque safe.
 ```
 
-Generalisation inserts `{d : db} -> {a : abstraction} ->` in front, so `placed d a` refers to the same
-`d` and `a` as the judgments. Checked by hand:
+The theorems name the database and the abstraction, `placed D A` and `coarse A ⊢[D]`: both are free
+uppercase variables, so they become implicit binders `{D : db} -> {A : abstraction} ->`, and `placed D
+A` refers to the same `D` and `A` as the judgments. (In P7b, `coarse ⊢` generalised `coarse`'s parameter
+`a` and a database named `d`, which `placed d a` referred to without writing a binder; P7c binds only
+written names.) Checked by hand:
 
-- `sound T (reached.1 S) H`: `reached.1` binds `X := x`, so `S : coarse ⊢ a.seed x` and
-  `H : coarse ⊢ a.alpha x b`. `areached.1 S H`, with `A := b` and `X := x`, derives `areached b`.
-- `sound T (reached.2 {X := W} R E) H`: `reached.2` binds `Y := x` and `X := W : a.node`, so
-  `R : coarse ⊢ reached W` and `E : coarse ⊢ a.edge W x`. `T W R : { b : a.anode, ok : … a.alpha W b }`.
-  The recursive call `sound T R (T W R).ok : coarse ⊢ areached (T W R).b`. Then `aedge.1 E (T W R).ok H`
+- `sound T (reached.1 S) H`: `reached.1` binds `X := x`, so `S : coarse A ⊢[D] A.seed x` and
+  `H : coarse A ⊢[D] A.alpha x b`. `areached.1 S H`, with `A := b` and `X := x`, derives `areached b`.
+- `sound T (reached.2 {X := W} R E) H`: `reached.2` binds `Y := x` and `X := W : A.node`, so
+  `R : coarse A ⊢[D] reached W` and `E : coarse A ⊢[D] A.edge W x`. `T W R : { b : A.anode, ok : … A.alpha W b }`.
+  The recursive call `sound T R (T W R).ok : coarse A ⊢[D] areached (T W R).b`. Then `aedge.1 E (T W R).ok H`
   (with `X := W`, `Y := x`, `A := (T W R).b`, `B := b`) derives `aedge (T W R).b b`, and `areached.2`
   derives `areached b`.
-- `safe T N H R`: `sound T R H : coarse ⊢ areached b`, and `N` maps it to `empty`.
+- `safe T N H R`: `sound T R H : coarse A ⊢[D] areached b`, and `N` maps it to `empty`.
 
 The converse of `sound` is false (an abstract edge may combine two unrelated concrete edges), so the
 analysis is sound but not complete, and no proof of it is attempted.
@@ -532,13 +556,13 @@ analysis is sound but not complete, and no proof of it is attempted.
 - Coverage of `sound`: the rules with head `reached`. `reached` has rules, so there is no `given` case.
 - Termination: `R` is a premise below the matched rule.
 - The dependent record `{ b : a.anode, ok : … }` (reference `meta/records.md`).
-- The types: `W : a.node` because `X`'s column type in `reached.2` is `a.node`.
+- The types: `W : A.node` because `X`'s column type in `reached.2` is `A.node`.
 
-**What the editor shows.** Splitting `R : coarse ⊢ reached x` in `sound T R H = ?` produces
+**What the editor shows.** Splitting `R : coarse A ⊢[D] reached x` in `sound T R H = ?` produces
 `sound T (reached.1 S) H = ?.` and `sound T (reached.2 {X := X} R E) H = ?.`. At the second hole, the
-goal is `coarse a ⊢ areached b`, with `T : placed d a`, `X : a.node`, `R : coarse a ⊢ reached X`,
-`E : coarse a ⊢ a.edge X x` and `H : coarse a ⊢ a.alpha x b` in scope. Writing `areached.2 ? ?` yields
-two goals, `coarse a ⊢ areached ?A` and `coarse a ⊢ aedge ?A b`.
+goal is `coarse A ⊢[D] areached b`, with `T : placed D A`, `X : A.node`, `R : coarse A ⊢[D] reached X`,
+`E : coarse A ⊢[D] A.edge X x` and `H : coarse A ⊢[D] A.alpha x b` in scope. Writing `areached.2 ? ?` yields
+two goals, `coarse A ⊢[D] areached ?A` and `coarse A ⊢[D] aedge ?A b`.
 
 **The guarantee.** If the query has no answers in a run, every country of a reached city is printed by
 `eu.areached`, and a country that is not printed contains no reached city.
@@ -1021,27 +1045,32 @@ Judgment ::= Expr ("⊢" | "|-") ("[" Expr "]")? Atom
 
 **Elaboration of `P ⊢[e] r t₁ … tₙ`.**
 
-1. *The program.* If `P` is the name of a functor `f`, its parameters are generalised (step 3) and `P`
-   becomes `f g`. If `P` is a module, an instance, or a functor application `f a` (where `a` may be a
-   variable), `programOf P` is inserted. If `P` already has type `program`, it is used as it is.
+1. *The program.* If `P` is a module, an instance, or a functor application `f a` (where `a` may be a
+   variable), `programOf P` is inserted. A functor written alone is E0946 (P7c; P7b applied it to its
+   parameters by their names). If `P` already has type `program`, it is used as it is.
    `programOf (f a)` is the program of `f`'s body, with `a`'s relations as the parameter references.
-2. *The atom.* `r` is resolved in the scope of `P`'s body: its own relations (`path`), and its
-   parameters' relations under the paths the body uses (`g.edge`). Each `tᵢ` is checked as object code
+2. *The atom.* `r` is resolved in the scope of `P`'s body: its own relations (`path`), its parameters'
+   relations through the arguments written as variables (`G.edge` in `tc G ⊢ …`, P7c; P7b used the
+   body's own path `g.edge`), and the file's relations. Each `tᵢ` is checked as object code
    against `r`'s declared column type `τᵢ`, with object typing (#56) and `⇑` covariance, and becomes
-   `v tᵢ`. So a statement's variables are typed nodes (`x : g.node`), abstract in the functor's
-   parameter.
-3. *Generalisation.* In the type of a declaration, the database is the name `d`, and a functor's
-   parameters keep the names of its declaration (`g`). They become the declaration's first implicit
-   binders, `{d : db}` and `{g : graph}`, shared by all its judgments. Parameters with the same name
-   and type are merged, which is how `tc ⊢` and `tc2 ⊢` share `g`. Any other judgment writes `f a` or
-   `⊢[e]`. This is the existing rule for free uppercase variables (reference `meta/functions.md`),
-   extended to judgments, like Agda's generalisation of declared variables
-   (`doc/user-manual/language/generalization-of-declared-variables.lagda.rst`) and Lean's auto-bound
-   implicits. Inside a body or clause, `⊢` uses the `d` in scope.
-4. *Result:* `derives (programOf P) d (atom ρ [v t₁, …, v tₙ])`, with `ρ` the reference of `r`.
+   `v tᵢ`. So a statement's variables are typed nodes (`x : G.node`), abstract in the functor's
+   argument.
+3. *Generalisation (P7c).* Only written names are bound. In `tc G ⊢ …`, `G` is a free uppercase
+   variable, bound by the existing rule (reference `meta/functions.md`), with its type from `tc`'s
+   parameter; `tc G ⊢` and `tc2 G ⊢` share it because both write it. In the type of a declaration
+   (and its parameters' types), the judgments without `[e]` share one anonymous database, the
+   declaration's first implicit binder, which no name refers to; `⊢[D]` names one. Elsewhere, an
+   omitted database is an unknown solved by unification (E0947 if unsolved). Agda's generalisation of
+   declared variables (`doc/user-manual/language/generalization-of-declared-variables.lagda.rst`) and
+   Lean's auto-bound implicits bind written names only; the shared database is a scoping rule, one
+   database per statement, like Abella's ambient specification. (P7b generalised the database `d` and
+   the functor's parameters by their declared names, merging same-named ones; the designer rejected
+   both as action at a distance.)
+4. *Result:* `derives (programOf P) e (atom ρ [v t₁, …, v tₙ])`, with `ρ` the reference of `r`.
 
-The editor and diagnostics print `derives (programOf P) d (atom ρ vs)` back as `P ⊢ r t̄`, omitting `d`
-when it is the generalised one.
+The editor and diagnostics print `derives (programOf P) e (atom ρ vs)` back as `P ⊢[e] r t̄`, omitting
+`[e]` when it is the declaration's anonymous database, and naming a parameter relation through the
+argument.
 
 **Automatic rule names.** A rule with head relation `r` is `r.k`, where `k` is its position among the
 rules of `r` in the program as written (a rule with several heads gets a name for each). This is the
@@ -1275,7 +1304,7 @@ type theory, with `case` computed by unification against clause heads) looks the
 library family:
 
 ```hugin
-tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 ```
@@ -1537,7 +1566,7 @@ The levels, for reference:
 |---|---|
 | 1 | `derives (programOf tc2) d (atom (own 0) [v x, v y])` (the library judgment) |
 | 2 | `programOf` from ordinary functors, modules and the file, instead of quotes |
-| 3 | `tc2 ⊢ path x y`, with typed arguments, rule names `path.1`, generalised `d` and `g` |
+| 3 | `tc2 G ⊢ path x y`, with typed arguments, rule names `path.1`, a free variable `G` and the anonymous database (P7c; P7b: generalised `d` and `g`) |
 | 3.5 | `(tc2 g).path x y`, an abbreviation for `tc2 g ⊢ path x y`, with pattern synonyms `base`/`join` or `path.1` |
 | 4 | `(tc2 g).path x y` *is* a meta inductive predicate, whose constructors are the rules, executed by the engine |
 
@@ -1560,6 +1589,15 @@ honest form. Open questions for its design: name resolution of `(f g).r` at the 
 today it denotes object code; display; and interaction with generativity, where an abbreviation over
 the functor, not an instance, avoids it.
 
+**Design (P9, approved):** [proofs-level35.md](proofs-level35.md). It answers these questions
+with one elaboration rule, a coercion: an applied relation that a program owns, written where a meta type
+is expected, is that program's judgment (`fast.path x y` is `fast ⊢ path x y`, `(tc2 G).path x y` is
+`tc2 G ⊢ path x y`), with no keyword, generated declaration, core rule or blessed name (L27). Revision 2 adds locale-style proofs
+inside a program's own body (unqualified relations, lemmas inherited by instances), after an elaboration
+phase that also delivers `programOf here`; in the file itself, a file relation is written unqualified
+(`trip x y`). It also proposes how to settle the flags that P7b left open
+(negation, multi-head rule names, the `decide` clash).
+
 ### 10.2 Level 4: every relation is an inductive predicate
 
 At level 4, an object relation *is* a meta inductive predicate: its rules are its constructors, and
@@ -1576,7 +1614,7 @@ Hugin would go the other way: from rules that run to the predicate they define.
 
 ```hugin
 (* levels 1–3 (approved) *)
-tcTrans : {x y z : g.node} -> tc ⊢ path x y -> tc ⊢ path y z -> tc ⊢ path x z.
+tcTrans : {x y z : G.node} -> tc G ⊢ path x y -> tc G ⊢ path y z -> tc G ⊢ path x z.
 tcTrans (path.1 E) Q = path.2 E Q.
 tcTrans (path.2 E P) Q = path.2 E (tcTrans P Q).
 
@@ -1747,7 +1785,7 @@ Each batch is one PR. Line counts are rough (Scala plus Hugin library plus refer
 | **P7b** notation and rule names | `P ⊢[e] r t̄` with typed arguments, generalised `d` and functor parameters (7.3); automatic rule names `r.k`, optional labels, `given`, as patterns and expressions; `decide` with the notation; case splits and hovers in `⊢` notation; the adequacy statement in the reference | 1000–1500 | chapter 1's proofs, over ordinary code | name resolution of atoms in a program's scope; merging generalised parameters | no |
 | **P8a** proof-tree export | negative premises in `%derivations`; Tantow et al. JSON export | 300–500 | external verified checking of runs | format drift | **yes** |
 | **P8b** certified runs | `--certify`: reified output checked by a meta checker proven against `derives` | 800–1200 | per-run guarantees without a verified engine | meta evaluator speed on large outputs | no |
-| **P9** level 3.5, *design first* | after P7b: a detailed design of derived abbreviations `(f g).r x y := f g ⊢ r x y` and rule pattern synonyms (chapter 10); implementation approved subject to that design's approval | design, then 500–900 | relations read as propositions | name resolution of `(f g).r` at the meta level | no |
+| **P9** level 3.5, *design first* | after P7b: a detailed design of derived abbreviations `(f g).r x y := f g ⊢ r x y` and rule pattern synonyms (chapter 10); implementation approved subject to that design's approval; design: [proofs-level35.md](proofs-level35.md) (batches P9a–P9g) | design, then 500–900 | relations read as propositions | name resolution of `(f g).r` at the meta level | no |
 
 Order: P1 → P2 → (P3, P4) → P5 → P7a → P7b → P6 → P8b → P9 (design first). P8a can go at any time. Compared with the previous
 version, P7 changes: instead of derived families and per-relation adequacy lemmas (1200–1800 lines and
@@ -2340,3 +2378,57 @@ Decisions made during implementation are listed here with their PR.
 - *Fault found by CI.* An earlier short-cut in `MemoKeys` (a stuck application whose argument is never
   closed) walked the arguments without caching; on shared values that is exponential, and it hung the
   test JVM. It was removed; the remaining short-cuts are at the head of a value or an argument only.
+
+**P7c (explicit generalisation: no blessed names in judgments).** The designer rejected P7b's two
+generalisations (7.3, step 3) as action at a distance: names the user never wrote.
+
+- *Functors are written applied.* A functor written alone before `⊢` is E0946, whose help applies it to
+  variables named after its parameters ("write `tc G ⊢ …`"); the check runs before the declaration's
+  binders are elaborated, so it is reported even when `{x : G.node}` comes first. `tc G ⊢ path x y`
+  binds `G` by the existing rule for free uppercase variables. The parameter generalisation and the
+  merging of same-named parameters are removed. Prior art: Agda's `variable` and Lean's auto-bound
+  implicits bind only written names.
+- *Typing the written argument early.* `{x y : G.node} -> tc G ⊢ …` projects from `G` before the judgment
+  that determines its type is elaborated, and projections are not postponed. So, after the declaration's
+  free uppercase variables are bound with unknown types, each judgment of its type unifies the types of
+  the variables written as arguments of a global functor (`tc G`, in order, up to the first argument that
+  is not a variable) with the functor's parameter types, and a variable written as the database (`⊢[D]`)
+  with `db` (`Judgments.judgmentArgumentTypes`). A disagreement is left to the judgment's own
+  elaboration, which reports it. Displays show the variable's type unfolded (`{ node : type, … }` rather
+  than `graph`): cosmetic, left as is.
+- *The anonymous database.* In the type of a declaration and its parameters' types, the judgments without
+  `[…]` share one implicit binder of type `db`, first among the generalised binders. It is named `#db`
+  internally, a name the lexer cannot produce, so no expression refers to it and no `{x := …}` matches it
+  (E0926 for `{d := …}`). Its binder records the turnstile positions of exactly those judgments
+  (`BinderOrigin.Database`), so a judgment in the declaration's body, its clauses or a local type never
+  picks it up, although the binder is in the body's context. One database per statement is a scoping
+  rule (Abella's ambient specification), not a blessed identifier.
+- *Elsewhere* (definition bodies, lambdas, clauses, local types) an omitted database is a fresh unknown
+  ("the database of a judgment"); unsolved at the end of the item, it is E0947, reported before the item's
+  other unsolved unknowns, which may depend on it. A variable named `d` has no meaning: proof B's
+  `placed (d : db) …` writes `⊢[d]`, and its theorems name `placed D A` and `coarse A ⊢[D]`.
+- *Printing.* A judgment at the anonymous database is shown without `[…]`; its binder is shown as
+  `{_ : db}`, and any other occurrence as `_` (the context lists of holes omit it, as names with `#`).
+- *Parameter relations through the argument* (a follow-up of the same decision). In `tc G ⊢ G.edge x y`,
+  a path whose head is an argument of the judgment's functor application written as a variable denotes
+  that parameter's relation, `arg l` as `programOf` reads it (`arg "edge"` for a functor of one
+  parameter, `arg "g.edge"`, the body's label, for several), with arguments mapped to parameters by
+  position through the environment the application builds. The functor's own name `g` is not in scope in
+  the statement: `tc G ⊢ g.edge x y` is E0945 (unknown relation). Corner cases: an argument that is not
+  a variable (a global relation written as the argument included) names no relation. In
+  `tc { node = city, edge = road } ⊢ road x y`, `road` would be the file's `ext road`, a different atom
+  of `derives` than the program's `arg "edge"`. Following P9a's precedent that a silently different
+  meaning is an error (lead's decision), an atom whose relation of the file is, by its resolved constant
+  and syntactically (no evaluation), the value of a non-variable argument or of a field of a record
+  literal written as one is E0945, with the help "`road` is the argument for the parameter relation
+  `edge`; state it through a variable argument (`tc G ⊢ G.edge …`) or through an instance". Relations
+  of the file that are no argument's value stay `ext s`. A module value, such as an instance `fast`,
+  writes no argument and names none of its functor's parameters.
+  Displays show `arg l` through the argument (`tc G ⊢ G.edge x Y`), as do diagnostics where the
+  judgment's context is known (E0948's head mismatch, E0949).
+- *Tests.* The P7b goldens, the reference examples, the error pages and the LSP suite are rewritten in the
+  new form; new negatives: e0946 (a functor alone in a type, in a body, beside an applied one), e0947
+  (unsolved outside a declaration's type, with a `d` in scope ignored; solved by a lambda's annotation),
+  e0947_unnamed_database (`d` unbound in a type and in a clause, `{d := …}` E0926, `{D := E}` for a named
+  database), e0945_parameter_relation (`g.edge` unbound; two parameters by position; an argument that is
+  not a variable).

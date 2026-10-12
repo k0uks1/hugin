@@ -1,0 +1,17 @@
+(* The database that the judgments without `[e]` of a declaration's type share is anonymous (#186 P7c):
+   no source name refers to it, so `d` is an unbound name in a type and in a clause, and `{d := …}`
+   matches no implicit argument. A database to refer to is named, `⊢[D]`, as a free uppercase variable. *)
+%use "std/graph".
+%use "std/semantics".
+inType : {x y : G.node} -> tc G ⊢ path x y -> d (atom (own 0) [v x, v y]). (*~ E0101 *)
+inClause : {x y : G.node} -> tc G ⊢ path x y -> db.
+inClause P = d. (*~ E0101 *)
+matched : {x y : G.node} -> tc G ⊢ path x y -> tc G ⊢ path x y.
+matched {d := E} P = P. (*~ E0926 *)
+named : {x y : G.node} -> tc G ⊢[D] path x y -> db.
+named {D := E} P = E.
+%opaque named.
+city : type. berlin, rome : city.
+trip = { hop : city -> city -> rel. hop berlin rome. }.
+onlyDatabase : trip ⊢ hop berlin rome -> Type.
+onlyDatabase {d := E} P = Type. (*~ E0926 *)

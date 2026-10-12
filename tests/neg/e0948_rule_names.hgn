@@ -2,13 +2,13 @@
    used where a derivation of a known program is expected (E0948). *)
 %use "std/graph".
 %use "std/semantics".
-third : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.
+third : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
 third E = path.3 E. (*~ E0948 *)
-mismatch : {x y : g.node} -> tc ⊢ path x y -> tc ⊢ g.edge x y.
+mismatch : {x y : G.node} -> tc G ⊢ path x y -> tc G ⊢ G.edge x y.
 mismatch (path.1 E) = path.1 E. (*~ E0948 *)
-premises : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.
+premises : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
 premises E = path.1 E E. (*~ E0948 *)
-variable : {x y : g.node} -> tc ⊢ g.edge x y -> tc ⊢ path x y.
+variable : {x y : G.node} -> tc G ⊢ G.edge x y -> tc G ⊢ path x y.
 variable E = path.1 {W := x} E. (*~ E0948 *)
 nowhere : int = path.1. (*~ E0948 *)
 counter = {

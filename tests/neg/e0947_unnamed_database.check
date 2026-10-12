@@ -1,0 +1,33 @@
+error[E0101]: unresolved name `d`
+ --> tests/neg/e0947_unnamed_database.hgn:6:47
+  |
+6 | inType : {x y : G.node} -> tc G ⊢ path x y -> d (atom (own 0) [v x, v y]). (*~ E0101 *)
+  |                                               ^ not found in this scope
+  |
+  = help: a declaration with a similar name exists: `x`
+
+error[E0101]: unresolved name `d`
+ --> tests/neg/e0947_unnamed_database.hgn:8:14
+  |
+8 | inClause P = d. (*~ E0101 *)
+  |              ^ not found in this scope
+  |
+  = help: a declaration with a similar name exists: `x`
+
+error[E0926]: `matched` has no implicit argument `d` here
+  --> tests/neg/e0947_unnamed_database.hgn:10:10
+   |
+10 | matched {d := E} P = P. (*~ E0926 *)
+   |          ^ no implicit argument of this name
+   |
+   = note: `matched` takes the implicit arguments `G`, `x`, `y` before its next explicit argument
+
+error[E0926]: `onlyDatabase` has no implicit argument `d` here
+  --> tests/neg/e0947_unnamed_database.hgn:17:15
+   |
+17 | onlyDatabase {d := E} P = Type. (*~ E0926 *)
+   |               ^ no implicit argument of this name
+   |
+   = note: `onlyDatabase` takes no implicit argument by name before its next explicit argument
+
+4 errors found

@@ -1,8 +1,9 @@
 (* #186 P7b: proof B of the proofs note (chapter 1, 1.3) as written there, in the judgment notation
    (reference: std/semantics, "The judgment notation", "Rule names"): reachability on a coarsened graph
    over-approximates, so an abstract node that the analysis reports unreached contains no reached node.
-   The hypothesis `placed` gives its database and parameter explicitly (`coarse a ⊢[d] …`); the theorems
-   generalise them. A rule variable is bound by name with `{X := W}` (chapter 1 writes `{X := w}`, but
+   The hypothesis `placed` gives its database and parameter explicitly (`coarse a ⊢[d] …`: in a definition's
+   body, a judgment's database is not generalised); the theorems name them, `placed D A` and `coarse A ⊢[D]`,
+   as free uppercase variables (#186 P7c). A rule variable is bound by name with `{X := W}` (chapter 1 writes `{X := w}`, but
    pattern variables are uppercase). The query checks the hypothesis on a run: it must have no answers. *)
 %use "std/eq" (empty).
 %use "std/semantics".
@@ -34,13 +35,13 @@ placed (d : db) (a : abstraction) : Type =
   (x : a.node) -> coarse a ⊢[d] reached x -> { b : a.anode, ok : coarse a ⊢[d] a.alpha x b }.
 
 (* every abstraction of a reached node is reached by the analysis *)
-sound : placed d a -> {x : a.node} -> {b : a.anode} ->
-        coarse ⊢ reached x -> coarse ⊢ a.alpha x b -> coarse ⊢ areached b.
+sound : placed D A -> {x : A.node} -> {b : A.anode} ->
+        coarse A ⊢[D] reached x -> coarse A ⊢[D] A.alpha x b -> coarse A ⊢[D] areached b.
 sound T (reached.1 S) H = areached.1 S H.
 sound T (reached.2 {X := W} R E) H = areached.2 (sound T R (T W R).ok) (aedge.1 E (T W R).ok H).
 
 (* so an abstract node reported unreached contains no reached node *)
-safe : placed d a -> {x : a.node} -> {b : a.anode} ->
-       (coarse ⊢ areached b -> empty) -> coarse ⊢ a.alpha x b -> coarse ⊢ reached x -> empty.
+safe : placed D A -> {x : A.node} -> {b : A.anode} ->
+       (coarse A ⊢[D] areached b -> empty) -> coarse A ⊢[D] A.alpha x b -> coarse A ⊢[D] reached x -> empty.
 safe T N H R = N (sound T R H).
 %opaque sound. %opaque safe.

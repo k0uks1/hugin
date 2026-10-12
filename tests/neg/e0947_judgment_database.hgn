@@ -1,6 +1,12 @@
-(* A judgment without `[e]` uses the database `d`: generalised in the type of a declaration, otherwise the
-   `d` in scope (E0947 if there is none). *)
+(* A judgment without `[e]` outside the type of a declaration has an unknown database, which unification
+   must determine (E0947 if it does not). The identifier `d` means nothing to a judgment: a parameter named
+   `d` is not its database (#186 P7c). *)
 %use "std/graph".
 %use "std/semantics".
 pathOf (g : graph) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
-withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ W0003 *)
+withDb (g : graph) (d : db) (x : g.node) (y : g.node) : Type = tc g ⊢ path x y. (*~ E0947 *)
+
+(* determined by unification: a lambda's annotation, by the expected type; or given *)
+same (g : graph) (e : db) (x : g.node) : tc g ⊢[e] path x x -> tc g ⊢[e] path x x = [p : tc g ⊢ path x x] p.
+pathAt (g : graph) (e : db) (x : g.node) (y : g.node) : Type = tc g ⊢[e] path x y.
+%opaque same pathAt.

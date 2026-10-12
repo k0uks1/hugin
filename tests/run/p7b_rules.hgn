@@ -7,7 +7,7 @@
 %use "std/eq" (tt).
 
 (* rule variables bound by name: the first hop of a path *)
-firstHop : {x z : g.node} -> tc ⊢ path x z -> g.node.
+firstHop : {x z : G.node} -> tc G ⊢ path x z -> G.node.
 firstHop (path.1 E) = z.
 firstHop (path.2 {Y := W} E P) = W.
 
@@ -17,9 +17,9 @@ walks (g : graph) = {
   @base walk X Y :- g.edge X Y.
   @step walk X Z :- walk X Y, g.edge Y Z.
 }.
-extend : {x y z : g.node} -> walks ⊢ walk x y -> walks ⊢ g.edge y z -> walks ⊢ walk x z.
+extend : {x y z : G.node} -> walks G ⊢ walk x y -> walks G ⊢ G.edge y z -> walks G ⊢ walk x z.
 extend W E = step {Y := y} W E.
-start : {x y : g.node} -> walks ⊢ walk x y -> g.node.
+start : {x y : G.node} -> walks G ⊢ walk x y -> G.node.
 start (base E) = x.
 start (step W E) = start W.
 
