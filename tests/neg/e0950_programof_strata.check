@@ -1,0 +1,23 @@
+error[E0950]: the module is not stratified: `win` depends on itself through a negation or an aggregate
+  --> tests/neg/e0950_programof_strata.hgn:11:33
+   |
+ 9 |   win X :- g.move X Y, not win Y.
+   |   ------------------------------- this rule
+...
+11 | p : game -> program = programOf play. (*~ E0950 *)
+   |                                 ^^^^ in the program of this module
+   |
+   = note: a negation or an aggregate reads the facts of an earlier stratum, which are complete when it is read (reference: object/negation); the perfect model of `std/strata` needs these strata
+
+error[E0950]: the module is not stratified: `size` reads `big` through a negation or an aggregate, and `big` depends on `size`
+  --> tests/neg/e0950_programof_strata.hgn:19:33
+   |
+17 |   size M :- M = count { N | big N }.
+   |   ---------------------------------- this rule
+...
+19 | q : game -> program = programOf grow. (*~ E0950 *)
+   |                                 ^^^^ in the program of this module
+   |
+   = note: a negation or an aggregate reads the facts of an earlier stratum, which are complete when it is read (reference: object/negation); the perfect model of `std/strata` needs these strata
+
+2 errors found

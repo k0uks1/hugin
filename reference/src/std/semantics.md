@@ -5,7 +5,8 @@ is a program as data: its rules over typed variables, its own relations and its 
 inductive family `derives p d a` holds the *derivations* of the fact `a` by the program `p` from the
 input facts `d`, so that a property of a program is a meta type, and its proof a meta function. This
 page defines the positive fragment: atoms and comparisons in bodies, and the object level's 64-bit
-arithmetic. A program writes `%use "std/semantics".`; it builds on [`std/eq`](eq.md) and
+arithmetic. Bodies may also have negated atoms and aggregates, whose meaning, stratum by stratum, is
+defined by [`std/strata`](strata.md). A program writes `%use "std/semantics".`; it builds on [`std/eq`](eq.md) and
 [`std/decide`](decide.md).
 
 | declaration | meaning |
@@ -67,9 +68,12 @@ carith : arith_op -> cterm ts int -> cterm ts int -> cterm ts int.
 cneg : cterm ts int -> cterm ts int.
 catom : list ⇑type -> Type.                         (* a relation and its argument terms *)
 cat : rref -> cterms ts ss -> catom ts.
-cbody : list ⇑type -> Type.                         (* an atom, or a comparison *)
+cbody : list ⇑type -> Type.                         (* an atom, a comparison, a negation, an aggregate *)
 cpos : catom ts -> cbody ts.
 ccmp : cmp_op -> cterm ts t -> cterm ts t -> cbody ts.
+cnot : (us : list ⇑type) -> catom (append us ts) -> cbody ts.
+cagg : (us : list ⇑type) -> agg_op -> cterm ts int -> cterm (append us ts) int ->
+       list (cbody (append us ts)) -> cbody ts.
 crule : Type = { head : nat, index : nat, label : option string, vars : list ⇑type,
                  heads : list (catom vars), body : list (cbody vars) }.
 program : Type = { relations : list string, rules : list crule, input : rref -> bool,
@@ -81,7 +85,8 @@ is `capp` applied to a function that builds `⟨circle $x⟩` from the value `x`
 has a list of head atoms: its head, and the nested facts that the head builds
 ([Facts and identity](../object/facts.md#constructor-terms-in-heads)). `head` and `index` are the head
 relation and the position of the rule among the rules of that relation, and `label` the rule's name `@n`
-if it has one. `strata` are the program's strata, lists of its own relations.
+if it has one. `strata` are the program's strata, lists of its own relations. `cnot` and `cagg` are a
+negated atom and an aggregate, with their local variables `us` ([`std/strata`](strata.md#negation-and-aggregates-in-bodies)).
 
 `instTerm xs t` is the value of the term `t` for the values `xs` of the variables, and `instAtom xs a` the
 instantiated atom `pat r vs`, with the relation `r` of `a` and its argument values `vs`. Arithmetic is the
@@ -114,7 +119,9 @@ pcmp  : holdsCmp o (instTerm xs l) (instTerm xs r) -> premises p d xs bs -> prem
 A fact of an input relation is derived if it is in the database (`given`). A rule of the program fires
 for values `xs` of its variables for which its body holds, and derives each of its instantiated head
 atoms (`fire`). The body holds if each of its atoms is derived for the values (`ppos`) and each of its
-comparisons holds (`pcmp`). The facts that `derives p d` holds of are the facts of the least model of
+comparisons holds (`pcmp`). A rule with a negation or an aggregate in its body does not fire in
+`derives`: these are read by `nderives` of [`std/strata`](strata.md), which has `derives` as its positive
+part (`toN`). The facts that `derives p d` holds of are the facts of the least model of
 the program's rules that contains the facts of `d` in its input relations.
 
 A derivation is built with these constructors and matched on with them. Once the rule of a `fire` is
@@ -219,7 +226,8 @@ Two rounds are needed: the first derives `road berlin paris`, the second `linked
 `derivable 1 roads`, `holds` is `false`, `so false` is the empty type, and `tt` is rejected
 ([E0901](../errors/E0901.md)). Matching a body atom binds a variable to a value of the variable's type,
 compares the other terms by their values, and leaves the comparisons to the check. A rule whose body binds
-a variable only in a comparison or a constructor term derives nothing in `holds`, so `holds` may be
+a variable only in a comparison or a constructor term, or that has a negation or an aggregate, derives
+nothing in `holds`, so `holds` may be
 `false` for a derived fact, but never `true` for a fact that is not derived.
 
 > **Note.** The rules and derivations are written out here. A later batch of the proofs note (#186)

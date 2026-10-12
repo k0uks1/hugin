@@ -1,0 +1,19 @@
+(* `programOf` of a module that is not stratified (E0950): a relation that depends on itself through a
+   negation, and one through an aggregate. A functor's body is stratified only where it is
+   instantiated, so `programOf` checks the strata it computes. *)
+%use "std/semantics".
+%use "std/quote".
+game : Type = { pos : type, move : pos -> pos -> rel }.
+play (g : game) = {
+  win : g.pos -> rel.
+  win X :- g.move X Y, not win Y.
+}.
+p : game -> program = programOf play. (*~ E0950 *)
+grow (g : game) = {
+  size : int -> rel.
+  big : int -> rel.
+  size 1.
+  big N :- size N.
+  size M :- M = count { N | big N }.
+}.
+q : game -> program = programOf grow. (*~ E0950 *)

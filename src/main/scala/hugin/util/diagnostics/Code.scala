@@ -155,6 +155,7 @@ enum Code(
   case E0940 extends Code(940, Phase.Elaboration, "`programOf` without its libraries")
   case E0941 extends Code(941, Phase.Elaboration, "`programOf` of something that is not a module")
   case E0942 extends Code(942, Phase.Elaboration, "rule that `programOf` cannot reify")
+  case E0950 extends Code(950, Phase.Elaboration, "module that `programOf` cannot stratify")
   // directives (redesign C2): E1000 is what user directives report, the others are the machinery's
   case E1000 extends Code(1000, Phase.UserDirectives, "error reported by a directive")
   case E1001 extends Code(1001, Phase.UserDirectives, "not a directive")

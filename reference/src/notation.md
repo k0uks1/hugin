@@ -190,7 +190,9 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | key | work |
 |---|---|
 | Annenkov et al. 2023 | D. Annenkov, P. Capriotti, N. Kraus, C. Sattler. *Two-Level Type Theory and Applications.* Mathematical Structures in Computer Science 33(8), 2023. [arXiv:1705.03307](https://arxiv.org/abs/1705.03307). The two-level type theory of the meta level. |
+| Apt et al. 1988 | K. R. Apt, H. A. Blair, A. Walker. *Towards a Theory of Declarative Knowledge.* In J. Minker (ed.), Foundations of Deductive Databases and Logic Programming, Morgan Kaufmann, 1988, 89–148. Stratified programs and their iterated least fixpoint, the perfect model of [`std/strata`](std/strata.md). |
 | Ben-Amram and Lee 2007 | A. M. Ben-Amram, C. S. Lee. *Program Termination Analysis in Polynomial Time.* ACM TOPLAS 29(1), 2007. The local size-change criterion, which allows keeping only the weakest graphs. |
+| Benzaken et al. 2017 | V. Benzaken, É. Contejean, S. Dumbrava. *Certifying Standard and Stratified Datalog Inference Engines in SSReflect.* ITP 2017, LNCS 10499, 171–188. A verified engine that evaluates the strata in order, each with its negations read in the strata below. |
 | Berent et al. 2022 | L. Berent, M. Nissl, E. Sallinger. *Complexity of Arithmetic in Warded Datalog±.* 2022. [arXiv:2202.05086](https://arxiv.org/abs/2202.05086). Type-consistency (Definition 4). |
 | Cockx and Abel 2018 | J. Cockx, A. Abel. *Elaborating Dependent (Co)pattern Matching.* ICFP 2018. Case trees and index unification for clauses. |
 | Fogarty and Vardi 2012 | S. Fogarty, M. Y. Vardi. *Büchi Complementation and Size-Change Termination.* Logical Methods in Computer Science 8(1:13), 2012. [arXiv:1110.6183](https://arxiv.org/abs/1110.6183). Subsumption in the size-change closure. |
@@ -203,5 +205,6 @@ Theorem 4)". The first citation of a work in a chapter links to this table.
 | Lee et al. 2001 | C. S. Lee, N. D. Jones, A. M. Ben-Amram. *The Size-Change Principle for Program Termination.* POPL 2001. The termination checks of both levels. |
 | Maranget 2007 | L. Maranget. *Warnings for Pattern Matching.* Journal of Functional Programming 17(3), 2007. Usefulness of clauses and exhaustiveness, defined on values (Definitions 4–6). |
 | Maranget 2008 | L. Maranget. *Compiling Pattern Matching to Good Decision Trees.* ML Workshop 2008. Column heuristics for case trees, which the fixed split order of clauses does not use. |
+| Przymusinski 1988 | T. C. Przymusinski. *On the Declarative Semantics of Deductive Databases and Logic Programs.* In J. Minker (ed.), Foundations of Deductive Databases and Logic Programming, Morgan Kaufmann, 1988, 193–216. The perfect model of a stratified program. |
 | Stucki et al. 2018 | N. Stucki, A. Biboudis, M. Odersky. *A Practical Unification of Multi-stage Programming and Macros.* GPCE 2018. Quoted patterns with holes. |
 | Tantow et al. 2025 | J. Tantow, L. Gerlach, S. Mennicke, M. Krötzsch. *Verifying Datalog Reasoning with Lean.* ITP 2025, LIPIcs 352, 36. [doi:10.4230/LIPIcs.ITP.2025.36](https://doi.org/10.4230/LIPIcs.ITP.2025.36). The verified checker of Datalog proofs ([knowsys/CertifyingDatalog](https://github.com/knowsys/CertifyingDatalog), v0.2.0) and its JSON format, which the proof export writes; its proof-tree semantics of Datalog, the model of `derives` of [`std/semantics`](std/semantics.md). |

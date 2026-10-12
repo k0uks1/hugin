@@ -1,34 +1,56 @@
-error[E0942]: cannot reify a rule as a program value: negation is not in the positive fragment of `std/semantics`
-  --> tests/neg/e0942_programof_reify.hgn:11:35
+error[E0942]: cannot reify a rule as a program value: disjunction is not modelled by `std/semantics`
+  --> tests/neg/e0942_programof_reify.hgn:12:35
    |
- 9 |   isolated X :- g.edge X X, not marked X.
-   |   --------------------------------------- this rule
+10 |   isolated X :- g.edge X X, (marked X ; g.edge X _).
+   |   -------------------------------------------------- this rule
 ...
-11 | p : graph2 -> program = programOf lonely. (*~ E0942 *)
+12 | p : graph2 -> program = programOf lonely. (*~ E0942 *)
    |                                   ^^^^^^ in the program of this module
    |
-   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+   = note: `std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
 
 error[E0942]: cannot reify a rule as a program value: string concatenation `^` is not interpreted by `std/semantics`
-  --> tests/neg/e0942_programof_reify.hgn:17:35
+  --> tests/neg/e0942_programof_reify.hgn:18:35
    |
-15 |   label (X ^ "!") :- base X.
+16 |   label (X ^ "!") :- base X.
    |   -------------------------- this rule
 ...
-17 | q : graph2 -> program = programOf names. (*~ E0942 *)
+18 | q : graph2 -> program = programOf names. (*~ E0942 *)
    |                                   ^^^^^ in the program of this module
    |
-   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+   = note: `std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
 
 error[E0942]: cannot reify a rule as a program value: a constructor term of a constant that the module declares, which has no code outside an instance
-  --> tests/neg/e0942_programof_reify.hgn:25:35
+  --> tests/neg/e0942_programof_reify.hgn:26:35
    |
-23 |   drawn (dot N) :- size N.
+24 |   drawn (dot N) :- size N.
    |   ------------------------ this rule
 ...
-25 | r : graph2 -> program = programOf local. (*~ E0942 *)
+26 | r : graph2 -> program = programOf local. (*~ E0942 *)
    |                                   ^^^^^ in the program of this module
    |
-   = note: `std/semantics` models atoms and comparisons in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+   = note: `std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
 
-3 errors found
+error[E0942]: cannot reify a rule as a program value: `min` with a result that is not an `int` (`std/semantics` counts, adds and orders integers only)
+  --> tests/neg/e0942_programof_reify.hgn:32:35
+   |
+30 |   earliest M :- M = min { N | name N }.
+   |   ------------------------------------- this rule
+...
+32 | t : graph2 -> program = programOf first. (*~ E0942 *)
+   |                                   ^^^^^ in the program of this module
+   |
+   = note: `std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+
+error[E0942]: cannot reify a rule as a program value: a relation with a bound column (`min τ` or `max τ`), which `std/semantics` does not model
+  --> tests/neg/e0942_programof_reify.hgn:38:31
+   |
+36 |   dist V D :- g.edge _ V D.
+   |   ------------------------- this rule
+...
+38 | u : wg -> program = programOf nearest. (*~ E0942 *)
+   |                               ^^^^^^^ in the program of this module
+   |
+   = note: `std/semantics` models atoms, comparisons, negated atoms and aggregates over integers in bodies, the object level's integer arithmetic, and constructor terms of constants with code outside the module
+
+5 errors found

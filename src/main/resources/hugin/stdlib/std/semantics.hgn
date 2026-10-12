@@ -1,11 +1,12 @@
 (* std/semantics: the meaning of Datalog programs in the meta level (reference: std/semantics). A program
    is data: its rules over typed variables, as de Bruijn indices; the facts are atoms of values, which are
    closed object code; and `derives p d a` is the inductive family of the derivations of the fact `a` by
-   the program `p` from the input facts `d`. This file is the positive fragment: atoms and comparisons in
-   bodies, the object level's 64-bit arithmetic. The judgment is a library family, not a core rule: its
-   consistency is that of inductive families (the proofs note, chapter 8). *)
+   the program `p` from the input facts `d`. `derives` is the positive fragment: atoms and comparisons in
+   bodies, the object level's 64-bit arithmetic. Bodies may also have negations and aggregates, which
+   `derives` does not read; `std/strata` reads them, one stratum at a time. The judgment is a library
+   family, not a core rule: its consistency is that of inductive families (the proofs note, chapter 8). *)
 %use "std/reflect" (bool, true, false, if, list, nil, cons, option, none, some, sym, arith_op, oadd, osub, omul,
-  odiv, ocat, cmp_op, ceq, cne, clt, cle, cgt, cge).
+  odiv, ocat, cmp_op, ceq, cne, clt, cle, cgt, cge, agg_op).
 %use "std/nat" (nat, equal).
 %use "std/int" (iequal, iless, ileq, fits64).
 %use "std/eq" (eq, refl, cong, subst, empty, emptyElim, unit, tt, dec, yes, no, decEq).
@@ -93,10 +94,16 @@ tcons : {ts ss : list ⇑type} -> {t : ⇑type} -> cterm ts t -> cterms ts ss ->
 catom : list ⇑type -> Type.
 cat : {ts ss : list ⇑type} -> rref -> cterms ts ss -> catom ts.
 
-(* A literal of a rule's body: an atom, or a comparison of two terms of the same type *)
+(* A literal of a rule's body: an atom, a comparison of two terms of the same type, a negated atom, or an
+   aggregate. A negation and an aggregate have local variables `us`, before the rule's: `cnot us a` holds
+   if no values of `us` make `a` a fact, and `cagg us o x t bs` if `x` is the aggregate `o` of the term `t`
+   over the values of `us` for which the body `bs` holds (reference: object/aggregates) *)
 cbody : list ⇑type -> Type.
 cpos : {ts : list ⇑type} -> catom ts -> cbody ts.
 ccmp : {ts : list ⇑type} -> {t : ⇑type} -> cmp_op -> cterm ts t -> cterm ts t -> cbody ts.
+cnot : {ts : list ⇑type} -> (us : list ⇑type) -> catom (append us ts) -> cbody ts.
+cagg : {ts : list ⇑type} -> (us : list ⇑type) -> agg_op -> cterm ts int -> cterm (append us ts) int ->
+       list (cbody (append us ts)) -> cbody ts.
 
 (* A rule: its head relation and its position among the rules of that relation (for its name `r.k`), an
    optional label, the types of its variables, its head atoms (the head and its nested facts) and its
@@ -219,6 +226,8 @@ holdsIn : db -> {ts : list ⇑type} -> env ts -> list (cbody ts) -> Type.
 holdsIn M Xs [] = unit.
 holdsIn M Xs (cpos B :: Bs) = both (atomIn M (instAtom Xs B)) (holdsIn M Xs Bs).
 holdsIn M Xs (ccmp O L R :: Bs) = both (holdsCmp O (instTerm Xs L) (instTerm Xs R)) (holdsIn M Xs Bs).
+holdsIn M Xs (cnot Us B :: Bs) = empty.
+holdsIn M Xs (cagg Us O R T Cs :: Bs) = empty.
 
 model : program -> db -> db -> Type.
 isModel : {p : program} -> {d m : db} ->
@@ -253,6 +262,8 @@ fromHolds : {p : program} -> {d : db} -> {ts : list ⇑type} -> {xs : env ts} ->
 fromHolds [] H = pnil.
 fromHolds {xs := Xs} (cpos B :: Bs) H = pposFrom {xs := Xs} {b := B} (instAtom Xs B) refl H.fst (fromHolds Bs H.snd).
 fromHolds (ccmp O L R :: Bs) H = pcmp H.fst (fromHolds Bs H.snd).
+fromHolds (cnot Us B :: Bs) H = emptyElim H.
+fromHolds (cagg Us O R T Cs :: Bs) H = emptyElim H.
 
 derivesModel : {p : program} -> {d : db} -> model p d (derives p d) =
   isModel ([r] [vs] [t] [f] given t f) ([c] [i] [xs] [h] [r] [vs] [m] fire {xs := xs} i (fromHolds c.body h) m).
@@ -407,6 +418,8 @@ search : {ts : list ⇑type} -> list gatom -> list (cbody ts) -> list (penv ts) 
 search Gs [] Ps = Ps.
 search Gs (cpos B :: Bs) Ps = search Gs Bs (concat (map (extend Gs B) Ps)).
 search Gs (ccmp O L R :: Bs) Ps = search Gs Bs Ps.
+search Gs (cnot Us B :: Bs) Ps = [].
+search Gs (cagg Us O R T Cs :: Bs) Ps = [].
 
 completes : {ts : list ⇑type} -> list (penv ts) -> list (env ts).
 completes [] = [].
@@ -465,6 +478,8 @@ checkBody Fs Xs [] = some pnil.
 checkBody Fs Xs (cpos B :: Bs) = checkPos {xs := Xs} {b := B} (instAtom Xs B) refl Fs (checkBody Fs Xs Bs).
 checkBody Fs Xs (ccmp O L R :: Bs) =
   pcmpOpt {xs := Xs} {l := L} {r := R} (decideCmp O (instTerm Xs L) (instTerm Xs R)) (checkBody Fs Xs Bs).
+checkBody Fs Xs (cnot Us B :: Bs) = none.
+checkBody Fs Xs (cagg Us O R T Cs :: Bs) = none.
 
 (* firing a rule: every instantiated head of a checked valuation, with its derivation *)
 positions : {A : Type} -> (xs : list A) -> list { x : A, at : member x xs }.

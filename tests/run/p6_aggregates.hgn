@@ -1,0 +1,78 @@
+(* #186 P6: aggregates (reference: std/strata). The program of a functor with `sum`, `count` and `min`:
+   their local variables, the term of `count`, which is the constant 1, and the strata; a fact derived
+   with an aggregate, from its finite witness: the valuations of the local variables, a proof that they
+   are all of them and each once, and the value of the aggregate over them. *)
+%use "std/reflect" (asum, acount, amin).
+%use "std/eq" (eq, refl, empty, tt).
+%use "std/semantics".
+%use "std/strata".
+%use "std/quote".
+
+shop : Type = { item : type, sale : item -> int -> rel, %complete sale }.
+
+totals (s : shop) = {
+  revenue : int -> rel.
+  sold : int -> rel.
+  cheapest : int -> rel.
+  revenue R :- R = sum { P | s.sale _ P }.
+  sold N :- N = count { I | s.sale I _ }.
+  cheapest M :- M = min { P | s.sale _ P }.
+}.
+
+(* the local variables come first, in the order of the rule's variables, wildcards last (`P` and `_`,
+   `I` and `_`), then the rule's `R` *)
+saleAtom : (i : ⇑type) -> catom [int, i, int] = [i] cat (arg "sale") (tcons (cv (there here)) (tcons (cv here) tnil)).
+revenueRule : ⇑type -> crule = [i] { head = 0, index = 1, label = none, vars = [int],
+  heads = [cat (own 0) (tcons (cv here) tnil)],
+  body = [cagg (int :: i :: []) asum (cv here) (cv here) [cpos (saleAtom i)]] }.
+soldRule : ⇑type -> crule = [i] { head = 1, index = 1, label = none, vars = [int],
+  heads = [cat (own 1) (tcons (cv here) tnil)],
+  body = [cagg (i :: int :: []) acount (cv here) (cc 1) [cpos (cat (arg "sale") (tcons (cv here) (tcons (cv (there here)) tnil)))]] }.
+cheapestRule : ⇑type -> crule = [i] { head = 2, index = 1, label = none, vars = [int],
+  heads = [cat (own 2) (tcons (cv here) tnil)],
+  body = [cagg (int :: i :: []) amin (cv here) (cv here) [cpos (saleAtom i)]] }.
+rules : (s : shop) -> eq (programOf (totals s)).rules [revenueRule s.item, soldRule s.item, cheapestRule s.item] = [s] refl.
+strata : (s : shop) -> eq (programOf (totals s)).strata [[0], [1], [2]] = [s] refl.
+
+(* two sales, as input facts *)
+good : type. pen, ink : good.
+sale : good -> int -> rel.
+%input sale.
+totalsP : program = programOf (totals { item = good, sale = sale }).
+
+sales : gatom -> Type.
+spen : sales (atom (arg "sale") [v (<pen>), v (<3>)]).
+sink : sales (atom (arg "sale") [v (<ink>), v (<4>)]).
+
+(* the valuations of `P` and the wildcard: one per sale *)
+both2 : list (env [int, good]) = [econs (<3>) (econs (<pen>) enil), econs (<4>) (econs (<ink>) enil)].
+
+bySale : {i : ⇑good} -> {p : ⇑int} -> sales (atom (arg "sale") [v i, v p]) -> member (econs p (econs i enil)) both2.
+bySale spen = here.
+bySale sink = there here.
+
+allSales : (ys : env [int, good]) -> sat (inputs totalsP sales) (eappend ys (econs (<7>) enil)) [cpos (saleAtom good)] -> member ys both2.
+allSales (econs P (econs I enil)) H = bySale H.fst.snd.
+
+onlySales : (ys : env [int, good]) -> member ys both2 -> sat (inputs totalsP sales) (eappend ys (econs (<7>) enil)) [cpos (saleAtom good)].
+onlySales Ys here = { fst = { fst = tt, snd = spen }, snd = tt }.
+onlySales Ys (there here) = { fst = { fst = tt, snd = sink }, snd = tt }.
+
+apart : member (econs (<3>) (econs (<pen>) enil)) [econs (<4>) (econs (<ink>) enil)] -> empty.
+apart (there ()).
+
+nowhere : {x : env [int, good]} -> member x [] -> empty.
+nowhere ().
+
+(* the witness of `R = sum { P | sale _ P }` for `R = 7` *)
+witness : aggHolds (inputs totalsP sales) (econs (<7>) enil) [int, good] asum (cv here) (cv here) [cpos (saleAtom good)] =
+  { all = both2, sound = onlySales, complete = allSales, once = { fst = apart, snd = { fst = nowhere, snd = tt } }, value = cmpEq }.
+
+(* `revenue 7`, derived in the first stratum and kept in the two above it *)
+revenue7 : perfect totalsP sales (atom (own 0) [v (<7>)]) =
+  ngiven tt (ngiven tt (nfire {xs := econs (<7>) enil} here (nagg witness nnil) here)).
+%opaque rules strata revenue7.
+
+checked : string -> rel.
+checked "aggregates".
+%output checked.
