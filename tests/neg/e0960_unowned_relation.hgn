@@ -1,6 +1,7 @@
-(* #186 P9b: an applied relation that no program owns is not coerced to a judgment and stays E0960, whose
-   help names the turnstile: a variable's relation (every program over `G` reads it), a relation of the
-   file and a relation of the enclosing body (until locale-style proofs, P9f/P9g). *)
+(* #186 P9b, P9g: an applied relation that no program owns is not coerced to a judgment and stays E0960,
+   whose help names the turnstile: a variable's relation (every program over `G` reads it), a relation of
+   the file inside a module body (the body's program does not declare it), and a relation of the body
+   under an explicit lift. *)
 %use "std/graph".
 %use "std/semantics".
 
@@ -11,12 +12,11 @@ road : city -> city -> rel.
 edgeIn : {x y : G.node} -> G.edge x y -> tc G ⊢ G.edge x y. (*~ E0960 *)
 edgeIn E = E.
 
-file : {x y : city} -> road x y -> Type. (*~ E0960 *)
-file _ = Type.
-
 tc3 (g : graph) = { (*~ W0003 *)
   path : g.node -> g.node -> rel.
   path X Y :- g.edge X Y.
-  inside : {x y : g.node} -> path x y -> Type. (*~ E0960 *)
-  inside _ = Type.
+  file : {x y : city} -> road x y -> Type. (*~ E0960 *)
+  file _ = Type.
+  lifted : {x y : g.node} -> ⇑(path x y) -> Type. (*~ E0960 *)
+  lifted _ = Type.
 }.

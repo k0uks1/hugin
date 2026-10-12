@@ -90,6 +90,17 @@ fast = walks { node = city, edge = road }.
 
 Here `fast.walkTrans` is the lemma for the instance's program, `walks { node = city, edge = road } ⊢ …`.
 
+In these members, a relation of the body, and a relation of a variable of its context such as the
+functor's parameter (`g.edge`), is written unqualified as a proposition of the body's program: `walk x y`
+for `here ⊢ walk x y`, and `⊢ r t̄` for a nullary relation or a named database
+([Relations as propositions](std/semantics.md#inside-bodies-and-files)). A member that writes one is
+program-dependent, as one that writes `here`. So `walkTrans` above may be stated `{x y z : g.node} -> walk
+x y -> walk y z -> walk x z`.
+
+`%opaque m₁ … mₙ.` in a body makes its member definitions and member functions `mᵢ` opaque, as at the top
+level ([Opaque definitions](meta/index.md#opaque-definitions)); it is an error
+([E0701](errors/E0701.md)) if `mᵢ` is not a meta member of the body.
+
 Two programs that a file accepts are rejected in a body. A typed definition and a signature that need
 each other (`x : nat = pick zero.` with `pick : nat -> sel x.`) are an error, since a member's value
 cannot follow its type there. And a formula function or member function is checked for cycles with the
@@ -250,6 +261,17 @@ bargains = select cheap listed.
 ```output
 bargains.sel (item "pen" 2).
 ```
+
+### Members without an instance
+
+A meta member that mentions no object constant of its body, directly or through other members, does not
+depend on an instance: `(f ā).m`, for a functor `f` applied to its arguments, is the member's definition
+at the arguments, read from the functor's body without evaluating it, so no instance is created. A lemma
+about the body's relations is such a member, since a judgment names the relations of its program by their
+positions, not by their constants: `(walks G).walkTrans`, with `G` a variable, is the lemma at any graph,
+and the same at a written graph creates no relation `walk`. A meta member that mentions an object
+constant is read through an instance: at closed arguments one is created, as before; at arguments with
+variables there is none, and it is an error ([E0107](errors/E0107.md)).
 
 ## Signatures
 

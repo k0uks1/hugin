@@ -1,0 +1,12 @@
+both.reach berlin berlin.
+both.reach berlin paris.
+both.reach berlin rome.
+both.reach paris berlin.
+both.reach paris paris.
+both.reach paris rome.
+both.reach rome berlin.
+both.reach rome paris.
+both.reach rome rome.
+trip.path berlin paris.
+trip.path berlin rome.
+trip.path paris rome.

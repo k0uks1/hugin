@@ -26,23 +26,23 @@ trait LocaleMembers:
    *  meta member of it that mentions no object constant; `None` if it is another form. */
   def memberWithoutInstance(c: Cxt, sel: Select): Option[(Tm, Val, Stage)] =
     TreeOps.flattenApp(sel.qual) match
-        case (head @ Ident(f), args)
-            if args.nonEmpty && !args.exists(_.isInstanceOf[NamedArg]) && !c.scope.contains(f) && !state.bodyDeclared(f) =>
-          lookupGlobal(f).filter(globals(_).stage == Stage.S1).flatMap(id => functorBody(id, args.length)).flatMap { (body, env) =>
-            val i = body.members.indexWhere(_.name == sel.name)
-            if i < 0 then None
-            else
-              body.members(i).kind match
-                case MemberKind.Object(_) => None
-                case MemberKind.Defined(value) =>
-                  body.free.get(sel.name) match
-                    case Some(needed) => Some(atStage(Stage.S1)(read(c, head, args, body, env, i, value, needed)))
-                    case None if args.exists(mentionsLocal(c, _)) =>
-                      val objects = body.members.collect { case m if m.kind.isInstanceOf[MemberKind.Object] => m.name }
-                      fail(ElabProblem.NeedsInstance(Printer.show(sel.qual), sel.name, objects, sel.span))
-                    case None => None
-          }
-        case _ => None
+      case (head @ Ident(f), args)
+          if args.nonEmpty && !args.exists(_.isInstanceOf[NamedArg]) && !c.scope.contains(f) && !state.bodyDeclared(f) =>
+        lookupGlobal(f).filter(globals(_).stage == Stage.S1).flatMap(id => functorBody(id, args.length)).flatMap { (body, env) =>
+          val i = body.members.indexWhere(_.name == sel.name)
+          if i < 0 then None
+          else
+            body.members(i).kind match
+              case MemberKind.Object(_) => None
+              case MemberKind.Defined(value) =>
+                body.free.get(sel.name) match
+                  case Some(needed) => Some(atStage(Stage.S1)(read(c, head, args, body, env, i, value, needed)))
+                  case None if args.exists(mentionsLocal(c, _)) =>
+                    val objects = body.members.collect { case m if m.kind.isInstanceOf[MemberKind.Object] => m.name }
+                    fail(ElabProblem.NeedsInstance(Printer.show(sel.qual), sel.name, objects, sel.span))
+                  case None => None
+        }
+      case _ => None
 
   /** The body of a functor `id` of `k` explicit parameters whose definition is a module body,
    *  `[x̄] { … }`, with the body's environment (terms over the parameters). Read from the definition's

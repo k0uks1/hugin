@@ -2632,3 +2632,60 @@ replacing P7b's "a multi-head rule is named by its first head".
   nodes, §1.4 both forms, `weak.v.vertex`, `(tc { … }).path`); neg `e0960_unowned_relation` (variable,
   file, body), `p9b_not_coerced` (nullary, `tc.path` E0107, E0947 twice, E0945 with the note), updated
   `e0960_applied_relation` and `e0945_judgment_library`; LSP: hover, goal and split below `(tc G).path`.
+
+**P9g (locale-style proofs, level 3.5's C3; design: `proofs-level35.md` §1.6, §1.7, §4.3.4–4.3.6,
+decisions 1, 3, 5, 9).** Reference: `std/semantics.md` "Inside bodies and files", `modules.md` "Members
+without an instance", `meta/index.md`.
+
+- *The owner.* P9b's coercion with one more owner (`JudgmentCoercion.ownedAtom`, `Owner.Here`): while the
+  program-dependent declarations of a file or body are elaborated (`ProgramOf.ambient`, set by
+  `useFileProgram` and by `ModuleBodies` before its deferred members), an own relation written alone
+  (`path`, `trip`) and, in a body, a relation `x.r` of a variable of its context (`g.edge`) is the judgment
+  `here ⊢ r t̄`, built as the `Judgment` tree with the prefix form's program (P9f's `here` does the rest:
+  the body's program at its parameters, the file's generated `programOf here`). In a body the own name
+  must resolve to the member (or the prelude binder of a member function's clauses), so a local of the
+  same name shadows it; at the top level it must resolve to a file relation. Relations and structs only
+  (the kinds E0960 covers). Elsewhere the atom stays E0960, whose note now says where it is a proposition.
+- *The trigger* (`ProgramPhase.usesOwn`, the open item of P9b/P9f). Syntactic, before elaboration: an own
+  relation (`declaresRelation`: a declared type ending in `rel`, or a struct) or a context variable's
+  relation (`OwnRelations.param`, decided from the context variable's record type, under fresh variables)
+  applied in a syntactic type position, or unapplied as an argument of an application there (the η form).
+  Type positions: declared types, parameter and binder types, arrows, field types, the arguments of any
+  application in a type position (parameter types are not known yet: a superset), a definition's value
+  when its declared type is `Type`. Not quotes, `⇑`, rules, a judgment's atom or inner bodies. A
+  false positive only defers a declaration (an E0962 if a rule then uses it); none existed, since such
+  atoms were E0960. The `here` text gate also accepts `⊢` and `|-`.
+- *Pre-pass for the anonymous database.* `coercionCandidates` also reads the type of a member (a local of
+  the body) at a head, so `placed reached a.alpha` in `coarse`'s body joins `sound`'s database.
+- *The prefix turnstile* `⊢[e] r t̄`: parsed as a `Judgment` whose program is `here` with an empty span
+  (`TreeOps.isPrefixJudgment`; the printer shows `⊢ r t̄`); so it is the ambient program's judgment and a
+  P9f trigger without new code. `⊢` now starts an expression.
+- *Member access without an instance* (`LocaleMembers`). `(f ā).m`, `f` a global whose definition is
+  syntactically `[x̄] { … }` with `|ā|` explicit parameters (read from its term, nothing evaluated), `m` a
+  meta member of the body in `ModuleBody.free`: the member's definition and type wrapped in the body's
+  environment at the arguments, the members it needs let-bound and the others bound by `Tm.Fresh` (object
+  constants that member functions are lifted over without reading them). `free` is computed per body from
+  the local names each member resolves (`Names.resolve` → `noteLocalUse`, collected per member, its
+  clauses and rules, nested bodies included): the greatest set of meta members that resolve no object
+  member and only free meta members. A binder named like an object constant makes a member non-free
+  (conservative: it is then read through an instance, as before). A non-free member with arguments that
+  mention variables is E0107 (`NeedsInstance`), with a note and help; at closed arguments it creates an
+  instance as before.
+- *`%opaque` in bodies.* Its directives are taken out of the body's object items before the members
+  (`opaqueMembers`): a member function's lifted global becomes opaque after its clauses (`opaqueLifted`,
+  read by `opaqueHere`), a member definition is lifted to an opaque global (`definedMember`); a name that
+  is not a meta member of the body is E0701. E0907 no longer applies.
+- *Not done.* Cross-program statements stay at the top level or qualified (A). No ambiguity arises: an own
+  name is resolved as everywhere (a member shadows an opened name), so no negative ambiguity test.
+  Constructors are not coerced unqualified (as in P9b they are owned by `programOf`, but an applied
+  constructor in a type is not E0960 today). A body's own relation inside a nested body is the nested
+  body's E0960.
+- *Tests.* run `p9g_locale` (§1.6 Proof A in `tc2`'s body, `fast.sameFacts`, `(tc2 G).sameFacts`, a closed
+  application without an instance: the run prints no relation of one, `%opaque` in the body, `⊢`),
+  `p9g_proof_b` (§1.6 Proof B in `coarse`, both `placed` variants, `eu.sound`), `p9g_file` (§1.7, `⊢ open`
+  for a nullary relation, `|-`, `⊢[D]`), `p9g_relations` (§4.3.4's `undirected` with `symmetric reach`,
+  `trip` module, `(undirected roads).reachSym`); neg `p9g_locale` (E0962 through `trip`-typed
+  declaration, nullary without prefix E0901, file relation in a body E0960, E0701, E0107), updated
+  `e0960_unowned_relation`, `e0960_applied_relation`, `e0962_program_cycle` (note text); ElabOrderSuite
+  (classification); LSP: hover and goal `tc2 g ⊢ path x y` inside a body, split, `here ⊢ trip …` at the top
+  level.

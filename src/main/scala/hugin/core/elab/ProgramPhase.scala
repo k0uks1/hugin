@@ -259,4 +259,3 @@ object ProgramPhase:
       case _ =>
     walk(item)
     found
-

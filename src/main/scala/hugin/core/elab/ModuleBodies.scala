@@ -502,4 +502,3 @@ trait ModuleBodies:
       (c, x, r) => context(x) && c.scope.get(x).exists(l => c.binder(l).site.isEmpty && relationField(c, l, r)),
       body = true
     )
-

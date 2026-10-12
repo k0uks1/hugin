@@ -1,0 +1,61 @@
+warning[W0003]: unused definition `proof`
+  --> tests/neg/p9g_locale.hgn:18:1
+   |
+18 | proof : hop berlin paris = hop.1. (*~ W0003 *)
+   | ^^^^^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0962]: this item uses `pick`, which states a property of the program of this file
+  --> tests/neg/p9g_locale.hgn:22:16
+   |
+22 | far X :- X = $(pick proof). (*~ E0962 *)
+   |                ^^^^ needed to build the program
+   |
+   = note: `pick` uses `hop berlin paris`
+   = note: the declarations that use the program of their file (`programOf here`, `here ⊢ r t̄`, `⊢ r t̄`, or its relations as propositions, `r t̄`) are elaborated after its rules, queries and directives, so these, and the declarations they need, cannot use them
+   = help: keep the property out of the rules, or state it about a module of its own, with `programOf m`
+
+error[E0901]: mismatched types
+  --> tests/neg/p9g_locale.hgn:26:13
+   |
+26 | flagged F = F. (*~ E0901 *)
+   |             ^ expected `here ⊢ done`, found `⇑done`
+
+warning[W0003]: unused definition `tc3`
+  --> tests/neg/p9g_locale.hgn:29:1
+   |
+29 | tc3 (g : graph) = { (*~ W0003 *)
+   | ^^^ never referenced
+   |
+   = note: `-W unused_definitions` is on by default
+
+error[E0960]: `hop x y` is not a type: it applies a relation to arguments
+  --> tests/neg/p9g_locale.hgn:33:28
+   |
+33 |   inside : {x y : city} -> hop x y -> path x y -> Type. (*~ E0960 *)
+   |                            ^^^^^^^ an applied relation
+   |
+   = note: as a meta type, an applied relation would be `⇑(r t̄)`, the lift of a fact type of an application, which no object term has: the fact type of a relation `r` is `r` alone
+   = note: an applied relation is a proposition of the program that owns it: a relation of an instance, a module or a functor application `(f ā).r`, or one opened from an instance; a variable's relation is read by every program over it; a relation of the file, of a module body or of a functor's parameter is a proposition, written alone, in the declarations of that file or body
+   = help: name the program with the turnstile: `P ⊢ hop x y`
+
+error[E0701]: `path` cannot be made opaque
+  --> tests/neg/p9g_locale.hgn:37:11
+   |
+37 |   %opaque path. (*~ E0701 *)
+   |           ^^^^ an object constant of the body
+   |
+   = note: `%opaque x.` makes a meta definition `x = e.` or a function `x` defined by clauses of this file opaque: it is checked once and never unfolded
+
+error[E0107]: `(tc3 G)` is not a module here: it has no instance
+  --> tests/neg/p9g_locale.hgn:41:11
+   |
+41 | needs G = (tc3 G).relation. (*~ E0107 *)
+   |           ^^^^^^^^^^^^^^^^ the member `relation` needs an instance
+   |
+   = note: a meta member that mentions no object constant of the body is read from a functor applied without an instance; `relation` mentions one of its object constants (`path`), directly or through other members
+   = note: an instance is created where a module is evaluated with closed arguments; `(tc3 G)` has variables as arguments
+   = help: apply the functor to closed arguments in a definition, `i = f …`, and use `i.relation`
+
+5 errors, 2 warnings found

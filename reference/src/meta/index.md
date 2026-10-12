@@ -148,9 +148,11 @@ function or formula function must solve its own unknowns
 A declaration may be about the rules of its own file: `programOf here` is the file's program and `here ⊢
 r t̄` a judgment about it ([`std/quote`](../std/quote.md#programs-as-values),
 [`std/semantics`](../std/semantics.md#the-judgment-notation)). Such a declaration needs all of the file's
-rules, so it is elaborated after them. A declaration is *program-dependent* if it mentions `programOf here`
-or `here ⊢ …` (outside the module bodies it contains, where `here` is the body's program), or the name of
-a program-dependent declaration of the file; the clauses of a function and the rules of a formula
+rules, so it is elaborated after them. A declaration is *program-dependent* if it mentions `programOf here`,
+`here ⊢ …` or the prefix judgment `⊢ …` (outside the module bodies it contains, where `here` is the body's
+program), or writes a relation of the file as a proposition, `trip x y` in its type
+([Relations as propositions](../std/semantics.md#inside-bodies-and-files)), or mentions the name of a
+program-dependent declaration of the file; the clauses of a function and the rules of a formula
 function go with its declaration, and a `%opaque` item or `%export` that names a program-dependent
 declaration goes with it. Whether a declaration is program-dependent is decided from the names it
 mentions, before anything is elaborated, as its place in the dependency order is.
@@ -196,12 +198,12 @@ The item `%opaque x₁ … xₙ.` makes the definitions and functions defined by
 clauses, their coverage and termination. After that it is a constant without a value, like a postulate: a
 definition is never replaced by its value, and an application of a function never reduces, in the rest of
 the program. The value of an opaque definition is not computed at all. The item may stand before or after
-the declarations it names, and it applies to their names at the level of the file, not to the members of
-a module body.
+the declarations it names, and it applies to their names at the level of the file; in a module body it
+names the body's members ([Modules](../modules.md#module-bodies)).
 
 It is an error ([E0701](../errors/E0701.md)) if a name is not a meta definition or a function defined by
-clauses of the file: an object constant, an inductive family, a constructor or a name of another file. It
-is an error ([E0907](../errors/E0907.md)) to write `%opaque` in a module body. A type that needs the
+clauses of the file: an object constant, an inductive family, a constructor or a name of another file. A
+type that needs the
 value of an opaque definition or function does not match ([E0901](../errors/E0901.md)), and the error
 names the opaque constant in a note. Object code that depends on an opaque value is stuck
 ([E0909](../errors/E0909.md)). The termination check follows the calls in the value of an opaque

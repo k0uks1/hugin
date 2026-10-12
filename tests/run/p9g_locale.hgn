@@ -42,7 +42,6 @@ city : type. berlin, paris, rome : city.
 road : city -> city -> rel.
 road berlin paris. road paris rome.
 fast = tc2 { node = city, edge = road }.
-%output fast.path.
 
 (* the instance's lemma, at the instance's program: `fast.sameFacts` replaces `forFast` *)
 forFast : {x y : city} -> iff ((tc { node = city, edge = road }).path x y) (fast.path x y) = fast.sameFacts.
